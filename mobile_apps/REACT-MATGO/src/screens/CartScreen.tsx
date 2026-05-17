@@ -992,161 +992,14 @@ export default function CartScreen({
         return;
       }
 
-      // ===== 1. STRIPE BETALNINGSFLÖDE (NATIVE) =====
+      // ===== 1. BYGG ORDER-PAYLOAD =====
+      // Vi bygger payload:en FÖRE Stripe-flödet eftersom det nya flödet
+      // skapar order i AWAITING_PAYMENT-state innan Stripe öppnas.
+      // Förklaring nedan vid POST.
       const isTestFlow = __DEV__ && (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa");
+      const needsStripe = !isTestFlow && Platform.OS !== "web";
 
-      if (!isTestFlow && Platform.OS !== "web") {
-        // Pre-flight: verify the publishable key is loaded. Without it,
-        // initPaymentSheet fails with a confusing native error in release.
-        if (!STRIPE_PUBLISHABLE_KEY || !STRIPE_PUBLISHABLE_KEY.startsWith("pk_")) {
-          captureError(new Error("[checkout] missing STRIPE_PUBLISHABLE_KEY in release bundle"), {
-            keyPrefix: STRIPE_PUBLISHABLE_KEY ? STRIPE_PUBLISHABLE_KEY.slice(0, 4) : "(empty)",
-          });
-          throw new Error("Betalning är inte konfigurerad i denna build. Kontakta support.");
-        }
-
-        let clientSecret: string;
-        let paymentIntentId: string;
-        try {
-          const intentRes = await api.post(
-            "/api/payments/create-intent",
-            { amount: total },
-            { headers: { "Idempotency-Key": `${idempotencyKey}:intent` } }
-          );
-          clientSecret = intentRes.data?.clientSecret;
-          paymentIntentId = intentRes.data?.paymentIntentId;
-          if (!clientSecret || !paymentIntentId) {
-            throw new Error("Servern returnerade ofullständig betalningsdata.");
-          }
-        } catch (intentErr: any) {
-          captureError(intentErr, { stage: "create-intent", amount: total });
-          throw new Error(
-            intentErr?.response?.data?.error
-            || intentErr?.message
-            || "Kunde inte skapa betalning. Försök igen."
-          );
-        }
-
-        // Build the payment-sheet config. Apple Pay is OPT-IN via env var
-        // because it throws hard if the iOS Apple Pay capability isn't in
-        // the Xcode entitlements. Card / Google Pay always work.
-        const buildSheetConfig = (includeApplePay: boolean) => ({
-          merchantDisplayName: 'FoodGo',
-          paymentIntentClientSecret: clientSecret,
-          ...(includeApplePay ? { applePay: { merchantCountryCode: 'SE' } } : {}),
-          googlePay: { merchantCountryCode: 'SE', testEnv: false },
-          // Universal Link istället för custom URL-scheme. Med foodgo://-
-          // schemat visar iOS en "Öppna i FoodGo?"-prompt vid retur från
-          // Klarna/BankID-flödet, vilket bryter UX:n efter att användaren
-          // redan BankID:at en gång. Universal Link öppnar appen direkt
-          // (kräver Associated Domains-entitlement i Xcode +
-          // matgo-web-pi.vercel.app/.well-known/apple-app-site-association
-          // som serverar appID:t — båda satta). Fallback om Universal Link
-          // inte matchar: web-sidan på /stripe-redirect försöker öppna
-          // foodgo:// så användaren ändå hamnar i appen.
-          returnURL: `${WEB_URL || 'https://matgo-web-pi.vercel.app'}/stripe-redirect`,
-          appearance: {
-            colors: {
-              primary: toStripeHex(palette.gold),
-              background: toStripeHex(palette.bg),
-              componentBackground: toStripeHex(palette.panel),
-              componentBorder: "#E8DFD1",
-              primaryText: toStripeHex(palette.text),
-              secondaryText: toStripeHex(palette.muted),
-              componentText: toStripeHex(palette.text),
-              placeholderText: "#A3998D",
-              icon: toStripeHex(palette.text),
-            },
-            shapes: {
-              borderRadius: 20,
-            }
-          },
-          defaultBillingDetails: {
-            name: formData.customerName,
-            phone: formData.customerPhone,
-            email: profile?.email || undefined,
-            address: { country: 'SE' },
-          },
-          billingDetailsCollectionConfiguration: {
-            address: AddressCollectionMode.NEVER,
-            name: CollectionMode.NEVER,
-            email: CollectionMode.NEVER,
-            phone: CollectionMode.NEVER,
-            attachDefaultsToPaymentMethod: true,
-          }
-        });
-
-        // Pre-flight: ask Stripe SDK if Apple Pay is actually usable on this
-        // device + with our merchantIdentifier entitlement. If it returns
-        // false, log clearly so we know Stripe is going to filter Apple Pay
-        // out of the sheet — that's why the button doesn't appear.
-        // Note: on iOS this resolves to `StripeAPI.deviceSupportsApplePay()`
-        // and ignores any params, so we don't pass `applePay` here (the
-        // current Stripe SDK types only expose `googlePay` on this call).
-        let applePaySupported = false;
-        try {
-          applePaySupported = await isPlatformPaySupported();
-        } catch (probeErr: any) {
-          captureError(probeErr, { stage: "isPlatformPaySupported" });
-        }
-        console.log(`[stripe] isPlatformPaySupported(applePay) → ${applePaySupported}`);
-        if (!applePaySupported) {
-          captureError(new Error("[stripe] Apple Pay not supported on this build/device — sheet will not show the button"), {
-            platform: Platform.OS,
-            note: "Check: (1) Apple Pay capability in Xcode, (2) merchant ID matches entitlement, (3) Apple Pay Payment Processing Cert uploaded to Stripe Dashboard for this merchant ID, (4) device has a card in Wallet, (5) you're on a real device not simulator",
-          });
-        }
-
-        let initInfo = await initPaymentSheet(buildSheetConfig(true) as any);
-        console.log("[stripe] initPaymentSheet result:", initInfo.error ? `ERROR ${initInfo.error.code}: ${initInfo.error.message}` : "OK");
-
-        // Auto-degrade: if Apple Pay entitlement is missing for some reason,
-        // retry without applePay so card payment still works.
-        if (initInfo.error
-            && String(initInfo.error.message || "").toLowerCase().includes("merchantidentifier")) {
-          captureError(new Error("[stripe-init] Apple Pay entitlement missing — retrying without Apple Pay"), {
-            stripeErrorMessage: initInfo.error.message,
-          });
-          initInfo = await initPaymentSheet(buildSheetConfig(false) as any);
-        }
-
-        if (initInfo.error) {
-          captureError(new Error(`[stripe-init] ${initInfo.error.code}: ${initInfo.error.message}`), {
-            stripeErrorCode: initInfo.error.code,
-            stripeErrorMessage: initInfo.error.message,
-          });
-          throw new Error(initInfo.error.message || "Betalningsformuläret kunde inte öppnas.");
-        }
-
-        const presentInfo = await presentPaymentSheet();
-
-        if (presentInfo.error) {
-          if (presentInfo.error.code !== 'Canceled') {
-            captureError(new Error(`[stripe-present] ${presentInfo.error.code}: ${presentInfo.error.message}`), {
-              stripeErrorCode: presentInfo.error.code,
-              stripeErrorMessage: presentInfo.error.message,
-            });
-            throw new Error(presentInfo.error.message || "Betalningen misslyckades.");
-          }
-          setSubmitting(false); // Användaren klickade avbryt
-          return;
-        }
-
-        finalPaymentIntentId = paymentIntentId;
-      } else if (!isTestFlow && Platform.OS === "web") {
-         // Dev-only test channel for the web build — Metro replaces __DEV__
-         // with `false` in release bundles so this branch is dead code in
-         // production. Web release builds must hit Stripe like native does.
-         if (!__DEV__) {
-           Alert.alert("Betalning krävs", "Den här plattformen stöder inte direkt-checkout. Använd appen.");
-           setSubmitting(false);
-           return;
-         }
-         finalPaymentIntentId = "BYPASS_WEB_" + Math.random().toString();
-      }
-
-      // ===== 2. SKAPA ORDER PÅ BACKEND =====
-      const payload = {
+      const basePayload = {
         type: orderType,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
@@ -1159,7 +1012,6 @@ export default function CartScreen({
         note: effectiveTip > 0 ? `(Dricks gett: ${effectiveTip} kr i appen) ${formData.note || ""}`.trim() : formData.note || undefined,
         tip: effectiveTip > 0 ? effectiveTip : undefined,
         minOrderTopUp: minOrderTopUp > 0 ? minOrderTopUp : undefined,
-        stripePaymentIntentId: finalPaymentIntentId,
         discountCode: selectedPersonalDeal?.code || undefined,
         appliedDealId: undefined,
         // Referral / WELCOME deal — backend re-validates eligibility + min
@@ -1207,22 +1059,210 @@ export default function CartScreen({
         }
       }
 
-      const response = await api.post("/api/orders", payload, {
-        headers: {
-          ...(freshToken ? { Authorization: `Bearer ${freshToken}` } : {}),
-          "Idempotency-Key": `${idempotencyKey}:order`,
-        },
-      });
+      const orderHeaders = {
+        ...(freshToken ? { Authorization: `Bearer ${freshToken}` } : {}),
+        "Idempotency-Key": `${idempotencyKey}:order`,
+      };
 
-      const successId = response.data?.orderId || response.data?.id;
+      // ===== 2. STRIPE-FLÖDE: pre-payment-order + webhook-driven slutförd =====
+      //
+      // Nytt flöde (för redirect-baserade metoder som Klarna+BankID):
+      //
+      //   a) POST /api/orders med pendingPayment=true → order i
+      //      AWAITING_PAYMENT-state, returnerar orderId.
+      //   b) POST /api/payments/create-intent med { amount, orderId }
+      //      → backend sätter metadata.orderId på PaymentIntent:n.
+      //   c) Stripe PaymentSheet öppnar, användaren betalar (kort
+      //      direkt, eller Klarna→BankID→Safari-detour).
+      //   d) När Stripe konfirmerar → webhook (payment_intent.succeeded)
+      //      hittar ordern via metadata.orderId och flippar status
+      //      till PAID + broadcastar till restaurang-admin.
+      //   e) Appen navigerar till order-tracking direkt efter att
+      //      PaymentSheet stängts — webhook har redan körts (eller
+      //      kör inom någon sekund) så användaren ser PAID-status.
+      //
+      // Vinst: även om användaren ALDRIG kommer tillbaka till appen
+      // (avslutar Safari mitt i, app crashar, etc.) slutförs ordern
+      // server-side. "Debiterad men ordern kommer inte fram"-buggen
+      // försvinner.
+      let pendingOrderId: string | null = null;
+      let serverEta: number | undefined;
+      let response: any = null;
+
+      if (needsStripe) {
+        // Pre-flight: verify the publishable key is loaded.
+        if (!STRIPE_PUBLISHABLE_KEY || !STRIPE_PUBLISHABLE_KEY.startsWith("pk_")) {
+          captureError(new Error("[checkout] missing STRIPE_PUBLISHABLE_KEY in release bundle"), {
+            keyPrefix: STRIPE_PUBLISHABLE_KEY ? STRIPE_PUBLISHABLE_KEY.slice(0, 4) : "(empty)",
+          });
+          throw new Error("Betalning är inte konfigurerad i denna build. Kontakta support.");
+        }
+
+        // (a) Skapa AWAITING_PAYMENT-order
+        const orderRes = await api.post("/api/orders", {
+          ...basePayload,
+          pendingPayment: true,
+          stripePaymentIntentId: undefined, // sätts av webhook
+        }, { headers: orderHeaders });
+        pendingOrderId = orderRes.data?.orderId || orderRes.data?.id;
+        serverEta = typeof orderRes.data?.estimatedTime === "number" ? orderRes.data.estimatedTime : undefined;
+        if (!pendingOrderId) {
+          throw new Error("Servern returnerade inget order-ID — kan inte fortsätta till betalning.");
+        }
+        response = orderRes;
+
+        // (b) Skapa PaymentIntent med orderId i metadata
+        let clientSecret: string;
+        let paymentIntentId: string;
+        try {
+          const intentRes = await api.post(
+            "/api/payments/create-intent",
+            { amount: total, orderId: pendingOrderId },
+            { headers: { "Idempotency-Key": `${idempotencyKey}:intent` } }
+          );
+          clientSecret = intentRes.data?.clientSecret;
+          paymentIntentId = intentRes.data?.paymentIntentId;
+          if (!clientSecret || !paymentIntentId) {
+            throw new Error("Servern returnerade ofullständig betalningsdata.");
+          }
+        } catch (intentErr: any) {
+          captureError(intentErr, { stage: "create-intent", amount: total, orderId: pendingOrderId });
+          throw new Error(
+            intentErr?.response?.data?.error
+            || intentErr?.message
+            || "Kunde inte skapa betalning. Försök igen."
+          );
+        }
+
+        // (c) Bygg PaymentSheet-konfig
+        const buildSheetConfig = (includeApplePay: boolean) => ({
+          merchantDisplayName: 'FoodGo',
+          paymentIntentClientSecret: clientSecret,
+          ...(includeApplePay ? { applePay: { merchantCountryCode: 'SE' } } : {}),
+          googlePay: { merchantCountryCode: 'SE', testEnv: false },
+          // returnURL → web-sida som länkar direkt till order-tracking i
+          // appen. När Klarna+BankID gör Safari-detour landar användaren
+          // på den sidan med en stor "Tillbaka till FoodGo"-knapp som
+          // tar dem direkt till order-skärmen (inte tillbaka till payment-
+          // sheet-state). Webhook har redan markerat ordern PAID när de
+          // når dit — så de ser slutförd-vy direkt.
+          returnURL: `${WEB_URL || 'https://matgo-web-pi.vercel.app'}/stripe-redirect?orderId=${encodeURIComponent(pendingOrderId!)}`,
+          appearance: {
+            colors: {
+              primary: toStripeHex(palette.gold),
+              background: toStripeHex(palette.bg),
+              componentBackground: toStripeHex(palette.panel),
+              componentBorder: "#E8DFD1",
+              primaryText: toStripeHex(palette.text),
+              secondaryText: toStripeHex(palette.muted),
+              componentText: toStripeHex(palette.text),
+              placeholderText: "#A3998D",
+              icon: toStripeHex(palette.text),
+            },
+            shapes: {
+              borderRadius: 20,
+            }
+          },
+          defaultBillingDetails: {
+            name: formData.customerName,
+            phone: formData.customerPhone,
+            email: profile?.email || undefined,
+            address: { country: 'SE' },
+          },
+          billingDetailsCollectionConfiguration: {
+            address: AddressCollectionMode.NEVER,
+            name: CollectionMode.NEVER,
+            email: CollectionMode.NEVER,
+            phone: CollectionMode.NEVER,
+            attachDefaultsToPaymentMethod: true,
+          }
+        });
+
+        let applePaySupported = false;
+        try {
+          applePaySupported = await isPlatformPaySupported();
+        } catch (probeErr: any) {
+          captureError(probeErr, { stage: "isPlatformPaySupported" });
+        }
+        console.log(`[stripe] isPlatformPaySupported(applePay) → ${applePaySupported}`);
+        if (!applePaySupported) {
+          captureError(new Error("[stripe] Apple Pay not supported on this build/device — sheet will not show the button"), {
+            platform: Platform.OS,
+            note: "Check: (1) Apple Pay capability in Xcode, (2) merchant ID matches entitlement, (3) Apple Pay Payment Processing Cert uploaded to Stripe Dashboard for this merchant ID, (4) device has a card in Wallet, (5) you're on a real device not simulator",
+          });
+        }
+
+        let initInfo = await initPaymentSheet(buildSheetConfig(true) as any);
+        console.log("[stripe] initPaymentSheet result:", initInfo.error ? `ERROR ${initInfo.error.code}: ${initInfo.error.message}` : "OK");
+
+        if (initInfo.error
+            && String(initInfo.error.message || "").toLowerCase().includes("merchantidentifier")) {
+          captureError(new Error("[stripe-init] Apple Pay entitlement missing — retrying without Apple Pay"), {
+            stripeErrorMessage: initInfo.error.message,
+          });
+          initInfo = await initPaymentSheet(buildSheetConfig(false) as any);
+        }
+
+        if (initInfo.error) {
+          captureError(new Error(`[stripe-init] ${initInfo.error.code}: ${initInfo.error.message}`), {
+            stripeErrorCode: initInfo.error.code,
+            stripeErrorMessage: initInfo.error.message,
+          });
+          throw new Error(initInfo.error.message || "Betalningsformuläret kunde inte öppnas.");
+        }
+
+        const presentInfo = await presentPaymentSheet();
+
+        if (presentInfo.error) {
+          if (presentInfo.error.code !== 'Canceled') {
+            captureError(new Error(`[stripe-present] ${presentInfo.error.code}: ${presentInfo.error.message}`), {
+              stripeErrorCode: presentInfo.error.code,
+              stripeErrorMessage: presentInfo.error.message,
+            });
+            throw new Error(presentInfo.error.message || "Betalningen misslyckades.");
+          }
+          // Användaren avbröt — AWAITING_PAYMENT-ordern lämnas kvar och
+          // städas upp av reconcile-pollern (60s) som ser att Stripe-
+          // intent:n är canceled/expired. Vi POSTar inte cancellation
+          // explicit eftersom Klarna kan vara mid-flow när användaren
+          // tappar avbryt och vi vill inte race:a webhook.
+          setSubmitting(false);
+          return;
+        }
+
+        finalPaymentIntentId = paymentIntentId;
+      } else {
+        // ===== TEST/FREE/WEB-FLÖDE =====
+        // Ingen Stripe-resa — direktpostar order med kortvarianter av
+        // intent-ID som backend tolkar som "betalning ej krävs".
+        if (!isTestFlow && Platform.OS === "web") {
+          if (!__DEV__) {
+            Alert.alert("Betalning krävs", "Den här plattformen stöder inte direkt-checkout. Använd appen.");
+            setSubmitting(false);
+            return;
+          }
+          finalPaymentIntentId = "BYPASS_WEB_" + Math.random().toString();
+        }
+
+        const directRes = await api.post("/api/orders", {
+          ...basePayload,
+          stripePaymentIntentId: finalPaymentIntentId,
+        }, { headers: orderHeaders });
+        response = directRes;
+        pendingOrderId = directRes.data?.orderId || directRes.data?.id;
+        serverEta = typeof directRes.data?.estimatedTime === "number" ? directRes.data.estimatedTime : undefined;
+      }
+
+      // ===== 3. NAVIGERA TILL ORDER-TRACKING =====
+      // För Stripe-flödet är ordern AWAITING_PAYMENT just nu; webhook
+      // kommer flippa till PAID inom 1-2s. Order-skärmen pollar status
+      // så användaren ser uppdateringen i realtid.
+      const successId = pendingOrderId;
       if (successId) {
         // Trust the server's ETA when it gives us one — the old "30 if
         // delivery fee else 25" heuristic was wrong for free-delivery
         // restaurants. Falling back to 30 / 25 only if the API is silent.
-        const serverEta: number | undefined =
-          typeof response.data?.estimatedTime === "number"
-            ? response.data.estimatedTime
-            : undefined;
+        // `serverEta` är redan satt ovan (av Stripe- eller direkt-flödet).
         const etaMinutes = serverEta ?? (orderType === "PICKUP" ? 25 : 30);
         // Seed the Dynamic Island countdown immediately so the timer doesn't
         // sit blank for the first few seconds while we wait for the first
@@ -1255,7 +1295,7 @@ export default function CartScreen({
         clearCart();
         openOrder(successId);
       } else {
-        Alert.alert("Serverfel", "Inget order-ID returnerades: " + JSON.stringify(response.data));
+        Alert.alert("Serverfel", "Inget order-ID returnerades: " + JSON.stringify(response?.data ?? null));
       }
     } catch (error: any) {
       // If Stripe already charged the card but order creation failed, attempt a refund immediately.

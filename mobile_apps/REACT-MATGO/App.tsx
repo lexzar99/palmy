@@ -913,6 +913,39 @@ function AppContent() {
         return;
       }
 
+      // ── Order tracking deep link ─────────────────────────────────────────
+      // Form: `foodgo://order/<orderId>` — används som Stripe PaymentSheet
+      // returnURL-landing (se apps/web/app/stripe-redirect/route.ts). När
+      // Klarna+BankID-flödet gör Safari-detour landar användaren på vår
+      // /stripe-redirect-sida som länkar till `foodgo://order/<id>`.
+      //
+      // Ordern finns redan på servern (skapades i AWAITING_PAYMENT-state
+      // INNAN Stripe öppnades — pre-payment-flödet). Webhook har hunnit
+      // flippa status → PAID. Användaren ser slutförd-vy direkt utan att
+      // appen behöver fullfölja något Stripe-state.
+      if (url.startsWith("foodgo://order/")) {
+        const rawId = url.slice("foodgo://order/".length).split("?")[0].split("#")[0];
+        const orderId = decodeURIComponent(rawId || "").trim();
+        // Validera order-ID-format (cuid-liknande, 8-40 alfanumeriska tecken).
+        // Förhindrar att vi navigerar till skräp om någon manipulerar URL:n.
+        if (orderId && /^[a-zA-Z0-9_-]{8,40}$/.test(orderId)) {
+          replaceRoute({ name: "order", id: orderId } as any);
+        } else {
+          openRoot("home");
+        }
+        return;
+      }
+
+      // ── Stripe redirect (legacy, ingen orderId) ──────────────────────────
+      // Tidigare flöde där PaymentSheet sluttsteget körde i appen efter att
+      // användaren kom tillbaka från Klarna/BankID. Nytt flöde går via
+      // foodgo://order/<id> direkt (se ovan). Här släpper vi bara igenom
+      // URL:n så Stripe SDK kan slutföra eventuella öppna sessioner — ingen
+      // explicit handling behövs.
+      if (url.startsWith("foodgo://stripe-redirect")) {
+        return;
+      }
+
       // ── Verify-email deep link ───────────────────────────────────────────
       // Mejlets mobil-länk är `foodgo://verify-email?token=<hex>`. Sedan
       // email-verification-gaten infördes är det HÄR den första inloggningen
@@ -1085,7 +1118,7 @@ function AppContent() {
       authListener.unsubscribe();
       linkSub.remove();
     };
-  }, [openRoot, pushRoute, setOnboardingComplete, setProfile, setToken]);
+  }, [openRoot, pushRoute, replaceRoute, setOnboardingComplete, setProfile, setToken]);
 
   if (!hydrated || !splashFinished) {
     return <SplashLoader />;

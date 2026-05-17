@@ -13,17 +13,31 @@
 //      blockar det avsiktligt). Så Safari laddar bara vår sida.
 //
 // För att komma tillbaka till appen från Safari måste vi:
-//   A. meta http-equiv="refresh" till foodgo://-schemat — iOS hanterar
+//   A. meta http-equiv="refresh" till foodgo://order/<id> — iOS hanterar
 //      det som en HTTP-redirect och öppnar appen (funkar oftare än JS
 //      window.location, även om Apple ibland blockerar även detta).
 //   B. JS window.location.replace som backup.
-//   C. En STOR knapp med href="foodgo://..." — användar-initierat tap
-//      triggar ALLTID schemat. Detta är den enda säkra fallbacken.
+//   C. En STOR knapp med href="foodgo://order/<id>" — användar-initierat
+//      tap triggar ALLTID schemat. Detta är den enda säkra fallbacken.
 //
-// Vi använder Route Handler istället för Page-komponent för att kunna
-// kontrollera <head> exakt — Next.js Metadata API stödjer inte
-// http-equiv="refresh", och att lägga meta-tag i body fungerar inte
-// pålitligt över olika iOS-versioner.
+// KRITISKT: vi länkar till foodgo://order/<orderId>, INTE till
+// foodgo://stripe-redirect. Skillnaden:
+//
+//   - foodgo://stripe-redirect försökte tidigare slutföra payment-sheet-
+//     flödet i appen och POSTa ordern. Det krävde att appens state överlevde
+//     Safari-detouren — vilket den ofta inte gör (background app kills,
+//     session-loss, etc.). Resultat: "debiterad men ordern kommer inte fram".
+//
+//   - foodgo://order/<orderId> tar användaren direkt till order-tracking-
+//     skärmen för en order som REDAN finns på servern (skapad i AWAITING_
+//     PAYMENT-state innan Klarna ens öppnades). Stripe-webhook har redan
+//     markerat den PAID — användaren ser en klar order direkt. Inget
+//     beroende av att klient-state överlever Safari-detouren.
+//
+// orderId skickas som query-param från CartScreen när PaymentSheet
+// initieras: returnURL=...?orderId=<id>. Om param saknas (gamla
+// app-versioner, manuella tester) faller vi tillbaka till hem-skärmen
+// så användaren åtminstone kommer tillbaka till appen.
 
 import { NextRequest, NextResponse } from "next/server";
 
@@ -36,12 +50,24 @@ function escapeHtml(input: string): string {
     .replace(/'/g, "&#039;");
 }
 
+// Endast cuid-liknande IDs accepteras (Prisma's default-format). Förhindrar
+// att vi konstruerar konstiga deep-link-URL:er om någon kör URL-leksaker.
+function sanitizeOrderId(raw: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!/^[a-zA-Z0-9_-]{8,40}$/.test(trimmed)) return null;
+  return trimmed;
+}
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  // Behåll alla search-params (Stripe lägger payment_intent osv.). Hash
-  // är aldrig synlig server-side, men Klarna använder bara search-params
-  // — det är säkert.
-  const target = `foodgo://stripe-redirect${url.search}`;
+  const orderId = sanitizeOrderId(url.searchParams.get("orderId"));
+
+  // Bygg deep link-URL till appen. Om orderId saknas (oklar källa) öppnar
+  // vi appen på hem-skärmen så användaren åtminstone hamnar tillbaka.
+  const target = orderId
+    ? `foodgo://order/${orderId}`
+    : `foodgo://stripe-redirect${url.search}`;
   const targetSafe = escapeHtml(target);
 
   const html = `<!DOCTYPE html>
@@ -51,7 +77,7 @@ export async function GET(request: NextRequest) {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0a0908">
   <meta name="robots" content="noindex, nofollow">
-  <title>Återgå till FoodGo</title>
+  <title>Tillbaka till FoodGo</title>
 
   <!-- iOS försöker öppna foodgo:// direkt. Detta är det mest pålitliga
        sättet att triggera ett custom URL-scheme från Safari utan
@@ -80,12 +106,12 @@ export async function GET(request: NextRequest) {
     .icon {
       width: 84px; height: 84px;
       border-radius: 28px;
-      background: rgba(231, 178, 75, 0.10);
-      border: 1px solid rgba(231, 178, 75, 0.25);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.30);
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 16px 48px -16px rgba(231, 178, 75, 0.4);
+      box-shadow: 0 16px 48px -16px rgba(16, 185, 129, 0.5);
     }
-    .icon svg { color: #e7b24b; }
+    .icon svg { color: #34d399; }
     h1 {
       font-size: 26px;
       font-weight: 900;
@@ -121,34 +147,33 @@ export async function GET(request: NextRequest) {
       border-radius: 22px;
       box-shadow: 0 16px 32px -8px rgba(231, 178, 75, 0.45);
       transition: transform 0.15s ease;
-      min-width: 240px;
+      min-width: 260px;
     }
     .cta:active { transform: scale(0.97); }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner {
-      animation: spin 1s linear infinite;
+    .check {
+      width: 36px; height: 36px;
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="icon">
-      <svg class="spinner" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+      <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="20 6 9 17 4 12"></polyline>
       </svg>
     </div>
 
     <div>
-      <h1>Betalning <span class="accent">slutförd</span></h1>
-      <p class="label" style="margin-top: 12px;">Återvänder till appen</p>
+      <h1>Betalning <span class="accent">godkänd</span></h1>
+      <p class="label" style="margin-top: 12px;">Din order är registrerad</p>
     </div>
 
     <p class="help">
-      Din betalning är registrerad. Tryck på knappen nedan om appen
-      inte öppnas automatiskt — ordern slutförs direkt när du är tillbaka.
+      Tryck på knappen nedan för att följa din beställning i FoodGo-appen.
+      ${orderId ? "Restaurangen har redan fått ordern." : ""}
     </p>
 
-    <a class="cta" href="${targetSafe}">Öppna FoodGo</a>
+    <a class="cta" href="${targetSafe}">Följ min order</a>
   </div>
 
   <script>
@@ -158,11 +183,6 @@ export async function GET(request: NextRequest) {
     (function () {
       try {
         var target = ${JSON.stringify(target)};
-        // Lägg på fragment om Klarna råkar skicka något i hash (osannolikt,
-        // men gratis robusthet).
-        if (window.location.hash) {
-          target += window.location.hash;
-        }
         // Litet timeout så meta-refresh hinner försöka först.
         setTimeout(function () {
           window.location.replace(target);
