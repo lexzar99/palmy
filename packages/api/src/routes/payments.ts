@@ -79,11 +79,13 @@ router.post('/create-intent', async (req, res) => {
     // Berika PaymentIntent med order-data när orderId finns.
     // Stripe Dashboard visar `description` i Payment-listan + skickar
     // automatiska kvitton till `receipt_email`. Metadata används för
-    // matching/sökning/audit. Detta gör att refund-arbete i Stripe blir
-    // 10x lättare — du ser direkt vilken kund/order/restaurang en intent
-    // hör till istället för bara `pi_xxx`.
+    // matching/sökning/audit. `customer` (Stripe Customer-object) gör att
+    // Customer-kolumnen i Dashboard fylls med email/namn — krävs eftersom
+    // receipt_email ensamt INTE alltid renderas där. Refund-arbete blir
+    // 10x lättare när varje pi_ visar order/kund/restaurang direkt.
     let description: string | undefined;
     let receiptEmail: string | undefined;
+    let stripeCustomerId: string | undefined;
     if (orderId && typeof orderId === 'string') {
       try {
         const order = await prisma.order.findUnique({
@@ -102,6 +104,39 @@ router.post('/create-intent', async (req, res) => {
 
           if (order.customerEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(order.customerEmail)) {
             receiptEmail = order.customerEmail;
+
+            // Hitta eller skapa Stripe Customer-object. Customer-kolumnen
+            // i Dashboard läser från Customer-resursen, inte receipt_email
+            // direkt — utan kopplad Customer visas kolumnen tom även med
+            // receipt_email satt. Vi search:ar inte (rate-limit-känsligt) —
+            // .list() med email-filter är snabbare och deterministisk.
+            try {
+              const existing = await stripe.customers.list({
+                email: order.customerEmail,
+                limit: 1,
+              });
+              if (existing.data.length > 0) {
+                stripeCustomerId = existing.data[0].id;
+              } else {
+                const newCustomer = await stripe.customers.create({
+                  email: order.customerEmail,
+                  name: order.customerName || undefined,
+                  phone: order.customerPhone || undefined,
+                  metadata: {
+                    foodgoUserId: order.userId || '',
+                  },
+                });
+                stripeCustomerId = newCustomer.id;
+              }
+            } catch (customerErr: any) {
+              // Customer-skapande är best-effort. Om det failar (rate-limit,
+              // nätverksfel) fortsätter vi utan customer — receipt_email
+              // är fortfarande satt så kvittot går iväg.
+              console.warn('[payments] stripe customer lookup/create failed:', {
+                orderId,
+                error: customerErr?.message,
+              });
+            }
           }
 
           // Metadata för audit + Stripe-search. Stripe har 50-key/500-char-limit.
@@ -129,6 +164,7 @@ router.post('/create-intent', async (req, res) => {
         metadata: normalizedMetadata,
         ...(description ? { description } : {}),
         ...(receiptEmail ? { receipt_email: receiptEmail } : {}),
+        ...(stripeCustomerId ? { customer: stripeCustomerId } : {}),
         // automatic_payment_methods: enabled = Stripe väljer alla godkända
         // metoder automatiskt (kort, Apple Pay, Google Pay, Klarna, Swish).
         // allow_redirects: 'always' = tillåter Klarna/Swish (de behöver redirect).
