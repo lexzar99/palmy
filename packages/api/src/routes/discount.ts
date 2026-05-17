@@ -72,6 +72,10 @@ router.post('/validate', async (req, res) => {
       value: discount.value,
       // Client expects kr
       discountAmount: discountAmountOre / 100,
+      // Stackbar fri leverans-flagga. Klienten använder den för att räkna
+      // ut total = subtotal - discountAmount - (freeDelivery ? deliveryFee : 0).
+      // Utan denna såg kunden bara halva rabatten i kassan (Eriks bugg).
+      freeDelivery: Boolean((discount as any).freeDelivery),
     });
   } catch {
     res.status(500).json({ error: 'Serverfel' });

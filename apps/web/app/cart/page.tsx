@@ -521,12 +521,33 @@ export default function CartPage() {
     if (!selectedPersonalDeal) return 0;
     const { campaign } = selectedPersonalDeal;
     if (subtotal < (campaign.minOrder || 0)) return 0;
-    
+
+    // Bas-rabatt: procent eller fast belopp.
+    let amount = 0;
     if (campaign.discountType === "PERCENTAGE") {
-      return (subtotal * campaign.discountValue) / 100;
+      amount = (subtotal * campaign.discountValue) / 100;
+    } else if (campaign.discountType === "FREE_DELIVERY") {
+      // Standalone fri-leverans-kupong: rabatten = deliveryFee.
+      amount = deliveryFee;
+    } else {
+      amount = Math.min(campaign.discountValue, subtotal);
     }
-    return campaign.discountValue;
-  }, [selectedPersonalDeal, subtotal]);
+
+    // Stackbar fri leverans-flagga (Eriks bugg-fix): backend lagrar
+    // freeDelivery=true på PERCENTAGE/FIXED-kuponger som ska kombinera
+    // med fri leverans. Plussa på deliveryFee så cart-totalen visar
+    // samma slutsumma som backend räknar fram. Redundant för
+    // FREE_DELIVERY-typen (där flaggan ignoreras backend-side).
+    if (
+      campaign.freeDelivery &&
+      campaign.discountType !== "FREE_DELIVERY" &&
+      deliveryFee > 0
+    ) {
+      amount += deliveryFee;
+    }
+
+    return amount;
+  }, [selectedPersonalDeal, subtotal, deliveryFee]);
 
   const bogoDiscount = bogoPreview?.discountKr ?? 0;
   // Antal gratis-varor kunden redan valt för den aktiva BOGO-dealen.
@@ -701,14 +722,23 @@ export default function CartPage() {
       });
       if (res.ok) {
         const data = await res.json();
+        // discountType reflekterar backend-type:n exakt. freeDelivery är
+        // en SEPARAT flagga som stackar på PERCENTAGE/FIXED. Tidigare
+        // klassificerade vi felaktigt en FIXED+freeDelivery-kupong som
+        // FREE_DELIVERY-typ → kunden såg bara fri leverans-rabatten,
+        // inte den fasta rabatten på subtotal.
         setSelectedPersonalDeal({
           code: data.code,
           campaign: {
-            discountType: data.type === "PERCENTAGE" ? "PERCENTAGE" : data.freeDelivery ? "FREE_DELIVERY" : "FIXED",
-            discountValue: data.type === "PERCENTAGE" ? data.value : data.freeDelivery ? 0 : data.value,
+            discountType: data.type === "PERCENTAGE"
+              ? "PERCENTAGE"
+              : data.type === "FREE_DELIVERY"
+                ? "FREE_DELIVERY"
+                : "FIXED",
+            discountValue: data.value,
             title: data.description || data.code,
             minOrder: 0,
-            freeDelivery: data.freeDelivery || false,
+            freeDelivery: Boolean(data.freeDelivery),
           }
         });
         setSelectedAccountDealId(null);

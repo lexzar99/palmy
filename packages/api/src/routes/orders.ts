@@ -88,6 +88,10 @@ const OrderItemSchema = z.object({
     extraName: z.string(),
     priceAddon: z.number(),
   })),
+  // Klienten flaggar items som "BOGO-gratis" så backend kan verifiera
+  // att kunden inte smugglar fler gratis-varor än vad dealen tillåter.
+  // Vi validerar count mot evaluateBogoCategoryDeal:s maxFreeItems.
+  bogoFreeFromDealId: z.string().nullable().optional(),
 });
 
 const CreateOrderSchema = z.object({
@@ -652,6 +656,11 @@ router.post('/', async (req: Request, res: Response) => {
       };
     });
 
+    // Cap på antal gratis-varor från BOGO-deal som klienten valt. Spara
+    // per dealId så vi efter loop:en kan validera att kunden inte smugglar
+    // fler items än tillåtet (DevTools-abuse-skydd från Marias audit).
+    let appliedBogoMaxFreeItems = 0;
+
     for (const deal of activeDeals) {
       if (!isDealAvailableNow(deal, now)) continue;
 
@@ -673,6 +682,22 @@ router.post('/', async (req: Request, res: Response) => {
       if (evaluation.discountAmountOre > automaticDiscountAmount) {
         automaticDiscountAmount = evaluation.discountAmountOre;
         appliedDeal = deal;
+        // maxFreeItems exponeras bara av BOGO_CATEGORY-evalueringen.
+        appliedBogoMaxFreeItems = (evaluation as any).maxFreeItems ?? 0;
+      }
+    }
+
+    // Säkerhetsvalidering: räkna antal items klienten flaggat som
+    // bogoFreeFromDealId === appliedDeal.id. Om count > maxFreeItems
+    // har kunden manipulerat carten (t.ex. via DevTools). Rejekta.
+    if (appliedDeal && appliedDeal.triggerType === 'BOGO_CATEGORY') {
+      const claimedFreeCount = data.items
+        .filter((it) => it.bogoFreeFromDealId === appliedDeal!.id)
+        .reduce((sum, it) => sum + it.quantity, 0);
+      if (claimedFreeCount > appliedBogoMaxFreeItems) {
+        throw new OrderValidationError(
+          `Du har valt ${claimedFreeCount} gratis-varor men endast ${appliedBogoMaxFreeItems} är tillåtna för denna deal. Ta bort några och försök igen.`,
+        );
       }
     }
 
