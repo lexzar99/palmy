@@ -583,7 +583,12 @@ export default function CartPage() {
   // räcker det inte att startCheckout släpper igenom — knappen är ändå
   // disable:d när restaurang stängd / under min-order / utan zone.
   const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
-  const total = isTestFlow ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount);
+  // Avrunda UPP till hela kronor. JS-float-precision på rabatt-procent gör
+  // att t.ex. "20% av 199 kr" blir 39.79999... → utan ceil hamnar totalen
+  // som "154.28999999999996 kr" på Stripe-knappen. Ceil betyder kunden
+  // betalar maximalt 1 kr mer än exakt — vi förlorar inte pengar, och
+  // siffror blir rena. Backend matchar via samma Math.ceil i orders.ts.
+  const total = isTestFlow ? 0 : Math.ceil(Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount));
 
   const fetchContext = useCallback(async () => {
     try {

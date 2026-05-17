@@ -796,7 +796,14 @@ router.post('/', async (req: Request, res: Response) => {
       ? Math.max(0, Math.round(Number(data.tip) * 100))
       : 0;
 
-    const total = subtotal - discountAmount + deliveryFee + tipOre;
+    // Räkna ut total och avrunda UPP till hela kronor (öre-multipel av 100).
+    // Frontend gör samma Math.ceil i cart/page.tsx så cart-display ↔ Stripe ↔
+    // order.total alla matchar. Utan denna ceil hamnade vi på t.ex.
+    // "154.28999999999996 kr" på Stripe-knappen (JS-float-precision på
+    // rabatt-procent). Ceil betyder kunden betalar max 99 öre mer än
+    // exakt-beloppet — försumbart, men håller siffrorna rena.
+    const rawTotal = subtotal - discountAmount + deliveryFee + tipOre;
+    const total = Math.max(0, Math.ceil(rawTotal / 100) * 100);
 
     // Verifiera Stripe-beloppet matchar det vi räknat fram. Tidigare auto-justerade
     // koden order-total NEDÅT om Stripe visade lägre belopp — det betydde att en
