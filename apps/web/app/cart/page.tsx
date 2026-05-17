@@ -940,24 +940,56 @@ export default function CartPage() {
     return () => clearTimeout(t);
   }, [bogoLostNotice]);
 
-  // Stripe redirect recovery: if user returns from Swish/Klarna redirect
+  // Stripe redirect recovery: när kunden återvänder från Klarna BankID /
+  // Swish / 3DS. Stripe lägger på `payment_intent`, `payment_intent_client_secret`
+  // och `redirect_status` på return_url:en. Vi sätter dessutom själva
+  // `payment_success=true` (se StripeCheckout.tsx) som en extra fallback-flagga
+  // om någon proxy strippar Stripe-paramen.
+  //
+  // Tidigare hanterade vi bara redirect_status `succeeded`/`failed`. Klarna
+  // returnerar dock ofta `processing` (webhook bekräftar asynkront) och
+  // `requires_payment_method` när kunden avbryter — båda hamnade i ett dött
+  // läge där kunden blev kvar på kassan utan feedback. Vi fixar det nu genom
+  // att routa till order-tracking även för `processing` (orderns pendingPayment
+  // är då fortfarande true men /order/{id} pollar och flippar när webhook
+  // hinner fram) och visa retry-error för failed/requires_payment_method.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const redirectStatus = params.get("redirect_status");
+    const paymentIntent = params.get("payment_intent");
+    const paymentSuccess = params.get("payment_success");
     const storedOrderId = localStorage.getItem("pending_order_id");
 
-    if (redirectStatus && storedOrderId) {
-      if (redirectStatus === "succeeded") {
-        clearCart();
-        localStorage.removeItem("pending_order_id");
-        router.replace(`/order/${storedOrderId}`);
-      } else if (redirectStatus === "failed") {
-        localStorage.removeItem("pending_order_id");
-        setError("Betalningen misslyckades. Kontrollera din betalningsinformation och försök igen.");
-        window.history.replaceState({}, "", window.location.pathname);
-      }
+    // Triggar om något av Stripe:s signaler finns — eller vår egen flag
+    // (payment_success=true) om Stripe-paramen saknas av någon anledning.
+    const cameFromStripeRedirect = !!(redirectStatus || paymentIntent || paymentSuccess === "true");
+    if (!cameFromStripeRedirect || !storedOrderId) return;
+
+    const routeToOrder = () => {
+      clearCart();
+      localStorage.removeItem("pending_order_id");
+      router.replace(`/order/${storedOrderId}`);
+    };
+
+    if (redirectStatus === "failed" || redirectStatus === "requires_payment_method") {
+      // Kunden avbröt / banken nekade — låt dem retrya på kassan. Behåll
+      // pending_order_id så att om de gör en ny PaymentIntent mot SAMMA
+      // order så återanvänds den (backend matchar via orderId).
+      setError(
+        redirectStatus === "requires_payment_method"
+          ? "Betalningen avbröts. Försök igen eller välj en annan betalningsmetod."
+          : "Betalningen misslyckades. Kontrollera din betalningsinformation och försök igen.",
+      );
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
     }
+
+    // succeeded / processing / requires_action / inget redirectStatus
+    // (men payment_success=true) → routa till order-tracking. /order/{id}
+    // pollar backend så kunden får rätt status även om webhook ej hunnit
+    // bekräfta än.
+    routeToOrder();
   }, []);
 
   const buildOrderPayload = (paymentIntentId?: string) => {
@@ -1451,12 +1483,12 @@ export default function CartPage() {
                        {scheduledFor && (
                           <div className="rounded-2xl p-5 mb-8 border flex items-center justify-between cursor-pointer hover:border-gold-500/30 transition-all" style={{ backgroundColor: "rgba(231,178,75,0.05)", borderColor: "rgba(231,178,75,0.2)" }} onClick={() => setShowSchedulePicker(true)}>
                              <div className="flex items-center gap-3">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-500"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-500"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                                 <div>
-                                   <div className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
-                                      {scheduledFor.toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" })}
+                                   <div className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                                      Idag · {scheduledFor.toLocaleDateString("sv-SE", { day: "numeric", month: "short" })}
                                    </div>
-                                   <div className="text-lg font-black text-gold-500">
+                                   <div className="text-2xl font-black text-gold-500 italic">
                                       {scheduledFor.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
                                    </div>
                                 </div>
@@ -1469,33 +1501,67 @@ export default function CartPage() {
                           </div>
                        )}
 
-                       {/* Schedule Picker Modal */}
+                       {/* Schedule Picker Modal — endast IDAG. Kunder är på sidan
+                           för att beställa snabbt, inte planera en vecka i förväg.
+                           Datum-picker borttagen → kunden ser direkt vad som är
+                           valbart. Timmar/minuter som är < nu+45min eller efter
+                           midnatt är disabled (gråade ut) snarare än helt dolda
+                           så kunden förstår *varför* en tid inte går att välja. */}
                        <AnimatePresence>
                           {showSchedulePicker && (() => {
                              const now = new Date();
                              const minDate = new Date(now.getTime() + 45 * 60 * 1000);
-                             const maxDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-                             const days: Date[] = [];
-                             for (let d = new Date(now.getFullYear(), now.getMonth(), now.getDate()); d <= maxDate; d.setDate(d.getDate() + 1)) {
-                                if (d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) days.push(new Date(d));
-                             }
+                             // Cutoff: 23:55 idag (sista 5-min-slot innan midnatt).
+                             // Vi tillåter inte schemaläggning över midnatt — kunden
+                             // får då välja "Snarast" eller komma tillbaka imorgon.
+                             const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 55);
+
+                             const todayVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+                             // Filtrera quickTimes så vi inte erbjuder offsets
+                             // som rinner över midnatt (t.ex. "3 timmar" kl 22).
                              const quickTimes = [
                                 { label: "45 min", offset: 45 },
                                 { label: "1 timme", offset: 60 },
                                 { label: "1.5 timmar", offset: 90 },
                                 { label: "2 timmar", offset: 120 },
                                 { label: "3 timmar", offset: 180 },
-                             ];
+                             ].filter((qt) => new Date(now.getTime() + qt.offset * 60 * 1000) <= endOfToday);
 
                              const handleConfirm = () => {
-                                const [y, m, day] = selDate.split('-').map(Number);
+                                // selDate kan endast vara idag i denna picker, men
+                                // vi parsar ändå defensivt så framtida ändringar
+                                // inte bryter.
+                                const [y, m, day] = (selDate || todayVal).split('-').map(Number);
                                 const combined = new Date(y, m - 1, day, parseInt(selHour), parseInt(selMin));
                                 if (combined < minDate) {
                                    setError("Tiden måste vara minst 45 minuter fram i tiden.");
                                    return;
                                 }
+                                if (combined > endOfToday) {
+                                   setError("Du kan bara beställa för idag. Välj en tidigare tid eller välj 'Snarast'.");
+                                   return;
+                                }
                                 setScheduledFor(combined);
                                 setShowSchedulePicker(false);
+                             };
+
+                             // Helpers för att avgöra om en given timme/minut är
+                             // (a) inom valid-fönstret minDate → endOfToday, och
+                             // (b) tillsammans med vald motpart bildar en valid tid.
+                             const isHourValid = (hh: string) => {
+                                const h = parseInt(hh);
+                                // Tillgänglig om det finns *någon* minute-slot i denna timme
+                                // som är >= minDate och <= endOfToday.
+                                for (let mm = 0; mm < 60; mm += 5) {
+                                   const t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, mm);
+                                   if (t >= minDate && t <= endOfToday) return true;
+                                }
+                                return false;
+                             };
+                             const isMinValid = (mm: string) => {
+                                const t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(selHour), parseInt(mm));
+                                return t >= minDate && t <= endOfToday;
                              };
 
                              const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
@@ -1521,66 +1587,96 @@ export default function CartPage() {
                                       onClick={(e) => e.stopPropagation()}
                                    >
                                       <div className="w-10 h-1 rounded-full mx-auto mb-6 sm:hidden" style={{ backgroundColor: "var(--border-muted)" }} />
-                                      <h3 className="text-lg font-black uppercase tracking-wider text-center mb-6" style={{ color: "var(--text-primary)" }}>
-                                         Välj leveranstid
+                                      <h3 className="text-lg font-black uppercase tracking-wider text-center mb-2" style={{ color: "var(--text-primary)" }}>
+                                         Välj tid idag
                                       </h3>
+                                      <p className="text-[10px] font-bold uppercase tracking-widest text-center mb-6" style={{ color: "var(--text-secondary)" }}>
+                                         Endast samma dag · minst 45 min framåt
+                                      </p>
 
-                                      {/* Quick times */}
-                                      <div className="flex flex-wrap gap-2 mb-6 justify-center">
-                                         {quickTimes.map((qt) => {
-                                            const t = new Date(now.getTime() + qt.offset * 60 * 1000);
-                                            const isActive = selDate === `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}` &&
-                                               selHour === String(t.getHours()).padStart(2, '0') &&
-                                               selMin === String(t.getMinutes()).padStart(2, '0');
-                                            return (
-                                               <button key={qt.label} type="button" onClick={() => {
-                                                  setSelDate(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`);
-                                                  setSelHour(String(t.getHours()).padStart(2, '0'));
-                                                  setSelMin(String(t.getMinutes()).padStart(2, '0'));
-                                               }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${isActive ? 'bg-gold-500 text-zinc-950' : 'bg-[var(--bg-deep)] text-zinc-400 hover:text-gold-500 border border-[var(--border-muted)]'}`}>
-                                                  {qt.label}
-                                               </button>
-                                            );
-                                         })}
-                                      </div>
+                                      {/* Quick times — bara de som ryms idag */}
+                                      {quickTimes.length > 0 && (
+                                         <div className="flex flex-wrap gap-2 mb-6 justify-center">
+                                            {quickTimes.map((qt) => {
+                                               const t = new Date(now.getTime() + qt.offset * 60 * 1000);
+                                               const isActive =
+                                                  selHour === String(t.getHours()).padStart(2, '0') &&
+                                                  selMin === String(t.getMinutes()).padStart(2, '0');
+                                               return (
+                                                  <button key={qt.label} type="button" onClick={() => {
+                                                     setSelDate(todayVal);
+                                                     setSelHour(String(t.getHours()).padStart(2, '0'));
+                                                     setSelMin(String(t.getMinutes()).padStart(2, '0'));
+                                                  }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${isActive ? 'bg-gold-500 text-zinc-950' : 'bg-[var(--bg-deep)] text-zinc-400 hover:text-gold-500 border border-[var(--border-muted)]'}`}>
+                                                     {qt.label}
+                                                  </button>
+                                               );
+                                            })}
+                                         </div>
+                                      )}
 
-                                       {/* Date picker */}
-                                       <div className="mb-4">
-                                          <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Datum</label>
-                                          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                                             {days.filter(d => d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())).map((d) => {
-                                                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                                                const isActive = selDate === val;
-                                                return (
-                                                   <button key={val} type="button" onClick={() => setSelDate(val)} className={`shrink-0 px-4 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${isActive ? 'bg-gold-500 text-zinc-950' : 'bg-[var(--bg-deep)] text-zinc-400 border border-[var(--border-muted)]'}`}>
-                                                      {d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" })}
-                                                   </button>
-                                                );
-                                             })}
+                                       {/* Idag-badge ersätter datum-pickern */}
+                                       <div className="mb-6 flex justify-center">
+                                          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gold-500/10 border border-gold-500/20">
+                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-500"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                             <span className="text-[11px] font-black uppercase tracking-widest text-gold-500">
+                                                Idag {now.toLocaleDateString("sv-SE", { day: "numeric", month: "short" })}
+                                             </span>
                                           </div>
                                        </div>
 
-                                       {/* Time picker */}
+                                       {/* Time picker — hours/minutes utanför valid-fönster
+                                           är disabled (gråade ut) istället för dolda. */}
                                        <div className="flex gap-3 mb-6">
                                           <div className="flex-1">
                                              <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Timme</label>
                                              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                                                {hours.map(h => (
-                                                   <button key={h} type="button" onClick={() => setSelHour(h)} className={`shrink-0 w-12 py-3 rounded-xl text-xs font-bold transition-all text-center ${selHour === h ? 'bg-gold-500 text-zinc-950' : 'bg-[var(--bg-deep)] text-zinc-400 border border-[var(--border-muted)]'}`}>
-                                                      {h}
-                                                   </button>
-                                                ))}
+                                                {hours.map(h => {
+                                                   const valid = isHourValid(h);
+                                                   return (
+                                                      <button
+                                                         key={h}
+                                                         type="button"
+                                                         disabled={!valid}
+                                                         onClick={() => setSelHour(h)}
+                                                         className={`shrink-0 w-12 py-3 rounded-xl text-xs font-bold transition-all text-center ${
+                                                            selHour === h
+                                                               ? 'bg-gold-500 text-zinc-950'
+                                                               : valid
+                                                                  ? 'bg-[var(--bg-deep)] text-zinc-400 border border-[var(--border-muted)]'
+                                                                  : 'bg-[var(--bg-deep)]/40 text-zinc-700 border border-[var(--border-muted)]/40 cursor-not-allowed opacity-40'
+                                                         }`}
+                                                      >
+                                                         {h}
+                                                      </button>
+                                                   );
+                                                })}
                                              </div>
                                           </div>
                                           <div className="flex items-end pb-3 text-2xl font-black" style={{ color: "var(--text-secondary)" }}>:</div>
                                           <div className="flex-1">
                                              <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Minut</label>
                                              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                                                {minutes.map(m => (
-                                                   <button key={m} type="button" onClick={() => setSelMin(m)} className={`shrink-0 w-12 py-3 rounded-xl text-xs font-bold transition-all text-center ${selMin === m ? 'bg-gold-500 text-zinc-950' : 'bg-[var(--bg-deep)] text-zinc-400 border border-[var(--border-muted)]'}`}>
-                                                      {m}
-                                                   </button>
-                                                ))}
+                                                {minutes.map(m => {
+                                                   const valid = isMinValid(m);
+                                                   return (
+                                                      <button
+                                                         key={m}
+                                                         type="button"
+                                                         disabled={!valid}
+                                                         onClick={() => setSelMin(m)}
+                                                         className={`shrink-0 w-12 py-3 rounded-xl text-xs font-bold transition-all text-center ${
+                                                            selMin === m
+                                                               ? 'bg-gold-500 text-zinc-950'
+                                                               : valid
+                                                                  ? 'bg-[var(--bg-deep)] text-zinc-400 border border-[var(--border-muted)]'
+                                                                  : 'bg-[var(--bg-deep)]/40 text-zinc-700 border border-[var(--border-muted)]/40 cursor-not-allowed opacity-40'
+                                                         }`}
+                                                      >
+                                                         {m}
+                                                      </button>
+                                                   );
+                                                })}
                                              </div>
                                           </div>
                                        </div>

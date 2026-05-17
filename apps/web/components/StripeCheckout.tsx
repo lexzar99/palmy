@@ -31,27 +31,30 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
     setIsProcessing(true);
     setErrorMessage(null);
 
-    // 30s timeout — om Stripe hänger (dåligt nätverk, deras backend slö) får
-    // kunden ett vettigt felmeddelande istället för spinnande oändligt
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('TIMEOUT')), 30_000),
-    );
-
     try {
-      const confirmPromise = stripe.confirmPayment({
+      // INGEN Promise.race med timeout. Tidigare hade vi 30s timeout men det
+      // triggade FALSKT FEL för Klarna/Swish: dessa kräver redirect, så
+      // confirmPayment() returnerar aldrig (browsern navigerar bort) →
+      // Promise.race vinner med TIMEOUT efter 30s → kunden ser "Betalningen
+      // tog för lång tid" precis när Klarna-sidan laddar. Felaktig signal.
+      // Stripe har egen server-side timeout-handling, vi behöver inte vår.
+      const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          // Return URL is required but we'll try to handle it in-page if possible
-          // For Swish/Klarna, Stripe will redirect and then come back
+          // For Klarna/Swish: Stripe redirectar till deras flow, returns hit
+          // efter signing. För kort: konfirmeras direkt i-page (om inget 3DS).
           return_url: `${window.location.origin}/cart?payment_success=true${draftId ? `&draftId=${draftId}` : ''}`,
         },
         redirect: 'if_required',
       });
 
-      const { error, paymentIntent } = await Promise.race([confirmPromise, timeoutPromise]);
-
       if (error) {
-        setErrorMessage(error.message || "Ett oväntat fel uppstod.");
+        // Översätt vanliga Stripe-felmeddelanden till svenska istället för
+        // engelska technical-strings ("Card declined" → "Kortet är avslaget").
+        const code = error.code || '';
+        const declineCode = (error as any).decline_code || '';
+        const localized = localizeStripeError(code, declineCode, error.message);
+        setErrorMessage(localized);
         setIsProcessing(false);
         return;
       }
@@ -62,19 +65,53 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
         return;
       }
 
-      setErrorMessage("Betalningen väntar fortfarande på bekräftelse. Försök igen om en stund.");
+      // status === 'processing' eller 'requires_action' utan auto-redirect
+      // → låt webhook sköta finalisering. Kunden ser betalsidan stänga och
+      // tracking ladda. Visar ingen falsk error.
+      setErrorMessage("Betalningen behandlas. Du redirectas så snart Stripe bekräftat.");
       setIsProcessing(false);
     } catch (unexpectedError) {
-      const isTimeout = (unexpectedError as Error)?.message === 'TIMEOUT';
-      if (isTimeout) {
-        console.warn("[stripe] confirmPayment timed out after 30s");
-        setErrorMessage("Betalningen tog för lång tid. Kontrollera din internetanslutning och försök igen.");
-      } else {
-        console.error("Stripe checkout error:", unexpectedError);
-        setErrorMessage("Kunde inte genomföra betalningen. Försök igen.");
-      }
+      console.error("Stripe checkout error:", unexpectedError);
+      setErrorMessage("Kunde inte genomföra betalningen. Försök igen.");
       setIsProcessing(false);
     }
+  };
+
+  // Mappa Stripe-felmeddelanden från engelska till svenska. Stripe returnerar
+  // koder (t.ex. "card_declined") + decline_codes ("insufficient_funds") som
+  // vi kan översätta. Fallback till error.message (kan vara på engelska men
+  // i alla fall actionable).
+  const localizeStripeError = (code: string, declineCode: string, fallback?: string): string => {
+    // Decline codes (Stripe's mest specifika info)
+    const declineMap: Record<string, string> = {
+      insufficient_funds: 'Kortet saknar täckning. Prova ett annat kort eller betalningsmetod.',
+      lost_card: 'Kortet är spärrat. Kontakta din bank.',
+      stolen_card: 'Kortet är spärrat. Kontakta din bank.',
+      expired_card: 'Kortet har gått ut. Använd ett annat kort.',
+      incorrect_cvc: 'Fel CVC-kod. Kontrollera siffrorna på baksidan av kortet.',
+      processing_error: 'Tekniskt fel hos kortleverantören. Försök igen om en stund.',
+      generic_decline: 'Kortet är avvisat. Prova ett annat kort eller kontakta din bank.',
+      do_not_honor: 'Kortet är avvisat av banken. Kontakta din bank eller prova ett annat kort.',
+      card_velocity_exceeded: 'För många försök på kort tid. Vänta och försök igen.',
+      fraudulent: 'Banken misstänker bedrägeri. Kontakta din bank eller prova ett annat kort.',
+    };
+    if (declineCode && declineMap[declineCode]) return declineMap[declineCode];
+
+    // Generic codes
+    const codeMap: Record<string, string> = {
+      card_declined: 'Kortet är avvisat. Prova ett annat kort eller betalningsmetod.',
+      authentication_required: 'Din bank kräver verifiering. Genomför 3D Secure i bank-appen.',
+      payment_intent_authentication_failure: 'Verifieringen misslyckades. Försök igen eller använd ett annat kort.',
+      incorrect_number: 'Felaktigt kortnummer. Kontrollera siffrorna och försök igen.',
+      invalid_expiry_month: 'Felaktigt utgångsdatum (månad).',
+      invalid_expiry_year: 'Felaktigt utgångsdatum (år).',
+      invalid_cvc: 'Felaktig CVC-kod.',
+      processing_error: 'Tekniskt fel. Försök igen om en stund.',
+    };
+    if (code && codeMap[code]) return codeMap[code];
+
+    // Fallback: använd Stripe-message:n (kan vara engelsk men beskrivande)
+    return fallback || 'Betalningen kunde inte genomföras. Försök igen.';
   };
 
   return (

@@ -496,10 +496,40 @@ const OrderStatusPage = () => {
                     <div className="flex items-start gap-5">
                        <Calendar className="text-zinc-800 mt-1" size={20} />
                         <div>
-                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Beställningstjänst</div>
+                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Beställd</div>
                            <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>{new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })} idag</div>
                         </div>
                     </div>
+
+                    {/* scheduledFor — visa önskad leveranstid prominent när
+                        kunden valt schemaläggning. Tidigare doldes detta helt
+                        i UI:t så kunden förlorade synlighet på sin egen tid.
+                        Skiljer formatering om datumet är idag vs ett annat
+                        datum (just nu låter vi backend acceptera valfri tid,
+                        men frontend-pickern är "samma dag"-only). */}
+                    {order.scheduledFor && (() => {
+                       const scheduled = new Date(order.scheduledFor);
+                       const today = new Date();
+                       const isToday =
+                          scheduled.getFullYear() === today.getFullYear() &&
+                          scheduled.getMonth() === today.getMonth() &&
+                          scheduled.getDate() === today.getDate();
+                       const timeStr = scheduled.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+                       const dateStr = scheduled.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" });
+                       return (
+                          <div className="flex items-start gap-5">
+                             <Clock className="text-gold-500 mt-1" size={20} />
+                              <div>
+                                 <div className="text-[9px] font-black uppercase tracking-[0.3em] text-gold-600 mb-1">
+                                    Önskad {order.type === "DELIVERY" ? "leverans" : "hämtning"}
+                                 </div>
+                                 <div className="text-base font-black italic" style={{ color: "var(--text-primary)" }}>
+                                    {isToday ? `Idag ${timeStr}` : `${dateStr} ${timeStr}`}
+                                 </div>
+                              </div>
+                          </div>
+                       );
+                    })()}
                  </div>
               </div>
 
