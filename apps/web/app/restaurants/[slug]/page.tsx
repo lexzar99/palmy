@@ -35,14 +35,14 @@ export async function generateMetadata({
 
   if (!restaurant) {
     return {
-      title: "Restaurant | Palmy",
-      description: "View our menu and place your order.",
+      title: "Restaurang | FoodGo",
+      description: "Se menyn och lägg din beställning.",
     };
   }
 
   const title = restaurant.name
-    ? `${restaurant.name} | Palmy`
-    : "Restaurant | Palmy";
+    ? `${restaurant.name} | FoodGo`
+    : "Restaurang | FoodGo";
   const description =
     restaurant.description ||
     (restaurant.cuisine

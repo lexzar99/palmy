@@ -8,7 +8,7 @@ router.use(authenticate);
 
 const DEFAULT_TEMPLATE_ELEMENTS = [
   { key: 'restaurantName', label: 'Restaurangnamn', visible: true, size: 14, weight: 'black', align: 'center', uppercase: true },
-  { key: 'platformName', label: 'Plattformsnamn (MatGo)', visible: true, size: 8, weight: 'normal', align: 'center', uppercase: true },
+  { key: 'platformName', label: 'Plattformsnamn (FoodGo)', visible: true, size: 8, weight: 'normal', align: 'center', uppercase: true },
   { key: 'address', label: 'Adress', visible: true, size: 8, weight: 'normal', align: 'center' },
   { key: 'phone', label: 'Telefon', visible: true, size: 8, weight: 'normal', align: 'center' },
   { key: 'divider1', label: 'Avdelare (efter info)', visible: true, size: 8, weight: 'normal', align: 'center' },
@@ -40,7 +40,7 @@ const DEFAULT_TEMPLATE_ELEMENTS = [
 
 const DEFAULT_TEMPLATE = {
   paperWidth: '80mm',
-  platformName: 'MatGo',
+  platformName: 'FoodGo',
   elements: DEFAULT_TEMPLATE_ELEMENTS,
 };
 

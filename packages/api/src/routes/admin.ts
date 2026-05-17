@@ -3595,7 +3595,7 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
 
     res.json({
       header: {
-        restaurantName: order.restaurant?.name || 'MatGo',
+        restaurantName: order.restaurant?.name || 'FoodGo',
         address: order.restaurant?.address || '',
         city: order.restaurant?.city || '',
         zip: order.restaurant?.zip || '',
@@ -3643,10 +3643,10 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
         dealTitle: order.appliedDealTitle,
         total: order.total / 100,
       },
-      footer: 'Tack för din beställning! — MatGo',
+      footer: 'Tack för din beställning! — FoodGo',
       template: {
         paperWidth: templateRow?.paperWidth || '80mm',
-        platformName: templateRow?.platformName || 'MatGo',
+        platformName: templateRow?.platformName || 'FoodGo',
         elements: templateElements,
       },
     });

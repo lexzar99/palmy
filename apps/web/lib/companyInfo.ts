@@ -23,7 +23,7 @@ export interface CompanyInfo {
 }
 
 export const DEFAULT_COMPANY_INFO: CompanyInfo = {
-  name: "MatGo AB",
+  name: "FoodGo AB",
   organizationNumber: "",
   address: "",
   supportEmail: "support@matgo.se",

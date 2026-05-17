@@ -76,7 +76,7 @@ export default async function OGImage() {
               display: "flex",
             }}
           >
-            MAT<span style={{ color: "#d4a74a" }}>GO</span>
+            FOOD<span style={{ color: "#d4a74a" }}>GO</span>
           </div>
 
           <div

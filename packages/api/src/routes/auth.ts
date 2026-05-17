@@ -771,7 +771,7 @@ router.post('/2fa/setup', authenticate, async (req: any, res) => {
     if (!adminId) return res.status(401).json({ error: 'Inte autentiserad' });
 
     const secret = generateSecret();
-    const otpauthUrl = generateURI({ label: req.admin?.email || 'admin', issuer: 'MatGo Admin', secret });
+    const otpauthUrl = generateURI({ label: req.admin?.email || 'admin', issuer: 'FoodGo Admin', secret });
     const qrDataUrl = await QRCode.toDataURL(otpauthUrl);
 
     // Spara secret men sätt INTE enabled=true förrän user verifierar
@@ -1306,7 +1306,7 @@ router.post('/send-verification-email', authLimiter, async (req, res) => {
       const text = [
         `Hej ${greetingName}!`,
         '',
-        'Tack för att du skapat ett MatGo-konto. För att slutföra registreringen,',
+        'Tack för att du skapat ett FoodGo-konto. För att slutföra registreringen,',
         'klicka på länken nedan och verifiera din e-postadress. Länken gäller 24 timmar.',
         '',
         `Webb:   ${webLink}`,
@@ -1315,14 +1315,14 @@ router.post('/send-verification-email', authLimiter, async (req, res) => {
         'Om du inte skapat något konto kan du ignorera detta mejl.',
         '',
         'Vänliga hälsningar,',
-        'MatGo',
+        'FoodGo',
       ].join('\n');
 
       const html = renderBrandedEmail({
         headline: 'Bekräfta din email',
         greeting: `Hej ${greetingName}!`,
         intro: [
-          'Klicka för att aktivera ditt MatGo-konto.',
+          'Klicka för att aktivera ditt FoodGo-konto.',
         ],
         cta: { label: 'Bekräfta email', url: webLink },
         mobileDeepLink: { label: 'Använder du mobilappen? Öppna istället:', url: mobileLink },

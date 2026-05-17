@@ -98,7 +98,7 @@ const InstallPWA = () => {
             </div>
             <div>
               <h3 className="text-lg font-black tracking-tight text-zinc-100 uppercase italic">
-                Installera MatGo
+                Installera FoodGo
               </h3>
               <p className="text-zinc-400 text-sm leading-relaxed font-medium">
                 Appen funkar bäst när du lägger till den på hemskärmen!

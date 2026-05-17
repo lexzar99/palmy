@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'MatGo',
-    short_name: 'MatGo',
+    name: 'FoodGo',
+    short_name: 'FoodGo',
     description: 'Beställ mat från flera lokala restauranger i Lund. Snabb leverans, smidig betalning och ett brett utbud.',
     start_url: '/',
     display: 'standalone',

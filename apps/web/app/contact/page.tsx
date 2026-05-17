@@ -4,8 +4,8 @@ import { Phone, MapPin, Mail } from "lucide-react";
 import { API_URL } from "@/lib/api";
 
 export const metadata: Metadata = {
-  title: "Kontakta oss | MatGo",
-  description: "Kontakta MatGo — telefon, e-post och adress.",
+  title: "Kontakta oss | FoodGo",
+  description: "Kontakta FoodGo — telefon, e-post och adress.",
 };
 
 type PlatformSettings = {

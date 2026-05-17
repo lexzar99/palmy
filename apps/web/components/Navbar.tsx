@@ -75,7 +75,7 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-[100]" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", height: "72px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
        <div className="flex items-center gap-3">
           <span className="text-2xl font-black italic tracking-tighter" style={{ color: "var(--text-primary)" }}>
-            MAT<span className="text-gold-500">GO</span>
+            FOOD<span className="text-gold-500">GO</span>
           </span>
        </div>
     </nav>
@@ -92,9 +92,9 @@ const Navbar = () => {
       }}
     >
       <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-1 group" aria-label="MatGo — startsidan">
+        <Link href="/" className="flex items-center gap-1 group" aria-label="FoodGo — startsidan">
           <span className="text-2xl font-black italic tracking-tighter leading-[1.15] transition-transform group-hover:scale-105" style={{ color: "var(--text-primary)" }}>
-            MAT<span className="text-gold-500">GO</span>
+            FOOD<span className="text-gold-500">GO</span>
           </span>
         </Link>
 

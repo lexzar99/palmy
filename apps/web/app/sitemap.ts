@@ -15,8 +15,11 @@ const STATIC_ROUTES: { path: string; changeFrequency: MetadataRoute.Sitemap[numb
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.matgo.se").replace(/\/$/, "");
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.matgo.se";
+  // NEXT_PUBLIC_SITE_URL + NEXT_PUBLIC_API_URL sätts i Vercel när vi har
+  // riktig domän. Fallback till befintliga prod-hosts så sitemap inte
+  // pekar på döda URL:er innan rebrand-DNS är klar.
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://matgo-web-pi.vercel.app").replace(/\/$/, "");
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://palmy-production-2021.up.railway.app";
 
   const now = new Date();
 

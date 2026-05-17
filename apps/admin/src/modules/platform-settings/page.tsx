@@ -81,7 +81,7 @@ export function PlatformSettingsPage() {
 
       <Surface className="px-6 py-5">
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Här hanterar du <strong>MatGo-företagets</strong> kontaktinfo som visas på <code>/kontakt</code> och <code>/om-oss</code> på web-sajten.
+          Här hanterar du <strong>FoodGo-företagets</strong> kontaktinfo som visas på <code>/kontakt</code> och <code>/om-oss</code> på web-sajten.
           Inget med enskilda restauranger att göra — det här är plattformens egna uppgifter.
         </p>
       </Surface>
@@ -109,7 +109,7 @@ export function PlatformSettingsPage() {
           <h2 className="text-base font-black uppercase tracking-tight">Företagsidentitet</h2>
         </div>
         <p className="text-xs mb-5" style={{ color: "var(--text-secondary)" }}>
-          Visas i Terms, Privacy och support-flöden i web + RN-appen. Lämna tomt för fallback-värden (<code>MatGo AB</code>, <code>support@matgo.se</code>, osv).
+          Visas i Terms, Privacy och support-flöden i web + RN-appen. Lämna tomt för fallback-värden (<code>FoodGo AB</code>, <code>support@matgo.se</code>, osv).
         </p>
 
         <div className="grid gap-5 md:grid-cols-2">
@@ -117,7 +117,7 @@ export function PlatformSettingsPage() {
             <Input
               value={form.companyName || ""}
               onChange={(e) => setForm((p) => ({ ...p, companyName: e.target.value }))}
-              placeholder="MatGo AB"
+              placeholder="FoodGo AB"
             />
           </Field>
 
@@ -133,7 +133,7 @@ export function PlatformSettingsPage() {
             <Textarea
               value={form.companyAddress || ""}
               onChange={(e) => setForm((p) => ({ ...p, companyAddress: e.target.value }))}
-              placeholder={"MatGo AB\nKungsgatan 1\n111 22 Stockholm"}
+              placeholder={"FoodGo AB\nKungsgatan 1\n111 22 Stockholm"}
               rows={3}
             />
           </Field>
@@ -203,7 +203,7 @@ export function PlatformSettingsPage() {
             <Textarea
               value={form.contactAddress || ""}
               onChange={(e) => setForm((p) => ({ ...p, contactAddress: e.target.value }))}
-              placeholder={"MatGo AB\nKungsgatan 1\n111 22 Stockholm"}
+              placeholder={"FoodGo AB\nKungsgatan 1\n111 22 Stockholm"}
               rows={3}
             />
           </Field>
@@ -218,7 +218,7 @@ export function PlatformSettingsPage() {
         <Textarea
           value={form.aboutBody || ""}
           onChange={(e) => setForm((p) => ({ ...p, aboutBody: e.target.value }))}
-          placeholder="MatGo är en plattform som..."
+          placeholder="FoodGo är en plattform som..."
           rows={10}
         />
       </Surface>

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * MatGo Launch Checklist
+ * FoodGo Launch Checklist
  *
  * Interaktiv launch-plan med checkboxes + notes per item.
  * Allt sparas i localStorage så state överlever browser-restart.
@@ -306,9 +306,9 @@ const PHASES: ChecklistPhase[] = [
       },
       {
         id: "favicon-fix",
-        title: "Web favicon → MatGo (eller nya namnet)",
+        title: "Web favicon — verifiera mot slutgiltig logotyp",
         description:
-          "apps/web/app/icon.tsx ritar 'P' (Palmyra-leftover). Byt till första bokstaven av nya namnet eller logo.",
+          "apps/web/app/icon.tsx ritar nu 'F' (FoodGo). Byt mot riktig logo-SVG/PNG när design är klar.",
         who: "Jag",
         effort: "5 min",
       },
@@ -396,7 +396,7 @@ const PHASES: ChecklistPhase[] = [
       {
         id: "email-from-prod",
         title: "Uppdatera EMAIL_FROM i Railway",
-        description: "EMAIL_FROM=MatGo <no-reply@dindomän.se> (eller nya namnet).",
+        description: "EMAIL_FROM=FoodGo <no-reply@dindomän.se> (eller nya namnet).",
         who: "Du",
         effort: "5 min",
       },
@@ -709,7 +709,7 @@ export default function LaunchChecklistPage() {
         const parsed = JSON.parse(text) as StorageState;
         if (parsed.items) setState(parsed);
       } catch {
-        alert("Kunde inte läsa filen — kontrollera att det är en giltig MatGo-checklist JSON.");
+        alert("Kunde inte läsa filen — kontrollera att det är en giltig FoodGo-checklist JSON.");
       }
     };
     input.click();
@@ -749,7 +749,7 @@ export default function LaunchChecklistPage() {
                 className="text-[10px] font-black uppercase tracking-[0.3em] mb-1"
                 style={{ color: "#E7B24B" }}
               >
-                MatGo
+                FoodGo
               </p>
               <h1 className="text-2xl font-black tracking-tight text-white">
                 Launch Checklist

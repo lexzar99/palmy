@@ -102,7 +102,7 @@ const Hero = () => {
         {/* Heading */}
         <h1 className="font-black italic tracking-tighter leading-[1.15] select-none text-white mb-0"
           style={{ fontSize: "clamp(4rem, 18vw, 9rem)" }}>
-          MATGO
+          FOODGO
         </h1>
         <div
           className="font-black italic tracking-tighter leading-[1.15] select-none border-t border-b border-white/30 px-4 w-full text-center mb-10"

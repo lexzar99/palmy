@@ -165,7 +165,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       } else {
         const settingsRes = await axios.get(`${API_URL}/api/settings`);
         setRestaurant({
-          name: "MatGo Lund",
+          name: "FoodGo Lund",
           isOpen: settingsRes.data.isOpen ?? true,
           deliveryFee: settingsRes.data.deliveryFee ?? 0,
           minOrderAmount: settingsRes.data.minOrderAmount ?? 150,

@@ -1,6 +1,6 @@
 const DEFAULT_NATIVE_AUTH_REDIRECT = "matgo://auth/callback";
 
-const ALLOWED_MATGO_AUTH_PATHS = new Set(["", "/", "/callback"]);
+const ALLOWED_FOODGO_AUTH_PATHS = new Set(["", "/", "/callback"]);
 
 function isAllowedExpoAuthCallback(pathname: string) {
   const normalizedPath = pathname.replace(/\/+$/, "");
@@ -13,7 +13,7 @@ export function getSafeNativeAuthRedirect(rawRedirect: string | null | undefined
   try {
     const parsed = new URL(rawRedirect);
 
-    if (parsed.protocol === "matgo:" && parsed.hostname === "auth" && ALLOWED_MATGO_AUTH_PATHS.has(parsed.pathname)) {
+    if (parsed.protocol === "matgo:" && parsed.hostname === "auth" && ALLOWED_FOODGO_AUTH_PATHS.has(parsed.pathname)) {
       return parsed.toString();
     }
 

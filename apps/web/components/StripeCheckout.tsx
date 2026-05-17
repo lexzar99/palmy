@@ -132,7 +132,7 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
           <PaymentElement
             options={{
               layout: 'tabs',
-              business: { name: 'MatGo' },
+              business: { name: 'FoodGo' },
               // Säkerställ att Apple/Google Pay är synliga om enheten stöder
               // dem. Stripe filtrerar baserat på Dashboard-konfig + domain
               // verification, men explicit `wallets` ger bättre fallback.

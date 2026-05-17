@@ -369,7 +369,7 @@ function sendApnsToHost(opts: {
   });
 }
 
-// Mirror of mobile_apps/REACT-MATGO/src/lib/liveActivities.ts STATUS_META.
+// Mirror of mobile_apps/REACT-FOODGO/src/lib/liveActivities.ts STATUS_META.
 //
 // Both DELIVERY and PICKUP render as 3-step progress bars in the widget.
 // `delivered` is no longer a visible step — the LA is dismissed on

@@ -1,4 +1,4 @@
-// Email-transport för MatGo.
+// Email-transport för FoodGo.
 //
 // Stöder 3 transports — priority-ordning:
 //
@@ -119,9 +119,9 @@ const resend = process.env.RESEND_API_KEY
 // ── Default From-adress ────────────────────────────────────────────────────────
 function defaultFrom(): string {
   if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
-  if (BREVO_SMTP_USER) return `MatGo <${BREVO_SMTP_USER}>`;
-  if (GMAIL_USER) return `MatGo <${GMAIL_USER}>`;
-  return 'MatGo <onboarding@resend.dev>';
+  if (BREVO_SMTP_USER) return `FoodGo <${BREVO_SMTP_USER}>`;
+  if (GMAIL_USER) return `FoodGo <${GMAIL_USER}>`;
+  return 'FoodGo <onboarding@resend.dev>';
 }
 
 // Parsa "Name <email@x.com>" → { name?, email } för Brevo API
@@ -238,7 +238,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
 }
 
 // ----------------------------------------------------------------------------
-// HTML-mall för MatGo-mejl.
+// HTML-mall för FoodGo-mejl.
 // Gold-accent (#E7B24B) mot mörk panel (#0b0a0f) med ljusare innehållscontainer
 // så CTA-knappen sticker ut. Inline-styles för bred klient-kompatibilitet
 // (Gmail strippar <style>-block i många sammanhang).
@@ -300,7 +300,7 @@ export function renderBrandedEmail(opts: EmailTemplateOptions): string {
             <!-- Header bar -->
             <tr>
               <td align="center" style="padding: 28px 24px 8px; background: ${dark};">
-                <div style="font-size: 22px; font-weight: 900; letter-spacing: 4px; color: ${gold};">MATGO</div>
+                <div style="font-size: 22px; font-weight: 900; letter-spacing: 4px; color: ${gold};">FOODGO</div>
               </td>
             </tr>
             <!-- Gold accent line -->
@@ -327,7 +327,7 @@ export function renderBrandedEmail(opts: EmailTemplateOptions): string {
             <!-- Footer -->
             <tr>
               <td style="padding: 20px 24px; background: ${dark}; text-align: center;">
-                <p style="margin: 0; font-size: 11px; line-height: 16px; color: ${muted};">© MatGo · <a href="https://matgo.se" style="color: ${muted}; text-decoration: none;">matgo.se</a></p>
+                <p style="margin: 0; font-size: 11px; line-height: 16px; color: ${muted};">© FoodGo · <a href="https://matgo.se" style="color: ${muted}; text-decoration: none;">matgo.se</a></p>
               </td>
             </tr>
           </table>

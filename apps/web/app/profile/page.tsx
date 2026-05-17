@@ -912,7 +912,7 @@ function ProfileContent() {
           Apple-användare som saknar namn — Apple skickar fullName ENDAST
           vid första auktorisering. Om vi missade det (eller appen
           registrerades med tomt namn) måste användaren avregistrera Apple
-          för MatGo i sina iCloud-inställningar och logga in igen.
+          för FoodGo i sina iCloud-inställningar och logga in igen.
         */}
         {(user.oauthProvider === "apple" || user.oauthProvider === "supabase") &&
           (!user.firstName || !user.lastName) && (
