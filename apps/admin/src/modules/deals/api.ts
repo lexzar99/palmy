@@ -43,6 +43,9 @@ export interface AutomaticDealRecord {
   bogoMaxRewardPrice?: number | null;
   bogoMinOrderAmount?: number | null;
   bogoTriggerProductIds?: string[];
+  // Skalning (se schema.prisma — bogoRewardsPerTrigger + bogoMaxRewardsPerOrder)
+  bogoRewardsPerTrigger?: number | null;
+  bogoMaxRewardsPerOrder?: number | null;
 }
 
 export interface DiscountCodeRecord {

@@ -38,6 +38,13 @@ type Draft = {
   bogoExcludedProductIds: string[];
   bogoExcludedExtraIds: string[];
   bogoMaxRewardPrice: string;
+  // Antal gratis-varor som ges PER trigger-uppfyllelse (default 1).
+  // Exempel: rewardsPerTrigger=2 + minorder → "köp för 200 kr, få 2 drycker".
+  bogoRewardsPerTrigger: number;
+  // Hård cap per order. Tom (null) = obegränsat (skalär med antal triggers).
+  // Default 1 så befintligt beteende inte ändras. Sätt till null för
+  // "1 dryck per kebabpizza, ingen cap".
+  bogoMaxRewardsPerOrder: string;
   isActive: boolean;
   showAsBanner: boolean;
   validFrom: string;
@@ -58,6 +65,8 @@ const defaultDraft = (): Draft => ({
   bogoExcludedProductIds: [],
   bogoExcludedExtraIds: [],
   bogoMaxRewardPrice: "",
+  bogoRewardsPerTrigger: 1,
+  bogoMaxRewardsPerOrder: "1",
   isActive: true,
   showAsBanner: true,
   validFrom: "",
@@ -124,6 +133,11 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
         bogoExcludedProductIds: deal.bogoExcludedProductIds ?? [],
         bogoExcludedExtraIds: deal.bogoExcludedExtraIds ?? [],
         bogoMaxRewardPrice: deal.bogoMaxRewardPrice != null ? String(deal.bogoMaxRewardPrice) : "",
+        bogoRewardsPerTrigger: (deal as any).bogoRewardsPerTrigger ?? 1,
+        bogoMaxRewardsPerOrder:
+          (deal as any).bogoMaxRewardsPerOrder == null
+            ? ""
+            : String((deal as any).bogoMaxRewardsPerOrder),
         isActive: deal.isActive,
         showAsBanner: deal.showAsBanner ?? true,
         validFrom: deal.validFrom ? deal.validFrom.slice(0, 10) : "",
@@ -213,6 +227,10 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
         bogoExcludedProductIds: d.bogoExcludedProductIds,
         bogoExcludedExtraIds: d.bogoExcludedExtraIds,
         bogoMaxRewardPrice: d.bogoMaxRewardPrice ? Number(d.bogoMaxRewardPrice) : null,
+        // Skalning: rewardsPerTrigger >=1, maxPerOrder null = obegränsat.
+        bogoRewardsPerTrigger: Math.max(1, d.bogoRewardsPerTrigger || 1),
+        bogoMaxRewardsPerOrder:
+          d.bogoMaxRewardsPerOrder.trim() === "" ? null : Math.max(1, Number(d.bogoMaxRewardsPerOrder) || 1),
         isActive: d.isActive,
         showOnSite: true,
         showAsBanner: d.showAsBanner,
@@ -493,6 +511,37 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
                     onChange={(e) => set("bogoMaxRewardPrice", e.target.value)}
                     placeholder="t.ex. 15 — kunden betalar mellanskillnad vid dyrare val" />
                 </Field>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Field label="Antal gratis per gång trigger uppfylls">
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={String(draft.bogoRewardsPerTrigger)}
+                      onChange={(e) => set("bogoRewardsPerTrigger", Math.max(1, Number(e.target.value) || 1))}
+                      placeholder="1"
+                    />
+                    <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                      T.ex. <strong>2</strong> = "köp 1 pizza → få 2 drycker"
+                    </p>
+                  </Field>
+
+                  <Field label="Max gratis per order (tomt = obegränsat)">
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={draft.bogoMaxRewardsPerOrder}
+                      onChange={(e) => set("bogoMaxRewardsPerOrder", e.target.value)}
+                      placeholder="t.ex. 1 (cap) eller tom (skalär)"
+                    />
+                    <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                      Tomt: kund får 1 gratis per kvalificerande artikel ("köp 2 pizzor → 2 gratis").
+                      <br />Sätt t.ex. <strong>1</strong> för att alltid bara ge 1 gratis oavsett cart-storlek.
+                    </p>
+                  </Field>
+                </div>
               </>
             )}
           </Surface>

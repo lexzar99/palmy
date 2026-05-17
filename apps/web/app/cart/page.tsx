@@ -172,6 +172,9 @@ export default function CartPage() {
     rewardCategoryName: string | null;
     rewardProducts: { id: string; name: string; price: number; imageUrl: string | null }[];
     bogoExcludedExtraIds: string[];
+    // Antal gratis-varor kunden kan välja. 1 för traditionell BOGO,
+    // N för skalad (t.ex. 2 kebabpizzor → 2 gratis drycker).
+    maxFreeItems: number;
   } | null>(null);
   // Banner som visas när kundens BOGO-val plötsligt försvinner mitt-session
   // (deal-admin disablade, expiry passerade, eller kvalificerande artikel
@@ -526,6 +529,15 @@ export default function CartPage() {
   }, [selectedPersonalDeal, subtotal]);
 
   const bogoDiscount = bogoPreview?.discountKr ?? 0;
+  // Antal gratis-varor kunden redan valt för den aktiva BOGO-dealen.
+  // Räknas från cart-items med `bogoFreeFromDealId` matchande aktuell deal.
+  // Används för att veta hur många fler gratis-varor som kan väljas
+  // (för scaled-BOGO: t.ex. 2 kebabpizzor → 2 drycker tillåtna).
+  const bogoPickedCount = bogoPreview?.dealId
+    ? items.filter((i) => i.bogoFreeFromDealId === bogoPreview.dealId).reduce((sum, i) => sum + i.quantity, 0)
+    : 0;
+  const bogoMaxFreeItems = bogoPreview?.maxFreeItems ?? 0;
+  const bogoPicksRemaining = Math.max(0, bogoMaxFreeItems - bogoPickedCount);
 
   // Account-deal-rabatt: appliceras bara om vald + min-order är uppfyllt.
   // Stöder både percent (ny) och amountKr (legacy) via computeDealAmountKr.
@@ -859,6 +871,7 @@ export default function CartPage() {
             rewardCategoryName: data.rewardCategoryName ?? null,
             rewardProducts: data.rewardProducts ?? [],
             bogoExcludedExtraIds: Array.isArray(data.bogoExcludedExtraIds) ? data.bogoExcludedExtraIds : [],
+            maxFreeItems: typeof data.maxFreeItems === "number" && data.maxFreeItems > 0 ? data.maxFreeItems : 1,
           });
           // Rensa bogoChoice om det gäller en annan deal — varna kunden
           // så de inte förvirras av att gratis-varan plötsligt byttes.
@@ -1886,8 +1899,10 @@ export default function CartPage() {
                         </div>
                      </div>
 
-                     {/* BOGO: påminn om gratisprodukt om ej vald */}
-                     {bogoPreview && !bogoChoice && bogoPreview.rewardProducts.length > 0 && (
+                     {/* BOGO: påminn om gratisprodukt(er) om fler kan väljas.
+                         För scaled-BOGO (maxFreeItems > 1): visar antal kvar.
+                         "Välj N fler gratis varor" istället för bara "Välj". */}
+                     {bogoPreview && bogoPicksRemaining > 0 && bogoPreview.rewardProducts.length > 0 && (
                        <motion.button
                          type="button"
                          initial={{ opacity: 0, y: 6 }}
@@ -1900,9 +1915,17 @@ export default function CartPage() {
                            <div className="flex items-center gap-2.5">
                              <span className="text-lg">🎁</span>
                              <div>
-                               <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">BOGO — välj gratisprodukt</p>
+                               <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                                 {bogoPickedCount > 0
+                                   ? `BOGO — välj ${bogoPicksRemaining} ${bogoPicksRemaining === 1 ? "gratis till" : "fler gratis"}`
+                                   : "BOGO — välj gratisprodukt"}
+                               </p>
                                <p className="text-xs font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                                 Du har inte valt din gratis{bogoPreview.rewardCategoryName ? ` ${bogoPreview.rewardCategoryName.toLowerCase()}` : " produkt"} →
+                                 {bogoPickedCount > 0
+                                   ? `${bogoPickedCount} av ${bogoMaxFreeItems} valda — välj fler →`
+                                   : bogoMaxFreeItems > 1
+                                     ? `Du kan välja ${bogoMaxFreeItems} gratis varor →`
+                                     : `Du har inte valt din gratis${bogoPreview.rewardCategoryName ? ` ${bogoPreview.rewardCategoryName.toLowerCase()}` : " produkt"} →`}
                                </p>
                              </div>
                            </div>
@@ -1911,22 +1934,27 @@ export default function CartPage() {
                        </motion.button>
                      )}
 
-                     {/* BOGO: vald gratisprodukt */}
-                     {bogoChoice && (
+                     {/* BOGO: alla gratisprodukter valda — visa lista */}
+                     {bogoPreview && bogoPickedCount > 0 && bogoPicksRemaining === 0 && (
                        <motion.div
                          initial={{ opacity: 0, y: 6 }}
                          animate={{ opacity: 1, y: 0 }}
-                         className="mt-6 rounded-2xl border px-4 py-3 flex items-center justify-between gap-2"
+                         className="mt-6 rounded-2xl border px-4 py-3"
                          style={{ background: "rgba(16,185,129,0.08)", borderColor: "rgba(16,185,129,0.25)" }}
                        >
-                         <div className="flex items-center gap-2.5">
-                           <span className="text-lg">🎁</span>
-                           <div>
-                             <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Gratisprodukt vald</p>
-                             <p className="text-xs font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>{bogoChoice.product.name}</p>
+                         <div className="flex items-center justify-between gap-2">
+                           <div className="flex items-center gap-2.5">
+                             <span className="text-lg">🎁</span>
+                             <div>
+                               <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                                 {bogoMaxFreeItems === 1 ? "Gratisprodukt vald" : `${bogoPickedCount} gratis varor valda`}
+                               </p>
+                               <p className="text-xs font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                                 {bogoPreview.dealTitle}
+                               </p>
+                             </div>
                            </div>
                          </div>
-                         <button type="button" onClick={() => setBogoChoice(null)} className="text-[10px] font-bold text-emerald-400/60 hover:text-emerald-400 transition-colors shrink-0">Ändra</button>
                        </motion.div>
                      )}
 

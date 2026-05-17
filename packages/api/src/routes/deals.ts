@@ -243,7 +243,7 @@ router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
   try {
     const { restaurantId, items } = req.body as { restaurantId?: string; items?: Array<{ productId: string; quantity: number }> };
     if (!restaurantId || !Array.isArray(items) || items.length === 0) {
-      return res.json({ discountAmountOre: 0, discountAmountKr: 0, message: null, dealTitle: null });
+      return res.json({ discountAmountOre: 0, discountAmountKr: 0, message: null, dealTitle: null, maxFreeItems: 0 });
     }
 
     const productIds = items.map((i) => i.productId).filter(Boolean);
@@ -284,6 +284,7 @@ router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
 
     let bestDeal: (typeof deals)[number] | null = null;
     let bestDiscount = 0;
+    let bestMaxFreeItems = 0;
 
     for (const deal of deals) {
       if (!isDealAvailableNow(deal, now)) continue;
@@ -295,6 +296,9 @@ router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
       if (evaluation.eligible && evaluation.discountAmountOre > bestDiscount) {
         bestDiscount = evaluation.discountAmountOre;
         bestDeal = deal;
+        // Endast BOGO returnerar maxFreeItems — andra deals har bara en
+        // bulkrabatt och behöver inte picker-multi-select.
+        bestMaxFreeItems = (evaluation as any).maxFreeItems ?? 0;
       }
     }
 
@@ -353,10 +357,14 @@ router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
       rewardCategoryName,
       rewardProducts,
       bogoExcludedExtraIds,
+      // Hur många gratis-varor kunden kan välja för denna BOGO.
+      // 0 om inte BOGO eller inte eligible. Cart-UI:n använder detta för
+      // multi-pick BogoPickerModal.
+      maxFreeItems: bestMaxFreeItems,
     });
   } catch (error) {
     console.error('Cart evaluate error:', error);
-    res.json({ discountAmountOre: 0, discountAmountKr: 0, dealTitle: null, dealId: null, isBogo: false, rewardCategoryName: null, rewardProducts: [], bogoExcludedExtraIds: [] });
+    res.json({ discountAmountOre: 0, discountAmountKr: 0, dealTitle: null, dealId: null, isBogo: false, rewardCategoryName: null, rewardProducts: [], bogoExcludedExtraIds: [], maxFreeItems: 0 });
   }
 });
 

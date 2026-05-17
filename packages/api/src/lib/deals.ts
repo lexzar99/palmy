@@ -38,6 +38,10 @@ type DealLike = {
   bogoMaxRewardPriceOre?: number | null;
   bogoMinOrderAmountOre?: number | null;
   bogoTriggerProductIds?: string | null;
+  // BOGO-skalning: hur många gratis-varor per trigger-uppfyllelse + cap per order.
+  // Defaults via schema: rewardsPerTrigger=1, maxRewardsPerOrder=1 → "1 gratis per order".
+  bogoRewardsPerTrigger?: number | null;
+  bogoMaxRewardsPerOrder?: number | null;
 };
 
 type ProductPromotionLike = {
@@ -174,34 +178,46 @@ export const evaluateBogoCategoryDeal = (
   deal: DealLike,
   cartItems: CartItemForBogo[],
   subtotalOre = 0,
-): { eligible: boolean; discountAmountOre: number } => {
+): { eligible: boolean; discountAmountOre: number; maxFreeItems: number } => {
   const excludedIds = new Set(parseDealProductIds(deal.bogoExcludedProductIds));
   const triggerProductIds = parseDealProductIds(deal.bogoTriggerProductIds);
   const needed = deal.triggerQuantity ?? 2;
 
-  // --- Determine trigger eligibility ---
+  // --- Determine trigger eligibility + räkna antal trigger-uppfyllelser ---
+  // triggerSatisfactions = "hur många gånger har kunden kvalificerat sig"
+  // - Köp 2 pizzor med needed=1 → 2 uppfyllelser (1 reward per uppfyllelse = 2 rewards)
+  // - Köp 4 pizzor med needed=2 → 2 uppfyllelser (3-for-2 + 3-for-2)
+  // - Min-order mode = max 1 uppfyllelse (kan inte "vinna" två gånger på samma order)
+  let triggerSatisfactions = 0;
   if (triggerProductIds.length > 0) {
-    // Product-trigger mode: count specific products in cart
     const triggerCount = cartItems
       .filter((item) => triggerProductIds.includes(item.productId) && !excludedIds.has(item.productId))
       .reduce((sum, item) => sum + item.quantity, 0);
-    if (triggerCount < needed) return { eligible: false, discountAmountOre: 0 };
+    if (triggerCount < needed) return { eligible: false, discountAmountOre: 0, maxFreeItems: 0 };
+    triggerSatisfactions = Math.floor(triggerCount / needed);
   } else if (deal.bogoMinOrderAmountOre != null && deal.bogoMinOrderAmountOre > 0) {
-    // Min-order mode: subtotal must reach threshold
-    if (subtotalOre < deal.bogoMinOrderAmountOre) return { eligible: false, discountAmountOre: 0 };
+    if (subtotalOre < deal.bogoMinOrderAmountOre) return { eligible: false, discountAmountOre: 0, maxFreeItems: 0 };
+    triggerSatisfactions = 1;
   } else {
-    // Category-trigger mode (default): count items from trigger category
     const triggerCatId = deal.triggerCategoryId;
-    if (!triggerCatId) return { eligible: false, discountAmountOre: 0 };
+    if (!triggerCatId) return { eligible: false, discountAmountOre: 0, maxFreeItems: 0 };
     const triggerCount = cartItems
       .filter((item) => item.categoryId === triggerCatId && !excludedIds.has(item.productId))
       .reduce((sum, item) => sum + item.quantity, 0);
-    if (triggerCount < needed) return { eligible: false, discountAmountOre: 0 };
+    if (triggerCount < needed) return { eligible: false, discountAmountOre: 0, maxFreeItems: 0 };
+    triggerSatisfactions = Math.floor(triggerCount / needed);
   }
 
+  // --- Beräkna max antal gratis-varor ---
+  // rewardsAvailable = trigger-uppfyllelser × rewardsPerTrigger
+  // Cap:as med bogoMaxRewardsPerOrder (null = obegränsat).
+  const rewardsPerTrigger = Math.max(1, deal.bogoRewardsPerTrigger ?? 1);
+  const maxPerOrder = deal.bogoMaxRewardsPerOrder; // null = ingen cap
+  const rewardsAvailable = triggerSatisfactions * rewardsPerTrigger;
+  const cappedRewards = maxPerOrder != null ? Math.min(rewardsAvailable, maxPerOrder) : rewardsAvailable;
+
   // --- Find reward items ---
-  const allowedRewardIds = parseDealProductIds(deal.bogoRewardProductIds); // whitelist — tom = alla
-  // Om whitelist är satt används produkterna direkt — ingen kategorifilter behövs
+  const allowedRewardIds = parseDealProductIds(deal.bogoRewardProductIds);
   const rewardCatId = allowedRewardIds.length > 0 ? null : (deal.rewardCategoryId || deal.triggerCategoryId);
   const rewardPrices = cartItems
     .filter((item) => {
@@ -212,14 +228,21 @@ export const evaluateBogoCategoryDeal = (
     .flatMap((item) => Array.from({ length: item.quantity }, () => item.basePriceOre))
     .sort((a, b) => a - b);
 
-  if (rewardPrices.length === 0) return { eligible: false, discountAmountOre: 0 };
+  if (rewardPrices.length === 0) return { eligible: false, discountAmountOre: 0, maxFreeItems: 0 };
 
-  // Cheapest qualifying item is free (base price only, extras always paid).
-  // bogoMaxRewardPriceOre caps the free amount — customer pays the difference for pricier choices.
-  const rawDiscount = rewardPrices[0];
+  // Antal verkliga gratis-varor = min(cappedRewards, antalet kvalificerande artiklar i cart).
+  // Kunden kan inte få fler gratis än vad som finns i carten.
+  const actualFreeItems = Math.min(cappedRewards, rewardPrices.length);
+
+  // Summan av de N billigaste kvalificerande artiklarna = total rabatt.
+  // bogoMaxRewardPriceOre cap:ar varje enskild reward-item.
   const cap = deal.bogoMaxRewardPriceOre ?? null;
-  const discountAmountOre = cap !== null ? Math.min(rawDiscount, cap) : rawDiscount;
-  return { eligible: true, discountAmountOre };
+  const discountAmountOre = rewardPrices.slice(0, actualFreeItems).reduce(
+    (sum, price) => sum + (cap !== null ? Math.min(price, cap) : price),
+    0,
+  );
+
+  return { eligible: true, discountAmountOre, maxFreeItems: actualFreeItems };
 };
 
 export const evaluateDeal = (deal: DealLike, context: DealEvaluationContext) => {
@@ -233,6 +256,9 @@ export const evaluateDeal = (deal: DealLike, context: DealEvaluationContext) => 
     return {
       eligible: result.eligible,
       discountAmountOre: result.discountAmountOre,
+      // maxFreeItems exponeras så cart-UI:n vet hur många gratis-varor
+      // kunden kan välja (för multi-pick BOGO picker).
+      maxFreeItems: result.maxFreeItems,
       progress: { current: 1, goal: 1, percentage: result.eligible ? 100 : 0, remainingLabel },
     };
   }

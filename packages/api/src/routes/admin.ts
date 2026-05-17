@@ -1808,6 +1808,9 @@ const formatDealForAdmin = (deal: any) => ({
   bogoMaxRewardPrice: deal.bogoMaxRewardPriceOre != null ? deal.bogoMaxRewardPriceOre / 100 : null,
   bogoMinOrderAmount: deal.bogoMinOrderAmountOre != null ? deal.bogoMinOrderAmountOre / 100 : null,
   bogoTriggerProductIds: parseJsonArray(deal.bogoTriggerProductIds),
+  // Skalning-fält (default 1/1 = nuvarande beteende, "1 gratis per order").
+  bogoRewardsPerTrigger: (deal as any).bogoRewardsPerTrigger ?? 1,
+  bogoMaxRewardsPerOrder: (deal as any).bogoMaxRewardsPerOrder ?? null,
 });
 
 // Deaktivera deals som krockar med scope för en NYAKTIVERAD deal eller en
@@ -1878,6 +1881,9 @@ const DealInputSchema = z.object({
   validUntil: z.union([z.string(), z.date(), z.null()]).optional(),
   bogoMaxRewardPrice: z.union([z.number(), z.string(), z.null()]).optional(),
   bogoMinOrderAmount: z.union([z.number(), z.string(), z.null()]).optional(),
+  // BOGO-skalning: antal rewards per trigger-uppfyllelse + cap per order.
+  bogoRewardsPerTrigger: z.number().int().min(1).optional(),
+  bogoMaxRewardsPerOrder: z.number().int().min(1).nullable().optional(),
   triggerQuantity: z.number().int().min(1).optional(),
   maxUsages: z.number().int().min(1).nullable().optional(),
   minOrder: z.number().min(0).optional(),
@@ -2075,6 +2081,22 @@ const normalizeDealInputForDb = (body: any) => {
     next.bogoMinOrderAmountOre = (body.bogoMinOrderAmount === null || body.bogoMinOrderAmount === '' || isNaN(kr) || kr <= 0)
       ? null
       : Math.round(kr * 100);
+  }
+
+  // BOGO-skalning. Default på schema-nivå är 1/1 (= "1 gratis per order"),
+  // så här persisterar vi bara om admin uttryckligen satt något annat.
+  if (body.bogoRewardsPerTrigger !== undefined) {
+    const n = Number(body.bogoRewardsPerTrigger);
+    next.bogoRewardsPerTrigger = Number.isFinite(n) && n >= 1 ? Math.round(n) : 1;
+  }
+  if (body.bogoMaxRewardsPerOrder !== undefined) {
+    // null/tom = obegränsat (skalär fritt med antal triggers).
+    if (body.bogoMaxRewardsPerOrder === null || body.bogoMaxRewardsPerOrder === '') {
+      next.bogoMaxRewardsPerOrder = null;
+    } else {
+      const n = Number(body.bogoMaxRewardsPerOrder);
+      next.bogoMaxRewardsPerOrder = Number.isFinite(n) && n >= 1 ? Math.round(n) : 1;
+    }
   }
 
   if (body.bogoTriggerProductIds !== undefined) {

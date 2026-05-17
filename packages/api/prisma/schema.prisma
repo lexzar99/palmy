@@ -238,6 +238,15 @@ model Deal {
   bogoMaxRewardPriceOre     Int?
   bogoMinOrderAmountOre     Int?
   bogoTriggerProductIds     String    @default("[]")
+  // Antal gratis-varor som ges per gång trigger uppfylls. Default 1.
+  // Exempel: triggerQuantity=2 + bogoRewardsPerTrigger=1 → "köp 2 pizzor, få 1 gratis"
+  // Exempel: triggerQuantity=1 + bogoRewardsPerTrigger=2 → "köp 1 pizza, få 2 drycker"
+  bogoRewardsPerTrigger     Int       @default(1)
+  // Hård cap på totala antal gratis-varor på en order. null = obegränsat
+  // (skalar med antal trigger-uppfyllelser). Default 1 så befintliga
+  // BOGO-deals fortsätter funka som "1 gratis per order" utan ändring.
+  // Sätt null om du vill ha "1 dryck per kebabpizza, ingen cap".
+  bogoMaxRewardsPerOrder    Int?      @default(1)
   showAsBanner              Boolean   @default(false)
   // Personal-template: Dealen syns INTE som global rabatt på sajten
   // (inte i /api/deals, inga popups, inga banners). Den används endast
