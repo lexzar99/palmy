@@ -530,32 +530,12 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Minsta ordersumma-validering — kund kan välja att betala mellanskillnaden
-    // via `minOrderTopUp`-fältet (kr). Då läggs det på deliveryFee och ordern går igenom.
-    //
-    // RABATT-TOLERANS: vi tillåter att subtotalen ligger upp till 4000 öre
-    // (40 kr) under restaurangens min. Anledningen: en rabattkupong som drar
-    // ner totalen några kronor under min skulle annars blockera helt
-    // legitima ordrar. Anti-bypass: en kund som bara lägger till en dryck
-    // (~20 kr) klarar fortfarande inte den lägre tröskeln. Frontend-checken
-    // (cart/page.tsx) jämför post-rabatt mot effektiv min vilket är strikare;
-    // backend-checken på `subtotal` är ett enklare backstop som matchar i
-    // praktiken eftersom frontend redan filtrerat bort attacker.
-    const MIN_ORDER_TOLERANCE_ORE = 4000; // 40 kr
-    const effectiveMinOrderAmount = Math.max(0, minOrderAmount - MIN_ORDER_TOLERANCE_ORE);
-    if (!confirmedPayment && subtotal < effectiveMinOrderAmount) {
-      const topUpKr = Number(data.minOrderTopUp || 0);
-      const topUpOre = Math.max(0, Math.round(topUpKr * 100));
-      const shortfall = effectiveMinOrderAmount - subtotal;
-      if (topUpOre >= shortfall) {
-        deliveryFee = deliveryFee + topUpOre;
-      } else {
-        res.status(400).json({
-          error: `Minsta beställningsbelopp är ${minOrderAmount / 100} kr (rabatt får dra ner till ${effectiveMinOrderAmount / 100} kr). Du saknar ${(shortfall / 100).toFixed(0)} kr.`,
-        });
-        return;
-      }
-    }
+    // Min-order-validering flyttad nedåt — den behöver veta om en rabatt
+    // appliceras (eftersom rabatt-tolerans bara aktiveras DÅ). Se
+    // "RABATT-TOLERANS"-kommentaren längre ner efter discountAmount är klar.
+    // Här bestämmer vi bara `pendingMinOrderTopUp` så vi inte tappar bort
+    // klientens topUp-input innan vi vet om den behövs.
+    const pendingMinOrderTopUpOre = Math.max(0, Math.round(Number(data.minOrderTopUp || 0) * 100));
 
     // Rabattkod och automatiska deals
     const now = new Date();
@@ -800,6 +780,45 @@ router.post('/', async (req: Request, res: Response) => {
     // Vi maxar discountAmount till subtotal+deliveryFee = allt absorberas.
     if (isTestOrder) {
       discountAmount = subtotal + deliveryFee;
+    }
+
+    // ── RABATT-TOLERANS: min-order-validering ────────────────────────────────
+    // Nu när discountAmount är slutgiltig kan vi avgöra om kunden får använda
+    // 40-kr-toleransen. Regeln:
+    //   - Ingen rabatt aktiv → strikt min gäller (subtotal >= minOrderAmount)
+    //   - Rabatt aktiv      → tillåt subtotal − discount ≥ (minOrderAmount − 40 kr)
+    //
+    // Anti-bypass: en kund med bara en dryck (~20 kr) klarar varken den
+    // strikta eller den lägre tröskeln, så "lägg dryck + 100%-rabatt"-flödet
+    // går fortfarande inte igenom.
+    //
+    // Kund kan dessutom betala mellanskillnaden manuellt via `minOrderTopUp`.
+    // confirmedPayment hoppar över checken (en pre-payment-order har redan
+    // passerat denna validering en gång).
+    if (!confirmedPayment && !isTestOrder) {
+      const MIN_ORDER_TOLERANCE_ORE = 4000; // 40 kr
+      const hasActiveDiscount = discountAmount > 0;
+      const effectiveMinOrderAmount = hasActiveDiscount
+        ? Math.max(0, minOrderAmount - MIN_ORDER_TOLERANCE_ORE)
+        : minOrderAmount;
+      const afterDiscountValue = Math.max(0, subtotal - discountAmount);
+
+      if (afterDiscountValue < effectiveMinOrderAmount) {
+        const shortfall = effectiveMinOrderAmount - afterDiscountValue;
+        if (pendingMinOrderTopUpOre >= shortfall) {
+          deliveryFee = deliveryFee + pendingMinOrderTopUpOre;
+        } else {
+          const minKr = minOrderAmount / 100;
+          const effectiveMinKr = effectiveMinOrderAmount / 100;
+          const shortfallKr = (shortfall / 100).toFixed(0);
+          res.status(400).json({
+            error: hasActiveDiscount
+              ? `Minsta beställningsbelopp är ${minKr} kr (rabatt får dra ner till ${effectiveMinKr} kr). Du saknar ${shortfallKr} kr.`
+              : `Minsta beställningsbelopp är ${minKr} kr. Du saknar ${shortfallKr} kr.`,
+          });
+          return;
+        }
+      }
     }
 
     // Dricks: konvertera kr → öre och lägg på total. Inkluderas i Stripe-

@@ -496,20 +496,8 @@ export default function CartPage() {
     ? (deliveryCheck?.deliveryFee ?? 0)
     : 0;
   const minOrder = deliveryCheck?.minOrder ?? restaurantSettings.minOrderAmount;
-  // Rabatt-tolerans: kund får komma upp till MIN_ORDER_TOLERANCE_KR under
-  // restaurangens min-order när rabatt eller annan deal drar ner totalen.
-  // Anti-bypass: en kund som bara lägger till en dryck (~20 kr) hamnar
-  // fortfarande under den nya gränsen och blockeras. Värdet 40 kr ger
-  // realistiskt utrymme för en 20-30% rabattkupong på en lågmin-order.
-  const MIN_ORDER_TOLERANCE_KR = 40;
-  const effectiveMinOrder = Math.max(0, minOrder - MIN_ORDER_TOLERANCE_KR);
-  // Komplettering till minimum: läggs som extra avgift om kund godkänt det.
-  // Med toleransen aktiverad behöver vi bara komplettera till effektiv min,
-  // inte hela det formella min-värdet — annars tar vi extra avgift fast
-  // ordern egentligen får gå igenom direkt.
-  const minOrderTopUp = topUpToMinimum && subtotal > 0 && subtotal < effectiveMinOrder
-    ? Math.max(0, effectiveMinOrder - subtotal)
-    : 0;
+  // minOrderTopUp definieras längre ner — den behöver finalDiscount och
+  // effectiveMinOrder som båda är beroende av deals/rabatter beräknade nedan.
   const productIds = items.flatMap((i) => Array.from({ length: i.quantity }, () => i.productId));
   const automaticDeal = useMemo(() => pickBestDeal(deals, subtotal, productIds), [deals, subtotal, productIds]);
 
@@ -586,6 +574,24 @@ export default function CartPage() {
   }, [selectedAccountDeal, subtotal, deliveryFee]);
 
   const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount, bogoDiscount, accountDealDiscount);
+  // Rabatt-tolerans: när en rabatt är aktiv tillåter vi att totalen (efter
+  // rabatten) hamnar upp till MIN_ORDER_TOLERANCE_KR under restaurangens
+  // min-order. UTAN rabatt gäller den vanliga strikta gränsen — annars
+  // skulle alla kunder smita undan minimi genom att lägga få varor.
+  // Anti-bypass: drycker (~20 kr) klarar fortfarande inte den lägre
+  // tröskeln även med 100%-rabatt eftersom basbeloppet är för litet.
+  const MIN_ORDER_TOLERANCE_KR = 40;
+  const hasActiveDiscount = finalDiscount > 0;
+  const effectiveMinOrder = hasActiveDiscount
+    ? Math.max(0, minOrder - MIN_ORDER_TOLERANCE_KR)
+    : minOrder;
+  // Komplettering till minimum: kund kan välja att betala mellanskillnaden så
+  // ordern går igenom. Med rabatt → komplettering räcker till effektiv min
+  // (40 kr lägre). Utan rabatt → komplettering till FULL min, oförändrat.
+  const valueForMinCheck = Math.max(0, subtotal - finalDiscount);
+  const minOrderTopUp = topUpToMinimum && subtotal > 0 && valueForMinCheck < effectiveMinOrder
+    ? Math.max(0, effectiveMinOrder - valueForMinCheck)
+    : 0;
   // Dricks läggs till total endast vid DELIVERY (RN-paritet — dricks är till leveranspersonen)
   const effectiveTip = orderType === "DELIVERY" ? Math.max(0, tipAmount) : 0;
   // Page-level isTestFlow så att både startCheckout-logiken och submit-
