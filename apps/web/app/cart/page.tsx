@@ -527,7 +527,12 @@ export default function CartPage() {
   const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount, bogoDiscount, accountDealDiscount);
   // Dricks läggs till total endast vid DELIVERY (RN-paritet — dricks är till leveranspersonen)
   const effectiveTip = orderType === "DELIVERY" ? Math.max(0, tipAmount) : 0;
-  const total = (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa") ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount);
+  // Page-level isTestFlow så att både startCheckout-logiken och submit-
+  // knappens disabled-villkor kan respektera test-bypass:en. Annars
+  // räcker det inte att startCheckout släpper igenom — knappen är ändå
+  // disable:d när restaurang stängd / under min-order / utan zone.
+  const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
+  const total = isTestFlow ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount);
 
   const fetchContext = useCallback(async () => {
     try {
@@ -942,14 +947,30 @@ export default function CartPage() {
     };
   };
 
-  // Legacy submitOrder used only for test/promo flow (FREE_PROMO)
+  // Test/promo-flow (FREE_PROMO) — bypass Stripe helt och posta order
+  // direkt. Backend ser stripePaymentIntentId === "FREE_PROMO" + discountCode
+  // === "test"/"testa" → skippar Stripe-verifiering.
   const submitOrder = async (paymentIntentId: string) => {
     setLoading(true);
     try {
       const res = await axios.post(`/api/platform/orders`, buildOrderPayload(paymentIntentId));
+      const orderId = res.data?.orderId;
+      // Spara även för test-orders så vi kan testa /orders-history-flödet
+      // (annars saknar testorders i guest-historik och vi kan inte verifiera
+      // den vägen).
+      if (orderId) {
+        saveOrderToHistory({
+          id: orderId,
+          phone: formData.customerPhone,
+          createdAt: new Date().toISOString(),
+          restaurantName: cartRestaurantSlug ?? null,
+          restaurantSlug: cartRestaurantSlug ?? null,
+          total: total,
+        });
+        rememberActiveOrder(orderId);
+      }
       clearCart();
-      rememberActiveOrder(res.data.orderId);
-      router.push(`/order/${res.data.orderId}`);
+      if (orderId) router.push(`/order/${orderId}`);
     } catch (err: any) {
       setError(err.response?.data?.error || "Kunde inte slutföra ordern. Kontakta restaurangen.");
     } finally {
@@ -994,31 +1015,41 @@ export default function CartPage() {
     e.preventDefault();
     setError(null);
 
+    // Test-bypass: koden "test"/"testa" ska kunna gå rakt igenom utan
+    // Klarna/Stripe så vi kan smoke-testa hela order-flödet snabbt.
+    // Vi behåller basala fält (namn, telefon, ev. leveransadress) men
+    // skippar email-krav, min-order och zone-check som annars blockar
+    // testning på spontana adresser eller med tom-cart-state.
+    // isTestFlow är redan computed på page-level för att kunna styra
+    // submit-knappens disabled-villkor också.
+
     if (!formData.customerName.trim() || !formData.customerPhone.trim()) {
       setError("Ange namn och telefonnummer.");
       return;
     }
-    // Email krävs FÖRE Stripe öppnas — Klarna/Apple Pay m.fl. rejectar
-    // server-side utan email och kunden får en obegriplig error mitt-flow.
-    // Bättre att fånga upp här med tydligt meddelande.
-    const emailValue = formData.customerEmail.trim();
-    if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
-      setError("Ange en giltig e-postadress — krävs för kvitto och Klarna.");
-      return;
+    if (!isTestFlow) {
+      // Email krävs FÖRE Stripe öppnas — Klarna/Apple Pay m.fl. rejectar
+      // server-side utan email och kunden får en obegriplig error mitt-flow.
+      // Bättre att fånga upp här med tydligt meddelande.
+      const emailValue = formData.customerEmail.trim();
+      if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+        setError("Ange en giltig e-postadress — krävs för kvitto och Klarna.");
+        return;
+      }
     }
     if (orderType === "DELIVERY") {
       const hasStreet = !!formData.deliveryStreet.trim();
-      
+
       if (!hasStreet) {
         setError("Ange fullständig leveransadress.");
         return;
       }
     }
-    if (subtotal < minOrder) {
+    if (!isTestFlow && subtotal < minOrder) {
       setError(`Minsta ordervärde är ${minOrder} kr.`);
       return;
     }
-    if (!restaurantSettings.isOpen) {
+    if (!isTestFlow && !restaurantSettings.isOpen) {
       const pausedUntilDate = restaurantSettings.pausedUntil
         ? new Date(restaurantSettings.pausedUntil)
         : null;
@@ -1035,7 +1066,8 @@ export default function CartPage() {
     }
 
     // ── Zone check (last-mile safeguard for delivery) ────────────────────────
-    if (orderType === "DELIVERY" && currentRestaurantId) {
+    // Skippas för test-flödet så vi kan testa till adresser utanför zone.
+    if (!isTestFlow && orderType === "DELIVERY" && currentRestaurantId) {
       if (addressZoneStatus === "checking") {
         setError("Vänligen vänta, vi kontrollerar din leveransadress...");
         return;
@@ -1130,7 +1162,8 @@ export default function CartPage() {
 
     setLoading(true);
     try {
-      const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
+      // isTestFlow är redan beräknad ovan — testa-koden gör att vi
+      // direktpostar order utan att gå via Stripe.
       if (isTestFlow) {
         await submitOrder("FREE_PROMO");
         return;
@@ -2013,7 +2046,13 @@ export default function CartPage() {
 
                       <button
                          onClick={startCheckout}
-                         disabled={loading || (subtotal < minOrder && !topUpToMinimum) || !restaurantSettings.isOpen || addressZoneStatus === "error" || addressZoneStatus === "checking"}
+                         disabled={
+                           loading
+                           || (!isTestFlow && subtotal < minOrder && !topUpToMinimum)
+                           || (!isTestFlow && !restaurantSettings.isOpen)
+                           || (!isTestFlow && addressZoneStatus === "error")
+                           || (!isTestFlow && addressZoneStatus === "checking")
+                         }
                         className="w-full mt-8 py-5 sm:py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[1.75rem] sm:rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
                      >
                         {loading
