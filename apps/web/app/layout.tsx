@@ -11,6 +11,7 @@ import CookieConsent from "@/components/CookieConsent";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import PlatformBanner from "@/components/PlatformBanner";
 import SupportChat from "@/components/SupportChat";
+import OfflineBanner from "@/components/OfflineBanner";
 
 const outfit = Outfit({ subsets: ["latin"] });
 
@@ -47,7 +48,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // maximumScale borttagen — accessibility-violation att låsa zoom (WCAG
+  // 1.4.4 Resize text). Användare med synskador måste kunna zooma in
+  // upp till 200%. iOS Safari zoomar inte automatiskt om viewport-meta
+  // är korrekt och input-font-size är ≥16px.
   viewportFit: "cover",
   themeColor: "#18181b",
 };
@@ -62,6 +66,7 @@ export default function RootLayout({
       <body className={`${outfit.className} min-h-screen antialiased`}>
         <Providers>
           <ServiceWorkerRegister />
+          <OfflineBanner />
           <PlatformBanner />
           {/* Navbar visas bara på desktop (md+) via egen "hidden md:flex"-logik
               inuti komponenten. Den är fixed top-0, så page-content behöver

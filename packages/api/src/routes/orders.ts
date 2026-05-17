@@ -132,6 +132,9 @@ const CreateOrderSchema = z.object({
   // Kund godkände att betala mellanskillnaden till minsta orderbelopp (kr).
   // Backend lägger till på deliveryFee om subtotal < min och topUp >= shortfall.
   minOrderTopUp: z.number().nonnegative().optional(),
+  // Dricks i kr som kund valt i kassan (delivery only). Adderas till
+  // order.total + Stripe-belopp.
+  tip: z.number().nonnegative().optional(),
 }).refine((val) => Boolean(val.restaurantId || val.restaurantSlug), {
   message: 'restaurantId eller restaurantSlug krävs',
   path: ['restaurantId'],
@@ -784,7 +787,14 @@ router.post('/', async (req: Request, res: Response) => {
       discountAmount = subtotal + deliveryFee;
     }
 
-    const total = subtotal - discountAmount + deliveryFee;
+    // Dricks: konvertera kr → öre och lägg på total. Inkluderas i Stripe-
+    // beloppet (klient skickar tip i sin total) så amount-check matchar.
+    // Bara DELIVERY-orders (frontend gate:ar redan men dubbelkolla här).
+    const tipOre = data.tip && data.type === 'DELIVERY'
+      ? Math.max(0, Math.round(Number(data.tip) * 100))
+      : 0;
+
+    const total = subtotal - discountAmount + deliveryFee + tipOre;
 
     // Verifiera Stripe-beloppet matchar det vi räknat fram. Tidigare auto-justerade
     // koden order-total NEDÅT om Stripe visade lägre belopp — det betydde att en
@@ -878,6 +888,7 @@ router.post('/', async (req: Request, res: Response) => {
         userDealAmountKr: appliedUserDealAmountKr,
         discountAmount,
         deliveryFee,
+        tipAmount: tipOre,
         total,
         stripePaymentIntentId: isPendingPayment ? null : confirmedPayment.id,
         paymentStatus: isPendingPayment ? 'PENDING' : 'PAID',

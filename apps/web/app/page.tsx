@@ -597,16 +597,16 @@ export default function HomePage() {
 
   const handleRestaurantClick = (e: React.MouseEvent, r: Restaurant) => {
     e.preventDefault();
-    // Stängd restaurang — alert istället för silent navigation. Användaren
-    // skulle annars kunna scrolla menyn och försöka beställa, för att sedan
-    // få "kunde inte skapa order" först vid checkout. Bättre att stoppa här.
+    // Stängd restaurang — visa modal istället för silent navigation eller
+    // native alert(). Tidigare användes window.alert() men det:
+    // (a) bryts av mobile-keyboard
+    // (b) ser oprofessionellt ut
+    // (c) hindrar kund från att kolla menyn ändå
+    // Modal:en (closedRestaurant nedan) ger valet "Se meny" eller "Stäng".
     const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
     const isPaused = pausedUntil && pausedUntil.getTime() > Date.now();
     if (r.isOpen === false || isPaused) {
-      const msg = isPaused
-        ? `${r.name} har pausat beställningar. Försök igen om en stund.`
-        : `${r.name} är stängt just nu. Kolla öppettiderna och försök igen senare.`;
-      alert(msg);
+      setClosedRestaurant(r);
       return;
     }
     router.push(getRestaurantHref(r));

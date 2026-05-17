@@ -1,8 +1,10 @@
 "use client";
 
+import { useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Gift, X } from "lucide-react";
 import { useCartStore, type BogoChoice } from "@/store/cartStore";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 export type BogoPickerProduct = {
   id: string;
@@ -26,6 +28,10 @@ type Props = {
 export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewardCategoryName, products, onClose, onSelectProduct }: Props) {
   const setBogoChoice = useCartStore((s) => s.setBogoChoice);
   const addItem = useCartStore((s) => s.addItem);
+  // Focus-trap för a11y: screen reader-användare ska inte kunna tabba
+  // ut ur modalen till dolt content under.
+  const modalRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(modalRef, true);
 
   const handlePick = (p: BogoPickerProduct) => {
     // Om förälder vill hantera extras-val via ProductModal
@@ -62,6 +68,10 @@ export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewar
       onClick={onClose}
     >
       <motion.div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Välj gratisprodukt — ${dealTitle}`}
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
@@ -86,6 +96,7 @@ export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewar
           <button
             type="button"
             onClick={onClose}
+            aria-label="Stäng"
             className="w-8 h-8 rounded-full border flex items-center justify-center transition-colors hover:bg-white/5"
             style={{ borderColor: "var(--border-muted)", color: "var(--text-muted)" }}
           >

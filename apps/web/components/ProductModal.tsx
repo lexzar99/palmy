@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { X, Plus, Minus, Check, ShoppingBag, Sparkles } from "lucide-react";
 import { useCartStore, type BogoChoice } from "@/store/cartStore";
 import ConfirmModal from "./ConfirmModal";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useToast } from "./Toast";
 
 interface ProductModalProps {
@@ -32,6 +33,10 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const currentCartRestaurantId = useCartStore((state) => state.restaurantId);
   const cartItemsCount = useCartStore((state) => state.items.length);
   const { toast } = useToast();
+  // Focus-trap för a11y (WCAG 2.4.3) — screen reader-användare ska inte
+  // kunna tabba ut ur modalen.
+  const modalRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(modalRef, true);
 
   const [quantity, setQuantity] = useState(initialQuantity ?? 1);
   const [selectedExtras, setSelectedExtras] = useState<any[]>([]);
@@ -223,6 +228,10 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
       onClick={onClose}
     >
       <motion.div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${product.name} — anpassa och lägg i kassen`}
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}

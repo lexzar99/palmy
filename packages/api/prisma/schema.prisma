@@ -107,6 +107,10 @@ model Order {
   total                 Int
   deliveryFee           Int         @default(0)
   discountAmount        Int         @default(0)
+  // Dricks (öre). Kund anger valfritt belopp i kassan, går till leverans-
+  // personalen. Inkluderas i total + Stripe-belopp så amount-check
+  // matchar (annars rejectar backend payment med "beloppet matchar inte").
+  tipAmount             Int         @default(0)
   discountCode          String?
   appliedDealId         String?
   appliedDealTitle      String?

@@ -121,11 +121,8 @@ export default function SearchPage() {
                      <div className="w-24 h-24 shrink-0 relative rounded-xl overflow-hidden" style={{ backgroundColor: "rgba(33,28,25,0.5)" }}>
                        {r.heroImageUrl || r.imageUrl ? (
                          <img
-                           src={
-                             r.slug === "palmyra"
-                               ? getImageSrc("/hero-palmyra.svg")
-                               : getImageSrc(r.heroImageUrl || r.imageUrl || "")
-                           }
+                           src={getImageSrc(r.heroImageUrl || r.imageUrl || "")}
+                           alt={r.name}
                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                          />
                        ) : <div className="h-full w-full flex items-center justify-center text-3xl opacity-20"><Utensils /></div>}
