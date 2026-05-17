@@ -477,7 +477,7 @@ export default function HomePage() {
     <section className="mb-8">
       <div className="flex items-end justify-between mb-5 px-1">
         <div>
-          <h2 className="text-gold-gradient text-2xl sm:text-3xl font-black tracking-tight leading-none italic uppercase">{title}</h2>
+          <h2 className="text-gold-gradient text-2xl sm:text-3xl font-black tracking-tight leading-[1.15] italic uppercase">{title}</h2>
           {!!subtitle && <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-1.5">{subtitle}</p>}
         </div>
         <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 border-b border-gold-500/40 pb-0.5 hover:text-gold-500 transition-all">Visa Alla</Link>
@@ -661,7 +661,7 @@ export default function HomePage() {
               <div className="absolute inset-0 rounded-full" style={{
                 background: "radial-gradient(circle, rgba(212,167,74,0.2) 0%, transparent 60%)",
               }} />
-              <div className="relative text-[180px] xl:text-[220px] font-black italic tracking-tighter leading-none opacity-90 text-gold-500 select-none">
+              <div className="relative text-[180px] xl:text-[220px] font-black italic tracking-tighter leading-[1.15] opacity-90 text-gold-500 select-none">
                 🍕
               </div>
             </div>
@@ -1104,7 +1104,7 @@ export default function HomePage() {
 
                             {/* Restaurant name on image */}
                             <div className="absolute bottom-3 left-4 right-14">
-                              <h3 className="text-xl font-black text-white uppercase tracking-tight leading-none truncate italic">{r.name}</h3>
+                              <h3 className="text-xl font-black text-white uppercase tracking-tight leading-[1.15] truncate italic">{r.name}</h3>
                               <p className="text-[9px] font-bold text-white/70 uppercase tracking-widest mt-1 truncate">{r.cuisine || r.description || "Restaurang"}</p>
                             </div>
                           </div>
@@ -1208,7 +1208,7 @@ export default function HomePage() {
            <div className="absolute right-[-50px] top-[-50px] w-[200px] h-[200px] bg-white/20 rounded-full blur-[80px]" />
            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6 sm:gap-10">
               <div className="text-center sm:text-left">
-                 <h2 className="text-2xl sm:text-3xl lg:text-5xl font-black text-zinc-950 uppercase tracking-tighter leading-none mb-3 italic">BÄSTA MATEN <br /> I DIN TELEFON</h2>
+                 <h2 className="text-2xl sm:text-3xl lg:text-5xl font-black text-zinc-950 uppercase tracking-tighter leading-[1.15] mb-3 italic">BÄSTA MATEN <br /> I DIN TELEFON</h2>
                  <p className="text-zinc-950/60 text-[10px] font-black uppercase tracking-[0.2em]">Installera appen för en ännu snabbare upplevelse</p>
               </div>
               <button

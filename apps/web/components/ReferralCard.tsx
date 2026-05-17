@@ -311,7 +311,7 @@ function DealHero({
       <div className="flex items-center justify-center gap-5 py-3">
         {hasDiscount && (
           <div className="flex flex-col items-center">
-            <p className="text-5xl md:text-6xl font-black italic tracking-tighter text-gold-500 leading-none">
+            <p className="text-5xl md:text-6xl font-black italic tracking-tighter text-gold-500 leading-[1.15]">
               {isPercent ? deal.discountPercent : deal.amountKr}
               <span className="text-2xl md:text-3xl align-top ml-0.5">
                 {isPercent ? "%" : "kr"}

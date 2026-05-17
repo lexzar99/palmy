@@ -183,7 +183,7 @@ export default function ShareInviteCard() {
         >
           {hasDiscount && (
             <div className="flex flex-col items-center">
-              <p className="text-3xl font-black italic tracking-tighter text-gold-500 leading-none">
+              <p className="text-3xl font-black italic tracking-tighter text-gold-500 leading-[1.15]">
                 {isPercent ? deal.discountPercent : deal.amountKr}
                 <span className="text-lg align-top ml-0.5">
                   {isPercent ? "%" : "kr"}

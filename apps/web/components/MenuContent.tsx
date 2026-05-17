@@ -575,7 +575,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-black uppercase italic truncate leading-none mb-1" style={{ color: "var(--text-primary)" }}>{p.name}</h4>
+                      <h4 className="text-xs font-black uppercase italic truncate leading-[1.15] mb-1" style={{ color: "var(--text-primary)" }}>{p.name}</h4>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-black text-zinc-500 line-through">{p.price} KR</span>
                         <span className="text-[11px] font-black text-gold-500">{p.discountPrice || p.price - (p.price * (p.discountPercent || 0) / 100)} KR</span>
@@ -612,7 +612,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                  transition={{ delay: catIdx * 0.1 }}
               >
                  <div className="flex items-center justify-between mb-10 px-4">
-                    <h2 className="text-3xl font-black tracking-tight uppercase italic leading-none" style={{ color: "var(--text-primary)" }}>
+                    <h2 className="text-3xl font-black tracking-tight uppercase italic leading-[1.15]" style={{ color: "var(--text-primary)" }}>
                        {cat.name}
                     </h2>
                     <div className="h-px bg-zinc-200 flex-1 mx-8 hidden lg:block" />
@@ -651,7 +651,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                            )}
                           <div className="flex-1 min-w-0 py-2">
 <div className="flex items-start justify-between gap-4 mb-2">
-                                 <h3 className="text-base font-black group-hover:text-gold-500 transition-colors uppercase italic truncate leading-none" style={{ color: "var(--text-primary)" }}>{p.name}</h3>
+                                 <h3 className="text-base font-black group-hover:text-gold-500 transition-colors uppercase italic truncate leading-[1.15]" style={{ color: "var(--text-primary)" }}>{p.name}</h3>
                                   {p.discountActive ? (
                                     <div className="flex flex-col items-end">
                                       <span className="text-[9px] font-black text-zinc-400 line-through">{p.price} KR</span>

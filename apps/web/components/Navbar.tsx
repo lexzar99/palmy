@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Menu, X, Sun, Moon, User as UserIcon } from "lucide-react";
+import { ShoppingCart, Menu, X, Sun, Moon, User as UserIcon, Info, Mail } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTheme } from "@/app/providers";
+import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import LocaleSwitcher from "@/components/LocaleSwitcher";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import axios from "axios";
@@ -17,6 +19,7 @@ type SessionUser = {
 
 const Navbar = () => {
   const { theme, toggleTheme } = useTheme();
+  const { t } = useTranslation();
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const [isOpen, setIsOpen] = useState(false);
@@ -90,45 +93,67 @@ const Navbar = () => {
     >
       <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-1 group" aria-label="MatGo — startsidan">
-          <span className="text-2xl font-black italic tracking-tighter leading-none transition-transform group-hover:scale-105" style={{ color: "var(--text-primary)" }}>
+          <span className="text-2xl font-black italic tracking-tighter leading-[1.15] transition-transform group-hover:scale-105" style={{ color: "var(--text-primary)" }}>
             MAT<span className="text-gold-500">GO</span>
           </span>
         </Link>
 
-        {/* Desktop-links — plattform har ingen "meny" (det är hem), ingen
-            partner-portal (admin nås via egen subdomän), och ingen
-            öppet-status (plattformen är alltid live — restaurang-status
-            visas per restaurang istället). */}
+        {/* Desktop-länkar — kompaktare nu: bara HEM, UPPTÄCK, MINA BESTÄLLNINGAR
+            som textlänkar. Om oss + Kontakt flyttade till små icon-knappar
+            i höger-clustret tillsammans med theme + locale + cart. */}
         <div className="hidden md:flex items-center gap-8 text-sm font-bold uppercase tracking-widest">
-          <Link href="/" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Hem</Link>
-          <Link href="/discover" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Upptäck</Link>
-          <Link href="/about" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Om oss</Link>
-          <Link href="/contact" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Kontakt</Link>
-          <Link href="/orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>Mina beställningar</Link>
-          {/* Bjud-in-länk borttagen — referral-systemet är avstängt för launch */}
+          <Link href="/" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{t("nav.home")}</Link>
+          <Link href="/discover" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{t("nav.discover")}</Link>
+          <Link href="/orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>{t("nav.myOrders")}</Link>
           {displayName ? (
             <Link href="/profile" className="flex items-center gap-2 text-gold-500 hover:text-gold-400 transition-colors">
               <UserIcon size={14} />
               <span className="truncate max-w-[160px]">{displayName}</span>
             </Link>
           ) : (
-            <Link href="/profile" className="text-gold-500 hover:text-gold-400 transition-colors">Logga in</Link>
+            <Link href="/profile" className="text-gold-500 hover:text-gold-400 transition-colors">{t("nav.login")}</Link>
           )}
         </div>
 
-        <div className="flex items-center gap-4 relative z-[100]">
-          <button 
+        <div className="flex items-center gap-2 sm:gap-3 relative z-[100]">
+          {/* Om oss / Kontakt som små icon-knappar — visas bara på desktop
+              eftersom mobil-menyn redan har egna länkar. Tooltipen via title
+              ger snabb identifiering. */}
+          <Link
+            href="/about"
+            className="hidden md:flex p-2 transition-colors rounded-full items-center justify-center"
+            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
+            aria-label={t("nav.about")}
+            title={t("nav.about")}
+          >
+            <Info size={18} className="text-gold-600" />
+          </Link>
+          <Link
+            href="/contact"
+            className="hidden md:flex p-2 transition-colors rounded-full items-center justify-center"
+            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
+            aria-label={t("nav.contact")}
+            title={t("nav.contact")}
+          >
+            <Mail size={18} className="text-gold-600" />
+          </Link>
+
+          <LocaleSwitcher />
+
+          <button
             onClick={toggleTheme}
             className="p-2 transition-colors rounded-full"
             style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
+            aria-label={theme === 'dark' ? t("nav.theme.toLight") : t("nav.theme.toDark")}
           >
             {theme === 'dark' ? <Sun size={20} className="text-gold-500" /> : <Moon size={20} className="text-gold-600" />}
           </button>
 
-          <Link 
-            href="/cart" 
+          <Link
+            href="/cart"
             className="relative p-2 transition-colors group rounded-full"
             style={{ backgroundColor: "var(--bg-deep)" }}
+            aria-label={t("nav.cart")}
           >
             <ShoppingCart size={20} className="text-gold-600 group-hover:scale-110 transition-transform" />
             {itemCount > 0 && (
@@ -141,10 +166,10 @@ const Navbar = () => {
               </motion.span>
             )}
           </Link>
-          <button 
-            type="button" 
-            onClick={() => setIsOpen(!isOpen)} 
-            className="md:hidden p-3 -mr-2 rounded-xl active:scale-95 transition-all select-none touch-manipulation" 
+          <button
+            type="button"
+            onClick={() => setIsOpen(!isOpen)}
+            className="md:hidden p-3 -mr-2 rounded-xl active:scale-95 transition-all select-none touch-manipulation"
             style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}
             aria-label="Toggle Menu"
           >
@@ -165,11 +190,13 @@ const Navbar = () => {
             >
               <div className="flex flex-col gap-8">
                 {[
-                  { name: "Hem", href: "/" },
-                  { name: "Upptäck", href: "/discover" },
-                  { name: "Mina Beställningar", href: "/orders" },
+                  { name: t("nav.home"), href: "/" },
+                  { name: t("nav.discover"), href: "/discover" },
+                  { name: t("nav.myOrders"), href: "/orders" },
+                  { name: t("nav.about"), href: "/about" },
+                  { name: t("nav.contact"), href: "/contact" },
                   // Visa namn om inloggad, annars "Logga in"
-                  { name: displayName ?? "Logga in", href: "/profile", isUser: true },
+                  { name: displayName ?? t("nav.login"), href: "/profile", isUser: true },
                 ].map((link, i) => (
                   <motion.div
                     key={link.href}

@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { clearLegacyPlatformUserToken } from "@/lib/platformSessionClient";
 import { ToastProvider } from "@/components/Toast";
+import { LocaleProvider } from "@/lib/i18n/LocaleProvider";
 
 type Theme = "dark" | "light";
 
@@ -43,9 +44,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <SessionProvider>
-      <ThemeContext.Provider value={{ theme, toggleTheme }}>
-        <ToastProvider>{children}</ToastProvider>
-      </ThemeContext.Provider>
+      <LocaleProvider>
+        <ThemeContext.Provider value={{ theme, toggleTheme }}>
+          <ToastProvider>{children}</ToastProvider>
+        </ThemeContext.Provider>
+      </LocaleProvider>
     </SessionProvider>
   );
 }

@@ -406,7 +406,7 @@ const OrderStatusPage = () => {
             <div className="lg:col-span-7 p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                <div className="absolute top-[-100px] left-[-100px] w-[300px] h-[300px] rounded-full blur-[100px]" style={{ backgroundColor: "rgba(231,178,75,0.03)" }} />
               <div className="flex items-center justify-between mb-12 relative z-10">
-                  <h2 className="text-2xl font-black uppercase italic tracking-tight leading-none" style={{ color: "var(--text-primary)" }}>Beställningsdetaljer</h2>
+                  <h2 className="text-2xl font-black uppercase italic tracking-tight leading-[1.15]" style={{ color: "var(--text-primary)" }}>Beställningsdetaljer</h2>
                  <ShoppingBag size={24} className="text-gold-500/30" />
               </div>
               
@@ -436,7 +436,7 @@ const OrderStatusPage = () => {
                  <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>Delsumma</span><span>{(order.total - order.deliveryFee).toFixed(0)} KR</span></div>
                  {order.deliveryFee > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>Leveransavgift</span><span className="text-gold-500">+{order.deliveryFee.toFixed(0)} KR</span></div>}
                   <div className="flex justify-between items-end mt-10 pt-4 border-t border-zinc-100">
-                     <span className="text-2xl font-black italic uppercase tracking-tighter leading-none" style={{ color: "var(--text-primary)" }}>SUMMA</span>
+                     <span className="text-2xl font-black italic uppercase tracking-tighter leading-[1.15]" style={{ color: "var(--text-primary)" }}>SUMMA</span>
                      <span className="text-4xl font-black italic tracking-tighter text-gold-500">{order.total.toFixed(0)} <span className="text-[10px] opacity-40 not-italic uppercase tracking-widest">SEK</span></span>
                   </div>
               </div>

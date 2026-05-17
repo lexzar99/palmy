@@ -1398,7 +1398,7 @@ export default function CartPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex items-end justify-between mb-6 lg:mb-10 px-1 sm:px-4">
            <div>
-              <h1 className="text-3xl sm:text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none mb-2" style={{ color: "var(--text-primary)" }}>Din <span className="text-gold-gradient">Kasse</span></h1>
+              <h1 className="text-3xl sm:text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-[1.15] mb-2" style={{ color: "var(--text-primary)" }}>Din <span className="text-gold-gradient">Kasse</span></h1>
               <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em]">Granska dina val och slutför beställning</p>
            </div>
            <Link href="/menu" className="text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-600 transition-colors flex items-center gap-2 mb-2 group">
@@ -2382,7 +2382,7 @@ export default function CartPage() {
                         ) : null}
                         <div className="flex justify-between items-center mt-6">
                            <span className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>TOTALT</span>
-                           <span className="text-3xl sm:text-5xl font-black italic tracking-tighter leading-none text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>SEK</span></span>
+                           <span className="text-3xl sm:text-5xl font-black italic tracking-tighter leading-[1.15] text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>SEK</span></span>
                         </div>
                      </div>
 
@@ -2459,7 +2459,7 @@ export default function CartPage() {
                               <div className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{deal.campaign.title}</div>
                               {isEligible && <div className="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-md text-[8px] font-black uppercase">REDO</div>}
                            </div>
-                           <div className="text-2xl font-black italic uppercase tracking-tighter leading-none mb-2 group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>
+                           <div className="text-2xl font-black italic uppercase tracking-tighter leading-[1.15] mb-2 group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>
                               {deal.campaign.discountType === "PERCENTAGE" ? `${deal.campaign.discountValue}% RABATT` : `${deal.campaign.discountValue} KR RABATT`}
                            </div>
                            <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Gäller vid köp över {deal.campaign.minOrder} kr</div>

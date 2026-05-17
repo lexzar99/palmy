@@ -108,7 +108,7 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
                 </span>
               </div>
               <h3
-                className="text-sm font-black uppercase tracking-tight leading-none italic truncate"
+                className="text-sm font-black uppercase tracking-tight leading-[1.15] italic truncate"
                 style={{
                   color: "white",
                   textShadow: "0 2px 8px rgba(0,0,0,0.45)",

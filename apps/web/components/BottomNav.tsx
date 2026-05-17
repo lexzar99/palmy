@@ -5,9 +5,11 @@ import { usePathname } from "next/navigation";
 import { Home, Compass, ShoppingBag, User, ReceiptText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCartStore } from "@/store/cartStore";
+import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 const BottomNav = () => {
   const pathname = usePathname();
+  const { t } = useTranslation();
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -15,11 +17,11 @@ const BottomNav = () => {
   if (pathname?.startsWith("/restaurants/")) return null;
 
   const navItems = [
-    { href: "/", label: "Hem", icon: Home },
-    { href: "/discover", label: "Upptäck", icon: Compass },
-    { href: "/cart", label: "Kasse", icon: ShoppingBag, count: itemCount },
-    { href: "/orders", label: "Order", icon: ReceiptText },
-    { href: "/profile", label: "Profil", icon: User },
+    { href: "/", label: t("nav.home"), icon: Home },
+    { href: "/discover", label: t("nav.discover"), icon: Compass },
+    { href: "/cart", label: t("nav.cart"), icon: ShoppingBag, count: itemCount },
+    { href: "/orders", label: t("nav.myOrders"), icon: ReceiptText },
+    { href: "/profile", label: t("nav.profile"), icon: User },
   ];
 
   return (

@@ -266,7 +266,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                   <Sparkles size={12} /> Specialité
                 </div>
               )}
-              <h2 className="text-3xl sm:text-4xl font-black uppercase italic tracking-tight leading-none mb-4" style={{ color: "var(--text-primary)" }}>{product.name}</h2>
+              <h2 className="text-3xl sm:text-4xl font-black uppercase italic tracking-tight leading-[1.15] mb-4" style={{ color: "var(--text-primary)" }}>{product.name}</h2>
               <p className="text-xs font-bold uppercase tracking-widest leading-relaxed border-l-2 border-gold-500/50 pl-4" style={{ color: "var(--text-secondary)" }}>{product.description || "Ingen beskrivning tillgänglig."}</p>
            </div>
 
@@ -352,7 +352,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                  <ShoppingBag size={20} />
                  <span>{editCartItemId ? "Spara ändringar" : bogoFreeFromDealId ? "Välj som gratis" : "Lägg i kasse"}</span>
               </div>
-              <div className="flex items-center gap-2 text-xl italic leading-none">
+              <div className="flex items-center gap-2 text-xl italic leading-[1.15]">
                  {bogoFreeFromDealId
                    ? (extrasPrice > 0 ? `+${extrasPrice} KR EXTRAS` : "GRATIS")
                    : `${totalPrice} KR`}

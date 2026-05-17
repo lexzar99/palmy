@@ -48,7 +48,7 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
             <Shield className="absolute -right-8 -top-8 text-gold-500/10 w-48 h-48 -rotate-12" />
             <div className="relative z-10">
               <div className="text-[10px] font-black uppercase tracking-[0.4em] text-gold-600 mb-2">GDPR &amp; Säkerhet</div>
-              <h2 className="text-3xl font-black italic mb-4 leading-none" style={{ color: "var(--text-primary)" }}>
+              <h2 className="text-3xl font-black italic mb-4 leading-[1.15]" style={{ color: "var(--text-primary)" }}>
                 Din integritet är <br />vår högsta prioritet.
               </h2>
               <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>

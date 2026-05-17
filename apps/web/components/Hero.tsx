@@ -100,12 +100,12 @@ const Hero = () => {
         </div>
 
         {/* Heading */}
-        <h1 className="font-black italic tracking-tighter leading-none select-none text-white mb-0"
+        <h1 className="font-black italic tracking-tighter leading-[1.15] select-none text-white mb-0"
           style={{ fontSize: "clamp(4rem, 18vw, 9rem)" }}>
           MATGO
         </h1>
         <div
-          className="font-black italic tracking-tighter leading-none select-none border-t border-b border-white/30 px-4 w-full text-center mb-10"
+          className="font-black italic tracking-tighter leading-[1.15] select-none border-t border-b border-white/30 px-4 w-full text-center mb-10"
           style={{
             fontSize: "clamp(4rem, 18vw, 9rem)",
             WebkitTextStroke: "1px rgba(255,255,255,0.25)",
