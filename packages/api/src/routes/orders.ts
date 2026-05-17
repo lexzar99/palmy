@@ -311,49 +311,51 @@ router.post('/', async (req: Request, res: Response) => {
     
     // Use restaurant specific settings or global fallbacks
     const restaurantOpen = restaurant?.isOpen ?? globalSettings?.isOpen ?? true;
-    // Zone validation if delivery
+
+    // FÖR DELIVERY: ENDAST zon-baserade avgifter används. Tidigare fanns
+    // restaurant.deliveryFee/minOrderAmount som fallback men det orsakade
+    // förvirring (admin satt en, zon satt en, vilken vann?). Nu: zon är
+    // ENDA källan. Ingen zon = ingen delivery (kund får tydligt fel).
+    // Vill en restaurang ha egen prissättning skapar de en egen zon i
+    // admin → den vinner via resolveDeliveryFee polygon-match.
+    //
+    // FÖR PICKUP: ingen leveransavgift (0). minOrder från globalSettings
+    // som fallback (om admin satt plattform-wide min). Ingen restaurant-
+    // specifik min för pickup heller — håll det enkelt.
     let deliveryFee = 0;
-    let minOrderAmount = restaurant?.minOrderAmount ?? globalSettings?.minOrderAmount ?? Math.round(DEFAULT_MIN_ORDER_AMOUNT * 100);
+    let minOrderAmount = globalSettings?.minOrderAmount ?? 0;
 
     if (data.type === 'DELIVERY') {
-      const defaultFee = (restaurant?.deliveryFee ?? globalSettings?.deliveryFee ?? Math.round(DEFAULT_DELIVERY_FEE * 100));
-
-      if (data.lat && data.lng) {
-        // Single source of truth shared with POST /api/cities/validate-location
-        // (the kassa endpoint). Whatever fee the customer sees in checkout is
-        // what we store on the order — no more "kunden betalade 50 men admin
-        // visar 49" drift.
-        const resolved = await resolveDeliveryFee(
-          restaurant as any,
-          data.lat,
-          data.lng,
-          prisma as any,
-        );
-        if (resolved) {
-          deliveryFee = resolved.fee;
-          minOrderAmount = resolved.minOrder || minOrderAmount;
-        } else {
-          // The restaurant configured zones but the address falls outside
-          // them — same gating the kassa applied. Refuse the order rather
-          // than silently charging the default fallback fee.
-          const hasZones =
-            (() => {
-              try {
-                return JSON.parse((restaurant as any).deliveryZones || '[]').length > 0;
-              } catch {
-                return false;
-              }
-            })() ||
-            ((restaurant as any).cityId ? true : false);
-          if (hasZones) {
-            res.status(400).json({ error: 'Tyvärr levererar vi inte till din adress (utanför täckningsområde).' });
-            return;
-          }
-          deliveryFee = defaultFee;
-        }
-      } else {
-        deliveryFee = defaultFee;
+      if (!data.lat || !data.lng) {
+        res.status(400).json({
+          error: 'Leveransadressen kunde inte hittas. Välj din adress från listan eller välj avhämtning.',
+        });
+        return;
       }
+
+      // Single source of truth shared with POST /api/cities/validate-location
+      // (kassan). Whatever fee the customer sees in checkout är what we
+      // store on the order — no more drift mellan klient och backend.
+      const resolved = await resolveDeliveryFee(
+        restaurant as any,
+        data.lat,
+        data.lng,
+        prisma as any,
+      );
+
+      if (!resolved) {
+        // Restaurang har inga zoner ELLER kundens adress är utanför alla
+        // zoner. Båda fallen: vi kan inte ta emot delivery-order. Tidigare
+        // föll vi tillbaka på en hardkodad default-fee — det orsakade
+        // "kunden beställde 49 kr leverans men vi kan inte komma dit"-buggar.
+        res.status(400).json({
+          error: 'Tyvärr levererar vi inte till din adress. Välj avhämtning eller en annan adress.',
+        });
+        return;
+      }
+
+      deliveryFee = resolved.fee;
+      minOrderAmount = resolved.minOrder ?? 0;
     }
     const estimatedTime = data.scheduledFor
       ? null

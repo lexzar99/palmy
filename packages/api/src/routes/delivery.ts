@@ -28,14 +28,13 @@ router.get('/check', async (req: Request, res: Response) => {
     }
 
     if (!restaurant.latitude || !restaurant.longitude) {
-      // No GPS set — fall back to restaurant's default delivery fee
+      // Restaurang saknar GPS → kan inte räkna ut zone. Tidigare föll vi
+      // tillbaka på restaurant.deliveryFee men det är dead column nu (admin
+      // exponerar den inte). Refusa delivery och be admin sätta GPS + zon.
       return res.json({
-        available: true,
+        available: false,
         zone: null,
-        deliveryFee: (restaurant.deliveryFee || 0) / 100,
-        minOrder: (restaurant.minOrderAmount || 0) / 100,
-        distanceKm: null,
-        message: 'GPS ej konfigurerat för restaurangen. Standardavgift används.'
+        message: 'Restaurangen levererar inte än — admin behöver konfigurera leveranszon.',
       });
     }
 
@@ -67,13 +66,15 @@ router.get('/check', async (req: Request, res: Response) => {
     }
 
     if (zones.length === 0) {
-      // No zones configured — use default
+      // Inga zoner konfigurerade → restaurang kan inte leverera. Tidigare
+      // föll vi tillbaka på restaurant.deliveryFee men admin har inget
+      // sätt att sätta den i UI:n och det orsakade dubbelkällor av
+      // sanning. Be admin lägga till zoner via /admin/cities-or-zones.
       return res.json({
-        available: true,
+        available: false,
         zone: null,
-        deliveryFee: (restaurant.deliveryFee || 0) / 100,
-        minOrder: (restaurant.minOrderAmount || 0) / 100,
-        distanceKm: Math.round(distanceKm * 10) / 10
+        distanceKm: Math.round(distanceKm * 10) / 10,
+        message: 'Restaurangen har inga aktiva leveranszoner. Välj avhämtning.',
       });
     }
 
