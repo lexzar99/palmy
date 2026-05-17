@@ -399,12 +399,7 @@ const OrderStatusPage = () => {
            </div>
         )}
 
-        {/* Share-invite-CTA — låses upp efter första betalda order. Visas
-            mellan tracker och receipt så användaren ser den medan de väntar
-            på maten (peak emotional moment efter checkout). Komponenten
-            själv döljs om referral fortfarande är locked eller deal inte
-            är konfigurerad. */}
-        {!isRejected && <ShareInviteCard />}
+        {/* ShareInviteCard borttagen — referral-systemet avstängt för launch */}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
            {/* Detailed Receipt */}

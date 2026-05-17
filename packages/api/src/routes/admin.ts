@@ -2193,6 +2193,9 @@ const formatDiscountCodeForAdmin = (discount: any) => ({
   isActive: discount.isActive,
   restaurantId: discount.restaurantId || null,
   applicableRestaurantIds: parseJsonArray(discount.applicableRestaurantIds),
+  // Stackbar fri leverans-flagga (default false). Returneras alltid så
+  // admin-formuläret kan hydrera checkboxen korrekt vid redigering.
+  freeDelivery: Boolean(discount.freeDelivery),
   createdAt: discount.createdAt,
   updatedAt: discount.updatedAt,
 });
@@ -3309,7 +3312,7 @@ router.post('/discounts', async (req, res) => {
       return res.status(403).json({ error: 'Kräver super admin-behörighet' });
     }
 
-    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds } = req.body;
+    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery } = req.body;
 
     const parsedRestaurantIds = Array.isArray(applicableRestaurantIds)
       ? applicableRestaurantIds.filter((v: unknown): v is string => typeof v === 'string')
@@ -3325,6 +3328,9 @@ router.post('/discounts', async (req, res) => {
       validFrom: validFrom ? new Date(validFrom) : null,
       validUntil: validUntil ? new Date(validUntil) : null,
       applicableRestaurantIds: JSON.stringify(parsedRestaurantIds),
+      // Stackbar fri leverans-flagga (gör t.ex. "20% + fri leverans"). Ignoreras
+      // för type=FREE_DELIVERY eftersom fri leverans då redan är huvudfunktionen.
+      freeDelivery: type === 'FREE_DELIVERY' ? false : Boolean(freeDelivery),
     };
     if (restaurantId && parsedRestaurantIds.length === 0) discountData.restaurantId = restaurantId;
     else if (parsedRestaurantIds.length === 1) discountData.restaurantId = parsedRestaurantIds[0];
@@ -3354,7 +3360,7 @@ router.patch('/discounts/:id', async (req, res) => {
       return res.status(403).json({ error: 'Kräver super admin-behörighet' });
     }
 
-    const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds } = req.body;
+    const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery } = req.body;
     const updateData: any = {};
     if (isActive !== undefined) updateData.isActive = isActive;
     if (code) updateData.code = code.toUpperCase();
@@ -3365,6 +3371,10 @@ router.patch('/discounts/:id', async (req, res) => {
     if (maxUsages !== undefined) updateData.maxUsages = maxUsages || null;
     if (validFrom !== undefined) updateData.validFrom = validFrom ? new Date(validFrom) : null;
     if (validUntil !== undefined) updateData.validUntil = validUntil ? new Date(validUntil) : null;
+    if (freeDelivery !== undefined) {
+      // FREE_DELIVERY-typen lagrar inte flaggan (redundant).
+      updateData.freeDelivery = type === 'FREE_DELIVERY' ? false : Boolean(freeDelivery);
+    }
     if (applicableRestaurantIds !== undefined) {
       const parsed = Array.isArray(applicableRestaurantIds)
         ? applicableRestaurantIds.filter((v: unknown): v is string => typeof v === 'string')

@@ -928,9 +928,7 @@ export default function HomePage() {
               en aktiv WELCOME/REFERRAL-deal från backend. */}
           {isLoggedIn && <WelcomeDealBanner enabled={isLoggedIn} />}
 
-          {/* Invite-friends-CTA — tydlig länk till /invite så användaren
-              inte behöver leta upp referral-koden under /profile. */}
-          {isLoggedIn && <InviteFriendsBanner enabled={isLoggedIn} />}
+          {/* InviteFriendsBanner borttagen — referral-systemet avstängt för launch */}
 
           {/* Loyalty banner — shown to guests when restaurant list has loaded */}
           {!isLoggedIn && !loading && !apiError && filtered.length > 0 && (

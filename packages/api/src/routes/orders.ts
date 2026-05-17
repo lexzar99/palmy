@@ -571,6 +571,18 @@ router.post('/', async (req: Request, res: Response) => {
             } else {
               manualDiscountAmount = Math.min(code.value, subtotal);
             }
+            // Stackbar fri leverans-flagga: PERCENTAGE eller FIXED kupong
+            // kan ha freeDelivery=true → leveransavgiften absorberas också.
+            // FREE_DELIVERY-typen ignorerar flaggan (redundant — den ÄR
+            // redan fri leverans). manualDiscountAmount innehåller då
+            // BÅDA komponenterna i ett enda värde.
+            if (
+              (code as any).freeDelivery &&
+              code.type !== 'FREE_DELIVERY' &&
+              deliveryFee > 0
+            ) {
+              manualDiscountAmount += deliveryFee;
+            }
             validatedCode = code.code;
           }
         } else {

@@ -37,6 +37,9 @@ type FormState = {
   expiresAt: string;
   applicableRestaurantIds: string[];
   isActive: boolean;
+  // Stackbar fri leverans-flagga. Endast meningsfull när discountType är
+  // percentage eller fixed — för free_delivery är den redan implicit.
+  freeDelivery: boolean;
 };
 
 const emptyForm = (): FormState => ({
@@ -50,6 +53,7 @@ const emptyForm = (): FormState => ({
   expiresAt: "",
   applicableRestaurantIds: [],
   isActive: true,
+  freeDelivery: false,
 });
 
 const typeLabel: Record<DiscountRecord["discountType"], string> = {
@@ -98,6 +102,7 @@ export function CouponsPage() {
             ? [editing.restaurantId]
             : [],
         isActive: editing.isActive,
+        freeDelivery: editing.freeDelivery ?? false,
       });
     } else {
       setForm(emptyForm());
@@ -119,6 +124,9 @@ export function CouponsPage() {
         validUntil: f.expiresAt || null,
         applicableRestaurantIds: f.applicableRestaurantIds,
         isActive: f.isActive,
+        // Stackbar fri leverans — bara meningsfull om typen INTE redan
+        // är free_delivery (då är fri leverans redan kupongens huvudsyfte).
+        freeDelivery: f.discountType !== "free_delivery" && f.freeDelivery,
       };
       if (editing) {
         return updateDiscount(editing.id, payload);
@@ -340,6 +348,25 @@ export function CouponsPage() {
                 onChange={(e) => setField("discountValue", e.target.value)}
                 placeholder={form.discountType === "percentage" ? "15" : "50"}
               />
+            </Field>
+          )}
+
+          {/* Stackbar fri leverans — bara meningsfull för procent/fast.
+              För free_delivery-typen är fri leverans redan huvudfunktionen
+              (att slå på flaggan blir redundant). */}
+          {form.discountType !== "free_delivery" && (
+            <Field label="Tillägg: fri leverans">
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.freeDelivery}
+                  onChange={(e) => setField("freeDelivery", e.target.checked)}
+                  className="h-4 w-4 accent-[var(--accent)] cursor-pointer"
+                />
+                <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                  Kombinera med fri leverans — kunden får rabatten OCH gratis leverans i samma kupong.
+                </span>
+              </label>
             </Field>
           )}
 

@@ -14,6 +14,10 @@ export interface DiscountRecord {
   isActive: boolean;
   restaurantId: string | null;
   applicableRestaurantIds: string[];
+  // Stackbar fri leverans-flagga: PERCENTAGE eller FIXED kan kombineras med
+  // fri leverans i samma kupong (t.ex. "SOMMAR20 → 20% + fri leverans").
+  // FREE_DELIVERY-typen ignorerar flaggan (redundant).
+  freeDelivery: boolean;
   createdAt: string;
   updatedAt: string;
 }

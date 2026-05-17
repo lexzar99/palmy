@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -9,7 +8,6 @@ import {
   ArrowRight,
   Check,
   Gift,
-  List,
   Loader2,
   Save,
   ShieldAlert,
@@ -504,21 +502,10 @@ export function MarketingReferralsPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader
-        title="Marketing & Referrals"
-        actions={
-          <div className="flex items-center gap-2">
-            <Link href="/marketing-referrals/stats">
-              <Button variant="secondary">Statistik</Button>
-            </Link>
-            <Link href="/marketing-referrals/list">
-              <Button variant="secondary">
-                <List size={14} /> Alla referrals
-              </Button>
-            </Link>
-          </div>
-        }
-      />
+      <PageHeader title="Välkomstrabatt" />
+      {/* Referral-systemet är avstängt för launch — "Alla referrals" och
+          "Statistik"-knapparna borttagna. Bakomliggande routes finns kvar
+          om vi vill aktivera systemet igen. */}
 
       <UnifiedMarketingTab settings={settings.data} isLoading={settings.isLoading} />
     </div>
@@ -616,10 +603,8 @@ function UnifiedMarketingTab({
     <div className="space-y-5">
       <Surface className="px-6 py-5">
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          <strong>Marknadsföring</strong> — välj EN deal-mall som ges automatiskt
-          till nya användare vid registrering (welcome) OCH till båda parter när
-          någon använder en referral-kod. En toggle, en mall, samma rabatt
-          överallt.
+          <strong>Välkomstrabatt</strong> — välj EN deal-mall som ges automatiskt
+          till nya användare vid registrering. Aktivera/avaktivera med toggeln nedan.
         </p>
       </Surface>
 
@@ -643,8 +628,8 @@ function UnifiedMarketingTab({
       <Surface className="px-6 py-6">
         <ToggleRow
           icon={<Gift size={16} className="text-[var(--accent)]" />}
-          title="Marknadsföring aktiv"
-          description="Slå PÅ för att aktivera både welcome-deal och referral-system. Sparas direkt."
+          title="Välkomstrabatt aktiv"
+          description="Slå PÅ för att nya kunder automatiskt får dealen vid registrering. Sparas direkt."
           value={active}
           onChange={handleToggleActive}
           disabled={mutation.isPending}
@@ -690,37 +675,10 @@ function UnifiedMarketingTab({
             )}
           </Field>
 
-          <Field label="Antal kuponger per part (referral)">
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              value={form.couponsPerSide}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, couponsPerSide: Number(e.target.value) || 1 }))
-              }
-            />
-            <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
-              1 = klassisk. 3 = invitee kan använda rabatten på 3 ordrar.
-            </p>
-          </Field>
-        </div>
-
-        <div className="mt-5">
-          <Field label="Tak per inviter / 30 dagar (anti-fusk)">
-            <Input
-              type="number"
-              min={0}
-              max={1000}
-              value={form.maxRewardsPerInviter}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, maxRewardsPerInviter: Number(e.target.value) || 0 }))
-              }
-            />
-            <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
-              Skyddar mot fake-konton som spammar referrals.
-            </p>
-          </Field>
+          {/* Referral-specifika fält (couponsPerSide, maxRewardsPerInviter)
+              dolda — referral-systemet är avstängt för launch. Form-state
+              behåller defaults (1 / 20) som ändå sparas till backend så
+              fälten inte hamnar i null-state om systemet aktiveras igen. */}
         </div>
 
         <div className="mt-6">

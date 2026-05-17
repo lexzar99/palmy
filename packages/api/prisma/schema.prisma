@@ -191,6 +191,11 @@ model DiscountCode {
   applicableRestaurantIds String    @default("[]")
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
+  // Stackbar fri leverans-flagga. Kan kombineras med type=PERCENTAGE eller
+  // type=FIXED → kunden får t.ex. "20% rabatt + fri leverans" från en enda
+  // kupong-kod. Om type=FREE_DELIVERY (standalone): denna flagga ignoreras
+  // (fri leverans är redan kupongens huvudfunktion).
+  freeDelivery         Boolean   @default(false)
 }
 
 model Deal {

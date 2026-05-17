@@ -1257,9 +1257,8 @@ function ProfileContent() {
                 </div>
               </div>
 
-              {/* Referral-kort: bjud in vänner — visas bara om backend har
-                  referral-feature aktiverad och returnerar enabled=true. */}
-              <ReferralCard />
+              {/* Referral-kort borttaget — referral-systemet avstängt för
+                  launch. Komponenten finns kvar i repo men renderas inte. */}
             </motion.div>
           )}
 

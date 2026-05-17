@@ -105,12 +105,7 @@ const Navbar = () => {
           <Link href="/about" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Om oss</Link>
           <Link href="/contact" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Kontakt</Link>
           <Link href="/orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>Mina beställningar</Link>
-          {displayName && (
-            <Link href="/invite" className="hover:text-gold-500 transition-colors text-gold-500 flex items-center gap-1.5" title="Bjud in en vän — 50 kr åt båda">
-              <span aria-hidden>🎁</span>
-              <span>Bjud in</span>
-            </Link>
-          )}
+          {/* Bjud-in-länk borttagen — referral-systemet är avstängt för launch */}
           {displayName ? (
             <Link href="/profile" className="flex items-center gap-2 text-gold-500 hover:text-gold-400 transition-colors">
               <UserIcon size={14} />

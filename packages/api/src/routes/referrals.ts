@@ -274,11 +274,33 @@ function publicShareBase(): string {
 // Customer endpoints (mountas under /api/account/)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Hård feature-flag: referral-systemet är avstängt för launch. Endpointen
+// returnerar fortfarande 200 så klienter inte 5xx:ar, men `enabled: false`
+// gör att alla referral-UI:n i web + RN gömmer sig automatiskt (de
+// kollar redan på den flaggan). Aktivera igen genom att sätta
+// REFERRALS_DISABLED=false i env eller ta bort denna check.
+const REFERRALS_DISABLED = (process.env.REFERRALS_DISABLED ?? 'true').toLowerCase() !== 'false';
+
 // GET /api/account/referral
 router.get('/referral', authenticateUser, async (req: any, res: any) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (REFERRALS_DISABLED) {
+      // Returnera en "tom" payload som matchar shape klienterna förväntar,
+      // men med enabled: false så all UI gömmer sig.
+      return res.json({
+        locked: true,
+        code: null,
+        shareUrl: null,
+        enabled: false,
+        deal: null,
+        rewardLabel: null,
+        couponsPerSide: 1,
+        stats: { invited: 0, registered: 0, ordered: 0, totalEarnedKr: 0 },
+      });
+    }
 
     const settings = await getSettings();
     const snapshot = await snapshotReferralDeal();
