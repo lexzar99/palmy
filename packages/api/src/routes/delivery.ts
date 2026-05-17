@@ -1,15 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
-import { haversineKm, findDeliveryZone, DeliveryZone } from '../utils/geo';
-import { normalizeDeliveryZones } from '../utils/deliveryZones';
-import { DEFAULT_DELIVERY_FEE, DEFAULT_MIN_ORDER_AMOUNT } from '../lib/restaurantSettings';
+import { haversineKm } from '../utils/geo';
+import { resolveDeliveryFee } from '../utils/deliveryZones';
 
 const router = Router();
 
 /**
  * GET /api/delivery/check?lat=X&lng=Y&restaurantId=Z
- * Returns: zone info, delivery fee, min order, or error if outside coverage
+ *
+ * Delegerar till `resolveDeliveryFee` som är SAMMA logik som
+ * /api/cities/validate-location (kassan) och orders.ts (server-side
+ * verifiering). Tidigare hade denna endpoint EGEN strängare logik som
+ * gjorde att kassan visade "vi levererar hit" men Slutför Köp-knappen
+ * rejectade samma adress (zones tomma men city-polygon täckte).
+ *
+ * Returns: { available, zone, deliveryFee, minOrder, distanceKm } eller
+ * { available: false, message } om utanför täckning.
  */
 router.get('/check', async (req: Request, res: Response) => {
   try {
@@ -20,88 +27,45 @@ router.get('/check', async (req: Request, res: Response) => {
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId as string },
-      include: { city_relation: true },
     });
 
     if (!restaurant) {
       return res.status(404).json({ error: 'Restaurant not found' });
     }
 
-    if (!restaurant.latitude || !restaurant.longitude) {
-      // Restaurang saknar GPS → kan inte räkna ut zone. Tidigare föll vi
-      // tillbaka på restaurant.deliveryFee men det är dead column nu (admin
-      // exponerar den inte). Refusa delivery och be admin sätta GPS + zon.
+    const latNum = Number(lat);
+    const lngNum = Number(lng);
+
+    const distanceKm =
+      restaurant.latitude && restaurant.longitude
+        ? Math.round(haversineKm(latNum, lngNum, restaurant.latitude, restaurant.longitude) * 10) / 10
+        : null;
+
+    const resolved = await resolveDeliveryFee(
+      restaurant as any,
+      latNum,
+      lngNum,
+      prisma as any,
+    );
+
+    if (!resolved) {
       return res.json({
         available: false,
         zone: null,
-        message: 'Restaurangen levererar inte än — admin behöver konfigurera leveranszon.',
+        distanceKm,
+        message: 'Tyvärr levererar vi inte till din adress.',
       });
     }
 
-    const distanceKm = haversineKm(
-      Number(lat), Number(lng),
-      restaurant.latitude, restaurant.longitude
-    );
-
-    let zonesRaw: any[] = [];
-    try {
-      zonesRaw = JSON.parse((restaurant as any).deliveryZones || '[]');
-    } catch {
-      zonesRaw = [];
-    }
-    let zones: DeliveryZone[] = normalizeDeliveryZones(zonesRaw);
-
-    let zoneCenter = { lat: restaurant.latitude, lng: restaurant.longitude };
-
-    if (zones.length === 0 && restaurant.city_relation && restaurant.city_relation.zones) {
-      try {
-        const cityZonesRaw = JSON.parse(restaurant.city_relation.zones);
-        zones = normalizeDeliveryZones(cityZonesRaw);
-        if (restaurant.city_relation.centerLat && restaurant.city_relation.centerLng) {
-          zoneCenter = { lat: restaurant.city_relation.centerLat, lng: restaurant.city_relation.centerLng };
-        } else if (restaurant.city_relation.latitude && restaurant.city_relation.longitude) {
-          zoneCenter = { lat: restaurant.city_relation.latitude, lng: restaurant.city_relation.longitude };
-        }
-      } catch {}
-    }
-
-    if (zones.length === 0) {
-      // Inga zoner konfigurerade → restaurang kan inte leverera. Tidigare
-      // föll vi tillbaka på restaurant.deliveryFee men admin har inget
-      // sätt att sätta den i UI:n och det orsakade dubbelkällor av
-      // sanning. Be admin lägga till zoner via /admin/cities-or-zones.
-      return res.json({
-        available: false,
-        zone: null,
-        distanceKm: Math.round(distanceKm * 10) / 10,
-        message: 'Restaurangen har inga aktiva leveranszoner. Välj avhämtning.',
-      });
-    }
-
-    // Use restaurant/city location as fallback center for legacy zones (no own centerLat/centerLng)
-    const matchedZone = findDeliveryZone(
-      Number(lat), Number(lng), zones,
-      zoneCenter
-    );
-
-    if (!matchedZone) {
-      return res.json({
-        available: false,
-        distanceKm: Math.round(distanceKm * 10) / 10,
-        message: 'Tyvärr levererar vi inte till din adress.'
-      });
-    }
-
-    // Check if free delivery applies
     const freeAbove = (restaurant as any).freeDeliveryAbove;
 
     return res.json({
       available: true,
-      zone: matchedZone.name,
-      deliveryFee: matchedZone.fee / 100,
-      minOrder: matchedZone.minOrder / 100,
+      zone: null, // zone-namn skickas inte längre — kassan bryr sig om fee+min, inte namnet
+      deliveryFee: resolved.fee / 100,
+      minOrder: resolved.minOrder / 100,
       freeDeliveryAbove: freeAbove ? freeAbove / 100 : null,
-      distanceKm: Math.round(distanceKm * 10) / 10
+      distanceKm,
     });
   } catch (err) {
     console.error('Delivery check error:', err);
