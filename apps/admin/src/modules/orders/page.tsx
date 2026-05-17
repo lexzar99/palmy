@@ -61,6 +61,18 @@ function OrderDetailsModal({
   // status:n så admin förstår om pengarna är på väg eller redan framme.
   const [refundStatus, setRefundStatus] = useState<string | null>(null);
 
+  // Reset all transient state när admin byter order. Annars hängde
+  // refund-success-bannern kvar från föregående order och visades på
+  // en helt orelaterad/orefunderad order. Samma för error + form-inputs.
+  useEffect(() => {
+    setRefundSuccess(false);
+    setRefundError(null);
+    setRefundStatus(null);
+    setRefundAmount("");
+    setRefundReason("");
+    setEstimatedTime("");
+  }, [orderId]);
+
   const refundMutation = useMutation({
     mutationFn: () => refundOrder(orderId!, refundAmount === "" ? null : Number(refundAmount), refundReason),
     onSuccess: async (data: any) => {

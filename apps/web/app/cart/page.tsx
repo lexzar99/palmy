@@ -456,23 +456,41 @@ export default function CartPage() {
     }
   }, [currentRestaurantId, ovr, orderType]);
 
-  // Reset delivery check when switching to DELIVERY and we have a saved address
+  // Eager zone-check: kör direkt när vi har allt vi behöver (orderType=DELIVERY,
+  // restaurantId, adress + coords) och status inte är "ok" än. Tidigare gick
+  // detta bara på orderType-byte (deps=[orderType]) vilket missade fallet att
+  // cart laddas i DELIVERY-mode default. Då fanns ingen zone-check förrän
+  // kunden klickade "Slutför Köp" → fee:n hoppade abrupt upp och totalen
+  // "glitchade". Nu kör zone-check så snart adressen blir tillgänglig.
   useEffect(() => {
-    if (orderType === "DELIVERY" && currentRestaurantId && formData.deliveryStreet && addressZoneStatus !== "ok") {
-      // Try to re-check delivery when switching to delivery mode
-      const storedCoords = localStorage.getItem("platform_coords");
-      if (storedCoords) {
-        try {
-          const coords = JSON.parse(storedCoords);
-          checkDeliverySpecific(coords.lat, coords.lng);
-        } catch {}
+    if (orderType !== "DELIVERY") return;
+    if (!currentRestaurantId) return;
+    if (!formData.deliveryStreet) return;
+    if (addressZoneStatus === "ok" || addressZoneStatus === "checking") return;
+    const storedCoords = localStorage.getItem("platform_coords");
+    if (!storedCoords) return;
+    try {
+      const coords = JSON.parse(storedCoords);
+      if (coords?.lat && coords?.lng) {
+        checkDeliverySpecific(coords.lat, coords.lng);
       }
-    }
-  }, [orderType]);
+    } catch {}
+    // checkDeliverySpecific är inte memoiserad, men dess closures är stabila
+    // (läser från useCartStore.getState() + setState-setters). Listar inte
+    // den i deps för att undvika onödiga re-runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderType, currentRestaurantId, formData.deliveryStreet, addressZoneStatus]);
 
-  // Fee priority: zone check result → restaurant default
+  // Endast zone-checkad leveransavgift. Tidigare fallade vi tillbaka till
+  // restaurantSettings.deliveryFee (som kunde innehålla stale data från
+  // föregående zone-check eller deliveryOverrides från cartStore). Resultat:
+  // kassan visade en fee som inte matchade kundens nuvarande adress, och
+  // när zone-check kördes på "Slutför Köp"-klick uppdaterades fee:n abrupt
+  // → "glitch" där totalen hoppade upp med 49 kr precis innan betalning.
+  // Nu: 0 kr tills zone-check verifierat aktuell adress. UI visar
+  // "Beräknar..." om vi är mitt i zone-check.
   const deliveryFee = orderType === "DELIVERY"
-    ? (deliveryCheck?.deliveryFee ?? restaurantSettings.deliveryFee)
+    ? (deliveryCheck?.deliveryFee ?? 0)
     : 0;
   const minOrder = deliveryCheck?.minOrder ?? restaurantSettings.minOrderAmount;
   // Komplettering till minimum: läggs som extra avgift om kund godkänt det
@@ -1984,7 +2002,14 @@ export default function CartPage() {
 
                      <div className="mt-10 pt-10 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
                         <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Delsumma</span><span>{subtotal.toFixed(0)} KR</span></div>
-                        {orderType === 'DELIVERY' && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Leveransavgift</span><span className="text-gold-500">{deliveryFee.toFixed(0)} KR</span></div>}
+                        {orderType === 'DELIVERY' && (
+                          <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                            <span>Leveransavgift</span>
+                            <span className="text-gold-500">
+                              {addressZoneStatus === "checking" ? "Beräknar…" : `${deliveryFee.toFixed(0)} KR`}
+                            </span>
+                          </div>
+                        )}
                         {effectiveTip > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-gold-500"><span>Dricks</span><span>+{effectiveTip.toFixed(0)} KR</span></div>}
                         {minOrderTopUp > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Komplettering till minimum</span><span className="text-gold-500">+{minOrderTopUp.toFixed(0)} KR</span></div>}
                         {bogoPreview && bogoDiscount >= finalDiscount && (
