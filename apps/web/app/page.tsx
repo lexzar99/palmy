@@ -97,7 +97,7 @@ type PromoCardItem =
 export default function HomePage() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const promoRailRef = useRef<HTMLDivElement | null>(null);
   const promoIndexRef = useRef(0);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -895,11 +895,17 @@ export default function HomePage() {
         </div>
 
         {resolvedHomeCategorySections.length > 0
-          ? resolvedHomeCategorySections.map((section) => (
-              <React.Fragment key={section.id}>
-                {renderFeaturedRail(section.title, section.subtitle, section.restaurants)}
-              </React.Fragment>
-            ))
+          ? resolvedHomeCategorySections.map((section) => {
+              // Locale-aware titel: falla tillbaka på svenska originalet om
+              // admin inte fyllt i engelska översättningen (titleEn null/tom).
+              const localizedTitle = locale === "en" && section.titleEn ? section.titleEn : section.title;
+              const localizedSubtitle = locale === "en" && section.subtitleEn ? section.subtitleEn : section.subtitle;
+              return (
+                <React.Fragment key={section.id}>
+                  {renderFeaturedRail(localizedTitle, localizedSubtitle, section.restaurants)}
+                </React.Fragment>
+              );
+            })
           : featured.length > 0
             ? renderFeaturedRail(t("home.section.hot"), t("home.section.hotSub"), featured)
             : null}

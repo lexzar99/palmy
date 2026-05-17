@@ -15,9 +15,13 @@ const router = Router();
 
 const homeCategorySchema = z.object({
   title: z.string().min(2),
+  // EN-översättningar: null/saknad → frontend faller tillbaka på sv-versionen.
+  titleEn: z.string().nullable().optional(),
   slug: z.string().optional(),
   subtitle: z.string().nullable().optional(),
+  subtitleEn: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
+  descriptionEn: z.string().nullable().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   filterMode: z.enum(['FILTER', 'MANUAL', 'HYBRID']).optional(),
@@ -87,9 +91,12 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
     const row = await prisma.homeCategorySection.create({
       data: {
         title: body.title.trim(),
+        titleEn: body.titleEn?.trim() || null,
         slug: slugify(body.slug || body.title),
         subtitle: body.subtitle?.trim() || null,
+        subtitleEn: body.subtitleEn?.trim() || null,
         description: body.description?.trim() || null,
+        descriptionEn: body.descriptionEn?.trim() || null,
         isActive: body.isActive ?? true,
         sortOrder: body.sortOrder ?? 0,
         filterMode: body.filterMode || 'FILTER',
@@ -120,9 +127,12 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
       where: { id: req.params.id },
       data: {
         title: body.title?.trim() ?? existing.title,
+        titleEn: body.titleEn !== undefined ? (body.titleEn?.trim() || null) : existing.titleEn,
         slug: body.slug !== undefined ? slugify(body.slug || body.title || existing.title) : existing.slug,
         subtitle: body.subtitle !== undefined ? (body.subtitle?.trim() || null) : existing.subtitle,
+        subtitleEn: body.subtitleEn !== undefined ? (body.subtitleEn?.trim() || null) : existing.subtitleEn,
         description: body.description !== undefined ? (body.description?.trim() || null) : existing.description,
+        descriptionEn: body.descriptionEn !== undefined ? (body.descriptionEn?.trim() || null) : existing.descriptionEn,
         isActive: body.isActive ?? existing.isActive,
         sortOrder: body.sortOrder ?? existing.sortOrder,
         filterMode: body.filterMode || existing.filterMode,

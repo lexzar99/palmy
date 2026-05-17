@@ -16,9 +16,13 @@ export interface HomeCategoryFilters {
 export interface HomeCategorySection {
   id: string;
   title: string;
+  // EN-översättningar — admin kan lämna tomma → frontend faller tillbaka på sv.
+  titleEn?: string | null;
   slug: string;
   subtitle?: string | null;
+  subtitleEn?: string | null;
   description?: string | null;
+  descriptionEn?: string | null;
   isActive: boolean;
   sortOrder: number;
   filterMode: "FILTER" | "MANUAL" | "HYBRID";

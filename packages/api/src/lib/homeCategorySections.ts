@@ -29,9 +29,12 @@ export interface HomeCategorySchedule {
 export interface HomeCategorySectionPayload {
   id: string;
   title: string;
+  titleEn: string | null;
   slug: string;
   subtitle: string | null;
+  subtitleEn: string | null;
   description: string | null;
+  descriptionEn: string | null;
   isActive: boolean;
   sortOrder: number;
   filterMode: HomeCategoryFilterMode;
@@ -105,9 +108,12 @@ export function serializeHomeCategorySection(section: any): HomeCategorySectionP
   return {
     id: section.id,
     title: section.title,
+    titleEn: section.titleEn ?? null,
     slug: section.slug,
     subtitle: section.subtitle ?? null,
+    subtitleEn: section.subtitleEn ?? null,
     description: section.description ?? null,
+    descriptionEn: section.descriptionEn ?? null,
     isActive: Boolean(section.isActive),
     sortOrder: Number(section.sortOrder ?? 0),
     filterMode: (section.filterMode || 'FILTER') as HomeCategoryFilterMode,
@@ -172,8 +178,10 @@ export function isHomeCategoryVisibleNow(schedule: HomeCategorySchedule | null |
 
 const defaultCategories: Array<{
   title: string;
+  titleEn: string;
   slug: string;
   subtitle: string;
+  subtitleEn: string;
   sortOrder: number;
   filterMode: HomeCategoryFilterMode;
   maxRestaurants: number;
@@ -182,8 +190,10 @@ const defaultCategories: Array<{
 }> = [
   {
     title: 'Heta listan',
+    titleEn: 'Trending now',
     slug: 'heta-listan',
     subtitle: 'Toppvalen i din stad just nu',
+    subtitleEn: "Top picks in your city right now",
     sortOrder: 10,
     filterMode: 'FILTER',
     maxRestaurants: 8,
@@ -196,8 +206,10 @@ const defaultCategories: Array<{
   },
   {
     title: 'Pizza fredag',
+    titleEn: 'Pizza Friday',
     slug: 'pizza-fredag',
     subtitle: 'Fredagsfavoriter när pizzasuget slår till',
+    subtitleEn: 'Friday favourites when the pizza craving hits',
     sortOrder: 20,
     filterMode: 'FILTER',
     maxRestaurants: 8,
@@ -217,8 +229,10 @@ const defaultCategories: Array<{
   },
   {
     title: 'Snabb lunch',
+    titleEn: 'Quick lunch',
     slug: 'snabb-lunch',
     subtitle: 'Snabba val för vardagens lunchrush',
+    subtitleEn: 'Fast picks for the weekday lunch rush',
     sortOrder: 30,
     filterMode: 'FILTER',
     maxRestaurants: 8,
@@ -237,8 +251,10 @@ const defaultCategories: Array<{
   },
   {
     title: 'Sushi suget',
+    titleEn: 'Sushi cravings',
     slug: 'sushi-suget',
     subtitle: 'När du vill ha något fräscht och snabbt',
+    subtitleEn: 'When you want something fresh and fast',
     sortOrder: 40,
     filterMode: 'FILTER',
     maxRestaurants: 8,
@@ -258,8 +274,10 @@ const defaultCategories: Array<{
     // MANUAL/HYBRID och välja restauranger för hand precis som med de
     // övriga rails (Pizza fredag, Snabb lunch, Heta listan).
     title: 'Fri leverans',
+    titleEn: 'Free delivery',
     slug: 'fri-leverans',
     subtitle: 'Restauranger som kör ut gratis',
+    subtitleEn: 'Restaurants that deliver for free',
     sortOrder: 50,
     filterMode: 'FILTER',
     maxRestaurants: 12,
@@ -281,9 +299,12 @@ export async function ensureDefaultHomeCategorySections() {
     await prisma.homeCategorySection.create({
       data: {
         title: category.title,
+        titleEn: category.titleEn,
         slug: category.slug,
         subtitle: category.subtitle,
+        subtitleEn: category.subtitleEn,
         description: null,
+        descriptionEn: null,
         isActive: true,
         sortOrder: category.sortOrder,
         filterMode: category.filterMode,

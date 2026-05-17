@@ -44,9 +44,13 @@ const dayOptions = [
 
 type FormState = {
   title: string;
+  // EN-översättningar: lämnas tomma → frontend faller tillbaka på sv.
+  titleEn: string;
   slug: string;
   subtitle: string;
+  subtitleEn: string;
   description: string;
+  descriptionEn: string;
   isActive: boolean;
   sortOrder: number;
   filterMode: HomeCategoryFilterMode;
@@ -72,9 +76,12 @@ type FormState = {
 
 const emptyForm = (): FormState => ({
   title: "",
+  titleEn: "",
   slug: "",
   subtitle: "",
+  subtitleEn: "",
   description: "",
+  descriptionEn: "",
   isActive: true,
   sortOrder: 0,
   filterMode: "FILTER",
@@ -106,9 +113,12 @@ const splitCsv = (value: string) =>
 
 const sectionToForm = (section: HomeCategorySection): FormState => ({
   title: section.title,
+  titleEn: section.titleEn || "",
   slug: section.slug,
   subtitle: section.subtitle || "",
+  subtitleEn: section.subtitleEn || "",
   description: section.description || "",
+  descriptionEn: section.descriptionEn || "",
   isActive: section.isActive,
   sortOrder: section.sortOrder,
   filterMode: section.filterMode,
@@ -134,9 +144,12 @@ const sectionToForm = (section: HomeCategorySection): FormState => ({
 
 const formToPayload = (form: FormState): HomeCategoryPayload => ({
   title: form.title.trim(),
+  titleEn: form.titleEn.trim() || null,
   slug: form.slug.trim() || undefined,
   subtitle: form.subtitle.trim() || null,
+  subtitleEn: form.subtitleEn.trim() || null,
   description: form.description.trim() || null,
+  descriptionEn: form.descriptionEn.trim() || null,
   isActive: form.isActive,
   sortOrder: Number(form.sortOrder || 0),
   filterMode: form.filterMode,
@@ -299,11 +312,18 @@ function CategoryEditorModal({
     >
       <div className="space-y-5">
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Titel">
+          <Field label="Titel (svenska)">
             <Input
               value={form.title}
               onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
               placeholder="t.ex. Pizza fredag"
+            />
+          </Field>
+          <Field label="Title (English) — valfri">
+            <Input
+              value={form.titleEn}
+              onChange={(event) => setForm((current) => ({ ...current, titleEn: event.target.value }))}
+              placeholder="e.g. Pizza Friday"
             />
           </Field>
           <Field label="Slug (auto från titel om tom)">
@@ -313,11 +333,18 @@ function CategoryEditorModal({
               placeholder="pizza-fredag"
             />
           </Field>
-          <Field label="Underrubrik">
+          <Field label="Underrubrik (svenska)">
             <Input
               value={form.subtitle}
               onChange={(event) => setForm((current) => ({ ...current, subtitle: event.target.value }))}
               placeholder="Visas under rubriken på startsidan"
+            />
+          </Field>
+          <Field label="Subtitle (English) — valfri">
+            <Input
+              value={form.subtitleEn}
+              onChange={(event) => setForm((current) => ({ ...current, subtitleEn: event.target.value }))}
+              placeholder="Shown below the heading"
             />
           </Field>
           <Field label="Status">
@@ -362,10 +389,18 @@ function CategoryEditorModal({
             />
           </Field>
           <div className="md:col-span-2">
-            <Field label="Beskrivning (intern, syns inte publikt)">
+            <Field label="Beskrivning (intern, syns inte publikt) — svenska">
               <Textarea
                 value={form.description}
                 onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+              />
+            </Field>
+          </div>
+          <div className="md:col-span-2">
+            <Field label="Description (English) — valfri">
+              <Textarea
+                value={form.descriptionEn}
+                onChange={(event) => setForm((current) => ({ ...current, descriptionEn: event.target.value }))}
               />
             </Field>
           </div>

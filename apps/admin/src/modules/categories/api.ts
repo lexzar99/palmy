@@ -29,9 +29,12 @@ export interface HomeCategorySchedule {
 export interface HomeCategorySection {
   id: string;
   title: string;
+  titleEn: string | null;
   slug: string;
   subtitle: string | null;
+  subtitleEn: string | null;
   description: string | null;
+  descriptionEn: string | null;
   isActive: boolean;
   sortOrder: number;
   filterMode: HomeCategoryFilterMode;
