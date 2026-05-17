@@ -496,9 +496,19 @@ export default function CartPage() {
     ? (deliveryCheck?.deliveryFee ?? 0)
     : 0;
   const minOrder = deliveryCheck?.minOrder ?? restaurantSettings.minOrderAmount;
-  // Komplettering till minimum: läggs som extra avgift om kund godkänt det
-  const minOrderTopUp = topUpToMinimum && subtotal > 0 && subtotal < minOrder
-    ? Math.max(0, minOrder - subtotal)
+  // Rabatt-tolerans: kund får komma upp till MIN_ORDER_TOLERANCE_KR under
+  // restaurangens min-order när rabatt eller annan deal drar ner totalen.
+  // Anti-bypass: en kund som bara lägger till en dryck (~20 kr) hamnar
+  // fortfarande under den nya gränsen och blockeras. Värdet 40 kr ger
+  // realistiskt utrymme för en 20-30% rabattkupong på en lågmin-order.
+  const MIN_ORDER_TOLERANCE_KR = 40;
+  const effectiveMinOrder = Math.max(0, minOrder - MIN_ORDER_TOLERANCE_KR);
+  // Komplettering till minimum: läggs som extra avgift om kund godkänt det.
+  // Med toleransen aktiverad behöver vi bara komplettera till effektiv min,
+  // inte hela det formella min-värdet — annars tar vi extra avgift fast
+  // ordern egentligen får gå igenom direkt.
+  const minOrderTopUp = topUpToMinimum && subtotal > 0 && subtotal < effectiveMinOrder
+    ? Math.max(0, effectiveMinOrder - subtotal)
     : 0;
   const productIds = items.flatMap((i) => Array.from({ length: i.quantity }, () => i.productId));
   const automaticDeal = useMemo(() => pickBestDeal(deals, subtotal, productIds), [deals, subtotal, productIds]);
@@ -1143,9 +1153,20 @@ export default function CartPage() {
         return;
       }
     }
-    if (!isTestFlow && subtotal < minOrder) {
-      setError(`Minsta ordervärde är ${minOrder} kr.`);
-      return;
+    // Min-order-check: använd POST-rabatt-värdet jämfört med effektiv min
+    // (officiell min − 40 kr). Detta gör att rabatter kan dra ner totalen
+    // upp till 40 kr under restaurangens min utan att blockera kunden, men
+    // hindrar "dryck + 100%-rabatt"-bypass eftersom basbeloppet då är för
+    // lågt för att klara även den lägre tröskeln.
+    if (!isTestFlow) {
+      const afterDiscount = Math.max(0, subtotal - finalDiscount);
+      if (afterDiscount < effectiveMinOrder && minOrderTopUp === 0) {
+        const shortfall = Math.ceil(effectiveMinOrder - afterDiscount);
+        setError(
+          `Minsta ordervärde är ${minOrder} kr (rabatt får dra ner till ${effectiveMinOrder} kr). Du saknar ${shortfall} kr.`,
+        );
+        return;
+      }
     }
     if (!isTestFlow && !restaurantSettings.isOpen) {
       const pausedUntilDate = restaurantSettings.pausedUntil
@@ -2118,8 +2139,14 @@ export default function CartPage() {
                          kund betalar mellanskillnaden så ordern kan slutföras.
                          Göms vid zone-error eftersom det är meningslöst att
                          pressa kund att fylla upp beloppet när checkout
-                         ändå är blockerad pga olevererbar adress. */}
-                     {subtotal > 0 && subtotal < minOrder && addressZoneStatus !== "error" && (
+                         ändå är blockerad pga olevererbar adress.
+                         Banner triggar nu bara när kunden ligger UNDER den
+                         effektiva min-gränsen (min − 40 kr tolerans). Hamnar
+                         kunden i 110-149-spannet på en 150-min: ingen banner,
+                         ingen topUp, ordern går igenom direkt om de har en
+                         rabatt eller om totalen efter rabatt fortfarande är ≥
+                         effektiv min. */}
+                     {subtotal > 0 && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && addressZoneStatus !== "error" && (
                        <motion.div
                          initial={{ opacity: 0, y: 6 }}
                          animate={{ opacity: 1, y: 0 }}
@@ -2129,33 +2156,45 @@ export default function CartPage() {
                            borderColor: topUpToMinimum ? "rgba(231,178,75,0.30)" : "rgba(239,68,68,0.30)",
                          }}
                        >
-                         <div className="flex items-center justify-between gap-2 mb-2">
-                           <p className={`text-[10px] font-black uppercase tracking-widest ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>
-                             {topUpToMinimum
-                               ? `Komplettering +${(minOrder - subtotal).toFixed(0)} kr till minimum`
-                               : `Saknar ${(minOrder - subtotal).toFixed(0)} kr till minimum`}
-                           </p>
-                           <span className={`text-[10px] font-black ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>{subtotal.toFixed(0)} / {minOrder.toFixed(0)} kr</span>
-                         </div>
-                         <div className="h-1.5 w-full rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.07)" }}>
-                           <motion.div
-                             className={`h-full rounded-full ${topUpToMinimum ? "bg-gold-500" : "bg-rose-500"}`}
-                             initial={{ width: 0 }}
-                             animate={{ width: `${Math.min((subtotal / minOrder) * 100, 100)}%` }}
-                             transition={{ duration: 0.5, ease: "easeOut" }}
-                           />
-                         </div>
-                         <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                           <input
-                             type="checkbox"
-                             checked={topUpToMinimum}
-                             onChange={(e) => setTopUpToMinimum(e.target.checked)}
-                             className="h-4 w-4 accent-gold-500 cursor-pointer"
-                           />
-                           <span className="text-[10px] font-bold leading-snug" style={{ color: "var(--text-secondary)" }}>
-                             Betala mellanskillnaden ({(minOrder - subtotal).toFixed(0)} kr) så ordern kan slutföras
-                           </span>
-                         </label>
+                         {(() => {
+                           // Gap räknas mot effektiv min — kunden behöver bara
+                           // klara den lägre gränsen (min − 40 kr) för att slippa
+                           // topUp eller bli blockerad.
+                           const gapToEffective = Math.max(0, Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)));
+                           const progressBase = effectiveMinOrder > 0 ? effectiveMinOrder : minOrder;
+                           const progress = Math.min(((Math.max(0, subtotal - finalDiscount)) / progressBase) * 100, 100);
+                           return (
+                             <>
+                               <div className="flex items-center justify-between gap-2 mb-2">
+                                 <p className={`text-[10px] font-black uppercase tracking-widest ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>
+                                   {topUpToMinimum
+                                     ? `Komplettering +${gapToEffective} kr så ordern går igenom`
+                                     : `Saknar ${gapToEffective} kr för att klara minimum`}
+                                 </p>
+                                 <span className={`text-[10px] font-black ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>{subtotal.toFixed(0)} / {minOrder.toFixed(0)} kr</span>
+                               </div>
+                               <div className="h-1.5 w-full rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.07)" }}>
+                                 <motion.div
+                                   className={`h-full rounded-full ${topUpToMinimum ? "bg-gold-500" : "bg-rose-500"}`}
+                                   initial={{ width: 0 }}
+                                   animate={{ width: `${progress}%` }}
+                                   transition={{ duration: 0.5, ease: "easeOut" }}
+                                 />
+                               </div>
+                               <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                 <input
+                                   type="checkbox"
+                                   checked={topUpToMinimum}
+                                   onChange={(e) => setTopUpToMinimum(e.target.checked)}
+                                   className="h-4 w-4 accent-gold-500 cursor-pointer"
+                                 />
+                                 <span className="text-[10px] font-bold leading-snug" style={{ color: "var(--text-secondary)" }}>
+                                   Betala mellanskillnaden ({gapToEffective} kr) så ordern kan slutföras
+                                 </span>
+                               </label>
+                             </>
+                           );
+                         })()}
                        </motion.div>
                      )}
 
@@ -2232,7 +2271,7 @@ export default function CartPage() {
                          onClick={startCheckout}
                          disabled={
                            loading
-                           || (!isTestFlow && subtotal < minOrder && !topUpToMinimum)
+                           || (!isTestFlow && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
                            || (!isTestFlow && !restaurantSettings.isOpen)
                            || (!isTestFlow && addressZoneStatus === "error")
                            || (!isTestFlow && addressZoneStatus === "checking")
@@ -2243,8 +2282,8 @@ export default function CartPage() {
                           ? <Loader2 className="animate-spin" size={24} />
                           : addressZoneStatus === "checking"
                             ? <><Loader2 className="animate-spin" size={20} /> Kontrollerar adress…</>
-                            : (subtotal < minOrder && !topUpToMinimum)
-                              ? `Köp för ${(minOrder - subtotal).toFixed(0)} kr till`
+                            : (Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
+                              ? `Köp för ${Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount))} kr till`
                               : addressZoneStatus === "error"
                                 ? "Fel leveransadress"
                                 : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}

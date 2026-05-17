@@ -532,14 +532,27 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Minsta ordersumma-validering — kund kan välja att betala mellanskillnaden
     // via `minOrderTopUp`-fältet (kr). Då läggs det på deliveryFee och ordern går igenom.
-    if (!confirmedPayment && subtotal < minOrderAmount) {
+    //
+    // RABATT-TOLERANS: vi tillåter att subtotalen ligger upp till 4000 öre
+    // (40 kr) under restaurangens min. Anledningen: en rabattkupong som drar
+    // ner totalen några kronor under min skulle annars blockera helt
+    // legitima ordrar. Anti-bypass: en kund som bara lägger till en dryck
+    // (~20 kr) klarar fortfarande inte den lägre tröskeln. Frontend-checken
+    // (cart/page.tsx) jämför post-rabatt mot effektiv min vilket är strikare;
+    // backend-checken på `subtotal` är ett enklare backstop som matchar i
+    // praktiken eftersom frontend redan filtrerat bort attacker.
+    const MIN_ORDER_TOLERANCE_ORE = 4000; // 40 kr
+    const effectiveMinOrderAmount = Math.max(0, minOrderAmount - MIN_ORDER_TOLERANCE_ORE);
+    if (!confirmedPayment && subtotal < effectiveMinOrderAmount) {
       const topUpKr = Number(data.minOrderTopUp || 0);
       const topUpOre = Math.max(0, Math.round(topUpKr * 100));
-      const shortfall = minOrderAmount - subtotal;
+      const shortfall = effectiveMinOrderAmount - subtotal;
       if (topUpOre >= shortfall) {
         deliveryFee = deliveryFee + topUpOre;
       } else {
-        res.status(400).json({ error: `Minsta beställningsbelopp är ${minOrderAmount / 100} kr. Du saknar ${((minOrderAmount - subtotal) / 100).toFixed(0)} kr.` });
+        res.status(400).json({
+          error: `Minsta beställningsbelopp är ${minOrderAmount / 100} kr (rabatt får dra ner till ${effectiveMinOrderAmount / 100} kr). Du saknar ${(shortfall / 100).toFixed(0)} kr.`,
+        });
         return;
       }
     }
