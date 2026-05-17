@@ -554,8 +554,19 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                         setSelectedProduct(p);
                       }
                     }}
-                    whileTap={{ scale: 0.95 }}
-                    className="shrink-0 w-56 rounded-2xl p-4 flex items-center gap-4 transition-all cursor-pointer shadow-sm"
+                    whileTap={!restaurant?.isOpen ? undefined : { scale: 0.95 }}
+                    // Visuell disable + pointer-events-none när restaurangen
+                    // är stängd. Tidigare hade kortet bara onClick-early-return
+                    // — kunden såg ett fullt klickbart kort, klickade, ingen
+                    // feedback. Nu syns direkt att det inte går att beställa.
+                    className={`shrink-0 w-56 rounded-2xl p-4 flex items-center gap-4 transition-all shadow-sm ${
+                      !restaurant?.isOpen
+                        ? "opacity-50 grayscale cursor-not-allowed pointer-events-none"
+                        : zoneAvailable === false
+                          ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none"
+                          : "cursor-pointer"
+                    }`}
+                    aria-disabled={!restaurant?.isOpen || zoneAvailable === false}
                     style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(231,178,75,0.2)" }}
                   >
                     {p.imageUrl && (
@@ -625,7 +636,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                                  setSelectedProduct(p);
                               }
                            }}
-                           whileTap={{ scale: 0.99 }} className={`group rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : (restaurant?.isOpen && zoneAvailable === false) ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
+                           whileTap={!restaurant?.isOpen ? undefined : { scale: 0.99 }}
+                           // pointer-events-none även när stängd (tidigare bara grayscale)
+                           // så kunden inte kan klicka och få tyst no-op.
+                           aria-disabled={!restaurant?.isOpen || zoneAvailable === false}
+                           className={`group rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed pointer-events-none" : (restaurant?.isOpen && zoneAvailable === false) ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
                            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}
                        >
                            {p.imageUrl && (

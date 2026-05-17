@@ -211,13 +211,30 @@ const OrderStatusPage = () => {
     return () => clearInterval(t);
   }, [order?.etaEndsAt, order?.estimatedTime]);
 
-  // Auto-show review prompt for completed orders
+  // Auto-show review prompt — ENDAST för faktiskt levererade orders, inte
+  // för READY (pickup-order är bara klar att hämtas, inte upplevd än).
+  // Vi sparar också "dismiss"-tillstånd i sessionStorage så att kunden inte
+  // får upp samma popup vid varje page-reload — bara en gång per session.
   useEffect(() => {
-    if (order && ['DELIVERED', 'READY'].includes(order.status) && !order.rating && !reviewDone) {
-      const timer = setTimeout(() => setShowReview(true), 2000);
-      return () => clearTimeout(timer);
+    if (!order || !['DELIVERED', 'COMPLETED'].includes(order.status)) return;
+    if (order.rating || reviewDone) return;
+    if (typeof window !== "undefined") {
+      const dismissedKey = `review_dismissed_${order.id}`;
+      if (sessionStorage.getItem(dismissedKey)) return;
     }
-  }, [order?.status, order?.rating, reviewDone]);
+    // Längre delay (6s istället för 2s) — kund hinner se "Levererad!"-state
+    // och processa innan en modal popp:ar upp och bryter UX:n.
+    const timer = setTimeout(() => setShowReview(true), 6000);
+    return () => clearTimeout(timer);
+  }, [order?.status, order?.rating, order?.id, reviewDone]);
+
+  // Persistera dismiss för denna order så kunden inte spammas vid reload.
+  const dismissReview = useCallback(() => {
+    setShowReview(false);
+    if (order?.id && typeof window !== "undefined") {
+      sessionStorage.setItem(`review_dismissed_${order.id}`, "1");
+    }
+  }, [order?.id]);
 
   const submitReview = async () => {
     if (!reviewRating || !orderId) return;
@@ -529,7 +546,7 @@ const OrderStatusPage = () => {
                <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm p-10 rounded-[3rem] shadow-2xl space-y-8 border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>Betygsätt</h2>
-                  <button onClick={() => setShowReview(false)} className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors"><X size={20} /></button>
+                  <button onClick={dismissReview} className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors" aria-label="Stäng — visa inte igen för denna order"><X size={20} /></button>
                 </div>
                 <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Hur var din upplevelse med {order.restaurantName}?</p>
                 <div className="flex items-center justify-center gap-3">

@@ -173,6 +173,11 @@ export default function CartPage() {
     rewardProducts: { id: string; name: string; price: number; imageUrl: string | null }[];
     bogoExcludedExtraIds: string[];
   } | null>(null);
+  // Banner som visas när kundens BOGO-val plötsligt försvinner mitt-session
+  // (deal-admin disablade, expiry passerade, eller kvalificerande artikel
+  // togs bort). Tidigare nollades bogoChoice tyst → kund såg sin gratis-vara
+  // försvinna utan förklaring → tror appen är trasig.
+  const [bogoLostNotice, setBogoLostNotice] = useState<string | null>(null);
   const [showBogoPicker, setShowBogoPicker] = useState(false);
   const [showDealsModal, setShowDealsModal] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -815,19 +820,37 @@ export default function CartPage() {
             rewardProducts: data.rewardProducts ?? [],
             bogoExcludedExtraIds: Array.isArray(data.bogoExcludedExtraIds) ? data.bogoExcludedExtraIds : [],
           });
-          // Rensa bogoChoice om det gäller en annan deal
+          // Rensa bogoChoice om det gäller en annan deal — varna kunden
+          // så de inte förvirras av att gratis-varan plötsligt byttes.
           const existing = useCartStore.getState().bogoChoice;
-          if (existing && existing.dealId !== data.dealId) setBogoChoice(null);
+          if (existing && existing.dealId !== data.dealId) {
+            setBogoChoice(null);
+            setBogoLostNotice(`Ditt tidigare gratis-val ("${existing.dealTitle}") gäller inte längre. Erbjudandet har bytts till "${data.dealTitle}".`);
+          }
         } else {
           setBogoPreview(null);
-          setBogoChoice(null);
+          const existing = useCartStore.getState().bogoChoice;
+          if (existing) {
+            // Varna ENDAST om kunden faktiskt hade valt en gratis-vara.
+            // (Annars är "no deal" det normala tillståndet.)
+            setBogoChoice(null);
+            setBogoLostNotice(`Ditt gratis-val ("${existing.dealTitle}") är inte längre tillgängligt — erbjudandet har antingen gått ut eller villkoren ändrats.`);
+          }
         }
       } catch {
         setBogoPreview(null);
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [items, currentRestaurantId]);
+  }, [items, currentRestaurantId, setBogoChoice]);
+
+  // Auto-dismiss BOGO-lost-notice efter 8s så banner inte hänger kvar
+  // permanent på sidan.
+  useEffect(() => {
+    if (!bogoLostNotice) return;
+    const t = setTimeout(() => setBogoLostNotice(null), 8000);
+    return () => clearTimeout(t);
+  }, [bogoLostNotice]);
 
   // Stripe redirect recovery: if user returns from Swish/Klarna redirect
   useEffect(() => {
@@ -1059,7 +1082,20 @@ export default function CartPage() {
             minOrderAmount: freshMin,
           }));
           setAddressZoneStatus("ok");
-        } catch { /* Fail open — don't block if network error */ }
+        } catch (zoneErr: any) {
+          // Tidigare "fail open" — släppte igenom ordern även om zon-API:n
+          // failade. Konsekvens: kunden kunde beställa till en adress som
+          // inte täcktes av leverans och få "kunde inte levereras"-mail i
+          // efterhand. Bättre att blockera och be om retry — backend är
+          // sanningskällan för zone-täckning.
+          console.warn("[cart] zone check failed:", zoneErr?.message || zoneErr);
+          setAddressZoneStatus("error");
+          setError(
+            "Kunde inte verifiera om vi levererar till din adress. Försök igen om en stund — om problemet kvarstår, välj avhämtning istället.",
+          );
+          setLoading(false);
+          return;
+        }
       } else if (formData.deliveryStreet) {
         setError("Kunde inte verifiera din adress. Vänligen välj den från listan.");
         setLoading(false);
@@ -1140,6 +1176,32 @@ export default function CartPage() {
               Lägg till mer <Plus size={14} className="group-hover:rotate-90 transition-transform" />
            </Link>
         </div>
+
+        {/* BOGO-deal lost — visas när kundens valda gratis-vara plötsligt
+            försvinner pga expiry eller villkorsändring. */}
+        <AnimatePresence>
+          {bogoLostNotice && (
+            <motion.div
+              key="bogo-lost"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="rounded-2xl mb-6 border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-start gap-3"
+            >
+              <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+              <p className="flex-1 text-[11px] font-bold text-amber-200 leading-snug">
+                {bogoLostNotice}
+              </p>
+              <button
+                onClick={() => setBogoLostNotice(null)}
+                className="text-amber-300/60 hover:text-amber-200 transition-colors shrink-0"
+                aria-label="Stäng"
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Login prompt — soft, not blocking (guest can still order) */}
         {!user && (
