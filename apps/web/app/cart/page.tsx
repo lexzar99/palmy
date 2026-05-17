@@ -580,9 +580,10 @@ export default function CartPage() {
   }, [selectedAccountDeal, subtotal, deliveryFee]);
 
   // Prioritet:
-  //   1. Användarens EXPLICITA val (kupong-kod ELLER vald account-deal) vinner —
-  //      även om summan råkar vara mindre än auto-dealen. Användaren ska kunna
-  //      "byta" från auto-deal till sin egen kod utan att Math.max övermanar.
+  //   1. Användarens EXPLICITA VAL (selectedPersonalDeal ELLER selectedAccountDealId)
+  //      — om något val finns används det ENDA värdet (även om det råkar vara
+  //      0 kr för att koden inte uppfyller minOrder). Auto-källor smyger inte
+  //      tillbaka in via Math.max.
   //   2. Annars: bästa av auto-deal/bogoPreview (om inte avdismissad).
   //
   // bogoPreview kan vara två olika saker:
@@ -592,18 +593,14 @@ export default function CartPage() {
   //     från en kategori. Kan INTE dismissas eftersom gratis-varan ligger i
   //     varukorgen; dismiss skulle dölja rabatten men inte ta bort items.
   const bogoIsPureDiscount = !!bogoPreview && (bogoPreview.rewardProducts?.length ?? 0) === 0;
-  const userPickedDiscount = personalDiscount > 0
-    ? personalDiscount
-    : accountDealDiscount > 0
-      ? accountDealDiscount
-      : 0;
+  const hasUserExplicitChoice = !!selectedPersonalDeal || !!selectedAccountDealId;
   // Pure-discount-bogo respekterar dismissal-flaggan; free-item-bogo gör inte det.
   const dismissibleAutoDiscount = automaticDealDismissed
     ? 0
     : Math.max(automaticDeal.discountAmount, bogoIsPureDiscount ? bogoDiscount : 0);
   const freeItemBogoDiscount = bogoIsPureDiscount ? 0 : bogoDiscount;
-  const finalDiscount = userPickedDiscount > 0
-    ? Math.max(userPickedDiscount, freeItemBogoDiscount)
+  const finalDiscount = hasUserExplicitChoice
+    ? Math.max(personalDiscount, accountDealDiscount, freeItemBogoDiscount)
     : Math.max(dismissibleAutoDiscount, freeItemBogoDiscount);
   // Rabatt-tolerans: när en rabatt är aktiv tillåter vi att totalen (efter
   // rabatten) hamnar upp till MIN_ORDER_TOLERANCE_KR under restaurangens
@@ -662,7 +659,15 @@ export default function CartPage() {
         setRestaurantSettings((prev) => ({
           ...prev,
           isOpen: restaurantRes.data.isOpen ?? prev.isOpen,
-          vatPercent: restaurantRes.data.vatPercent ?? null,
+          // Bevara prev.vatPercent om restaurant-svaret inte explicit har en
+          // siffra. Tidigare nullades alltid → även om global /api/settings
+          // levererade en moms-procent försvann den när restaurant-svaret
+          // saknade fältet (t.ex. äldre serializer-versioner som inte
+          // returnerar vatPercent). Nu prioriteras restaurant > settings >
+          // null, men aldrig "nulla ut" en redan-laddad procent.
+          vatPercent: typeof restaurantRes.data.vatPercent === 'number'
+            ? restaurantRes.data.vatPercent
+            : prev.vatPercent,
         }));
       }
 
@@ -2315,22 +2320,60 @@ export default function CartPage() {
                         )}
                         {effectiveTip > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-gold-500"><span>Dricks</span><span>+{effectiveTip.toFixed(0)} KR</span></div>}
                         {minOrderTopUp > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Komplettering till minimum</span><span className="text-gold-500">+{minOrderTopUp.toFixed(0)} KR</span></div>}
-                        {bogoPreview && bogoDiscount >= finalDiscount && (
-                          <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
-                            <span>🎁 {bogoChoice ? bogoChoice.product.name : bogoPreview.dealTitle}</span>
-                            <span>-{bogoDiscount.toFixed(0)} KR</span>
-                          </div>
-                        )}
-                        {finalDiscount > 0 && (!bogoPreview || bogoDiscount < finalDiscount) && (
-                          <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
-                            <span>
-                              {selectedAccountDeal && accountDealDiscount >= finalDiscount
-                                ? dealTypeLabel(selectedAccountDeal.type)
-                                : "Rabatt"}
-                            </span>
-                            <span>-{finalDiscount.toFixed(0)} KR</span>
-                          </div>
-                        )}
+                        {(() => {
+                          // Display-källan ska matcha vad som FAKTISKT appliceras
+                          // på totalen. Tidigare visades bogoPreview-raden så
+                          // länge bogoDiscount >= finalDiscount, men finalDiscount
+                          // använder userPickedDiscount först — då blev
+                          // displayen lägre/högre än verkligt avdrag.
+                          //
+                          // Ordningen nedan matchar finalDiscount-prioriteten:
+                          //   1. Användarens kupong (selectedPersonalDeal)
+                          //   2. Vald account-deal (välkomst)
+                          //   3. Pure-discount bogoPreview (om ej dismissad)
+                          //   4. Free-item bogoPreview (alltid aktiv)
+                          //   5. Client-side automaticDeal (om ej dismissad)
+                          // Om kunden har skrivit/valt något — visa BARA det
+                          // (inkl. 0 kr om koden inte är giltig för denna
+                          // order). Auto-källor får aldrig kreepa tillbaka
+                          // när kunden gjort ett explicit val.
+                          if (selectedPersonalDeal) {
+                            if (personalDiscount <= 0) return null;
+                            return (
+                              <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
+                                <span>Kupong: {selectedPersonalDeal.code}</span>
+                                <span>-{personalDiscount.toFixed(0)} KR</span>
+                              </div>
+                            );
+                          }
+                          if (selectedAccountDealId) {
+                            if (accountDealDiscount <= 0) return null;
+                            return (
+                              <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
+                                <span>{selectedAccountDeal ? dealTypeLabel(selectedAccountDeal.type) : "Belöning"}</span>
+                                <span>-{accountDealDiscount.toFixed(0)} KR</span>
+                              </div>
+                            );
+                          }
+                          // Auto-källor (bara om inga user-val ovan)
+                          if (!automaticDealDismissed && bogoPreview && bogoDiscount > 0) {
+                            return (
+                              <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
+                                <span>{bogoIsPureDiscount ? "" : "🎁 "}{bogoChoice && !bogoIsPureDiscount ? bogoChoice.product.name : bogoPreview.dealTitle}</span>
+                                <span>-{bogoDiscount.toFixed(0)} KR</span>
+                              </div>
+                            );
+                          }
+                          if (!automaticDealDismissed && automaticDeal.deal && automaticDeal.discountAmount > 0) {
+                            return (
+                              <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
+                                <span>{automaticDeal.deal.title}</span>
+                                <span>-{automaticDeal.discountAmount.toFixed(0)} KR</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                         {restaurantSettings.vatPercent ? (
                           <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
                             <span>Varav moms ({restaurantSettings.vatPercent}%)</span>
