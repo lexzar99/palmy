@@ -168,6 +168,11 @@ export default function CartPage() {
   // att applicera, vi skickar userDealId i order-payload.
   const [accountDeals, setAccountDeals] = useState<UserAccountDeal[]>([]);
   const [selectedAccountDealId, setSelectedAccountDealId] = useState<string | null>(null);
+  // Kund kan välja att avbryta den automatiskt applicerade dealen (t.ex.
+  // "25% första beställning") för att använda en egen rabattkod istället.
+  // Default false → auto-deal appliceras som vanligt. Sätts true automatiskt
+  // när en kod eller account-deal aktiveras så ingen dubbel-mutex behövs.
+  const [automaticDealDismissed, setAutomaticDealDismissed] = useState(false);
   const [bogoPreview, setBogoPreview] = useState<{
     discountKr: number; dealTitle: string; dealId: string | null;
     rewardCategoryName: string | null;
@@ -574,7 +579,21 @@ export default function CartPage() {
     return computeDealAmountKr(selectedAccountDeal, subtotal, deliveryFee);
   }, [selectedAccountDeal, subtotal, deliveryFee]);
 
-  const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount, bogoDiscount, accountDealDiscount);
+  // Prioritet:
+  //   1. Användarens EXPLICITA val (kupong-kod ELLER vald account-deal) vinner —
+  //      även om summan råkar vara mindre än auto-dealen. Användaren ska kunna
+  //      "byta" från auto-deal till sin egen kod utan att Math.max övermanar.
+  //   2. Annars: bästa av auto-deal (om inte avdismissad) och BOGO.
+  // BOGO räknas alltid in eftersom den är knuten till items i kundvagnen.
+  const userPickedDiscount = personalDiscount > 0
+    ? personalDiscount
+    : accountDealDiscount > 0
+      ? accountDealDiscount
+      : 0;
+  const automaticDealAmount = automaticDealDismissed ? 0 : automaticDeal.discountAmount;
+  const finalDiscount = userPickedDiscount > 0
+    ? Math.max(userPickedDiscount, bogoDiscount)
+    : Math.max(automaticDealAmount, bogoDiscount);
   // Rabatt-tolerans: när en rabatt är aktiv tillåter vi att totalen (efter
   // rabatten) hamnar upp till MIN_ORDER_TOLERANCE_KR under restaurangens
   // min-order. UTAN rabatt gäller den vanliga strikta gränsen — annars
@@ -1036,7 +1055,13 @@ export default function CartPage() {
       deliveryInstructions: composedDeliveryInstructions || undefined,
       stripePaymentIntentId: paymentIntentId,
       discountCode: selectedPersonalDeal?.code || undefined,
-      appliedDealId: selectedPersonalDeal ? undefined : (automaticDeal.deal?.id || undefined),
+      appliedDealId: selectedPersonalDeal || selectedAccountDealId || automaticDealDismissed
+        ? undefined
+        : (automaticDeal.deal?.id || undefined),
+      // Skickas till backend så pickBestDeal hoppar över auto-pickup när
+      // kunden valt EGEN rabatt (kupong eller välkomst) eller explicit stängt
+      // av auto-dealen. Säkerställer att frontend-total === backend-total.
+      skipAutomaticDeal: !!(selectedPersonalDeal || selectedAccountDealId || automaticDealDismissed),
       // Account-deal (WELCOME/REFERRAL_*) — backend matchar mot UserDeal.id
       // och markerar den som USED när ordern slutförs.
       userDealId: selectedAccountDeal?.id || undefined,
@@ -1972,6 +1997,45 @@ export default function CartPage() {
                                  </div>
                               )}
                            </div>
+                        )}
+
+                        {/* Auto-applicerad publik deal (t.ex. "25% första
+                            beställning") — visas som en synlig, aktiv knapp
+                            som kund kan stänga av. När de stänger av frigör
+                            de rabatt-platsen så de kan använda en egen kod
+                            istället. Att skriva i kupong-fältet stänger den
+                            automatiskt också. */}
+                        {automaticDeal.deal && !selectedPersonalDeal && !selectedAccountDealId && (
+                          <button
+                            type="button"
+                            onClick={() => setAutomaticDealDismissed((v) => !v)}
+                            className="w-full flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition-all text-left hover:brightness-110 active:scale-[0.98]"
+                            style={{
+                              backgroundColor: automaticDealDismissed ? "var(--bg-deep)" : "rgba(231,178,75,0.18)",
+                              borderColor: automaticDealDismissed ? "var(--border-muted)" : "rgba(231,178,75,0.5)",
+                            }}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all ${automaticDealDismissed ? "bg-gold-500/10 text-gold-500" : "bg-gold-500 text-zinc-950"}`}>
+                                {automaticDealDismissed ? <Tag size={16} /> : <Check size={16} strokeWidth={3} />}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
+                                  {automaticDealDismissed
+                                    ? `Återaktivera ${automaticDeal.deal.title}`
+                                    : `Aktiv — ${automaticDeal.deal.title}`}
+                                </p>
+                                <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                                  {automaticDealDismissed
+                                    ? "Klicka för att aktivera igen"
+                                    : "Klicka för att stänga av och använda en kupong istället"}
+                                </p>
+                              </div>
+                            </div>
+                            <span className="text-[11px] font-black text-gold-500 shrink-0">
+                              -{automaticDeal.discountAmount.toFixed(0)} kr
+                            </span>
+                          </button>
                         )}
 
                         {/* Account-deals (WELCOME / REFERRAL_*) — tydlig

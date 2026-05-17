@@ -112,6 +112,11 @@ const CreateOrderSchema = z.object({
 
   note: z.string().nullable().optional(),
   discountCode: z.string().nullable().optional(),
+  // Kunden har EXPLICIT stängt av den automatiskt applicerade kampanjen i
+  // kassan (t.ex. för att slippa "25% första beställning" och kunna mata in
+  // en egen kupongkod). Backend skippar auto-deal-pickup om true så att
+  // frontend-totalen matchar Stripe-beloppet utan diff.
+  skipAutomaticDeal: z.boolean().optional(),
   // UserDeal id från GET /api/account/deals — kunden valde att applicera en
   // welcome/referral-kupong i kassan. Backend validerar ägarskap + status +
   // minOrderKr och reserverar atomiskt vid order-creation.
@@ -642,6 +647,11 @@ router.post('/', async (req: Request, res: Response) => {
 
     let appliedDeal: (typeof activeDeals)[number] | null = null;
     let automaticDiscountAmount = 0;
+    // skipAutomaticDeal=true → kunden har stängt av auto-dealen i UI:n.
+    // Vi hoppar HELA pickup-loopen (utom BOGO som är knuten till items i
+    // kundvagnen och hanteras separat nedan). Detta säkerställer att
+    // frontend-totalen (utan auto-deal) matchar backend-totalen.
+    const skipAutoDeals = !!data.skipAutomaticDeal;
     const productIdsInCart = data.items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
 
     const cartItemsForBogo: CartItemForBogo[] = orderItems.map((oi) => {
@@ -677,6 +687,13 @@ router.post('/', async (req: Request, res: Response) => {
 
       if (!evaluation.eligible) continue;
 
+      // Respektera kundens explicita avstängning av auto-deals. BOGO_CATEGORY
+      // hoppas inte över — den är knuten till items i kundvagnen (gratis-varor
+      // som kunden redan plockat) och kan inte "avbrytas" utan att items
+      // försvinner. Övriga rabatt-typer skippas.
+      const isBogoCategoryDeal = deal.triggerType === 'BOGO_CATEGORY';
+      if (skipAutoDeals && !isBogoCategoryDeal) continue;
+
       if (evaluation.discountAmountOre > automaticDiscountAmount) {
         automaticDiscountAmount = evaluation.discountAmountOre;
         appliedDeal = deal;
@@ -699,11 +716,18 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    let discountAmount = manualDiscountAmount >= automaticDiscountAmount
+    // Användarens EXPLICITA val (kupong-kod) vinner alltid över auto-deal —
+    // även om kupongen är mindre värd. Annars kunde inte kunden "byta" från
+    // en stor auto-deal till sin egen kod. Frontend visar nu auto-dealen som
+    // en avstängbar knapp och förväntar samma beteende här. Om data.discountCode
+    // är skickat OCH validerades (manualDiscountAmount > 0 eller test-flow),
+    // använd det. Annars fall tillbaka på automaticDiscountAmount.
+    const userSentDiscountCode = !!data.discountCode && (manualDiscountAmount > 0 || validatedCode);
+    let discountAmount = userSentDiscountCode
       ? manualDiscountAmount
       : automaticDiscountAmount;
 
-    if (discountAmount === manualDiscountAmount) {
+    if (userSentDiscountCode) {
       appliedDeal = null;
     } else {
       validatedCode = undefined;
