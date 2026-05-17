@@ -844,7 +844,13 @@ router.post('/', async (req: Request, res: Response) => {
         total,
         stripePaymentIntentId: isPendingPayment ? null : confirmedPayment.id,
         paymentStatus: isPendingPayment ? 'PENDING' : 'PAID',
-        paymentMethod: isPendingPayment ? null : 'ONLINE',
+        // paymentMethod är non-nullable i schemat (default 'ONLINE'). Den
+        // tidigare `isPendingPayment ? null : 'ONLINE'` orsakade Prisma-
+        // krasch och 500. För både pending och paid sätter vi 'ONLINE'
+        // direkt — det stämmer redan: betalningen GÅR via online-flödet,
+        // den är bara inte konfirmerad än. Webhook bekräftar via
+        // paymentStatus = PAID, inte via byte av paymentMethod.
+        paymentMethod: 'ONLINE',
         estimatedTime,
         scheduledFor: data.scheduledFor ? new Date(data.scheduledFor) : null,
         userId: authenticatedUserId,
