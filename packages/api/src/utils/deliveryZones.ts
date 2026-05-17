@@ -98,17 +98,25 @@ export const resolveDeliveryFee = async (
   lng: number,
   prisma: { city: { findUnique: (args: any) => Promise<any> } }
 ): Promise<{ fee: number; minOrder: number } | null> => {
-  const { findDeliveryZone } = await import('./geo');
+  const { findDeliveryZone, pointInPolygon, haversineKm } = await import('./geo');
 
-  // 1) Pull city center first — it's the canonical anchor for legacy
-  //    (centerless) circle zones AND the source of inherited zones.
+  // 1) Pull city full data — vi behöver center + zones + polygon + radius
+  //    så vi matchar EXAKT samma logik som /api/cities/validate-location
+  //    (kassan använder den). Annars säger kassan "vi levererar hit" men
+  //    backend rejectar ordern → kund får "vi levererar inte hit"-fel
+  //    trots att de just sett att levereransen funkar.
   let cityCenter: { lat: number; lng: number } | undefined;
   let cityZones: DeliveryZone[] = [];
+  let cityPolygon: [number, number][] | null = null;
+  let cityRadiusKm: number = 10;
+  let cityHasGps = false;
   if (restaurant.cityId) {
     const city = await prisma.city.findUnique({
       where: { id: restaurant.cityId },
       select: {
         zones: true,
+        polygon: true,
+        radiusKm: true,
         centerLat: true, centerLng: true,
         latitude: true, longitude: true,
       },
@@ -116,33 +124,57 @@ export const resolveDeliveryFee = async (
     if (city) {
       const cLat = (city.centerLat ?? city.latitude) as number | null | undefined;
       const cLng = (city.centerLng ?? city.longitude) as number | null | undefined;
-      if (cLat != null && cLng != null) cityCenter = { lat: cLat, lng: cLng };
+      if (cLat != null && cLng != null) {
+        cityCenter = { lat: cLat, lng: cLng };
+        cityHasGps = true;
+      }
+      cityRadiusKm = city.radiusKm ?? 10;
 
       let cityZonesRaw: any[] = [];
       try { cityZonesRaw = JSON.parse(city.zones || '[]'); } catch { cityZonesRaw = []; }
       cityZones = normalizeDeliveryZones(cityZonesRaw);
+
+      try {
+        if (city.polygon) {
+          const parsed = JSON.parse(city.polygon);
+          if (Array.isArray(parsed) && parsed.length >= 3) cityPolygon = parsed;
+        }
+      } catch { /* ignorera korrupt polygon */ }
     }
   }
 
-  // 2) Restaurant zones (its own) — these always win when present.
+  // 2) Restaurant's own zones — vinner alltid om satta.
   let restZonesRaw: any[] = [];
   try { restZonesRaw = JSON.parse(restaurant.deliveryZones || '[]'); } catch { restZonesRaw = []; }
   const restZones = normalizeDeliveryZones(restZonesRaw);
 
-  // 3) Match exactly the way validate-location does:
-  //    - Restaurant has own zones → match against those, but with cityCenter
-  //      as the legacy-circle anchor (NOT restaurant lat/lng).
-  //    - Restaurant has no zones → inherit the city's matched zone.
+  // 3) Restaurant has own zones → match mot dessa.
   if (restZones.length > 0) {
     const zone = findDeliveryZone(lat, lng, restZones, cityCenter);
     if (!zone) return null;
     return { fee: zone.fee, minOrder: zone.minOrder };
   }
 
+  // 4) City zones → match mot dessa.
   if (cityZones.length > 0) {
     const zone = findDeliveryZone(lat, lng, cityZones, cityCenter);
     if (!zone) return null;
     return { fee: zone.fee, minOrder: zone.minOrder };
+  }
+
+  // 5) Inga zoner alls → fall tillbaka på city-täckning (polygon ELLER
+  //    radius). Detta matchar validate-location:s fallback. När en city
+  //    bara har polygon/radius (legacy-config) säger den "ja vi levererar"
+  //    men det finns ingen zone-fee → vi använder 0 kr (kunden ser då
+  //    "GRATIS"-leverans i kassan).
+  if (cityPolygon && pointInPolygon([lng, lat], cityPolygon)) {
+    return { fee: 0, minOrder: 0 };
+  }
+  if (cityHasGps && cityCenter) {
+    const distKm = haversineKm(lat, lng, cityCenter.lat, cityCenter.lng);
+    if (distKm <= cityRadiusKm) {
+      return { fee: 0, minOrder: 0 };
+    }
   }
 
   return null;
