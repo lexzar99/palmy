@@ -31,6 +31,7 @@ import {
   KeyRound,
   Gift,
   AlertCircle,
+  Check,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
@@ -1973,57 +1974,62 @@ export default function CartPage() {
                            </div>
                         )}
 
-                        {/* Account-deals (WELCOME / REFERRAL_*) — checkbox per
-                            ACTIVE deal. Endast en kan användas åt gången. Min-
-                            order valideras lokalt; backend validerar igen vid
-                            order-create. */}
+                        {/* Account-deals (WELCOME / REFERRAL_*) — tydlig
+                            klickbar knapp per deal istället för checkbox.
+                            Mutex med rabattkod: knappen är disabled när en
+                            kupong-kod är aktiv (och vice versa) så kunden
+                            kan välja den BÄSTA av sina belöningar +
+                            kupongkoder, inte stacka dem. Auto-rensar motsatt
+                            sida vid val. */}
                         {accountDeals.length > 0 && (
-                          <div className="space-y-2">
-                            <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-2" style={{ color: "var(--text-secondary)" }}>
+                          <div className="space-y-2.5">
+                            <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>
                               <Gift size={11} className="inline mr-1.5 text-gold-500" />
                               Dina belöningar
                             </p>
                             {accountDeals.map((d) => {
                               const min = d.minOrderKr ?? 0;
                               const meetsMin = subtotal >= min;
-                              const checked = selectedAccountDealId === d.id;
+                              const isActive = selectedAccountDealId === d.id;
+                              const blockedByPromo = !!selectedPersonalDeal && !isActive;
+                              const disabled = !meetsMin || blockedByPromo;
                               return (
-                                <label
+                                <button
                                   key={d.id}
-                                  className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 cursor-pointer transition-all ${meetsMin ? "hover:brightness-110" : "opacity-50 cursor-not-allowed"}`}
+                                  type="button"
+                                  disabled={disabled}
+                                  onClick={() => {
+                                    if (isActive) {
+                                      setSelectedAccountDealId(null);
+                                    } else {
+                                      setSelectedAccountDealId(d.id);
+                                      // Rensa promo-deal när account-deal väljs — bara en åt gången
+                                      setSelectedPersonalDeal(null);
+                                      setPromoCodeInput("");
+                                    }
+                                  }}
+                                  className={`w-full flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition-all text-left ${disabled ? "opacity-40 cursor-not-allowed" : "hover:brightness-110 active:scale-[0.98]"}`}
                                   style={{
-                                    backgroundColor: checked
-                                      ? "rgba(231,178,75,0.10)"
-                                      : "var(--bg-deep)",
-                                    borderColor: checked
-                                      ? "rgba(231,178,75,0.4)"
-                                      : "var(--border-muted)",
+                                    backgroundColor: isActive ? "rgba(231,178,75,0.18)" : "var(--bg-deep)",
+                                    borderColor: isActive ? "rgba(231,178,75,0.5)" : "var(--border-muted)",
                                   }}
                                 >
                                   <div className="flex items-center gap-3 min-w-0">
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      disabled={!meetsMin}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setSelectedAccountDealId(d.id);
-                                          // Rensa promo-deal när account-deal väljs — bara en åt gången
-                                          setSelectedPersonalDeal(null);
-                                          setPromoCodeInput("");
-                                        } else {
-                                          setSelectedAccountDealId(null);
-                                        }
-                                      }}
-                                      className="h-4 w-4 accent-gold-500 cursor-pointer shrink-0"
-                                    />
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all ${isActive ? "bg-gold-500 text-zinc-950" : "bg-gold-500/10 text-gold-500"}`}>
+                                      {isActive ? <Check size={16} strokeWidth={3} /> : <Gift size={16} />}
+                                    </div>
                                     <div className="min-w-0">
                                       <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
-                                        Använd {formatDealLabel(d)} rabatt ({dealTypeLabel(d.type)})
+                                        {isActive ? "Aktiv — klicka för att ta bort" : `Använd ${dealTypeLabel(d.type)} (${formatDealLabel(d)})`}
                                       </p>
                                       {!meetsMin && min > 0 && (
                                         <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
                                           Min order: {min} kr
+                                        </p>
+                                      )}
+                                      {blockedByPromo && meetsMin && (
+                                        <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                                          Ta bort rabattkoden för att använda denna
                                         </p>
                                       )}
                                     </div>
@@ -2031,26 +2037,33 @@ export default function CartPage() {
                                   <span className="text-[11px] font-black text-gold-500 shrink-0">
                                     -{computeDealAmountKr(d, subtotal, deliveryFee)} kr
                                   </span>
-                                </label>
+                                </button>
                               );
                             })}
+                            <div className="flex items-center gap-3 pt-1">
+                              <div className="flex-1 h-px" style={{ background: "var(--border-muted)" }} />
+                              <span className="text-[9px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>eller</span>
+                              <div className="flex-1 h-px" style={{ background: "var(--border-muted)" }} />
+                            </div>
                           </div>
                         )}
 
-                        {/* Promo Code Integrated */}
-                        <div className="relative group flex items-center">
+                        {/* Promo Code — disabled när en account-deal är aktiv. */}
+                        <div className={`relative group flex items-center transition-all ${selectedAccountDealId ? "opacity-40 pointer-events-none" : ""}`}>
                           <Tag size={16} className="absolute left-6 text-gold-500/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
-                           <input 
-                              value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput} 
+                           <input
+                              value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput}
                               onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); }}
-                              className="w-full border rounded-2xl py-6 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest placeholder:text-zinc-400 outline-none transition-all"
+                              disabled={!!selectedAccountDealId}
+                              className="w-full border rounded-2xl py-6 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest placeholder:text-zinc-400 outline-none transition-all disabled:cursor-not-allowed"
                               style={{ backgroundColor: "var(--bg-deep)", borderColor: selectedPersonalDeal ? "rgba(16,185,129,0.4)" : "var(--border-muted)", color: selectedPersonalDeal ? "#34d399" : "var(--text-primary)" }}
-                              placeholder={selectedPersonalDeal ? "Tillämpad" : "Rabattkod"} 
+                              placeholder={selectedAccountDealId ? "Ta bort belöningen ovan för att använda kod" : selectedPersonalDeal ? "Tillämpad" : "Rabattkod"}
                            />
-                           <button 
-                              type="button" 
+                           <button
+                              type="button"
+                              disabled={!!selectedAccountDealId}
                               onClick={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCodeInput(""); } : handleApplyPromo}
-                              className={`absolute right-3 px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedPersonalDeal ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20" : "bg-gold-500/10 text-gold-600 hover:bg-gold-500 hover:text-zinc-950"}`}
+                              className={`absolute right-3 px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:cursor-not-allowed ${selectedPersonalDeal ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20" : "bg-gold-500/10 text-gold-600 hover:bg-gold-500 hover:text-zinc-950"}`}
                            >
                               {selectedPersonalDeal ? "Ta Bort" : "Kolla"}
                            </button>
