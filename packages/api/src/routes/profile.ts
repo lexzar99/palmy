@@ -141,6 +141,9 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
 });
 
 // GET /api/profile/orders
+// Konverterar öre → kr på alla penning-fält INNAN respons så att frontend
+// (profile + orders-sidor) kan rendera direkt utan `/100`. Tidigare returnerades
+// raw Prisma-rader → 350 kr-order visades som "35000 kr" i UI:t.
 router.get('/orders', authenticateUser, async (req: any, res: any) => {
   try {
     const orders = await prisma.order.findMany({
@@ -148,7 +151,21 @@ router.get('/orders', authenticateUser, async (req: any, res: any) => {
       include: { restaurant: { select: { id: true, name: true, slug: true } }, items: true },
       orderBy: { createdAt: 'desc' }
     });
-    res.json(orders);
+    const serialized = orders.map((o: any) => ({
+      ...o,
+      total: (o.total ?? 0) / 100,
+      deliveryFee: (o.deliveryFee ?? 0) / 100,
+      discountAmount: (o.discountAmount ?? 0) / 100,
+      tipAmount: (o.tipAmount ?? 0) / 100,
+      items: (o.items || []).map((it: any) => ({
+        ...it,
+        basePrice: (it.basePrice ?? 0) / 100,
+        subtotal: (it.subtotal ?? 0) / 100,
+      })),
+      // accessToken läcker inte i klient-svar (servern verifierar mot DB)
+      accessToken: undefined,
+    }));
+    res.json(serialized);
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }

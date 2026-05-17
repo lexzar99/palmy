@@ -121,6 +121,12 @@ model Order {
   userDealId            String?
   userDealAmountKr      Int?
   stripePaymentIntentId String?
+  // 32-byte slumpad access-token för att tillåta gäst-bookmark/redirect-
+  // åtkomst till order-tracking utan auth. Sätts vid order-skapande och
+  // returneras till klienten EN gång. Användbar i 30 min (kollas i GET-
+  // routen). Ersätter den gamla "5-min grace by age"-loophole:n som lät
+  // attackerare enumerera cuid:er för PII.
+  accessToken           String?
   paymentStatus         String      @default("PENDING")
   paymentMethod         String      @default("ONLINE")
   note                  String?

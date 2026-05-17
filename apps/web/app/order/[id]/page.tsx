@@ -92,6 +92,10 @@ const OrderStatusPage = () => {
   // Phone som ownership-bevis när användaren kommer från /orders-listan
   // (där vi sparar phone i localStorage). Backend kollar mot order.customerPhone.
   const phoneFromUrl = searchParams.get("phone");
+  // Access-token (returnerad av POST /api/orders) — primärt ownership-bevis
+  // för gäster efter Stripe-redirect. Giltig 30 min, byter inte beteendet
+  // för inloggade (JWT vinner alltid).
+  const tokenFromUrl = searchParams.get("token");
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   // fetchError skiljer på "backend säger 404 — order finns verkligen inte"
@@ -111,22 +115,20 @@ const OrderStatusPage = () => {
   const fetchOrder = useCallback(async (opts?: { silent?: boolean }) => {
     if (!orderId) return;
     try {
-      // Skicka phone som ownership-bevis så backend-middleware (5-min grace
-      // OR JWT OR phone-match) tillåter access. För nyligen lagda orders
-      // räcker grace-fönstret men efter 5 min behövs phone.
-      const url = phoneFromUrl
-        ? `${API_URL}/api/orders/${orderId}?phone=${encodeURIComponent(phoneFromUrl)}`
+      // Skicka antingen access-token eller phone som ownership-bevis. Token
+      // är primär (set vid order-create, giltig 30 min), phone backup för
+      // returkund som klickat från /orders-listan.
+      const qs = new URLSearchParams();
+      if (tokenFromUrl) qs.set("token", tokenFromUrl);
+      if (phoneFromUrl) qs.set("phone", phoneFromUrl);
+      const url = qs.toString()
+        ? `${API_URL}/api/orders/${orderId}?${qs.toString()}`
         : `${API_URL}/api/orders/${orderId}`;
       const res = await axios.get(url, { withCredentials: true });
       setOrder(res.data);
       setFetchError(null);
     } catch (err: any) {
       console.error(err);
-      // Skilj 404 (order finns inte / inte längre tillgänglig) från
-      // network/timeout/500 (backend nere, slö, etc). Om vi redan har
-      // order-data laddad: rör inte den — fortsätt visa, polling försöker
-      // igen vid nästa interval-tick. Bara om ordern är HELT tom byter
-      // vi till error-state.
       if (!opts?.silent) {
         if (err?.response?.status === 404) {
           setFetchError("not-found");
@@ -137,7 +139,7 @@ const OrderStatusPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [orderId, phoneFromUrl]);
+  }, [orderId, phoneFromUrl, tokenFromUrl]);
 
   useEffect(() => {
     if (!orderId) return;

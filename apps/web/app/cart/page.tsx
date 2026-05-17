@@ -1021,9 +1021,19 @@ export default function CartPage() {
     if (!cameFromStripeRedirect || !storedOrderId) return;
 
     const routeToOrder = () => {
+      // Inkludera access-token + phone som auth-bevis i URL:n så order-
+      // tracking-sidan kan läsa ordern utan inloggning. Båda är fallbacks
+      // mot varandra (server accepterar antingen).
+      const storedToken = localStorage.getItem("pending_order_token") || "";
+      const phone = (formData.customerPhone || "").trim();
+      const qs = new URLSearchParams();
+      if (storedToken) qs.set("token", storedToken);
+      if (phone) qs.set("phone", phone);
+      const url = qs.toString() ? `/order/${storedOrderId}?${qs.toString()}` : `/order/${storedOrderId}`;
       clearCart();
       localStorage.removeItem("pending_order_id");
-      router.replace(`/order/${storedOrderId}`);
+      localStorage.removeItem("pending_order_token");
+      router.replace(url);
     };
 
     if (redirectStatus === "failed" || redirectStatus === "requires_payment_method") {
@@ -1128,7 +1138,14 @@ export default function CartPage() {
         rememberActiveOrder(orderId);
       }
       clearCart();
-      if (orderId) router.push(`/order/${orderId}`);
+      if (orderId) {
+        // Test-flödet returnerar accessToken samma route som riktiga ordrar.
+        const testToken = res.data?.accessToken;
+        const qs = new URLSearchParams();
+        if (testToken) qs.set("token", testToken);
+        if (formData.customerPhone) qs.set("phone", formData.customerPhone);
+        router.push(qs.toString() ? `/order/${orderId}?${qs.toString()}` : `/order/${orderId}`);
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || t("cart.errors.orderFailed"));
     } finally {
@@ -1155,10 +1172,18 @@ export default function CartPage() {
       restaurantSlug: cartRestaurantSlug ?? null,
       total: total,
     });
+    // Inkludera access-token + phone i tracking-URL:n så gäster kan se
+    // ordern utan inloggning. Tokenen returnerades av POST /api/orders.
+    const storedToken = typeof window !== "undefined" ? localStorage.getItem("pending_order_token") : null;
+    const trackQs = new URLSearchParams();
+    if (storedToken) trackQs.set("token", storedToken);
+    if (formData.customerPhone) trackQs.set("phone", formData.customerPhone);
+    const trackUrl = trackQs.toString() ? `/order/${orderId}?${trackQs.toString()}` : `/order/${orderId}`;
     clearCart();
     localStorage.removeItem("pending_order_id");
+    localStorage.removeItem("pending_order_token");
     rememberActiveOrder(orderId);
-    router.push(`/order/${orderId}`);
+    router.push(trackUrl);
   }, [pendingOrderId, clearCart, router, formData.customerPhone, cartRestaurantSlug, total]);
 
   // Persist guest name/phone/email across sessions
@@ -1342,9 +1367,13 @@ export default function CartPage() {
         headers: { "Idempotency-Key": `order-${idempotencyKey.current}` },
       });
       const orderId: string = orderRes.data.orderId;
+      const orderToken: string | undefined = orderRes.data.accessToken;
 
-      // Save to localStorage for crash recovery (e.g. Swish/Klarna redirect)
+      // Save to localStorage for crash recovery (e.g. Swish/Klarna redirect).
+      // Tokenen krävs för att gäster ska komma åt /order/{id} efter redirect
+      // (5-min grace-loopholen togs bort av säkerhetsskäl).
       localStorage.setItem("pending_order_id", orderId);
+      if (orderToken) localStorage.setItem("pending_order_token", orderToken);
       setPendingOrderId(orderId);
 
       // Step 2: Create payment intent linked to this order

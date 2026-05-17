@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import Stripe from 'stripe';
+import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { getIO } from '../lib/socket';
 import jwt from 'jsonwebtoken';
@@ -368,9 +369,19 @@ router.post('/', async (req: Request, res: Response) => {
         ? (globalSettings?.estimatedPickupTime ?? DEFAULT_ESTIMATED_PICKUP_TIME)
         : (restaurant?.etaMinutes ?? globalSettings?.estimatedDeliveryTime ?? DEFAULT_ESTIMATED_DELIVERY_TIME);
 
+    // BYPASS-flaggan är en utvecklarflag och MÅSTE blockeras i produktion.
+    // Tidigare räckte det med att klienten skickade `stripePaymentIntentId: 'BYPASS'`
+    // för att skapa en PAID-order utan att betala — vem som helst med curl
+    // kunde få gratis mat. Allow ENBART när NODE_ENV !== 'production'.
+    if (data.stripePaymentIntentId === 'BYPASS' && process.env.NODE_ENV === 'production') {
+      console.error('[orders] BYPASS-försök i prod blockerades');
+      res.status(403).json({ error: 'Ogiltig betalning' });
+      return;
+    }
+    const bypassAllowed = data.stripePaymentIntentId === 'BYPASS' && process.env.NODE_ENV !== 'production';
     // Idempotency: if this PaymentIntent already has an order, return that order directly.
     // Skip for TEST_PAYMENT, FREE_PROMO and BYPASS to allow multiple tests by developers.
-    const isSpecialMockId = data.stripePaymentIntentId === 'TEST_PAYMENT' || data.stripePaymentIntentId === 'FREE_PROMO' || data.stripePaymentIntentId === 'BYPASS';
+    const isSpecialMockId = data.stripePaymentIntentId === 'TEST_PAYMENT' || data.stripePaymentIntentId === 'FREE_PROMO' || (bypassAllowed);
     const existingOrder = (data.stripePaymentIntentId && !isSpecialMockId) ? await prisma.order.findFirst({
       where: { stripePaymentIntentId: data.stripePaymentIntentId },
       select: {
@@ -389,19 +400,25 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     let confirmedPayment: ConfirmedPaymentIntent | null = null;
-    if (intentId && !isTestOrder && intentId !== 'BYPASS') {
+    if (intentId && !isTestOrder && !bypassAllowed) {
       confirmedPayment = await getConfirmedPaymentIntent(data.stripePaymentIntentId!);
     } else if (isTestOrder) {
-      confirmedPayment = { id: data.stripePaymentIntentId || 'TEST_PAYMENT', amount: 0 }; 
-    } else if (intentId === 'BYPASS') {
-      console.log('⏩ Bypassing Stripe verification for request');
+      confirmedPayment = { id: data.stripePaymentIntentId || 'TEST_PAYMENT', amount: 0 };
+    } else if (bypassAllowed) {
+      console.log('⏩ Bypassing Stripe verification for request (NODE_ENV=', process.env.NODE_ENV, ')');
       confirmedPayment = { id: 'BYPASS', amount: -1 };
     } else if (isPendingPayment) {
       confirmedPayment = { id: 'PENDING', amount: -1 };
     }
 
-    // Only enforce open status for unpaid/manual flows.
-    if (!confirmedPayment && !restaurantOpen) {
+    // Stängd-/pausad-restaurang-check körs ALLTID för betalande kunder,
+    // även när vi har en confirmedPayment (pre-payment-order-flödet sätter
+    // confirmedPayment={amount:-1} och hoppade tidigare över denna guard
+    // → kunder kunde köpa från restauranger som just stängt mellan
+    // page-load och submit). Undantag: isTestOrder och bypassAllowed,
+    // som båda är dev-only.
+    const skipClosedCheck = isTestOrder || bypassAllowed;
+    if (!skipClosedCheck && !restaurantOpen) {
       res.status(400).json({ error: 'Tyvärr, restaurangen har för närvarande stängt. Välkommen tillbaka när vi öppnar!' });
       return;
     }
@@ -972,6 +989,10 @@ router.post('/', async (req: Request, res: Response) => {
         scheduledFor: data.scheduledFor ? new Date(data.scheduledFor) : null,
         userId: authenticatedUserId,
         allergens: authUser?.allergens || '[]',
+        // Access-token för guest-tracking-URL: slumpad 32-byte. Returneras
+        // till klienten en gång och kan användas i 30 min via `?token=...`
+        // i /order/{id} (se GET /orders/:id ovan).
+        accessToken: crypto.randomBytes(32).toString('base64url'),
 
         items: {
           create: orderItems.map(item => ({
@@ -1100,6 +1121,9 @@ router.post('/', async (req: Request, res: Response) => {
       total: order.total / 100,
       appliedDealTitle: order.appliedDealTitle,
       estimatedTime: order.estimatedTime ?? estimatedTime,
+      // Klienten ska skicka tokenen som ?token= på order-tracking-URL:n så
+      // gäst-redirect efter Stripe (utan auth-header) får tillgång inom 30 min.
+      accessToken: order.accessToken,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -1254,13 +1278,20 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    // 3. Grace-period för nyligen lagda ordrar (5 min) — webhook-confirmation
-    // och redirect-flows (Swish/Klarna) kan komma tillbaka utan auth-header
-    // direkt. Vi tillåter ID-baserad åtkomst inom kort fönster efter create.
+    // 3. SnabbVERIFY-token: efter en lyckad pre-payment-order returnerar
+    //    POST /api/orders en `orderToken` (sätts på ordern). Klienten skickar
+    //    den som `?token=...` direkt efter Stripe-redirect och vi godkänner
+    //    åtkomst inom 30 min. Tokenen är 32-byte slumpad så ID-gissning är
+    //    omöjlig. (Tidigare hade vi 5-min grace baserat enbart på ageMs
+    //    vilket lät vem som helst läsa kundens PII via enumerable cuid:er.)
     if (!isOwner) {
-      const ageMs = Date.now() - new Date(order.createdAt).getTime();
-      if (ageMs < 5 * 60 * 1000) {
-        isOwner = true;
+      const queryToken = typeof req.query.token === 'string' ? req.query.token : null;
+      const orderToken = (order as any).accessToken as string | null | undefined;
+      if (queryToken && orderToken && queryToken === orderToken) {
+        const ageMs = Date.now() - new Date(order.createdAt).getTime();
+        if (ageMs < 30 * 60 * 1000) {
+          isOwner = true;
+        }
       }
     }
 

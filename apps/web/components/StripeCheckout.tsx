@@ -164,8 +164,16 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
         )}
       </button>
 
-      <p className="text-[9px] text-center font-black uppercase tracking-widest leading-relaxed" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>
-        Genom att betala accepterar du MatGos köpvillkor.<br/>
+      <p className="text-[10px] text-center font-bold tracking-wide leading-relaxed" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>
+        Genom att betala accepterar du{" "}
+        <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline text-gold-600 hover:text-gold-500">
+          köpvillkoren
+        </a>
+        {" "}och godkänner att vi behandlar din data enligt{" "}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline text-gold-600 hover:text-gold-500">
+          integritetspolicyn
+        </a>
+        .<br />
         Säker krypterad anslutning via Stripe.
       </p>
     </form>

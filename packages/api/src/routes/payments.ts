@@ -1,10 +1,24 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
+import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { getIO } from '../lib/socket';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { incrementDiscountUsageIfNotCounted } from '../lib/discountUsage';
+
+// Rate-limit på create-intent. Tidigare var routen öppen + utan limit,
+// vilket lät en angripare minta obegränsat antal Stripe-PaymentIntents
+// (per-anrop Stripe-fees + customers.list/create skräp i Dashboard).
+// Per-IP räcker som första försvar; auth-baserad scope kunde varit
+// striktare men gäster MÅSTE kunna betala utan konto.
+const createIntentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 min
+  max: 30, // 30 försök/min/IP — gott om utrymme för flera retries men inte spam
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'För många betalningsförsök. Vänta en stund och försök igen.' },
+});
 
 const router = Router();
 
@@ -37,8 +51,15 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // POST /api/payments/create-intent
-// Skapar en Stripe PaymentIntent för checkout
-router.post('/create-intent', async (req, res) => {
+// Skapar en Stripe PaymentIntent för checkout.
+//
+// SÄKERHET:
+//  - Rate-limit (createIntentLimiter): 30/min/IP mot Stripe-fee-abuse.
+//  - Belopp HÄRLEDS från DB (order.total / 100), aldrig från klient-body.
+//    Tidigare användes klientens `amount` direkt → en angripare kunde betala
+//    mindre än ordertotalen (webhook flippade PAID utan amount-jämförelse).
+//  - orderId krävs (ingen anonym intent-creation).
+router.post('/create-intent', createIntentLimiter, async (req, res) => {
   const idempotencyKey = getIdempotencyKey(req);
   // Scope keyen till user (om authed) eller IP (gäst). Annars kunde User B
   // återanvända User A:s cachade clientSecret från Stripe.
@@ -51,20 +72,36 @@ router.post('/create-intent', async (req, res) => {
   }
 
   try {
-    const { amount, currency = 'sek', metadata, orderId } = req.body;
-    const parsedAmount = Number(amount);
+    const { currency = 'sek', metadata, orderId } = req.body;
 
-    // Log the exact amount for debugging
-    console.log(`📦 Creating payment intent: ${parsedAmount} ${currency} (${Math.round(parsedAmount * 100)} öre)`);
-
-    // Stripe has a minimum charge of 5 SEK (500 öre)
-    // For testing purposes, we ensure we always meet this minimum
-    const safeAmount = Math.max(parsedAmount, 5);
-
-    if (!Number.isFinite(parsedAmount) || safeAmount < 1) {
-      res.status(400).json({ error: 'Ogiltigt belopp' });
+    // orderId är obligatoriskt — varje PaymentIntent ska peka på en konkret
+    // pre-payment-order så vi kan härleda beloppet från DB istället för
+    // klient-input. Ingen orderId = inget belopp att förlita sig på.
+    if (!orderId || typeof orderId !== 'string') {
+      res.status(400).json({ error: 'orderId krävs' });
       return;
     }
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { restaurant: { select: { name: true } } },
+    });
+    if (!order) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+
+    // order.total är ALLTID i öre i DB. Stripe vill ha belopp i öre direkt,
+    // så vi använder det rakt av. Klientens `amount` ignoreras helt.
+    const amountOre = order.total;
+    const safeAmountOre = Math.max(amountOre, 500); // Stripe min: 5 kr = 500 öre
+
+    if (!Number.isFinite(safeAmountOre) || safeAmountOre < 1) {
+      res.status(400).json({ error: 'Ogiltigt belopp på ordern' });
+      return;
+    }
+
+    console.log(`📦 Creating payment intent for order ${orderId}: ${amountOre / 100} ${currency} (${amountOre} öre)`);
 
     const normalizedMetadata = Object.entries(metadata || {}).reduce<Record<string, string>>((acc, [key, value]) => {
       if (value === undefined || value === null) return acc;
@@ -72,26 +109,16 @@ router.post('/create-intent', async (req, res) => {
       return acc;
     }, {});
 
-    if (orderId && typeof orderId === 'string') {
-      normalizedMetadata.orderId = orderId;
-    }
+    normalizedMetadata.orderId = orderId;
 
-    // Berika PaymentIntent med order-data när orderId finns.
-    // Stripe Dashboard visar `description` i Payment-listan + skickar
-    // automatiska kvitton till `receipt_email`. Metadata används för
-    // matching/sökning/audit. `customer` (Stripe Customer-object) gör att
-    // Customer-kolumnen i Dashboard fylls med email/namn — krävs eftersom
-    // receipt_email ensamt INTE alltid renderas där. Refund-arbete blir
-    // 10x lättare när varje pi_ visar order/kund/restaurang direkt.
+    // Berika PaymentIntent med order-data — vi har redan slagit upp order
+    // ovan för att härleda beloppet, så återanvänd samma rad här.
     let description: string | undefined;
     let receiptEmail: string | undefined;
     let stripeCustomerId: string | undefined;
-    if (orderId && typeof orderId === 'string') {
+    {
+      // Wrap för att bevara variabelnamn (order finns från look-up ovan)
       try {
-        const order = await prisma.order.findUnique({
-          where: { id: orderId },
-          include: { restaurant: { select: { name: true } } },
-        });
         if (order) {
           // Format: "PA-1002-BX – Palmyra Pizzeria – Anna Andersson"
           // Stripe-tabellen trunkerar långt så håller det kompakt.
@@ -148,9 +175,9 @@ router.post('/create-intent', async (req, res) => {
           if (order.type) normalizedMetadata.orderType = order.type;
         }
       } catch (lookupErr: any) {
-        // Order-lookup-fel ska inte blockera betalningen. Bara logga och
-        // fortsätt med tom description (gamla beteendet).
-        console.warn('[payments] order lookup for intent enrichment failed:', {
+        // Customer-enrichment failed, fortsätt utan — beloppet är redan
+        // bestämt från order.total ovan, så betalningen kan genomföras.
+        console.warn('[payments] customer enrichment failed:', {
           orderId,
           error: lookupErr?.message,
         });
@@ -159,7 +186,8 @@ router.post('/create-intent', async (req, res) => {
 
     const paymentIntent = await stripe.paymentIntents.create(
       {
-        amount: Math.round(safeAmount * 100), // kr till ören
+        // Belopp i öre. Härlett ur DB-ordern, inte klient-input.
+        amount: safeAmountOre,
         currency,
         metadata: normalizedMetadata,
         ...(description ? { description } : {}),
@@ -181,22 +209,16 @@ router.post('/create-intent', async (req, res) => {
       idempotencyKey ? { idempotencyKey: `create-intent:${idempotencyKey}` } : undefined
     );
 
-    // Link the pending order to this payment intent. Vi väljer att inte
-    // returnera fel till klienten om DB-uppdateringen failar — Stripe har redan
-    // skapat intent och kunden ska kunna betala. Men strukturerad error-log
-    // krävs så vi kan upptäcka mismatched intents/orders i Sentry.
-    if (orderId && typeof orderId === 'string') {
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { stripePaymentIntentId: paymentIntent.id },
-      }).catch((e) => console.error('[payments] could not link order to intent', {
-        orderId,
-        paymentIntentId: paymentIntent.id,
-        error: e?.message || String(e),
-        // INTE PII — bara debug-flagga som hjälper hitta lost-pending-order
-        // när kund kommer tillbaka och säger "jag betalade men ingen mat".
-      }));
-    }
+    // Länka ordern till PaymentIntent:en. Strukturerad error-log om DB-
+    // update failar så vi kan hitta lost-pending-orders i Sentry.
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { stripePaymentIntentId: paymentIntent.id },
+    }).catch((e) => console.error('[payments] could not link order to intent', {
+      orderId,
+      paymentIntentId: paymentIntent.id,
+      error: e?.message || String(e),
+    }));
 
     const responseBody = {
       clientSecret: paymentIntent.client_secret,
@@ -384,6 +406,39 @@ router.post('/webhook', async (req, res) => {
 
       if (order) {
         const isAwaitingPayment = order.status === 'AWAITING_PAYMENT';
+
+        // BELOPPS-VERIFIKATION: jämför vad Stripe faktiskt drog mot vad
+        // ordern säger sig kosta. Tidigare flippades order PAID utan denna
+        // check → en angripare som manipulerat PaymentIntent (eller en
+        // klient som skickat lägre belopp innan vi härlede det från DB)
+        // kunde betala mindre än orderns total. Tolerans 1 öre för float-
+        // rounding. På mismatch: flagga ordern men markera INTE PAID.
+        const expectedAmount = order.total; // öre
+        const receivedAmount = paymentIntent.amount_received ?? paymentIntent.amount;
+        const amountDiff = Math.abs(receivedAmount - expectedAmount);
+        if (amountDiff > 1) {
+          console.error('[webhook] amount mismatch — order NOT marked PAID', {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            paymentIntentId: paymentIntent.id,
+            expectedAmount,
+            receivedAmount,
+            diff: amountDiff,
+          });
+          // Markera som NEEDS_REVIEW så admin ser den och kan refunda manuellt.
+          await prisma.order.update({
+            where: { id: order.id },
+            data: { paymentStatus: 'NEEDS_REVIEW' },
+          }).catch((e: any) => console.error('[webhook] could not flag order for review:', e?.message));
+          // Notifiera admin-room men flippa INTE order till PAID.
+          getIO().to('admin-room').emit('order:amount_mismatch', {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            expectedAmount,
+            receivedAmount,
+          });
+          break;
+        }
 
         const updatedOrder = await prisma.order.update({
           where: { id: order.id },
