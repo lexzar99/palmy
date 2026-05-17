@@ -10,6 +10,7 @@ import { openSupportChatWithOrder } from "@/components/SupportChat";
 import ShareInviteCard from "@/components/ShareInviteCard";
 import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 const FlameIcon = ({ size = 24, className = "" }: { size?: number; className?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -23,76 +24,58 @@ const BoxCheckIcon = ({ size = 24, className = "" }: { size?: number; className?
   </svg>
 );
 
-const STATUS_CONFIG: Record<string, { label: string; icon: any; colorClass: string; textClass: string; desc: string }> = {
+// Stil + icon per status. Label + desc resolveras via t() inne i komponenten
+// (order.status.*.label / .desc) eftersom STATUS_CONFIG är module-level.
+const STATUS_CONFIG: Record<string, { icon: any; colorClass: string; textClass: string }> = {
   PENDING: {
-    label: "Granskas",
     icon: Clock,
     colorClass: "bg-amber-500/10 border-amber-500/20 shadow-amber-500/5",
     textClass: "text-amber-500",
-    desc: "Vi har tagit emot din beställning. Väntar på att köket ska bekräfta.",
   },
   ACCEPTED: {
-    label: "Bekräftad!",
     icon: Check,
     colorClass: "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/5",
     textClass: "text-emerald-500",
-    desc: "Restaurangen har bekräftat din beställning. Nu börjar magin!",
   },
   PREPARING: {
-    label: "Tillagas",
     icon: FlameIcon,
     colorClass: "bg-orange-500/10 border-orange-500/20 shadow-orange-500/5",
     textClass: "text-orange-500",
-    desc: "Dina råvaror förvandlas till en fantastisk måltid just nu.",
   },
   READY: {
-    label: "Redo!",
     icon: BoxCheckIcon,
     colorClass: "bg-gold-500/10 border-gold-500/20 shadow-gold-500/5",
     textClass: "text-gold-500",
-    desc: "Klart! Din beställning är packad och redo att hämtas upp.",
   },
   DELIVERING: {
-    label: "På väg!",
     icon: Truck,
     colorClass: "bg-sky-500/10 border-sky-500/20 shadow-sky-500/5",
     textClass: "text-sky-500",
-    desc: "Utkörning pågår! Håll ett öga på dörren.",
   },
   DELIVERY_FAILED: {
-    label: "Problem",
     icon: AlertCircle,
     colorClass: "bg-rose-500/10 border-rose-500/20 shadow-rose-500/5",
     textClass: "text-rose-500",
-    desc: "Vi kunde inte slutföra leveransen. Restaurangen kontaktar dig snarast.",
   },
   REJECTED: {
-    label: "Nekad",
     icon: AlertCircle,
     colorClass: "bg-rose-500/10 border-rose-500/20 shadow-rose-500/5",
     textClass: "text-rose-500",
-    desc: "Tyvärr kunde vi inte ta emot din order. Du har ej debiterats.",
   },
   DELIVERED: {
-    label: "Levererad!",
     icon: Check,
     colorClass: "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/5",
     textClass: "text-emerald-500",
-    desc: "Hoppas det smakar! Tack för att du handlar hos oss.",
   },
   COMPLETED: {
-    label: "Levererad!",
     icon: Check,
     colorClass: "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/5",
     textClass: "text-emerald-500",
-    desc: "Hoppas det smakar! Tack för att du handlar hos oss.",
   },
   CANCELLED: {
-    label: "Avbokad",
     icon: AlertCircle,
     colorClass: "bg-zinc-50 border-zinc-100",
     textClass: "text-zinc-400",
-    desc: "Denna beställning har avbokats.",
   },
 };
 
@@ -100,6 +83,9 @@ const PICKUP_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "READY"];
 const DELIVERY_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "DELIVERING"];
 
 const OrderStatusPage = () => {
+  const { t } = useTranslation();
+  const statusLabel = (s: string) => t(`order.status.${s}.label`);
+  const statusDesc = (s: string) => t(`order.status.${s}.desc`);
   const { id } = useParams();
   const orderId = Array.isArray(id) ? id[0] : id;
   const searchParams = useSearchParams();
@@ -245,7 +231,7 @@ const OrderStatusPage = () => {
       setShowReview(false);
       setOrder((prev: any) => prev ? { ...prev, rating: reviewRating } : prev);
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Kunde inte spara recension');
+      alert(err.response?.data?.error || t('order.review.errorGeneric'));
     } finally {
       setReviewSubmitting(false);
     }
@@ -276,23 +262,23 @@ const OrderStatusPage = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
         <AlertCircle size={48} className="text-amber-500 mb-6" />
-        <h1 className="text-3xl font-black uppercase italic mb-3" style={{ color: "var(--text-primary)" }}>Kunde inte ladda ordern</h1>
+        <h1 className="text-3xl font-black uppercase italic mb-3" style={{ color: "var(--text-primary)" }}>{t("order.error.networkTitle")}</h1>
         <p className="text-sm max-w-md mb-8" style={{ color: "var(--text-secondary)" }}>
-          Servern är upptagen eller din anslutning är instabil. Din order är troligen registrerad — försök igen om en stund. Din betalning är säker.
+          {t("order.error.networkSub")}
         </p>
         <div className="flex flex-col sm:flex-row gap-4">
           <button
             onClick={() => { setLoading(true); setFetchError(null); fetchOrder(); }}
             className="px-10 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px]"
           >
-            Försök igen
+            {t("order.error.retry")}
           </button>
           <Link
             href="/orders"
             className="px-10 py-5 border rounded-[2rem] font-black uppercase tracking-widest text-[10px]"
             style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
           >
-            Mina ordrar
+            {t("order.error.myOrders")}
           </Link>
         </div>
       </div>
@@ -305,11 +291,11 @@ const OrderStatusPage = () => {
     return (
        <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
           <AlertCircle size={48} className="text-rose-500 mb-6" />
-          <h1 className="text-4xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>Order ej hittad</h1>
+          <h1 className="text-4xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>{t("order.error.notFoundTitle")}</h1>
           <p className="text-sm max-w-md mt-4" style={{ color: "var(--text-secondary)" }}>
-            Ordern kan ha tagits bort eller så saknar du behörighet att se den.
+            {t("order.error.notFoundSub")}
           </p>
-          <Link href="/" className="mt-10 px-10 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px]">Till startsidan</Link>
+          <Link href="/" className="mt-10 px-10 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px]">{t("order.error.notFoundCta")}</Link>
        </div>
     );
   }
@@ -331,10 +317,10 @@ const OrderStatusPage = () => {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 mb-16 px-4">
            <div>
               <div className="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-600 text-[10px] font-black uppercase tracking-[0.3em] mb-4">
-                 <Zap size={12} className="animate-pulse" /> Live Tracking
+                 <Zap size={12} className="animate-pulse" /> {t("order.liveTracking")}
               </div>
-               <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tight leading-snug mb-2 overflow-visible" style={{ color: "var(--text-primary)" }}>Order <span className="text-gold-gradient">#{order.orderNumber}</span></h1>
-               <p className="text-[10px] font-black uppercase tracking-[0.4em]" style={{ color: "var(--text-secondary)" }}>Din beställning behandlas i realtid</p>
+               <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tight leading-snug mb-2 overflow-visible" style={{ color: "var(--text-primary)" }}>{t("order.title")} <span className="text-gold-gradient">#{order.orderNumber}</span></h1>
+               <p className="text-[10px] font-black uppercase tracking-[0.4em]" style={{ color: "var(--text-secondary)" }}>{t("order.subtitle")}</p>
            </div>
            
            {order.estimatedTime && !isRejected && !isCompleted && (
@@ -345,13 +331,13 @@ const OrderStatusPage = () => {
                  </div>
                  <div>
                     <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">
-                      {etaLeft !== null && etaLeft <= 0 ? 'Bör vara klart!' : 'Klar om ungefär'}
+                      {etaLeft !== null && etaLeft <= 0 ? t("order.eta.ready") : t("order.eta.short")}
                     </div>
                     <div className="text-2xl font-black italic tabular-nums" style={{ color: "var(--text-primary)" }}>
                       {etaLeft === null
                         ? `${order.estimatedTime} MIN`
                         : etaLeft <= 0
-                          ? 'Snart!'
+                          ? t("order.eta.soon")
                           : `${Math.floor(etaLeft / 60)}:${(etaLeft % 60).toString().padStart(2, '0')}`}
                     </div>
                  </div>
@@ -365,8 +351,8 @@ const OrderStatusPage = () => {
               <StatusIcon size={40} className={currentStatus === 'PENDING' ? 'animate-pulse' : ''} />
            </div>
            <div className="flex-1">
-              <h2 className={`text-3xl font-black uppercase italic tracking-tight mb-2 ${statusInfo.textClass}`}>{statusInfo.label}</h2>
-              <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest leading-relaxed opacity-80">{statusInfo.desc}</p>
+              <h2 className={`text-3xl font-black uppercase italic tracking-tight mb-2 ${statusInfo.textClass}`}>{statusLabel(currentStatus)}</h2>
+              <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest leading-relaxed opacity-80">{statusDesc(currentStatus)}</p>
            </div>
            {currentStatus === 'PENDING' && (
               <div className="w-16 h-16 rounded-full border-4 border-amber-500/20 border-t-amber-500 animate-spin shrink-0 hidden md:block" />
@@ -380,13 +366,12 @@ const OrderStatusPage = () => {
                  {steps.map((step, idx) => {
                     const isDone = currentIdx >= idx;
                     const isActive = currentIdx === idx;
-                    const info = STATUS_CONFIG[step];
                     return (
                        <div key={step} className="flex flex-col items-center gap-4 relative z-10">
                           <div className={`w-8 h-8 rounded-full border-2 transition-all duration-700 flex items-center justify-center ${isDone ? "bg-gold-500 border-gold-500 shadow-lg shadow-gold-500/20" : "bg-zinc-50 border-zinc-100 text-zinc-300"}`}>
                              {isDone ? <Check size={14} className="text-zinc-950" strokeWidth={4} /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
                           </div>
-                          <span className={`text-[8px] font-black uppercase tracking-widest whitespace-nowrap ${isActive ? "text-gold-600" : isDone ? "text-zinc-400" : "text-zinc-300"}`}>{info.label.split(" ")[0]}</span>
+                          <span className={`text-[8px] font-black uppercase tracking-widest whitespace-nowrap ${isActive ? "text-gold-600" : isDone ? "text-zinc-400" : "text-zinc-300"}`}>{statusLabel(step).split(" ")[0]}</span>
                        </div>
                     );
                  })}
@@ -406,7 +391,7 @@ const OrderStatusPage = () => {
             <div className="lg:col-span-7 p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                <div className="absolute top-[-100px] left-[-100px] w-[300px] h-[300px] rounded-full blur-[100px]" style={{ backgroundColor: "rgba(231,178,75,0.03)" }} />
               <div className="flex items-center justify-between mb-12 relative z-10">
-                  <h2 className="text-2xl font-black uppercase italic tracking-tight leading-[1.15]" style={{ color: "var(--text-primary)" }}>Beställningsdetaljer</h2>
+                  <h2 className="text-2xl font-black uppercase italic tracking-tight leading-[1.15]" style={{ color: "var(--text-primary)" }}>{t("order.detailsTitle")}</h2>
                  <ShoppingBag size={24} className="text-gold-500/30" />
               </div>
               
@@ -425,7 +410,7 @@ const OrderStatusPage = () => {
                                 ))}
                              </div>
                           )}
-                          {item.note && <p className="text-[10px] text-amber-500/60 font-black uppercase tracking-widest mt-2 italic px-3 border-l-[1px] border-amber-500/30">Obs: {item.note}</p>}
+                          {item.note && <p className="text-[10px] text-amber-500/60 font-black uppercase tracking-widest mt-2 italic px-3 border-l-[1px] border-amber-500/30">{t("order.itemNote")}: {item.note}</p>}
                        </div>
                        <div className="text-sm font-black italic text-zinc-600 group-hover:text-gold-500 transition-colors">{item.subtotal} KR</div>
                     </div>
@@ -433,11 +418,11 @@ const OrderStatusPage = () => {
               </div>
 
               <div className="border-t border-zinc-100 pt-10 space-y-4 relative z-10">
-                 <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>Delsumma</span><span>{(order.total - order.deliveryFee).toFixed(0)} KR</span></div>
-                 {order.deliveryFee > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>Leveransavgift</span><span className="text-gold-500">+{order.deliveryFee.toFixed(0)} KR</span></div>}
+                 <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>{t("order.summary.subtotal")}</span><span>{(order.total - order.deliveryFee).toFixed(0)} KR</span></div>
+                 {order.deliveryFee > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>{t("order.summary.deliveryFee")}</span><span className="text-gold-500">+{order.deliveryFee.toFixed(0)} KR</span></div>}
                   <div className="flex justify-between items-end mt-10 pt-4 border-t border-zinc-100">
-                     <span className="text-2xl font-black italic uppercase tracking-tighter leading-[1.15]" style={{ color: "var(--text-primary)" }}>SUMMA</span>
-                     <span className="text-4xl font-black italic tracking-tighter text-gold-500">{order.total.toFixed(0)} <span className="text-[10px] opacity-40 not-italic uppercase tracking-widest">SEK</span></span>
+                     <span className="text-2xl font-black italic uppercase tracking-tighter leading-[1.15]" style={{ color: "var(--text-primary)" }}>{t("order.summary.total")}</span>
+                     <span className="text-4xl font-black italic tracking-tighter text-gold-500">{order.total.toFixed(0)} <span className="text-[10px] opacity-40 not-italic uppercase tracking-widest">{t("common.sek")}</span></span>
                   </div>
               </div>
            </div>
@@ -447,7 +432,7 @@ const OrderStatusPage = () => {
                <div className="p-10 rounded-[3rem] shadow-2xl relative overflow-hidden group border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                   <div className="absolute inset-0 bg-gradient-to-br from-gold-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <h2 className="text-xl font-black uppercase italic tracking-tight mb-10 flex items-center justify-between" style={{ color: "var(--text-primary)" }}>
-                    Hantering
+                    {t("order.handling")}
                     {order.type === "DELIVERY" ? <Truck size={22} className="text-gold-500" /> : <Store size={22} className="text-gold-500" />}
                   </h2>
                  
@@ -455,7 +440,7 @@ const OrderStatusPage = () => {
                     <div className="flex items-start gap-5">
                        <Phone className="text-gold-500/30 mt-1" size={20} />
                         <div>
-                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Ditt Nummer</div>
+                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("order.yourNumber")}</div>
                            <div className="text-base font-black tracking-widest italic" style={{ color: "var(--text-primary)" }}>{order.customerPhone}</div>
                         </div>
                     </div>
@@ -463,7 +448,7 @@ const OrderStatusPage = () => {
                     <div className="flex items-start gap-5">
                        <Store className="text-gold-500/30 mt-1" size={20} />
                         <div>
-                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Restaurang</div>
+                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("order.restaurant")}</div>
                            <div className="text-base font-black italic uppercase" style={{ color: "var(--text-primary)" }}>{order.restaurantName}</div>
                            {order.restaurantPhone && <div className="text-[10px] font-black text-gold-500/60 mt-1">{order.restaurantPhone}</div>}
                         </div>
@@ -474,7 +459,7 @@ const OrderStatusPage = () => {
                           <div className="flex items-start gap-5">
                              <MapPin className="text-sky-500/30 mt-1" size={20} />
                               <div>
-                                 <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Leveransadress</div>
+                                 <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("order.deliveryAddress")}</div>
                                  <div className="text-sm font-black uppercase italic leading-tight" style={{ color: "var(--text-primary)" }}>{order.deliveryStreet}</div>
                                  <div className="text-[11px] font-black text-zinc-400 uppercase tracking-widest mt-1">{order.restaurantCity || "LUND"}</div>
                               </div>
@@ -485,7 +470,7 @@ const OrderStatusPage = () => {
                           <div className="flex items-start gap-5">
                              <MapPin className="text-emerald-500/30 mt-1" size={20} />
                               <div>
-                                 <div className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-600 mb-1">Hämta Hos</div>
+                                 <div className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-600 mb-1">{t("order.pickupAt")}</div>
                                  <div className="text-sm font-black uppercase italic leading-tight" style={{ color: "var(--text-primary)" }}>{order.restaurantAddress}</div>
                                  <div className="text-[11px] font-black text-zinc-400 uppercase tracking-widest mt-1">{order.restaurantZip} {order.restaurantCity}</div>
                               </div>
@@ -496,8 +481,8 @@ const OrderStatusPage = () => {
                     <div className="flex items-start gap-5">
                        <Calendar className="text-zinc-800 mt-1" size={20} />
                         <div>
-                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Beställd</div>
-                           <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>{new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })} idag</div>
+                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("order.placed")}</div>
+                           <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>{t("order.scheduledToday", { time: new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) })}</div>
                         </div>
                     </div>
 
@@ -521,10 +506,10 @@ const OrderStatusPage = () => {
                              <Clock className="text-gold-500 mt-1" size={20} />
                               <div>
                                  <div className="text-[9px] font-black uppercase tracking-[0.3em] text-gold-600 mb-1">
-                                    Önskad {order.type === "DELIVERY" ? "leverans" : "hämtning"}
+                                    {order.type === "DELIVERY" ? t("order.scheduledFor.delivery") : t("order.scheduledFor.pickup")}
                                  </div>
                                  <div className="text-base font-black italic" style={{ color: "var(--text-primary)" }}>
-                                    {isToday ? `Idag ${timeStr}` : `${dateStr} ${timeStr}`}
+                                    {isToday ? t("order.scheduledToday", { time: timeStr }) : t("order.review.scheduledDate", { date: dateStr, time: timeStr })}
                                  </div>
                               </div>
                           </div>
@@ -539,16 +524,16 @@ const OrderStatusPage = () => {
                     <div className="flex items-center justify-center gap-1 mb-4">
                       {[1,2,3,4,5].map(s => <Star key={s} size={24} className={s <= (order.rating || reviewRating) ? 'text-gold-500 fill-gold-500' : 'text-zinc-100'} />)}
                     </div>
-                    <h3 className="text-sm font-black uppercase tracking-[0.2em] italic mb-2" style={{ color: "var(--text-primary)" }}>Tack för din recension!</h3>
-                    <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">Din feedback hjälper oss att bli bättre.</p>
+                    <h3 className="text-sm font-black uppercase tracking-[0.2em] italic mb-2" style={{ color: "var(--text-primary)" }}>{t("order.review.thanksTitle")}</h3>
+                    <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">{t("order.review.thanksSub")}</p>
                  </div>
               ) : (
                  <div className="p-10 rounded-[3rem] shadow-2xl text-center group active:scale-95 transition-all cursor-default" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                    <div className="w-16 h-16 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20 flex items-center justify-center mx-auto mb-6 text-emerald-600 shadow-xl shadow-emerald-500/5 group-hover:scale-110 transition-transform">
                       <ShieldCheck size={32} />
                    </div>
-                   <h3 className="text-sm font-black uppercase tracking-[0.2em] italic mb-2" style={{ color: "var(--text-primary)" }}>Tack för förtroendet</h3>
-                   <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">Spara ordernumret #{order.orderNumber} för referens vid kontakt.</p>
+                   <h3 className="text-sm font-black uppercase tracking-[0.2em] italic mb-2" style={{ color: "var(--text-primary)" }}>{t("order.thanksTitle")}</h3>
+                   <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">{t("order.thanksSub", { number: order.orderNumber })}</p>
                 </div>
               )}
 
@@ -559,7 +544,7 @@ const OrderStatusPage = () => {
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
               >
                 <MessageSquare size={18} className="text-gold-500" />
-                <span className="text-[11px] font-black uppercase tracking-widest">Kontakta support om denna order</span>
+                <span className="text-[11px] font-black uppercase tracking-widest">{t("order.support")}</span>
               </button>
            </div>
         </div>
@@ -570,10 +555,10 @@ const OrderStatusPage = () => {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center px-6 pb-8 sm:pb-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.7)" }}>
                <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm p-10 rounded-[3rem] shadow-2xl space-y-8 border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>Betygsätt</h2>
-                  <button onClick={dismissReview} className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors" aria-label="Stäng — visa inte igen för denna order"><X size={20} /></button>
+                  <h2 className="text-xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>{t("order.review.title")}</h2>
+                  <button onClick={dismissReview} className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors" aria-label={t("order.review.dismissAria")}><X size={20} /></button>
                 </div>
-                <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Hur var din upplevelse med {order.restaurantName}?</p>
+                <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">{t("order.review.prompt", { restaurant: order.restaurantName })}</p>
                 <div className="flex items-center justify-center gap-3">
                   {[1,2,3,4,5].map(s => (
                     <button key={s} onClick={() => setReviewRating(s)} className="transition-all active:scale-90 hover:scale-110">
@@ -584,7 +569,7 @@ const OrderStatusPage = () => {
                 <textarea
                   value={reviewText}
                   onChange={e => setReviewText(e.target.value)}
-                  placeholder="Berätta mer om din upplevelse (valfritt)..."
+                  placeholder={t("order.review.placeholder")}
                   rows={3}
                    className="w-full rounded-2xl py-4 px-5 text-sm outline-none focus:ring-2 focus:ring-gold-500/40 resize-none placeholder:text-zinc-600"
                    style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
@@ -594,7 +579,7 @@ const OrderStatusPage = () => {
                     "Gillade: {namn}, {namn}". */}
                 {(order.items || []).length > 0 ? (
                   <div className="grid gap-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vad gillade du? (valfritt)</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{t("order.review.likedTitle")}</p>
                     <div className="flex flex-wrap gap-2">
                       {order.items.map((item: any) => {
                         const id = item.productId || item.id;
@@ -623,7 +608,7 @@ const OrderStatusPage = () => {
                   disabled={!reviewRating || reviewSubmitting}
                   className="w-full py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[11px] shadow-xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-3"
                 >
-                  {reviewSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Star size={16} /> Skicka betyg</>}
+                  {reviewSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Star size={16} /> {t("order.review.submit")}</>}
                 </button>
               </motion.div>
             </motion.div>

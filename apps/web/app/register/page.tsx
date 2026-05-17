@@ -10,6 +10,7 @@ import { API_URL } from "@/lib/api";
 import { persistPlatformSession } from "@/lib/platformSessionClient";
 import { useToast } from "@/components/Toast";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
+import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 // Registreringen loggar in användaren direkt. Backend skapar kontot, skickar
 // verifieringsmejl fire-and-forget och svarar med JWT + user. Vi persistar
@@ -24,6 +25,7 @@ function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -45,16 +47,21 @@ function RegisterContent() {
     if (password.length >= 10) score++;
     if (/[a-zåäö]/.test(password) && /[A-ZÅÄÖ]/.test(password)) score++;
     if (/\d/.test(password) || /[^a-zA-ZåäöÅÄÖ0-9]/.test(password)) score++;
-    const labels = ["Svagt", "Okej", "Bra", "Starkt"];
+    const labelKeys = [
+      "auth.register.strength.weak",
+      "auth.register.strength.ok",
+      "auth.register.strength.good",
+      "auth.register.strength.strong",
+    ];
     const colors = ["#ef4444", "#f59e0b", "#3b82f6", "#10b981"];
     const idx = Math.min(3, Math.max(0, score - 1));
     return {
       score,
-      label: labels[idx],
+      label: t(labelKeys[idx]),
       color: colors[idx],
       activeBars: Math.max(1, score),
     };
-  }, [password]);
+  }, [password, t]);
 
   // Pre-fill referral-koden från ?ref=KOD så landing-page-flödet funkar:
   // /r/KOD → "Registrera nu" → /register?ref=KOD → fältet är förvalt.
@@ -100,8 +107,8 @@ function RegisterContent() {
               const inviterName = redeemRes.data?.inviterName || null;
               toast(
                 inviterName
-                  ? `Du och ${inviterName} får båda en rabatt-kupong på nästa beställning!`
-                  : "Referral aktiverad — du har en rabatt-kupong i ditt konto!",
+                  ? t("auth.register.referral.with", { name: inviterName })
+                  : t("auth.register.referral.solo"),
                 "success",
               );
             }
@@ -116,7 +123,7 @@ function RegisterContent() {
       // token-svar. Användaren får läsa verifierings-instruktionen i sin takt.
       setSuccess({ loggedIn, email });
     } catch (err: any) {
-      setError(err.response?.data?.error || "Registrering misslyckades");
+      setError(err.response?.data?.error || t("auth.register.errorGeneric"));
     } finally {
       setIsRegistering(false);
     }
@@ -125,7 +132,7 @@ function RegisterContent() {
   return (
     <div className="min-h-screen md:pt-20 pt-24 pb-32 px-6 flex flex-col items-center" style={{ backgroundColor: "var(--bg-primary)" }}>
       <Link href="/profile" className="absolute top-8 left-8 transition-all flex items-center gap-2 font-black uppercase tracking-widest text-[10px]" style={{ color: "var(--text-secondary)" }}>
-        <ArrowLeft size={16} /> Tillbaka
+        <ArrowLeft size={16} /> {t("auth.back")}
       </Link>
 
       <motion.div
@@ -143,10 +150,10 @@ function RegisterContent() {
                 <CheckCircle2 size={36} />
               </div>
               <h1 className="text-3xl font-black uppercase tracking-tight">
-                <span className="text-emerald-500">Klart!</span>
+                <span className="text-emerald-500">{t("auth.register.successTitle")}</span>
               </h1>
               <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: "var(--text-secondary)" }}>
-                Konto skapat
+                {t("auth.register.successSub")}
               </p>
             </div>
 
@@ -154,19 +161,19 @@ function RegisterContent() {
               <div className="flex items-center gap-2 text-emerald-500">
                 <Mail size={16} />
                 <p className="text-[10px] font-black uppercase tracking-widest">
-                  Verifieringsmejl skickat
+                  {t("auth.register.verifSent")}
                 </p>
               </div>
               <p className="text-sm font-bold leading-relaxed" style={{ color: "var(--text-primary)" }}>
-                Till: <span className="text-gold-500 font-black">{success.email}</span>
+                {t("auth.register.verifTo")} <span className="text-gold-500 font-black">{success.email}</span>
               </p>
               <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                Klicka på länken i mejlet för att verifiera din e-post. {success.loggedIn
-                  ? "Du är redan inloggad — verifiering är frivillig men hjälper oss skydda kontot."
-                  : "Logga in via mejl-länken eller fortsätt direkt om kontot redan fanns."}
+                {success.loggedIn
+                  ? t("auth.register.verifHintLoggedIn")
+                  : t("auth.register.verifHintEmailExists")}
               </p>
               <p className="text-[10px] italic" style={{ color: "var(--text-secondary)" }}>
-                Hittar du inte mejlet? Kolla i skräppost.
+                {t("auth.register.verifSpamHint")}
               </p>
             </div>
 
@@ -175,7 +182,7 @@ function RegisterContent() {
               onClick={() => router.push(success.loggedIn ? "/profile" : "/")}
               className="w-full bg-gold-500 hover:bg-gold-600 text-zinc-950 py-5 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all"
             >
-              Fortsätt till {success.loggedIn ? "profilen" : "hemsidan"}
+              {success.loggedIn ? t("auth.register.continueProfile") : t("auth.register.continueHome")}
             </button>
           </div>
         ) : (
@@ -185,17 +192,17 @@ function RegisterContent() {
               <User size={32} />
            </div>
            <h1 className="text-3xl font-black uppercase tracking-tight">
-             Skapa <span className="text-gold-500">Konto</span>
+             {t("auth.welcomeBack.title.create")} <span className="text-gold-500">{t("auth.welcomeBack.title.createAccent")}</span>
            </h1>
            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">
-             Bli medlem för att spara din historik
+             {t("auth.register.subSaveHistory")}
            </p>
         </div>
 
         <form onSubmit={handleRegister} className="space-y-4">
            <input
              type="text"
-             placeholder="Förnamn"
+             placeholder={t("auth.register.firstNamePlaceholder")}
              required
              value={firstName}
              onChange={(e) => setFirstName(e.target.value)}
@@ -204,7 +211,7 @@ function RegisterContent() {
            />
            <input
              type="text"
-             placeholder="Efternamn"
+             placeholder={t("auth.register.lastNamePlaceholder")}
              required
              value={lastName}
              onChange={(e) => setLastName(e.target.value)}
@@ -213,7 +220,7 @@ function RegisterContent() {
            />
            <input
              type="email"
-             placeholder="E-post"
+             placeholder={t("auth.register.emailPlaceholder")}
              required
              value={email}
              onChange={(e) => setEmail(e.target.value)}
@@ -222,7 +229,7 @@ function RegisterContent() {
            />
            <input
              type="tel"
-             placeholder="Telefonnummer (+46 70 000 00 00)"
+             placeholder={t("auth.register.phonePlaceholder")}
              required
              value={phone}
              onChange={(e) => setPhone(e.target.value)}
@@ -232,7 +239,7 @@ function RegisterContent() {
            <div className="space-y-2">
              <input
                type="password"
-               placeholder="Välj lösenord"
+               placeholder={t("auth.register.passwordPlaceholder")}
                required
                value={password}
                onChange={(e) => setPassword(e.target.value)}
@@ -261,7 +268,7 @@ function RegisterContent() {
                    className="text-[10px] font-bold uppercase tracking-wider mt-1.5"
                    style={{ color: passwordStrength.color }}
                  >
-                   Lösenord: {passwordStrength.label}
+                   {t("auth.register.strengthLabel", { label: passwordStrength.label })}
                  </p>
                </div>
              )}
@@ -270,11 +277,11 @@ function RegisterContent() {
            {/* Referral-kod (frivilligt) — automatisk uppercase, max 12 tecken */}
            <div className="space-y-1.5">
              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-500 ml-2 flex items-center gap-1.5">
-               <Gift size={11} className="text-gold-500" /> Har du en referral-kod? (Frivilligt)
+               <Gift size={11} className="text-gold-500" /> {t("auth.register.refLabel")}
              </label>
              <input
                type="text"
-               placeholder="T.ex. ANNA8X3K"
+               placeholder={t("auth.register.refPlaceholder")}
                maxLength={12}
                value={referralCode}
                onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
@@ -283,7 +290,7 @@ function RegisterContent() {
              />
              {referralCode && (
                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 ml-2">
-                 Ni får båda en rabatt-kupong att använda i kassan
+                 {t("auth.register.refHint")}
                </p>
              )}
            </div>
@@ -295,12 +302,12 @@ function RegisterContent() {
              disabled={isRegistering}
              className="w-full bg-gold-500 hover:bg-gold-600 text-zinc-950 py-5 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3"
            >
-             {isRegistering ? <Loader2 className="animate-spin" size={20} /> : "Skapa Konto"}
+             {isRegistering ? <Loader2 className="animate-spin" size={20} /> : t("auth.submitRegister")}
            </button>
         </form>
 
         <p className="text-center text-[10px] font-black uppercase tracking-widest text-zinc-600">
-           Har du redan ett konto? <Link href="/profile" className="text-gold-500">Logga in</Link>
+           {t("auth.hasAccount")} <Link href="/profile" className="text-gold-500">{t("auth.signIn")}</Link>
         </p>
         </>
         )}

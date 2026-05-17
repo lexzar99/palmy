@@ -53,6 +53,7 @@ import {
   writeQuickAddresses,
 } from "@/lib/quickAddresses";
 import { PublicDeal, pickBestDeal, formatDealReward } from "@/lib/deals";
+import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 // Account-deal från GET /api/account/deals — vi använder ACTIVE-deals av typ
 // WELCOME/REFERRAL_INVITER/REFERRAL_INVITEE som rabatt-checkbox i kassan.
@@ -93,22 +94,22 @@ function computeDealAmountKr(deal: UserAccountDeal, subtotal: number, deliveryFe
 
 // Formatterar rabatt-text för UI. Stackar:
 //   "25%" / "50 kr" / "Fri leverans" / "25% + Fri leverans".
-function formatDealLabel(deal: UserAccountDeal): string {
+function formatDealLabel(deal: UserAccountDeal, t: (key: string, vars?: Record<string, string | number>) => string): string {
   const isLegacyFreeDel = deal.discountType === "FREE_DELIVERY";
   const parts: string[] = [];
   if (!isLegacyFreeDel) {
     if (deal.discountPercent && deal.discountPercent > 0) parts.push(`${deal.discountPercent}%`);
-    else if (deal.amountKr && deal.amountKr > 0) parts.push(`${deal.amountKr} kr`);
+    else if (deal.amountKr && deal.amountKr > 0) parts.push(`${deal.amountKr} ${t("common.kr")}`);
   }
-  if (deal.freeDelivery || isLegacyFreeDel) parts.push("Fri leverans");
-  return parts.length > 0 ? parts.join(" + ") : "rabatt";
+  if (deal.freeDelivery || isLegacyFreeDel) parts.push(t("cart.dealLabel.freeDelivery"));
+  return parts.length > 0 ? parts.join(" + ") : t("cart.dealLabel.fallback");
 }
 
-function dealTypeLabel(type: string): string {
-  if (type === "WELCOME") return "Välkomst";
-  if (type === "REFERRAL_INVITER") return "Referral-belöning";
-  if (type === "REFERRAL_INVITEE") return "Referral-rabatt";
-  return "Rabatt";
+function dealTypeLabel(type: string, t: (key: string, vars?: Record<string, string | number>) => string): string {
+  if (type === "WELCOME") return t("cart.dealType.welcome");
+  if (type === "REFERRAL_INVITER") return t("cart.dealType.referralInviter");
+  if (type === "REFERRAL_INVITEE") return t("cart.dealType.referralInvitee");
+  return t("cart.dealType.fallback");
 }
 
 // Stripe-key måste vara satt i prod. Tidigare fallback till "pk_test_placeholder"
@@ -131,6 +132,7 @@ const stripePromise = stripeKeyMissing
   : loadStripe(STRIPE_PUBLISHABLE_KEY as string);
 
 export default function CartPage() {
+  const { t } = useTranslation();
   const { items, removeItem, updateQuantity, getTotal, clearCart, restaurantId: cartRestaurantId, restaurantSlug: cartRestaurantSlug } = useCartStore();
   const router = useRouter();
   const [editingCartItem, setEditingCartItem] = useState<any>(null);
@@ -801,10 +803,10 @@ export default function CartPage() {
         setSelectedAccountDealId(null);
       } else {
         const err = await res.json();
-        setError(err.error || "Ogiltig rabattkod.");
+        setError(err.error || t("cart.errors.invalidPromo"));
       }
     } catch {
-      setError("Ogiltig rabattkod.");
+      setError(t("cart.errors.invalidPromo"));
     }
   };
 
@@ -943,7 +945,7 @@ export default function CartPage() {
       setBogoPreview(null);
       return;
     }
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
         const res = await axios.post(`${API_URL}/api/deals/evaluate-cart`, {
           restaurantId: currentRestaurantId,
@@ -965,7 +967,7 @@ export default function CartPage() {
           const existing = useCartStore.getState().bogoChoice;
           if (existing && existing.dealId !== data.dealId) {
             setBogoChoice(null);
-            setBogoLostNotice(`Ditt tidigare gratis-val ("${existing.dealTitle}") gäller inte längre. Erbjudandet har bytts till "${data.dealTitle}".`);
+            setBogoLostNotice(t("cart.bogo.lostSwapped", { previous: existing.dealTitle, current: data.dealTitle }));
           }
         } else {
           setBogoPreview(null);
@@ -974,22 +976,22 @@ export default function CartPage() {
             // Varna ENDAST om kunden faktiskt hade valt en gratis-vara.
             // (Annars är "no deal" det normala tillståndet.)
             setBogoChoice(null);
-            setBogoLostNotice(`Ditt gratis-val ("${existing.dealTitle}") är inte längre tillgängligt — erbjudandet har antingen gått ut eller villkoren ändrats.`);
+            setBogoLostNotice(t("cart.bogo.lostGone", { previous: existing.dealTitle }));
           }
         }
       } catch {
         setBogoPreview(null);
       }
     }, 400);
-    return () => clearTimeout(t);
-  }, [items, currentRestaurantId, setBogoChoice]);
+    return () => clearTimeout(timer);
+  }, [items, currentRestaurantId, setBogoChoice, t]);
 
   // Auto-dismiss BOGO-lost-notice efter 8s så banner inte hänger kvar
   // permanent på sidan.
   useEffect(() => {
     if (!bogoLostNotice) return;
-    const t = setTimeout(() => setBogoLostNotice(null), 8000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setBogoLostNotice(null), 8000);
+    return () => clearTimeout(timer);
   }, [bogoLostNotice]);
 
   // Stripe redirect recovery: när kunden återvänder från Klarna BankID /
@@ -1030,8 +1032,8 @@ export default function CartPage() {
       // order så återanvänds den (backend matchar via orderId).
       setError(
         redirectStatus === "requires_payment_method"
-          ? "Betalningen avbröts. Försök igen eller välj en annan betalningsmetod."
-          : "Betalningen misslyckades. Kontrollera din betalningsinformation och försök igen.",
+          ? t("cart.errors.paymentCancelled")
+          : t("cart.errors.paymentFailed"),
       );
       window.history.replaceState({}, "", window.location.pathname);
       return;
@@ -1128,7 +1130,7 @@ export default function CartPage() {
       clearCart();
       if (orderId) router.push(`/order/${orderId}`);
     } catch (err: any) {
-      setError(err.response?.data?.error || "Kunde inte slutföra ordern. Kontakta restaurangen.");
+      setError(err.response?.data?.error || t("cart.errors.orderFailed"));
     } finally {
       setLoading(false);
     }
@@ -1139,7 +1141,7 @@ export default function CartPage() {
     const orderId = pendingOrderId || localStorage.getItem("pending_order_id");
     if (!orderId) {
       // Fallback: shouldn't happen in normal flow
-      setError("Betalningen lyckades men ordern kunde inte hittas. Kontakta support.");
+      setError(t("cart.errors.paymentSucceededOrderMissing"));
       return;
     }
     // Spara i lokal order-history så kunden (även icke-inloggad) kan hitta
@@ -1180,7 +1182,7 @@ export default function CartPage() {
     // submit-knappens disabled-villkor också.
 
     if (!formData.customerName.trim() || !formData.customerPhone.trim()) {
-      setError("Ange namn och telefonnummer.");
+      setError(t("cart.errors.namePhoneRequired"));
       return;
     }
     if (!isTestFlow) {
@@ -1189,7 +1191,7 @@ export default function CartPage() {
       // Bättre att fånga upp här med tydligt meddelande.
       const emailValue = formData.customerEmail.trim();
       if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
-        setError("Ange en giltig e-postadress — krävs för kvitto och Klarna.");
+        setError(t("cart.errors.emailRequired"));
         return;
       }
     }
@@ -1197,7 +1199,7 @@ export default function CartPage() {
       const hasStreet = !!formData.deliveryStreet.trim();
 
       if (!hasStreet) {
-        setError("Ange fullständig leveransadress.");
+        setError(t("cart.errors.streetRequired"));
         return;
       }
     }
@@ -1211,7 +1213,7 @@ export default function CartPage() {
       if (afterDiscount < effectiveMinOrder && minOrderTopUp === 0) {
         const shortfall = Math.ceil(effectiveMinOrder - afterDiscount);
         setError(
-          `Minsta ordervärde är ${minOrder} kr (rabatt får dra ner till ${effectiveMinOrder} kr). Du saknar ${shortfall} kr.`,
+          t("cart.minOrder.errorWithDiscount", { min: minOrder, effective: effectiveMinOrder, short: shortfall }),
         );
         return;
       }
@@ -1225,9 +1227,9 @@ export default function CartPage() {
       if (isPaused && pausedUntilDate) {
         const h = pausedUntilDate.getHours().toString().padStart(2, "0");
         const m = pausedUntilDate.getMinutes().toString().padStart(2, "0");
-        setError(`Restaurangen är pausad — återöppnar ${h}:${m}.`);
+        setError(t("cart.errors.restaurantPaused", { time: `${h}:${m}` }));
       } else {
-        setError("Restaurangen är stängd just nu.");
+        setError(t("cart.errors.restaurantClosed"));
       }
       return;
     }
@@ -1236,7 +1238,7 @@ export default function CartPage() {
     // Skippas för test-flödet så vi kan testa till adresser utanför zone.
     if (!isTestFlow && orderType === "DELIVERY" && currentRestaurantId) {
       if (addressZoneStatus === "checking") {
-        setError("Vänligen vänta, vi kontrollerar din leveransadress...");
+        setError(t("cart.errors.zoneChecking"));
         return;
       }
 
@@ -1257,7 +1259,7 @@ export default function CartPage() {
       // If still no coords but we have a street, try one last time to get them
       if ((!lat || !lng) && formData.deliveryStreet) {
         setLoading(true);
-        setError("Veriferar adress...");
+        setError(t("cart.errors.verifyingAddress"));
         try {
           const aRes = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(formData.deliveryStreet)}&sessiontoken=${sessionToken.current}`);
           const aData = await aRes.json();
@@ -1283,7 +1285,7 @@ export default function CartPage() {
           });
           if (!zRes.data.available) {
             setAddressZoneStatus("error");
-            setError("Den här restaurangen levererar tyvärr inte till din adress. Välj avhämtning eller ange en ny adress.");
+            setError(t("cart.errors.zoneNotCovered"));
             setLoading(false);
             return;
           }
@@ -1306,9 +1308,7 @@ export default function CartPage() {
           // sanningskällan för zone-täckning.
           console.warn("[cart] zone check failed:", zoneErr?.message || zoneErr);
           setAddressZoneStatus("error");
-          setError(
-            "Kunde inte verifiera om vi levererar till din adress. Försök igen om en stund — om problemet kvarstår, välj avhämtning istället.",
-          );
+          setError(t("cart.errors.zoneCheckFailed"));
           setLoading(false);
           return;
         }
@@ -1318,9 +1318,7 @@ export default function CartPage() {
         // betyder det att autocomplete inte hittade någon match alls — vägledning
         // till kunden behöver vara konkret, inte "välj från listan" eftersom
         // ingen lista visades.
-        setError(
-          "Kunde inte hitta din adress. Försök skriva gatunamn + nummer (t.ex. \"Storgatan 5, Malmö\") och välj förslaget som visas, eller välj avhämtning.",
-        );
+        setError(t("cart.errors.addressNotFound"));
         setLoading(false);
         return;
       }
@@ -1366,7 +1364,7 @@ export default function CartPage() {
         paymentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 100);
     } catch (err: any) {
-      setError(err.response?.data?.error || "Betaltjänsten är tillfälligt otillgänglig. Försök igen.");
+      setError(err.response?.data?.error || t("cart.errors.paymentUnavailable"));
     } finally {
       setLoading(false);
     }
@@ -1386,9 +1384,9 @@ export default function CartPage() {
         <div className="w-24 h-24 rounded-[3rem] flex items-center justify-center mb-8" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
           <ShoppingBag size={48} className="text-gold-500/30" />
         </div>
-        <h1 className="text-4xl font-black uppercase italic tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>Din kasse är <span className="text-gold-500">tom</span></h1>
-        <p className="text-zinc-500 text-xs font-bold uppercase tracking-[0.3em] mb-12">Det ser lite tomt ut här. Lägg till något gott!</p>
-        <Link href="/" className="px-12 py-6 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[11px] shadow-2xl shadow-gold-500/10 active:scale-95 transition-all">Gå till menyn</Link>
+        <h1 className="text-4xl font-black uppercase italic tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>{t("cart.empty.titlePrefix")} <span className="text-gold-500">{t("cart.empty.titleAccent")}</span></h1>
+        <p className="text-zinc-500 text-xs font-bold uppercase tracking-[0.3em] mb-12">{t("cart.empty.subtitle")}</p>
+        <Link href="/" className="px-12 py-6 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[11px] shadow-2xl shadow-gold-500/10 active:scale-95 transition-all">{t("cart.empty.cta")}</Link>
       </div>
     );
   }
@@ -1398,11 +1396,11 @@ export default function CartPage() {
       <div className="max-w-6xl mx-auto">
         <div className="flex items-end justify-between mb-6 lg:mb-10 px-1 sm:px-4">
            <div>
-              <h1 className="text-3xl sm:text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-[1.15] mb-2" style={{ color: "var(--text-primary)" }}>Din <span className="text-gold-gradient">Kasse</span></h1>
-              <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em]">Granska dina val och slutför beställning</p>
+              <h1 className="text-3xl sm:text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-[1.15] mb-2" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")} <span className="text-gold-gradient">{t("cart.heading.accent")}</span></h1>
+              <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em]">{t("cart.subtitle")}</p>
            </div>
            <Link href="/menu" className="text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-600 transition-colors flex items-center gap-2 mb-2 group">
-              Lägg till mer <Plus size={14} className="group-hover:rotate-90 transition-transform" />
+              {t("cart.addMore")} <Plus size={14} className="group-hover:rotate-90 transition-transform" />
            </Link>
         </div>
 
@@ -1424,7 +1422,7 @@ export default function CartPage() {
               <button
                 onClick={() => setBogoLostNotice(null)}
                 className="text-amber-300/60 hover:text-amber-200 transition-colors shrink-0"
-                aria-label="Stäng"
+                aria-label={t("common.close")}
               >
                 <X size={14} />
               </button>
@@ -1437,14 +1435,14 @@ export default function CartPage() {
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl mb-6 border border-gold-500/20 bg-gold-500/5 px-4 py-3 flex items-center gap-3">
             <UserIcon size={15} className="text-gold-500 shrink-0" />
             <p className="flex-1 text-[10px] font-bold text-zinc-500 leading-snug">
-              <span className="text-gold-600 font-black">Logga in</span> för orderhistorik &amp; rabatter — du kan beställa utan konto.
+              <span className="text-gold-600 font-black">{t("cart.loginPrompt.cta")}</span> {t("cart.loginPrompt.body")}
             </p>
             <div className="flex gap-2 shrink-0">
               <Link href="/profile" className="px-3 py-1.5 bg-gold-500 text-zinc-950 rounded-xl font-black uppercase tracking-widest text-[9px] active:scale-95 transition-all">
-                Logga in
+                {t("cart.loginPrompt.cta")}
               </Link>
               <Link href="/register" className="px-3 py-1.5 border rounded-xl font-black uppercase tracking-widest text-[9px] active:scale-95 transition-all" style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>
-                Konto
+                {t("cart.loginPrompt.account")}
               </Link>
             </div>
           </motion.div>
@@ -1475,7 +1473,7 @@ export default function CartPage() {
                                ))}
                             </div>
                           )}
-                          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gold-500/70 mt-2 inline-block">Tryck för att redigera</span>
+                          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gold-500/70 mt-2 inline-block">{t("cart.tapToEdit")}</span>
                        </div>
                     </button>
                     <div className="flex items-center justify-between sm:justify-end gap-10">
@@ -1487,7 +1485,7 @@ export default function CartPage() {
                        <div className="flex items-center gap-8">
                           <div className="text-lg font-black italic flex flex-col items-end" style={{ color: "var(--text-primary)" }}>
                              <span className="text-gold-500">{(item.price * item.quantity).toFixed(0)}</span>
-                             <span className="text-[8px] uppercase tracking-widest leading-none" style={{ color: "var(--text-secondary)" }}>SEK</span>
+                             <span className="text-[8px] uppercase tracking-widest leading-none" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span>
                           </div>
                           <button onClick={() => removeItem(item.cartItemId)} className="w-12 h-12 rounded-2xl border flex items-center justify-center text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-all active:scale-90" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                              <Trash2 size={20} />
@@ -1505,25 +1503,25 @@ export default function CartPage() {
                {showPayment && clientSecret && stripePromise ? (
                   <motion.div ref={paymentSectionRef} key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                      <div className="flex items-center gap-3 text-gold-500 text-[10px] font-black uppercase tracking-[0.4em] mb-10">
-                        <CreditCard size={18} /> Betala Tryggt
+                        <CreditCard size={18} /> {t("cart.payment.title")}
                      </div>
                      <div className="rounded-3xl p-6 mb-10 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                         <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#e7b24b', colorBackground: '#ffffff', colorText: '#1C1C1E', colorDanger: '#ef4444' } } }}>
                            <StripeCheckout amount={total} onSuccess={handlePaymentSuccess} />
                         </Elements>
                      </div>
-                     <button onClick={() => setShowPayment(false)} className="w-full text-[10px] font-black uppercase tracking-widest hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}>← Tillbaka till uppgifter</button>
+                     <button onClick={() => setShowPayment(false)} className="w-full text-[10px] font-black uppercase tracking-widest hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}>{t("cart.payment.backToDetails")}</button>
                   </motion.div>
                 ) : showPayment && stripeKeyMissing ? (
                   <motion.div key="stripe-missing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 rounded-[2rem] sm:rounded-[3rem] border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                      <div className="flex items-center gap-3 text-rose-500 text-[10px] font-black uppercase tracking-[0.4em] mb-6">
-                        <AlertCircle size={18} /> Betalning ej konfigurerad
+                        <AlertCircle size={18} /> {t("cart.payment.missingTitle")}
                      </div>
                      <p className="text-sm font-bold leading-relaxed mb-6" style={{ color: "var(--text-primary)" }}>
-                        Betaltjänsten är inte tillgänglig just nu. Vänligen kontakta restaurangen direkt eller försök igen senare. Ingen kostnad har dragits.
+                        {t("cart.payment.missingBody")}
                      </p>
                      <button onClick={() => setShowPayment(false)} className="text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-600">
-                        ← Tillbaka
+                        {t("cart.payment.back")}
                      </button>
                   </motion.div>
                 ) : (
@@ -1532,7 +1530,7 @@ export default function CartPage() {
                          {(['DELIVERY', 'PICKUP'] as const).map(type => (
                             <button key={type} type="button" onClick={() => setOrderType(type)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
                                {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
-                               {type === 'DELIVERY' ? 'Leverans' : 'Hämtning'}
+                               {type === 'DELIVERY' ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
                             </button>
                          ))}
                       </div>
@@ -1541,11 +1539,11 @@ export default function CartPage() {
                       <div className="flex gap-3 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          <button type="button" onClick={() => setScheduledFor(null)} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${!scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                            Snarast
+                            {t("cart.schedule.asap")}
                          </button>
                           <button type="button" onClick={() => { const min = new Date(Date.now() + 45 * 60 * 1000); setScheduledFor(min); setShowSchedulePicker(true); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                            Schemalägg
+                            {t("cart.schedule.schedule")}
                          </button>
                       </div>
 
@@ -1555,7 +1553,7 @@ export default function CartPage() {
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-500"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                                 <div>
                                    <div className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
-                                      Idag · {scheduledFor.toLocaleDateString("sv-SE", { day: "numeric", month: "short" })}
+                                      {t("cart.schedule.today")} · {scheduledFor.toLocaleDateString("sv-SE", { day: "numeric", month: "short" })}
                                    </div>
                                    <div className="text-2xl font-black text-gold-500 italic">
                                       {scheduledFor.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
@@ -1590,11 +1588,11 @@ export default function CartPage() {
                              // Filtrera quickTimes så vi inte erbjuder offsets
                              // som rinner över midnatt (t.ex. "3 timmar" kl 22).
                              const quickTimes = [
-                                { label: "45 min", offset: 45 },
-                                { label: "1 timme", offset: 60 },
-                                { label: "1.5 timmar", offset: 90 },
-                                { label: "2 timmar", offset: 120 },
-                                { label: "3 timmar", offset: 180 },
+                                { label: t("cart.schedule.quick.45min"), offset: 45 },
+                                { label: t("cart.schedule.quick.1h"), offset: 60 },
+                                { label: t("cart.schedule.quick.1_5h"), offset: 90 },
+                                { label: t("cart.schedule.quick.2h"), offset: 120 },
+                                { label: t("cart.schedule.quick.3h"), offset: 180 },
                              ].filter((qt) => new Date(now.getTime() + qt.offset * 60 * 1000) <= endOfToday);
 
                              const handleConfirm = () => {
@@ -1604,11 +1602,11 @@ export default function CartPage() {
                                 const [y, m, day] = (selDate || todayVal).split('-').map(Number);
                                 const combined = new Date(y, m - 1, day, parseInt(selHour), parseInt(selMin));
                                 if (combined < minDate) {
-                                   setError("Tiden måste vara minst 45 minuter fram i tiden.");
+                                   setError(t("cart.schedule.errorTooEarly"));
                                    return;
                                 }
                                 if (combined > endOfToday) {
-                                   setError("Du kan bara beställa för idag. Välj en tidigare tid eller välj 'Snarast'.");
+                                   setError(t("cart.schedule.errorTomorrow"));
                                    return;
                                 }
                                 setScheduledFor(combined);
@@ -1657,10 +1655,10 @@ export default function CartPage() {
                                    >
                                       <div className="w-10 h-1 rounded-full mx-auto mb-6 sm:hidden" style={{ backgroundColor: "var(--border-muted)" }} />
                                       <h3 className="text-lg font-black uppercase tracking-wider text-center mb-2" style={{ color: "var(--text-primary)" }}>
-                                         Välj tid idag
+                                         {t("cart.schedule.pickerTitle")}
                                       </h3>
                                       <p className="text-[10px] font-bold uppercase tracking-widest text-center mb-6" style={{ color: "var(--text-secondary)" }}>
-                                         Endast samma dag · minst 45 min framåt
+                                         {t("cart.schedule.pickerSub")}
                                       </p>
 
                                       {/* Quick times — bara de som ryms idag */}
@@ -1689,7 +1687,7 @@ export default function CartPage() {
                                           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gold-500/10 border border-gold-500/20">
                                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-500"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                                              <span className="text-[11px] font-black uppercase tracking-widest text-gold-500">
-                                                Idag {now.toLocaleDateString("sv-SE", { day: "numeric", month: "short" })}
+                                                {t("cart.schedule.today")} {now.toLocaleDateString("sv-SE", { day: "numeric", month: "short" })}
                                              </span>
                                           </div>
                                        </div>
@@ -1698,7 +1696,7 @@ export default function CartPage() {
                                            är disabled (gråade ut) istället för dolda. */}
                                        <div className="flex gap-3 mb-6">
                                           <div className="flex-1">
-                                             <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Timme</label>
+                                             <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>{t("cart.schedule.hour")}</label>
                                              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
                                                 {hours.map(h => {
                                                    const valid = isHourValid(h);
@@ -1724,7 +1722,7 @@ export default function CartPage() {
                                           </div>
                                           <div className="flex items-end pb-3 text-2xl font-black" style={{ color: "var(--text-secondary)" }}>:</div>
                                           <div className="flex-1">
-                                             <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Minut</label>
+                                             <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>{t("cart.schedule.minute")}</label>
                                              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
                                                 {minutes.map(m => {
                                                    const valid = isMinValid(m);
@@ -1751,7 +1749,7 @@ export default function CartPage() {
                                        </div>
 
                                       <button type="button" onClick={handleConfirm} className="w-full rounded-2xl py-4 text-sm font-black uppercase tracking-widest bg-gold-500 text-zinc-950 hover:bg-gold-400 transition-all">
-                                         Bekräfta tid
+                                         {t("cart.schedule.confirm")}
                                       </button>
                                    </motion.div>
                                 </motion.div>
@@ -1777,7 +1775,7 @@ export default function CartPage() {
                             <>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                            <div className="space-y-2">
-                              <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Ditt Namn</label>
+                              <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.name")}</label>
                               <input
                                 value={formData.customerName}
                                 onChange={e => setFormData({...formData, customerName: e.target.value})}
@@ -1785,12 +1783,12 @@ export default function CartPage() {
                                 aria-invalid={nameInvalid || undefined}
                                 className={`w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${nameInvalid ? errorBorder : okBorder}`}
                                 style={{ backgroundColor: "var(--bg-deep)", borderColor: nameInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
-                                placeholder="Namn"
+                                placeholder={t("cart.fields.namePlaceholder")}
                               />
-                              {nameInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">Minst 2 tecken</p>}
+                              {nameInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">{t("cart.errors.nameTooShort")}</p>}
                            </div>
                            <div className="space-y-2">
-                              <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Telefon</label>
+                              <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.phone")}</label>
                               <input
                                 value={formData.customerPhone}
                                 onChange={e => setFormData({...formData, customerPhone: e.target.value})}
@@ -1802,11 +1800,11 @@ export default function CartPage() {
                                 style={{ backgroundColor: "var(--bg-deep)", borderColor: phoneInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
                                 placeholder="+46 70 000 00 00"
                               />
-                              {phoneInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">Telefonnummer behöver minst 8 siffror</p>}
+                              {phoneInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">{t("cart.errors.phoneTooShort")}</p>}
                            </div>
                         </div>
                         <div className="space-y-2">
-                           <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>E-post</label>
+                           <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.email")}</label>
                            <input
                              value={formData.customerEmail}
                              onChange={e => setFormData({...formData, customerEmail: e.target.value})}
@@ -1816,10 +1814,10 @@ export default function CartPage() {
                              aria-invalid={emailInvalid || undefined}
                              className={`w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${emailInvalid ? errorBorder : okBorder}`}
                              style={{ backgroundColor: "var(--bg-deep)", borderColor: emailInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
-                             placeholder="E-post (krävs för kvitto)"
+                             placeholder={t("cart.fields.emailPlaceholderReceipt")}
                              required
                            />
-                           {emailInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">Ogiltig e-postadress</p>}
+                           {emailInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">{t("cart.errors.invalidEmail")}</p>}
                         </div>
                             </>
                           );
@@ -1829,7 +1827,7 @@ export default function CartPage() {
                            <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
                               {quickAddresses.length > 0 && (
                                  <div className="space-y-2">
-                                   <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>3 sparade adresser</label>
+                                   <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.savedAddresses")}</label>
                                    <div className="flex gap-2 flex-wrap">
                                      {quickAddresses.map(addr => (
                                        <button
@@ -1844,14 +1842,14 @@ export default function CartPage() {
                                        >
                                          {addr.label === 'Hem' ? <Home size={12} /> : addr.label === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
                                          {formatQuickAddress(addr)}
-                                         {addr.isDefault && <span className="text-[8px] text-gold-500">• Standard</span>}
+                                         {addr.isDefault && <span className="text-[8px] text-gold-500">• {t("cart.defaultBadge")}</span>}
                                       </button>
                                     ))}
                                   </div>
                                 </div>
                               )}
                               <div className="space-y-2 relative z-50">
-                                 <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Leveransadress</label>
+                                 <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.address")}</label>
                                  <div className="relative">
                                    <input 
                                      value={addressInput} 
@@ -1867,7 +1865,7 @@ export default function CartPage() {
                                              ? "rgba(16,185,129,0.4)"
                                             : "var(--border-muted)",
                                      }}
-                                     placeholder="Din Gatuadress, Postnummer..." 
+                                     placeholder={t("cart.fields.addressPlaceholderFull")}
                                    />
                                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gold-500/50" size={18} />
                                   {addressLoading || checkingDelivery || addressZoneStatus === "checking" ? (
@@ -1883,7 +1881,7 @@ export default function CartPage() {
                                   ) : null}
                                 </div>
                                 {addressZoneStatus === "error" && (
-                                  <p className="text-[10px] font-bold text-rose-400 ml-3 mt-1">Restaurangen levererar inte till denna adress.</p>
+                                  <p className="text-[10px] font-bold text-rose-400 ml-3 mt-1">{t("cart.errors.zoneNotCoveredInline")}</p>
                                 )}
 
                                  <AnimatePresence>
@@ -1902,13 +1900,13 @@ export default function CartPage() {
 
                              {/* Delivery Instructions Presets */}
                              <div className="space-y-2">
-                                 <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Leveransinstruktioner</label>
+                                 <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.deliveryInstructions.label")}</label>
                                  <div className="grid grid-cols-2 gap-2">
                                    {[
-                                     { value: 'RING_DOORBELL', label: 'Ring på dörren', icon: Bell },
-                                     { value: 'LEAVE_AT_DOOR', label: 'Lämna vid dörren', icon: DoorOpen },
-                                    { value: 'MEET_OUTSIDE', label: 'Möt mig utanför', icon: UserIcon },
-                                    { value: 'ENTER_CODE', label: 'Portkod behövs', icon: KeyRound },
+                                     { value: 'RING_DOORBELL', label: t("cart.deliveryInstructions.ringDoorbell"), icon: Bell },
+                                     { value: 'LEAVE_AT_DOOR', label: t("cart.deliveryInstructions.leaveAtDoor"), icon: DoorOpen },
+                                    { value: 'MEET_OUTSIDE', label: t("cart.deliveryInstructions.meetOutside"), icon: UserIcon },
+                                    { value: 'ENTER_CODE', label: t("cart.deliveryInstructions.enterCode"), icon: KeyRound },
                                   ].map(opt => (
                                     <button
                                       key={opt.value}
@@ -1930,8 +1928,8 @@ export default function CartPage() {
                         )}
 
                         <div className="space-y-2">
-                           <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Extranotering</label>
-                           <textarea rows={2} value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="T.ex. portkod 1234, ingen lök i kebaben..." />
+                           <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.noteLabel")}</label>
+                           <textarea rows={2} value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder={t("cart.fields.notePlaceholderExample")} />
                         </div>
 
                         {/*
@@ -1945,10 +1943,10 @@ export default function CartPage() {
                            <div className="space-y-3">
                               <div className="flex items-center gap-3 ml-3">
                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-gold-500"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                                 <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Lägg till dricks?</label>
+                                 <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{t("cart.tip.label")}</label>
                               </div>
                               <p className="text-[10px] font-bold leading-snug ml-3" style={{ color: "var(--text-secondary)" }}>
-                                 Frivillig dricks går direkt till leveranspersonen.
+                                 {t("cart.tip.sub")}
                               </p>
                               <div className="grid grid-cols-5 gap-2">
                                  {[0, 10, 20, 30].map((amt) => {
@@ -1965,7 +1963,7 @@ export default function CartPage() {
                                           }`}
                                           style={{ backgroundColor: isActive ? undefined : "var(--bg-deep)" }}
                                        >
-                                          {amt === 0 ? "Ingen" : `+${amt} kr`}
+                                          {amt === 0 ? t("cart.tip.none") : `+${amt} ${t("common.kr")}`}
                                        </button>
                                     );
                                  })}
@@ -1988,7 +1986,7 @@ export default function CartPage() {
                                     }`}
                                     style={{ backgroundColor: showCustomTipInput ? undefined : "var(--bg-deep)" }}
                                  >
-                                    Annat…
+                                    {t("cart.tip.custom")}
                                  </button>
                               </div>
                               {showCustomTipInput && (
@@ -2005,11 +2003,11 @@ export default function CartPage() {
                                           const parsed = raw === "" ? 0 : parseInt(raw, 10);
                                           setTipAmount(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
                                        }}
-                                       placeholder="Eget belopp i kr"
+                                       placeholder={t("cart.tip.customPlaceholder")}
                                        className="w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all focus:border-gold-500/40"
                                        style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
                                     />
-                                    <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase tracking-widest text-zinc-500">kr</span>
+                                    <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase tracking-widest text-zinc-500">{t("common.kr")}</span>
                                  </div>
                               )}
                            </div>
@@ -2048,18 +2046,18 @@ export default function CartPage() {
                                 <div className="min-w-0">
                                   <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
                                     {automaticDealDismissed
-                                      ? `Återaktivera ${autoDealTitle}`
-                                      : `Aktiv — ${autoDealTitle}`}
+                                      ? t("cart.discount.autoDismissed", { title: autoDealTitle ?? "" })
+                                      : t("cart.discount.autoActive", { title: autoDealTitle ?? "" })}
                                   </p>
                                   <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
                                     {automaticDealDismissed
-                                      ? "Klicka för att aktivera igen"
-                                      : "Klicka för att stänga av och använda en kupong istället"}
+                                      ? t("cart.discount.autoDismissedSub")
+                                      : t("cart.discount.autoActiveSub")}
                                   </p>
                                 </div>
                               </div>
                               <span className="text-[11px] font-black text-gold-500 shrink-0">
-                                -{autoDealAmount.toFixed(0)} kr
+                                -{autoDealAmount.toFixed(0)} {t("common.kr")}
                               </span>
                             </button>
                           );
@@ -2076,7 +2074,7 @@ export default function CartPage() {
                           <div className="space-y-2.5">
                             <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>
                               <Gift size={11} className="inline mr-1.5 text-gold-500" />
-                              Dina belöningar
+                              {t("cart.discount.rewardsTitle")}
                             </p>
                             {accountDeals.map((d) => {
                               const min = d.minOrderKr ?? 0;
@@ -2111,29 +2109,29 @@ export default function CartPage() {
                                     </div>
                                     <div className="min-w-0">
                                       <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
-                                        {isActive ? "Aktiv — klicka för att ta bort" : `Använd ${dealTypeLabel(d.type)} (${formatDealLabel(d)})`}
+                                        {isActive ? t("cart.discount.activeReward") : t("cart.discount.useReward", { type: dealTypeLabel(d.type, t), label: formatDealLabel(d, t) })}
                                       </p>
                                       {!meetsMin && min > 0 && (
                                         <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                                          Min order: {min} kr
+                                          {t("cart.discount.minOrderRequired", { min })}
                                         </p>
                                       )}
                                       {blockedByPromo && meetsMin && (
                                         <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                                          Ta bort rabattkoden för att använda denna
+                                          {t("cart.discount.blockedByPromo")}
                                         </p>
                                       )}
                                     </div>
                                   </div>
                                   <span className="text-[11px] font-black text-gold-500 shrink-0">
-                                    -{computeDealAmountKr(d, subtotal, deliveryFee)} kr
+                                    -{computeDealAmountKr(d, subtotal, deliveryFee)} {t("common.kr")}
                                   </span>
                                 </button>
                               );
                             })}
                             <div className="flex items-center gap-3 pt-1">
                               <div className="flex-1 h-px" style={{ background: "var(--border-muted)" }} />
-                              <span className="text-[9px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>eller</span>
+                              <span className="text-[9px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>{t("cart.discount.or")}</span>
                               <div className="flex-1 h-px" style={{ background: "var(--border-muted)" }} />
                             </div>
                           </div>
@@ -2148,7 +2146,7 @@ export default function CartPage() {
                               disabled={!!selectedAccountDealId}
                               className="w-full border rounded-2xl py-6 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest placeholder:text-zinc-400 outline-none transition-all disabled:cursor-not-allowed"
                               style={{ backgroundColor: "var(--bg-deep)", borderColor: selectedPersonalDeal ? "rgba(16,185,129,0.4)" : "var(--border-muted)", color: selectedPersonalDeal ? "#34d399" : "var(--text-primary)" }}
-                              placeholder={selectedAccountDealId ? "Ta bort belöningen ovan för att använda kod" : selectedPersonalDeal ? "Tillämpad" : "Rabattkod"}
+                              placeholder={selectedAccountDealId ? t("cart.discount.promoBlockedByReward") : selectedPersonalDeal ? t("cart.discount.promoApplied") : t("cart.discount.promoPlaceholder")}
                            />
                            <button
                               type="button"
@@ -2156,7 +2154,7 @@ export default function CartPage() {
                               onClick={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCodeInput(""); } : handleApplyPromo}
                               className={`absolute right-3 px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:cursor-not-allowed ${selectedPersonalDeal ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20" : "bg-gold-500/10 text-gold-600 hover:bg-gold-500 hover:text-zinc-950"}`}
                            >
-                              {selectedPersonalDeal ? "Ta Bort" : "Kolla"}
+                              {selectedPersonalDeal ? t("cart.discount.promoRemove") : t("cart.discount.promoCheck")}
                            </button>
                         </div>
                      </div>
@@ -2179,19 +2177,23 @@ export default function CartPage() {
                              <div>
                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
                                  {bogoPickedCount > 0
-                                   ? `BOGO — välj ${bogoPicksRemaining} ${bogoPicksRemaining === 1 ? "gratis till" : "fler gratis"}`
-                                   : "BOGO — välj gratisprodukt"}
+                                   ? (bogoPicksRemaining === 1
+                                       ? t("cart.bogo.pickMoreOne")
+                                       : t("cart.bogo.pickMoreMany", { count: bogoPicksRemaining }))
+                                   : t("cart.bogo.pickFree")}
                                </p>
                                <p className="text-xs font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
                                  {bogoPickedCount > 0
-                                   ? `${bogoPickedCount} av ${bogoMaxFreeItems} valda — välj fler →`
+                                   ? t("cart.bogo.progress", { picked: bogoPickedCount, max: bogoMaxFreeItems })
                                    : bogoMaxFreeItems > 1
-                                     ? `Du kan välja ${bogoMaxFreeItems} gratis varor →`
-                                     : `Du har inte valt din gratis${bogoPreview.rewardCategoryName ? ` ${bogoPreview.rewardCategoryName.toLowerCase()}` : " produkt"} →`}
+                                     ? t("cart.bogo.canPickMany", { max: bogoMaxFreeItems })
+                                     : (bogoPreview.rewardCategoryName
+                                         ? t("cart.bogo.notPickedNamed", { name: bogoPreview.rewardCategoryName.toLowerCase() })
+                                         : t("cart.bogo.notPickedGeneric"))}
                                </p>
                              </div>
                            </div>
-                           <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 shrink-0">Välj →</span>
+                           <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 shrink-0">{t("cart.bogo.choose")}</span>
                          </div>
                        </motion.button>
                      )}
@@ -2209,7 +2211,7 @@ export default function CartPage() {
                              <span className="text-lg">🎁</span>
                              <div>
                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
-                                 {bogoMaxFreeItems === 1 ? "Gratisprodukt vald" : `${bogoPickedCount} gratis varor valda`}
+                                 {bogoMaxFreeItems === 1 ? t("cart.bogo.pickedOne") : t("cart.bogo.pickedMany", { count: bogoPickedCount })}
                                </p>
                                <p className="text-xs font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
                                  {bogoPreview.dealTitle}
@@ -2230,7 +2232,7 @@ export default function CartPage() {
                        >
                          <div className="flex items-center justify-between gap-2 mb-2">
                            <p className="text-[10px] font-black uppercase tracking-widest text-gold-500">
-                             {dealNudge.missing.toFixed(0)} kr kvar till {formatDealReward(dealNudge.deal)}
+                             {t("cart.dealNudge.remaining", { amount: dealNudge.missing.toFixed(0), reward: formatDealReward(dealNudge.deal) })}
                            </p>
                            <Tag size={12} className="text-gold-500 shrink-0" />
                          </div>
@@ -2278,10 +2280,10 @@ export default function CartPage() {
                                <div className="flex items-center justify-between gap-2 mb-2">
                                  <p className={`text-[10px] font-black uppercase tracking-widest ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>
                                    {topUpToMinimum
-                                     ? `Komplettering +${gapToEffective} kr så ordern går igenom`
-                                     : `Saknar ${gapToEffective} kr för att klara minimum`}
+                                     ? t("cart.minOrder.banner.topUp", { amount: gapToEffective })
+                                     : t("cart.minOrder.banner.short", { amount: gapToEffective })}
                                  </p>
-                                 <span className={`text-[10px] font-black ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>{subtotal.toFixed(0)} / {minOrder.toFixed(0)} kr</span>
+                                 <span className={`text-[10px] font-black ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>{subtotal.toFixed(0)} / {minOrder.toFixed(0)} {t("common.kr")}</span>
                                </div>
                                <div className="h-1.5 w-full rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.07)" }}>
                                  <motion.div
@@ -2299,7 +2301,7 @@ export default function CartPage() {
                                    className="h-4 w-4 accent-gold-500 cursor-pointer"
                                  />
                                  <span className="text-[10px] font-bold leading-snug" style={{ color: "var(--text-secondary)" }}>
-                                   Betala mellanskillnaden ({gapToEffective} kr) så ordern kan slutföras
+                                   {t("cart.minOrder.toggleLabel", { amount: gapToEffective })}
                                  </span>
                                </label>
                              </>
@@ -2309,17 +2311,17 @@ export default function CartPage() {
                      )}
 
                      <div className="mt-10 pt-10 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                        <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Delsumma</span><span>{subtotal.toFixed(0)} KR</span></div>
+                        <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{subtotal.toFixed(0)} {t("common.sek")}</span></div>
                         {orderType === 'DELIVERY' && (
                           <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
-                            <span>Leveransavgift</span>
+                            <span>{t("cart.summary.deliveryFee")}</span>
                             <span className="text-gold-500">
-                              {addressZoneStatus === "checking" ? "Beräknar…" : `${deliveryFee.toFixed(0)} KR`}
+                              {addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${deliveryFee.toFixed(0)} ${t("common.sek")}`}
                             </span>
                           </div>
                         )}
-                        {effectiveTip > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-gold-500"><span>Dricks</span><span>+{effectiveTip.toFixed(0)} KR</span></div>}
-                        {minOrderTopUp > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Komplettering till minimum</span><span className="text-gold-500">+{minOrderTopUp.toFixed(0)} KR</span></div>}
+                        {effectiveTip > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-gold-500"><span>{t("cart.summary.tip")}</span><span>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
+                        {minOrderTopUp > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span className="text-gold-500">+{minOrderTopUp.toFixed(0)} {t("common.sek")}</span></div>}
                         {(() => {
                           // Display-källan ska matcha vad som FAKTISKT appliceras
                           // på totalen. Tidigare visades bogoPreview-raden så
@@ -2341,8 +2343,8 @@ export default function CartPage() {
                             if (personalDiscount <= 0) return null;
                             return (
                               <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
-                                <span>Kupong: {selectedPersonalDeal.code}</span>
-                                <span>-{personalDiscount.toFixed(0)} KR</span>
+                                <span>{t("cart.summary.coupon", { code: selectedPersonalDeal.code })}</span>
+                                <span>-{personalDiscount.toFixed(0)} {t("common.sek")}</span>
                               </div>
                             );
                           }
@@ -2350,8 +2352,8 @@ export default function CartPage() {
                             if (accountDealDiscount <= 0) return null;
                             return (
                               <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
-                                <span>{selectedAccountDeal ? dealTypeLabel(selectedAccountDeal.type) : "Belöning"}</span>
-                                <span>-{accountDealDiscount.toFixed(0)} KR</span>
+                                <span>{selectedAccountDeal ? dealTypeLabel(selectedAccountDeal.type, t) : t("cart.summary.reward")}</span>
+                                <span>-{accountDealDiscount.toFixed(0)} {t("common.sek")}</span>
                               </div>
                             );
                           }
@@ -2360,7 +2362,7 @@ export default function CartPage() {
                             return (
                               <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
                                 <span>{bogoIsPureDiscount ? "" : "🎁 "}{bogoChoice && !bogoIsPureDiscount ? bogoChoice.product.name : bogoPreview.dealTitle}</span>
-                                <span>-{bogoDiscount.toFixed(0)} KR</span>
+                                <span>-{bogoDiscount.toFixed(0)} {t("common.sek")}</span>
                               </div>
                             );
                           }
@@ -2368,7 +2370,7 @@ export default function CartPage() {
                             return (
                               <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
                                 <span>{automaticDeal.deal.title}</span>
-                                <span>-{automaticDeal.discountAmount.toFixed(0)} KR</span>
+                                <span>-{automaticDeal.discountAmount.toFixed(0)} {t("common.sek")}</span>
                               </div>
                             );
                           }
@@ -2376,13 +2378,13 @@ export default function CartPage() {
                         })()}
                         {restaurantSettings.vatPercent ? (
                           <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
-                            <span>Varav moms ({restaurantSettings.vatPercent}%)</span>
-                            <span>{(total * restaurantSettings.vatPercent / (100 + restaurantSettings.vatPercent)).toFixed(0)} KR</span>
+                            <span>{t("cart.summary.vat", { percent: restaurantSettings.vatPercent })}</span>
+                            <span>{(total * restaurantSettings.vatPercent / (100 + restaurantSettings.vatPercent)).toFixed(0)} {t("common.sek")}</span>
                           </div>
                         ) : null}
                         <div className="flex justify-between items-center mt-6">
-                           <span className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>TOTALT</span>
-                           <span className="text-3xl sm:text-5xl font-black italic tracking-tighter leading-[1.15] text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>SEK</span></span>
+                           <span className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
+                           <span className="text-3xl sm:text-5xl font-black italic tracking-tighter leading-[1.15] text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span></span>
                         </div>
                      </div>
 
@@ -2393,9 +2395,9 @@ export default function CartPage() {
                         <div className="mt-8 p-4 rounded-2xl border flex items-center gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                           <UserIcon size={16} className="text-zinc-400 shrink-0" />
                           <p className="text-[10px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
-                            Du handlar som gäst.{" "}
-                            <Link href="/profile" className="text-gold-400 hover:text-gold-300 underline">Logga in</Link>{" "}
-                            för sparade adresser och personliga erbjudanden.
+                            {t("cart.guest.banner")}{" "}
+                            <Link href="/profile" className="text-gold-400 hover:text-gold-300 underline">{t("cart.guest.loginLink")}</Link>{" "}
+                            {t("cart.guest.bannerSuffix")}
                           </p>
                         </div>
                      )}
@@ -2406,7 +2408,7 @@ export default function CartPage() {
                          <div className="w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center shrink-0">
                            <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="white" strokeWidth="1.8" strokeLinecap="round"/></svg>
                          </div>
-                         <p className="text-[10px] font-bold text-rose-400 leading-snug">Restaurangen levererar inte till den angivna adressen. Ändra adressen ovan.</p>
+                         <p className="text-[10px] font-bold text-rose-400 leading-snug">{t("cart.errors.zoneSummary")}</p>
                        </motion.div>
                      )}
                      {addressZoneStatus === "ok" && orderType === "DELIVERY" && (
@@ -2429,12 +2431,12 @@ export default function CartPage() {
                         {loading
                           ? <Loader2 className="animate-spin" size={24} />
                           : addressZoneStatus === "checking"
-                            ? <><Loader2 className="animate-spin" size={20} /> Kontrollerar adress…</>
+                            ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
                             : (Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
-                              ? `Köp för ${Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount))} kr till`
+                              ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
                               : addressZoneStatus === "error"
-                                ? "Fel leveransadress"
-                                : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                                ? t("cart.submit.zoneError")
+                                : <>{t("cart.submit")} <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
                      </button>
                  </motion.div>
                )}
@@ -2449,7 +2451,7 @@ export default function CartPage() {
            <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setShowDealsModal(false)} style={{ backgroundColor: "rgba(23,21,19,0.95)" }}>
              <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }} onClick={e => e.stopPropagation()}>
                 <button onClick={() => setShowDealsModal(false)} className="absolute top-8 right-8 p-2 hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}><X size={24}/></button>
-                <h2 className="text-2xl font-black uppercase italic tracking-tight mb-8" style={{ color: "var(--text-primary)" }}>Dina <span className="text-gold-gradient">Erbjudanden</span></h2>
+                <h2 className="text-2xl font-black uppercase italic tracking-tight mb-8" style={{ color: "var(--text-primary)" }}>{t("cart.dealsModal.titlePrefix")} <span className="text-gold-gradient">{t("cart.dealsModal.titleAccent")}</span></h2>
                 <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar">
                    {personalDeals.map(deal => {
                      const isEligible = subtotal >= deal.campaign.minOrder;
@@ -2457,12 +2459,12 @@ export default function CartPage() {
                         <button key={deal.id} disabled={!isEligible} onClick={() => { setSelectedPersonalDeal(deal); setSelectedAccountDealId(null); setShowDealsModal(false); }} className={`w-full text-left p-6 rounded-[2.2rem] border transition-all group ${isEligible ? "active:scale-[0.98]" : "opacity-30 grayscale"}`} style={{ backgroundColor: "var(--bg-deep)", borderColor: isEligible ? "rgba(231,178,75,0.2)" : "var(--border-muted)" }}>
                            <div className="flex items-center justify-between mb-4">
                               <div className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{deal.campaign.title}</div>
-                              {isEligible && <div className="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-md text-[8px] font-black uppercase">REDO</div>}
+                              {isEligible && <div className="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-md text-[8px] font-black uppercase">{t("cart.dealsModal.ready")}</div>}
                            </div>
                            <div className="text-2xl font-black italic uppercase tracking-tighter leading-[1.15] mb-2 group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>
-                              {deal.campaign.discountType === "PERCENTAGE" ? `${deal.campaign.discountValue}% RABATT` : `${deal.campaign.discountValue} KR RABATT`}
+                              {deal.campaign.discountType === "PERCENTAGE" ? t("cart.dealsModal.percentDiscount", { value: deal.campaign.discountValue }) : t("cart.dealsModal.amountDiscount", { value: deal.campaign.discountValue })}
                            </div>
-                           <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Gäller vid köp över {deal.campaign.minOrder} kr</div>
+                           <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{t("cart.dealsModal.minOrder", { min: deal.campaign.minOrder })}</div>
                         </button>
                      );
                    })}

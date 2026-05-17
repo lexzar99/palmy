@@ -39,6 +39,7 @@ import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
 import { useCartStore } from "@/store/cartStore";
 import { useFavorites } from "@/lib/favoritesStore";
+import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 interface Restaurant {
   id: string;
@@ -96,6 +97,7 @@ type PromoCardItem =
 export default function HomePage() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
+  const { t } = useTranslation();
   const promoRailRef = useRef<HTMLDivElement | null>(null);
   const promoIndexRef = useRef(0);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -248,7 +250,7 @@ export default function HomePage() {
         setZoneRestaurantIds([]);
         setZoneDeliveryInfo({});
         setDeliveryOverrides({});
-        setZoneError("Vi levererar inte till den här adressen ännu. Välj avhämtning eller prova en annan adress.");
+        setZoneError(t("home.zone.notCovered"));
       }
     } catch {
       setZoneRestaurantIds(null); // fail open — show all restaurants
@@ -306,16 +308,16 @@ export default function HomePage() {
   const allDealCards = useMemo<DealCardData[]>(() => {
     const personal: DealCardData[] = personalDeals.map(d => ({
       id: `personal-${d.id}`,
-      badgeLabel: (d.campaign?.title || "").toLowerCase().includes("välkomst") ? "Välkomst" : "Personligt",
-      title: d.campaign?.title || "Erbjudande",
-      subtitle: d.code ? `Din kod: ${d.code}` : "Knutet till ditt konto",
+      badgeLabel: (d.campaign?.title || "").toLowerCase().includes("välkomst") ? t("home.deal.badge.welcome") : t("home.deal.badge.personal"),
+      title: d.campaign?.title || t("home.deal.defaultTitle"),
+      subtitle: d.code ? t("home.deal.yourCode", { code: d.code }) : t("home.deal.linkedToAccount"),
       rewardLabel: d.campaign?.discountType === "PERCENTAGE"
-        ? `${d.campaign.discountValue}% rabatt`
-        : `${d.campaign?.discountValue || 0} kr rabatt`,
-      description: d.campaign?.description || "Används automatiskt vid köp.",
+        ? t("home.deal.percentOff", { value: d.campaign.discountValue })
+        : t("home.deal.krOff", { value: d.campaign?.discountValue || 0 }),
+      description: d.campaign?.description || t("home.deal.autoApplied"),
       code: d.code,
       validUntil: d.campaign?.validUntil,
-      minOrderText: d.campaign?.minOrder ? `Min ${d.campaign.minOrder} kr` : null,
+      minOrderText: d.campaign?.minOrder ? t("home.deal.minOrderShort", { amount: d.campaign.minOrder }) : null,
       tone: (d.campaign?.title || "").toLowerCase().includes("välkomst") ? "orange" as const : "gold" as const,
       variant: "personal" as const,
     }));
@@ -326,19 +328,19 @@ export default function HomePage() {
       const discountPercent = !isBogo && d.discountType === "PERCENTAGE" ? Number(d.discountValue) || 0 : 0;
       return {
         id: d.id,
-        badgeLabel: d.isGlobal ? "Globalt" : (d.restaurant?.name || "Erbjudande"),
+        badgeLabel: d.isGlobal ? t("home.deal.badge.global") : (d.restaurant?.name || t("home.deal.defaultTitle")),
         title: d.title,
-        subtitle: d.description || (d.restaurant?.name ? `Hos ${d.restaurant.name}` : "Gäller alla restauranger"),
+        subtitle: d.description || (d.restaurant?.name ? t("home.deal.atRestaurant", { name: d.restaurant.name }) : t("home.deal.allRestaurants")),
         // BOGO har 0kr discount men ger gratisvara — visa det istället för "0 kr".
         rewardLabel: isBogo
-          ? "1+1 GRATIS"
+          ? t("home.deal.bogo")
           : d.discountType === "PERCENTAGE"
             ? `${d.discountValue}%`
-            : `${d.discountValue} kr`,
+            : `${d.discountValue} ${t("common.kr")}`,
         description: d.description,
         code: d.code,
         validUntil: d.validUntil,
-        minOrderText: d.minOrder ? `Min ${d.minOrder} kr` : null,
+        minOrderText: d.minOrder ? t("home.deal.minOrderShort", { amount: d.minOrder }) : null,
         tags: d.tags || [],
         tone: (isBogo ? "emerald" : "purple") as "emerald" | "purple",
         isBogo,
@@ -480,7 +482,7 @@ export default function HomePage() {
           <h2 className="text-gold-gradient text-2xl sm:text-3xl font-black tracking-tight leading-[1.15] italic uppercase">{title}</h2>
           {!!subtitle && <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-1.5">{subtitle}</p>}
         </div>
-        <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 border-b border-gold-500/40 pb-0.5 hover:text-gold-500 transition-all">Visa Alla</Link>
+        <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 border-b border-gold-500/40 pb-0.5 hover:text-gold-500 transition-all">{t("home.viewAll")}</Link>
       </div>
       {/* Mobil: horisontell scroll • md+: 2-kolumn grid • lg+: 3-kolumn • xl+: 4-kolumn */}
       <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-x-auto md:overflow-visible pb-4 md:pb-0 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
@@ -507,7 +509,7 @@ export default function HomePage() {
                     <>
                       {badges.bogo && (
                         <div className="absolute top-8 -left-7 -rotate-45 bg-emerald-500 text-zinc-950 px-9 py-1.5 shadow-2xl z-20">
-                          <p className="text-[7px] font-black uppercase tracking-widest text-center">1+1 GRATIS</p>
+                          <p className="text-[7px] font-black uppercase tracking-widest text-center">{t("home.deal.bogo")}</p>
                         </div>
                       )}
                       {badges.regular && (
@@ -537,8 +539,8 @@ export default function HomePage() {
                           : "bg-rose-500/30 border-rose-500/30 text-rose-100";
                       const dot = isPaused ? "bg-amber-300 animate-pulse" : open ? "bg-emerald-400 animate-pulse" : "bg-rose-400";
                       const label = isPaused
-                        ? `Pausad · ${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}`
-                        : open ? "Öppet" : "Stängt";
+                        ? t("home.status.pausedUntil", { time: `${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}` })
+                        : open ? t("home.restaurantOpen") : t("home.restaurantClosed");
                       return (
                         <div className={`px-3 py-1 rounded-full backdrop-blur-md border flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest ${cls}`}>
                           <div className={`w-1 h-1 rounded-full ${dot}`} />
@@ -548,7 +550,7 @@ export default function HomePage() {
                     })()}
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
-                      aria-label={`Information om ${r.name}`}
+                      aria-label={t("home.aria.infoAbout", { name: r.name })}
                       className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-zinc-100 border border-white/10 hover:bg-gold-500 hover:text-zinc-950 transition-all shadow-xl"
                     >
                       <Info size={14} />
@@ -560,7 +562,7 @@ export default function HomePage() {
                           <span className="text-[10px] font-black italic text-zinc-100">{r.rating.toFixed(1)}</span>
                         </>
                       ) : (
-                        <span className="text-[10px] font-black italic text-emerald-400">NY!</span>
+                        <span className="text-[10px] font-black italic text-emerald-400">{t("home.badge.new")}</span>
                       )}
                     </div>
                   </div>
@@ -577,8 +579,8 @@ export default function HomePage() {
                       const eta = r.etaMinutes ?? 30;
                       return (
                         <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-wider text-zinc-400">
-                          <span className="flex items-center gap-1"><Clock size={11} className="text-gold-500/50" /> {eta} MIN</span>
-                          <span className="flex items-center gap-1"><Bike size={11} className="text-gold-500/50" /> {fee === 0 ? "GRATIS" : `${fee} KR`}</span>
+                          <span className="flex items-center gap-1"><Clock size={11} className="text-gold-500/50" /> {eta} {t("home.minutesShort")}</span>
+                          <span className="flex items-center gap-1"><Bike size={11} className="text-gold-500/50" /> {fee === 0 ? t("home.feeFreeShort") : `${fee} ${t("home.feeUnitShort")}`}</span>
                         </div>
                       );
                     })()}
@@ -639,17 +641,17 @@ export default function HomePage() {
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border mb-5" style={{ borderColor: "rgba(212,167,74,0.3)", backgroundColor: "rgba(212,167,74,0.08)" }}>
                 <Sparkles size={11} className="text-gold-500" />
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500">Mat från dem bästa av dem bästa</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500">{t("home.heroDesktop.eyebrow")}</span>
               </div>
               <h1 className="text-5xl lg:text-6xl xl:text-7xl font-black italic tracking-tighter leading-[0.95] mb-3" style={{ color: "var(--text-primary)" }}>
-                Hungrig?<br />
-                <span className="text-gold-500">Vi fixar resten.</span>
+                {t("home.heroDesktop.titleLine1")}<br />
+                <span className="text-gold-500">{t("home.heroDesktop.titleLine2")}</span>
               </h1>
               <p className="text-sm lg:text-base font-bold mt-4 max-w-md" style={{ color: "var(--text-secondary)" }}>
-                Bläddra bland favoritrestauranger, hitta dagens deals och få maten levererad — eller hämta själv.
+                {t("home.heroDesktop.subtitle")}
               </p>
               <div className="flex items-center gap-3 mt-6 flex-wrap">
-                {["Snabb leverans", "Säker betalning", "Lokala favoriter"].map((b) => (
+                {[t("home.heroDesktop.badge.fast"), t("home.heroDesktop.badge.secure"), t("home.heroDesktop.badge.local")].map((b) => (
                   <div key={b} className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-gold-500" />
                     <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{b}</span>
@@ -701,11 +703,11 @@ export default function HomePage() {
             {greetingHour !== null && (() => {
               const hour = greetingHour;
               const greeting =
-                hour < 5 ? "GOD NATT" :
-                hour < 11 ? "GOD MORGON" :
-                hour < 17 ? "GOD DAG" :
-                hour < 22 ? "GOD KVÄLL" :
-                "GOD NATT";
+                hour < 5 ? t("home.greeting.night") :
+                hour < 11 ? t("home.greeting.morning") :
+                hour < 17 ? t("home.greeting.day") :
+                hour < 22 ? t("home.greeting.evening") :
+                t("home.greeting.night");
               const openCount = restaurants.filter((r) => r.isOpen !== false).length;
               return (
                 <div className="flex items-center gap-2 mb-3 relative z-10">
@@ -713,7 +715,7 @@ export default function HomePage() {
                   <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "var(--text-secondary)" }}>
                     {greeting}
                     {openCount > 0 && (
-                      <span className="text-gold-500"> · {openCount} öppna nu</span>
+                      <span className="text-gold-500"> · {t("home.openCount", { count: openCount })}</span>
                     )}
                   </p>
                 </div>
@@ -722,12 +724,12 @@ export default function HomePage() {
 
             <div className="relative z-10 flex items-start justify-between gap-3">
               <h1 className="text-2xl font-black tracking-tight leading-tight" style={{ color: "var(--text-primary)" }}>
-                Vad blir det <span className="text-gold-500 italic">idag?</span>
+                {t("home.heroMobile.titleLead")} <span className="text-gold-500 italic">{t("home.heroMobile.titleAccent")}</span>
               </h1>
               {/* Theme-toggle — knapp för dark/light bredvid rubriken */}
               <button
                 onClick={toggleTheme}
-                aria-label={theme === "dark" ? "Byt till ljust läge" : "Byt till mörkt läge"}
+                aria-label={theme === "dark" ? t("nav.theme.toLight") : t("nav.theme.toDark")}
                 className="shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90"
                 style={{
                   backgroundColor: "var(--bg-deep)",
@@ -742,7 +744,7 @@ export default function HomePage() {
               </button>
             </div>
             <p className="relative z-10 text-[10px] font-bold uppercase tracking-[0.2em] mt-1.5" style={{ color: "var(--text-secondary)" }}>
-              Hitta snabbt · beställ enkelt
+              {t("home.heroMobile.subtitle")}
             </p>
           </motion.div>
 
@@ -784,13 +786,13 @@ export default function HomePage() {
                 onClick={() => toggleOrderType("DELIVERY")}
                 className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors ${orderType === 'DELIVERY' ? 'text-zinc-950' : 'text-zinc-500'}`}
               >
-                <Truck size={15} /> Leverans
+                <Truck size={15} /> {t("cart.deliveryType.delivery")}
               </button>
               <button
                 onClick={() => toggleOrderType("PICKUP")}
                 className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors ${orderType === 'PICKUP' ? 'text-zinc-950' : 'text-zinc-500'}`}
               >
-                <Store size={15} /> Hämtning
+                <Store size={15} /> {t("cart.deliveryType.pickup")}
               </button>
             </div>
 
@@ -802,7 +804,7 @@ export default function HomePage() {
             >
               <Search size={14} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
               <span className="text-[11px] font-bold flex-1 truncate" style={{ color: "var(--text-secondary)" }}>
-                Sök restaurang eller maträtt
+                {t("home.searchCta")}
               </span>
               <div className="w-7 h-7 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all shrink-0">
                 <ArrowRight size={14} />
@@ -844,7 +846,7 @@ export default function HomePage() {
                 <span className={`text-[9px] sm:text-[9.5px] font-bold uppercase tracking-widest ${
                   activeCuisine === c.label ? "text-gold-500" : "group-hover:text-gold-400"
                 }`} style={{ color: activeCuisine === c.label ? undefined : "var(--text-secondary)" }}>
-                  {c.label}
+                  {t(`home.cuisine.${c.label}`)}
                 </span>
               </motion.button>
             ))}
@@ -864,10 +866,10 @@ export default function HomePage() {
               <div className="flex items-center justify-between mb-3 px-1">
                 <div>
                   <h2 className="text-base sm:text-lg font-black uppercase tracking-tight flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
-                    <Sparkles size={14} className="text-gold-500" /> Aktuellt
+                    <Sparkles size={14} className="text-gold-500" /> {t("home.section.current")}
                   </h2>
                   <p className="text-[9px] font-black uppercase tracking-[0.25em] mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                    Kampanjer &amp; partners
+                    {t("home.section.currentSub")}
                   </p>
                 </div>
               </div>
@@ -899,20 +901,20 @@ export default function HomePage() {
               </React.Fragment>
             ))
           : featured.length > 0
-            ? renderFeaturedRail("HETA LISTAN", "Toppvalen i din stad just nu", featured)
+            ? renderFeaturedRail(t("home.section.hot"), t("home.section.hotSub"), featured)
             : null}
 
         {filteredByDeal && (
           <section className="mb-10">
             <div className="flex items-center justify-between gap-4 rounded-[1.8rem] border px-5 py-4" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "var(--text-secondary)" }}>Filtrerat erbjudande</p>
+                <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "var(--text-secondary)" }}>{t("home.dealFilter.label")}</p>
                 <p className="text-sm font-black uppercase" style={{ color: "var(--text-primary)" }}>{filteredByDeal.title}</p>
               </div>
               <button onClick={() => setFilteredByDeal(null)}
                 className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border"
                 style={{ color: "#B8AA95", borderColor: "rgba(255,248,234,0.10)" }}>
-                <X size={11} /> Rensa filter
+                <X size={11} /> {t("home.dealFilter.clear")}
               </button>
             </div>
           </section>
@@ -935,8 +937,8 @@ export default function HomePage() {
             <div className="mb-6 p-4 rounded-[1.5rem] border border-gold-500/15 bg-gold-500/5 flex items-center gap-4">
               <div className="w-9 h-9 shrink-0 bg-gold-500/10 rounded-xl border border-gold-500/20 flex items-center justify-center text-lg">🎁</div>
               <p className="text-[11px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
-                <span className="text-gold-500 font-black">Personliga erbjudanden</span> och orderhistorik.{" "}
-                <a href="/profile" className="text-gold-400 underline font-black hover:text-gold-300">Logga in gratis →</a>
+                <span className="text-gold-500 font-black">{t("home.loyalty.headline")}</span> {t("home.loyalty.sub")}{" "}
+                <a href="/profile" className="text-gold-400 underline font-black hover:text-gold-300">{t("home.loyalty.cta")}</a>
               </p>
             </div>
           )}
@@ -944,10 +946,10 @@ export default function HomePage() {
           <div className="flex items-center justify-between mb-4 px-1">
             <div>
               <h2 className="text-base sm:text-lg font-black tracking-[0.12em] uppercase" style={{ color: "var(--text-primary)" }}>
-                {activeCuisine === "Alla" ? "Alla Restauranger" : activeCuisine}
+                {activeCuisine === "Alla" ? t("home.section.allRestaurants") : t(`home.cuisine.${activeCuisine}`)}
               </h2>
               <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                {filtered.length} {filtered.length === 1 ? "restaurang" : "restauranger"}
+                {filtered.length} {filtered.length === 1 ? t("home.restaurantCount.one") : t("home.restaurantCount.many")}
               </p>
             </div>
           </div>
@@ -955,11 +957,11 @@ export default function HomePage() {
           {/* QUICK-FILTERS */}
           <div className="flex gap-2 overflow-x-auto lg:flex-wrap lg:overflow-visible pb-3 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 mb-5">
             {([
-              { key: "all",   label: "Alla",          icon: "📊" },
-              { key: "rated", label: "Betyg 4.0+",     icon: "★" },
-              { key: "fast",  label: "Under 30 min",   icon: "⚡" },
-              { key: "deals", label: "Erbjudanden",    icon: "🎫" },
-              { key: "free",  label: "Fri leverans",   icon: "🚲" },
+              { key: "all",   labelKey: "home.quickFilter.all",    icon: "📊" },
+              { key: "rated", labelKey: "home.quickFilter.rated",  icon: "★" },
+              { key: "fast",  labelKey: "home.quickFilter.fast",   icon: "⚡" },
+              { key: "deals", labelKey: "home.quickFilter.deals",  icon: "🎫" },
+              { key: "free",  labelKey: "home.quickFilter.free",   icon: "🚲" },
             ] as const).map((qf) => (
               <button
                 key={qf.key}
@@ -967,7 +969,7 @@ export default function HomePage() {
                 className={`quick-filter-chip ${quickFilter === qf.key ? 'active' : ''}`}
               >
                 <span>{qf.icon}</span>
-                <span>{qf.label}</span>
+                <span>{t(qf.labelKey)}</span>
               </button>
             ))}
           </div>
@@ -977,13 +979,13 @@ export default function HomePage() {
               <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 border" style={{ backgroundColor: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.15)" }}>
                 <X size={32} className="text-rose-500" />
               </div>
-              <p className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>Kan inte nå servern</p>
-              <p className="text-[10px] font-black uppercase tracking-widest mb-6" style={{ color: "var(--text-secondary)" }}>Kontrollera din anslutning och försök igen.</p>
+              <p className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{t("home.error.serverUnreachable")}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-6" style={{ color: "var(--text-secondary)" }}>{t("home.error.checkConnection")}</p>
               <button
                 onClick={() => { setApiError(false); setLoading(true); window.location.reload(); }}
                 className="px-8 py-4 bg-gold-500 text-zinc-950 rounded-2xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all"
               >
-                Ladda om
+                {t("home.error.reload")}
               </button>
             </div>
           ) : loading ? (
@@ -997,8 +999,8 @@ export default function HomePage() {
               <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                 <Search size={32} style={{ color: "var(--text-secondary)" }} />
               </div>
-              <p className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>Ingen träff</p>
-              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Här ekar det tomt just nu.</p>
+              <p className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{t("home.empty.title")}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{t("home.empty.sub")}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
@@ -1037,7 +1039,7 @@ export default function HomePage() {
                               <div className="absolute top-0 left-0 z-20 flex flex-col gap-1">
                                 {badges.bogo && (
                                   <div className="bg-emerald-500 text-zinc-950 px-4 py-1.5 rounded-br-[1.5rem]">
-                                    <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><Sparkles size={10}/> 1+1 GRATIS</p>
+                                    <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><Sparkles size={10}/> {t("home.deal.bogo")}</p>
                                   </div>
                                 )}
                                 {badges.regular && (
@@ -1077,10 +1079,10 @@ export default function HomePage() {
                                   ? "bg-amber-300 animate-pulse"
                                   : open ? "bg-emerald-400 animate-pulse" : "bg-zinc-400";
                                 const label = isOutOfZone
-                                  ? "Ej zon"
+                                  ? t("home.status.outOfZone")
                                   : isPaused
-                                    ? `Pausad · ${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}`
-                                    : open ? "Öppet" : "Stängt";
+                                    ? t("home.status.pausedUntil", { time: `${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}` })
+                                    : open ? t("home.restaurantOpen") : t("home.restaurantClosed");
                                 return (
                                   <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 backdrop-blur-md border ${cls}`}>
                                     <div className={`w-1.5 h-1.5 rounded-full ${dot}`} />
@@ -1093,7 +1095,7 @@ export default function HomePage() {
                                 onClick={toggleFav}
                                 className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
                                 style={{ backgroundColor: "rgba(255,255,255,0.92)", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
-                                aria-label={isFav ? "Ta bort favorit" : "Lägg till favorit"}
+                                aria-label={isFav ? t("home.favorite.remove") : t("home.favorite.add")}
                               >
                                 {isFav
                                   ? <svg viewBox="0 0 24 24" fill="#FF3B30" className="w-5 h-5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
@@ -1105,7 +1107,7 @@ export default function HomePage() {
                             {/* Restaurant name on image */}
                             <div className="absolute bottom-3 left-4 right-14">
                               <h3 className="text-xl font-black text-white uppercase tracking-tight leading-[1.15] truncate italic">{r.name}</h3>
-                              <p className="text-[9px] font-bold text-white/70 uppercase tracking-widest mt-1 truncate">{r.cuisine || r.description || "Restaurang"}</p>
+                              <p className="text-[9px] font-bold text-white/70 uppercase tracking-widest mt-1 truncate">{r.cuisine || r.description || t("home.restaurantFallback")}</p>
                             </div>
                           </div>
 
@@ -1120,12 +1122,12 @@ export default function HomePage() {
                               <span style={{ color: "var(--border-muted)" }}>•</span>
                               <span className="flex items-center gap-1">
                                 <Clock size={11} className="text-gold-500/60" />
-                                {r.etaMinutes ?? 30} min
+                                {r.etaMinutes ?? 30} {t("home.minutes")}
                               </span>
                               <span style={{ color: "var(--border-muted)" }}>•</span>
                               <span className="flex items-center gap-1">
                                 <Bike size={11} className="text-gold-500/60" />
-                                {(() => { const zi = zoneDeliveryInfo[r.id]; const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0); return fee === 0 ? <span className="text-emerald-600 font-black">Fri lev.</span> : `${fee} kr`; })()}
+                                {(() => { const zi = zoneDeliveryInfo[r.id]; const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0); return fee === 0 ? <span className="text-emerald-600 font-black">{t("home.freeDelivery")}</span> : `${fee} ${t("common.kr")}`; })()}
                               </span>
                             </div>
 
@@ -1163,13 +1165,13 @@ export default function HomePage() {
                     <Info size={32} />
                 </div>
                 <h2 className="text-3xl font-black uppercase italic mb-2" style={{ color: "var(--text-primary)" }}>{infoRestaurant.name}</h2>
-                <p className="text-[10px] font-black uppercase tracking-widest mb-10" style={{ color: "var(--text-secondary)" }}>Restaurang Information</p>
-                
+                <p className="text-[10px] font-black uppercase tracking-widest mb-10" style={{ color: "var(--text-secondary)" }}>{t("home.info.title")}</p>
+
                 <div className="space-y-8">
                     {infoRestaurant.description && (
                       <div className="flex items-start gap-4">
                           <div className="min-w-0">
-                            <div className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>Beskrivning</div>
+                            <div className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>{t("home.info.description")}</div>
                             <p className="text-xs font-bold leading-relaxed uppercase tracking-wider italic" style={{ color: "var(--text-primary)", opacity: 0.6 }}>{infoRestaurant.description}</p>
                           </div>
                       </div>
@@ -1178,7 +1180,7 @@ export default function HomePage() {
                       <div className="flex items-start gap-4">
                         <MapPin className="mt-1" size={18} style={{ color: "var(--text-secondary)" }} />
                         <div className="min-w-0">
-                          <div className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>Hitta Hit</div>
+                          <div className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>{t("home.info.findUs")}</div>
                           <div className="text-sm font-black italic uppercase" style={{ color: "var(--text-primary)" }}>{infoRestaurant.address}</div>
                           <div className="text-sm font-black italic uppercase opacity-40" style={{ color: "var(--text-primary)" }}>{infoRestaurant.zip} {infoRestaurant.city}</div>
                         </div>
@@ -1188,7 +1190,7 @@ export default function HomePage() {
                       <div className="flex items-start gap-4">
                         <Phone className="mt-1" size={18} style={{ color: "var(--text-secondary)" }} />
                         <div className="min-w-0">
-                          <div className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>Ring Oss</div>
+                          <div className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>{t("home.info.callUs")}</div>
                           <a href={`tel:${infoRestaurant.phone}`} className="text-lg font-black text-gold-500 hover:text-gold-400 transition-colors uppercase italic">{infoRestaurant.phone}</a>
                         </div>
                       </div>
@@ -1208,14 +1210,14 @@ export default function HomePage() {
            <div className="absolute right-[-50px] top-[-50px] w-[200px] h-[200px] bg-white/20 rounded-full blur-[80px]" />
            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6 sm:gap-10">
               <div className="text-center sm:text-left">
-                 <h2 className="text-2xl sm:text-3xl lg:text-5xl font-black text-zinc-950 uppercase tracking-tighter leading-[1.15] mb-3 italic">BÄSTA MATEN <br /> I DIN TELEFON</h2>
-                 <p className="text-zinc-950/60 text-[10px] font-black uppercase tracking-[0.2em]">Installera appen för en ännu snabbare upplevelse</p>
+                 <h2 className="text-2xl sm:text-3xl lg:text-5xl font-black text-zinc-950 uppercase tracking-tighter leading-[1.15] mb-3 italic">{t("home.installCta.titleLine1")} <br /> {t("home.installCta.titleLine2")}</h2>
+                 <p className="text-zinc-950/60 text-[10px] font-black uppercase tracking-[0.2em]">{t("home.installCta.sub")}</p>
               </div>
               <button
                 onClick={() => window.dispatchEvent(new Event('trigger-pwa-install'))}
                 className="shrink-0 px-8 sm:px-10 py-4 sm:py-5 bg-zinc-950 text-white rounded-2xl sm:rounded-3xl font-black uppercase tracking-[0.3em] text-[10px] shadow-2xl active:scale-95 transition-all group-hover:bg-zinc-900 border border-white/5"
               >
-                Hämta Appen
+                {t("home.installCta.button")}
               </button>
            </div>
         </section>
@@ -1232,10 +1234,10 @@ export default function HomePage() {
                    <span className="text-4xl text-rose-500 group-hover:scale-110 transition-transform">🌙</span>
                 </div>
                 <h3 className="text-2xl font-black uppercase tracking-tight italic mb-2" style={{ color: "var(--text-primary)" }}>{closedRestaurant.name}</h3>
-                <p className="text-[11px] font-bold uppercase tracking-widest mb-10 leading-relaxed" style={{ color: "var(--text-secondary)" }}>Tyvärr är köket stängt för dagen. <br /> Vill du se menyn ändå?</p>
+                <p className="text-[11px] font-bold uppercase tracking-widest mb-10 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{t("home.closedModal.line1")} <br /> {t("home.closedModal.line2")}</p>
                 <div className="flex flex-col gap-3">
-                   <button onClick={() => { router.push(getRestaurantHref(closedRestaurant)); setClosedRestaurant(null); }} className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all">Se Meny</button>
-                   <button onClick={() => setClosedRestaurant(null)} className="w-full py-5 font-black uppercase text-[10px] tracking-widest transition-colors" style={{ color: "var(--text-secondary)" }}>Stäng</button>
+                   <button onClick={() => { router.push(getRestaurantHref(closedRestaurant)); setClosedRestaurant(null); }} className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all">{t("home.closedModal.seeMenu")}</button>
+                   <button onClick={() => setClosedRestaurant(null)} className="w-full py-5 font-black uppercase text-[10px] tracking-widest transition-colors" style={{ color: "var(--text-secondary)" }}>{t("common.close")}</button>
                 </div>
              </motion.div>
           </motion.div>

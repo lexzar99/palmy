@@ -7,6 +7,7 @@ import { useCartStore, type BogoChoice } from "@/store/cartStore";
 import ConfirmModal from "./ConfirmModal";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useToast } from "./Toast";
+import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 interface ProductModalProps {
   product: any;
@@ -27,6 +28,7 @@ interface ProductModalProps {
 }
 
 const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCartItemId, initialQuantity, initialExtras, initialNote, bogoFreeFromDealId, bogoDealTitle, bogoRewardCategoryName, bogoExcludedExtraIds }: ProductModalProps) => {
+  const { t } = useTranslation();
   const addItem = useCartStore((state) => state.addItem);
   const updateItem = useCartStore((state) => state.updateItem);
   const setBogoChoice = useCartStore((state) => state.setBogoChoice);
@@ -160,15 +162,15 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         // Då kan kunden inte uppfylla kravet — vi hoppar över valideringen
         // för att inte fastna i ett ogiltigt tillstånd.
         if (group.extras.length === 0) continue;
-        setSelectionError(`Välj ett alternativ i ${group.name.toLowerCase()}.`);
+        setSelectionError(t("product.error.pickOne", { group: group.name.toLowerCase() }));
         return;
       }
       if (selectedInGroup.length < (group.minSelections || 0) && group.extras.length > 0) {
-        setSelectionError(`${group.name} kräver minst ${group.minSelections} val.`);
+        setSelectionError(t("product.error.minSelections", { group: group.name, n: group.minSelections }));
         return;
       }
       if (selectedInGroup.length > (group.maxSelections || 99)) {
-        setSelectionError(`${group.name} tillåter högst ${group.maxSelections} val.`);
+        setSelectionError(t("product.error.maxSelections", { group: group.name, n: group.maxSelections }));
         return;
       }
     }
@@ -190,7 +192,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         extras: selectedExtras,
         note: note.trim() || undefined,
       });
-      toast(`${product.name} uppdaterad`, "success");
+      toast(t("product.toast.updated", { name: product.name }), "success");
     } else {
       addItem({
         productId: product.id,
@@ -211,9 +213,9 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
           product: { id: product.id, name: product.name, price: product.price, imageUrl: product.imageUrl ?? null },
         };
         setBogoChoice(choice);
-        toast(`Gratis ${product.name} tillagd!`, "success");
+        toast(t("product.toast.freeAdded", { name: product.name }), "success");
       } else {
-        toast(`${product.name} tillagd i kasse`, "success");
+        toast(t("product.toast.added", { name: product.name }), "success");
       }
     }
     onClose();
@@ -231,7 +233,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         ref={modalRef}
         role="dialog"
         aria-modal="true"
-        aria-label={`${product.name} — anpassa och lägg i kassen`}
+        aria-label={t("product.modalAriaLabel", { name: product.name })}
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
@@ -241,7 +243,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
       >
         
-        <button onClick={onClose} aria-label="Stäng" className="absolute top-5 right-5 w-12 h-12 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 hover:text-zinc-600 transition-all z-20 shadow-sm">
+        <button onClick={onClose} aria-label={t("common.close")} className="absolute top-5 right-5 w-12 h-12 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 hover:text-zinc-600 transition-all z-20 shadow-sm">
            <X size={20} />
         </button>
 
@@ -259,15 +261,15 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
            <div className="mb-10">
               {bogoFreeFromDealId ? (
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
-                  🎁 Gratis via {bogoDealTitle || "BOGO"}
+                  🎁 {t("product.freeVia", { deal: bogoDealTitle || "BOGO" })}
                 </div>
               ) : (
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
-                  <Sparkles size={12} /> Specialité
+                  <Sparkles size={12} /> {t("product.speciality")}
                 </div>
               )}
               <h2 className="text-3xl sm:text-4xl font-black uppercase italic tracking-tight leading-[1.15] mb-4" style={{ color: "var(--text-primary)" }}>{product.name}</h2>
-              <p className="text-xs font-bold uppercase tracking-widest leading-relaxed border-l-2 border-gold-500/50 pl-4" style={{ color: "var(--text-secondary)" }}>{product.description || "Ingen beskrivning tillgänglig."}</p>
+              <p className="text-xs font-bold uppercase tracking-widest leading-relaxed border-l-2 border-gold-500/50 pl-4" style={{ color: "var(--text-secondary)" }}>{product.description || t("product.noDescription")}</p>
            </div>
 
            {/* Extra Groups */}
@@ -280,10 +282,10 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                         <div>
                            <h3 className="text-xl font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>{group.name}</h3>
                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500">{group.required ? "Måste väljas" : "Valfritt"}</span>
+                              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500">{group.required ? t("product.required") : t("product.optional")}</span>
                               {group.maxSelections > 1 && (
                                  <div className="px-3 py-1 rounded-lg" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                                   <span className="text-[9px] font-black text-gold-600 italic uppercase tracking-tighter">{selectionCount} <span className="text-zinc-400 not-italic">AV</span> {group.maxSelections}</span>
+                                   <span className="text-[9px] font-black text-gold-600 italic uppercase tracking-tighter">{selectionCount} <span className="text-zinc-400 not-italic">{t("product.of")}</span> {group.maxSelections}</span>
                                  </div>
                               )}
                            </div>
@@ -322,12 +324,12 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
 
            {/* Notes */}
            <div className="space-y-4 mt-10">
-              <h3 className="text-sm font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>Önskemål</h3>
+              <h3 className="text-sm font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>{t("product.requests")}</h3>
               <div className="rounded-[1.8rem] p-1 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                 <textarea 
+                 <textarea
                     value={note}
                     onChange={e => setNote(e.target.value)}
-                    placeholder="Allergier? Särskilda krav? Skriv dem här..."
+                    placeholder={t("product.requestsPlaceholder")}
                     className="w-full bg-transparent border-none rounded-[1.5rem] p-5 text-sm font-bold focus:ring-0 focus:outline-none min-h-[100px] placeholder:text-zinc-400 shadow-inner"
                     style={{ color: "var(--text-primary)" }}
                  />
@@ -350,11 +352,11 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
            <button onClick={handleAddToCart} className={`w-full py-6 px-10 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-between shadow-[0_20px_40px_rgba(231,178,75,0.25)] transition-all active:scale-[0.97] group ${bogoFreeFromDealId ? "bg-emerald-500 hover:bg-emerald-400" : "bg-gold-500 hover:bg-gold-400"}`}>
               <div className="flex items-center gap-3">
                  <ShoppingBag size={20} />
-                 <span>{editCartItemId ? "Spara ändringar" : bogoFreeFromDealId ? "Välj som gratis" : "Lägg i kasse"}</span>
+                 <span>{editCartItemId ? t("product.saveChanges") : bogoFreeFromDealId ? t("product.pickAsFree") : t("product.addToCart")}</span>
               </div>
               <div className="flex items-center gap-2 text-xl italic leading-[1.15]">
                  {bogoFreeFromDealId
-                   ? (extrasPrice > 0 ? `+${extrasPrice} KR EXTRAS` : "GRATIS")
+                   ? (extrasPrice > 0 ? t("product.extrasPrice", { price: extrasPrice }) : t("product.free"))
                    : `${totalPrice} KR`}
               </div>
            </button>
@@ -364,10 +366,10 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
           isOpen={showConfirmModal}
           onClose={() => setShowConfirmModal(false)}
           onConfirm={performAddToCart}
-          title="Byt restaurang?"
-          message="Du har redan artiklar i din varukorg från en annan restaurang. Vill du byta restaurang och tömma din aktuella varukorg?"
-          confirmText="Ja, byt"
-          cancelText="Behåll"
+          title={t("product.switchRestaurant.title")}
+          message={t("product.switchRestaurant.message")}
+          confirmText={t("product.switchRestaurant.confirm")}
+          cancelText={t("product.switchRestaurant.cancel")}
         />
       </motion.div>
     </motion.div>

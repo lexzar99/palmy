@@ -2,6 +2,15 @@
 // Lägg till nya nycklar grupperade per feature så det är lätt att hitta.
 // Värden kan ha {placeholders} som ersätts av t():
 //   t("cart.minOrderShort", { amount: 50 })
+//
+// Per-feature nycklar lever i separata messages-*.ts-filer (importeras nedan)
+// så den här filen håller sig hanterbar och en feature-grupp kan ändras
+// utan att hela ordlistan måste röras.
+
+import { homePagePending } from "./messages-home";
+import { cartPagePending } from "./messages-cart";
+import { menuPending } from "./messages-menu";
+import { orderAuthPending } from "./messages-order-auth";
 
 export type Locale = "sv" | "en";
 
@@ -70,7 +79,8 @@ export const messages: Record<Locale, Messages> = {
     "product.note": "Meddelande till köket",
     "product.notePlaceholder": "T.ex. ingen lök, extra crispig…",
     "product.quantity": "Antal",
-    "product.addToCart": "Lägg till i kundvagn",
+    // product.addToCart definieras i messages-menu.ts (agent tunade till
+    // kortare "Lägg i kasse" som passar bättre i UI:t).
     "product.update": "Uppdatera",
     "product.required": "Obligatoriskt",
     "product.optional": "Valfritt",
@@ -220,6 +230,12 @@ export const messages: Record<Locale, Messages> = {
     "common.edit": "Redigera",
     "common.tryAgain": "Försök igen",
     "common.error": "Något gick fel",
+
+    // ── Per-feature nycklar (importerade från messages-*.ts) ─────────────
+    ...homePagePending.sv,
+    ...cartPagePending.sv,
+    ...menuPending.sv,
+    ...orderAuthPending.sv,
   },
 
   // English — populated by translation agents (sv keys mirrored exactly).
@@ -271,7 +287,7 @@ export const messages: Record<Locale, Messages> = {
     "product.note": "Note for the kitchen",
     "product.notePlaceholder": "E.g. no onions, extra crispy…",
     "product.quantity": "Quantity",
-    "product.addToCart": "Add to cart",
+    // product.addToCart in messages-menu.ts
     "product.update": "Update",
     "product.required": "Required",
     "product.optional": "Optional",
@@ -421,5 +437,11 @@ export const messages: Record<Locale, Messages> = {
     "common.edit": "Edit",
     "common.tryAgain": "Try again",
     "common.error": "Something went wrong",
+
+    // ── Per-feature nycklar (importerade från messages-*.ts) ─────────────
+    ...homePagePending.en,
+    ...cartPagePending.en,
+    ...menuPending.en,
+    ...orderAuthPending.en,
   },
 };

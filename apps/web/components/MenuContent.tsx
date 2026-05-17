@@ -17,6 +17,7 @@ import PreviouslyOrderedBar from "@/components/PreviouslyOrderedBar";
 import DealBannerStrip from "@/components/DealBannerStrip";
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal, { type BogoPickerProduct } from "@/components/BogoPickerModal";
+import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 interface MenuContentProps {
   restaurantSlug?: string;
@@ -25,6 +26,7 @@ interface MenuContentProps {
 }
 
 const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: MenuContentProps) => {
+  const { t } = useTranslation();
   const [categories, setCategories] = useState<any[]>([]);
   const [deals, setDeals] = useState<PublicDeal[]>([]);
   const [restaurant, setRestaurant] = useState<any>(null);
@@ -174,7 +176,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       if (menuRes.data.length > 0) setActiveCategory(menuRes.data[0].id);
     } catch (err) {
       console.error("Error fetching menu data:", err);
-      setError("Kunde inte ladda menyn. Kontrollera din anslutning.");
+      setError(t("menu.loadError"));
     } finally {
       setLoading(false);
     }
@@ -300,7 +302,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         <div className="w-12 h-12 rounded-2xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center">
           <Loader2 className="animate-spin text-gold-500" size={24} />
         </div>
-        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.4em] text-gold-500/60 animate-pulse">Laddar Menyn</p>
+        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.4em] text-gold-500/60 animate-pulse">{t("menu.loadingMenu")}</p>
       </div>
     );
   }
@@ -311,14 +313,14 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         <div className="w-20 h-20 bg-rose-500/10 rounded-[2.5rem] border border-rose-500/20 flex items-center justify-center mb-8">
           <X size={40} className="text-rose-500" />
         </div>
-        <h2 className="text-2xl font-black uppercase italic tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>Ett fel uppstod</h2>
-        <p className="text-xs font-bold uppercase tracking-widest mb-10 max-w-sm" style={{ color: "var(--text-secondary)" }}>{error || "Restaurangen hittades inte"}</p>
-        <Link href="/" className="px-10 py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">Gå Hem</Link>
+        <h2 className="text-2xl font-black uppercase italic tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{t("menu.errorTitle")}</h2>
+        <p className="text-xs font-bold uppercase tracking-widest mb-10 max-w-sm" style={{ color: "var(--text-secondary)" }}>{error || t("menu.restaurantNotFound")}</p>
+        <Link href="/" className="px-10 py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">{t("menu.goHome")}</Link>
       </div>
     );
   }
 
-  const restaurantDisplayTitle = restaurant?.name || "Laddar...";
+  const restaurantDisplayTitle = restaurant?.name || t("common.loading");
   const titleParts = restaurantDisplayTitle.split(" ");
   const firstWord = titleParts[0];
   const restOfTitle = titleParts.slice(1).join(" ");
@@ -343,7 +345,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
         >
           <ChevronLeft size={16} className="text-gold-500 group-hover:-translate-x-1 transition-transform" />
-          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>Tillbaka</span>
+          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>{t("common.back")}</span>
         </Link>
 
          {/* Header Content in Overlap */}
@@ -356,11 +358,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                   </h1>
                  <div className={`px-4 py-1.5 rounded-full border-[1px] flex items-center gap-2 ${restaurant?.isOpen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-rose-500/30 bg-rose-500/10 text-rose-600"}`}>
                     <div className={`w-1 h-1 rounded-full ${restaurant?.isOpen ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em]">{restaurant?.isOpen ? "Öppen" : "Stängd"}</span>
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em]">{restaurant?.isOpen ? t("menu.statusOpen") : t("menu.statusClosed")}</span>
                  </div>
               </div>
          <div className="flex items-center gap-3 sm:gap-5 flex-wrap">
-            <p className="text-[9px] sm:text-[10px] font-black uppercase italic tracking-widest" style={{ color: "var(--text-secondary)" }}>{restaurant.cuisine || "Restaurang"}</p>
+            <p className="text-[9px] sm:text-[10px] font-black uppercase italic tracking-widest" style={{ color: "var(--text-secondary)" }}>{restaurant.cuisine || t("menu.restaurant")}</p>
                   <Link href={`/r/${restaurantSlug || restaurant.slug}/reviews`} className="flex items-center gap-1.5 text-gold-500 font-bold italic text-[10px] sm:text-[11px] hover:opacity-75 transition-opacity">
                      <Star size={12} className="fill-gold-500" />
                      {(restaurant.rating || 4.6).toFixed(1)}
@@ -372,11 +374,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowInfoModal(true)} className="glass-panel px-3 py-2.5 sm:px-6 sm:py-4 rounded-2xl sm:rounded-3xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 sm:gap-3 shadow-sm hover:bg-gold-500/5 transition-all" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>
-                   <Info size={14} className="text-gold-500/60" /> <span className="hidden xs:inline">Info</span>
+                   <Info size={14} className="text-gold-500/60" /> <span className="hidden xs:inline">{t("menu.info")}</span>
                 </motion.button>
                 {restaurant.phone && (
                    <motion.a whileTap={{ scale: 0.95 }} href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`} className="bg-gold-500 px-3 py-2.5 sm:px-6 sm:py-4 rounded-2xl sm:rounded-3xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-950 flex items-center gap-1.5 sm:gap-3 shadow-xl hover:bg-gold-400 transition-all">
-                      <Phone size={14} /> Kontakt
+                      <Phone size={14} /> {t("menu.contact")}
                    </motion.a>
                 )}
              </motion.div>
@@ -399,13 +401,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-black uppercase tracking-widest text-rose-600 mb-1">
-                  Levererar inte till din adress
+                  {t("menu.outOfZone.title")}
                 </p>
                 <p className="text-[11px] font-bold text-rose-600/70 leading-relaxed break-words">
                   {address
-                    ? `Den här restaurangen levererar tyvärr inte till "${address}".`
-                    : "Den här restaurangen levererar tyvärr inte till din adress."}{" "}
-                  Ange en ny adress eller gå tillbaka till startsidan.
+                    ? t("menu.outOfZone.descWithAddress", { address })
+                    : t("menu.outOfZone.desc")}{" "}
+                  {t("menu.outOfZone.action")}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
@@ -413,13 +415,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                   onClick={() => setShowAddressModal(true)}
                   className="px-4 py-2.5 bg-rose-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all active:scale-95"
                 >
-                  Ny adress
+                  {t("menu.outOfZone.newAddress")}
                 </button>
                 <Link
                   href="/"
                   className="px-4 py-2.5 bg-rose-500/20 border border-rose-500/30 text-rose-700 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-500/30 transition-all"
                 >
-                  Tillbaka
+                  {t("common.back")}
                 </Link>
               </div>
             </motion.div>
@@ -456,21 +458,21 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-12 sm:mb-16">
            <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
               <Bike size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
-              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>Avgift</div>
+              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>{t("menu.stats.fee")}</div>
                <div className="text-sm font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>
                  {(zoneAvailable === false && restaurant?.isOpen)
                    ? "–"
-                   : (restaurant.deliveryFee === 0 ? "GRATIS" : `${restaurant.deliveryFee} KR`)}
+                   : (restaurant.deliveryFee === 0 ? t("menu.stats.free") : `${restaurant.deliveryFee} KR`)}
                </div>
            </div>
            <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
               <Clock size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
-              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>Väntetid</div>
-              <div className="text-sm font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>~{restaurant.etaMinutes} MIN</div>
+              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>{t("menu.stats.eta")}</div>
+              <div className="text-sm font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>~{restaurant.etaMinutes} {t("menu.stats.min")}</div>
            </div>
            <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
               <Store size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
-              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>Minsta Order</div>
+              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>{t("menu.stats.minOrder")}</div>
               <div className="text-sm font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>{restaurant.minOrderAmount} KR</div>
            </div>
         </div>
@@ -482,7 +484,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }} />
               <input
                 type="text"
-                placeholder="Vad är du sugen på?"
+                placeholder={t("menu.searchPlaceholder")}
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="w-full border-none rounded-[2rem] py-3 sm:py-4 pl-12 sm:pl-14 pr-4 sm:pr-6 text-xs font-bold focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-400"
@@ -534,7 +536,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           return (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 px-4">
               <div className="flex items-center gap-3 mb-4">
-                <span className="text-[10px] font-black uppercase tracking-widest text-gold-500">REKOMMENDERAS</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gold-500">{t("menu.recommended")}</span>
                 <div className="h-px bg-gold-500/20 flex-1" />
               </div>
               <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
@@ -595,9 +597,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                <div className="w-20 h-20 rounded-[2.5rem] flex items-center justify-center mb-6 shadow-sm" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                  <ShoppingBag size={32} className="text-gold-500/50" />
                </div>
-               <h3 className="text-2xl font-black uppercase tracking-widest italic mb-2" style={{ color: "var(--text-primary)" }}>Ingen meny ännu</h3>
+               <h3 className="text-2xl font-black uppercase tracking-widest italic mb-2" style={{ color: "var(--text-primary)" }}>{t("menu.noMenuTitle")}</h3>
                <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs max-w-sm">
-                 Vi har inte lagt till några rätter ännu. Kom tillbaka senare eller kontakta oss!
+                 {t("menu.noMenuDesc")}
                </p>
              </motion.div>
            ) : (
@@ -739,13 +741,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                <div className="w-16 h-16 bg-gold-500/10 rounded-[2rem] flex items-center justify-center mb-8 border border-gold-500/20 text-gold-500">
                   <Info size={32} />
                </div>
-               <h2 className="text-3xl font-black uppercase italic mb-8" style={{ color: "var(--text-primary)" }}>Restaurang Info</h2>
+               <h2 className="text-3xl font-black uppercase italic mb-8" style={{ color: "var(--text-primary)" }}>{t("menu.info.title")}</h2>
                
                <div className="space-y-8">
                   {restaurant?.description && (
                     <div className="flex items-start gap-4">
                        <div className="min-w-0">
-                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Beskrivning</div>
+                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("product.description")}</div>
                           <p className="text-xs font-bold leading-relaxed uppercase tracking-wider italic" style={{ color: "var(--text-secondary)" }}>{restaurant.description}</p>
                        </div>
                     </div>
@@ -754,7 +756,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                     <div className="flex items-start gap-4">
                       <MapPin className="text-zinc-300 mt-1" size={18} />
                       <div className="min-w-0">
-                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Hitta Hit</div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("menu.info.findHere")}</div>
                         <div className="text-sm font-black italic uppercase" style={{ color: "var(--text-primary)" }}>{restaurant.address}</div>
                         <div className="text-sm font-black italic uppercase opacity-40" style={{ color: "var(--text-secondary)" }}>{restaurant.zip} {restaurant.city}</div>
                       </div>
@@ -764,7 +766,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                     <div className="flex items-start gap-4">
                       <Phone className="text-zinc-300 mt-1" size={18} />
                       <div className="min-w-0">
-                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Ring Oss</div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("menu.info.callUs")}</div>
                         <a href={`tel:${restaurant.phone}`} className="text-lg font-black text-gold-500 hover:text-gold-600 transition-colors uppercase italic">{restaurant.phone}</a>
                       </div>
                     </div>

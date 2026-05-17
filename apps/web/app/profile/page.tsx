@@ -23,6 +23,7 @@ import ConfirmModal from "@/components/ConfirmModal";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
 import ReferralCard from "@/components/ReferralCard";
 import { useToast } from "@/components/Toast";
+import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 // ─── Country codes ─────────────────────────────────────────────────────────
 const COUNTRY_CODES = [
@@ -46,6 +47,7 @@ function CountryPicker({
   value: string;
   onChange: (code: string) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const selected = COUNTRY_CODES.find(c => c.code === value) || COUNTRY_CODES[0];
@@ -94,7 +96,7 @@ function CountryPicker({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Sök land..."
+                placeholder={t("profile.country.search")}
                 autoFocus
                 className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
@@ -102,7 +104,7 @@ function CountryPicker({
             </div>
             <div className="max-h-72 overflow-auto">
               {filtered.length === 0 ? (
-                <div className="px-4 py-6 text-center text-xs text-zinc-400">Inga matchande länder.</div>
+                <div className="px-4 py-6 text-center text-xs text-zinc-400">{t("profile.country.empty")}</div>
               ) : (
                 filtered.map((c) => (
                   <button
@@ -141,6 +143,7 @@ function SocialButton({
   label: string;
   icon: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -169,11 +172,11 @@ function SocialButton({
       if (raw.includes("missing oauth secret") || raw.includes("unsupported provider")) {
         setErrorMsg(
           provider === "apple"
-            ? "Apple Sign-In är inte färdig­konfigurerad i Supabase ännu. Kontrollera Service ID + Secret Key."
-            : `${label} är inte aktiverad i Supabase ännu.`,
+            ? t("auth.social.appleNotConfigured")
+            : t("auth.social.providerNotConfigured", { provider: label }),
         );
       } else {
-        setErrorMsg(err?.message || "Kunde inte starta inloggning.");
+        setErrorMsg(err?.message || t("auth.social.startError"));
       }
       setLoading(false);
     }
@@ -188,7 +191,7 @@ function SocialButton({
         style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
       >
         {loading ? <Loader2 size={16} className="animate-spin" /> : icon}
-        {loading ? "Laddar..." : label}
+        {loading ? t("auth.social.loading") : label}
       </button>
       {errorMsg && (
         <p
@@ -214,6 +217,7 @@ const SUPPORTED_LOCALES = [
 ] as const;
 
 function LanguagePickerRow() {
+  const { t } = useTranslation();
   const [locale, setLocale] = useState<string>("sv");
 
   useEffect(() => {
@@ -248,8 +252,8 @@ function LanguagePickerRow() {
           {active.flag}
         </div>
         <div>
-          <p className="font-bold text-sm text-white">Språk</p>
-          <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">Välj språk för appen</p>
+          <p className="font-bold text-sm text-white">{t("profile.settings.language")}</p>
+          <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">{t("profile.settings.languageSub")}</p>
         </div>
       </div>
       <div className="relative">
@@ -257,7 +261,7 @@ function LanguagePickerRow() {
           value={locale}
           onChange={(e) => handleChange(e.target.value)}
           className="appearance-none bg-zinc-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-3 pr-8 border border-white/10 cursor-pointer outline-none focus:border-gold-500/40 transition-all"
-          aria-label="Språk"
+          aria-label={t("profile.settings.languageAria")}
         >
           {SUPPORTED_LOCALES.map((l) => (
             <option key={l.code} value={l.code} className="bg-zinc-900">
@@ -274,6 +278,7 @@ function LanguagePickerRow() {
 // ─── Main component ─────────────────────────────────────────────────────────
 function ProfileContent() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [hasPlatformSession, setHasPlatformSession] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
@@ -636,7 +641,7 @@ function ProfileContent() {
       setHasPlatformSession(true);
       await fetchData();
     } catch (err: any) {
-      setLoginError(err.response?.data?.error || "Felaktigt lösenord eller e-post");
+      setLoginError(err.response?.data?.error || t("auth.loginError"));
     } finally {
       setIsLoggingIn(false);
     }
@@ -653,7 +658,7 @@ function ProfileContent() {
       await fetchData();
       setShowAddPhone(false);
     } catch (err: any) {
-      setAddPhoneError(err.response?.data?.error || "Kunde inte spara nummer");
+      setAddPhoneError(err.response?.data?.error || t("profile.addPhone.errorGeneric"));
     } finally {
       setAddPhoneLoading(false);
     }
@@ -668,7 +673,7 @@ function ProfileContent() {
       setSaveSuccess(true);
       setTimeout(() => { setSaveSuccess(false); setIsEditing(false); }, 1500);
     } catch {
-      alert("Kunde inte spara");
+      alert(t("profile.editForm.saveError"));
     } finally {
       setIsSaving(false);
     }
@@ -688,7 +693,7 @@ function ProfileContent() {
         supabase.auth.signOut(),
         signOut({ redirect: false }),
       ]);
-      toast("Du är utloggad", "info");
+      toast(t("profile.logoutToast"), "info");
     } finally {
       setIsLoggingOut(false);
     }
@@ -715,38 +720,38 @@ function ProfileContent() {
               <Lock size={36} />
             </div>
             <h1 className="text-4xl font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
-              {hasVisited ? "Välkommen" : "Skapa"}{" "}
-              <span className="text-gold-500">{hasVisited ? "Tillbaka" : "Konto"}</span>
+              {hasVisited ? t("auth.welcomeBack.title.welcome") : t("auth.welcomeBack.title.create")}{" "}
+              <span className="text-gold-500">{hasVisited ? t("auth.welcomeBack.title.welcomeAccent") : t("auth.welcomeBack.title.createAccent")}</span>
             </h1>
             <p className="text-zinc-400 text-[11px] font-bold uppercase tracking-widest">
-              {hasVisited ? "Logga in med din e-post" : "Gå med — gratis och tar 30 sek"}
+              {hasVisited ? t("auth.welcomeBack.subRecurring") : t("auth.welcomeBack.subNew")}
             </p>
           </div>
 
           {/* Email + Password login form */}
           <form onSubmit={handleEmailLogin} className="space-y-4">
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">E-post</label>
+              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">{t("auth.email")}</label>
               <input
                 required
                 type="email"
                 autoComplete="email"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="din@email.se"
+                placeholder={t("auth.emailPlaceholder")}
                 className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
               />
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Lösenord</label>
+              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">{t("auth.password")}</label>
               <input
                 required
                 type="password"
                 autoComplete="current-password"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder={t("auth.passwordPlaceholder")}
                 className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
               />
@@ -757,14 +762,14 @@ function ProfileContent() {
               disabled={isLoggingIn}
               className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60"
             >
-              {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : "Logga in"}
+              {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : t("auth.submitLogin")}
             </button>
             <div className="text-center pt-1">
               <Link
                 href="/forgot-password"
                 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-gold-500 transition-colors"
               >
-                Glömt lösenord?
+                {t("auth.forgotPassword")}
               </Link>
             </div>
           </form>
@@ -785,7 +790,7 @@ function ProfileContent() {
                   color: "var(--text-secondary)",
                 }}
               >
-                Eller med socialt konto
+                {t("auth.orWithSocial")}
               </span>
             </div>
           </div>
@@ -817,9 +822,9 @@ function ProfileContent() {
 
           {/* Register link */}
           <p className="text-center text-[11px] font-bold uppercase tracking-widest text-zinc-600">
-            Inget konto?{" "}
+            {t("auth.noAccount")}{" "}
             <Link href="/register" className="text-gold-500 hover:text-gold-400 transition-colors">
-              Skapa konto gratis
+              {t("auth.createFree")}
             </Link>
           </p>
         </motion.div>
@@ -834,9 +839,9 @@ function ProfileContent() {
         <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-8">
           <div className="text-center space-y-3">
             <div className="w-16 h-16 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500 mx-auto"><Phone size={28} /></div>
-            <h2 className="text-2xl font-black uppercase italic tracking-tight">Lägg till telefon</h2>
+            <h2 className="text-2xl font-black uppercase italic tracking-tight">{t("profile.addPhone.title")}</h2>
             <p className="text-zinc-500 text-sm leading-relaxed">
-              Ditt konto är knutet till ditt sociala konto. Lägg till ditt telefonnummer — det kan uppdateras när som helst.
+              {t("profile.addPhone.sub")}
             </p>
           </div>
           <form onSubmit={handleAddPhone} className="space-y-4">
@@ -848,7 +853,7 @@ function ProfileContent() {
                 autoComplete="tel"
                 value={addPhoneNum}
                 onChange={e => setAddPhoneNum(e.target.value)}
-                placeholder="070 000 00 00"
+                placeholder={t("profile.addPhone.placeholder")}
                 className="flex-1 rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-400 outline-none focus:ring-2 focus:ring-gold-500/40"
                 style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
               />
@@ -859,7 +864,7 @@ function ProfileContent() {
               disabled={addPhoneLoading}
               className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3"
             >
-              {addPhoneLoading ? <Loader2 className="animate-spin" size={20} /> : "Spara nummer"}
+              {addPhoneLoading ? <Loader2 className="animate-spin" size={20} /> : t("profile.addPhone.save")}
             </button>
           </form>
         </motion.div>
@@ -888,12 +893,12 @@ function ProfileContent() {
               {user.isVerified ? (
                 <div className="flex items-center gap-1.5 mt-1 text-emerald-600">
                   <ShieldCheck size={14} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Verifierad</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">{t("profile.verified")}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 mt-1 text-rose-500">
                   <Lock size={14} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Ej verifierad</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">{t("profile.notVerified")}</span>
                 </div>
               )}
             </div>
@@ -927,41 +932,39 @@ function ProfileContent() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-black uppercase tracking-tight text-gold-700">
-                    Apple delade inte ditt namn
+                    {t("profile.appleNoName.title")}
                   </h3>
                   <p
                     className="text-[12px] mt-1 leading-snug"
                     style={{ color: "var(--text-secondary)" }}
                   >
-                    Apple ger ditt namn endast vid första inloggningen. För att
-                    få in det:
+                    {t("profile.appleNoName.intro")}
                   </p>
                   <ol
                     className="text-[12px] mt-2 ml-4 list-decimal space-y-1"
                     style={{ color: "var(--text-secondary)" }}
                   >
                     <li>
-                      Öppna{" "}
+                      {t("profile.appleNoName.step1Open")}{" "}
                       <a
                         href="https://appleid.apple.com/account/manage"
                         target="_blank"
                         rel="noreferrer"
                         className="text-gold-600 underline font-bold"
                       >
-                        Apple ID-inställningar
+                        {t("profile.appleNoName.step1Link")}
                       </a>
                     </li>
                     <li>
-                      Sign-In with Apple → MatGo →{" "}
-                      <strong>Stop using Apple ID</strong>
+                      {t("profile.appleNoName.step2")}
                     </li>
-                    <li>Kom tillbaka hit och tryck Apple-knappen igen</li>
+                    <li>{t("profile.appleNoName.step3")}</li>
                   </ol>
                   <p
                     className="text-[11px] mt-2 italic"
                     style={{ color: "var(--text-secondary)" }}
                   >
-                    Eller fyll i namnet manuellt i Inställningar-fliken nedan.
+                    {t("profile.appleNoName.alt")}
                   </p>
                 </div>
               </div>
@@ -975,8 +978,8 @@ function ProfileContent() {
             className="w-full bg-amber-500/5 border border-amber-500/20 p-5 rounded-[2rem] flex items-center justify-between text-left hover:bg-amber-500/10 transition-all"
           >
             <div>
-              <p className="text-[10px] font-black uppercase text-amber-600 tracking-widest">Rekommenderat</p>
-              <p className="font-bold text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>Lägg till telefonnummer</p>
+              <p className="text-[10px] font-black uppercase text-amber-600 tracking-widest">{t("profile.recommended")}</p>
+              <p className="font-bold text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>{t("profile.addPhone")}</p>
             </div>
             <ChevronRight size={18} className="text-amber-500" />
           </button>
@@ -990,13 +993,13 @@ function ProfileContent() {
                 <Bell size={20} />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase text-red-400 tracking-widest">Åtgärd krävs</p>
+                <p className="text-[10px] font-black uppercase text-red-400 tracking-widest">{t("profile.actionRequired")}</p>
                 <div className="flex items-center gap-2">
                   <p className="text-white font-bold text-sm">{user.phone}</p>
                 </div>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => {
                 setAddPhoneNum(user.phone.replace("+46", ""));
                 setAddPhoneCountry(user.phone.startsWith("+") ? user.phone.slice(0, 3) : "+46");
@@ -1004,20 +1007,20 @@ function ProfileContent() {
               }}
               className="px-6 py-3 bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-red-500/20"
             >
-              Fixa nu
+              {t("profile.fixNow")}
             </button>
           </div>
         )}
 
         <div className="grid grid-cols-5 p-1.5 rounded-[2rem] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
           {[
-            { id: "overview", icon: User, label: "Hem" },
-            { id: "deals", icon: Sparkles, label: "Deals" },
+            { id: "overview", icon: User, label: t("profile.tabs.home") },
+            { id: "deals", icon: Sparkles, label: t("profile.tabs.deals") },
             // "Ordrar"-fliken är borttagen från profilen — finns nu som egen
             // tab i bottom-nav (/orders) och i top-navbaren, för att undvika
             // dubbel-navigation och för att fungera utan login.
-            { id: "addresses", icon: MapPin, label: "Adresser" },
-            { id: "settings", icon: Settings, label: "Inst." },
+            { id: "addresses", icon: MapPin, label: t("profile.tabs.addresses") },
+            { id: "settings", icon: Settings, label: t("profile.tabs.settings") },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1039,7 +1042,7 @@ function ProfileContent() {
                    vid app-öppning. */}
                {availableDeals.length > 0 ? (
                  <div className="space-y-3">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">Tillgängliga erbjudanden</p>
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">{t("profile.deals.availableTitle")}</p>
                    {availableDeals.map((deal: any) => {
                      const isClaiming = claimingId === deal.id;
                      return (
@@ -1060,7 +1063,7 @@ function ProfileContent() {
                            )}
                            <div className="flex-1 min-w-0">
                              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600 mb-1">
-                               Nytt erbjudande
+                               {t("profile.deals.newOffer")}
                              </div>
                              <h3 className="text-lg font-black italic tracking-tighter uppercase leading-tight" style={{ color: "var(--text-primary)" }}>
                                {deal.popupHeadline || deal.title}
@@ -1072,8 +1075,8 @@ function ProfileContent() {
                          </div>
                          <div className="mt-4 flex items-center justify-between gap-3">
                            <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                             {deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`} rabatt
-                             {deal.minOrder > 0 ? ` • min ${deal.minOrder} kr` : ""}
+                             {deal.discountType === "PERCENTAGE" ? t("profile.deals.discountPct", { value: deal.discountValue }) : t("profile.deals.discountKr", { value: deal.discountValue })}
+                             {deal.minOrder > 0 ? ` • ${t("profile.deals.minOrder", { amount: deal.minOrder })}` : ""}
                            </div>
                            <button
                              type="button"
@@ -1086,14 +1089,14 @@ function ProfileContent() {
                                  setAvailableDeals((current) => current.filter((d) => d.id !== deal.id));
                                  setClaimedDeals((current) => [{ ...deal, _kind: "CLAIMED" }, ...current]);
                                } catch (e: any) {
-                                 alert(e?.response?.data?.error || "Kunde inte spara erbjudandet");
+                                 alert(e?.response?.data?.error || t("profile.deals.claimError"));
                                } finally {
                                  setClaimingId(null);
                                }
                              }}
                              className="px-5 py-3 rounded-2xl bg-gold-500 text-zinc-950 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-60"
                            >
-                             {isClaiming ? "Sparar..." : (deal.popupCtaLabel || "Spara erbjudande")}
+                             {isClaiming ? t("profile.deals.saving") : (deal.popupCtaLabel || t("profile.deals.claim"))}
                            </button>
                          </div>
                        </div>
@@ -1105,16 +1108,16 @@ function ProfileContent() {
                {/* Claimade + globala deals (från popup-builder och broadcast) */}
                {claimedDeals.length > 0 ? (
                  <div className="space-y-3">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">Sparade erbjudanden</p>
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">{t("profile.deals.savedTitle")}</p>
                    {claimedDeals.map((deal: any) => {
                      const isClaimed = deal._kind === 'CLAIMED';
                      // Tag som visar typ av deal: Personlig (CustomerDeal),
                      // Restaurang (deal.restaurantId satt) eller Global.
                      const dealKind: { label: string; tone: string } = deal.restaurantId
-                       ? { label: "Restaurang", tone: "bg-sky-500/10 text-sky-400 border-sky-500/30" }
+                       ? { label: t("profile.deals.kind.restaurant"), tone: "bg-sky-500/10 text-sky-400 border-sky-500/30" }
                        : isClaimed
-                         ? { label: "Personlig", tone: "bg-purple-500/10 text-purple-400 border-purple-500/30" }
-                         : { label: "Global", tone: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" };
+                         ? { label: t("profile.deals.kind.personal"), tone: "bg-purple-500/10 text-purple-400 border-purple-500/30" }
+                         : { label: t("profile.deals.kind.global"), tone: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" };
                      return (
                        <Link
                          href={`/deals/${deal.id}`}
@@ -1125,7 +1128,7 @@ function ProfileContent() {
                            <div className="flex-1">
                              <div className="flex flex-wrap items-center gap-2 mb-1">
                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600">
-                                 {isClaimed ? "Sparad" : "Tillgänglig för alla"}
+                                 {isClaimed ? t("profile.deals.saved") : t("profile.deals.availableAll")}
                                </div>
                                <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider ${dealKind.tone}`}>
                                  {dealKind.label}
@@ -1145,19 +1148,19 @@ function ProfileContent() {
                          {deal.popupCode ? (
                            <div className="p-3 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-between mb-3">
                              <div className="text-[10px] font-black tracking-[0.3em] uppercase text-zinc-400">
-                               KOD: <span className="text-zinc-950 select-all">{deal.popupCode}</span>
+                               {t("profile.deals.codeLabel")}: <span className="text-zinc-950 select-all">{deal.popupCode}</span>
                              </div>
                              <button
                                onClick={() => { navigator.clipboard.writeText(deal.popupCode); }}
                                className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700 transition-colors"
                              >
-                               Kopiera
+                               {t("profile.deals.copy")}
                              </button>
                            </div>
                          ) : null}
                          <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-zinc-400">
-                           <div>{deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`} rabatt {deal.minOrder > 0 ? `• min ${deal.minOrder} kr` : ""}</div>
-                           <div>Giltig till: {deal.validUntil ? new Date(deal.validUntil).toLocaleDateString("sv-SE") : "Oändlig"}</div>
+                           <div>{deal.discountType === "PERCENTAGE" ? t("profile.deals.discountPct", { value: deal.discountValue }) : t("profile.deals.discountKr", { value: deal.discountValue })} {deal.minOrder > 0 ? `• ${t("profile.deals.minOrder", { amount: deal.minOrder })}` : ""}</div>
+                           <div>{t("profile.deals.validUntil", { date: deal.validUntil ? new Date(deal.validUntil).toLocaleDateString("sv-SE") : t("profile.deals.validUntilNever") })}</div>
                          </div>
                        </Link>
                      );
@@ -1169,12 +1172,12 @@ function ProfileContent() {
                {deals.length === 0 && claimedDeals.length === 0 ? (
                  <div className="py-20 text-center rounded-[2.5rem] border border-dashed" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                     <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4 text-zinc-300"><Tag size={32} /></div>
-                    <p className="font-black uppercase tracking-widest text-zinc-400">Inga erbjudanden tillgängliga</p>
-                    <p className="text-[10px] uppercase font-bold text-zinc-300 mt-2">Dina framtida belöningar dyker upp här</p>
+                    <p className="font-black uppercase tracking-widest text-zinc-400">{t("profile.deals.empty.title")}</p>
+                    <p className="text-[10px] uppercase font-bold text-zinc-300 mt-2">{t("profile.deals.empty.sub")}</p>
                  </div>
                ) : deals.length > 0 ? (
                  <div className="space-y-3">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">Personliga koder</p>
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">{t("profile.deals.personalCodes")}</p>
                    {deals.map((deal: any) => (
                    <div key={deal.id} className="p-8 rounded-[2.5rem] bg-gold-500/5 border border-gold-500/10 shadow-sm relative overflow-hidden group">
                       <div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/5 blur-2xl group-hover:bg-gold-500/10 transition-all" />
@@ -1182,25 +1185,25 @@ function ProfileContent() {
                          <div className="flex-1 pr-4">
                             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600 mb-1">{deal.campaign.title}</div>
                             <h3 className="text-2xl font-black italic tracking-tighter uppercase leading-tight" style={{ color: "var(--text-primary)" }}>
-                                {deal.campaign.discountType === "PERCENTAGE" ? `${deal.campaign.discountValue}% RABATT` : `${deal.campaign.discountValue} KR RABATT`}
+                                {deal.campaign.discountType === "PERCENTAGE" ? t("profile.deals.discountPctTitle", { value: deal.campaign.discountValue }) : t("profile.deals.discountKrTitle", { value: deal.campaign.discountValue })}
                             </h3>
                          </div>
                          <div className="w-12 h-12 bg-gold-500 text-zinc-950 rounded-2xl flex items-center justify-center shadow-xl shrink-0"><Ticket size={24} /></div>
                       </div>
-                      
+
                       <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-between mb-6">
-                         <div className="text-[10px] font-black tracking-[0.3em] uppercase text-zinc-400">KOD: <span className="text-zinc-950 select-all">{deal.code}</span></div>
-                         <button 
-                            onClick={() => { navigator.clipboard.writeText(deal.code); }} 
+                         <div className="text-[10px] font-black tracking-[0.3em] uppercase text-zinc-400">{t("profile.deals.codeLabel")}: <span className="text-zinc-950 select-all">{deal.code}</span></div>
+                         <button
+                            onClick={() => { navigator.clipboard.writeText(deal.code); }}
                             className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700 transition-colors"
                           >
-                            Kopiera
+                            {t("profile.deals.copy")}
                           </button>
                       </div>
 
                       <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-zinc-400">
-                         <div>Min. order: {deal.campaign.minOrder} kr</div>
-                         <div>Giltig till: {deal.campaign.validUntil ? new Date(deal.campaign.validUntil).toLocaleDateString("sv-SE") : "Oändlig"}</div>
+                         <div>{t("profile.deals.minOrderRow", { amount: deal.campaign.minOrder })}</div>
+                         <div>{t("profile.deals.validUntil", { date: deal.campaign.validUntil ? new Date(deal.campaign.validUntil).toLocaleDateString("sv-SE") : t("profile.deals.validUntilNever") })}</div>
                       </div>
                    </div>
                  ))}
@@ -1216,15 +1219,15 @@ function ProfileContent() {
                 <div className="flex items-center gap-4">
                   <Phone size={16} className="text-zinc-400 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Telefon</p>
-                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.phone || "Ej angivet"}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{t("profile.overview.phone")}</p>
+                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.phone || t("profile.overview.notSet")}</p>
                   </div>
                   {user.isVerified ? (
                     <span className="text-[8px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1.5 rounded-full uppercase font-black flex items-center gap-1">
-                      <Lock size={8} /> Låst
+                      <Lock size={8} /> {t("profile.overview.locked")}
                     </span>
                   ) : (
-                    <button 
+                    <button
                       onClick={() => {
                         setAddPhoneNum(user.phone?.replace("+46", "") || "");
                         setAddPhoneCountry(user.phone?.startsWith("+") ? user.phone.slice(0, 3) : "+46");
@@ -1232,27 +1235,27 @@ function ProfileContent() {
                       }}
                       className="text-[8px] bg-amber-50 text-amber-600 border border-amber-100 px-3 py-1.5 rounded-full uppercase font-black hover:bg-amber-100 transition-all flex items-center gap-1"
                     >
-                      <Edit2 size={8} /> Ändra
+                      <Edit2 size={8} /> {t("profile.overview.edit")}
                     </button>
                   )}
                 </div>
                 <div className="flex items-center gap-4">
                   <Mail size={16} className="text-zinc-400 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">E-post</p>
-                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.email || "Ej angivet"}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{t("profile.overview.email")}</p>
+                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.email || t("profile.overview.notSet")}</p>
                   </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-[2rem] p-6 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mb-1">Beställningar</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mb-1">{t("profile.overview.ordersCount")}</p>
                   <p className="text-3xl font-black" style={{ color: "var(--text-primary)" }}>{orders.length}</p>
                 </div>
                 <div className="rounded-[2rem] p-6 shadow-sm" style={{ backgroundColor: user.isVerified ? "var(--bg-secondary)" : "var(--bg-secondary)", border: user.isVerified ? "1px solid rgba(5,150,105,0.1)" : "1px solid var(--border-muted)" }}>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mb-1">Status</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mb-1">{t("profile.overview.status")}</p>
                   <p className={`text-sm font-black uppercase ${user.isVerified ? "text-emerald-600" : "text-rose-500"}`}>
-                    {user.isVerified ? "✓ Verifierad" : "Ej veri."}
+                    {user.isVerified ? t("profile.overview.statusVerified") : t("profile.overview.statusUnverified")}
                   </p>
                 </div>
               </div>
@@ -1266,7 +1269,7 @@ function ProfileContent() {
           {activeTab === "settings" && !isEditing && (
             <motion.div key="set" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">Profil</div>
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">{t("profile.settings.section.profile")}</div>
                 <div className="bg-white/5 border border-white/5 rounded-[2.5rem]">
                   <button
                     onClick={() => setIsEditing(true)}
@@ -1275,8 +1278,8 @@ function ProfileContent() {
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-gold-500/10 text-gold-500 rounded-xl flex items-center justify-center"><Settings size={18} /></div>
                       <div>
-                        <p className="text-sm font-bold uppercase italic text-white">Redigera profil</p>
-                        <p className="text-[10px] text-zinc-600">Namn och e-post</p>
+                        <p className="text-sm font-bold uppercase italic text-white">{t("profile.settings.editProfile")}</p>
+                        <p className="text-[10px] text-zinc-600">{t("profile.settings.editProfileSub")}</p>
                       </div>
                     </div>
                     <ChevronRight size={18} className="text-zinc-700" />
@@ -1285,7 +1288,7 @@ function ProfileContent() {
               </div>
 
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">Preferenser</div>
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">{t("profile.settings.section.prefs")}</div>
                 <div className="bg-white/5 border border-white/5 rounded-[2.5rem] divide-y divide-white/5">
                   <div className="p-6 flex items-center justify-between group">
                     <div className="flex items-center gap-4">
@@ -1293,8 +1296,8 @@ function ProfileContent() {
                         <Bell size={18} />
                       </div>
                       <div>
-                        <p className="font-bold text-sm text-white">Push-notiser</p>
-                        <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">Orderstatus i realtid</p>
+                        <p className="font-bold text-sm text-white">{t("profile.settings.push")}</p>
+                        <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">{t("profile.settings.pushSub")}</p>
                       </div>
                     </div>
                     <div className="w-12 h-6 bg-zinc-800 rounded-full relative cursor-pointer opacity-50">
@@ -1312,14 +1315,14 @@ function ProfileContent() {
               </div>
 
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">Juridiskt & GDPR</div>
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">{t("profile.settings.section.legal")}</div>
                 <div className="bg-white/5 border border-white/5 rounded-[2.5rem] divide-y divide-white/5">
                   <Link href="/privacy" className="p-6 flex items-center justify-between group hover:bg-white/5 transition-all first:rounded-t-[2.5rem]">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                         <ShieldCheck size={18} />
                       </div>
-                      <p className="font-bold text-sm text-white">Integritetspolicy</p>
+                      <p className="font-bold text-sm text-white">{t("profile.settings.privacy")}</p>
                     </div>
                     <ChevronRight size={18} className="text-zinc-600 group-hover:text-white transition-all" />
                   </Link>
@@ -1328,7 +1331,7 @@ function ProfileContent() {
                       <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
                         <Scale size={18} />
                       </div>
-                      <p className="font-bold text-sm text-white">Användarvillkor</p>
+                      <p className="font-bold text-sm text-white">{t("profile.settings.terms")}</p>
                     </div>
                     <ChevronRight size={18} className="text-zinc-600 group-hover:text-white transition-all" />
                   </Link>
@@ -1336,7 +1339,7 @@ function ProfileContent() {
               </div>
 
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-2">Konto-hantering</div>
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-2">{t("profile.settings.section.account")}</div>
                 <div className="rounded-[2.5rem] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                   <button
                     onClick={() => setDeleteAccountModalOpen(true)}
@@ -1347,8 +1350,8 @@ function ProfileContent() {
                         <Trash2 size={18} />
                       </div>
                       <div>
-                        <p className="font-bold text-sm text-rose-500">Radera konto</p>
-                        <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest">Rensa all personlig data</p>
+                        <p className="font-bold text-sm text-rose-500">{t("profile.settings.deleteAccount")}</p>
+                        <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest">{t("profile.settings.deleteAccountSub")}</p>
                       </div>
                     </div>
                   </button>
@@ -1357,7 +1360,7 @@ function ProfileContent() {
 
               {/* Juridiskt */}
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] mb-2" style={{ color: "var(--text-secondary)" }}>Juridiskt</div>
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.legal2")}</div>
                 <div className="rounded-[2.5rem] shadow-sm divide-y" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", borderColor: "var(--border-muted)" }}>
                   <Link
                     href="/terms"
@@ -1368,8 +1371,8 @@ function ProfileContent() {
                         <ShieldCheck size={18} />
                       </div>
                       <div>
-                        <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>Villkor & användarvillkor</p>
-                        <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Hur tjänsten används</p>
+                        <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.termsLong")}</p>
+                        <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.termsSub")}</p>
                       </div>
                     </div>
                     <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
@@ -1383,8 +1386,8 @@ function ProfileContent() {
                         <Lock size={18} />
                       </div>
                       <div>
-                        <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>Integritetspolicy</p>
-                        <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Så hanterar vi din data</p>
+                        <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.privacy")}</p>
+                        <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.privacySub")}</p>
                       </div>
                     </div>
                     <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
@@ -1400,13 +1403,13 @@ function ProfileContent() {
               {orders.length === 0 ? (
                 <div className="py-20 text-center opacity-30">
                   <History size={48} className="mx-auto mb-4" />
-                  <p className="font-black uppercase tracking-widest text-sm">Inga ordrar ännu</p>
+                  <p className="font-black uppercase tracking-widest text-sm">{t("profile.orders.empty")}</p>
                 </div>
               ) : orders.map((order) => (
                 <div key={order.id} className="bg-white/5 border border-white/5 rounded-[2.5rem] p-6 hover:bg-white/10 transition-all group">
                   <Link href={`/order/${order.id}`} className="flex justify-between items-center">
                     <div>
-                      <p className="font-black uppercase italic text-sm">{order.restaurant?.name || "Beställning"}</p>
+                      <p className="font-black uppercase italic text-sm">{order.restaurant?.name || t("profile.orders.fallbackName")}</p>
                       <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">
                         {new Date(order.createdAt).toLocaleDateString("sv-SE")}
                         {order.rating && (
@@ -1434,11 +1437,11 @@ function ProfileContent() {
                              cartStore.addItem(item);
                           }
                           if (data.unavailableItems?.length) {
-                             alert(`${data.unavailableItems.length} produkt(er) finns inte längre: ${data.unavailableItems.join(', ')}`);
+                             alert(t("profile.orders.unavailableItems", { count: data.unavailableItems.length, items: data.unavailableItems.join(', ') }));
                           }
                           router.push('/cart');
                         } catch (err: any) {
-                          alert(err.response?.data?.error || 'Kunde inte förbereda ombeställning');
+                          alert(err.response?.data?.error || t("profile.orders.reorderError"));
                         } finally {
                           setReorderingId(null);
                         }
@@ -1447,7 +1450,7 @@ function ProfileContent() {
                       className="flex items-center gap-2 px-5 py-3 bg-gold-500/10 border border-gold-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest text-gold-600 hover:bg-gold-500/20 active:scale-95 transition-all disabled:opacity-50"
                     >
                       {reorderingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
-                      Beställ igen
+                      {t("profile.orders.reorder")}
                     </button>
                   </div>
                 </div>
@@ -1462,8 +1465,8 @@ function ProfileContent() {
               {savedAddresses.length === 0 ? (
                 <div className="py-16 text-center bg-white/2 rounded-[2.5rem] border border-dashed border-white/5">
                   <MapPin size={36} className="mx-auto mb-4 text-zinc-800" />
-                  <p className="font-black uppercase tracking-widest text-zinc-600 text-sm">Inga sparade adresser</p>
-                  <p className="text-[10px] uppercase font-bold text-zinc-800 mt-2">Lägg till din första adress nedan</p>
+                  <p className="font-black uppercase tracking-widest text-zinc-600 text-sm">{t("profile.addresses.empty.title")}</p>
+                  <p className="text-[10px] uppercase font-bold text-zinc-800 mt-2">{t("profile.addresses.empty.sub")}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1475,8 +1478,8 @@ function ProfileContent() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-black uppercase italic text-sm" style={{ color: "var(--text-primary)" }}>{addr.label}</p>
-                            {addr.isDefault && <span className="text-[7px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md">Standard</span>}
+                            <p className="font-black uppercase italic text-sm" style={{ color: "var(--text-primary)" }}>{addr.label === 'Hem' ? t("profile.addresses.label.home") : addr.label === 'Jobb' ? t("profile.addresses.label.work") : addr.label}</p>
+                            {addr.isDefault && <span className="text-[7px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md">{t("profile.addresses.default")}</span>}
                           </div>
                           <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">{addr.street}, {addr.zip} {addr.city}</p>
                           {addr.note && <p className="text-[9px] text-zinc-400 mt-1 opacity-70">{addr.note}</p>}
@@ -1494,7 +1497,7 @@ function ProfileContent() {
                               }
                             }}
                             className="p-2 bg-white/5 rounded-lg text-zinc-600 hover:text-gold-500 transition-colors"
-                            title="Gör till standard"
+                            title={t("profile.addresses.makeDefault")}
                           >
                             <Check size={14} />
                           </button>
@@ -1517,7 +1520,7 @@ function ProfileContent() {
               {/* Add New Address */}
               <div className="rounded-[2.5rem] p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                 <h3 className="text-sm font-black uppercase italic flex items-center gap-3" style={{ color: "var(--text-primary)" }}>
-                  <Plus size={16} className="text-gold-600" /> Lägg till adress
+                  <Plus size={16} className="text-gold-600" /> {t("profile.addresses.add")}
                 </h3>
                 <div className="flex gap-2">
                   {['Hem', 'Jobb', 'Annat'].map(l => (
@@ -1525,16 +1528,16 @@ function ProfileContent() {
                       newAddrLabel === l ? 'bg-gold-500/10 border-gold-500/30 text-gold-600' : 'bg-zinc-50 border-zinc-100 text-zinc-400'
                     }`}>
                       {l === 'Hem' ? <Home size={12} /> : l === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
-                      {l}
+                      {l === 'Hem' ? t("profile.addresses.label.home") : l === 'Jobb' ? t("profile.addresses.label.work") : t("profile.addresses.label.other")}
                     </button>
                   ))}
                 </div>
-                <input value={newAddrStreet} onChange={e => setNewAddrStreet(e.target.value)} placeholder="Gatuadress" className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
+                <input value={newAddrStreet} onChange={e => setNewAddrStreet(e.target.value)} placeholder={t("profile.addresses.streetPlaceholder")} className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 <div className="grid grid-cols-2 gap-3">
-                  <input value={newAddrCity} onChange={e => setNewAddrCity(e.target.value)} placeholder="Stad" className="rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
-                  <input value={newAddrZip} onChange={e => setNewAddrZip(e.target.value)} placeholder="Postnummer" className="rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
+                  <input value={newAddrCity} onChange={e => setNewAddrCity(e.target.value)} placeholder={t("profile.addresses.cityPlaceholder")} className="rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
+                  <input value={newAddrZip} onChange={e => setNewAddrZip(e.target.value)} placeholder={t("profile.addresses.zipPlaceholder")} className="rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
-                <input value={newAddrNote} onChange={e => setNewAddrNote(e.target.value)} placeholder="Portkod, våning (valfritt)" className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
+                <input value={newAddrNote} onChange={e => setNewAddrNote(e.target.value)} placeholder={t("profile.addresses.notePlaceholder")} className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 <button
                   onClick={async () => {
                     if (!newAddrStreet || !newAddrCity || !newAddrZip) return;
@@ -1546,13 +1549,13 @@ function ProfileContent() {
                       setNewAddrStreet(''); setNewAddrCity(''); setNewAddrZip(''); setNewAddrNote('');
                       fetchData();
                     } catch (err: any) {
-                      alert(err.response?.data?.error || 'Kunde inte spara');
+                      alert(err.response?.data?.error || t("profile.addresses.saveError"));
                     } finally { setAddrSaving(false); }
                   }}
                   disabled={addrSaving || !newAddrStreet || !newAddrCity || !newAddrZip}
                   className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-[11px] shadow-xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-3"
                 >
-                  {addrSaving ? <Loader2 size={16} className="animate-spin" /> : <><Plus size={16} /> Spara adress</>}
+                  {addrSaving ? <Loader2 size={16} className="animate-spin" /> : <><Plus size={16} /> {t("profile.addresses.save")}</>}
                 </button>
               </div>
             </motion.div>
@@ -1573,20 +1576,20 @@ function ProfileContent() {
                 <button type="button" onClick={() => setIsEditing(false)} className="p-2 text-zinc-400 hover:text-zinc-600 rounded-xl">
                   <ArrowLeft size={18} />
                 </button>
-                <h3 className="text-lg font-black uppercase italic" style={{ color: "var(--text-primary)" }}>Ändra uppgifter</h3>
+                <h3 className="text-lg font-black uppercase italic" style={{ color: "var(--text-primary)" }}>{t("profile.editForm.title")}</h3>
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">Namn</label>
+                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.name")}</label>
                   <input value={editName} onChange={e => setEditName(e.target.value)} className="w-full rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">E-post</label>
-                  <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="din@email.se" className="w-full rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
+                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.email")}</label>
+                  <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder={t("auth.emailPlaceholder")} className="w-full rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">Telefon (ej ändringsbart)</label>
-                  <input disabled value={user.phone || "Ej angivet"} className="w-full rounded-2xl py-4 px-6 font-bold cursor-not-allowed opacity-50" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }} />
+                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.phoneLocked")}</label>
+                  <input disabled value={user.phone || t("profile.overview.notSet")} className="w-full rounded-2xl py-4 px-6 font-bold cursor-not-allowed opacity-50" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }} />
                 </div>
               </div>
               <button
@@ -1594,7 +1597,7 @@ function ProfileContent() {
                 disabled={isSaving}
                 className={`w-full py-5 rounded-3xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-3 transition-all ${saveSuccess ? "bg-emerald-500 text-white" : "bg-gold-500 text-zinc-950 shadow-xl shadow-gold-500/20 active:scale-95"}`}
               >
-                {isSaving ? <Loader2 className="animate-spin" size={20} /> : saveSuccess ? "Sparat! ✓" : <><Save size={18} /> Spara</>}
+                {isSaving ? <Loader2 className="animate-spin" size={20} /> : saveSuccess ? t("profile.editForm.saved") : <><Save size={18} /> {t("common.save")}</>}
               </button>
             </motion.form>
           )}
@@ -1614,16 +1617,16 @@ function ProfileContent() {
       onConfirm={async () => {
         try {
           await axios.delete(`/api/platform/profile`);
-          alert("Ditt konto har raderats. Hoppas vi ses igen!");
+          alert(t("profile.deleteAccount.done"));
           handleLogout();
         } catch (err: any) {
-          alert(err.response?.data?.error || "Kunde inte radera kontot");
+          alert(err.response?.data?.error || t("profile.deleteAccount.errorGeneric"));
         }
       }}
-      title="Radera konto?"
-      message="Detta går INTE att ångra. All din orderhistorik kommer anonymiseras och dina sparade adresser raderas permanent."
-      confirmText="Ja, radera"
-      cancelText="Avbryt"
+      title={t("profile.deleteAccount.title")}
+      message={t("profile.deleteAccount.message")}
+      confirmText={t("profile.deleteAccount.confirm")}
+      cancelText={t("common.cancel")}
     />
 
     {/* Delete Address Modal */}
@@ -1639,15 +1642,15 @@ function ProfileContent() {
           await axios.delete(`/api/platform/profile/addresses/${addressToDelete.id}`);
           setSavedAddresses(prev => prev.filter(a => a.id !== addressToDelete.id));
         } catch (err: any) {
-          alert(err.response?.data?.error || "Kunde inte radera adressen");
+          alert(err.response?.data?.error || t("profile.deleteAddress.errorGeneric"));
         } finally {
           setAddressToDelete(null);
         }
       }}
-      title="Radera adress?"
-      message={`Vill du verkligen radera adressen "${addressToDelete?.label}"?`}
-      confirmText="Ja, radera"
-      cancelText="Avbryt"
+      title={t("profile.deleteAddress.title")}
+      message={t("profile.deleteAddress.message", { label: addressToDelete?.label || "" })}
+      confirmText={t("profile.deleteAccount.confirm")}
+      cancelText={t("common.cancel")}
     />
     </>
   );

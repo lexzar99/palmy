@@ -8,6 +8,7 @@ import { Clock, ChevronRight, ReceiptText, ShoppingBag } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { readOrderHistory, removeOrderFromHistory, type StoredOrderRef } from "@/lib/orderHistory";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
+import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 type FetchedOrder = StoredOrderRef & {
   loaded: true;
@@ -24,17 +25,18 @@ type FailedOrder = StoredOrderRef & {
 
 type OrderRow = FetchedOrder | FailedOrder;
 
-const STATUS_LABEL: Record<string, { label: string; tone: "warn" | "ok" | "info" | "muted" }> = {
-  PENDING: { label: "Granskas", tone: "warn" },
-  AWAITING_PAYMENT: { label: "Väntar på betalning", tone: "warn" },
-  ACCEPTED: { label: "Bekräftad", tone: "info" },
-  PREPARING: { label: "Tillagas", tone: "info" },
-  READY: { label: "Klar för upphämtning", tone: "ok" },
-  DELIVERING: { label: "På väg", tone: "info" },
-  DELIVERED: { label: "Levererad", tone: "ok" },
-  CANCELLED: { label: "Avbruten", tone: "muted" },
-  REJECTED: { label: "Avvisad", tone: "muted" },
-  DELIVERY_FAILED: { label: "Leverans misslyckades", tone: "muted" },
+// Tone per status (label resolveras via t("orders.status.*") inne i komponenten).
+const STATUS_TONE: Record<string, "warn" | "ok" | "info" | "muted"> = {
+  PENDING: "warn",
+  AWAITING_PAYMENT: "warn",
+  ACCEPTED: "info",
+  PREPARING: "info",
+  READY: "ok",
+  DELIVERING: "info",
+  DELIVERED: "ok",
+  CANCELLED: "muted",
+  REJECTED: "muted",
+  DELIVERY_FAILED: "muted",
 };
 
 const toneClasses: Record<string, string> = {
@@ -45,6 +47,7 @@ const toneClasses: Record<string, string> = {
 };
 
 export default function OrdersPage() {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -157,12 +160,12 @@ export default function OrdersPage() {
     <div className="min-h-screen md:pt-20 pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <div className="mx-auto max-w-2xl md:max-w-4xl lg:max-w-5xl 2xl:max-w-[1400px] px-4 sm:px-6 lg:px-10 pt-8">
         <header className="mb-8 md:mb-10">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500 mb-2">Beställningar</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500 mb-2">{t("orders.eyebrow")}</p>
           <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-3" style={{ color: "var(--text-primary)" }}>
-            Mina <span className="text-gold-500 italic">beställningar</span>
+            {t("orders.title")} <span className="text-gold-500 italic">{t("orders.titleAccent")}</span>
           </h1>
           <p className="text-sm font-bold" style={{ color: "var(--text-secondary)" }}>
-            Sparas lokalt på din enhet — du behöver inte vara inloggad. Senaste 20 beställningarna visas här.
+            {t("orders.subtitle")}
           </p>
         </header>
 
@@ -192,16 +195,16 @@ export default function OrdersPage() {
             </motion.div>
             <div className="relative">
               <p className="text-2xl font-black uppercase italic tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>
-                Inga beställningar än
+                {t("orders.empty.title")}
               </p>
               <p className="text-xs font-bold uppercase tracking-widest mb-8" style={{ color: "var(--text-secondary)" }}>
-                Lägg din första så hamnar den här
+                {t("orders.empty.subtitle")}
               </p>
               <Link
                 href="/"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-gold-500 text-zinc-950 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-gold-400 transition-all active:scale-95 shadow-xl shadow-gold-500/20"
               >
-                <ShoppingBag size={14} /> Utforska restauranger
+                <ShoppingBag size={14} /> {t("orders.empty.cta")}
               </Link>
             </div>
           </motion.div>
@@ -217,13 +220,13 @@ export default function OrdersPage() {
                   >
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] font-black uppercase tracking-widest text-rose-400">
-                        {row.error === "not_found" ? "Order hittades inte" : "Kunde inte hämta"}
+                        {row.error === "not_found" ? t("orders.row.notFound") : t("orders.row.fetchError")}
                       </p>
                       <button
                         onClick={() => handleClearMissing(row.id)}
                         className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-300"
                       >
-                        Ta bort
+                        {t("orders.row.remove")}
                       </button>
                     </div>
                     <p className="text-sm font-black" style={{ color: "var(--text-secondary)" }}>
@@ -232,7 +235,7 @@ export default function OrdersPage() {
                   </div>
                 );
               }
-              const statusInfo = row.status ? STATUS_LABEL[row.status] : null;
+              const tone = row.status ? STATUS_TONE[row.status] : null;
               return (
                 <Link
                   key={row.id}
@@ -243,7 +246,7 @@ export default function OrdersPage() {
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--text-secondary)" }}>
-                        {row.restaurantName || "Beställning"}
+                        {row.restaurantName || t("orders.row.fallbackName")}
                       </p>
                       <p className="text-lg font-black tracking-tight truncate" style={{ color: "var(--text-primary)" }}>
                         {row.orderNumber || row.id.slice(-6).toUpperCase()}
@@ -252,13 +255,13 @@ export default function OrdersPage() {
                     <ChevronRight size={18} className="shrink-0 text-zinc-500 group-hover:text-gold-500 transition-colors" />
                   </div>
                   <div className="flex items-center gap-2 flex-wrap mb-3">
-                    {statusInfo ? (
-                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${toneClasses[statusInfo.tone]}`}>
-                        {statusInfo.label}
+                    {row.status && tone ? (
+                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${toneClasses[tone]}`}>
+                        {t(`orders.status.${row.status}`)}
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">
-                        Hämtar status…
+                        {t("orders.row.statusLoading")}
                       </span>
                     )}
                     {typeof row.fetchedTotal === "number" && (
@@ -279,7 +282,7 @@ export default function OrdersPage() {
         {rows.length > 0 && (
           <div className="mt-8 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>
             <ReceiptText size={12} />
-            Beställningar lagras lokalt i webbläsaren. Logga in för att synka mellan enheter.
+            {t("orders.localNote")}
           </div>
         )}
 
