@@ -178,6 +178,9 @@ export default function CartPage() {
   // togs bort). Tidigare nollades bogoChoice tyst → kund såg sin gratis-vara
   // försvinna utan förklaring → tror appen är trasig.
   const [bogoLostNotice, setBogoLostNotice] = useState<string | null>(null);
+  // Ref till payment-sektionen så vi kan scrolla DIT när Stripe öppnas
+  // istället för till body-botten (vilket overshootade på korta viewports).
+  const paymentSectionRef = useRef<HTMLDivElement | null>(null);
   const [showBogoPicker, setShowBogoPicker] = useState(false);
   const [showDealsModal, setShowDealsModal] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -652,7 +655,10 @@ export default function CartPage() {
     }
 
     try {
-      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      // Använd page-level `subtotal` (= cartStore.getTotal()) istället för
+      // att räkna ut lokalt. Tidigare lokal beräkning exkluderade extras
+      // → om en rabattkod hade minOrder-krav kunde backend rejecta felaktigt
+      // när kunden hade extras som faktiskt gjorde att de mötte minOrder.
       const res = await fetch(`${API_URL}/api/discount/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -784,11 +790,22 @@ export default function CartPage() {
       try {
         const res = await axios.get(`${API_URL}/api/restaurants/${currentRestaurantId}`);
         if (res.data) {
-          setRestaurantSettings((prev) => ({
-            ...prev,
-            isOpen: res.data.isOpen ?? prev.isOpen,
-            pausedUntil: res.data.pausedUntil ?? prev.pausedUntil,
-          }));
+          setRestaurantSettings((prev) => {
+            const nextIsOpen = res.data.isOpen ?? prev.isOpen;
+            // Om restaurang precis återöppnade (false → true) och vi har ett
+            // "stängt"-fel på skärmen: clear det så knappen inte fortsätter
+            // säga "stängd" parallellt med att den är aktivt enabled.
+            if (!prev.isOpen && nextIsOpen) {
+              setError((current) =>
+                current && /stängd|pausad|återöppnar/i.test(current) ? null : current,
+              );
+            }
+            return {
+              ...prev,
+              isOpen: nextIsOpen,
+              pausedUntil: res.data.pausedUntil ?? prev.pausedUntil,
+            };
+          });
         }
       } catch {
         // Ignorerat — om vi inte når servern lämnar vi senaste värdet
@@ -1097,7 +1114,14 @@ export default function CartPage() {
           return;
         }
       } else if (formData.deliveryStreet) {
-        setError("Kunde inte verifiera din adress. Vänligen välj den från listan.");
+        // Fallback-geocoden ovan (rad ~1015-1037) försökte hitta lat/lng från
+        // den manuellt skrivna adressen via Google Places. Om vi hamnar HÄR
+        // betyder det att autocomplete inte hittade någon match alls — vägledning
+        // till kunden behöver vara konkret, inte "välj från listan" eftersom
+        // ingen lista visades.
+        setError(
+          "Kunde inte hitta din adress. Försök skriva gatunamn + nummer (t.ex. \"Storgatan 5, Malmö\") och välj förslaget som visas, eller välj avhämtning.",
+        );
         setLoading(false);
         return;
       }
@@ -1135,7 +1159,12 @@ export default function CartPage() {
 
       setClientSecret(intentRes.data.clientSecret);
       setShowPayment(true);
-      setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }), 100);
+      // Scrolla till payment-sektionen (inte document.body.scrollHeight som
+      // tidigare — den overshootade förbi formuläret på korta viewports och
+      // kunden såg en tom area utan att förstå att Stripe-form fanns ovanför).
+      setTimeout(() => {
+        paymentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
     } catch (err: any) {
       setError(err.response?.data?.error || "Betaltjänsten är tillfälligt otillgänglig. Försök igen.");
     } finally {
@@ -1274,7 +1303,7 @@ export default function CartPage() {
           <div className="lg:col-span-5">
              <AnimatePresence mode="wait">
                {showPayment && clientSecret && stripePromise ? (
-                  <motion.div key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                  <motion.div ref={paymentSectionRef} key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                      <div className="flex items-center gap-3 text-gold-500 text-[10px] font-black uppercase tracking-[0.4em] mb-10">
                         <CreditCard size={18} /> Betala Tryggt
                      </div>
@@ -1876,8 +1905,11 @@ export default function CartPage() {
                      )}
 
                      {/* Min-order-banner med komplettering-toggle — default på,
-                         kund betalar mellanskillnaden så ordern kan slutföras. */}
-                     {subtotal > 0 && subtotal < minOrder && (
+                         kund betalar mellanskillnaden så ordern kan slutföras.
+                         Göms vid zone-error eftersom det är meningslöst att
+                         pressa kund att fylla upp beloppet när checkout
+                         ändå är blockerad pga olevererbar adress. */}
+                     {subtotal > 0 && subtotal < minOrder && addressZoneStatus !== "error" && (
                        <motion.div
                          initial={{ opacity: 0, y: 6 }}
                          animate={{ opacity: 1, y: 0 }}
@@ -1981,10 +2013,18 @@ export default function CartPage() {
 
                       <button
                          onClick={startCheckout}
-                         disabled={loading || (subtotal < minOrder && !topUpToMinimum) || !restaurantSettings.isOpen || addressZoneStatus === "error"}
+                         disabled={loading || (subtotal < minOrder && !topUpToMinimum) || !restaurantSettings.isOpen || addressZoneStatus === "error" || addressZoneStatus === "checking"}
                         className="w-full mt-8 py-5 sm:py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[1.75rem] sm:rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
                      >
-                        {loading ? <Loader2 className="animate-spin" size={24} /> : (subtotal < minOrder && !topUpToMinimum) ? `Köp för ${(minOrder - subtotal).toFixed(0)} kr till` : addressZoneStatus === "error" ? "Fel leveransadress" : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                        {loading
+                          ? <Loader2 className="animate-spin" size={24} />
+                          : addressZoneStatus === "checking"
+                            ? <><Loader2 className="animate-spin" size={20} /> Kontrollerar adress…</>
+                            : (subtotal < minOrder && !topUpToMinimum)
+                              ? `Köp för ${(minOrder - subtotal).toFixed(0)} kr till`
+                              : addressZoneStatus === "error"
+                                ? "Fel leveransadress"
+                                : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
                      </button>
                  </motion.div>
                )}
