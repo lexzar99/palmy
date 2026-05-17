@@ -3409,12 +3409,71 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
     const Stripe = require('stripe');
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
     const refundAmountOre = amount ? Math.round(amount * 100) : order.total;
-    
-    await stripe.refunds.create({
+
+    // PRE-CHECK: Hämta PaymentIntent och verifiera att den är `succeeded`
+    // INNAN vi anropar refunds.create. Tidigare antog vi tyst att intent
+    // var betald — men om Klarna-betalningen var "requires_payment_method"
+    // eller "processing" råkade refund-anropet skapa en void-refund eller
+    // returnera ett "pending"-objekt utan att riktiga pengar rörde sig.
+    // Resultat: admin såg "Återbetald" men kunden fick inget i Klarna.
+    let intent;
+    try {
+      intent = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
+    } catch (retrieveErr: any) {
+      console.error('[admin/refund] could not retrieve intent:', {
+        orderId: order.id,
+        intentId: order.stripePaymentIntentId,
+        error: retrieveErr?.message,
+      });
+      return res.status(400).json({
+        error: `Kunde inte hitta betalningen hos Stripe. Intent-ID: ${order.stripePaymentIntentId}. Kontrollera Stripe Dashboard manuellt.`,
+      });
+    }
+
+    if (intent.status !== 'succeeded') {
+      console.warn('[admin/refund] intent not succeeded — refund blocked:', {
+        orderId: order.id,
+        intentId: intent.id,
+        status: intent.status,
+      });
+      return res.status(400).json({
+        error: `Betalningen är inte slutförd hos Stripe (status: ${intent.status}). Refund kräver att betalningen är "succeeded". Vänta tills Klarna konfirmerat eller markera ordern CANCELLED manuellt.`,
+        intentStatus: intent.status,
+      });
+    }
+
+    if (refundAmountOre > intent.amount_received) {
+      return res.status(400).json({
+        error: `Refund-belopp (${refundAmountOre / 100} kr) överskrider faktiskt betalt belopp (${intent.amount_received / 100} kr).`,
+      });
+    }
+
+    // Skapa refund och VERIFIERA status i svaret. Stripe kan returnera
+    // refund-objekt med status "failed"/"canceled" UTAN att kasta exception —
+    // tidigare tolkade vi det felaktigt som success.
+    const refund = await stripe.refunds.create({
       payment_intent: order.stripePaymentIntentId,
       amount: refundAmountOre,
       reason: 'requested_by_customer',
     });
+
+    console.log(`💸 [admin/refund] Stripe refund response:`, {
+      orderId: order.id,
+      refundId: refund.id,
+      status: refund.status,
+      amount: refund.amount,
+    });
+
+    if (refund.status === 'failed' || refund.status === 'canceled') {
+      return res.status(500).json({
+        error: `Stripe avvisade återbetalningen (status: ${refund.status}). ${refund.failure_reason || 'Försök igen senare eller kontakta Stripe support.'}`,
+        refundId: refund.id,
+        refundStatus: refund.status,
+      });
+    }
+
+    // refund.status är 'succeeded' eller 'pending' — båda OK. Klarna-refunds
+    // är ofta 'pending' först → blir 'succeeded' inom 1-3 bankdagar.
 
     await prisma.order.update({
       where: { id: req.params.id },
@@ -3454,9 +3513,16 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
         orderNumber: order.orderNumber,
         amount: refundAmountOre / 100,
         reason: reason || 'Återbetalning via admin',
+        refundId: refund.id,
+        refundStatus: refund.status,
       },
     });
-    res.json({ success: true, refundedAmount: refundAmountOre / 100 });
+    res.json({
+      success: true,
+      refundedAmount: refundAmountOre / 100,
+      refundId: refund.id,
+      refundStatus: refund.status,
+    });
   } catch (error: any) {
     console.error('Refund error:', error);
     res.status(500).json({ error: sanitizeError(error, 'Kunde inte genomföra återbetalning') });

@@ -56,12 +56,17 @@ function OrderDetailsModal({
 
   const [refundSuccess, setRefundSuccess] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
+  // Stripe-refund returnerar status `pending` eller `succeeded` (Klarna är
+  // ofta `pending` först → blir `succeeded` inom 1-3 bankdagar). Vi visar
+  // status:n så admin förstår om pengarna är på väg eller redan framme.
+  const [refundStatus, setRefundStatus] = useState<string | null>(null);
 
   const refundMutation = useMutation({
     mutationFn: () => refundOrder(orderId!, refundAmount === "" ? null : Number(refundAmount), refundReason),
-    onSuccess: async (data) => {
+    onSuccess: async (data: any) => {
       setRefundSuccess(true);
       setRefundError(null);
+      setRefundStatus(data?.refundStatus || null);
       await queryClient.invalidateQueries({ queryKey: ["orders"] });
       await queryClient.invalidateQueries({ queryKey: ["finance"] });
       if (orderId) {
@@ -70,6 +75,7 @@ function OrderDetailsModal({
     },
     onError: (e: any) => {
       setRefundError(e?.response?.data?.error || "Återbetalning misslyckades");
+      setRefundStatus(null);
     },
   });
 
@@ -239,10 +245,18 @@ function OrderDetailsModal({
                       <div className="rounded-2xl border border-[rgba(48,199,143,0.2)] bg-[rgba(48,199,143,0.08)] px-4 py-3 text-sm text-[#c4ffeb] flex items-start gap-2">
                         <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
                         <div className="space-y-1">
-                          <p className="font-bold">Återbetalning skickad till Stripe</p>
+                          <p className="font-bold">
+                            Återbetalning skickad till Stripe
+                            {refundStatus && (
+                              <span className="ml-2 text-xs uppercase tracking-wider opacity-70">
+                                · {refundStatus}
+                              </span>
+                            )}
+                          </p>
                           <p className="text-xs opacity-80">
-                            Pengarna är synliga i kundens bank/Klarna inom 1-3 bankdagar.
-                            Verifiera i Stripe Dashboard om du vill bekräfta direkt.
+                            {refundStatus === "succeeded"
+                              ? "Pengarna är redan tillbaka hos betalleverantören. Klarna/kort kan ändå ta 1-3 bankdagar att visa det för kunden."
+                              : "Stripe behandlar återbetalningen. Pengarna syns i kundens bank/Klarna inom 1-3 bankdagar. Verifiera i Stripe Dashboard om du vill bekräfta direkt."}
                           </p>
                         </div>
                       </div>

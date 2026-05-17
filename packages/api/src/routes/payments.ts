@@ -76,11 +76,59 @@ router.post('/create-intent', async (req, res) => {
       normalizedMetadata.orderId = orderId;
     }
 
+    // Berika PaymentIntent med order-data när orderId finns.
+    // Stripe Dashboard visar `description` i Payment-listan + skickar
+    // automatiska kvitton till `receipt_email`. Metadata används för
+    // matching/sökning/audit. Detta gör att refund-arbete i Stripe blir
+    // 10x lättare — du ser direkt vilken kund/order/restaurang en intent
+    // hör till istället för bara `pi_xxx`.
+    let description: string | undefined;
+    let receiptEmail: string | undefined;
+    if (orderId && typeof orderId === 'string') {
+      try {
+        const order = await prisma.order.findUnique({
+          where: { id: orderId },
+          include: { restaurant: { select: { name: true } } },
+        });
+        if (order) {
+          // Format: "PA-1002-BX – Palmyra Pizzeria – Anna Andersson"
+          // Stripe-tabellen trunkerar långt så håller det kompakt.
+          const parts = [
+            order.orderNumber,
+            order.restaurant?.name,
+            order.customerName,
+          ].filter((v): v is string => Boolean(v && v.trim()));
+          if (parts.length > 0) description = parts.join(' – ');
+
+          if (order.customerEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(order.customerEmail)) {
+            receiptEmail = order.customerEmail;
+          }
+
+          // Metadata för audit + Stripe-search. Stripe har 50-key/500-char-limit.
+          normalizedMetadata.orderNumber = order.orderNumber;
+          if (order.customerName) normalizedMetadata.customerName = order.customerName.slice(0, 100);
+          if (order.customerPhone) normalizedMetadata.customerPhone = order.customerPhone.slice(0, 30);
+          if (order.restaurantId) normalizedMetadata.restaurantId = order.restaurantId;
+          if (order.restaurant?.name) normalizedMetadata.restaurantName = order.restaurant.name.slice(0, 100);
+          if (order.type) normalizedMetadata.orderType = order.type;
+        }
+      } catch (lookupErr: any) {
+        // Order-lookup-fel ska inte blockera betalningen. Bara logga och
+        // fortsätt med tom description (gamla beteendet).
+        console.warn('[payments] order lookup for intent enrichment failed:', {
+          orderId,
+          error: lookupErr?.message,
+        });
+      }
+    }
+
     const paymentIntent = await stripe.paymentIntents.create(
       {
         amount: Math.round(safeAmount * 100), // kr till ören
         currency,
         metadata: normalizedMetadata,
+        ...(description ? { description } : {}),
+        ...(receiptEmail ? { receipt_email: receiptEmail } : {}),
         // automatic_payment_methods: enabled = Stripe väljer alla godkända
         // metoder automatiskt (kort, Apple Pay, Google Pay, Klarna, Swish).
         // allow_redirects: 'always' = tillåter Klarna/Swish (de behöver redirect).
