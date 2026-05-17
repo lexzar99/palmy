@@ -6,7 +6,7 @@ import Link from "next/link";
 import axios from "axios";
 import {
   Search, Sparkles, MapPin, Star, History, Compass, ArrowRight,
-  Utensils, Coffee, Pizza, Bike, Clock, Heart, Filter, ChevronRight
+  Utensils, Coffee, Pizza, Bike, Clock, Heart, Filter, ChevronRight, AlertCircle
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useFavorites } from "@/lib/favoritesStore";
@@ -34,6 +34,11 @@ export default function DiscoverPage() {
   const [loading, setLoading] = useState(true);
   // Zone awareness: IDs that can deliver to the saved address (null = no address yet)
   const [deliverableIds, setDeliverableIds] = useState<Set<string> | null>(null);
+  // Flag som visas om zone-API failade. Vi vill INTE blockera browsing
+  // (cart-checkout fångar adresser utanför zon med blockande felmeddelande),
+  // men kunden ska veta att tillgänglighet inte är verifierad just nu så
+  // de inte överraskas i kassan.
+  const [zoneCheckFailed, setZoneCheckFailed] = useState(false);
   // Favoriter (paritet med RN — filtreras lokalt över både trending & sökresultat)
   const { favorites, toggle: toggleFavorite, isFavorite } = useFavorites();
   const [favoritesOnly, setFavoritesOnly] = useState(false);
@@ -49,6 +54,7 @@ export default function DiscoverPage() {
         const { lat, lng } = JSON.parse(storedCoords);
         axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng })
           .then(res => {
+            setZoneCheckFailed(false);
             if (res.data.covered) {
               const ids = new Set<string>(
                 res.data.cities.flatMap((c: any) => c.restaurants.map((r: any) => r.id))
@@ -58,7 +64,14 @@ export default function DiscoverPage() {
               setDeliverableIds(new Set()); // covered=false → nothing delivers here
             }
           })
-          .catch(() => setDeliverableIds(null)); // fail open
+          .catch(() => {
+            // Tidigare tyst fail-open. Nu: sätt flag så banner visas och
+            // användaren förstår att zone-info är osäker. Cart-checkout
+            // verifierar adressen blockande, så det är inte en blocker —
+            // bara en disclaimer.
+            setDeliverableIds(null);
+            setZoneCheckFailed(true);
+          });
       }
     } catch (err) {
       console.warn("Failed to load zone data:", err);
@@ -126,7 +139,14 @@ export default function DiscoverPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-6 pt-8 space-y-12">
-        
+        {zoneCheckFailed && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-start gap-3">
+            <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-[11px] font-bold text-amber-200 leading-snug">
+              Kunde inte verifiera leveransområde just nu. Restauranger visas men tillgängligheten bekräftas först i kassan.
+            </p>
+          </div>
+        )}
 
         {/* Categories Grid */}
         <section className="space-y-4">

@@ -337,6 +337,10 @@ router.get('/orders', async (req, res) => {
           total: o.total / 100,
           deliveryFee: o.deliveryFee / 100,
           discountAmount: o.discountAmount / 100,
+          // refundAmount lagras i öre i DB — konvertera till kr som
+          // alla andra monetära fält ovan, annars visar admin "500 kr"
+          // när det egentligen var en 5 kr-refund.
+          refundAmount: o.refundAmount != null ? o.refundAmount / 100 : null,
           items: o.items.map((i) => ({
             ...i,
             basePrice: i.basePrice / 100,
@@ -385,6 +389,9 @@ router.get('/orders/:id', async (req, res) => {
       total: order.total / 100,
       deliveryFee: order.deliveryFee / 100,
       discountAmount: order.discountAmount / 100,
+      // refundAmount lagras i öre i DB — konvertera till kr för konsekvent
+      // display i admin (annars visas 500 när det var en 5 kr-refund).
+      refundAmount: order.refundAmount != null ? order.refundAmount / 100 : null,
       items: order.items.map((i) => ({
         ...i,
         basePrice: i.basePrice / 100,

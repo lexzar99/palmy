@@ -236,8 +236,15 @@ function OrderDetailsModal({
                       <Textarea value={refundReason} onChange={(event) => setRefundReason(event.target.value)} placeholder="Reason for refund" />
                     </Field>
                     {refundSuccess && (
-                      <div className="rounded-2xl border border-[rgba(48,199,143,0.2)] bg-[rgba(48,199,143,0.08)] px-4 py-3 text-sm text-[#c4ffeb] flex items-center gap-2">
-                        <CheckCircle2 size={14} /> Återbetalning genomförd
+                      <div className="rounded-2xl border border-[rgba(48,199,143,0.2)] bg-[rgba(48,199,143,0.08)] px-4 py-3 text-sm text-[#c4ffeb] flex items-start gap-2">
+                        <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+                        <div className="space-y-1">
+                          <p className="font-bold">Återbetalning skickad till Stripe</p>
+                          <p className="text-xs opacity-80">
+                            Pengarna är synliga i kundens bank/Klarna inom 1-3 bankdagar.
+                            Verifiera i Stripe Dashboard om du vill bekräfta direkt.
+                          </p>
+                        </div>
                       </div>
                     )}
                     {refundError && (
