@@ -194,6 +194,10 @@ export default function HomePage() {
         localStorage.removeItem("platform_address_error");
       }
 
+      if (storedType === "PICKUP" && !storedCity) {
+        setShowAddressModal(true);
+      }
+
       // Restore zone filtering from saved coords
       const storedCoords = localStorage.getItem("platform_coords");
       if (storedCoords && stored && storedType !== "PICKUP") {
@@ -437,8 +441,9 @@ export default function HomePage() {
     }
     // Strict: vi har stad-namnet men inte hittade familyIds → visa inget
     if (detectedCityName) return false;
+    if (orderType === "PICKUP") return false;
     return true;
-  }, [cityFamilyIds, detectedCityName]);
+  }, [cityFamilyIds, detectedCityName, orderType]);
 
   const filtered = useMemo(() => {
     const list = restaurants.filter((r) => {
