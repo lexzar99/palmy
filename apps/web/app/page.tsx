@@ -479,16 +479,16 @@ export default function HomePage() {
   };
 
   const renderFeaturedRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[]) => (
-    <section className="mb-8">
-      <div className="flex items-end justify-between mb-5 px-1">
+    <section className="mb-5">
+      <div className="flex items-end justify-between mb-3 px-1">
         <div>
-          <h2 className="text-gold-gradient text-2xl sm:text-3xl font-black tracking-tight leading-[1.15] italic uppercase">{title}</h2>
-          {!!subtitle && <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-1.5">{subtitle}</p>}
+          <h2 className="text-gold-gradient text-xl sm:text-2xl font-black tracking-tight leading-[1.1] italic uppercase">{title}</h2>
+          {!!subtitle && <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mt-1">{subtitle}</p>}
         </div>
-        <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 border-b border-gold-500/40 pb-0.5 hover:text-gold-500 transition-all">{t("home.viewAll")}</Link>
+        <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 border-b border-gold-500/40 pb-0.5 hover:text-gold-500 transition-all shrink-0 ml-3">{t("home.viewAll")}</Link>
       </div>
       {/* Mobil: horisontell scroll • md+: 2-kolumn grid • lg+: 3-kolumn • xl+: 4-kolumn */}
-      <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-x-auto md:overflow-visible pb-4 md:pb-0 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 overflow-x-auto md:overflow-visible pb-2 md:pb-0 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
         {sectionRestaurants.map((r, i) => {
           const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
           const dimmed = r.isOpen === false || !inZone;
@@ -499,12 +499,13 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.07, type: "spring", stiffness: 300, damping: 25 }}
               whileTap={{ opacity: 0.7, scale: 0.99 }}
-              className={`transition-opacity duration-300 shrink-0 md:shrink w-[240px] sm:w-[270px] md:w-auto ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
+              className={`transition-opacity duration-300 shrink-0 md:shrink w-[200px] sm:w-[230px] md:w-auto ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
             >
               <Link
                 href={getRestaurantHref(r)}
                 onClick={(e) => handleRestaurantClick(e, r)}
-                className="group relative block h-full glass-card rounded-[2rem] sm:rounded-[2.5rem] p-3 flex flex-col overflow-hidden border border-transparent hover:border-gold-500/30 transition-all"
+                className="group relative block h-full rounded-2xl p-2 flex flex-col overflow-hidden border transition-all hover:shadow-md"
+                style={{ backgroundColor: "var(--bg-secondary)", borderColor: "rgba(28,28,30,0.08)" }}
               >
                 {(() => {
                   const badges = getBadgesForRestaurant(r.id);
@@ -523,7 +524,7 @@ export default function HomePage() {
                     </>
                   );
                 })()}
-                <div className="h-36 sm:h-44 md:h-40 lg:h-48 w-full rounded-[1.5rem] sm:rounded-[2rem] bg-zinc-100 relative overflow-hidden mb-4">
+                <div className="h-28 sm:h-32 md:h-36 lg:h-40 w-full rounded-xl sm:rounded-2xl bg-zinc-100 relative overflow-hidden mb-2.5">
                   {r.heroImageUrl || r.imageUrl ? (
                     <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition-all duration-700 group-hover:scale-110 group-hover:rotate-1" />
                   ) : (
@@ -571,11 +572,11 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="px-2 pb-3">
-                  <h3 className="text-base sm:text-lg font-black group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none mb-1.5 truncate" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
-                  <p className="text-[9px] font-black uppercase tracking-widest mb-4 truncate" style={{ color: "var(--text-secondary)" }}>{r.description || r.cuisine}</p>
+                <div className="px-1.5 pb-1.5">
+                  <h3 className="text-sm sm:text-base font-black group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-tight mb-1 truncate" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
+                  <p className="text-[9px] font-bold uppercase tracking-wider mb-2 truncate" style={{ color: "var(--text-secondary)" }}>{r.description || r.cuisine}</p>
 
-                  <div className="flex items-center justify-between border-t pt-3" style={{ borderColor: "var(--border-muted)" }}>
+                  <div className="flex items-center justify-between border-t pt-2" style={{ borderColor: "var(--border-muted)" }}>
                     {(() => {
                       const zi = zoneDeliveryInfo[r.id];
                       const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
