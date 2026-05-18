@@ -424,9 +424,28 @@ export default function HomePage() {
       // Visar bara restauranger i samma metropolitan area (Malmö + Arlöv + Oxie
       // men inte Lund om admin inte merged dem).
       if (cityFamilyIds && cityFamilyIds.length > 0) {
-        matchCity = !!(r as any).cityId && cityFamilyIds.includes((r as any).cityId);
+        // Fallback till sträng-match om backend ännu inte returnerar cityId.
+        // (Tidigare data hade bara r.city sträng, ingen FK till City.)
+        const rCityId = (r as any).cityId as string | null | undefined;
+        if (rCityId) {
+          matchCity = cityFamilyIds.includes(rCityId);
+        } else if (detectedCityName) {
+          // Fallback: jämför sträng-stad mot detekterad stad case-insensitive.
+          // Detta täcker gamla restauranger utan FK — vi gissar att om
+          // r.city === detectedCityName, hör den till denna stad.
+          matchCity = (r.city || "").toLowerCase() === detectedCityName.toLowerCase();
+        } else {
+          matchCity = false;
+        }
+      } else if (detectedCityName) {
+        // PRIO 2: vi DETEKTERADE en stad men cityFamilyIds är tom — staden
+        // finns inte som City-rad i DB. Strict-mode: dölj ALLT istället för
+        // att visa allt (Foodora/Wolt-pattern). Banner ovanför listan
+        // berättar att staden inte servas. Tidigare visades alla restauranger
+        // tyst när filter avaktiverades → kund i Lund såg Palma (Dalby).
+        matchCity = false;
       } else if (orderType === "PICKUP" && selectedCity) {
-        // PRIO 2 (legacy): admin-vald stad i dropdown (case-insensitive sträng-match).
+        // PRIO 3 (legacy): admin-vald stad i dropdown (case-insensitive sträng-match).
         matchCity = (r.city || "").toLowerCase() === selectedCity.name.toLowerCase();
       }
       return matchCuisine && matchQuery && matchCity && matchDeal;
@@ -468,7 +487,7 @@ export default function HomePage() {
       }
       return true;
     });
-  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, zoneDeliveryInfo, filteredByDeal, quickFilter, allDealCards, favorites, selectedCity, cityFamilyIds]);
+  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, zoneDeliveryInfo, filteredByDeal, quickFilter, allDealCards, favorites, selectedCity, cityFamilyIds, detectedCityName]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
