@@ -97,9 +97,9 @@ function FullProductCard({ product, cartQty, onClick, disabled }: { product: any
         boxShadow: "0 3px 12px rgba(28,28,30,0.04)",
       }}
     >
-      <div className={`flex ${hasImage ? "items-stretch" : "items-start"} gap-0`}>
+      <div className="flex items-start gap-3 p-3 sm:p-4">
         {/* Text-block — fyller all bredd om ingen bild, annars 1fr */}
-        <div className={`flex-1 min-w-0 ${hasImage ? "p-4 pr-3" : "p-5"}`}>
+        <div className="flex-1 min-w-0">
           <h3 className="text-base sm:text-lg font-black uppercase italic leading-tight" style={{ color: "var(--text-primary)" }}>{product.name}</h3>
 
           {/* Pris — stort & premium, direkt under namnet */}
@@ -137,15 +137,15 @@ function FullProductCard({ product, cartQty, onClick, disabled }: { product: any
           )}
         </div>
 
-        {/* Bild till höger — square, fyller hela kort-höjden så det blir snyggt edge-to-edge */}
+        {/* Bild som square — INNE i kortet med padding, INTE edge-to-edge */}
         {hasImage && (
-          <div className="relative shrink-0 self-stretch w-28 sm:w-32 overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+          <div className="shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
             <img
               src={product.imageUrl}
               alt={product.name}
               loading="lazy"
               decoding="async"
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
           </div>
         )}
@@ -404,6 +404,56 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
     return () => { socket.disconnect(); };
   }, [restaurantSlug, restaurantId, fetchData]);
+
+  // Refs för pill-knapparna — används för att auto-scrolla aktiv pill in i
+  // viewport horisontellt när användaren scrollar mellan kategorier vertikalt.
+  const pillRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
+  // Lås kort efter manuell pill-klick så IntersectionObserver inte direkt
+  // skriver över aktiv kategori medan smooth-scroll pågår.
+  const manualScrollUntilRef = useRef(0);
+
+  // Observer som spårar vilken kategori-section som är synligast just nu
+  // och uppdaterar activeCategory därefter. rootMargin offsetar för
+  // sticky-headerns höjd så "första synliga" matchar visuellt vad
+  // användaren faktiskt tittar på.
+  useEffect(() => {
+    if (typeof window === "undefined" || categories.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (Date.now() < manualScrollUntilRef.current) return;
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible[0]) {
+          const id = (visible[0].target as HTMLElement).id;
+          setActiveCategory((prev) => (prev === id ? prev : id));
+        }
+      },
+      { rootMargin: "-140px 0px -55% 0px", threshold: [0, 0.1, 0.3, 0.6, 1] },
+    );
+    const elements: HTMLElement[] = [];
+    categories.forEach((cat) => {
+      const el = document.getElementById(cat.id);
+      if (el) {
+        observer.observe(el);
+        elements.push(el);
+      }
+    });
+    return () => {
+      elements.forEach((el) => observer.unobserve(el));
+      observer.disconnect();
+    };
+  }, [categories]);
+
+  // När activeCategory ändras (av observer eller klick): scrolla pill-listan
+  // horisontellt så aktiv pill alltid är synlig (centrerad om möjligt).
+  useEffect(() => {
+    if (!activeCategory) return;
+    const pill = pillRefs.current.get(activeCategory);
+    if (pill) {
+      pill.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    }
+  }, [activeCategory]);
 
   // Måste definieras FÖRE early returns — Rules of Hooks
   const checkBogoTrigger = useCallback(() => {
@@ -761,9 +811,16 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                 return (
                   <motion.button
                     key={cat.id}
+                    ref={(el) => {
+                      if (el) pillRefs.current.set(cat.id, el);
+                      else pillRefs.current.delete(cat.id);
+                    }}
                     whileTap={{ scale: 0.96 }}
                     onClick={() => {
                       setActiveCategory(cat.id);
+                      // Pausa intersection-observer i 700ms så manuellt klick
+                      // hinner scrolla färdigt utan att observer skriver över.
+                      manualScrollUntilRef.current = Date.now() + 700;
                       const element = document.getElementById(cat.id);
                       if (element) {
                         const offset = 100;

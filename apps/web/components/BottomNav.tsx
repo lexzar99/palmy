@@ -26,10 +26,10 @@ const BottomNav = () => {
 
   return (
     <div
-      className="fixed left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4 sm:px-6 md:hidden"
-      style={{ bottom: "calc(2rem + env(safe-area-inset-bottom, 0px))" }}
+      className="fixed left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-3 sm:px-4 md:hidden"
+      style={{ bottom: "calc(0.25rem + env(safe-area-inset-bottom, 0px))" }}
     >
-      <nav className="backdrop-blur-3xl border rounded-[3rem] p-2 flex items-center justify-between shadow-2xl" style={{ backgroundColor: "var(--glass-bg)", borderColor: "var(--glass-border)" }}>
+      <nav className="backdrop-blur-3xl border rounded-[2.5rem] p-1.5 flex items-center justify-between shadow-2xl" style={{ backgroundColor: "var(--glass-bg)", borderColor: "var(--glass-border)" }}>
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -40,7 +40,7 @@ const BottomNav = () => {
               href={item.href}
               aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
-              className="relative flex-1 flex flex-col items-center justify-center py-4 px-1 sm:px-2 rounded-[2.5rem] transition-colors duration-300 touch-manipulation"
+              className="relative flex-1 flex flex-col items-center justify-center py-3 px-1 sm:px-2 rounded-[2rem] transition-colors duration-300 touch-manipulation"
             >
               <div className="relative z-10 flex flex-col items-center gap-1">
                 <motion.div

@@ -1421,14 +1421,14 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-dot-pattern pt-20 pb-36 px-3 sm:px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="min-h-screen bg-dot-pattern pt-4 sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-end justify-between mb-6 lg:mb-10 px-1 sm:px-4">
-           <div>
-              <h1 className="text-3xl sm:text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-[1.15] mb-2" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")} <span className="text-gold-gradient">{t("cart.heading.accent")}</span></h1>
-              <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em]">{t("cart.subtitle")}</p>
+        <div className="flex items-end justify-between mb-4 lg:mb-8 px-1 sm:px-4">
+           <div className="min-w-0">
+              <h1 className="text-2xl sm:text-4xl md:text-6xl font-black uppercase italic tracking-tight leading-[1.05] mb-1" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")} <span className="text-gold-500">{t("cart.heading.accent")}</span></h1>
+              <p className="text-zinc-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">{t("cart.subtitle")}</p>
            </div>
-           <Link href="/menu" className="text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-600 transition-colors flex items-center gap-2 mb-2 group">
+           <Link href="/menu" className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-gold-600 hover:text-gold-700 transition-colors flex items-center gap-1.5 mb-1 group shrink-0 ml-3">
               {t("cart.addMore")} <Plus size={14} className="group-hover:rotate-90 transition-transform" />
            </Link>
         </div>
@@ -1478,50 +1478,66 @@ export default function CartPage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-12 items-start">
-          {/* Cart items list */}
-          <div className="lg:col-span-7 space-y-4">
-            {/* DealSpotlight i kassan borttagen — rabatterna applas direkt
-                på priserna istället för en separat "deal aktiv"-banner. */}
-            <div className="space-y-4">
+          {/* Cart items list — kompakta en-rad-kort */}
+          <div className="lg:col-span-7 space-y-2.5">
+            <div className="space-y-2.5">
               {items.map((item) => (
-                <motion.div key={item.cartItemId} layout className="p-4 sm:p-6 rounded-[1.75rem] sm:rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 transition-all group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                   <button
-                     type="button"
-                     onClick={() => handleEditCartItem(item)}
-                     className="flex items-center gap-6 text-left flex-1 min-w-0"
-                   >
-                       <div className="w-14 h-14 border rounded-3xl flex items-center justify-center text-gold-500 font-black italic text-lg shadow-inner" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                          {item.quantity}x
-                       </div>
-                       <div className="min-w-0">
-                          <h3 className="text-lg font-black uppercase italic tracking-tight mb-1 group-hover:text-gold-500 transition-colors uppercase truncate" style={{ color: "var(--text-primary)" }}>{item.name}</h3>
-                          {item.extras.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                               {item.extras.map(e => (
-                                  <span key={e.extraId} className="text-[8px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-md border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>{e.name}</span>
-                               ))}
-                            </div>
-                          )}
-                          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gold-500/70 mt-2 inline-block">{t("cart.tapToEdit")}</span>
-                       </div>
-                    </button>
-                    <div className="flex items-center justify-between sm:justify-end gap-10">
-                       <div className="flex items-center gap-6 px-4 py-3 rounded-2xl" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                          <button onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }} className="text-zinc-500 hover:text-gold-500 transition-colors active:scale-75"><Minus size={18} /></button>
-                          <span className="text-base font-black w-4 text-center italic" style={{ color: "var(--text-primary)" }}>{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.cartItemId, 1)} className="text-zinc-500 hover:text-gold-500 transition-colors active:scale-75"><Plus size={18} /></button>
-                       </div>
-                       <div className="flex items-center gap-8">
-                          <div className="text-lg font-black italic flex flex-col items-end" style={{ color: "var(--text-primary)" }}>
-                             <span className="text-gold-500">{(item.price * item.quantity).toFixed(0)}</span>
-                             <span className="text-[8px] uppercase tracking-widest leading-none" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span>
-                          </div>
-                          <button onClick={() => removeItem(item.cartItemId)} className="w-12 h-12 rounded-2xl border flex items-center justify-center text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-all active:scale-90" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                             <Trash2 size={20} />
-                          </button>
-                       </div>
+                <motion.div
+                  key={item.cartItemId}
+                  layout
+                  className="p-3 rounded-2xl flex items-center gap-3 transition-all group"
+                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 2px 8px rgba(28,28,30,0.03)" }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleEditCartItem(item)}
+                    className="flex items-center gap-3 text-left flex-1 min-w-0"
+                    aria-label={`${t("cart.tapToEdit")}: ${item.name}`}
+                  >
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center text-gold-600 font-black italic text-sm shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(231,178,75,0.18)" }}>
+                      {item.quantity}×
                     </div>
-                 </motion.div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-sm font-black uppercase italic tracking-tight truncate group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{item.name}</h3>
+                      {item.extras.length > 0 && (
+                        <p className="text-[11px] font-medium truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                          {item.extras.map(e => e.name).join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Quantity-spinner kompakt + pris + radera inline */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(28,28,30,0.06)" }}>
+                      <button
+                        onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-zinc-600 hover:bg-white hover:text-gold-600 active:scale-90 transition-all"
+                        aria-label="Minska antal"
+                      >
+                        <Minus size={13} strokeWidth={2.5} />
+                      </button>
+                      <span className="text-xs font-black w-3 text-center" style={{ color: "var(--text-primary)" }}>{item.quantity}</span>
+                      <button
+                        onClick={() => updateQuantity(item.cartItemId, 1)}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-zinc-600 hover:bg-white hover:text-gold-600 active:scale-90 transition-all"
+                        aria-label="Öka antal"
+                      >
+                        <Plus size={13} strokeWidth={2.5} />
+                      </button>
+                    </div>
+                    <div className="text-right min-w-[3.5rem]">
+                      <div className="text-sm font-black leading-none" style={{ color: "var(--text-primary)", fontFeatureSettings: "'tnum'" }}>{(item.price * item.quantity).toFixed(0)} kr</div>
+                    </div>
+                    <button
+                      onClick={() => removeItem(item.cartItemId)}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-rose-500 hover:bg-rose-50 active:scale-90 transition-all"
+                      aria-label="Ta bort"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </motion.div>
               ))}
             </div>
           </div>
