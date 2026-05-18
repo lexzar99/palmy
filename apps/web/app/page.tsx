@@ -74,15 +74,18 @@ interface City {
 
 // Match RN-appens cuisine-ordning (HomeScreen.tsx): Alla, Favoriter, Pizza, Sushi, Kebab, Burgare, Pasta, Asiatiskt.
 // "Favoriter" är en pseudo-cuisine som filtrerar via localStorage-backad favorites-store.
+// Bilder från Unsplash CDN (200x200 cropped, q=80) — gör cuisine-railen "äkta"
+// istället för plain emojis. "Alla" och "Favoriter" behåller emoji-fallback
+// eftersom de inte är konkreta kök.
 const cuisineFilters = [
-  { label: "Alla", emoji: "📋" },
-  { label: "Favoriter", emoji: "❤️" },
-  { label: "Pizza", emoji: "🍕" },
-  { label: "Sushi", emoji: "🍣" },
-  { label: "Kebab", emoji: "🥙" },
-  { label: "Burgare", emoji: "🍔" },
-  { label: "Pasta", emoji: "🍝" },
-  { label: "Asiatiskt", emoji: "🥢" },
+  { label: "Alla",      emoji: "📋", image: null },
+  { label: "Favoriter", emoji: "❤️", image: null },
+  { label: "Pizza",     emoji: "🍕", image: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=240&h=240&fit=crop&q=80" },
+  { label: "Sushi",     emoji: "🍣", image: "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=240&h=240&fit=crop&q=80" },
+  { label: "Kebab",     emoji: "🥙", image: "https://images.unsplash.com/photo-1530469912745-a215c6b256ea?w=240&h=240&fit=crop&q=80" },
+  { label: "Burgare",   emoji: "🍔", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=240&h=240&fit=crop&q=80" },
+  { label: "Pasta",     emoji: "🍝", image: "https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=240&h=240&fit=crop&q=80" },
+  { label: "Asiatiskt", emoji: "🥢", image: "https://images.unsplash.com/photo-1617196034796-73dfa7b1fd56?w=240&h=240&fit=crop&q=80" },
 ];
 
 const ORDER_TYPE_KEY = "platform_order_type";
@@ -836,14 +839,26 @@ export default function HomePage() {
                 }}
                 className="flex flex-col items-center gap-1.5 transition-all active:scale-95 flex-shrink-0 group touch-manipulation"
               >
-                <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] flex items-center justify-center text-2xl sm:text-3xl border transition-all ${
+                <div className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[1.5rem] overflow-hidden transition-all ${
                   activeCuisine === c.label
-                    ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_6px_14px_rgba(234,181,69,0.25)]"
-                    : "border-[rgba(28,28,30,0.07)] group-hover:border-gold-500/20"
-                }`} style={{ backgroundColor: activeCuisine === c.label ? undefined : "var(--bg-card)", boxShadow: activeCuisine === c.label ? undefined : "var(--card-shadow)" }}>
-                  <span className={`${activeCuisine === c.label ? "" : "opacity-90 group-hover:opacity-100"} transition-all`}>{c.emoji}</span>
+                    ? "ring-2 ring-gold-500 shadow-[0_6px_18px_rgba(234,181,69,0.3)]"
+                    : "ring-1 ring-[rgba(28,28,30,0.08)] group-hover:ring-gold-500/30"
+                }`} style={{ backgroundColor: c.image ? "var(--bg-deep)" : "var(--bg-card)", boxShadow: activeCuisine === c.label ? undefined : "var(--card-shadow)" }}>
+                  {c.image ? (
+                    <img
+                      src={c.image}
+                      alt={c.label}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className={`w-full h-full flex items-center justify-center text-2xl sm:text-3xl ${activeCuisine === c.label ? "bg-gold-500" : ""}`}>
+                      <span className={`${activeCuisine === c.label ? "" : "opacity-90 group-hover:opacity-100"} transition-all`}>{c.emoji}</span>
+                    </div>
+                  )}
                 </div>
-                <span className={`text-[9px] sm:text-[9.5px] font-bold uppercase tracking-widest ${
+                <span className={`text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wider ${
                   activeCuisine === c.label ? "text-gold-500" : "group-hover:text-gold-400"
                 }`} style={{ color: activeCuisine === c.label ? undefined : "var(--text-secondary)" }}>
                   {t(`home.cuisine.${c.label}`)}
@@ -1034,117 +1049,118 @@ export default function HomePage() {
                         <Link
                           href={getRestaurantHref(r)}
                           onClick={(e) => handleRestaurantClick(e, r)}
-                          className="group block glass-card rounded-[2rem] overflow-hidden hover:shadow-xl transition-all relative border"
-                          style={{ borderColor: "var(--border-muted)" }}
+                          className="group block rounded-2xl overflow-hidden hover:shadow-[0_10px_30px_rgba(28,28,30,0.08)] transition-all relative"
+                          style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 14px rgba(28,28,30,0.04)" }}
                         >
-                          {/* DEAL RIBBONS — max 1 BOGO + 1 regular, båda på vänster
-                              så status/heart på höger inte täcks */}
-                          {(() => {
-                            const badges = getBadgesForRestaurant(r.id);
-                            return (
-                              <div className="absolute top-0 left-0 z-20 flex flex-col gap-1">
-                                {badges.bogo && (
-                                  <div className="bg-emerald-500 text-zinc-950 px-4 py-1.5 rounded-br-[1.5rem]">
-                                    <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><Sparkles size={10}/> {t("home.deal.bogo")}</p>
-                                  </div>
-                                )}
-                                {badges.regular && (
-                                  <div className={`${badges.regular.tone === "purple" ? "bg-purple-500" : badges.regular.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-4 py-1.5 rounded-br-[1.5rem]`}>
-                                    <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><Sparkles size={10}/> {badges.regular.rewardLabel}</p>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-
-                          {/* IMAGE */}
-                          <div className="h-36 sm:h-44 w-full overflow-hidden relative">
+                          {/* ── IMAGE ──────────────────────────────────────── */}
+                          <div className="h-44 sm:h-52 w-full overflow-hidden relative" style={{ backgroundColor: "var(--bg-deep)" }}>
                             {r.imageUrl || r.heroImageUrl ? (
                               <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover group-hover:scale-105 transition-all duration-700" />
                             ) : (
-                              <div className="h-full w-full flex items-center justify-center text-4xl" style={{ backgroundColor: "var(--bg-deep)" }}>🍱</div>
+                              <div className="h-full w-full flex items-center justify-center text-4xl">🍱</div>
                             )}
-                            {/* gradient overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
 
-                            {/* Status + Hjärta — stack på höger så BOGO/% badge på vänster
-                                inte täcker dem */}
-                            <div className="absolute top-3 right-3 flex flex-col gap-2 items-end z-10">
-                              {(() => {
-                                const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
-                                const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
-                                const open = r.isOpen !== false && !isPaused;
-                                const cls = isOutOfZone
-                                  ? "bg-zinc-900/80 border-white/10 text-zinc-300"
-                                  : isPaused
-                                    ? "bg-amber-400/25 border-amber-400/30 text-amber-100"
-                                    : open
-                                      ? "bg-emerald-500/25 border-emerald-500/30 text-emerald-100"
-                                      : "bg-zinc-900/80 border-white/10 text-zinc-300";
-                                const dot = isPaused
-                                  ? "bg-amber-300 animate-pulse"
-                                  : open ? "bg-emerald-400 animate-pulse" : "bg-zinc-400";
-                                const label = isOutOfZone
-                                  ? t("home.status.outOfZone")
-                                  : isPaused
-                                    ? t("home.status.pausedUntil", { time: `${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}` })
-                                    : open ? t("home.restaurantOpen") : t("home.restaurantClosed");
-                                return (
-                                  <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 backdrop-blur-md border ${cls}`}>
-                                    <div className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-                                    {label}
-                                  </div>
-                                );
-                              })()}
+                            {/* Status-pill: top-LEFT (matchar inspirations-bilden) */}
+                            {(() => {
+                              const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
+                              const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
+                              const open = r.isOpen !== false && !isPaused;
+                              const bg = isOutOfZone
+                                ? "bg-zinc-700/95 text-white"
+                                : isPaused
+                                  ? "bg-amber-500/95 text-zinc-950"
+                                  : open
+                                    ? "bg-emerald-500/95 text-white"
+                                    : "bg-rose-500/95 text-white";
+                              const label = isOutOfZone
+                                ? t("home.status.outOfZone")
+                                : isPaused
+                                  ? t("home.status.pausedUntil", { time: `${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}` })
+                                  : open ? t("home.restaurantOpen") : t("home.restaurantClosed");
+                              return (
+                                <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full backdrop-blur-md flex items-center gap-1.5 shadow-md ${bg}`}>
+                                  <div className={`w-1.5 h-1.5 rounded-full bg-white ${open && !isPaused ? "animate-pulse" : ""}`} />
+                                  <span className="text-[10px] font-black uppercase tracking-wider">{label}</span>
+                                </div>
+                              );
+                            })()}
 
-                              <button
-                                onClick={toggleFav}
-                                className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                                style={{ backgroundColor: "rgba(255,255,255,0.92)", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
-                                aria-label={isFav ? t("home.favorite.remove") : t("home.favorite.add")}
-                              >
-                                {isFav
-                                  ? <svg viewBox="0 0 24 24" fill="#FF3B30" className="w-5 h-5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                                  : <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" className="w-5 h-5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                                }
-                              </button>
-                            </div>
+                            {/* Hjärta: top-RIGHT (matchar inspirations-bilden) */}
+                            <button
+                              onClick={toggleFav}
+                              className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 backdrop-blur-md"
+                              style={{ backgroundColor: "rgba(255,255,255,0.92)", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
+                              aria-label={isFav ? t("home.favorite.remove") : t("home.favorite.add")}
+                            >
+                              {isFav
+                                ? <svg viewBox="0 0 24 24" fill="#FF3B30" className="w-5 h-5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                                : <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2.2" className="w-5 h-5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                              }
+                            </button>
 
-                            {/* Restaurant name on image */}
-                            <div className="absolute bottom-3 left-4 right-14">
-                              <h3 className="text-xl font-black text-white uppercase tracking-tight leading-[1.15] truncate italic">{r.name}</h3>
-                              <p className="text-[9px] font-bold text-white/70 uppercase tracking-widest mt-1 truncate">{r.cuisine || r.description || t("home.restaurantFallback")}</p>
-                            </div>
+                            {/* Deal-badges (BOGO/regular) — bottom-left på bilden så de inte
+                                kolliderar med status/heart. Behålls för att inte ta bort funktion. */}
+                            {(() => {
+                              const badges = getBadgesForRestaurant(r.id);
+                              if (!badges.bogo && !badges.regular) return null;
+                              return (
+                                <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[calc(100%-1.5rem)]">
+                                  {badges.bogo && (
+                                    <div className="bg-emerald-500 text-zinc-950 px-2.5 py-1 rounded-full shadow-md">
+                                      <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1"><Sparkles size={10}/> {t("home.deal.bogo")}</p>
+                                    </div>
+                                  )}
+                                  {badges.regular && (
+                                    <div className={`${badges.regular.tone === "purple" ? "bg-purple-500" : badges.regular.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-2.5 py-1 rounded-full shadow-md`}>
+                                      <p className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1"><Sparkles size={10}/> {badges.regular.rewardLabel}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
 
-                          {/* CARD FOOTER Metadata */}
-                          <div className="flex items-center justify-between px-4 py-3">
-                            {/* Left: star · eta · fee */}
-                            <div className="flex items-center gap-3 text-[11px] font-semibold flex-wrap" style={{ color: "var(--text-secondary)" }}>
-                              <span className="flex items-center gap-1">
-                                <Star size={11} className="fill-gold-500 text-gold-500" />
-                                <span className="font-black" style={{ color: "var(--text-primary)" }}>{(r.rating ?? 4.5).toFixed(1)}</span>
-                              </span>
-                              <span style={{ color: "var(--border-muted)" }}>•</span>
-                              <span className="flex items-center gap-1">
-                                <Clock size={11} className="text-gold-500/60" />
-                                {r.etaMinutes ?? 30} {t("home.minutes")}
-                              </span>
-                              <span style={{ color: "var(--border-muted)" }}>•</span>
-                              <span className="flex items-center gap-1">
-                                <Bike size={11} className="text-gold-500/60" />
-                                {(() => { const zi = zoneDeliveryInfo[r.id]; const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0); return fee === 0 ? <span className="text-emerald-600 font-black">{t("home.freeDelivery")}</span> : `${fee} ${t("common.kr")}`; })()}
-                              </span>
+                          {/* ── CARD FOOTER ────────────────────────────────── */}
+                          <div className="px-4 py-3.5">
+                            {/* Rad 1: Namn (stort) + info-knapp till höger */}
+                            <div className="flex items-start justify-between gap-2 mb-0.5">
+                              <h3 className="text-base sm:text-lg font-black uppercase italic tracking-tight leading-tight truncate flex-1 group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
+                              <button
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
+                                className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:bg-gold-500/10 hover:text-gold-600 shrink-0 -mt-0.5"
+                                style={{ color: "var(--text-secondary)" }}
+                                aria-label={t("home.info") ?? "Info"}
+                              >
+                                <Info size={14} />
+                              </button>
                             </div>
-
-                            {/* Info button */}
-                            <button
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
-                              className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:bg-gold-500/10 hover:text-gold-600 border"
-                              style={{ color: "var(--text-secondary)", borderColor: "var(--border-muted)" }}
-                            >
-                              <Info size={14} />
-                            </button>
+                            {/* Rad 2: Kategori (subtil) */}
+                            <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>{r.cuisine || r.description || t("home.restaurantFallback")}</p>
+                            {/* Rad 3: ★ rating (count) · ETA */}
+                            <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                              <span className="flex items-center gap-1">
+                                <Star size={13} className="fill-gold-500 text-gold-500" />
+                                <span className="font-black" style={{ color: "var(--text-primary)" }}>{(r.rating ?? 4.5).toFixed(1)}</span>
+                                {r.ratingCount != null && r.ratingCount > 0 && (
+                                  <span className="opacity-60">({r.ratingCount})</span>
+                                )}
+                              </span>
+                              <span className="opacity-40">·</span>
+                              <span>{r.etaMinutes ?? 30} {t("home.minutes")}</span>
+                            </div>
+                            {/* Rad 4: Delivery-info (grön för gratis) */}
+                            {(() => {
+                              const zi = zoneDeliveryInfo[r.id];
+                              const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
+                              return (
+                                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider">
+                                  <Bike size={13} className={fee === 0 ? "text-emerald-600" : "text-gold-500/70"} strokeWidth={2.2} />
+                                  {fee === 0
+                                    ? <span className="text-emerald-600">{t("home.freeDelivery")}</span>
+                                    : <span style={{ color: "var(--text-secondary)" }}>{fee} {t("common.kr")}</span>}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </Link>
                       </motion.div>
