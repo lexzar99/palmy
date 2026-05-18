@@ -20,6 +20,7 @@ import {
 import { Badge, Button, EmptyState, Field, Input, MetricCard, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import GooglePlacesInput from "@/shared/components/google-places-input";
+import { useToast } from "@/shared/components/toast";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, restaurantTierLabel } from "@/shared/utils/format";
 
 type RestaurantTab = "info" | "menu" | "orders" | "hours" | "settings" | "login";
@@ -135,6 +136,7 @@ const ordersQueryKey = (id: string | null) => ["restaurants", "orders", id] as c
 export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const isCreate = !restaurantId;
   const [tab, setTab] = useState<RestaurantTab>("info");
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -174,10 +176,24 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       await queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
       await queryClient.invalidateQueries({ queryKey: ["tiers"] });
-      if (isCreate) router.push(`/restaurants/${(saved as any).id}`);
-      else { setInitialized(false); void detail.refetch(); }
+      if (isCreate) {
+        router.push(`/restaurants/${(saved as any).id}`);
+        return;
+      }
+      // GLITCH-FIX: tidigare gjorde vi setInitialized(false) + detail.refetch().
+      // useEffect-populeringen körde då innan refetch var klar → form visade
+      // STALE data (eller tom default) några frames → såg ut som att allt
+      // resettades. Bättre: populera form direkt från backend-svaret (saved),
+      // som redan innehåller den nya datan. Invalidate-anropen ovan håller
+      // listings/dashboard synkade i bakgrunden.
+      setForm(mapDetailToForm(saved as RestaurantDetail));
+      showToast({ type: "success", message: "Restaurang sparad" });
     },
-    onError: (e: any) => setSaveError(e?.response?.data?.error || "Kunde inte spara."),
+    onError: (e: any) => {
+      const msg = e?.response?.data?.error || "Kunde inte spara.";
+      setSaveError(msg);
+      showToast({ type: "error", message: msg });
+    },
   });
 
   const deleteMutation = useMutation({

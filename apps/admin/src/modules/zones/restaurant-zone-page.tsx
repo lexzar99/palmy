@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, MapPin, Save, Store } from "lucide-react";
@@ -8,6 +8,7 @@ import ZoneEditor from "@/modules/zones/components/zone-editor";
 import { parseZones, serializeZones, type ZoneRecord } from "@/modules/zones/api";
 import { getRestaurantDetail, patchRestaurant, restaurantDetailQueryKey } from "@/modules/restaurants/api";
 import { Badge, Button, ErrorPanel, Field, Input, Surface } from "@/shared/components/ui";
+import { useToast } from "@/shared/components/toast";
 
 /**
  * Standalone full-skärm-sida för att rita zoner för EN restaurang.
@@ -29,6 +30,7 @@ interface Props {
 export function RestaurantZonePage({ restaurantId }: Props) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [zones, setZones] = useState<ZoneRecord[]>([]);
   const [freeDeliveryAbove, setFreeDeliveryAbove] = useState(0);
   const [dirty, setDirty] = useState(false);
@@ -47,15 +49,19 @@ export function RestaurantZonePage({ restaurantId }: Props) {
   }, [restaurantQuery.data]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleZonesChange = (next: ZoneRecord[]) => {
+  // useCallback med tom deps → stabil referens. Zone-editor's huvud-useEffect
+  // har onChange i sin deps-array; om referensen ändras vid varje render
+  // → useEffect re-runs → kartan rebuildas och centern resettas. Med stabil
+  // referens behåller kartan sin position vid varje liten fee/eta-ändring.
+  const handleZonesChange = useCallback((next: ZoneRecord[]) => {
     setZones(next);
     setDirty(true);
-  };
+  }, []);
 
-  const handleFreeDeliveryChange = (value: number) => {
+  const handleFreeDeliveryChange = useCallback((value: number) => {
     setFreeDeliveryAbove(value);
     setDirty(true);
-  };
+  }, []);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -68,6 +74,10 @@ export function RestaurantZonePage({ restaurantId }: Props) {
       await queryClient.invalidateQueries({ queryKey: restaurantDetailQueryKey(restaurantId) });
       await queryClient.invalidateQueries({ queryKey: ["zones"] });
       setDirty(false);
+      showToast({ type: "success", message: "Zoner sparade" });
+    },
+    onError: (e: any) => {
+      showToast({ type: "error", message: e?.response?.data?.error || "Kunde inte spara zoner" });
     },
   });
 

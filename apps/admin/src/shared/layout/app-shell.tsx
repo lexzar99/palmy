@@ -9,6 +9,7 @@ import { Button, Surface } from "@/shared/components/ui";
 import { Sidebar } from "@/shared/layout/sidebar";
 import { RealtimeSync } from "@/shared/layout/realtime-sync";
 import { CommandPalette, useCommandPalette } from "@/shared/layout/command-palette";
+import { ToastProvider } from "@/shared/components/toast";
 
 function LoadingScreen() {
   return (
@@ -65,13 +66,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="app-shell">
-      <RealtimeSync />
-      <Sidebar onOpenPalette={palette.openPalette} />
-      <main className="content-shell">
-        <div className="content-frame page-stack">{children}</div>
-      </main>
-      <CommandPalette open={palette.open} onClose={palette.close} />
-    </div>
+    <ToastProvider>
+      <div className="app-shell">
+        <RealtimeSync />
+        <Sidebar onOpenPalette={palette.openPalette} />
+        <main className="content-shell">
+          <div className="content-frame page-stack">{children}</div>
+        </main>
+        <CommandPalette open={palette.open} onClose={palette.close} />
+      </div>
+    </ToastProvider>
   );
 }

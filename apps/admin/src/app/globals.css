@@ -112,7 +112,7 @@ button {
 }
 
 .content-frame {
-  max-width: 980px;
+  max-width: 1320px;   /* 980 → 1320 — restaurant-form + zone-editor får mer plats */
   margin: 0 auto;
 }
 

@@ -11,6 +11,7 @@ import {
   type CityHierarchyNode,
 } from "@/modules/zones/api";
 import { Badge, Button, Field, Input, Modal, Surface } from "@/shared/components/ui";
+import { useToast } from "@/shared/components/toast";
 
 /**
  * CityHierarchyManager — admin-UI för att hantera städer som auto-skapats
@@ -24,6 +25,7 @@ import { Badge, Button, Field, Input, Modal, Surface } from "@/shared/components
 
 export function CityHierarchyManager() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [mergeModal, setMergeModal] = useState<{ child: CityHierarchyNode; candidates: CityHierarchyNode[] } | null>(null);
   const [aliasModal, setAliasModal] = useState<{ city: CityHierarchyNode } | null>(null);
 
@@ -45,9 +47,13 @@ export function CityHierarchyManager() {
     mutationFn: async ({ childId, parentCityId }: { childId: string; parentCityId: string | null }) => {
       return mergeCityUnder(childId, parentCityId);
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, vars) => {
       await queryClient.invalidateQueries({ queryKey: cityHierarchyQueryKey });
       setMergeModal(null);
+      showToast({ type: "success", message: vars.parentCityId ? "Städer sammanslagna" : "Stad lossad" });
+    },
+    onError: (e: any) => {
+      showToast({ type: "error", message: e?.response?.data?.error || "Kunde inte slå ihop städer" });
     },
   });
 
@@ -58,6 +64,10 @@ export function CityHierarchyManager() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: cityHierarchyQueryKey });
       setAliasModal(null);
+      showToast({ type: "success", message: "Aliases uppdaterade" });
+    },
+    onError: (e: any) => {
+      showToast({ type: "error", message: e?.response?.data?.error || "Kunde inte uppdatera aliases" });
     },
   });
 
