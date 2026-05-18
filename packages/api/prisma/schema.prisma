@@ -544,6 +544,17 @@ model City {
   latitude          Float?       // Legacy
   longitude         Float?       // Legacy
   freeDeliveryAbove Int          @default(0)
+  // Hierarki: städer kan ha en föräldra-stad. Exempel: "Arlöv" och "Oxie" har
+  // parentCityId = id för "Malmö". Kund i Arlöv ser då hela Storstadens utbud
+  // (Malmö + Arlöv + Oxie restauranger). Lund kan vara separat även om den
+  // ligger geografiskt nära — admin styr manuellt vad som hör ihop.
+  parentCityId      String?
+  parentCity        City?        @relation("CityHierarchy", fields: [parentCityId], references: [id])
+  childCities       City[]       @relation("CityHierarchy")
+  // Alias-namn som Google Places ibland returnerar för samma stad.
+  // Exempel: "Lund" har aliases ["Lunds Kommun"]. Vid upsert: matcha name
+  // ELLER något i aliases. JSON-array av strängar.
+  aliases           String       @default("[]")
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   restaurants       Restaurant[]

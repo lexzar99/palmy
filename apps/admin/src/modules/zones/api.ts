@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost } from "@/shared/api/client";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
 
 export interface ZoneRecord {
   id: string;
@@ -118,8 +118,25 @@ export const serializeZones = (zones: ZoneRecord[]) =>
 
 export const zonesCitiesQueryKey = ["zones", "cities"] as const;
 export const zonesRestaurantsQueryKey = ["zones", "restaurants"] as const;
+export const cityHierarchyQueryKey = ["zones", "cityHierarchy"] as const;
+
+export interface CityHierarchyNode {
+  id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+  restaurantCount: number;
+  aliases: string[];
+  parentCityId: string | null;
+  children: CityHierarchyNode[];
+}
 
 export const getCities = () => apiGet<CityRecord[]>("/cities?all=true");
+export const getCityHierarchy = () => apiGet<CityHierarchyNode[]>("/cities/hierarchy");
+export const mergeCityUnder = (cityId: string, parentCityId: string | null) =>
+  apiPatch<{ id: string }>(`/cities/${cityId}/merge`, { parentCityId });
+export const updateCityAliases = (cityId: string, aliases: string[]) =>
+  apiPatch<{ id: string }>(`/cities/${cityId}/aliases`, { aliases });
 export const getZoneRestaurants = () => apiGet<RestaurantLocationRecord[]>("/restaurants");
 
 export const saveCity = (city: {

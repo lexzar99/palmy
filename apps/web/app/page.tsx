@@ -120,6 +120,11 @@ export default function HomePage() {
   const [filteredByDeal, setFilteredByDeal] = useState<{ ids: string[]; title: string } | null>(null);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
+  // Stad-familj från kundens adress (resolvad via Google Places city-namn +
+  // backend's parent-hierarki). null = ingen adress satt → visa alla. Annars
+  // filtreras restauranglistan så bara restauranger i denna stad-familj syns.
+  const [cityFamilyIds, setCityFamilyIds] = useState<string[] | null>(null);
+  const [detectedCityName, setDetectedCityName] = useState<string | null>(null);
   // Quick-filter state
   const [quickFilter, setQuickFilter] = useState<"all" | "rated" | "fast" | "deals" | "free">("all");
   // Favoriter (delad localStorage-backad store — paritet med RN)
@@ -289,13 +294,31 @@ export default function HomePage() {
     setShowAddressModal(false);
     setZoneError(null);
 
+    // Resolve kundens stad till en stad-familj (parent + alla syskon). Används
+    // som filter så kunden bara ser restauranger i sin metropolitan area —
+    // exempel: kund i Arlöv ser Malmö + Arlöv + Oxie. Lund visas inte (admin
+    // har inte merged Lund under Malmö).
+    if (city) {
+      try {
+        const res = await axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: city } });
+        const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
+        setCityFamilyIds(familyIds.length > 0 ? familyIds : null);
+        if (res.data?.name) setDetectedCityName(res.data.name);
+      } catch {
+        setCityFamilyIds(null);
+      }
+    } else {
+      setCityFamilyIds(null);
+      setDetectedCityName(null);
+    }
+
     if (coords) {
       localStorage.setItem("platform_coords", JSON.stringify(coords));
       rememberQuickAddress({ street: addr.split(",")[0].trim(), latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
       if (type === "DELIVERY") {
         await validateZone(coords.lat, coords.lng);
       } else {
-        // Pickup: show all restaurants, no zone check
+        // Pickup: show all restaurants in city family, no zone check
         setZoneRestaurantIds(null);
       }
     } else {
@@ -375,7 +398,13 @@ export default function HomePage() {
         (r.description || "").toLowerCase().includes(query.toLowerCase());
       const matchDeal = !filteredByDeal || filteredByDeal.ids.includes(r.id);
       let matchCity = true;
-      if (orderType === "PICKUP" && selectedCity) {
+      // PRIO 1: stad-familj från kundens adress (Google Places + parent-hierarki).
+      // Visar bara restauranger i samma metropolitan area (Malmö + Arlöv + Oxie
+      // men inte Lund om admin inte merged dem).
+      if (cityFamilyIds && cityFamilyIds.length > 0) {
+        matchCity = !!(r as any).cityId && cityFamilyIds.includes((r as any).cityId);
+      } else if (orderType === "PICKUP" && selectedCity) {
+        // PRIO 2 (legacy): admin-vald stad i dropdown (case-insensitive sträng-match).
         matchCity = (r.city || "").toLowerCase() === selectedCity.name.toLowerCase();
       }
       return matchCuisine && matchQuery && matchCity && matchDeal;

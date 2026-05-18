@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
 import { isPointInZone, pointInPolygon, haversineKm, findDeliveryZone, DeliveryZone } from '../utils/geo';
 import { getEffectiveZoneEta } from '../lib/restaurantZoneEta';
+import { resolveOrCreateCity, getCityFamilyIds } from '../lib/cityResolver';
 
 const router = Router();
 
@@ -32,6 +33,157 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('Cities fetch error:', err);
     res.status(500).json({ error: 'Kunde inte hämta städer' });
+  }
+});
+
+// ── GET /api/cities/family-by-name?name=Arlöv ─────────────────────────────
+// Web kallar denna när kund anger adress för att veta vilka cityIds som ska
+// visas (parent + alla syskon). Returnerar {effectiveId, name, familyIds[]}.
+// Lookup går via samma resolver som restaurant-create → alias + parent.
+router.get('/family-by-name', async (req, res) => {
+  try {
+    const name = (req.query.name as string || '').trim();
+    if (!name) return res.status(400).json({ error: 'name required' });
+    // Vi vill INTE skapa ny stad här (det är admin-action). Bara lookup.
+    const all = await (prisma as any).city.findMany({
+      select: { id: true, name: true, slug: true, aliases: true, parentCityId: true },
+    });
+    const lower = name.toLowerCase();
+    let match = all.find((c: any) => c.name.toLowerCase() === lower);
+    if (!match) {
+      match = all.find((c: any) => {
+        try { return (JSON.parse(c.aliases || '[]') as string[]).some((a) => a.toLowerCase() === lower); }
+        catch { return false; }
+      });
+    }
+    if (!match) return res.json({ effectiveId: null, name, familyIds: [] });
+
+    // Effective = parent om finns, annars self
+    const effectiveId = match.parentCityId || match.id;
+    const family = await (prisma as any).city.findMany({
+      where: { OR: [{ id: effectiveId }, { parentCityId: effectiveId }] },
+      select: { id: true, name: true },
+    });
+    res.json({
+      effectiveId,
+      name: family.find((c: any) => c.id === effectiveId)?.name ?? name,
+      familyIds: family.map((c: any) => c.id),
+      familyNames: family.map((c: any) => c.name),
+    });
+  } catch (err) {
+    console.error('Cities family lookup error:', err);
+    res.status(500).json({ error: 'Lookup failed' });
+  }
+});
+
+// ── GET /api/cities/hierarchy ────────────────────────────────────────────────
+// Returnerar städer ordnade som tree (parents först + children grupperade
+// under). Används av admin-Städer-sektionen i /zones för att visa hierarkin.
+router.get('/hierarchy', async (_req, res) => {
+  try {
+    const all = await (prisma as any).city.findMany({
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { restaurants: true } } },
+    });
+    type Node = {
+      id: string; name: string; slug: string; isActive: boolean;
+      restaurantCount: number; aliases: string[]; parentCityId: string | null;
+      children: Node[];
+    };
+    const byId = new Map<string, Node>();
+    for (const c of all) {
+      byId.set(c.id, {
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        isActive: c.isActive,
+        restaurantCount: c._count?.restaurants ?? 0,
+        aliases: (() => { try { return JSON.parse(c.aliases || '[]'); } catch { return []; } })(),
+        parentCityId: c.parentCityId ?? null,
+        children: [],
+      });
+    }
+    const roots: Node[] = [];
+    for (const node of byId.values()) {
+      if (node.parentCityId && byId.has(node.parentCityId)) {
+        byId.get(node.parentCityId)!.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+    res.json(roots);
+  } catch (err) {
+    console.error('Cities hierarchy fetch error:', err);
+    res.status(500).json({ error: 'Kunde inte hämta stad-hierarki' });
+  }
+});
+
+// ── PATCH /api/cities/:id/merge ──────────────────────────────────────────────
+// Slå ihop denna stad som BARN under en annan stad. Restaurangerna behåller
+// sin cityId (de bor fortfarande i Arlöv tekniskt) men resolven returnerar
+// Malmö när Google säger "Arlöv". Web-filter visar hela familjen.
+//
+// Sätt parentCityId till null för att lossa.
+router.patch('/:id/merge', async (req, res) => {
+  try {
+    const childId = req.params.id;
+    const { parentCityId } = req.body as { parentCityId: string | null };
+
+    if (childId === parentCityId) {
+      return res.status(400).json({ error: 'En stad kan inte vara förälder till sig själv' });
+    }
+
+    // Vi tillåter bara EN nivå av hierarki — om parent själv har parent,
+    // refusera (annars blir Arlöv → Malmö → Skåne en kedja som UI inte
+    // hanterar bra). Admin får först lossa parent's parent.
+    if (parentCityId) {
+      const parent = await (prisma as any).city.findUnique({
+        where: { id: parentCityId }, select: { parentCityId: true },
+      });
+      if (!parent) return res.status(404).json({ error: 'Förälder hittas inte' });
+      if (parent.parentCityId) return res.status(400).json({ error: 'Föräldra-staden är redan ett barn. Lossa den först.' });
+    }
+
+    // Kontrollera att child inte själv har barn (om så är fallet kan vi
+    // inte göra den till barn — den är redan en parent).
+    const child = await (prisma as any).city.findUnique({
+      where: { id: childId },
+      include: { _count: { select: { childCities: true } } },
+    });
+    if (!child) return res.status(404).json({ error: 'Stad hittas inte' });
+    if (parentCityId && (child._count?.childCities ?? 0) > 0) {
+      return res.status(400).json({ error: 'Denna stad har egna barn. Lossa dem först innan du kan göra den till barn.' });
+    }
+
+    const updated = await (prisma as any).city.update({
+      where: { id: childId },
+      data: { parentCityId },
+    });
+    res.json(updated);
+  } catch (err) {
+    console.error('City merge error:', err);
+    res.status(500).json({ error: 'Kunde inte slå ihop städer' });
+  }
+});
+
+// ── PATCH /api/cities/:id/aliases ────────────────────────────────────────────
+// Lägg till eller ta bort alias-namn. Body: { aliases: string[] } — ersätter
+// hela listan. Admin styr själv vilka namn ska resolvas till denna stad.
+router.patch('/:id/aliases', async (req, res) => {
+  try {
+    const { aliases } = req.body as { aliases: unknown };
+    if (!Array.isArray(aliases) || !aliases.every((a) => typeof a === 'string')) {
+      return res.status(400).json({ error: 'aliases måste vara string[]' });
+    }
+    const cleaned = aliases.map((a) => a.trim()).filter((a) => a.length > 0);
+    const updated = await (prisma as any).city.update({
+      where: { id: req.params.id },
+      data: { aliases: JSON.stringify(cleaned) },
+    });
+    res.json(updated);
+  } catch (err) {
+    console.error('City aliases update error:', err);
+    res.status(500).json({ error: 'Kunde inte uppdatera alias' });
   }
 });
 

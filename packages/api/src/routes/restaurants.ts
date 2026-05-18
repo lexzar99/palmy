@@ -8,6 +8,7 @@ import { getIO } from '../lib/socket';
 import { isRestaurantOpen } from '../lib/openingHours';
 import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
 import { getEffectiveEtaMinutes, ETA_DEFAULT_MINUTES } from '../lib/restaurantEta';
+import { resolveOrCreateCity } from '../lib/cityResolver';
 
 const router = Router();
 
@@ -126,6 +127,9 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
   latitude: restaurant.latitude ?? null,
   longitude: restaurant.longitude ?? null,
   placeId: restaurant.placeId ?? null,
+  // City-koppling (FK till City-tabellen) — används av web-filter så kunden
+  // bara ser restauranger i sin stad-familj (city + childCities via merge).
+  cityId: restaurant.cityId ?? null,
   deliveryRadius: restaurant.deliveryRadius ?? 5.0,
   deliveryZones: parseJson<any[]>(restaurant.deliveryZones, []),
   menu: includeMenu
@@ -320,6 +324,21 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       data.deliveryZones = JSON.stringify(normalizeDeliveryZones(zonesRaw));
     }
 
+    // Auto-resolve cityId från Google Places-stadnamn. Om payload.city kommer
+    // från autocomplete (locality) → upsert City + bind via cityId. Hanterar
+    // alias + parent-hierarki: "Arlöv" → returnerar Malmö-id om merged.
+    if (payload.city) {
+      try {
+        const resolved = await resolveOrCreateCity(payload.city, {
+          centerLat: data.latitude,
+          centerLng: data.longitude,
+        });
+        data.cityId = resolved.id;
+      } catch (e) {
+        console.warn('[restaurants POST] cityResolver failed:', (e as Error).message);
+      }
+    }
+
     const restaurant = await prisma.restaurant.create({
       data: {
         ...data,
@@ -443,6 +462,19 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.latitude !== undefined) data.latitude = payload.latitude === null ? null : toSafeNum(payload.latitude);
     if (payload.longitude !== undefined) data.longitude = payload.longitude === null ? null : toSafeNum(payload.longitude);
     if (payload.placeId !== undefined) data.placeId = payload.placeId || null;
+    // Auto-resolve cityId vid PATCH samma sätt som POST. Sker bara om
+    // payload.city skickas (admin ändrade adress via Google Places).
+    if (payload.city) {
+      try {
+        const resolved = await resolveOrCreateCity(payload.city, {
+          centerLat: toSafeNum(payload.latitude) ?? existingRestaurant.latitude ?? undefined,
+          centerLng: toSafeNum(payload.longitude) ?? existingRestaurant.longitude ?? undefined,
+        });
+        data.cityId = resolved.id;
+      } catch (e) {
+        console.warn('[restaurants PATCH] cityResolver failed:', (e as Error).message);
+      }
+    }
     if (payload.deliveryRadius !== undefined) data.deliveryRadius = toSafeNum(payload.deliveryRadius);
     
     if (payload.freeDeliveryAbove !== undefined) {

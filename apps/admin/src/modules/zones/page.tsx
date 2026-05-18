@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, ChevronDown, Loader2, MapPin, MapPinned, Plus, Save, Settings2, Store, Trash2 } from "lucide-react";
 import ZoneEditor from "@/modules/zones/components/zone-editor";
+import { CityHierarchyManager } from "@/modules/zones/city-hierarchy-manager";
 import { createCity, deleteCity, getCities, getZoneRestaurants, parseZones, saveCity, serializeZones, zonesCitiesQueryKey, zonesRestaurantsQueryKey, type CityRecord, type CityRestaurantLink, type RestaurantLocationRecord, type ZoneRecord } from "@/modules/zones/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { formatNumber } from "@/shared/utils/format";
@@ -382,8 +383,14 @@ export function ZonesPage() {
               zoner via /zones/restaurant/{id}. Ingen "fallback"-täckning på
               city-nivå längre. Backend ignorerar city.zones helt vid
               validate-location. */}
+
         </>
       )}
+
+      {/* ── Städer-hantering: hierarki + manuell merge + aliases ─────────
+          Visas alltid (oavsett om en stad är vald), så admin kan se alla
+          städer som auto-skapats från Google Places och slå ihop dem. */}
+      <CityHierarchyManager />
 
       <CitySettingsModal open={settingsOpen} city={selectedCity} onClose={() => setSettingsOpen(false)} onChange={updateSelectedCity} />
       <Modal open={newCityOpen} onClose={() => setNewCityOpen(false)} title="New city" footer={<div className="flex justify-end gap-2"><Button onClick={() => setNewCityOpen(false)}>Close</Button><Button variant="primary" onClick={() => createMutation.mutate()} disabled={!newCityName.trim() || createMutation.isPending}>{createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />} Create</Button></div>}>
