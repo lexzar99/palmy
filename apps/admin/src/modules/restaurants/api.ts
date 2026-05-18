@@ -101,6 +101,7 @@ export interface RestaurantFormPayload {
 }
 
 export const restaurantsQueryKey = ["restaurants", "overview"] as const;
+export const restaurantDetailQueryKey = (restaurantId: string) => ["restaurants", "detail", restaurantId] as const;
 
 export const getRestaurantOverview = async () => {
   const data = await apiGet<ControlCenterData>("/admin/control-center");

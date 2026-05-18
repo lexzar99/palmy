@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, ChevronDown, Loader2, MapPin, MapPinned, Plus, Save, Settings2, Store, Trash2 } from "lucide-react";
 import ZoneEditor from "@/modules/zones/components/zone-editor";
@@ -100,13 +101,13 @@ function CitySettingsModal({ open, city, onClose, onChange }: { open: boolean; c
 }
 
 export function ZonesPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [cities, setCities] = useState<EnrichedCity[]>([]);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newCityOpen, setNewCityOpen] = useState(false);
   const [newCityName, setNewCityName] = useState("");
-  const [overrideRestaurantId, setOverrideRestaurantId] = useState<string | null>(null);
 
   const citiesQuery = useQuery({ queryKey: zonesCitiesQueryKey, queryFn: getCities });
   const restaurantsQuery = useQuery({ queryKey: zonesRestaurantsQueryKey, queryFn: getZoneRestaurants });
@@ -125,7 +126,6 @@ export function ZonesPage() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const selectedCity = useMemo(() => cities.find((city) => city.id === selectedCityId) || null, [cities, selectedCityId]);
-  const selectedRestaurantOverride = selectedCity?.restaurants.find((restaurant) => restaurant.id === overrideRestaurantId) || null;
   const cityZones = selectedCity ? parseZones(selectedCity.zones) : [];
 
   const setCityZones = (zones: ZoneRecord[]) => {
@@ -318,7 +318,7 @@ export function ZonesPage() {
                     <button
                       key={restaurant.id}
                       type="button"
-                      onClick={() => setOverrideRestaurantId(restaurant.id)}
+                      onClick={() => router.push(`/zones/restaurant/${restaurant.id}`)}
                       className="group surface-muted px-4 py-4 text-left rounded-2xl border border-[var(--border-subtle)] hover:border-[rgba(231,178,75,0.4)] hover:bg-[rgba(231,178,75,0.04)] transition-all"
                     >
                       <div className="flex items-start justify-between gap-3 mb-2.5">
@@ -408,25 +408,9 @@ export function ZonesPage() {
       <Modal open={newCityOpen} onClose={() => setNewCityOpen(false)} title="New city" footer={<div className="flex justify-end gap-2"><Button onClick={() => setNewCityOpen(false)}>Close</Button><Button variant="primary" onClick={() => createMutation.mutate()} disabled={!newCityName.trim() || createMutation.isPending}>{createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />} Create</Button></div>}>
         <Field label="City name"><Input value={newCityName} onChange={(event) => setNewCityName(event.target.value)} placeholder="Lund" /></Field>
       </Modal>
-      <RestaurantOverrideModal
-        open={Boolean(selectedRestaurantOverride)}
-        restaurant={selectedRestaurantOverride}
-        /* Centrera kartan på RESTAURANGENS egna lat/lng (från Google Places
-           autocomplete i restaurant-form). Fallback till stadens centrum om
-           restaurangen ännu inte har koordinater satta. */
-        centerLat={selectedRestaurantOverride?.latitude ?? selectedCity?.centerLat ?? selectedCity?.latitude}
-        centerLng={selectedRestaurantOverride?.longitude ?? selectedCity?.centerLng ?? selectedCity?.longitude}
-        onClose={() => setOverrideRestaurantId(null)} onSave={(restaurantId, zones, freeDeliveryAbove) => {
-        if (!selectedCity) return;
-        setCities((current) => current.map((city) => {
-          if (city.id !== selectedCity.id) return city;
-          return {
-            ...city,
-            restaurants: city.restaurants.map((restaurant) => restaurant.id === restaurantId ? { ...restaurant, deliveryZones: JSON.stringify(serializeZones(zones)), freeDeliveryAbove } : restaurant),
-          };
-        }));
-        setOverrideRestaurantId(null);
-      }} />
+      {/* RestaurantOverrideModal är borttagen — zone-redigering per restaurang
+          sker nu på en standalone full-skärm-sida: /zones/restaurant/{id}.
+          Klick på restaurang-kort ovan navigerar dit via router.push(). */}
     </div>
   );
 }
