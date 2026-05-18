@@ -36,6 +36,13 @@ model Product {
   isVegetarian        Boolean             @default(false)
   isGlutenFree        Boolean             @default(false)
   position            Int                 @default(0)
+  // Visningsläge i kundens meny. "FULL" = en per rad med stora bild + beskrivning
+  // + VARUKORG-knapp. "COMPACT" = 2 per rad, kompakt kort för drycker, sidor,
+  // chili cheese etc. Bestäms i admin per produkt.
+  displayMode         String              @default("FULL")
+  // När true: hoppa över beskrivningen i menyn (för compact-items där beskrivning
+  // inte behövs eller bara är brus). Admin-styrt.
+  hideDescription     Boolean             @default(false)
   // Discount / sale fields for "Rea & rabatterat" section on home.
   // discountPercent overrides discountPrice if both are set.
   discountPercent     Int?                // 1-95 (%)

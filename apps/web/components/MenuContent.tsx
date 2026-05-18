@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Loader2, Info, Sparkles, ChevronLeft, ChevronRight, MapPin, Phone, Clock, Bike, Store, Star, ShoppingBag, X, AlertTriangle } from "lucide-react";
+import { Search, Loader2, Info, Sparkles, ChevronLeft, ChevronRight, MapPin, Phone, Clock, Bike, Store, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, ArrowRight, Tag, Flame } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import ProductModal from "@/components/ProductModal";
 import FloatingCartButton from "@/components/FloatingCartButton";
@@ -16,6 +16,7 @@ import AddressModal from "@/components/AddressModal";
 import PreviouslyOrderedBar from "@/components/PreviouslyOrderedBar";
 import DealBannerStrip from "@/components/DealBannerStrip";
 import { useCartStore } from "@/store/cartStore";
+import { useFavorites } from "@/lib/favoritesStore";
 import BogoPickerModal, { type BogoPickerProduct } from "@/components/BogoPickerModal";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -23,6 +24,171 @@ interface MenuContentProps {
   restaurantSlug?: string;
   restaurantId?: string;
   isStandalone?: boolean;
+}
+
+// ─── Produktkort-helpers ─────────────────────────────────────────────────
+// Visningsläget styrs från admin per produkt (Product.displayMode).
+// "FULL"    → en per rad, stor bild + beskrivning + stor VARUKORG-knapp
+// "COMPACT" → 2 per rad i grid, för drycker, sidor, chili cheese etc.
+//
+// Consecutiva COMPACT-produkter slås ihop till en 2-grid-rad. Om en kategori
+// blandar FULL och COMPACT renderas de i den ordning admin satt position.
+
+type ProductRow =
+  | { type: "FULL"; product: any }
+  | { type: "COMPACT"; products: any[] };
+
+function groupProductsByDisplay(products: any[]): ProductRow[] {
+  const rows: ProductRow[] = [];
+  for (const p of products) {
+    const mode = (p.displayMode === "COMPACT" ? "COMPACT" : "FULL") as "FULL" | "COMPACT";
+    if (mode === "FULL") {
+      rows.push({ type: "FULL", product: p });
+    } else {
+      const last = rows[rows.length - 1];
+      if (last && last.type === "COMPACT" && last.products.length < 2) {
+        last.products.push(p);
+      } else {
+        rows.push({ type: "COMPACT", products: [p] });
+      }
+    }
+  }
+  return rows;
+}
+
+function getDisplayPrice(p: any): { final: number; original: number | null } {
+  if (p.discountActive) {
+    const final = p.discountPrice ?? Math.round(p.price - (p.price * (p.discountPercent || 0) / 100));
+    return { final, original: p.price };
+  }
+  return { final: p.price, original: null };
+}
+
+/**
+ * FullProductCard — kompakt rad med bild vänster, namn + beskrivning höger,
+ * priser uppe höger och stor VARUKORG-knapp under text. Outline-style för
+ * tydlig separation från bakgrunden.
+ */
+function FullProductCard({ product, cartQty, onClick, disabled }: { product: any; cartQty: number; onClick: () => void; disabled: boolean }) {
+  const { final, original } = getDisplayPrice(product);
+  const hasImage = Boolean(product.imageUrl);
+  const showDescription = !product.hideDescription && Boolean(product.description);
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileTap={disabled ? undefined : { scale: 0.995 }}
+      disabled={disabled}
+      aria-disabled={disabled}
+      className={`group w-full text-left rounded-2xl overflow-hidden transition-all ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer"}`}
+      style={{
+        backgroundColor: "var(--bg-secondary)",
+        border: "1.5px solid rgba(28,28,30,0.08)",
+        boxShadow: "0 4px 14px rgba(28,28,30,0.04)",
+      }}
+    >
+      <div className="flex items-start gap-3 p-3 sm:p-4">
+        {hasImage && (
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: "var(--bg-deep)" }}>
+            <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="text-base font-black uppercase italic leading-tight" style={{ color: "var(--text-primary)" }}>{product.name}</h3>
+            <div className="flex flex-col items-end shrink-0">
+              {original != null && (
+                <span className="text-xs font-medium text-zinc-400 line-through leading-tight">{original} kr</span>
+              )}
+              <span className={`text-sm font-black leading-tight ${original != null ? "text-gold-600 bg-gold-500/10 px-2 py-0.5 rounded-md mt-0.5" : ""}`} style={original == null ? { color: "var(--text-primary)" } : undefined}>
+                {final} kr
+              </span>
+            </div>
+          </div>
+          {showDescription && (
+            <p className="mt-1.5 text-xs sm:text-[13px] leading-snug line-clamp-2" style={{ color: "var(--text-secondary)" }}>{product.description}</p>
+          )}
+          {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
+            <div className="mt-2 flex items-center gap-1.5">
+              {product.isVegan && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-600 uppercase tracking-wider">Vegan</span>}
+              {product.isVegetarian && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 uppercase tracking-wider">Veg</span>}
+              {product.isGlutenFree && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 uppercase tracking-wider">GF</span>}
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Stor VARUKORG-knapp: visas alltid, text växlar om kunden har lagt i något */}
+      <div className="px-3 sm:px-4 pb-3 sm:pb-4">
+        <div className="w-full flex items-center justify-center gap-2.5 bg-gold-500 text-zinc-950 rounded-full py-3.5 font-black uppercase tracking-wider text-xs sm:text-sm shadow-md shadow-gold-500/25 group-hover:bg-gold-400 transition-colors">
+          <ShoppingBag size={16} strokeWidth={2.5} />
+          {cartQty > 0 ? (
+            <>
+              <span>Varukorg · {cartQty} st</span>
+              <ArrowRight size={16} strokeWidth={2.8} />
+            </>
+          ) : (
+            <>
+              <span>Lägg i varukorg</span>
+              <ArrowRight size={16} strokeWidth={2.8} />
+            </>
+          )}
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
+/**
+ * CompactProductCard — för 2-grid-vyn (drycker, sidor, chili cheese etc).
+ * Square-bild ovan, namn + pris + plus-knapp under. Ingen beskrivning visas.
+ */
+function CompactProductCard({ product, cartQty, onClick, disabled }: { product: any; cartQty: number; onClick: () => void; disabled: boolean }) {
+  const { final, original } = getDisplayPrice(product);
+  const hasImage = Boolean(product.imageUrl);
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileTap={disabled ? undefined : { scale: 0.97 }}
+      disabled={disabled}
+      aria-disabled={disabled}
+      className={`group w-full text-left rounded-2xl overflow-hidden transition-all flex flex-col ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer"}`}
+      style={{
+        backgroundColor: "var(--bg-secondary)",
+        border: "1.5px solid rgba(28,28,30,0.08)",
+        boxShadow: "0 4px 14px rgba(28,28,30,0.04)",
+      }}
+    >
+      {hasImage ? (
+        <div className="w-full aspect-square overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+          <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        </div>
+      ) : (
+        <div className="w-full aspect-square flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
+          <ShoppingBag size={28} className="text-zinc-300" />
+        </div>
+      )}
+      <div className="p-2.5 flex flex-col gap-1">
+        <h4 className="text-sm font-bold leading-tight line-clamp-2 min-h-[2.4em]" style={{ color: "var(--text-primary)" }}>{product.name}</h4>
+        <div className="flex items-center justify-between mt-1">
+          <div className="flex flex-col">
+            {original != null && (
+              <span className="text-[10px] font-medium text-zinc-400 line-through leading-none">{original} kr</span>
+            )}
+            <span className={`text-sm font-black leading-tight ${original != null ? "text-gold-600" : ""}`} style={original == null ? { color: "var(--text-primary)" } : undefined}>{final} kr</span>
+          </div>
+          <div className="w-9 h-9 rounded-full bg-gold-500 flex items-center justify-center shadow-md shadow-gold-500/25 group-hover:bg-gold-400 transition-colors relative">
+            <Plus size={18} className="text-zinc-950" strokeWidth={2.8} />
+            {cartQty > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-zinc-950 text-gold-400 text-[10px] font-black flex items-center justify-center border-2 border-white">
+                {cartQty}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </motion.button>
+  );
 }
 
 const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: MenuContentProps) => {
@@ -51,6 +217,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const updateDeliveryOverride = useCartStore((state) => state.updateDeliveryOverride);
   const subtotal = useCartStore((state) => state.getTotal());
   const productIds = items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
+  // Favoriter — synkat med övriga vyer via localStorage-store
+  const { isFavorite, toggle: toggleFavorite } = useFavorites();
   const bogoChoice = useCartStore((state) => state.bogoChoice);
   const setBogoChoice = useCartStore((state) => state.setBogoChoice);
 
@@ -285,6 +453,27 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     });
   }, [deals, categories]);
 
+  /**
+   * Öppna produkt-modal. Hanterar 3 gating-fall i ordning:
+   *  1. Restaurang stängd → tyst noop (kortet är redan disabled visuellt).
+   *  2. Adress utanför leveranszon → scrolla upp till banner.
+   *  3. Ingen adress satt (på DELIVERY) → öppna AddressModal med pending product.
+   *  4. Annars → öppna ProductModal direkt.
+   */
+  const handleOpenProduct = useCallback((p: any) => {
+    if (!restaurant?.isOpen) return;
+    if (zoneAvailable === false) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (!address.trim() || (orderType === "DELIVERY" && !localStorage.getItem("platform_coords"))) {
+      setPendingProduct(p);
+      setShowAddressModal(true);
+    } else {
+      setSelectedProduct(p);
+    }
+  }, [restaurant?.isOpen, zoneAvailable, address, orderType]);
+
   const filteredCategories = categories
     .map((cat) => ({
       ...cat,
@@ -329,63 +518,100 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
   return (
     <div className="pb-32 md:pt-20 selection:bg-gold-500/30" style={{ backgroundColor: "var(--bg-primary)" }}>
-      {/* Dynamic Cover Image with Parallax-ish feel */}
-      <div className="relative w-full h-[50vh] overflow-hidden">
+      {/* ── Hero: kompakt 32vh på mobil, 40vh på desktop ─────────────────── */}
+      <div className="relative w-full h-[32vh] sm:h-[40vh] overflow-hidden">
         {heroImage ? (
-           <img src={heroImage} alt={restaurant?.name} loading="eager" decoding="async" className="w-full h-full object-cover scale-105" />
+          <img src={heroImage} alt={restaurant?.name} loading="eager" decoding="async" className="w-full h-full object-cover" />
         ) : (
-           <div className="w-full h-full bg-gradient-to-b" style={{ backgroundImage: "linear-gradient(to bottom, var(--bg-deep), var(--bg-primary))" }} />
+          <div className="w-full h-full" style={{ backgroundImage: "linear-gradient(135deg, var(--bg-deep), var(--bg-primary))" }} />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t" style={{ background: "linear-gradient(to top, var(--bg-primary), rgba(252,252,249,0.4), transparent)" }} />
-        
-        {/* Glass Back Button */}
+        {/* Subtil mörkare gradient i topp + ljus fade nederst för seamless övergång till content */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[color:var(--bg-primary)] to-transparent" />
+
+        {/* Top-icons: Back (vänster), Favorit (höger) — share-knapp borttagen */}
         <Link
           href="/"
-          className="absolute top-8 left-6 glass-panel px-5 py-3 rounded-2xl flex items-center gap-2 group transition-all opacity-90 hover:opacity-100 active:scale-95 shadow-sm"
-          style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
+          aria-label={t("common.back")}
+          className="absolute top-4 left-4 w-11 h-11 rounded-full backdrop-blur-xl bg-white/85 border border-white/40 flex items-center justify-center shadow-lg active:scale-95 transition-all"
         >
-          <ChevronLeft size={16} className="text-gold-500 group-hover:-translate-x-1 transition-transform" />
-          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>{t("common.back")}</span>
+          <ChevronLeft size={20} className="text-zinc-900" />
         </Link>
+        {restaurant?.id && (
+          <button
+            type="button"
+            aria-label="Spara favorit"
+            aria-pressed={isFavorite(restaurant.id)}
+            onClick={() => toggleFavorite(restaurant.id)}
+            className="absolute top-4 right-4 w-11 h-11 rounded-full backdrop-blur-xl bg-white/85 border border-white/40 flex items-center justify-center shadow-lg active:scale-95 transition-all"
+          >
+            <Heart
+              size={19}
+              className={isFavorite(restaurant.id) ? "text-rose-500" : "text-zinc-700"}
+              fill={isFavorite(restaurant.id) ? "currentColor" : "none"}
+            />
+          </button>
+        )}
 
-         {/* Header Content in Overlap */}
-         <div className="absolute bottom-10 left-0 w-full px-4 sm:px-6 lg:px-12 flex flex-col lg:flex-row lg:items-end justify-between gap-6 sm:gap-8">
-           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="flex-1">
-               <div className="flex items-center gap-2 sm:gap-4 mb-3">
-                <h1 className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tight uppercase leading-[0.8] italic" style={{ color: "var(--text-primary)" }}>
-                     {firstWord}{" "}
-                     <span className="text-gold-gradient">{restOfTitle}</span>
-                  </h1>
-                 <div className={`px-4 py-1.5 rounded-full border-[1px] flex items-center gap-2 ${restaurant?.isOpen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-rose-500/30 bg-rose-500/10 text-rose-600"}`}>
-                    <div className={`w-1 h-1 rounded-full ${restaurant?.isOpen ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em]">{restaurant?.isOpen ? t("menu.statusOpen") : t("menu.statusClosed")}</span>
-                 </div>
-              </div>
-         <div className="flex items-center gap-3 sm:gap-5 flex-wrap">
-            <p className="text-[9px] sm:text-[10px] font-black uppercase italic tracking-widest" style={{ color: "var(--text-secondary)" }}>{restaurant.cuisine || t("menu.restaurant")}</p>
-                  <Link href={`/r/${restaurantSlug || restaurant.slug}/reviews`} className="flex items-center gap-1.5 text-gold-500 font-bold italic text-[10px] sm:text-[11px] hover:opacity-75 transition-opacity">
-                     <Star size={12} className="fill-gold-500" />
-                     {(restaurant.rating || 4.6).toFixed(1)}
-                     <span className="font-black ml-1" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>({restaurant.ratingCount || 120})</span>
-                     <ChevronRight size={10} className="opacity-40" />
-                  </Link>
-              </div>
-           </motion.div>
-
-<motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowInfoModal(true)} className="glass-panel px-3 py-2.5 sm:px-6 sm:py-4 rounded-2xl sm:rounded-3xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 sm:gap-3 shadow-sm hover:bg-gold-500/5 transition-all" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>
-                   <Info size={14} className="text-gold-500/60" /> <span className="hidden xs:inline">{t("menu.info")}</span>
-                </motion.button>
-                {restaurant.phone && (
-                   <motion.a whileTap={{ scale: 0.95 }} href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`} className="bg-gold-500 px-3 py-2.5 sm:px-6 sm:py-4 rounded-2xl sm:rounded-3xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-950 flex items-center gap-1.5 sm:gap-3 shadow-xl hover:bg-gold-400 transition-all">
-                      <Phone size={14} /> {t("menu.contact")}
-                   </motion.a>
-                )}
-             </motion.div>
+        {/* Status-pill: flyter top-left ovanpå bilden, nedanför back-knappen */}
+        <div className={`absolute top-[4.25rem] left-4 px-3 py-1 rounded-full backdrop-blur-xl flex items-center gap-1.5 shadow-md ${restaurant?.isOpen ? "bg-emerald-500/95 text-white" : "bg-rose-500/95 text-white"}`}>
+          <span className={`w-1.5 h-1.5 rounded-full bg-white ${restaurant?.isOpen ? "animate-pulse" : ""}`} />
+          <span className="text-[10px] font-black uppercase tracking-[0.15em]">{restaurant?.isOpen ? t("menu.statusOpen") : t("menu.statusClosed")}</span>
         </div>
       </div>
 
-      <div className="mx-auto max-w-5xl px-6 lg:px-12 pt-12 relative">
+      {/* ── Restaurang-info DIREKT under hero (titel, rating, knappar) ──── */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="px-5 sm:px-6 lg:px-12 pt-4 sm:pt-6 max-w-5xl mx-auto">
+        <h1 className="font-black italic uppercase tracking-tight leading-[0.95] text-[2.4rem] sm:text-5xl">
+          <span style={{ color: "var(--text-primary)" }}>{firstWord}</span>
+          {restOfTitle && (
+            <>
+              {" "}
+              <span className="text-gold-500">{restOfTitle}</span>
+            </>
+          )}
+        </h1>
+        {/* Inline metadata: cuisine · ★rating (votes) */}
+        <div className="mt-2.5 flex items-center gap-2 text-sm">
+          {restaurant?.cuisine && (
+            <span className="font-bold uppercase tracking-wider text-xs" style={{ color: "var(--text-secondary)" }}>{restaurant.cuisine}</span>
+          )}
+          {restaurant?.cuisine && <span className="text-zinc-300">·</span>}
+          <Link
+            href={`/r/${restaurantSlug || restaurant.slug}/reviews`}
+            className="flex items-center gap-1.5 hover:opacity-75 transition-opacity"
+          >
+            <Star size={14} className="text-gold-500 fill-gold-500" />
+            <span className="font-bold" style={{ color: "var(--text-primary)" }}>{(restaurant?.rating || 5.0).toFixed(1)}</span>
+            <span className="font-medium text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>({restaurant?.ratingCount || 1})</span>
+          </Link>
+        </div>
+
+        {/* Action-knappar: INFO (outline) + KONTAKTA OSS (solid gold) */}
+        <div className="mt-4 flex items-center gap-2.5">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowInfoModal(true)}
+            className="px-5 py-3 rounded-full flex items-center gap-2 text-xs font-black uppercase tracking-wider transition-all hover:bg-zinc-50"
+            style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid var(--border-muted)", color: "var(--text-primary)" }}
+          >
+            <Info size={15} className="text-zinc-600" />
+            {t("menu.info")}
+          </motion.button>
+          {restaurant?.phone && (
+            <motion.a
+              whileTap={{ scale: 0.95 }}
+              href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`}
+              className="px-5 py-3 rounded-full flex items-center gap-2 text-xs font-black uppercase tracking-wider bg-gold-500 text-zinc-950 hover:bg-gold-400 transition-all shadow-md shadow-gold-500/20"
+            >
+              <Phone size={15} />
+              {t("menu.contact")}
+            </motion.a>
+          )}
+        </div>
+      </motion.div>
+
+      <div className="mx-auto max-w-5xl px-5 sm:px-6 lg:px-12 pt-6 sm:pt-8 relative">
 
         {/* Out-of-zone banner — only shown for OPEN restaurants; closed ones are handled by the closed state */}
         <AnimatePresence>
@@ -454,228 +680,225 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           <PreviouslyOrderedBar restaurantId={restaurant.id} restaurantSlug={restaurantSlug || restaurant.slug} />
         )}
 
-         {/* Quick Stats Grid */}
-         <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-12 sm:mb-16">
-           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-              <Bike size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
-              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>{t("menu.stats.fee")}</div>
-               <div className="text-sm font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>
-                 {(zoneAvailable === false && restaurant?.isOpen)
-                   ? "–"
-                   : (restaurant.deliveryFee === 0 ? t("menu.stats.free") : `${restaurant.deliveryFee} KR`)}
-               </div>
-           </div>
-           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-              <Clock size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
-              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>{t("menu.stats.eta")}</div>
-              <div className="text-sm font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>~{restaurant.etaMinutes} {t("menu.stats.min")}</div>
-           </div>
-           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-              <Store size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
-              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>{t("menu.stats.minOrder")}</div>
-              <div className="text-sm font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>{restaurant.minOrderAmount} KR</div>
-           </div>
+        {/* ── Stats-kort: vit kort med 3 kolumner (Leveransavgift / Leveranstid / Minimum) ── */}
+        <div className="grid grid-cols-3 mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 16px rgba(28,28,30,0.04)" }}>
+          {[
+            {
+              icon: Bike,
+              label: t("menu.stats.fee"),
+              value: (zoneAvailable === false && restaurant?.isOpen)
+                ? "–"
+                : (restaurant.deliveryFee === 0 ? t("menu.stats.free") : `${restaurant.deliveryFee} kr`),
+            },
+            {
+              icon: Clock,
+              label: t("menu.stats.eta"),
+              value: `~${restaurant.etaMinutes} ${t("menu.stats.min")}`,
+            },
+            {
+              icon: ShoppingBag,
+              label: t("menu.stats.minOrder"),
+              value: `${restaurant.minOrderAmount} kr`,
+            },
+          ].map((stat, i, arr) => {
+            const Icon = stat.icon;
+            return (
+              <div
+                key={stat.label}
+                className={`flex items-center gap-2.5 px-3 py-3.5 sm:px-4 sm:py-4 ${i < arr.length - 1 ? "border-r" : ""}`}
+                style={{ borderColor: "rgba(28,28,30,0.06)" }}
+              >
+                <div className="w-9 h-9 rounded-full bg-gold-500/10 flex items-center justify-center shrink-0">
+                  <Icon size={16} className="text-gold-500" strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[9px] font-bold uppercase tracking-wider leading-tight truncate" style={{ color: "var(--text-secondary)" }}>{stat.label}</div>
+                  <div className="text-sm font-black leading-tight mt-0.5 truncate" style={{ color: "var(--text-primary)" }}>{stat.value}</div>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {/* Sticky Search */}
-        <div className="sticky top-0 md:top-20 z-40 mb-2">
-          <div className="rounded-[2.5rem] p-2 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-            <div className="relative group">
-              <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }} />
-              <input
-                type="text"
-                placeholder={t("menu.searchPlaceholder")}
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full border-none rounded-[2rem] py-3 sm:py-4 pl-12 sm:pl-14 pr-4 sm:pr-6 text-xs font-bold focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-400"
-                style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}
-              />
-            </div>
-          </div>
+        {/* ── Sök: ren rounded pill, ingen filter-knapp ──────────────────── */}
+        <div className="mb-3 rounded-full flex items-center gap-3 px-5 py-3.5" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
+          <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+          <input
+            type="text"
+            placeholder={t("menu.searchPlaceholder")}
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full bg-transparent border-none text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-zinc-400"
+            style={{ color: "var(--text-primary)" }}
+          />
         </div>
 
-        {/* Sticky Categories — breaks out of parent px-6 so scroll is never clipped */}
+        {/* ── Sticky kategori-pills — bryter ut ur parent-padding för snyggt edge-to-edge scroll ── */}
         {categories.length > 0 && (
-          <div className="sticky z-40 mb-16 -mx-6 lg:-mx-12 top-14 md:top-[8.5rem]">
+          <div className="sticky z-40 mb-10 -mx-5 sm:-mx-6 lg:-mx-12 top-0 md:top-20 py-2.5" style={{ backgroundColor: "var(--bg-primary)" }}>
             <div
-              className="flex gap-2 no-scrollbar px-6 lg:px-12"
-              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, paddingRight: "1.5rem" }}
+              className="flex gap-2 no-scrollbar px-5 sm:px-6 lg:px-12"
+              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any }}
             >
-              {categories.map(cat => (
-                <motion.button
-                  key={cat.id}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => {
-                    setActiveCategory(cat.id);
-                    const element = document.getElementById(cat.id);
-                    if (element) {
-                      const offset = 120;
-                      window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
-                    }
-                  }}
-                  className={`px-5 py-3 rounded-[2rem] text-[10px] font-black uppercase tracking-wider transition-all shrink-0 whitespace-nowrap ${
-                    activeCategory === cat.id
-                      ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20"
-                      : "text-zinc-400 hover:text-zinc-600"
-                  }`}
-                  style={activeCategory === cat.id ? {} : { backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
-                >
-                  {cat.name}
-                </motion.button>
-              ))}
+              {categories.map(cat => {
+                const isActive = activeCategory === cat.id;
+                return (
+                  <motion.button
+                    key={cat.id}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => {
+                      setActiveCategory(cat.id);
+                      const element = document.getElementById(cat.id);
+                      if (element) {
+                        const offset = 100;
+                        window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
+                      }
+                    }}
+                    className={`px-4 py-2.5 rounded-full text-xs font-bold transition-all shrink-0 whitespace-nowrap ${
+                      isActive
+                        ? "bg-gold-500 text-zinc-950 shadow-md shadow-gold-500/25"
+                        : "hover:bg-zinc-50"
+                    }`}
+                    style={isActive ? {} : { backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)", color: "var(--text-primary)" }}
+                  >
+                    {cat.name}
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* Discounted Products Rail */}
+        {/* ── REA: rabatterade produkter på horisontell 2-grid swipe ──────── */}
         {(() => {
           const discountedProducts = filteredCategories
             .flatMap(cat => cat.products)
             .filter((p: any) => p.discountActive && p.discountScope === "PRODUCT");
           if (discountedProducts.length === 0) return null;
+          const disabled = !restaurant?.isOpen || zoneAvailable === false;
+          const itemCount = (p: any) => items.filter((i) => i.productId === p.id).reduce((s, i) => s + i.quantity, 0);
           return (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 px-4">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
               <div className="flex items-center gap-3 mb-4">
-                <span className="text-[10px] font-black uppercase tracking-widest text-gold-500">{t("menu.recommended")}</span>
-                <div className="h-px bg-gold-500/20 flex-1" />
+                <div className="flex items-center gap-2">
+                  <Tag size={16} className="text-gold-500" strokeWidth={2.5} />
+                  <h3 className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>{t("menu.recommended")}</h3>
+                </div>
+                <div className="h-px bg-zinc-200 flex-1" />
               </div>
-              <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
-                {discountedProducts.map((p: any) => (
-                  <motion.div
-                    key={p.id}
-                    onClick={() => {
-                      if (!restaurant?.isOpen) return;
-                      if (zoneAvailable === false) {
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        return;
-                      }
-                      if (!address.trim() || orderType === "DELIVERY" && !localStorage.getItem("platform_coords")) {
-                        setPendingProduct(p);
-                        setShowAddressModal(true);
-                      } else {
-                        setSelectedProduct(p);
-                      }
-                    }}
-                    whileTap={!restaurant?.isOpen ? undefined : { scale: 0.95 }}
-                    // Visuell disable + pointer-events-none när restaurangen
-                    // är stängd. Tidigare hade kortet bara onClick-early-return
-                    // — kunden såg ett fullt klickbart kort, klickade, ingen
-                    // feedback. Nu syns direkt att det inte går att beställa.
-                    className={`shrink-0 w-56 rounded-2xl p-4 flex items-center gap-4 transition-all shadow-sm ${
-                      !restaurant?.isOpen
-                        ? "opacity-50 grayscale cursor-not-allowed pointer-events-none"
-                        : zoneAvailable === false
-                          ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none"
-                          : "cursor-pointer"
-                    }`}
-                    aria-disabled={!restaurant?.isOpen || zoneAvailable === false}
-                    style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(231,178,75,0.2)" }}
-                  >
-                    {p.imageUrl && (
-                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">
-                        <img src={p.imageUrl} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+              <div
+                className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 sm:-mx-6 lg:-mx-12 px-5 sm:px-6 lg:px-12 pb-2 snap-x snap-mandatory"
+                style={{ WebkitOverflowScrolling: "touch" as any }}
+              >
+                {discountedProducts.map((p: any) => {
+                  const cartQty = itemCount(p);
+                  const finalPrice = p.discountPrice ?? Math.round(p.price - (p.price * (p.discountPercent || 0) / 100));
+                  return (
+                    <motion.button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleOpenProduct(p)}
+                      whileTap={disabled ? undefined : { scale: 0.97 }}
+                      disabled={disabled}
+                      aria-disabled={disabled}
+                      className={`shrink-0 snap-start text-left rounded-2xl overflow-hidden transition-all flex flex-col ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer"}`}
+                      style={{ width: "calc((100% - 12px) / 2)", maxWidth: 200, backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 12px rgba(28,28,30,0.04)" }}
+                    >
+                      <div className="relative w-full aspect-square overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+                        {p.imageUrl && <img src={p.imageUrl} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />}
+                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider shadow-md">REA</div>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-black uppercase italic truncate leading-[1.15] mb-1" style={{ color: "var(--text-primary)" }}>{p.name}</h4>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-zinc-500 line-through">{p.price} KR</span>
-                        <span className="text-[11px] font-black text-gold-500">{p.discountPrice || p.price - (p.price * (p.discountPercent || 0) / 100)} KR</span>
+                      <div className="p-3 flex flex-col gap-1.5">
+                        <h4 className="text-sm font-bold leading-tight line-clamp-1" style={{ color: "var(--text-primary)" }}>{p.name}</h4>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-[11px] font-medium text-zinc-400 line-through">{p.price} kr</span>
+                          <span className="text-sm font-black text-gold-600">{finalPrice} kr</span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                            {cartQty > 0 ? `${cartQty} i varukorg` : "Lägg till"}
+                          </span>
+                          <div className="w-7 h-7 rounded-full bg-gold-500 flex items-center justify-center shadow-sm shadow-gold-500/25">
+                            <Plus size={16} className="text-zinc-950" strokeWidth={2.5} />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.button>
+                  );
+                })}
               </div>
             </motion.div>
           );
         })()}
 
-        {/* Menu Sections Grid */}
-        <div className="space-y-24">
+        {/* ── Menyn: kategorier med produkter (FULL eller COMPACT per produkt) ── */}
+        <div className="space-y-12">
            {filteredCategories.length === 0 ? (
              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 flex flex-col items-center justify-center text-center">
-               <div className="w-20 h-20 rounded-[2.5rem] flex items-center justify-center mb-6 shadow-sm" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                 <ShoppingBag size={32} className="text-gold-500/50" />
+               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5" style={{ backgroundColor: "var(--bg-deep)" }}>
+                 <ShoppingBag size={28} className="text-gold-500/60" />
                </div>
-               <h3 className="text-2xl font-black uppercase tracking-widest italic mb-2" style={{ color: "var(--text-primary)" }}>{t("menu.noMenuTitle")}</h3>
-               <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs max-w-sm">
+               <h3 className="text-lg font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{t("menu.noMenuTitle")}</h3>
+               <p className="text-zinc-500 font-medium text-sm max-w-sm">
                  {t("menu.noMenuDesc")}
                </p>
              </motion.div>
            ) : (
-             filteredCategories.map((cat, catIdx) => (
-                <motion.section 
-                   key={cat.id} 
-                   id={cat.id} 
+             filteredCategories.map((cat, catIdx) => {
+               const catWords = (cat.name || "").trim().split(/\s+/);
+               const catFirst = catWords[0] || cat.name;
+               const catRest = catWords.slice(1).join(" ");
+               const rows = groupProductsByDisplay(cat.products);
+               return (
+                 <motion.section
+                   key={cat.id}
+                   id={cat.id}
+                   initial={{ opacity: 0, y: 20 }}
+                   whileInView={{ opacity: 1, y: 0 }}
+                   viewport={{ once: true, amount: 0.1 }}
+                   transition={{ delay: Math.min(catIdx * 0.05, 0.2) }}
+                 >
+                   {/* Kategori-rubrik: EN rad, två-färgad (svart + gold) */}
+                   <div className="flex items-end gap-4 mb-5">
+                     <h2 className="font-black italic uppercase tracking-tight leading-none text-[1.8rem] sm:text-3xl">
+                       <span style={{ color: "var(--text-primary)" }}>{catFirst}</span>
+                       {catRest && (<>{" "}<span className="text-gold-500">{catRest}</span></>)}
+                     </h2>
+                     <div className="h-px bg-zinc-200 flex-1 mb-2.5" />
+                   </div>
 
-                 initial={{ opacity: 0, y: 20 }}
-                 whileInView={{ opacity: 1, y: 0 }}
-                 viewport={{ once: true }}
-                 transition={{ delay: catIdx * 0.1 }}
-              >
-                 <div className="flex items-center justify-between mb-10 px-4">
-                    <h2 className="text-3xl font-black tracking-tight uppercase italic leading-[1.15]" style={{ color: "var(--text-primary)" }}>
-                       {cat.name}
-                    </h2>
-                    <div className="h-px bg-zinc-200 flex-1 mx-8 hidden lg:block" />
-                 </div>
-
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-                    {cat.products.map((p: any) => (
-                        <motion.div
-                           key={p.id}
-                           onClick={() => {
-                              if (!restaurant?.isOpen) return;
-                              if (zoneAvailable === false) {
-                                 // Scroll to the out-of-zone banner
-                                 window.scrollTo({ top: 0, behavior: "smooth" });
-                                 return;
-                              }
-                              if (!address.trim() || orderType === "DELIVERY" && !localStorage.getItem("platform_coords")) {
-                                 setPendingProduct(p);
-                                 setShowAddressModal(true);
-                              } else {
-                                 setSelectedProduct(p);
-                              }
-                           }}
-                           whileTap={!restaurant?.isOpen ? undefined : { scale: 0.99 }}
-                           // pointer-events-none även när stängd (tidigare bara grayscale)
-                           // så kunden inte kan klicka och få tyst no-op.
-                           aria-disabled={!restaurant?.isOpen || zoneAvailable === false}
-                           className={`group rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed pointer-events-none" : (restaurant?.isOpen && zoneAvailable === false) ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
-                           style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}
-                       >
-                           {p.imageUrl && (
-                              <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden shrink-0 relative" style={{ backgroundColor: "var(--bg-deep)" }}>
-                                 <img src={p.imageUrl} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
-                                 <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                           )}
-                          <div className="flex-1 min-w-0 py-2">
-<div className="flex items-start justify-between gap-4 mb-2">
-                                 <h3 className="text-base font-black group-hover:text-gold-500 transition-colors uppercase italic truncate leading-[1.15]" style={{ color: "var(--text-primary)" }}>{p.name}</h3>
-                                  {p.discountActive ? (
-                                    <div className="flex flex-col items-end">
-                                      <span className="text-[9px] font-black text-zinc-400 line-through">{p.price} KR</span>
-                                      <span className="text-[11px] font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-3 py-1.5 rounded-lg border border-gold-500/20">{p.discountPrice || Math.round(p.price - p.price * (p.discountPercent || 0) / 100)} KR</span>
-                                    </div>
-                                 ) : (
-                                   <div className="text-[11px] font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-3 py-1.5 rounded-lg border border-gold-500/20">{p.price} KR</div>
-                                 )}
-                              </div>
-                             <p className="text-[10px] line-clamp-2 leading-relaxed font-bold uppercase tracking-widest mb-4" style={{ color: "var(--text-secondary)" }}>{p.description}</p>
-                             
-                             <div className="flex items-center gap-1.5 opacity-40">
-                                {p.isVegan && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-                                {p.isVegetarian && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
-                                {p.isGlutenFree && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
-                             </div>
-                          </div>
-                       </motion.div>
-                    ))}
-                 </div>
-              </motion.section>
-             ))
+                   {/* Produkter — full-rows och compact-rows */}
+                   <div className="space-y-3">
+                     {rows.map((row, idx) => {
+                       if (row.type === "FULL") {
+                         return (
+                           <FullProductCard
+                             key={row.product.id}
+                             product={row.product}
+                             cartQty={items.filter((i) => i.productId === row.product.id).reduce((s, i) => s + i.quantity, 0)}
+                             onClick={() => handleOpenProduct(row.product)}
+                             disabled={!restaurant?.isOpen || zoneAvailable === false}
+                           />
+                         );
+                       }
+                       return (
+                         <div key={`compact-${idx}`} className="grid grid-cols-2 gap-3">
+                           {row.products.map((p) => (
+                             <CompactProductCard
+                               key={p.id}
+                               product={p}
+                               cartQty={items.filter((i) => i.productId === p.id).reduce((s, i) => s + i.quantity, 0)}
+                               onClick={() => handleOpenProduct(p)}
+                               disabled={!restaurant?.isOpen || zoneAvailable === false}
+                             />
+                           ))}
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </motion.section>
+               );
+             })
            )}
         </div>
       </div>

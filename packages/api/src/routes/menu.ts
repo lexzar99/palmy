@@ -116,6 +116,9 @@ router.get('/categories', async (req, res) => {
         isVegan: prod.isVegan,
         isVegetarian: prod.isVegetarian,
         isGlutenFree: prod.isGlutenFree,
+        // Visningsläge för menykortet (FULL = 1-per-rad, COMPACT = 2-per-rad)
+        displayMode: (prod as any).displayMode || "FULL",
+        hideDescription: (prod as any).hideDescription || false,
         extraGroups: prod.extraGroups.map((peg) => ({
           id: peg.extraGroup.id,
           name: peg.extraGroup.name,

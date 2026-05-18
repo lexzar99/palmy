@@ -1132,6 +1132,9 @@ const ProductSchema = z.object({
   isGlutenFree: z.boolean().optional(),
   position: z.number().optional(),
   extraGroupIds: z.array(z.string()).optional(),
+  // Visningsläge i menyn: FULL (1-per-rad) eller COMPACT (2-per-rad).
+  displayMode: z.enum(["FULL", "COMPACT"]).optional(),
+  hideDescription: z.boolean().optional(),
   // Discount fields
   discountPercent: z.number().int().min(1).max(95).nullable().optional(),
   discountPrice: z.number().positive().nullable().optional(),
@@ -1230,6 +1233,8 @@ router.post('/products', async (req, res) => {
         isVegetarian: data.isVegetarian ?? false,
         isGlutenFree: data.isGlutenFree ?? false,
         position: data.position ?? 0,
+        displayMode: data.displayMode ?? "FULL",
+        hideDescription: data.hideDescription ?? false,
         discountPercent: data.discountPercent ?? null,
         discountPrice: data.discountPrice != null ? Math.round(data.discountPrice * 100) : null,
         discountImageUrl: data.discountImageUrl ?? null,

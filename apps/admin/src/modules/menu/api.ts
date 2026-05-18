@@ -50,6 +50,9 @@ export interface ProductRecord {
   isVegetarian?: boolean;
   isGlutenFree?: boolean;
   position: number;
+  // Visningsläge i menyn — "FULL" eller "COMPACT".
+  displayMode?: "FULL" | "COMPACT";
+  hideDescription?: boolean;
   category: { name: string; restaurantId?: string | null };
   extraGroups: Array<{
     id: string;

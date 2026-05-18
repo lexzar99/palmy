@@ -110,7 +110,7 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
 
 function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, restaurants, products, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; restaurants: DealRestaurantRef[]; products: DealProductRef[]; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, extraGroupIds: [] as string[] });
+  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, extraGroupIds: [] as string[] });
   const [promotionModalOpen, setPromotionModalOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -129,6 +129,8 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             isVegetarian: product.isVegetarian ?? false,
             isGlutenFree: product.isGlutenFree ?? false,
             position: product.position,
+            displayMode: product.displayMode ?? "FULL",
+            hideDescription: product.hideDescription ?? false,
             extraGroupIds: product.extraGroups.map((group) => group.id),
           }
         : {
@@ -142,6 +144,8 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             isVegetarian: false,
             isGlutenFree: false,
             position: 0,
+            displayMode: "FULL",
+            hideDescription: false,
             extraGroupIds: [],
           },
     );
@@ -231,6 +235,33 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             {product ? (productDeal ? <Badge tone="warning">Direct product deal</Badge> : <Badge tone="neutral">No direct product deal</Badge>) : <Badge tone="neutral">Save the product first</Badge>}
             {relatedCategoryDeals.length > 0 ? <Badge tone="info">{relatedCategoryDeals.length} category deal(s) apply</Badge> : null}
             {restaurantWideDeals.length > 0 ? <Badge tone="neutral">{restaurantWideDeals.length} restaurant-wide deal(s)</Badge> : null}
+          </div>
+        </div>
+        <div className="md:col-span-2 surface-muted px-4 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Visningsläge i menyn</p>
+              <p className="mt-1.5 text-sm text-[var(--text-secondary)]">FULL: stor 1-per-rad-rad med bild + beskrivning + VARUKORG-knapp. COMPACT: 2-per-rad — för drycker, sidor, chili cheese etc.</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(["FULL", "COMPACT"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setForm((current) => ({ ...current, displayMode: mode }))}
+                className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.displayMode === mode ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
+              >
+                {mode === "FULL" ? "Full bredd (1-per-rad)" : "Halv bredd (2-per-rad)"}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setForm((current) => ({ ...current, hideDescription: !current.hideDescription }))}
+              className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.hideDescription ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
+            >
+              Dölj beskrivning i menyn
+            </button>
           </div>
         </div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
