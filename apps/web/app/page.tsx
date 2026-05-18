@@ -32,7 +32,6 @@ import LocaleSwitcher from "@/components/LocaleSwitcher";
 import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DiscountedDishesSection from "@/components/DiscountedDishesSection";
-import MobileFooterLinks from "@/components/MobileFooterLinks";
 import RecentOrderCard from "@/components/RecentOrderCard";
 import WelcomeDealBanner from "@/components/WelcomeDealBanner";
 import InviteFriendsBanner from "@/components/InviteFriendsBanner";
@@ -772,13 +771,6 @@ export default function HomePage() {
           {/* Senaste beställning — visas bara om kund har order-historik
               (inloggad ELLER gäst). Conversion-CTA "fortsätt där du var". */}
           <RecentOrderCard />
-
-          {/* Om oss + Kontakt — mobil-knappar precis under titel-kortet så
-              de syns direkt utan att scrolla. Endast mobil — desktop använder
-              top-navbarens länkar. */}
-          <div className="md:hidden mb-5">
-            <MobileFooterLinks />
-          </div>
 
           {/* Adress + Toggle + Sök — pancake på mobil, en rad på desktop */}
           <div className="grid gap-3 lg:grid-cols-[1.4fr_auto_1fr] lg:items-center lg:gap-4">

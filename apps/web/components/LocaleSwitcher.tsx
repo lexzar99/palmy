@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Languages, Check } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/messages";
@@ -13,7 +14,7 @@ const FLAG: Record<Locale, string> = {
 interface LocaleSwitcherProps {
   /**
    * Override för button-styling. Används av home-page-mobil för att matcha
-   * theme/kontakta-knapparnas w-10 h-10 rounded-2xl-design. Default-stilen
+   * theme/kontakta-knapparnas w-9 h-9 rounded-xl-design. Default-stilen
    * (p-2 rounded-full) används av Navbar.
    */
   buttonClassName?: string;
@@ -23,24 +24,51 @@ interface LocaleSwitcherProps {
 const LocaleSwitcher = ({ buttonClassName, iconSize = 20 }: LocaleSwitcherProps = {}) => {
   const { locale, setLocale, t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  // Position för portal-renderad dropdown. Räknas ut från knappens
+  // getBoundingClientRect vid varje open så menyn alltid hamnar precis
+  // under knappen — oavsett parents overflow:hidden eller transform.
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      // Klick utanför button OCH utanför menyn → stäng
+      if (
+        buttonRef.current && !buttonRef.current.contains(target) &&
+        menuRef.current && !menuRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     };
+    const onScroll = () => setOpen(false); // stäng vid scroll så positionen aldrig blir off
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, [open]);
 
+  const handleToggle = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 6,
+        right: Math.max(8, window.innerWidth - rect.right), // min 8px från höger edge
+      });
+    }
+    setOpen((v) => !v);
+  };
+
   return (
-    <div ref={wrapperRef} className="relative">
+    <>
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleToggle}
         className={buttonClassName ?? "p-2 transition-colors rounded-full flex items-center justify-center"}
         style={buttonClassName ? undefined : { backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
         aria-label={t("nav.locale.label")}
@@ -49,11 +77,17 @@ const LocaleSwitcher = ({ buttonClassName, iconSize = 20 }: LocaleSwitcherProps 
       >
         <Languages size={iconSize} className="text-gold-600" />
       </button>
-      {open && (
+      {open && dropdownPos && typeof window !== "undefined" && createPortal(
         <div
+          ref={menuRef}
           role="menu"
-          className="absolute right-0 top-12 z-[210] min-w-[160px] rounded-2xl shadow-2xl py-2 border"
-          style={{ backgroundColor: "var(--bg-primary)", borderColor: "var(--border-muted)" }}
+          className="fixed z-[300] min-w-[160px] rounded-2xl shadow-2xl py-2 border"
+          style={{
+            top: dropdownPos.top,
+            right: dropdownPos.right,
+            backgroundColor: "var(--bg-primary)",
+            borderColor: "var(--border-muted)",
+          }}
         >
           {SUPPORTED_LOCALES.map((l) => {
             const active = l === locale;
@@ -76,9 +110,10 @@ const LocaleSwitcher = ({ buttonClassName, iconSize = 20 }: LocaleSwitcherProps 
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 };
 
