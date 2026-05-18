@@ -20,6 +20,7 @@ import {
   Percent,
   Info,
   Phone,
+  Mail,
   Sun,
   Moon,
 } from "lucide-react";
@@ -27,6 +28,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/app/providers";
 import AddressModal from "@/components/AddressModal";
 import AddressPullDown from "@/components/AddressPullDown";
+import LocaleSwitcher from "@/components/LocaleSwitcher";
 import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DiscountedDishesSection from "@/components/DiscountedDishesSection";
@@ -730,22 +732,35 @@ export default function HomePage() {
               <h1 className="text-2xl font-black tracking-tight leading-tight" style={{ color: "var(--text-primary)" }}>
                 {t("home.heroMobile.titleLead")} <span className="text-gold-500 italic">{t("home.heroMobile.titleAccent")}</span>
               </h1>
-              {/* Theme-toggle — knapp för dark/light bredvid rubriken */}
-              <button
-                onClick={toggleTheme}
-                aria-label={theme === "dark" ? t("nav.theme.toLight") : t("nav.theme.toDark")}
-                className="shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90"
-                style={{
-                  backgroundColor: "var(--bg-deep)",
-                  border: "1px solid var(--border-muted)",
-                }}
-              >
-                {theme === "dark" ? (
-                  <Sun size={16} className="text-gold-500" />
-                ) : (
-                  <Moon size={16} className="text-gold-600" />
-                )}
-              </button>
+              {/* Mobil-action-cluster: språk + kontakta + theme bredvid rubriken */}
+              <div className="shrink-0 flex items-center gap-1.5">
+                <div style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }} className="rounded-2xl">
+                  <LocaleSwitcher buttonClassName="w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90" iconSize={16} />
+                </div>
+                <Link
+                  href="/contact"
+                  aria-label={t("nav.contact")}
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90"
+                  style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
+                >
+                  <Mail size={16} className="text-gold-600" />
+                </Link>
+                <button
+                  onClick={toggleTheme}
+                  aria-label={theme === "dark" ? t("nav.theme.toLight") : t("nav.theme.toDark")}
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90"
+                  style={{
+                    backgroundColor: "var(--bg-deep)",
+                    border: "1px solid var(--border-muted)",
+                  }}
+                >
+                  {theme === "dark" ? (
+                    <Sun size={16} className="text-gold-500" />
+                  ) : (
+                    <Moon size={16} className="text-gold-600" />
+                  )}
+                </button>
+              </div>
             </div>
             <p className="relative z-10 text-[10px] font-bold uppercase tracking-[0.2em] mt-1.5" style={{ color: "var(--text-secondary)" }}>
               {t("home.heroMobile.subtitle")}

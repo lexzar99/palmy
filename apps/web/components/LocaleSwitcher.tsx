@@ -10,7 +10,17 @@ const FLAG: Record<Locale, string> = {
   en: "🇬🇧",
 };
 
-const LocaleSwitcher = () => {
+interface LocaleSwitcherProps {
+  /**
+   * Override för button-styling. Används av home-page-mobil för att matcha
+   * theme/kontakta-knapparnas w-10 h-10 rounded-2xl-design. Default-stilen
+   * (p-2 rounded-full) används av Navbar.
+   */
+  buttonClassName?: string;
+  iconSize?: number;
+}
+
+const LocaleSwitcher = ({ buttonClassName, iconSize = 20 }: LocaleSwitcherProps = {}) => {
   const { locale, setLocale, t } = useTranslation();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -31,13 +41,13 @@ const LocaleSwitcher = () => {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="p-2 transition-colors rounded-full flex items-center justify-center"
-        style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
+        className={buttonClassName ?? "p-2 transition-colors rounded-full flex items-center justify-center"}
+        style={buttonClassName ? undefined : { backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
         aria-label={t("nav.locale.label")}
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <Languages size={20} className="text-gold-600" />
+        <Languages size={iconSize} className="text-gold-600" />
       </button>
       {open && (
         <div
