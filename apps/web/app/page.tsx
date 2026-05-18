@@ -479,16 +479,16 @@ export default function HomePage() {
   };
 
   const renderFeaturedRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[]) => (
-    <section className="mb-5">
-      <div className="flex items-end justify-between mb-3 px-1">
-        <div>
-          <h2 className="text-gold-gradient text-xl sm:text-2xl font-black tracking-tight leading-[1.1] italic uppercase">{title}</h2>
-          {!!subtitle && <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mt-1">{subtitle}</p>}
+    <section className="mb-3">
+      <div className="flex items-end justify-between mb-1.5 px-1">
+        <div className="min-w-0">
+          <h2 className="text-gold-gradient text-lg sm:text-xl font-black tracking-tight leading-[1.05] italic uppercase truncate">{title}</h2>
+          {!!subtitle && <p className="text-zinc-500 text-[9px] font-bold uppercase tracking-wider mt-0.5 truncate">{subtitle}</p>}
         </div>
-        <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 border-b border-gold-500/40 pb-0.5 hover:text-gold-500 transition-all shrink-0 ml-3">{t("home.viewAll")}</Link>
+        <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-gold-500 transition-all shrink-0 ml-3">{t("home.viewAll")}</Link>
       </div>
       {/* Mobil: horisontell scroll • md+: 2-kolumn grid • lg+: 3-kolumn • xl+: 4-kolumn */}
-      <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 overflow-x-auto md:overflow-visible pb-2 md:pb-0 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 overflow-x-auto md:overflow-visible pb-1 md:pb-0 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
         {sectionRestaurants.map((r, i) => {
           const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
           const dimmed = r.isOpen === false || !inZone;
