@@ -132,8 +132,17 @@ router.post('/', async (req, res) => {
 });
 
 // ── POST /api/cities/validate-location ───────────────────────────────────────
-// Returns which cities + zones cover the given lat/lng,
-// plus which restaurants in each city can deliver there.
+// RESTAURANG-FÖRST lookup (Foodora-pattern). City-zones används INTE längre
+// som primärt täckningskriterium — varje restaurang har egna deliveryZones
+// (polygon/cirkel) som styr om den kan leverera till given adress.
+//
+// Fallback per restaurang om INGA egna zoner: cirkel med deliveryRadius runt
+// restaurangens lat/lng. Saknas lat/lng → restaurangen kan inte verifieras
+// och inkluderas inte.
+//
+// Svaret behåller `cities[]`-strukturen för bakåtkompat (web/RN grupperar
+// resultaten per stad), men `cities[].restaurants[]` populeras nu uteslutande
+// från restaurang-zoner.
 router.post('/validate-location', async (req, res) => {
   try {
     const { lat, lng } = req.body as { lat: number; lng: number };
@@ -147,7 +156,7 @@ router.post('/validate-location', async (req, res) => {
             id: true, name: true, slug: true, imageUrl: true, heroImageUrl: true,
             deliveryFee: true, minOrderAmount: true, etaMinutes: true,
             deliveryRadius: true, deliveryZones: true,
-            latitude: true, longitude: true,
+            latitude: true, longitude: true, placeId: true,
             featuredClass: true, cuisine: true, rating: true, isOpen: true,
           }
         }
@@ -157,88 +166,73 @@ router.post('/validate-location', async (req, res) => {
     const matchedCities: any[] = [];
 
     for (const city of cities) {
-      // Parse this city's delivery zones
-      const cityZonesRaw = safeJsonParse<any[]>(city.zones, []);
-      const cityZones = normalizeDeliveryZones(cityZonesRaw);
-
       const cityCenter = (city.centerLat && city.centerLng)
         ? { lat: city.centerLat, lng: city.centerLng }
         : (city.latitude && city.longitude)
           ? { lat: city.latitude, lng: city.longitude }
           : undefined;
 
-      // Find if the point falls in any city zone
-      const matchedZone = cityZones.length > 0
-        ? findDeliveryZone(lat, lng, cityZones, cityCenter)
-        : null;
-
-      let cityCovers = matchedZone !== null;
-
-      // Fallback: if no zones defined, check polygon or radius
-      if (!cityCovers && cityZones.length === 0) {
-        if (city.polygon) {
-          try {
-            const poly: [number, number][] = JSON.parse(city.polygon);
-            cityCovers = pointInPolygon([lng, lat], poly);
-          } catch { /* ignore */ }
-        }
-        if (!cityCovers && cityCenter) {
-          cityCovers = haversineKm(lat, lng, cityCenter.lat, cityCenter.lng) <= (city.radiusKm || 10);
-        }
-      }
-
-      if (!cityCovers) continue;
-
-      // For each restaurant, check if IT covers the address
+      // För varje restaurang: kolla DESS egen täckning. Ingen city-arv längre.
       const deliverableRestaurants = city.restaurants
         .map((r: any) => {
-          // Restaurant may have its own zones
           const rZonesRaw = safeJsonParse<any[]>(r.deliveryZones, []);
           const rZones = normalizeDeliveryZones(rZonesRaw);
 
           let rZone: DeliveryZone | null = null;
 
           if (rZones.length > 0) {
-            // Restaurant uses its own zones
+            // Primary: restaurang-zoner (polygon/cirkel ritade i admin)
             rZone = findDeliveryZone(lat, lng, rZones, cityCenter);
-            if (!rZone) return null; // restaurant doesn't cover this address
+            if (!rZone) return null;
+          } else if (r.latitude != null && r.longitude != null) {
+            // Fallback: ingen zon definierad → använd deliveryRadius som cirkel
+            // runt restaurangen. Detta är default-state innan admin ritat egna zoner.
+            const dist = haversineKm(lat, lng, r.latitude, r.longitude);
+            const radius = r.deliveryRadius || 5;
+            if (dist > radius) return null;
+            rZone = {
+              id: 'default',
+              name: 'Standard',
+              type: 'circle',
+              centerLat: r.latitude,
+              centerLng: r.longitude,
+              radiusKm: radius,
+              fee: r.deliveryFee || 0,
+              minOrder: r.minOrderAmount || 0,
+              etaMinutes: r.etaMinutes ?? null,
+              isActive: true,
+            } as DeliveryZone;
           } else {
-            // Restaurant inherits city zones
-            rZone = matchedZone;
-            
-            // Extra check: restaurant delivery radius (legacy)
-            // If we matched a city zone, we increase the legacy radius limit to be more lenient (e.g. 50km)
-            // to avoid filtering out restaurants that are meant to be in the city zone.
-            if (r.latitude && r.longitude) {
-              const dist = haversineKm(lat, lng, r.latitude, r.longitude);
-              const maxDist = Math.max(r.deliveryRadius || 0, 50); // Use at least 50km fallback if city zone matches
-              if (dist > maxDist) return null;
-            }
+            // Ingen zon OCH ingen lat/lng → kan inte verifiera täckning.
+            return null;
           }
 
           return {
             ...r,
-            matchedZone: rZone
-              ? {
-                  id: rZone.id,
-                  name: rZone.name,
-                  deliveryFee: rZone.fee,
-                  minOrder: rZone.minOrder,
-                  etaMinutes: rZone.etaMinutes ?? null,
-                }
-              : null,
+            matchedZone: {
+              id: rZone.id,
+              name: rZone.name,
+              deliveryFee: rZone.fee,
+              minOrder: rZone.minOrder,
+              etaMinutes: rZone.etaMinutes ?? null,
+            },
           };
         })
         .filter(Boolean);
+
+      // Bara inkludera städer som faktiskt har leverande restauranger till
+      // denna adress — slipper tomma city-noder i response.
+      if (deliverableRestaurants.length === 0) continue;
 
       matchedCities.push({
         id: city.id,
         name: city.name,
         slug: city.slug,
         deliveryMode: city.deliveryMode,
-        matchedZone: matchedZone
-          ? { id: matchedZone.id, name: matchedZone.name, deliveryFee: matchedZone.fee, minOrder: matchedZone.minOrder, etaMinutes: matchedZone.etaMinutes ?? null }
-          : null,
+        // matchedZone på city-nivå sätts till null — vi använder inte längre
+        // city-täckning för leverans-beslut. Behålls i schema för svaret för
+        // bakåtkompat (web/RN-klienter läser fältet defensivt).
+        matchedZone: null,
         restaurants: deliverableRestaurants,
       });
     }

@@ -1146,19 +1146,25 @@ export default function HomePage() {
                             </div>
                             {/* Rad 2: Kategori (subtil) */}
                             <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>{r.cuisine || r.description || t("home.restaurantFallback")}</p>
-                            {/* Rad 3: ★ rating (count) · ETA */}
-                            <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                              <span className="flex items-center gap-1">
-                                <Star size={13} className="fill-gold-500 text-gold-500" />
-                                <span className="font-black" style={{ color: "var(--text-primary)" }}>{(r.rating ?? 4.5).toFixed(1)}</span>
-                                {r.ratingCount != null && r.ratingCount > 0 && (
-                                  <span className="opacity-60">({r.ratingCount})</span>
-                                )}
-                              </span>
-                              <span className="opacity-40">·</span>
-                              <span>{r.etaMinutes ?? 30} {t("home.minutes")}</span>
-                            </div>
-                            {/* Rad 4: Delivery-info (grön för gratis) */}
+                            {/* Rad 3: ★ rating (count) · ETA — ETA från zon om finns */}
+                            {(() => {
+                              const zi = zoneDeliveryInfo[r.id];
+                              const eta = zi?.etaMinutes ?? r.etaMinutes ?? 30;
+                              return (
+                                <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
+                                  <span className="flex items-center gap-1">
+                                    <Star size={13} className="fill-gold-500 text-gold-500" />
+                                    <span className="font-black" style={{ color: "var(--text-primary)" }}>{(r.rating ?? 4.5).toFixed(1)}</span>
+                                    {r.ratingCount != null && r.ratingCount > 0 && (
+                                      <span className="opacity-60">({r.ratingCount})</span>
+                                    )}
+                                  </span>
+                                  <span className="opacity-40">·</span>
+                                  <span>{eta} {t("home.minutes")}</span>
+                                </div>
+                              );
+                            })()}
+                            {/* Rad 4: Delivery-info (grön för gratis) — alltid från zonen om finns */}
                             {(() => {
                               const zi = zoneDeliveryInfo[r.id];
                               const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
