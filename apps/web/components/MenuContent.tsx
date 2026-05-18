@@ -429,7 +429,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           setActiveCategory((prev) => (prev === id ? prev : id));
         }
       },
-      { rootMargin: "-140px 0px -55% 0px", threshold: [0, 0.1, 0.3, 0.6, 1] },
+      { rootMargin: "-180px 0px -55% 0px", threshold: [0, 0.1, 0.3, 0.6, 1] },
     );
     const elements: HTMLElement[] = [];
     categories.forEach((cat) => {
@@ -786,26 +786,38 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           })}
         </div>
 
-        {/* ── Sök: ren rounded pill, ingen filter-knapp ──────────────────── */}
-        <div className="mb-3 rounded-full flex items-center gap-3 px-5 py-3.5" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
-          <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-          <input
-            type="text"
-            placeholder={t("menu.searchPlaceholder")}
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full bg-transparent border-none text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-zinc-400"
-            style={{ color: "var(--text-primary)" }}
-          />
-        </div>
+        {/* ── Sticky header: SÖK + KATEGORI-PILLS följer med när man scrollar ──
+            Båda i samma wrapper så de sticky-positioneras tillsammans. Bryter
+            ut ur parent-padding (-mx-5 osv) så bakgrunden täcker hela viewport-
+            bredden när sticky → ingen content "syns igenom" på sidorna. */}
+        <div
+          className="sticky z-40 mb-8 -mx-5 sm:-mx-6 lg:-mx-12 top-0 md:top-20"
+          style={{ backgroundColor: "var(--bg-primary)" }}
+        >
+          {/* Sök — egen horisontell padding så den inte ligger edge-to-edge */}
+          <div className="px-5 sm:px-6 lg:px-12 pt-2">
+            <div className="rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
+              <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+              <input
+                type="text"
+                placeholder={t("menu.searchPlaceholder")}
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full bg-transparent border-none text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-zinc-400"
+                style={{ color: "var(--text-primary)" }}
+              />
+            </div>
+          </div>
 
-        {/* ── Sticky kategori-pills — bryter ut ur parent-padding för snyggt edge-to-edge scroll ── */}
-        {categories.length > 0 && (
-          <div className="sticky z-40 mb-10 -mx-5 sm:-mx-6 lg:-mx-12 top-0 md:top-20 py-2.5" style={{ backgroundColor: "var(--bg-primary)" }}>
-            <div
-              className="flex gap-2 no-scrollbar px-5 sm:px-6 lg:px-12"
-              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any }}
-            >
+          {/* Kategori-pills — egen horisontell scroll edge-to-edge med inner padding.
+              touch-action: pan-x → tillåter swipe-att-scrolla horisontellt utan
+              att kollidera med sidans vertikala scroll. */}
+          {categories.length > 0 && (
+            <div className="py-2.5">
+              <div
+                className="flex gap-2 no-scrollbar px-5 sm:px-6 lg:px-12"
+                style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
+              >
               {categories.map(cat => {
                 const isActive = activeCategory === cat.id;
                 return (
@@ -823,7 +835,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                       manualScrollUntilRef.current = Date.now() + 700;
                       const element = document.getElementById(cat.id);
                       if (element) {
-                        const offset = 100;
+                        const offset = 160;
                         window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
                       }
                     }}
@@ -838,9 +850,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                   </motion.button>
                 );
               })}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* ── REA: rabatterade produkter på horisontell 2-grid swipe ──────── */}
         {(() => {
