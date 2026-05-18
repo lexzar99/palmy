@@ -15,7 +15,11 @@ import prisma from './prisma';
 // närmaste värde i listan så kunden ser snygga steg-värden.
 
 export const ETA_DEFAULT_MINUTES = 40;
-export const ETA_ALLOWED_VALUES = [25, 30, 35, 40, 45, 50, 55] as const;
+// Hard tak vid 60 min för längsta zonen — Foodora-pattern, ingen restaurang
+// ska lova >60 min ETA till kund (då bör de inte erbjuda leverans dit alls).
+// Admin kan sätta vad som helst manuellt, men auto-räkning snappar inom
+// detta intervall.
+export const ETA_ALLOWED_VALUES = [25, 30, 35, 40, 45, 50, 55, 60] as const;
 export const ETA_MIN_MINUTES = ETA_ALLOWED_VALUES[0];
 export const ETA_MAX_MINUTES = ETA_ALLOWED_VALUES[ETA_ALLOWED_VALUES.length - 1];
 export const ETA_SAMPLE_SIZE = 20;

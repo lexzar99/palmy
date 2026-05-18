@@ -419,7 +419,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
         data.etaOverrideMinutes = null;
       } else {
         const n = toSafeNum(payload.etaOverrideMinutes);
-        data.etaOverrideMinutes = n != null ? Math.max(25, Math.min(55, Math.round(n))) : null;
+        data.etaOverrideMinutes = n != null ? Math.max(25, Math.min(60, Math.round(n))) : null;
       }
     }
     if (payload.featuredClass !== undefined) data.featuredClass = toSafeNum(payload.featuredClass);
@@ -459,8 +459,26 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     }
 
     if (payload.deliveryZones !== undefined) {
-      const zonesRaw = safeParseAnyJson<any[]>(payload.deliveryZones, []);
-      data.deliveryZones = JSON.stringify(normalizeDeliveryZones(zonesRaw));
+      const incomingZones = safeParseAnyJson<any[]>(payload.deliveryZones, []);
+      // Merge: behåll calculatedEtaMinutes + etaSampleCount från DB:n så
+      // admin's spara INTE resettar auto-räkningen. Admin styr bara geometri,
+      // fee, minOrder, etaMinutes (manuell kickstart), isActive, name, color.
+      // Allt annat ärvs från befintlig data per zon-id.
+      const existingZonesRaw = safeParseAnyJson<any[]>(existingRestaurant.deliveryZones, []);
+      const existingById = new Map<string, any>();
+      for (const ez of existingZonesRaw) {
+        if (ez && typeof ez === 'object' && ez.id) existingById.set(String(ez.id), ez);
+      }
+      const merged = incomingZones.map((z: any) => {
+        const prior = z && z.id ? existingById.get(String(z.id)) : null;
+        if (!prior) return z;
+        return {
+          ...z,
+          calculatedEtaMinutes: prior.calculatedEtaMinutes ?? null,
+          etaSampleCount: prior.etaSampleCount ?? 0,
+        };
+      });
+      data.deliveryZones = JSON.stringify(normalizeDeliveryZones(merged));
     }
 
     // KEY FIX: When opening hours change, compute the correct isOpen immediately

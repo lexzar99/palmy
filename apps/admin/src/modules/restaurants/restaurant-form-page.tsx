@@ -456,7 +456,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               </div>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <Field label="Beräknad (auto)"><Input value={form.etaCalculated != null ? `${form.etaCalculated} min` : "Default 40 min"} disabled /></Field>
-                <Field label="Override (lämna tom = auto)"><Input type="number" min={25} max={55} placeholder="t.ex. 35" value={form.etaOverride} onChange={(e) => set("etaOverride", e.target.value)} /></Field>
+                <Field label="Override (lämna tom = auto)"><Input type="number" min={25} max={60} placeholder="t.ex. 35" value={form.etaOverride} onChange={(e) => set("etaOverride", e.target.value)} /></Field>
               </div>
             </div>
             <Field label="Moms">
