@@ -164,6 +164,7 @@ export default function AddressModal({
     setPredictions([]);
     setInput(pred.description);
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch(
         `/api/places/geocode?place_id=${pred.place_id}&sessiontoken=${sessionToken.current}`
@@ -182,6 +183,7 @@ export default function AddressModal({
         setSelectedDeliveryCity(city);
         setInput(cleanAddr);
         sessionToken.current = crypto.randomUUID();
+        onConfirm(cleanAddr, "DELIVERY", { lat: data.location.lat, lng: data.location.lng }, zip ?? undefined, city ?? undefined);
       } else {
         setError("Kunde inte hämta koordinater för adressen.");
       }
@@ -194,6 +196,7 @@ export default function AddressModal({
 
   // ── Confirm ──────────────────────────────────────────────────────────────────
   const handleSubmit = () => {
+    if (loading) return;
     if (orderType === "PICKUP") {
       if (!selectedCity) {
         setError("Välj en stad för avhämtning.");
