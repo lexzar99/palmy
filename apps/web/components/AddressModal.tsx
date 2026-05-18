@@ -232,12 +232,11 @@ export default function AddressModal({
           <motion.div
             initial={{ y: "-100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "-100%", opacity: 0 }}
             transition={{ type: "spring", bounce: 0.1, duration: 0.4 }}
-            className="w-full max-w-lg rounded-b-[2rem] p-6 shadow-2xl relative overflow-y-auto"
+            className="w-full max-w-lg rounded-b-[2rem] p-6 shadow-2xl relative"
             style={{
               backgroundColor: "var(--bg-secondary)",
               border: "1px solid var(--border-muted)",
               borderTop: "none",
-              maxHeight: "90dvh",
             }}
           >
             {/* Header */}
@@ -317,8 +316,8 @@ export default function AddressModal({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -10, scale: 0.98 }}
                       transition={{ duration: 0.18, ease: "easeOut" }}
-                      className="absolute top-full left-0 right-0 mt-2 rounded-2xl overflow-hidden z-[210] shadow-2xl"
-                      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+                      className="absolute top-full left-0 right-0 mt-2 rounded-2xl overflow-y-auto z-[210] shadow-2xl"
+                      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", maxHeight: "40vh" }}
                     >
                       {predictions.map((pred, i) => (
                         <motion.button
