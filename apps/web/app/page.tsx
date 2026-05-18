@@ -303,8 +303,19 @@ export default function HomePage() {
       localStorage.setItem(ORDER_TYPE_KEY, type);
     }
 
-    if (type === "PICKUP" && !detectedCityName) {
-      setShowAddressModal(true);
+    if (type === "PICKUP") {
+      setZoneRestaurantIds(null);
+      if (!detectedCityName) {
+        setShowAddressModal(true);
+      }
+    } else if (type === "DELIVERY") {
+      const storedCoords = typeof window !== "undefined" ? localStorage.getItem("platform_coords") : null;
+      if (storedCoords) {
+        try {
+          const coords = JSON.parse(storedCoords);
+          validateZone(coords.lat, coords.lng);
+        } catch { /* ignore */ }
+      }
     }
   };
 
@@ -500,12 +511,12 @@ export default function HomePage() {
           deals,
           deliveryOverrides,
           orderType,
-          selectedCityName: selectedCity?.name,
+          selectedCityName: detectedCityName,
           zoneRestaurantIds,
         }),
       }))
       .filter((section) => section.restaurants.length > 0);
-  }, [homeCategorySections, restaurants, deals, deliveryOverrides, orderType, selectedCity?.name, zoneRestaurantIds]);
+  }, [homeCategorySections, restaurants, deals, deliveryOverrides, orderType, detectedCityName, zoneRestaurantIds]);
 
   const promoCards = useMemo<PromoCardItem[]>(() => {
     return sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
@@ -893,6 +904,8 @@ export default function HomePage() {
               currentAddress={address}
               zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
               onOpenFull={() => setShowAddressModal(true)}
+              orderType={orderType}
+              cityName={detectedCityName}
               onSelect={(a) => {
                 // BUG-FIX: snabbväljaren triggade inte handleAddressConfirm tidigare
                 // → cityFamilyIds + detectedCityName hängde kvar från förra adressen

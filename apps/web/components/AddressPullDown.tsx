@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence, PanInfo } from "framer-motion";
-import { MapPin, ChevronDown, Plus, Trash2, Home, Briefcase, Star, Pencil, Circle } from "lucide-react";
+import { MapPin, ChevronDown, Plus, Trash2, Home, Briefcase, Star, Pencil, Circle, Building2 } from "lucide-react";
 import {
   type QuickAddress,
   ensureQuickAddress,
@@ -12,28 +12,24 @@ import {
   setDefaultQuickAddress,
 } from "@/lib/quickAddresses";
 
-/**
- * AddressPullDown – Kompakt adressväljare i toppen av appen.
- *
- * En knapp högst upp visar aktuell adress. När man drar ner / klickar öppnas en
- * sheet med upp till 3 snabbadresser samt en knapp för att lägga till ny.
- * Adresserna ligger lokalt (max 3) och fylls på när användaren väljer adress.
- * Det minskar externa geocode-anrop eftersom checkout kan återanvända sparade coords.
- */
 interface Props {
   currentAddress: string;
   onSelect: (addr: QuickAddress) => void;
   onOpenFull: () => void;
   zoneStatus?: "ok" | "error" | null;
+  orderType?: "DELIVERY" | "PICKUP";
+  cityName?: string | null;
 }
 
 const MAX_ADDRESSES = 3;
 
-export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, zoneStatus }: Props) {
+export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, zoneStatus, orderType, cityName }: Props) {
+  const isPickup = orderType === "PICKUP";
   const [open, setOpen] = useState(false);
   const [addresses, setAddresses] = useState<QuickAddress[]>([]);
 
   useEffect(() => {
+    if (isPickup) return;
     const load = async () => {
       if (currentAddress && typeof window !== "undefined") {
         const rawCoords = localStorage.getItem("platform_coords");
@@ -54,9 +50,10 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
     };
 
     void load();
-  }, [open, currentAddress]);
+  }, [open, currentAddress, isPickup]);
 
   const handleDrag = (_: unknown, info: PanInfo) => {
+    if (isPickup) return;
     if (info.offset.y > 30 && !open) setOpen(true);
     if (info.offset.y < -30 && open) setOpen(false);
   };
@@ -67,6 +64,28 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
     if (l.includes("jobb") || l.includes("work")) return <Briefcase size={14} />;
     return <Star size={14} />;
   };
+
+  if (isPickup) {
+    return (
+      <div className="relative z-30">
+        <motion.div
+          onClick={onOpenFull}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-full border cursor-pointer select-none"
+          style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
+        >
+          <Building2 size={14} className="text-gold-500 shrink-0" />
+          <span className="text-[11px] font-bold truncate flex-1" style={{ color: "var(--text-primary)" }}>
+            {cityName || "Välj stad"}
+          </span>
+          <span className="text-[9px] font-black uppercase tracking-widest shrink-0" style={{ color: "var(--text-secondary)" }}>
+            Byt stad
+          </span>
+          <ChevronDown size={14} style={{ color: "var(--text-secondary)" }} />
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative z-30">
@@ -89,7 +108,6 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
         <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
           <ChevronDown size={14} style={{ color: "var(--text-secondary)" }} />
         </motion.div>
-        {/* Drag handle */}
         <div className="w-6 h-1 rounded-full" style={{ backgroundColor: "var(--border-muted)" }} />
       </motion.div>
 
