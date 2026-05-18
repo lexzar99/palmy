@@ -20,10 +20,9 @@
   --text-secondary: #a1a1aa;
   --text-muted: #52525b;
 
-  /* Accent: warm gold — matches FoodGo brand palette */
-  --accent: #E7B24B;
-  --accent-strong: #F4D086;
-  --accent-soft: rgba(231, 178, 75, 0.12);
+  --accent: #BEFF3B;
+  --accent-strong: #D4FF6E;
+  --accent-soft: rgba(190, 255, 59, 0.15);
   --accent-fg: #0a0b0e;
 
   --success: #4ade80;
@@ -137,8 +136,8 @@ button {
 }
 
 .page-title {
-  font-size: 32px;
-  font-weight: 600;
+  font-size: 36px;
+  font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.1;
   color: var(--text-primary);
@@ -159,19 +158,19 @@ button {
 .sidebar-brand-mark {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
   background: var(--accent);
   color: var(--accent-fg);
-  font-weight: 700;
-  font-size: 13px;
+  font-weight: 800;
+  font-size: 15px;
   letter-spacing: -0.02em;
 }
 
 .sidebar-brand-text {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text-primary);
 }
@@ -223,12 +222,12 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 36px;
-  padding: 0 10px 0 28px;
+  min-height: 40px;
+  padding: 0 12px 0 28px;
   border-radius: 8px;
   border: 0;
   color: var(--text-secondary);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 500;
   letter-spacing: -0.005em;
   transition: background 120ms ease, color 120ms ease;
@@ -333,9 +332,9 @@ button {
    ───────────────────────────────────────────── */
 
 .section-title {
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.2;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.025em;
   color: var(--text-primary);
 }
@@ -370,15 +369,15 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 0 16px;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 20px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--accent);
   color: var(--accent-fg);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   letter-spacing: -0.005em;
 }
 
@@ -401,14 +400,14 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 0 14px;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 18px;
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -430,7 +429,7 @@ button {
 }
 
 .icon-button {
-  width: 36px;
+  width: 40px;
   padding: 0;
 }
 
@@ -445,8 +444,8 @@ button {
   border: 1px solid var(--border-subtle);
   background: var(--bg-panel-soft);
   color: var(--text-primary);
-  border-radius: 8px;
-  padding: 10px 12px;
+  border-radius: 10px;
+  padding: 11px 14px;
   outline: none;
   font-size: 14px;
   transition: border-color 120ms ease, box-shadow 120ms ease;
@@ -476,10 +475,10 @@ button {
 }
 
 .field-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
 }
 
@@ -491,10 +490,10 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border-radius: 6px;
-  padding: 3px 8px;
-  font-size: 10.5px;
-  font-weight: 600;
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   border: 1px solid transparent;
@@ -721,12 +720,12 @@ button {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 14px;
-  border-radius: 10px;
+  padding: 16px;
+  border-radius: 12px;
   border: 1px dashed var(--border-subtle);
   background: transparent;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.005em;
   transition: border-color 120ms ease, color 120ms ease, background 120ms ease;

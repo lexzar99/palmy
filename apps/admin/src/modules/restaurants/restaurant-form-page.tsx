@@ -286,8 +286,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                   currentPlaceId={form.placeId}
                   onChange={(text) => {
                     set("address", text);
-                    // Användaren håller på att skriva manuellt → invalidera tidigare place_id
-                    // så vi inte behåller fel koordinater för en helt ny adress.
                     if (form.placeId) {
                       set("placeId", "");
                       set("latitude", "");
@@ -369,7 +367,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               ))}
             </div>
           ) : (
-            <EmptyState title="Ingen meny" description="Restaurangen har inga kategorier eller produkter än." action={<Button variant="primary" onClick={() => router.push(`/menu?restaurantId=${restaurantId}`)}>Öppna menyeditor</Button>} />
+            <EmptyState title="Ingen meny" action={<Button variant="primary" onClick={() => router.push(`/menu?restaurantId=${restaurantId}`)}>Öppna menyeditor</Button>} />
           )}
         </Surface>
       )}
@@ -415,7 +413,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       {/* Hours tab */}
       {tab === "hours" && (
         <Surface className="px-6 py-6 grid gap-3">
-          <p className="text-sm text-[var(--text-secondary)]">Öppettider per dag. Lägg till flera skift vid lunchpaus.</p>
           {DAYS.map(({ key, label }) => {
             const day = form.openingHours[key];
             const updateDay = (next: DayHours) => setForm((prev) => ({ ...prev, openingHours: { ...prev.openingHours, [key]: next } }));
@@ -473,7 +470,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               </div>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <Field label="Beräknad (auto)"><Input value={form.etaCalculated != null ? `${form.etaCalculated} min` : "Default 40 min"} disabled /></Field>
-                <Field label="Override (lämna tom = auto)"><Input type="number" min={25} max={60} placeholder="t.ex. 35" value={form.etaOverride} onChange={(e) => set("etaOverride", e.target.value)} /></Field>
+                <Field label="Override"><Input type="number" min={25} max={60} placeholder="t.ex. 35" value={form.etaOverride} onChange={(e) => set("etaOverride", e.target.value)} /></Field>
               </div>
             </div>
             <Field label="Moms">
@@ -489,10 +486,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             <Field label="Betyg"><Input type="number" step="0.1" value={form.rating} onChange={(e) => set("rating", Number(e.target.value))} /></Field>
             <Field label="Antal betyg"><Input type="number" value={form.ratingCount} onChange={(e) => set("ratingCount", Number(e.target.value))} /></Field>
             <Field label="Logout-kod (Flutter)"><Input value={form.logoutCode} onChange={(e) => set("logoutCode", e.target.value)} placeholder="t.ex. 1234" /></Field>
-            {/* Latitud + Longitud sätts automatiskt av Google Places-autocomplete
-                ovan i adressfältet. Visas som read-only för transparens. Tom = ingen
-                adress vald än → zone-editorn faller tillbaka till stadens centrum. */}
-            <Field label="Koordinater (auto från adress)">
+            <Field label="Koordinater">
               <div className="flex gap-2">
                 <Input value={form.latitude} disabled placeholder="Lat" />
                 <Input value={form.longitude} disabled placeholder="Lng" />
@@ -510,7 +504,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       {tab === "login" && (
         isCreate ? (
           <Surface className="px-6 py-6">
-            <p className="text-sm text-[var(--text-secondary)]">Spara restaurangen först innan du sätter inloggning.</p>
+            <p className="text-sm text-[var(--text-secondary)]">Spara restaurangen först.</p>
           </Surface>
         ) : (
           <Surface className="px-6 py-6">
@@ -556,11 +550,9 @@ function RestaurantLoginPanel({ restaurantId, restaurantSlug }: { restaurantId: 
 
   return (
     <div className="grid gap-5 max-w-lg">
-      <div className="surface-muted px-5 py-4 text-sm text-[var(--text-secondary)] leading-6">
-        <strong>Flutter-restaurang-appen</strong> loggar in med dessa uppgifter. Uppdatera fälten och tryck Spara.
-        {account && !account.hasPassword && <p className="mt-1 text-amber-300">⚠ Lösenordet är sparat i krypterat format och kan inte visas. Skriv in nytt lösenord.</p>}
-        {!account && <p className="mt-1">Inget konto är kopplat än. Fyll i och skapa.</p>}
-      </div>
+      {account && !account.hasPassword && (
+        <p className="text-sm text-amber-300">⚠ Lösenordet kan inte visas — skriv in nytt.</p>
+      )}
       <div className="grid grid-cols-2 gap-4">
         <Field label="Användarnamn">
           <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder={restaurantSlug ? `${restaurantSlug}` : "användarnamn"} autoCapitalize="none" autoCorrect="off" spellCheck={false} />

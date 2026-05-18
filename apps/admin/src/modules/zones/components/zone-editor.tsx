@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Circle as CircleIcon, Eye, EyeOff, Info, Loader2, MapPin, Navigation2, PenLine, Plus, Search, Trash2, X, ZoomIn } from "lucide-react";
+import { AlertTriangle, Circle as CircleIcon, Eye, EyeOff, Loader2, MapPin, Navigation2, PenLine, Plus, Search, Trash2, X, ZoomIn } from "lucide-react";
 import type { ZoneRecord } from "@/modules/zones/api";
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "";
@@ -212,7 +212,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
       icon: {
         path: g.maps.SymbolPath.CIRCLE,
         scale: 11,
-        fillColor: "#E7B24B",
+        fillColor: "#BEFF3B",
         fillOpacity: 1,
         strokeColor: "#ffffff",
         strokeWeight: 2.5,
@@ -261,18 +261,18 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
       drawingMode: null,
       drawingControl: false,
       circleOptions: {
-        fillColor: "#E7B24B",
+        fillColor: "#BEFF3B",
         fillOpacity: 0.22,
-        strokeColor: "#E7B24B",
+        strokeColor: "#BEFF3B",
         strokeOpacity: 0.95,
         strokeWeight: 3,
         editable: true,
         draggable: true,
       },
       polygonOptions: {
-        fillColor: "#E7B24B",
+        fillColor: "#BEFF3B",
         fillOpacity: 0.22,
-        strokeColor: "#E7B24B",
+        strokeColor: "#BEFF3B",
         strokeOpacity: 0.95,
         strokeWeight: 3,
         editable: true,
@@ -696,12 +696,6 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
         </div>
       </div>
 
-      <div className="flex items-start gap-2.5 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3">
-        <Info size={12} className="mt-0.5 shrink-0 text-[var(--text-secondary)]" />
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] leading-relaxed text-[var(--text-secondary)]">
-          Search to move the city center, draw circles or polygons, then edit pricing directly from the zone list.
-        </p>
-      </div>
     </div>
   );
 }

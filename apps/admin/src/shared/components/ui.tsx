@@ -56,9 +56,9 @@ export function MetricCard({
 }) {
   return (
     <article className="metric-card">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">{label}</p>
-      <p className="mt-4 text-[40px] font-semibold tracking-[-0.035em] text-[var(--text-primary)] leading-[1.05]">{value}</p>
-      {detail ? <div className="mt-3 text-[13px] text-[var(--text-secondary)]">{detail}</div> : null}
+      <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">{label}</p>
+      <p className="mt-4 text-[46px] font-bold tracking-[-0.035em] text-[var(--text-primary)] leading-[1.05]">{value}</p>
+      {detail ? <div className="mt-3 text-[14px] text-[var(--text-secondary)]">{detail}</div> : null}
     </article>
   );
 }
@@ -100,8 +100,6 @@ export function Field({ label, children }: { label: string; children: React.Reac
 }
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  // För type="number" — strippa leading zeros så "010" automatiskt blir "10".
-  // Annars: vanlig pass-through.
   if (props.type === "number" && props.onChange) {
     const originalOnChange = props.onChange;
     const wrappedOnChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -201,14 +199,14 @@ export function Tabs<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-2">
       {options.map((option) => (
         <button
           key={option.value}
           type="button"
           onClick={() => onChange(option.value)}
           className={cn(
-            "rounded-lg border px-3.5 py-2 text-[12px] font-semibold tracking-[-0.005em] transition-colors",
+            "rounded-lg border px-4 py-2.5 text-[13px] font-semibold tracking-[-0.005em] transition-colors",
             value === option.value
               ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]"
               : "border-[var(--border-subtle)] bg-transparent text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]",

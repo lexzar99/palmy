@@ -62,7 +62,6 @@ function RestaurantOverrideModal({
       open={open}
       onClose={onClose}
       title={restaurant ? `${restaurant.name} override` : "Restaurant override"}
-      description="Restaurant-specific zones override the city default when needed."
       widthClassName="max-w-[1600px]"
       footer={<div className="flex items-center justify-end gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => restaurant && onSave(restaurant.id, zones, freeDeliveryAbove)}>Save override</Button></div>}
     >
@@ -290,7 +289,7 @@ export function ZonesPage() {
       </Surface>
 
       {!selectedCity ? (
-        <EmptyState title="Välj en stad" description="Använd dropdownen ovan för att välja stad och hantera dess restaurang-zoner." />
+        <EmptyState title="Välj en stad" />
       ) : (
         <>
           {/* ── Restaurang-grid: alla restauranger i staden, klickbara → polygon-editor ── */}

@@ -131,7 +131,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (
     <aside className="sidebar-shell">
       <Link href="/dashboard" className="sidebar-brand">
-        <div className="sidebar-brand-mark">M</div>
+        <div className="sidebar-brand-mark">F</div>
         <span className="sidebar-brand-text">FoodGo</span>
       </Link>
 
