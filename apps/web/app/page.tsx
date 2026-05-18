@@ -404,6 +404,27 @@ export default function HomePage() {
     return [...personal, ...pub];
   }, [deals, personalDeals, restaurants]);
 
+  // Delad city-filter-helper. Används av:
+  //   - filtered (huvud-grid)
+  //   - renderFeaturedRail (Heta listan, PIZZA FREDAG, SNABB LUNCH osv)
+  //   - featured (auto-utvalda)
+  // Tidigare bug: city-filter satt bara i filtered → HomeCategorySection's
+  // rå admin-data (section.restaurants) gick aldrig igenom → restauranger
+  // från andra städer visades i Heta listan oavsett kundens adress.
+  const matchesCityFamily = useCallback((r: Restaurant): boolean => {
+    if (cityFamilyIds && cityFamilyIds.length > 0) {
+      const rCityId = (r as any).cityId as string | null | undefined;
+      if (rCityId) return cityFamilyIds.includes(rCityId);
+      if (detectedCityName) {
+        return (r.city || "").toLowerCase() === detectedCityName.toLowerCase();
+      }
+      return false;
+    }
+    // Strict: vi har stad-namnet men inte hittade familyIds → visa inget
+    if (detectedCityName) return false;
+    return true;
+  }, [cityFamilyIds, detectedCityName]);
+
   const filtered = useMemo(() => {
     const list = restaurants.filter((r) => {
       // "Favoriter" är en pseudo-cuisine: filtrerar mot localStorage-store i stället för cuisine-fält
@@ -419,35 +440,9 @@ export default function HomePage() {
         r.name.toLowerCase().includes(query.toLowerCase()) ||
         (r.description || "").toLowerCase().includes(query.toLowerCase());
       const matchDeal = !filteredByDeal || filteredByDeal.ids.includes(r.id);
-      let matchCity = true;
-      // PRIO 1: stad-familj från kundens adress (Google Places + parent-hierarki).
-      // Visar bara restauranger i samma metropolitan area (Malmö + Arlöv + Oxie
-      // men inte Lund om admin inte merged dem).
-      if (cityFamilyIds && cityFamilyIds.length > 0) {
-        // Fallback till sträng-match om backend ännu inte returnerar cityId.
-        // (Tidigare data hade bara r.city sträng, ingen FK till City.)
-        const rCityId = (r as any).cityId as string | null | undefined;
-        if (rCityId) {
-          matchCity = cityFamilyIds.includes(rCityId);
-        } else if (detectedCityName) {
-          // Fallback: jämför sträng-stad mot detekterad stad case-insensitive.
-          // Detta täcker gamla restauranger utan FK — vi gissar att om
-          // r.city === detectedCityName, hör den till denna stad.
-          matchCity = (r.city || "").toLowerCase() === detectedCityName.toLowerCase();
-        } else {
-          matchCity = false;
-        }
-      } else if (detectedCityName) {
-        // PRIO 2: vi DETEKTERADE en stad men cityFamilyIds är tom — staden
-        // finns inte som City-rad i DB. Strict-mode: dölj ALLT istället för
-        // att visa allt (Foodora/Wolt-pattern). Banner ovanför listan
-        // berättar att staden inte servas. Tidigare visades alla restauranger
-        // tyst när filter avaktiverades → kund i Lund såg Palma (Dalby).
-        matchCity = false;
-      } else if (orderType === "PICKUP" && selectedCity) {
-        // PRIO 3 (legacy): admin-vald stad i dropdown (case-insensitive sträng-match).
-        matchCity = (r.city || "").toLowerCase() === selectedCity.name.toLowerCase();
-      }
+      // City-filter via delad helper — samma logik kör för main-grid OCH
+      // alla rails (Heta listan, PIZZA FREDAG, SNABB LUNCH).
+      const matchCity = matchesCityFamily(r);
       return matchCuisine && matchQuery && matchCity && matchDeal;
     });
 
@@ -487,7 +482,7 @@ export default function HomePage() {
       }
       return true;
     });
-  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, zoneDeliveryInfo, filteredByDeal, quickFilter, allDealCards, favorites, selectedCity, cityFamilyIds, detectedCityName]);
+  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, zoneDeliveryInfo, filteredByDeal, quickFilter, allDealCards, favorites, matchesCityFamily]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
@@ -564,10 +559,21 @@ export default function HomePage() {
     return getImageSrc(r.heroImageUrl || r.imageUrl || "");
   };
 
-  const renderFeaturedRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[]) => {
-    // Sortera så in-zone-restauranger kommer FÖRST även i HomeCategorySections
-    // (PIZZA FREDAG, SNABB LUNCH osv). Out-of-zone hamnar längst ner dimmade.
-    const sortedSection = sectionRestaurants.slice().sort((a, b) => {
+  const renderFeaturedRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[], options: { alwaysShow?: boolean } = {}) => {
+    // City-filter FÖRST — applicerar samma helper som main-grid använder.
+    // Detta körs automatiskt på ALLA rails (Heta listan, PIZZA FREDAG, SNABB
+    // LUNCH och alla framtida HomeCategorySections som admin skapar) utan
+    // att admin behöver tänka på det.
+    const cityFiltered = sectionRestaurants.filter((r) => matchesCityFamily(r));
+
+    // Om sektionen blir tom efter city-filter: dölj hela sektionen — så
+    // användaren inte ser tomma rails av rubriker. Heta listan kan undantas
+    // via alwaysShow=true (den är "premium-listan" som ska synas oavsett).
+    if (cityFiltered.length === 0 && !options.alwaysShow) return null;
+
+    // Sortera så in-zone-restauranger kommer FÖRST. Out-of-zone hamnar
+    // längst ner dimmade.
+    const sortedSection = cityFiltered.slice().sort((a, b) => {
       if (zoneRestaurantIds === null) return 0;
       const aIn = zoneRestaurantIds.includes(a.id) ? 0 : 1;
       const bIn = zoneRestaurantIds.includes(b.id) ? 0 : 1;
@@ -1030,6 +1036,9 @@ export default function HomePage() {
               // admin inte fyllt i engelska översättningen (titleEn null/tom).
               const localizedTitle = locale === "en" && section.titleEn ? section.titleEn : section.title;
               const localizedSubtitle = locale === "en" && section.subtitleEn ? section.subtitleEn : section.subtitle;
+              // Sektionen filtreras automatiskt by stad i renderFeaturedRail
+              // (matchesCityFamily). Om tom efter filter returneras null →
+              // sektionen försvinner från sidan utan extra logik här.
               return (
                 <React.Fragment key={section.id}>
                   {renderFeaturedRail(localizedTitle, localizedSubtitle, section.restaurants)}
@@ -1039,6 +1048,30 @@ export default function HomePage() {
           : featured.length > 0
             ? renderFeaturedRail(t("home.section.hot"), t("home.section.hotSub"), featured)
             : null}
+
+        {/* GLOBAL TOM-STATE — visas när inga restauranger alls matchar kundens
+            stad (varken main-grid, rails, eller HomeCategorySections). Detta är
+            "vi har inte kommit till din stad ännu"-banner. Trigger:
+              - Användaren har valt adress (detectedCityName satt)
+              - Men varken filtered eller någon HomeCategorySection har träffar
+            Backend-data laddas ENBART när /api/restaurants returnerar nya
+            data — ingen polling, ingen hammring av cities/family-by-name. */}
+        {detectedCityName && filtered.length === 0 && resolvedHomeCategorySections.every((s) => s.restaurants.filter(matchesCityFamily).length === 0) && (
+          <section className="mb-10">
+            <div className="rounded-3xl px-6 py-10 text-center" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+              <div className="mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(231,178,75,0.1)" }}>
+                <MapPin size={22} className="text-gold-500" />
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>
+                Vi har inte kommit till {detectedCityName} ännu
+              </h3>
+              <p className="text-sm font-medium max-w-md mx-auto" style={{ color: "var(--text-secondary)" }}>
+                Men vi expanderar fort — kolla tillbaka snart. Tills dess kan du
+                använda en annan adress för att se restauranger i en stad vi servar.
+              </p>
+            </div>
+          </section>
+        )}
 
         {filteredByDeal && (
           <section className="mb-10">
