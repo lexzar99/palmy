@@ -109,6 +109,11 @@ model Order {
   deliveryStreet        String?
   deliveryCity          String?
   deliveryZip           String?
+  // Kundens leverans-koordinater vid order-tid. Sparas för att matcha mot
+  // restaurangens zoner i efterhand när vi räknar per-zon-ETA: vilka orders
+  // ramlade inom vilken zon → snitt-leveranstid per zon.
+  deliveryLatitude      Float?
+  deliveryLongitude     Float?
   deliveryNote          String?
   deliveryInstructions  String?     // Preset: RING_DOORBELL, LEAVE_AT_DOOR, MEET_OUTSIDE, ENTER_CODE
   total                 Int

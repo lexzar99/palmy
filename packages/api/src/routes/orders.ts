@@ -108,6 +108,10 @@ const CreateOrderSchema = z.object({
   deliveryStreet: z.string().nullable().optional(),
   deliveryCity: z.string().nullable().optional(),
   deliveryZip: z.string().nullable().optional(),
+  // Kund-coords vid order-tid. Krävs INTE för giltig order men starkt
+  // rekommenderat — sparas för per-zon-ETA-beräkning i efterhand.
+  deliveryLatitude: z.number().nullable().optional(),
+  deliveryLongitude: z.number().nullable().optional(),
   deliveryNote: z.string().nullable().optional(),
   deliveryInstructions: z.string().nullable().optional(),
 
@@ -964,6 +968,8 @@ router.post('/', async (req: Request, res: Response) => {
         deliveryStreet: data.deliveryStreet || null,
         deliveryCity: data.deliveryCity || null,
         deliveryZip: data.deliveryZip || null,
+        deliveryLatitude: data.deliveryLatitude ?? null,
+        deliveryLongitude: data.deliveryLongitude ?? null,
         deliveryNote: data.deliveryNote || null,
         deliveryInstructions: data.deliveryInstructions || null,
         note: data.note || null,

@@ -1100,6 +1100,10 @@ export default function CartPage() {
       deliveryStreet: orderType === "DELIVERY" ? formData.deliveryStreet : undefined,
       deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
       deliveryCity: orderType === "DELIVERY" ? (formData.deliveryCity || undefined) : undefined,
+      // Coords sparas på ordern för per-zon-ETA-räkning i efterhand. Endast
+      // för DELIVERY (PICKUP behöver inte kundens lat/lng).
+      deliveryLatitude: orderType === "DELIVERY" ? (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lat; } catch { return undefined; } })() : undefined,
+      deliveryLongitude: orderType === "DELIVERY" ? (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lng; } catch { return undefined; } })() : undefined,
       note: composedNote || undefined,
       deliveryInstructions: composedDeliveryInstructions || undefined,
       stripePaymentIntentId: paymentIntentId,

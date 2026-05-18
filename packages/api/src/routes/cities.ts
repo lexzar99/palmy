@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
 import { isPointInZone, pointInPolygon, haversineKm, findDeliveryZone, DeliveryZone } from '../utils/geo';
+import { getEffectiveZoneEta } from '../lib/restaurantZoneEta';
 
 const router = Router();
 
@@ -186,6 +187,11 @@ router.post('/validate-location', async (req, res) => {
           const rZone = findDeliveryZone(lat, lng, rZones, cityCenter);
           if (!rZone) return null;
 
+          // Effektiv ETA: auto-räknad (calculatedEtaMinutes om ≥5 samples)
+          // > admin-kickstart (rZone.etaMinutes) > restaurang-default.
+          // getEffectiveZoneEta applicerar snap till 5-min-intervall.
+          const effectiveEta = getEffectiveZoneEta(rZone as any, r.etaMinutes ?? undefined);
+
           return {
             ...r,
             // Skriv över restaurangens default deliveryFee/minOrderAmount med
@@ -194,13 +200,17 @@ router.post('/validate-location', async (req, res) => {
             // bakåtkompat med klienter som läser fältet direkt.
             deliveryFee: rZone.fee,
             minOrderAmount: rZone.minOrder,
-            etaMinutes: rZone.etaMinutes ?? r.etaMinutes,
+            etaMinutes: effectiveEta,
             matchedZone: {
               id: rZone.id,
               name: rZone.name,
               deliveryFee: rZone.fee,
               minOrder: rZone.minOrder,
-              etaMinutes: rZone.etaMinutes ?? null,
+              etaMinutes: effectiveEta,
+              // Diagnostik så admin/web kan visa "auto-räknat efter X ordrar"
+              // istället för att gissa om värdet är manuellt eller beräknat.
+              etaSource: (rZone as any).calculatedEtaMinutes != null && ((rZone as any).etaSampleCount ?? 0) >= 5 ? 'calculated' : 'manual',
+              etaSampleCount: (rZone as any).etaSampleCount ?? 0,
             },
           };
         })

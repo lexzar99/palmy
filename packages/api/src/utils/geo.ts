@@ -46,8 +46,13 @@ export interface DeliveryZone {
   minOrder: number;
   isActive: boolean;
   color?: string;
-  /** Estimated delivery time for this zone in minutes (optional, overrides restaurant default) */
+  /** Admin-satt "kickstart"-ETA i minuter. Visas tills auto-räkning får data. */
   etaMinutes?: number;
+  /** Auto-räknat ETA från order-historik (recalculateRestaurantZoneEtas).
+   *  null = inte tillräckligt med data än → fall back till etaMinutes. */
+  calculatedEtaMinutes?: number;
+  /** Antal samples som ledde till calculatedEtaMinutes. Användbart för UI. */
+  etaSampleCount?: number;
 }
 
 /**

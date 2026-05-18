@@ -13,6 +13,7 @@ import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
+import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
 import { ALLOW_WIPE_ORDERS, ENABLE_PASSWORD_PLAIN } from '../lib/config';
 import { sanitizeError } from '../lib/errors';
 
@@ -471,6 +472,10 @@ router.patch('/orders/:id/status', async (req, res) => {
     // får default-värdet täcka in tills nästa lyckade omräkning.
     if (isDeliveringTransition && existing.restaurantId) {
       void recalculateRestaurantEta(existing.restaurantId).catch(() => null);
+      // Per-zon ETA: samma triggerpunkt. Räknar ETA per zon från senaste
+      // ordrarnas coords + tider, applicerar monotonic-guard (närmare zon
+      // får aldrig högre ETA än längre), sparar tillbaka i deliveryZones JSON.
+      void recalculateRestaurantZoneEtas(existing.restaurantId).catch(() => null);
     }
 
     // Notifiera kunden via Socket.IO
