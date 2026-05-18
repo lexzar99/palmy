@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin, X, ArrowRight, Truck, Store, AlertCircle,
-  Loader2, CheckCircle2, Building2, ChevronRight,
+  Loader2, CheckCircle2, Building2, ChevronRight, Search,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -19,6 +19,12 @@ interface CityOption {
   name: string;
   slug: string;
   deliveryMode: string;
+  parentCityId?: string | null;
+}
+
+interface CityGroup {
+  parent: CityOption;
+  children: CityOption[];
 }
 
 interface AddressModalProps {
@@ -50,9 +56,10 @@ export default function AddressModal({
   const [autocompleteError, setAutocompleteError] = useState(false);
 
   // ── Pickup state ────────────────────────────────────────────────────────────
-  const [cities, setCities] = useState<CityOption[]>([]);
+  const [cityGroups, setCityGroups] = useState<CityGroup[]>([]);
   const [citiesLoading, setCitiesLoading] = useState(false);
   const [selectedCity, setSelectedCity] = useState<CityOption | null>(null);
+  const [citySearch, setCitySearch] = useState("");
 
   const debounceRef = useRef<any>(null);
   const sessionToken = useRef<string>("");
@@ -78,20 +85,43 @@ export default function AddressModal({
     setError(null);
     setAutocompleteError(false);
     setSelectedCity(null);
+    setCitySearch("");
   }, [isOpen]);
 
   // ── Fetch cities for pickup ──────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen || orderType !== "PICKUP") return;
-    if (cities.length > 0) return;
+    if (cityGroups.length > 0) return;
     setCitiesLoading(true);
     fetch(`${API_BASE}/api/cities`)
       .then(r => r.json())
       .then((data: any[]) => {
-        const list: CityOption[] = (Array.isArray(data) ? data : [])
+        const all: CityOption[] = (Array.isArray(data) ? data : [])
           .filter(c => c.isActive && c.deliveryMode !== "ONLY_DELIVERY")
-          .map(c => ({ id: c.id, name: c.name, slug: c.slug, deliveryMode: c.deliveryMode }));
-        setCities(list);
+          .map(c => ({ id: c.id, name: c.name, slug: c.slug, deliveryMode: c.deliveryMode, parentCityId: c.parentCityId || null }));
+        const parentMap = new Map<string, CityGroup>();
+        const standalone: CityGroup[] = [];
+        for (const c of all) {
+          if (!c.parentCityId) {
+            const group = parentMap.get(c.id) || { parent: c, children: [] };
+            group.parent = c;
+            parentMap.set(c.id, group);
+          }
+        }
+        for (const c of all) {
+          if (c.parentCityId) {
+            let group = parentMap.get(c.parentCityId);
+            if (!group) {
+              const ghost: CityOption = { id: c.parentCityId, name: c.name, slug: c.slug, deliveryMode: c.deliveryMode };
+              group = { parent: ghost, children: [] };
+              parentMap.set(c.parentCityId, group);
+            }
+            group.children.push(c);
+          }
+        }
+        for (const g of parentMap.values()) standalone.push(g);
+        standalone.sort((a, b) => a.parent.name.localeCompare(b.parent.name, "sv"));
+        setCityGroups(standalone);
       })
       .catch(() => {})
       .finally(() => setCitiesLoading(false));
@@ -313,7 +343,7 @@ export default function AddressModal({
               </div>
             )}
 
-            {/* ── PICKUP: city selector ── */}
+            {/* ── PICKUP: city selector with search + grouped hierarchy ── */}
             {orderType === "PICKUP" && (
               <div className="mb-4">
                 {citiesLoading ? (
@@ -321,34 +351,79 @@ export default function AddressModal({
                     <Loader2 size={16} className="animate-spin text-gold-500" />
                     <span className="text-sm font-bold" style={{ color: "var(--text-secondary)" }}>Hämtar städer…</span>
                   </div>
-                ) : cities.length === 0 ? (
+                ) : cityGroups.length === 0 ? (
                   <div className="py-8 text-center rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                     <Building2 size={24} className="text-zinc-300 mx-auto mb-2" />
                     <p className="text-sm font-bold text-zinc-400">Inga städer med avhämtning</p>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {cities.map(city => (
-                      <button key={city.id} onClick={() => { setSelectedCity(city); setError(null); }}
-                        className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all text-left"
-                        style={{
-                          backgroundColor: selectedCity?.id === city.id ? "rgba(234,181,69,0.05)" : "var(--bg-deep)",
-                          borderColor: selectedCity?.id === city.id ? "rgba(234,181,69,0.4)" : "var(--border-muted)",
-                        }}>
-                        <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                          style={{ borderColor: selectedCity?.id === city.id ? "#EAB545" : "var(--border-muted)", backgroundColor: selectedCity?.id === city.id ? "#EAB545" : "transparent" }}>
-                          {selectedCity?.id === city.id && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
-                        </div>
-                        <div className="flex-1">
-                          <span className="text-sm font-black" style={{ color: selectedCity?.id === city.id ? "#EAB545" : "var(--text-primary)" }}>{city.name}</span>
-                          <span className="text-[9px] font-bold uppercase tracking-wide block mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                            {city.deliveryMode === "ALL" ? "Leverans & avhämtning" : "Endast avhämtning"}
-                          </span>
-                        </div>
-                        <ChevronRight size={14} className={selectedCity?.id === city.id ? "text-gold-500" : ""} style={{ color: selectedCity?.id === city.id ? "#EAB545" : "var(--text-secondary)" }} />
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    <div className="flex items-center gap-3 rounded-xl border px-4 py-3 mb-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+                      <Search size={15} className="text-gold-500 shrink-0" />
+                      <input
+                        type="text"
+                        value={citySearch}
+                        onChange={e => setCitySearch(e.target.value)}
+                        placeholder="Sök stad…"
+                        className="w-full bg-transparent text-sm font-bold focus:outline-none"
+                        style={{ color: "var(--text-primary)" }}
+                      />
+                      {citySearch && (
+                        <button onClick={() => setCitySearch("")}>
+                          <X size={13} style={{ color: "var(--text-secondary)" }} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                      {(() => {
+                        const q = citySearch.toLowerCase().trim();
+                        const filtered = q
+                          ? cityGroups.filter(g =>
+                              g.parent.name.toLowerCase().includes(q) ||
+                              g.children.some(c => c.name.toLowerCase().includes(q))
+                            )
+                          : cityGroups;
+                        if (filtered.length === 0) return (
+                          <p className="text-[11px] font-bold text-center py-4" style={{ color: "var(--text-secondary)" }}>Ingen stad hittades</p>
+                        );
+                        return filtered.map(group => {
+                          const isSelected = selectedCity?.id === group.parent.id ||
+                            group.children.some(c => c.id === selectedCity?.id);
+                          const allNames = [group.parent.name, ...group.children.map(c => c.name)];
+                          const subtitle = group.children.length > 0
+                            ? allNames.join(", ")
+                            : undefined;
+                          return (
+                            <button
+                              key={group.parent.id}
+                              onClick={() => { setSelectedCity(group.parent); setError(null); }}
+                              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all text-left"
+                              style={{
+                                backgroundColor: isSelected ? "rgba(234,181,69,0.05)" : "var(--bg-deep)",
+                                borderColor: isSelected ? "rgba(234,181,69,0.4)" : "var(--border-muted)",
+                              }}
+                            >
+                              <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
+                                style={{ borderColor: isSelected ? "#EAB545" : "var(--border-muted)", backgroundColor: isSelected ? "#EAB545" : "transparent" }}>
+                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-black" style={{ color: isSelected ? "#EAB545" : "var(--text-primary)" }}>
+                                  {group.parent.name}
+                                </span>
+                                {subtitle && (
+                                  <span className="text-[9px] font-bold block mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>
+                                    {subtitle}
+                                  </span>
+                                )}
+                              </div>
+                              <ChevronRight size={14} style={{ color: isSelected ? "#EAB545" : "var(--text-secondary)" }} />
+                            </button>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </>
                 )}
               </div>
             )}

@@ -169,12 +169,9 @@ export default function HomePage() {
       }
       if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType as "DELIVERY" | "PICKUP");
 
-      // Återställ stad-familj från localStorage så filter funkar direkt vid
-      // page-load utan att kunden måste öppna address-modalen igen. Buggen:
-      // tidigare körs city-resolve BARA i handleAddressConfirm → om address var
-      // sparad sedan tidigare → cityFamilyIds förblev null → filter visade
-      // alla restauranger (inkl. de från andra städer).
-      const storedCity = localStorage.getItem("platform_city");
+      const storedCity = storedType === "PICKUP"
+        ? localStorage.getItem("platform_pickup_city")
+        : localStorage.getItem("platform_city");
       if (storedCity) {
         setDetectedCityName(storedCity);
         axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: storedCity } })
@@ -185,8 +182,6 @@ export default function HomePage() {
           })
           .catch(() => setCityFamilyIds(null));
       }
-
-      // Favoriter hydreras via useFavorites-hooken (delad mellan vyer).
 
       const err = localStorage.getItem("platform_address_error");
       if (err) {
@@ -296,6 +291,17 @@ export default function HomePage() {
     }
   };
 
+  const resolveCityFamily = async (cityName: string) => {
+    try {
+      const res = await axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: cityName } });
+      const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
+      setCityFamilyIds(familyIds.length > 0 ? familyIds : null);
+      if (res.data?.name) setDetectedCityName(res.data.name);
+    } catch {
+      setCityFamilyIds(null);
+    }
+  };
+
   const toggleOrderType = (type: "DELIVERY" | "PICKUP") => {
     if (selectedCity) {
       if (type === "DELIVERY" && selectedCity.deliveryMode === "ONLY_PICKUP") return;
@@ -309,10 +315,24 @@ export default function HomePage() {
 
     if (type === "PICKUP") {
       setZoneRestaurantIds(null);
-      if (!detectedCityName) {
+      const storedPickupCity = typeof window !== "undefined" ? localStorage.getItem("platform_pickup_city") : null;
+      if (storedPickupCity) {
+        setDetectedCityName(storedPickupCity);
+        resolveCityFamily(storedPickupCity);
+      } else {
+        setDetectedCityName(null);
+        setCityFamilyIds(null);
         setShowAddressModal(true);
       }
     } else if (type === "DELIVERY") {
+      const storedDeliveryCity = typeof window !== "undefined" ? localStorage.getItem("platform_city") : null;
+      if (storedDeliveryCity) {
+        setDetectedCityName(storedDeliveryCity);
+        resolveCityFamily(storedDeliveryCity);
+      } else {
+        setDetectedCityName(null);
+        setCityFamilyIds(null);
+      }
       const storedCoords = typeof window !== "undefined" ? localStorage.getItem("platform_coords") : null;
       if (storedCoords) {
         try {
@@ -324,47 +344,35 @@ export default function HomePage() {
   };
 
   const handleAddressConfirm = async (addr: string, type: "DELIVERY" | "PICKUP", coords?: { lat: number; lng: number }, postalCode?: string, city?: string) => {
-    saveAddress(addr);
     setOrderType(type);
     localStorage.setItem(ORDER_TYPE_KEY, type);
     setShowAddressModal(false);
     setZoneError(null);
 
-    // Resolve kundens stad till en stad-familj (parent + alla syskon). Används
-    // som filter så kunden bara ser restauranger i sin metropolitan area —
-    // exempel: kund i Arlöv ser Malmö + Arlöv + Oxie. Lund visas inte (admin
-    // har inte merged Lund under Malmö).
-    //
-    // Spara city i localStorage så next-page-load kan hämta familyIds direkt
-    // utan att gå via address-modal igen (mount-effekt nedan läser värdet).
-    if (city) {
-      localStorage.setItem("platform_city", city);
-      try {
-        const res = await axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: city } });
-        const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
-        setCityFamilyIds(familyIds.length > 0 ? familyIds : null);
-        if (res.data?.name) setDetectedCityName(res.data.name);
-      } catch {
-        setCityFamilyIds(null);
-      }
+    if (type === "PICKUP") {
+      const pickupCity = city || addr;
+      localStorage.setItem("platform_pickup_city", pickupCity);
+      setDetectedCityName(pickupCity);
+      setZoneRestaurantIds(null);
+      await resolveCityFamily(pickupCity);
     } else {
-      localStorage.removeItem("platform_city");
-      setCityFamilyIds(null);
-      setDetectedCityName(null);
-    }
-
-    if (coords) {
-      localStorage.setItem("platform_coords", JSON.stringify(coords));
-      rememberQuickAddress({ street: addr.split(",")[0].trim(), latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
-      if (type === "DELIVERY") {
+      saveAddress(addr);
+      if (city) {
+        localStorage.setItem("platform_city", city);
+        await resolveCityFamily(city);
+      } else {
+        localStorage.removeItem("platform_city");
+        setCityFamilyIds(null);
+        setDetectedCityName(null);
+      }
+      if (coords) {
+        localStorage.setItem("platform_coords", JSON.stringify(coords));
+        rememberQuickAddress({ street: addr.split(",")[0].trim(), latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
         await validateZone(coords.lat, coords.lng);
       } else {
-        // Pickup: show all restaurants in city family, no zone check
+        localStorage.removeItem("platform_coords");
         setZoneRestaurantIds(null);
       }
-    } else {
-      localStorage.removeItem("platform_coords");
-      setZoneRestaurantIds(null);
     }
 
     if (pendingHref) {

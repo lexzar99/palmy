@@ -41,6 +41,12 @@ export const formatQuickAddress = (address: QuickAddress) => {
   return parts.join(", ") || address.street;
 };
 
+const extractStreetCore = (street: string) => {
+  const s = normalize(street).replace(/,.*$/, "").trim();
+  const m = s.match(/^(.+?\s\d+\S*)/);
+  return m ? m[1] : s;
+};
+
 const isSameAddress = (a: QuickAddress, b: QuickAddress) => {
   if (
     a.latitude != null &&
@@ -49,20 +55,14 @@ const isSameAddress = (a: QuickAddress, b: QuickAddress) => {
     b.longitude != null
   ) {
     return (
-      Math.abs(a.latitude - b.latitude) < 0.000001 &&
-      Math.abs(a.longitude - b.longitude) < 0.000001
+      Math.abs(a.latitude - b.latitude) < 0.0005 &&
+      Math.abs(a.longitude - b.longitude) < 0.0005
     );
   }
 
-  // Match on street — also handle when city was accidentally included in street field
-  const sa = normalize(a.street);
-  const sb = normalize(b.street);
-  return (
-    normalize(formatQuickAddress(a)) === normalize(formatQuickAddress(b)) ||
-    sa === sb ||
-    sa.startsWith(sb + " ") ||
-    sb.startsWith(sa + " ")
-  );
+  const coreA = extractStreetCore(a.street);
+  const coreB = extractStreetCore(b.street);
+  return coreA === coreB || normalize(formatQuickAddress(a)) === normalize(formatQuickAddress(b));
 };
 
 export const readQuickAddresses = (): QuickAddress[] => {
