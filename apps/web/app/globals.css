@@ -52,8 +52,11 @@
 
   html {
     /* Säkerställ att inget överskrider viewport-bredden på smala telefoner
-       (iPhone SE = 375px, äldre Androids ner till 320px). */
-    overflow-x: hidden;
+       (iPhone SE = 375px, äldre Androids ner till 320px).
+       OBS: använd `clip` istället för `hidden` — `overflow:hidden` på html/body
+       bryter `position:sticky` på descendents (känd browser-bug). `clip` har
+       samma visuella effekt men låter sticky funka. */
+    overflow-x: clip;
     max-width: 100vw;
     scroll-behavior: smooth;
   }
@@ -64,7 +67,7 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "ss01";
     -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
+    overflow-x: clip;
     max-width: 100vw;
     transition: background-color 0.3s ease, color 0.3s ease;
     /* Förhindra oavsiktlig zoom vid input-fokus på iOS */

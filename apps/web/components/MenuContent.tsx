@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Loader2, Info, Sparkles, ChevronLeft, ChevronRight, MapPin, Phone, Clock, Bike, Store, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, ArrowRight, Tag, Flame } from "lucide-react";
+import { Search, Loader2, Info, ChevronLeft, MapPin, Phone, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, Tag } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import ProductModal from "@/components/ProductModal";
 import FloatingCartButton from "@/components/FloatingCartButton";
@@ -65,14 +65,24 @@ function getDisplayPrice(p: any): { final: number; original: number | null } {
 }
 
 /**
- * FullProductCard — kompakt rad med bild vänster, namn + beskrivning höger,
- * priser uppe höger och stor VARUKORG-knapp under text. Outline-style för
- * tydlig separation från bakgrunden.
+ * FullProductCard — produktrad för 1-per-rad-mode.
+ *
+ * Layout:
+ *  • Namn (display italic)
+ *  • Pris STORT direkt under namnet — premium-känsla. Originalpris (om rabatt)
+ *    som litet överstruket bredvid det rabatterade priset.
+ *  • Beskrivning (om hideDescription=false och description finns)
+ *  • Dietary pills
+ *  • Bild (om finns) till höger — square, ren utan inre padding
+ *
+ * Kortet är helt klickbart → öppnar ProductModal. Ingen separat
+ * "Lägg i varukorg"-knapp (kvantitet/extras väljs i modalen).
  */
 function FullProductCard({ product, cartQty, onClick, disabled }: { product: any; cartQty: number; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
   const hasImage = Boolean(product.imageUrl);
   const showDescription = !product.hideDescription && Boolean(product.description);
+
   return (
     <motion.button
       type="button"
@@ -80,59 +90,65 @@ function FullProductCard({ product, cartQty, onClick, disabled }: { product: any
       whileTap={disabled ? undefined : { scale: 0.995 }}
       disabled={disabled}
       aria-disabled={disabled}
-      className={`group w-full text-left rounded-2xl overflow-hidden transition-all ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer"}`}
+      className={`group relative w-full text-left rounded-2xl overflow-hidden transition-all ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer hover:shadow-[0_8px_24px_rgba(28,28,30,0.07)]"}`}
       style={{
         backgroundColor: "var(--bg-secondary)",
         border: "1.5px solid rgba(28,28,30,0.08)",
-        boxShadow: "0 4px 14px rgba(28,28,30,0.04)",
+        boxShadow: "0 3px 12px rgba(28,28,30,0.04)",
       }}
     >
-      <div className="flex items-start gap-3 p-3 sm:p-4">
+      <div className={`flex ${hasImage ? "items-stretch" : "items-start"} gap-0`}>
+        {/* Text-block — fyller all bredd om ingen bild, annars 1fr */}
+        <div className={`flex-1 min-w-0 ${hasImage ? "p-4 pr-3" : "p-5"}`}>
+          <h3 className="text-base sm:text-lg font-black uppercase italic leading-tight" style={{ color: "var(--text-primary)" }}>{product.name}</h3>
+
+          {/* Pris — stort & premium, direkt under namnet */}
+          <div className="mt-1.5 flex items-baseline gap-2.5">
+            <span
+              className="text-2xl sm:text-[1.7rem] font-black leading-none tracking-tight"
+              style={{ color: original != null ? "var(--color-gold-600, #C28E2E)" : "var(--text-primary)", fontFeatureSettings: "'tnum'" }}
+            >
+              {final}
+              <span className="text-base sm:text-lg font-bold ml-1 opacity-70">kr</span>
+            </span>
+            {original != null && (
+              <span className="text-sm font-semibold text-zinc-400 line-through" style={{ fontFeatureSettings: "'tnum'" }}>
+                {original} kr
+              </span>
+            )}
+            {cartQty > 0 && (
+              <span className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gold-500/15 text-gold-700 text-[10px] font-black uppercase tracking-wider">
+                <ShoppingBag size={11} strokeWidth={2.6} />
+                {cartQty} i korg
+              </span>
+            )}
+          </div>
+
+          {showDescription && (
+            <p className="mt-2.5 text-[13px] leading-relaxed line-clamp-2" style={{ color: "var(--text-secondary)" }}>{product.description}</p>
+          )}
+
+          {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
+            <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+              {product.isVegan && <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-700 uppercase tracking-wider">Vegan</span>}
+              {product.isVegetarian && <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-700 uppercase tracking-wider">Veg</span>}
+              {product.isGlutenFree && <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/10 text-blue-700 uppercase tracking-wider">GF</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Bild till höger — square, fyller hela kort-höjden så det blir snyggt edge-to-edge */}
         {hasImage && (
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: "var(--bg-deep)" }}>
-            <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          <div className="relative shrink-0 self-stretch w-28 sm:w-32 overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
           </div>
         )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="text-base font-black uppercase italic leading-tight" style={{ color: "var(--text-primary)" }}>{product.name}</h3>
-            <div className="flex flex-col items-end shrink-0">
-              {original != null && (
-                <span className="text-xs font-medium text-zinc-400 line-through leading-tight">{original} kr</span>
-              )}
-              <span className={`text-sm font-black leading-tight ${original != null ? "text-gold-600 bg-gold-500/10 px-2 py-0.5 rounded-md mt-0.5" : ""}`} style={original == null ? { color: "var(--text-primary)" } : undefined}>
-                {final} kr
-              </span>
-            </div>
-          </div>
-          {showDescription && (
-            <p className="mt-1.5 text-xs sm:text-[13px] leading-snug line-clamp-2" style={{ color: "var(--text-secondary)" }}>{product.description}</p>
-          )}
-          {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
-            <div className="mt-2 flex items-center gap-1.5">
-              {product.isVegan && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-600 uppercase tracking-wider">Vegan</span>}
-              {product.isVegetarian && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 uppercase tracking-wider">Veg</span>}
-              {product.isGlutenFree && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 uppercase tracking-wider">GF</span>}
-            </div>
-          )}
-        </div>
-      </div>
-      {/* Stor VARUKORG-knapp: visas alltid, text växlar om kunden har lagt i något */}
-      <div className="px-3 sm:px-4 pb-3 sm:pb-4">
-        <div className="w-full flex items-center justify-center gap-2.5 bg-gold-500 text-zinc-950 rounded-full py-3.5 font-black uppercase tracking-wider text-xs sm:text-sm shadow-md shadow-gold-500/25 group-hover:bg-gold-400 transition-colors">
-          <ShoppingBag size={16} strokeWidth={2.5} />
-          {cartQty > 0 ? (
-            <>
-              <span>Varukorg · {cartQty} st</span>
-              <ArrowRight size={16} strokeWidth={2.8} />
-            </>
-          ) : (
-            <>
-              <span>Lägg i varukorg</span>
-              <ArrowRight size={16} strokeWidth={2.8} />
-            </>
-          )}
-        </div>
       </div>
     </motion.button>
   );
