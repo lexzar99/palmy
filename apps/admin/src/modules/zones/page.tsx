@@ -61,7 +61,7 @@ function RestaurantOverrideModal({
       onClose={onClose}
       title={restaurant ? `${restaurant.name} override` : "Restaurant override"}
       description="Restaurant-specific zones override the city default when needed."
-      widthClassName="max-w-[1320px]"
+      widthClassName="max-w-[1600px]"
       footer={<div className="flex items-center justify-end gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => restaurant && onSave(restaurant.id, zones, freeDeliveryAbove)}>Save override</Button></div>}
     >
       {restaurant ? (
@@ -75,7 +75,7 @@ function RestaurantOverrideModal({
               </Field>
             </div>
           </div>
-          <ZoneEditor zones={zones} onChange={setZones} cityName={restaurant.name} centerLat={centerLat} centerLng={centerLng} />
+          <ZoneEditor zones={zones} onChange={setZones} cityName={restaurant.name} centerLat={centerLat} centerLng={centerLng} mapHeight={720} />
         </div>
       ) : null}
     </Modal>

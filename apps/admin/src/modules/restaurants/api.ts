@@ -50,6 +50,7 @@ export interface RestaurantDetail {
   updatedAt: string;
   latitude?: number | null;
   longitude?: number | null;
+  placeId?: string | null;
   freeDeliveryAbove?: number | null;
   deliveryZones?: unknown[];
   menu?: RestaurantMenuCategory[];
@@ -91,6 +92,7 @@ export interface RestaurantFormPayload {
   tags?: string[];
   latitude?: number | null;
   longitude?: number | null;
+  placeId?: string | null;
   freeDeliveryAbove?: number;
   openingHours?: Record<string, { closed: boolean; shifts: { open: string; close: string }[] }>;
   logoutCode?: string | null;

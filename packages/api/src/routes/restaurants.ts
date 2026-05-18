@@ -56,6 +56,7 @@ const restaurantSchema = z.object({
   internalInfo: z.string().nullable().optional(),
   latitude: z.any().optional(),
   longitude: z.any().optional(),
+  placeId: z.string().nullable().optional(),
   deliveryZones: z.any().optional(),
   freeDeliveryAbove: z.any().optional(),
   deliveryRadius: z.number().optional(),
@@ -120,6 +121,11 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
   vatPercent: restaurant.vatPercent ?? null,
   createdAt: restaurant.createdAt,
   updatedAt: restaurant.updatedAt,
+  // Geo-data — används av admin-form (lat/lng/placeId visas read-only efter
+  // Google Places autocomplete) och av web för djup-länkar till Maps.
+  latitude: restaurant.latitude ?? null,
+  longitude: restaurant.longitude ?? null,
+  placeId: restaurant.placeId ?? null,
   deliveryRadius: restaurant.deliveryRadius ?? 5.0,
   deliveryZones: parseJson<any[]>(restaurant.deliveryZones, []),
   menu: includeMenu
@@ -307,6 +313,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     };
     if (payload.latitude !== undefined) data.latitude = payload.latitude === null ? null : Number(payload.latitude);
     if (payload.longitude !== undefined) data.longitude = payload.longitude === null ? null : Number(payload.longitude);
+    if (payload.placeId !== undefined) data.placeId = payload.placeId || null;
     if (payload.freeDeliveryAbove !== undefined) data.freeDeliveryAbove = normalizeMoneyToOre(Number(payload.freeDeliveryAbove || 0));
     if (payload.deliveryZones !== undefined) {
       const zonesRaw = safeParseAnyJson<any[]>(payload.deliveryZones, []);
@@ -435,6 +442,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     
     if (payload.latitude !== undefined) data.latitude = payload.latitude === null ? null : toSafeNum(payload.latitude);
     if (payload.longitude !== undefined) data.longitude = payload.longitude === null ? null : toSafeNum(payload.longitude);
+    if (payload.placeId !== undefined) data.placeId = payload.placeId || null;
     if (payload.deliveryRadius !== undefined) data.deliveryRadius = toSafeNum(payload.deliveryRadius);
     
     if (payload.freeDeliveryAbove !== undefined) {

@@ -19,6 +19,7 @@ import {
 } from "@/modules/restaurants/api";
 import { Badge, Button, EmptyState, Field, Input, MetricCard, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
+import GooglePlacesInput from "@/shared/components/google-places-input";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, restaurantTierLabel } from "@/shared/utils/format";
 
 type RestaurantTab = "info" | "menu" | "orders" | "hours" | "settings" | "login";
@@ -73,6 +74,7 @@ type FormState = {
   etaOverride: string; etaCalculated: number | null; etaEffective: number;
   featuredClass: number; isOpen: boolean; rating: number; ratingCount: number;
   internalInfo: string; latitude: string; longitude: string;
+  placeId: string;
   openingHours: HoursForm; logoutCode: string;
   announcementText: string; vatPercent: string;
 };
@@ -84,6 +86,7 @@ const emptyForm: FormState = {
   etaOverride: "", etaCalculated: null, etaEffective: 40,
   featuredClass: 3, isOpen: true, rating: 4.6, ratingCount: 0,
   internalInfo: "", latitude: "", longitude: "",
+  placeId: "",
   openingHours: buildDefaultHours(), logoutCode: "",
   announcementText: "", vatPercent: "",
 };
@@ -100,6 +103,7 @@ const mapDetailToForm = (d: RestaurantDetail): FormState => ({
   internalInfo: (d as any).internalInfo || "",
   latitude: d.latitude != null ? String(d.latitude) : "",
   longitude: d.longitude != null ? String(d.longitude) : "",
+  placeId: (d as any).placeId || "",
   openingHours: parseHoursFromDetail(d.openingHours),
   logoutCode: (d as any).logoutCode || "",
   announcementText: (d as any).announcementText || "",
@@ -118,6 +122,7 @@ const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
   internalInfo: f.internalInfo || null,
   latitude: f.latitude.trim() ? Number(f.latitude) : null,
   longitude: f.longitude.trim() ? Number(f.longitude) : null,
+  placeId: f.placeId.trim() || null,
   openingHours: f.openingHours,
   logoutCode: f.logoutCode.trim() || null,
   announcementText: f.announcementText.trim() || null,
@@ -258,7 +263,34 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               <Field label="Slug"><Input value={form.slug} onChange={(e) => set("slug", e.target.value)} /></Field>
               <Field label="Mattyp"><Input value={form.cuisine} onChange={(e) => set("cuisine", e.target.value)} placeholder="Pizza, Sushi..." /></Field>
               <Field label="Stad"><Input value={form.city} onChange={(e) => set("city", e.target.value)} /></Field>
-              <Field label="Adress"><Input value={form.address} onChange={(e) => set("address", e.target.value)} /></Field>
+              <Field label="Adress (Google Places)">
+                <GooglePlacesInput
+                  value={form.address}
+                  currentPlaceId={form.placeId}
+                  onChange={(text) => {
+                    set("address", text);
+                    // Användaren håller på att skriva manuellt → invalidera tidigare place_id
+                    // så vi inte behåller fel koordinater för en helt ny adress.
+                    if (form.placeId) {
+                      set("placeId", "");
+                      set("latitude", "");
+                      set("longitude", "");
+                    }
+                  }}
+                  onSelect={(p) => {
+                    setForm((current) => ({
+                      ...current,
+                      address: p.address,
+                      placeId: p.placeId,
+                      latitude: String(p.lat),
+                      longitude: String(p.lng),
+                      city: p.city || current.city,
+                      zip: p.postalCode || current.zip,
+                    }));
+                  }}
+                  placeholder="Börja skriva adress…"
+                />
+              </Field>
               <Field label="Postnummer"><Input value={form.zip} onChange={(e) => set("zip", e.target.value)} /></Field>
               <Field label="Telefon"><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
               <Field label="Admin-email"><Input value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} /></Field>
@@ -440,8 +472,15 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             <Field label="Betyg"><Input type="number" step="0.1" value={form.rating} onChange={(e) => set("rating", Number(e.target.value))} /></Field>
             <Field label="Antal betyg"><Input type="number" value={form.ratingCount} onChange={(e) => set("ratingCount", Number(e.target.value))} /></Field>
             <Field label="Logout-kod (Flutter)"><Input value={form.logoutCode} onChange={(e) => set("logoutCode", e.target.value)} placeholder="t.ex. 1234" /></Field>
-            <Field label="Latitud"><Input value={form.latitude} onChange={(e) => set("latitude", e.target.value)} /></Field>
-            <Field label="Longitud"><Input value={form.longitude} onChange={(e) => set("longitude", e.target.value)} /></Field>
+            {/* Latitud + Longitud sätts automatiskt av Google Places-autocomplete
+                ovan i adressfältet. Visas som read-only för transparens. Tom = ingen
+                adress vald än → zone-editorn faller tillbaka till stadens centrum. */}
+            <Field label="Koordinater (auto från adress)">
+              <div className="flex gap-2">
+                <Input value={form.latitude} disabled placeholder="Lat" />
+                <Input value={form.longitude} disabled placeholder="Lng" />
+              </div>
+            </Field>
             <Field label="Intern anteckning"><Textarea value={form.internalInfo} onChange={(e) => set("internalInfo", e.target.value)} /></Field>
             <Field label="Kundinfobanner">
               <Textarea value={form.announcementText} onChange={(e) => set("announcementText", e.target.value)} placeholder="Vi har tillfälligt stängt — öppnar igen onsdag 12 juni." />

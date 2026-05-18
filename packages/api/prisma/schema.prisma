@@ -499,6 +499,11 @@ model Restaurant {
   pausedUntil    DateTime?
   latitude       Float?
   longitude      Float?
+  // Google Places place_id för restaurangen — sätts när admin väljer adress
+  // via Places autocomplete. Används för djup-länkar till Maps på web
+  // (order-tracking + restaurang-info-modal) och för att centrera kartan
+  // i zone-editorn på rätt punkt utan extra geokodning.
+  placeId        String?
   deliveryRadius Float              @default(5.0)
   cityId         String?
   city_relation  City?              @relation(fields: [cityId], references: [id])

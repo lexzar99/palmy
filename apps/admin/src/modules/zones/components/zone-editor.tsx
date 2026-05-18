@@ -87,7 +87,7 @@ interface Props {
   mapHeight?: number;
 }
 
-export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, centerLng, onCenterChange, mapHeight = 540 }: Props) {
+export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, centerLng, onCenterChange, mapHeight = 720 }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
   const drawingManager = useRef<any>(null);
