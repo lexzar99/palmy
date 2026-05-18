@@ -372,7 +372,11 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       console.warn(`⚠️  Restaurant "${restaurant.name}" created WITHOUT an admin password. No login account was created.`);
     }
 
-    res.status(201).json({ ...restaurant, adminCreated });
+    // Returnera via formatRestaurant — annars får admin-form JSON-strängifierad
+    // openingHours/deliveryZones/tags, vilket parseHoursFromDetail inte kan
+    // läsa → form defaultar till "11:00 - 22:00". Konsekvent format mellan
+    // GET, POST och PATCH gör att admin-form aldrig glitchar efter save.
+    res.status(201).json({ ...formatRestaurant(restaurant), adminCreated });
   } catch (err: any) {
     console.error('[restaurants POST] Error:', err.message);
     res.status(400).json({ error: err.message });
@@ -616,7 +620,11 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     });
     getIO().emit('settings:updated', { isOpen: effectiveIsOpen });
 
-    res.json(restaurant);
+    // Returnera via formatRestaurant — JSON-strängifierade fält (openingHours,
+    // deliveryZones, tags) blir parsade objekt så admin-form kan repopulera
+    // utan glitch. Tidigare gick raw Prisma-objekt direkt vilket gjorde att
+    // dropdown-tider defaultade till "11:00".
+    res.json(formatRestaurant(restaurant));
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }
