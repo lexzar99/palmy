@@ -1421,8 +1421,8 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-dot-pattern pt-4 sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-dot-pattern pt-4 sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6 lg:px-10 xl:px-16" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="max-w-[1400px] mx-auto">
         <div className="flex items-end justify-between mb-4 lg:mb-8 px-1 sm:px-4">
            <div className="min-w-0">
               <h1 className="text-2xl sm:text-4xl md:text-6xl font-black uppercase italic tracking-tight leading-[1.05] mb-1" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")} <span className="text-gold-500">{t("cart.heading.accent")}</span></h1>
@@ -1477,9 +1477,11 @@ export default function CartPage() {
           </motion.div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-12 items-start">
-          {/* Cart items list — kompakta en-rad-kort */}
-          <div className="lg:col-span-7 space-y-2.5">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_480px] gap-6 lg:gap-8 items-start">
+          {/* Cart items list — kompakta en-rad-kort. Vänster kolumn växer
+              med tillgänglig bredd; höger sidebar har fast bredd och blir
+              sticky på desktop för att undvika scroll. */}
+          <div className="space-y-2.5 min-w-0">
             <div className="space-y-2.5">
               {items.map((item) => (
                 <motion.div
@@ -1542,8 +1544,9 @@ export default function CartPage() {
             </div>
           </div>
 
-          {/* Form & Payment */}
-          <div className="lg:col-span-5">
+          {/* Form & Payment — sticky på desktop så pris/info/betala alltid
+              syns utan att scrolla. Top 24 = ger plats för Navbar (h-20 + buffer). */}
+          <div className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-1">
              <AnimatePresence mode="wait">
                {showPayment && clientSecret && stripePromise ? (
                   <motion.div ref={paymentSectionRef} key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>

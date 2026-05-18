@@ -172,43 +172,29 @@ router.post('/validate-location', async (req, res) => {
           ? { lat: city.latitude, lng: city.longitude }
           : undefined;
 
-      // För varje restaurang: kolla DESS egen täckning. Ingen city-arv längre.
+      // För varje restaurang: kolla DESS egen täckning. Strikt — ingen fallback.
+      // Saknar restaurangen ritade zoner i admin → den levererar inte (inkluderas
+      // inte i resultatet). Detta är medvetet val: admin MÅSTE rita zoner per
+      // restaurang för att aktivera leverans. Ingen "default radius"-magi som
+      // smyger igenom restauranger utanför täckning.
       const deliverableRestaurants = city.restaurants
         .map((r: any) => {
           const rZonesRaw = safeJsonParse<any[]>(r.deliveryZones, []);
           const rZones = normalizeDeliveryZones(rZonesRaw);
+          if (rZones.length === 0) return null;
 
-          let rZone: DeliveryZone | null = null;
-
-          if (rZones.length > 0) {
-            // Primary: restaurang-zoner (polygon/cirkel ritade i admin)
-            rZone = findDeliveryZone(lat, lng, rZones, cityCenter);
-            if (!rZone) return null;
-          } else if (r.latitude != null && r.longitude != null) {
-            // Fallback: ingen zon definierad → använd deliveryRadius som cirkel
-            // runt restaurangen. Detta är default-state innan admin ritat egna zoner.
-            const dist = haversineKm(lat, lng, r.latitude, r.longitude);
-            const radius = r.deliveryRadius || 5;
-            if (dist > radius) return null;
-            rZone = {
-              id: 'default',
-              name: 'Standard',
-              type: 'circle',
-              centerLat: r.latitude,
-              centerLng: r.longitude,
-              radiusKm: radius,
-              fee: r.deliveryFee || 0,
-              minOrder: r.minOrderAmount || 0,
-              etaMinutes: r.etaMinutes ?? null,
-              isActive: true,
-            } as DeliveryZone;
-          } else {
-            // Ingen zon OCH ingen lat/lng → kan inte verifiera täckning.
-            return null;
-          }
+          const rZone = findDeliveryZone(lat, lng, rZones, cityCenter);
+          if (!rZone) return null;
 
           return {
             ...r,
+            // Skriv över restaurangens default deliveryFee/minOrderAmount med
+            // zon-specifika värden. Klienten ska ALDRIG visa
+            // restaurang-default-fee — bara zon-fee. Vi sätter dem här för
+            // bakåtkompat med klienter som läser fältet direkt.
+            deliveryFee: rZone.fee,
+            minOrderAmount: rZone.minOrder,
+            etaMinutes: rZone.etaMinutes ?? r.etaMinutes,
             matchedZone: {
               id: rZone.id,
               name: rZone.name,

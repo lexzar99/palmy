@@ -378,29 +378,10 @@ export function ZonesPage() {
             </Surface>
           </details>
 
-          {/* ── Stadsövergripande täckning (city-level zones — fallback) ─ */}
-          <details className="group">
-            <summary className="cursor-pointer list-none">
-              <Surface className="px-6 py-4 flex items-center justify-between hover:border-[rgba(231,178,75,0.3)] transition-all">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Avancerat</p>
-                  <p className="mt-1 text-sm font-bold">Stadsövergripande täckning för {selectedCity.name} (fallback)</p>
-                  <p className="mt-0.5 text-xs text-[var(--text-secondary)]">Gäller restauranger utan egna zoner. {cityZones.length} zon{cityZones.length !== 1 ? "er" : ""} definierade.</p>
-                </div>
-                <ChevronDown size={16} className="text-[var(--text-muted)] group-open:rotate-180 transition-transform" />
-              </Surface>
-            </summary>
-            <div className="mt-3">
-              <ZoneEditor
-                zones={cityZones}
-                onChange={setCityZones}
-                cityName={selectedCity.name}
-                centerLat={selectedCity.centerLat ?? selectedCity.latitude}
-                centerLng={selectedCity.centerLng ?? selectedCity.longitude}
-                onCenterChange={(lat, lng) => updateSelectedCity({ centerLat: lat, centerLng: lng })}
-              />
-            </div>
-          </details>
+          {/* Stadsövergripande täckning är borttagen — varje restaurang har egna
+              zoner via /zones/restaurant/{id}. Ingen "fallback"-täckning på
+              city-nivå längre. Backend ignorerar city.zones helt vid
+              validate-location. */}
         </>
       )}
 

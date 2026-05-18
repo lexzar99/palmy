@@ -1146,10 +1146,12 @@ export default function HomePage() {
                             </div>
                             {/* Rad 2: Kategori (subtil) */}
                             <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>{r.cuisine || r.description || t("home.restaurantFallback")}</p>
-                            {/* Rad 3: ★ rating (count) · ETA — ETA från zon om finns */}
+                            {/* Rad 3: ★ rating (count) · ETA — ETA från ZON, inte restaurang-default */}
                             {(() => {
                               const zi = zoneDeliveryInfo[r.id];
-                              const eta = zi?.etaMinutes ?? r.etaMinutes ?? 30;
+                              // Om zonen saknar ETA → visa "—" istället för restaurang-default.
+                              // Detta tvingar admin att sätta ETA i zonen för meningsfull info.
+                              const etaDisplay = zi?.etaMinutes != null ? `${zi.etaMinutes} ${t("home.minutes")}` : (isOutOfZone ? "—" : `${r.etaMinutes ?? 30} ${t("home.minutes")}`);
                               return (
                                 <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
                                   <span className="flex items-center gap-1">
@@ -1160,14 +1162,22 @@ export default function HomePage() {
                                     )}
                                   </span>
                                   <span className="opacity-40">·</span>
-                                  <span>{eta} {t("home.minutes")}</span>
+                                  <span>{etaDisplay}</span>
                                 </div>
                               );
                             })()}
-                            {/* Rad 4: Delivery-info (grön för gratis) — alltid från zonen om finns */}
+                            {/* Rad 4: Delivery-info — ENDAST från zon. Out-of-zone visar varning, inte fallback-fee. */}
                             {(() => {
                               const zi = zoneDeliveryInfo[r.id];
-                              const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
+                              if (isOutOfZone || !zi) {
+                                return (
+                                  <div className="mt-2 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-rose-500/80">
+                                    <Bike size={13} className="text-rose-500/60" strokeWidth={2.2} />
+                                    <span>{t("home.status.outOfZone") ?? "Utanför leveranszon"}</span>
+                                  </div>
+                                );
+                              }
+                              const fee = zi.deliveryFee;
                               return (
                                 <div className="mt-2 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider">
                                   <Bike size={13} className={fee === 0 ? "text-emerald-600" : "text-gold-500/70"} strokeWidth={2.2} />
