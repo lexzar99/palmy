@@ -890,13 +890,21 @@ export default function HomePage() {
               zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
               onOpenFull={() => setShowAddressModal(true)}
               onSelect={(a) => {
+                // BUG-FIX: snabbväljaren triggade inte handleAddressConfirm tidigare
+                // → cityFamilyIds + detectedCityName hängde kvar från förra adressen
+                // → filter visade fel restauranger när användaren bytte adress via
+                // snabbväljaren istället för full address-modal. Nu kallar vi samma
+                // funktion som modalen så stad-state alltid uppdateras konsekvent.
                 const full = formatQuickAddress(a);
-                saveAddress(full);
-                rememberQuickAddress(a);
-                if (a.latitude != null && a.longitude != null) {
-                  localStorage.setItem("platform_coords", JSON.stringify({ lat: a.latitude, lng: a.longitude }));
-                  if (orderType === "DELIVERY") validateZone(a.latitude, a.longitude);
-                }
+                handleAddressConfirm(
+                  full,
+                  orderType,
+                  a.latitude != null && a.longitude != null
+                    ? { lat: a.latitude, lng: a.longitude }
+                    : undefined,
+                  a.zip,
+                  a.city,
+                );
               }}
             />
 
