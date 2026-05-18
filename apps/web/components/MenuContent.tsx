@@ -306,10 +306,22 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       // In zone — fees are in öre from the API → convert to kr
       const fee = (thisRest.matchedZone?.deliveryFee ?? 0) / 100;
       const min = (thisRest.matchedZone?.minOrder ?? 0) / 100;
+      // ZONE-ETA: admin sätter "kickstart" per zon. När per-zon auto-räkning
+      // implementeras (separat backend-job som mäter createdAt→deliveringAt
+      // för orders inom zonen) returneras `calculatedEtaMinutes` här istället.
+      // För nu visas admin-manual som hjälp tills tillräckligt med data finns.
+      const zoneEta = thisRest.matchedZone?.etaMinutes;
 
       setZoneAvailable(true);
       setRestaurant((prev: any) =>
-        prev ? { ...prev, deliveryFee: fee, minOrderAmount: min } : null
+        prev ? {
+          ...prev,
+          deliveryFee: fee,
+          minOrderAmount: min,
+          // Skriv över restaurang-default-ETA med zon-ETA om finns → stats-kortet
+          // matchar nu vad kortet på home visade (zone-specifik tid).
+          etaMinutes: zoneEta != null ? zoneEta : prev.etaMinutes,
+        } : null
       );
       // Update cart store so checkout shows the same zone fee
       // updateDeliveryOverride is a stable Zustand action — safe to call without adding to deps

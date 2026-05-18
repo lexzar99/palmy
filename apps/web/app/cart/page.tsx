@@ -192,6 +192,10 @@ export default function CartPage() {
   // Ref till payment-sektionen så vi kan scrolla DIT när Stripe öppnas
   // istället för till body-botten (vilket overshootade på korta viewports).
   const paymentSectionRef = useRef<HTMLDivElement | null>(null);
+  // Lagrar senast checkade coords så vi inte hammrar validate-location när
+  // status är "error" (out-of-zone) men ingen ny adress valts. Nollställs
+  // i handleAddressSelect så ny adress alltid triggar färsk check.
+  const lastCheckedCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const [showBogoPicker, setShowBogoPicker] = useState(false);
   const [showDealsModal, setShowDealsModal] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -376,6 +380,11 @@ export default function CartPage() {
     setPredictions([]);
     setAddressInput(pred.description);
     setAddressLoading(true);
+    // Ny adress vald → nollställ rate-limit-refen + status så zone-effekten
+    // får köra färsk check. Annars skulle senast-checkade coords matcha och
+    // skippas. Kritiskt vid byte mellan in-zone och out-of-zone-adress.
+    lastCheckedCoordsRef.current = null;
+    setAddressZoneStatus(null);
 
     const street = pred.description.split(",")[0] || pred.description;
     // Optimistic: extract zip from description text while geocode loads
@@ -473,18 +482,30 @@ export default function CartPage() {
   // cart laddas i DELIVERY-mode default. Då fanns ingen zone-check förrän
   // kunden klickade "Slutför Köp" → fee:n hoppade abrupt upp och totalen
   // "glitchade". Nu kör zone-check så snart adressen blir tillgänglig.
+  //
+  // BUG-FIX (loop): tidigare hade guarden bara "ok" och "checking" — när
+  // status hamnade på "error" (out-of-zone) gick effekten igenom igen, vilket
+  // satte status checking → error → checking → error i evig loop som
+  // hammrade API:t. Tre fixar:
+  //   1. "error" lagts till i guard så vi inte re-checkar samma misslyckande
+  //   2. useRef lagrar senast checkade coords → ny check bara om adress ändras
+  //   3. Adress-byte nollställer refen explicit via handleAddressSelect
   useEffect(() => {
     if (orderType !== "DELIVERY") return;
     if (!currentRestaurantId) return;
     if (!formData.deliveryStreet) return;
-    if (addressZoneStatus === "ok" || addressZoneStatus === "checking") return;
+    if (addressZoneStatus === "ok" || addressZoneStatus === "checking" || addressZoneStatus === "error") return;
     const storedCoords = localStorage.getItem("platform_coords");
     if (!storedCoords) return;
     try {
       const coords = JSON.parse(storedCoords);
-      if (coords?.lat && coords?.lng) {
-        checkDeliverySpecific(coords.lat, coords.lng);
-      }
+      if (!coords?.lat || !coords?.lng) return;
+      const last = lastCheckedCoordsRef.current;
+      // Samma coords som senast → skippa (oavsett resultat). Detta + "error"-
+      // guarden ovan stänger loopen även om en out-of-zone-adress står kvar.
+      if (last && last.lat === coords.lat && last.lng === coords.lng) return;
+      lastCheckedCoordsRef.current = { lat: coords.lat, lng: coords.lng };
+      checkDeliverySpecific(coords.lat, coords.lng);
     } catch {}
     // checkDeliverySpecific är inte memoiserad, men dess closures är stabila
     // (läser från useCartStore.getState() + setState-setters). Listar inte
@@ -1544,9 +1565,10 @@ export default function CartPage() {
             </div>
           </div>
 
-          {/* Form & Payment — sticky på desktop så pris/info/betala alltid
-              syns utan att scrolla. Top 24 = ger plats för Navbar (h-20 + buffer). */}
-          <div className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-1">
+          {/* Form & Payment — sticky på desktop. INGEN inre overflow-scroll
+              (det skapade en container-scroll inuti sidan vilket användaren
+              ogillade). Sticky-positionen följer dokumentscrollen istället. */}
+          <div className="lg:sticky lg:top-24">
              <AnimatePresence mode="wait">
                {showPayment && clientSecret && stripePromise ? (
                   <motion.div ref={paymentSectionRef} key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
