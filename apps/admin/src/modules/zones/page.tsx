@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Loader2, MapPinned, Plus, Save, Settings2, Store, Trash2 } from "lucide-react";
+import { Building2, ChevronDown, Loader2, MapPin, MapPinned, Plus, Save, Settings2, Store, Trash2 } from "lucide-react";
 import ZoneEditor from "@/modules/zones/components/zone-editor";
 import { createCity, deleteCity, getCities, getZoneRestaurants, parseZones, saveCity, serializeZones, zonesCitiesQueryKey, zonesRestaurantsQueryKey, type CityRecord, type CityRestaurantLink, type RestaurantLocationRecord, type ZoneRecord } from "@/modules/zones/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
@@ -249,108 +249,174 @@ export function ZonesPage() {
         }
       />
 
-      <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
-        <Surface className="px-4 py-4">
-          <div className="mb-3 flex items-center justify-between gap-3 px-2">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Cities</p>
-            <Badge tone="info">{cities.length}</Badge>
+      {/* ── Stad-dropdown + city-actions överst ─────────────────────────── */}
+      <Surface className="px-6 py-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex-1 max-w-md">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)] mb-2">Välj stad</p>
+            <div className="relative">
+              <MapPinned size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+              <select
+                value={selectedCityId || ""}
+                onChange={(event) => setSelectedCityId(event.target.value || null)}
+                className="w-full appearance-none rounded-lg border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] py-2.5 pl-10 pr-10 text-sm font-bold text-[var(--text-primary)] focus:border-[rgba(231,178,75,0.4)] focus:outline-none focus:ring-2 focus:ring-[rgba(231,178,75,0.15)]"
+              >
+                {cities.length === 0 && <option value="">Inga städer än</option>}
+                {cities.map((city) => (
+                  <option key={city.id} value={city.id}>
+                    {city.name} — {city.restaurants.length} restauranger
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            </div>
           </div>
-          <div className="grid gap-2">
-            {cities.map((city) => (
-              <button key={city.id} type="button" onClick={() => setSelectedCityId(city.id)} className={`rounded-2xl border px-4 py-4 text-left transition-all ${selectedCityId === city.id ? "border-[rgba(94,166,255,0.3)] bg-[rgba(94,166,255,0.08)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)]"}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-black">{city.name}</p>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">{parseZones(city.zones).length} zones • {city.restaurants.length} restaurants</p>
-                  </div>
-                  <Badge tone={city.isActive ? "success" : "danger"}>{city.isActive ? "Active" : "Inactive"}</Badge>
-                </div>
-              </button>
-            ))}
-          </div>
-        </Surface>
+          {selectedCity && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={selectedCity.isActive ? "success" : "danger"}>{selectedCity.isActive ? "Active" : "Inactive"}</Badge>
+              <Badge tone="info">{selectedCity.deliveryMode}</Badge>
+              <Button variant="secondary" onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> Stadsinställningar</Button>
+              <Button variant="danger" onClick={() => {
+                const count = selectedCity.restaurants.length;
+                const msg = count > 0
+                  ? `Radera ${selectedCity.name}?\n\n⚠️  ${count} restaurang${count !== 1 ? "er" : ""} länkad${count !== 1 ? "a" : ""} till denna stad får sin city-koppling rensad.\n\nFortsätt?`
+                  : `Radera ${selectedCity.name}?`;
+                if (window.confirm(msg)) deleteMutation.mutate();
+              }}><Trash2 size={14} /> Radera stad</Button>
+            </div>
+          )}
+        </div>
+      </Surface>
 
-        {!selectedCity ? (
-          <EmptyState title="Select a city" description="Choose a city from the list to manage delivery zones and restaurant links." />
-        ) : (
-          <div className="page-stack">
-            <Surface className="px-6 py-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Badge tone={selectedCity.isActive ? "success" : "danger"}>{selectedCity.isActive ? "Active" : "Inactive"}</Badge>
-                    <Badge tone="info">{selectedCity.deliveryMode}</Badge>
-                  </div>
-                  <h2 className="mt-3 text-2xl font-black tracking-[-0.04em]">{selectedCity.name}</h2>
-                  <p className="mt-2 text-sm text-[var(--text-secondary)]">{selectedCity.restaurants.length} linked restaurants • free delivery above {selectedCity.freeDeliveryAbove} kr</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="secondary" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> Settings</Button>
-                  <Button variant="danger" onClick={() => {
-                    const count = selectedCity.restaurants.length;
-                    const msg = count > 0
-                      ? `Radera ${selectedCity.name}?\n\n⚠️  ${count} restaurang${count !== 1 ? "er" : ""} länkad${count !== 1 ? "a" : ""} till denna stad får sin city-koppling rensad och slutar synas i stads-baserade flöden tills de länkas till en annan stad.\n\nFortsätt?`
-                      : `Radera ${selectedCity.name}?\n\nInga restauranger är länkade — säker borttagning.`;
-                    if (window.confirm(msg)) deleteMutation.mutate();
-                  }}><Trash2 size={16} /> Delete</Button>
-                </div>
+      {!selectedCity ? (
+        <EmptyState title="Välj en stad" description="Använd dropdownen ovan för att välja stad och hantera dess restaurang-zoner." />
+      ) : (
+        <>
+          {/* ── Restaurang-grid: alla restauranger i staden, klickbara → polygon-editor ── */}
+          <Surface className="px-6 py-6">
+            <div className="flex items-center justify-between gap-3 mb-5">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Restauranger i {selectedCity.name}</p>
+                <h3 className="mt-1.5 text-xl font-black tracking-[-0.02em]">Klicka en restaurang för att rita zoner</h3>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">Kartan centreras på restaurangens adress. Polygon eller cirkel-zoner med eget pris och min-order.</p>
               </div>
-            </Surface>
+              <Badge tone="info">{selectedCity.restaurants.length} kopplade</Badge>
+            </div>
 
-            <ZoneEditor
-              zones={cityZones}
-              onChange={setCityZones}
-              cityName={selectedCity.name}
-              centerLat={selectedCity.centerLat ?? selectedCity.latitude}
-              centerLng={selectedCity.centerLng ?? selectedCity.longitude}
-              onCenterChange={(lat, lng) => updateSelectedCity({ centerLat: lat, centerLng: lng })}
-            />
-
-            <Surface className="px-6 py-6">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Restaurant links</p>
-                  <h3 className="mt-2 text-2xl font-black tracking-[-0.04em]">City membership and overrides</h3>
-                </div>
-                <Badge tone="info">{selectedCity.restaurants.length} linked</Badge>
+            {selectedCity.restaurants.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[var(--border-subtle)] px-6 py-12 text-center">
+                <Store size={28} className="mx-auto text-[var(--text-muted)] mb-3" />
+                <p className="text-sm font-bold text-[var(--text-secondary)]">Inga restauranger kopplade till {selectedCity.name} ännu.</p>
+                <p className="mt-1.5 text-xs text-[var(--text-muted)]">Använd "Koppla restauranger"-knappen nedan för att lägga till.</p>
               </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {selectedCity.restaurants.map((restaurant) => {
+                  const overrideCount = parseZones(restaurant.deliveryZones).length;
+                  const hasCoords = restaurant.latitude != null && restaurant.longitude != null;
+                  return (
+                    <button
+                      key={restaurant.id}
+                      type="button"
+                      onClick={() => setOverrideRestaurantId(restaurant.id)}
+                      className="group surface-muted px-4 py-4 text-left rounded-2xl border border-[var(--border-subtle)] hover:border-[rgba(231,178,75,0.4)] hover:bg-[rgba(231,178,75,0.04)] transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-2.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-black text-base truncate group-hover:text-[rgba(231,178,75,1)] transition-colors">{restaurant.name}</p>
+                          {restaurant.city && (
+                            <p className="mt-0.5 text-xs text-[var(--text-secondary)] truncate flex items-center gap-1">
+                              <MapPin size={11} className="opacity-60" />
+                              {restaurant.city}
+                            </p>
+                          )}
+                        </div>
+                        <Badge tone={restaurant.isOpen ? "success" : "neutral"}>{restaurant.isOpen ? "Öppen" : "Stängd"}</Badge>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge tone={overrideCount > 0 ? "info" : "neutral"}>{overrideCount} zon{overrideCount !== 1 ? "er" : ""}</Badge>
+                          {!hasCoords && <Badge tone="warning">Saknar koordinater</Badge>}
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] group-hover:text-[rgba(231,178,75,1)] transition-colors">
+                          Konfigurera →
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Surface>
 
-              <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          {/* ── Koppla fler restauranger (collapsible — sekundär flow) ─── */}
+          <details className="group">
+            <summary className="cursor-pointer list-none">
+              <Surface className="px-6 py-4 flex items-center justify-between hover:border-[rgba(231,178,75,0.3)] transition-all">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Avancerat</p>
+                  <p className="mt-1 text-sm font-bold">Koppla / koppla bort restauranger från {selectedCity.name}</p>
+                </div>
+                <ChevronDown size={16} className="text-[var(--text-muted)] group-open:rotate-180 transition-transform" />
+              </Surface>
+            </summary>
+            <Surface className="px-6 py-6 mt-3">
+              <div className="grid gap-3 lg:grid-cols-2">
                 {restaurantsQuery.data?.map((restaurant) => {
                   const linked = selectedCity.restaurants.some((item) => item.id === restaurant.id);
-                  const overrideCount = linked ? parseZones(selectedCity.restaurants.find((item) => item.id === restaurant.id)?.deliveryZones).length : 0;
                   return (
-                    <div key={restaurant.id} className="surface-muted px-4 py-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-black">{restaurant.name}</p>
-                            <Badge tone={linked ? "success" : "neutral"}>{linked ? "Linked" : "Not linked"}</Badge>
-                          </div>
-                          <p className="mt-1 text-sm text-[var(--text-secondary)]">{restaurant.city || "No city"}</p>
-                        </div>
-                        <Button variant="secondary" onClick={() => toggleRestaurantLink(restaurant)}>{linked ? "Unlink" : "Link"}</Button>
+                    <div key={restaurant.id} className="surface-muted px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{restaurant.name}</p>
+                        <p className="mt-0.5 text-xs text-[var(--text-secondary)] truncate">{restaurant.city || "Ingen stad"}</p>
                       </div>
-                      {linked ? (
-                        <div className="mt-4 flex flex-wrap items-center gap-2">
-                          <Badge tone="info">{overrideCount} override zones</Badge>
-                          <Button variant="secondary" onClick={() => setOverrideRestaurantId(restaurant.id)}><Store size={16} /> Override</Button>
-                        </div>
-                      ) : null}
+                      <Button variant="secondary" onClick={() => toggleRestaurantLink(restaurant)}>{linked ? "Koppla bort" : "Koppla"}</Button>
                     </div>
                   );
                 })}
               </div>
             </Surface>
-          </div>
-        )}
-      </div>
+          </details>
+
+          {/* ── Stadsövergripande täckning (city-level zones — fallback) ─ */}
+          <details className="group">
+            <summary className="cursor-pointer list-none">
+              <Surface className="px-6 py-4 flex items-center justify-between hover:border-[rgba(231,178,75,0.3)] transition-all">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Avancerat</p>
+                  <p className="mt-1 text-sm font-bold">Stadsövergripande täckning för {selectedCity.name} (fallback)</p>
+                  <p className="mt-0.5 text-xs text-[var(--text-secondary)]">Gäller restauranger utan egna zoner. {cityZones.length} zon{cityZones.length !== 1 ? "er" : ""} definierade.</p>
+                </div>
+                <ChevronDown size={16} className="text-[var(--text-muted)] group-open:rotate-180 transition-transform" />
+              </Surface>
+            </summary>
+            <div className="mt-3">
+              <ZoneEditor
+                zones={cityZones}
+                onChange={setCityZones}
+                cityName={selectedCity.name}
+                centerLat={selectedCity.centerLat ?? selectedCity.latitude}
+                centerLng={selectedCity.centerLng ?? selectedCity.longitude}
+                onCenterChange={(lat, lng) => updateSelectedCity({ centerLat: lat, centerLng: lng })}
+              />
+            </div>
+          </details>
+        </>
+      )}
 
       <CitySettingsModal open={settingsOpen} city={selectedCity} onClose={() => setSettingsOpen(false)} onChange={updateSelectedCity} />
       <Modal open={newCityOpen} onClose={() => setNewCityOpen(false)} title="New city" footer={<div className="flex justify-end gap-2"><Button onClick={() => setNewCityOpen(false)}>Close</Button><Button variant="primary" onClick={() => createMutation.mutate()} disabled={!newCityName.trim() || createMutation.isPending}>{createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />} Create</Button></div>}>
         <Field label="City name"><Input value={newCityName} onChange={(event) => setNewCityName(event.target.value)} placeholder="Lund" /></Field>
       </Modal>
-      <RestaurantOverrideModal open={Boolean(selectedRestaurantOverride)} restaurant={selectedRestaurantOverride} centerLat={selectedCity?.centerLat ?? selectedCity?.latitude} centerLng={selectedCity?.centerLng ?? selectedCity?.longitude} onClose={() => setOverrideRestaurantId(null)} onSave={(restaurantId, zones, freeDeliveryAbove) => {
+      <RestaurantOverrideModal
+        open={Boolean(selectedRestaurantOverride)}
+        restaurant={selectedRestaurantOverride}
+        /* Centrera kartan på RESTAURANGENS egna lat/lng (från Google Places
+           autocomplete i restaurant-form). Fallback till stadens centrum om
+           restaurangen ännu inte har koordinater satta. */
+        centerLat={selectedRestaurantOverride?.latitude ?? selectedCity?.centerLat ?? selectedCity?.latitude}
+        centerLng={selectedRestaurantOverride?.longitude ?? selectedCity?.centerLng ?? selectedCity?.longitude}
+        onClose={() => setOverrideRestaurantId(null)} onSave={(restaurantId, zones, freeDeliveryAbove) => {
         if (!selectedCity) return;
         setCities((current) => current.map((city) => {
           if (city.id !== selectedCity.id) return city;
