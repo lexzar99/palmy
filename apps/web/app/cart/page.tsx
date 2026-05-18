@@ -1571,31 +1571,312 @@ export default function CartPage() {
               ))}
             </div>
 
-            {/* Desktop: order controls under items */}
-            <div className="hidden lg:block mt-6 space-y-4">
-              <div className="p-5 rounded-[2rem] shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-6" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                  {(['DELIVERY', 'PICKUP'] as const).map(type => (
-                    <button key={`desktop-${type}`} type="button" onClick={() => { setOrderType(type); localStorage.setItem("cart_order_type", type); }} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
-                      {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
-                      {type === 'DELIVERY' ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
+            {/* Desktop left column: delivery details + pricing */}
+            <div className="hidden lg:block mt-6 space-y-6" id="desktop-left-extras">
+              <div className="p-5 rounded-[2rem] shadow-xl space-y-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+
+                {/* Delivery instructions */}
+                {orderType === 'DELIVERY' && (
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.deliveryInstructions.label")}</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: 'RING_DOORBELL', label: t("cart.deliveryInstructions.ringDoorbell"), icon: Bell },
+                        { value: 'LEAVE_AT_DOOR', label: t("cart.deliveryInstructions.leaveAtDoor"), icon: DoorOpen },
+                        { value: 'MEET_OUTSIDE', label: t("cart.deliveryInstructions.meetOutside"), icon: UserIcon },
+                        { value: 'ENTER_CODE', label: t("cart.deliveryInstructions.enterCode"), icon: KeyRound },
+                      ].map(opt => (
+                        <button
+                          key={`dl-${opt.value}`}
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, deliveryInstructions: prev.deliveryInstructions === opt.value ? '' : opt.value }))}
+                          className={`flex items-center gap-2.5 px-4 py-3.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                            formData.deliveryInstructions === opt.value
+                              ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
+                              : 'bg-[var(--bg-deep)] border-[var(--border-muted)] text-zinc-600 hover:text-gold-500 hover:border-gold-500/20'
+                          }`}
+                        >
+                          <opt.icon size={14} />
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tips */}
+                {orderType === 'DELIVERY' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 ml-3">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-gold-500"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                      <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{t("cart.tip.label")}</label>
+                    </div>
+                    <p className="text-[10px] font-bold leading-snug ml-3" style={{ color: "var(--text-secondary)" }}>
+                      {t("cart.tip.sub")}
+                    </p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[0, 10, 20, 30].map((amt) => {
+                        const isActive = !showCustomTipInput && tipAmount === amt;
+                        return (
+                          <button
+                            key={`dl-tip-${amt}`}
+                            type="button"
+                            onClick={() => { setShowCustomTipInput(false); setCustomTipText(""); setTipAmount(amt); }}
+                            className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                              isActive
+                                ? "bg-gold-500 border-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20"
+                                : "border-[var(--border-muted)] text-zinc-500 hover:text-gold-500 hover:border-gold-500/30"
+                            }`}
+                            style={{ backgroundColor: isActive ? undefined : "var(--bg-deep)" }}
+                          >
+                            {amt === 0 ? t("cart.tip.none") : `+${amt} ${t("common.kr")}`}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !showCustomTipInput;
+                          setShowCustomTipInput(next);
+                          if (next) {
+                            setCustomTipText(tipAmount > 0 ? String(tipAmount) : "");
+                          } else {
+                            setCustomTipText("");
+                            setTipAmount(0);
+                          }
+                        }}
+                        className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                          showCustomTipInput
+                            ? "bg-gold-500 border-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20"
+                            : "border-[var(--border-muted)] text-zinc-500 hover:text-gold-500 hover:border-gold-500/30"
+                        }`}
+                        style={{ backgroundColor: showCustomTipInput ? undefined : "var(--bg-deep)" }}
+                      >
+                        {t("cart.tip.custom")}
+                      </button>
+                    </div>
+                    {showCustomTipInput && (
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          value={customTipText}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^0-9]/g, "");
+                            setCustomTipText(raw);
+                            const parsed = raw === "" ? 0 : parseInt(raw, 10);
+                            setTipAmount(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
+                          }}
+                          placeholder={t("cart.tip.customPlaceholder")}
+                          className="w-full border rounded-2xl p-4 text-sm font-bold placeholder:text-zinc-400 outline-none transition-all focus:border-gold-500/40"
+                          style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
+                        />
+                        <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase tracking-widest text-zinc-500">{t("common.kr")}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Auto deal */}
+                {(() => {
+                  const autoDealTitle = automaticDeal.deal?.title ?? (bogoIsPureDiscount ? bogoPreview?.dealTitle : null);
+                  const autoDealAmount = Math.max(automaticDeal.discountAmount, bogoIsPureDiscount ? bogoDiscount : 0);
+                  const shouldShow = !!autoDealTitle && autoDealAmount > 0 && !selectedPersonalDeal && !selectedAccountDealId;
+                  if (!shouldShow) return null;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setAutomaticDealDismissed((v) => !v)}
+                      className="w-full flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition-all text-left hover:brightness-110 active:scale-[0.98]"
+                      style={{
+                        backgroundColor: automaticDealDismissed ? "var(--bg-deep)" : "rgba(231,178,75,0.18)",
+                        borderColor: automaticDealDismissed ? "var(--border-muted)" : "rgba(231,178,75,0.5)",
+                      }}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all ${automaticDealDismissed ? "bg-gold-500/10 text-gold-500" : "bg-gold-500 text-zinc-950"}`}>
+                          {automaticDealDismissed ? <Tag size={16} /> : <Check size={16} strokeWidth={3} />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
+                            {automaticDealDismissed
+                              ? t("cart.discount.autoDismissed", { title: autoDealTitle ?? "" })
+                              : t("cart.discount.autoActive", { title: autoDealTitle ?? "" })}
+                          </p>
+                          <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                            {automaticDealDismissed
+                              ? t("cart.discount.autoDismissedSub")
+                              : t("cart.discount.autoActiveSub")}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-black text-gold-500 shrink-0">
+                        -{autoDealAmount.toFixed(0)} {t("common.kr")}
+                      </span>
                     </button>
-                  ))}
-                </div>
-                <div className="flex gap-3 p-1.5 rounded-[1.8rem] mb-6" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                  <button type="button" onClick={() => setScheduledFor(null)} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${!scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    {t("cart.schedule.asap")}
+                  );
+                })()}
+
+                {/* Account deals */}
+                {accountDeals.length > 0 && (
+                  <div className="space-y-2.5">
+                    <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>
+                      <Gift size={11} className="inline mr-1.5 text-gold-500" />
+                      {t("cart.discount.rewardsTitle")}
+                    </p>
+                    {accountDeals.map((d) => {
+                      const min = d.minOrderKr ?? 0;
+                      const meetsMin = subtotal >= min;
+                      const isActive = selectedAccountDealId === d.id;
+                      const blockedByPromo = !!selectedPersonalDeal && !isActive;
+                      const disabled = !meetsMin || blockedByPromo;
+                      return (
+                        <button
+                          key={`dl-${d.id}`}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => {
+                            if (isActive) { setSelectedAccountDealId(null); }
+                            else { setSelectedAccountDealId(d.id); setSelectedPersonalDeal(null); setPromoCodeInput(""); }
+                          }}
+                          className={`w-full flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition-all text-left ${disabled ? "opacity-40 cursor-not-allowed" : "hover:brightness-110 active:scale-[0.98]"}`}
+                          style={{
+                            backgroundColor: isActive ? "rgba(231,178,75,0.18)" : "var(--bg-deep)",
+                            borderColor: isActive ? "rgba(231,178,75,0.5)" : "var(--border-muted)",
+                          }}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all ${isActive ? "bg-gold-500 text-zinc-950" : "bg-gold-500/10 text-gold-500"}`}>
+                              {isActive ? <Check size={16} strokeWidth={3} /> : <Gift size={16} />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
+                                {isActive ? t("cart.discount.activeReward") : t("cart.discount.useReward", { type: dealTypeLabel(d.type, t), label: formatDealLabel(d, t) })}
+                              </p>
+                              {!meetsMin && min > 0 && (
+                                <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                                  {t("cart.discount.minOrderRequired", { min })}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-black text-gold-500 shrink-0">
+                            -{computeDealAmountKr(d, subtotal, deliveryFee)} {t("common.kr")}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    <div className="flex items-center gap-3 pt-1">
+                      <div className="flex-1 h-px" style={{ background: "var(--border-muted)" }} />
+                      <span className="text-[9px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>{t("cart.discount.or")}</span>
+                      <div className="flex-1 h-px" style={{ background: "var(--border-muted)" }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Promo code */}
+                <div className={`relative group flex items-center transition-all ${selectedAccountDealId ? "opacity-40 pointer-events-none" : ""}`}>
+                  <Tag size={16} className="absolute left-6 text-gold-500/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
+                  <input
+                    value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput}
+                    onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); }}
+                    disabled={!!selectedAccountDealId}
+                    className="w-full border rounded-2xl py-6 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest placeholder:text-zinc-400 outline-none transition-all disabled:cursor-not-allowed"
+                    style={{ backgroundColor: "var(--bg-deep)", borderColor: selectedPersonalDeal ? "rgba(16,185,129,0.4)" : "var(--border-muted)", color: selectedPersonalDeal ? "#34d399" : "var(--text-primary)" }}
+                    placeholder={selectedAccountDealId ? t("cart.discount.promoBlockedByReward") : selectedPersonalDeal ? t("cart.discount.promoApplied") : t("cart.discount.promoPlaceholder")}
+                  />
+                  <button
+                    type="button"
+                    disabled={!!selectedAccountDealId}
+                    onClick={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCodeInput(""); } : handleApplyPromo}
+                    className={`absolute right-3 px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:cursor-not-allowed ${selectedPersonalDeal ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20" : "bg-gold-500/10 text-gold-600 hover:bg-gold-500 hover:text-zinc-950"}`}
+                  >
+                    {selectedPersonalDeal ? t("cart.discount.promoRemove") : t("cart.discount.promoCheck")}
                   </button>
-                  <button type="button" onClick={() => { const min = new Date(Date.now() + 45 * 60 * 1000); setScheduledFor(min); setShowSchedulePicker(true); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    {t("cart.schedule.schedule")}
-                  </button>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.noteLabel")}</label>
-                  <textarea rows={2} value={formData.note} onChange={e => { setFormData({...formData, note: e.target.value}); localStorage.setItem("cart_note", e.target.value); }} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder={t("cart.fields.notePlaceholderExample")} />
+
+                {/* Min-order banner */}
+                {subtotal > 0 && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && addressZoneStatus !== "error" && (
+                  <div className="rounded-2xl border px-4 py-3"
+                    style={{
+                      background: topUpToMinimum ? "rgba(231,178,75,0.08)" : "rgba(239,68,68,0.08)",
+                      borderColor: topUpToMinimum ? "rgba(231,178,75,0.30)" : "rgba(239,68,68,0.30)",
+                    }}
+                  >
+                    {(() => {
+                      const gapToEffective = Math.max(0, Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)));
+                      const progressBase = effectiveMinOrder > 0 ? effectiveMinOrder : minOrder;
+                      const progress = Math.min(((Math.max(0, subtotal - finalDiscount)) / progressBase) * 100, 100);
+                      return (
+                        <>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <p className={`text-[10px] font-black uppercase tracking-widest ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>
+                              {topUpToMinimum ? t("cart.minOrder.banner.topUp", { amount: gapToEffective }) : t("cart.minOrder.banner.short", { amount: gapToEffective })}
+                            </p>
+                            <span className={`text-[10px] font-black ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>{subtotal.toFixed(0)} / {minOrder.toFixed(0)} {t("common.kr")}</span>
+                          </div>
+                          <div className="h-1.5 w-full rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.07)" }}>
+                            <motion.div
+                              className={`h-full rounded-full ${topUpToMinimum ? "bg-gold-500" : "bg-rose-500"}`}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${progress}%` }}
+                              transition={{ duration: 0.5, ease: "easeOut" }}
+                            />
+                          </div>
+                          <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                            <input type="checkbox" checked={topUpToMinimum} onChange={(e) => setTopUpToMinimum(e.target.checked)} className="h-4 w-4 accent-gold-500 cursor-pointer" />
+                            <span className="text-[10px] font-bold leading-snug" style={{ color: "var(--text-secondary)" }}>
+                              {t("cart.minOrder.toggleLabel", { amount: gapToEffective })}
+                            </span>
+                          </label>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Totals */}
+                <div className="pt-6 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
+                  <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{subtotal.toFixed(0)} {t("common.sek")}</span></div>
+                  {orderType === 'DELIVERY' && (
+                    <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                      <span>{t("cart.summary.deliveryFee")}</span>
+                      <span className="text-gold-500">{addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${deliveryFee.toFixed(0)} ${t("common.sek")}`}</span>
+                    </div>
+                  )}
+                  {effectiveTip > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-gold-500"><span>{t("cart.summary.tip")}</span><span>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
+                  {minOrderTopUp > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span className="text-gold-500">+{minOrderTopUp.toFixed(0)} {t("common.sek")}</span></div>}
+                  {finalDiscount > 0 && (
+                    <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
+                      <span>{t("cart.summary.discount")}</span>
+                      <span>-{finalDiscount.toFixed(0)} {t("common.sek")}</span>
+                    </div>
+                  )}
+                  {restaurantSettings.vatPercent ? (
+                    <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                      <span>{t("cart.summary.vat", { percent: restaurantSettings.vatPercent })}</span>
+                      <span>{(total * restaurantSettings.vatPercent / (100 + restaurantSettings.vatPercent)).toFixed(0)} {t("common.sek")}</span>
+                    </div>
+                  ) : null}
+                  <div className="flex justify-between items-center mt-6">
+                    <span className="text-2xl font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
+                    <span className="text-3xl font-black italic tracking-tighter leading-[1.15] text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span></span>
+                  </div>
                 </div>
+
+                {/* Guest banner */}
+                {!user && (
+                  <div className="p-4 rounded-2xl border flex items-center gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+                    <UserIcon size={16} className="text-zinc-400 shrink-0" />
+                    <p className="text-[10px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
+                      {t("cart.guest.banner")}{" "}
+                      <Link href="/profile" className="text-gold-400 hover:text-gold-300 underline">{t("cart.guest.loginLink")}</Link>{" "}
+                      {t("cart.guest.bannerSuffix")}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1631,7 +1912,7 @@ export default function CartPage() {
                   </motion.div>
                 ) : (
                   <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                      <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-10 lg:hidden" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                      <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          {(['DELIVERY', 'PICKUP'] as const).map(type => (
                             <button key={type} type="button" onClick={() => { setOrderType(type); localStorage.setItem("cart_order_type", type); }} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
                                {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
@@ -1640,7 +1921,7 @@ export default function CartPage() {
                          ))}
                       </div>
 
-                      <div className="flex gap-3 p-1.5 rounded-[1.8rem] mb-10 lg:hidden" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                      <div className="flex gap-3 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          <button type="button" onClick={() => setScheduledFor(null)} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${!scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                             {t("cart.schedule.asap")}
@@ -2002,8 +2283,8 @@ export default function CartPage() {
                                  </AnimatePresence>
                              </div>
 
-                             {/* Delivery Instructions Presets */}
-                             <div className="space-y-2">
+                             {/* Delivery Instructions — desktop version is in left column */}
+                             <div className="space-y-2 lg:hidden">
                                  <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.deliveryInstructions.label")}</label>
                                  <div className="grid grid-cols-2 gap-2">
                                    {[
@@ -2031,11 +2312,13 @@ export default function CartPage() {
                           </div>
                         )}
 
-                        <div className="space-y-2 lg:hidden">
+                        <div className="space-y-2">
                            <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.noteLabel")}</label>
                            <textarea rows={2} value={formData.note} onChange={e => { setFormData({...formData, note: e.target.value}); localStorage.setItem("cart_note", e.target.value); }} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder={t("cart.fields.notePlaceholderExample")} />
                         </div>
 
+                        {/* ── Mobile only: extras (desktop shows these in left column) ── */}
+                        <div className="lg:hidden space-y-8">
                         {/*
                          * Dricks till leveranspersonen (paritet med RN CartScreen, raderna 1638-1675).
                          * Default = 0 kr så befintligt flöde är opåverkat.
@@ -2505,6 +2788,7 @@ export default function CartPage() {
                           </p>
                         </div>
                      )}
+                        </div>{/* end mobile-only extras */}
 
                      {/* Zone error summary line above checkout button */}
                      {addressZoneStatus === "error" && orderType === "DELIVERY" && (
@@ -2520,6 +2804,12 @@ export default function CartPage() {
                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.6)]" />
                        </motion.div>
                      )}
+
+                      {/* Desktop: compact total above checkout (full breakdown is in left column) */}
+                      <div className="hidden lg:flex justify-between items-center mt-8 mb-2">
+                        <span className="text-lg font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
+                        <span className="text-2xl font-black italic tracking-tighter text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span></span>
+                      </div>
 
                       <button
                          onClick={startCheckout}
