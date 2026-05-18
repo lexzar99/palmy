@@ -169,6 +169,23 @@ export default function HomePage() {
       }
       if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType as "DELIVERY" | "PICKUP");
 
+      // Återställ stad-familj från localStorage så filter funkar direkt vid
+      // page-load utan att kunden måste öppna address-modalen igen. Buggen:
+      // tidigare körs city-resolve BARA i handleAddressConfirm → om address var
+      // sparad sedan tidigare → cityFamilyIds förblev null → filter visade
+      // alla restauranger (inkl. de från andra städer).
+      const storedCity = localStorage.getItem("platform_city");
+      if (storedCity) {
+        setDetectedCityName(storedCity);
+        axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: storedCity } })
+          .then((res) => {
+            const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
+            setCityFamilyIds(familyIds.length > 0 ? familyIds : null);
+            if (res.data?.name) setDetectedCityName(res.data.name);
+          })
+          .catch(() => setCityFamilyIds(null));
+      }
+
       // Favoriter hydreras via useFavorites-hooken (delad mellan vyer).
 
       const err = localStorage.getItem("platform_address_error");
@@ -298,7 +315,11 @@ export default function HomePage() {
     // som filter så kunden bara ser restauranger i sin metropolitan area —
     // exempel: kund i Arlöv ser Malmö + Arlöv + Oxie. Lund visas inte (admin
     // har inte merged Lund under Malmö).
+    //
+    // Spara city i localStorage så next-page-load kan hämta familyIds direkt
+    // utan att gå via address-modal igen (mount-effekt nedan läser värdet).
     if (city) {
+      localStorage.setItem("platform_city", city);
       try {
         const res = await axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: city } });
         const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
@@ -308,6 +329,7 @@ export default function HomePage() {
         setCityFamilyIds(null);
       }
     } else {
+      localStorage.removeItem("platform_city");
       setCityFamilyIds(null);
       setDetectedCityName(null);
     }
@@ -446,7 +468,7 @@ export default function HomePage() {
       }
       return true;
     });
-  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, zoneDeliveryInfo, filteredByDeal, quickFilter, allDealCards, favorites, selectedCity]);
+  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, zoneDeliveryInfo, filteredByDeal, quickFilter, allDealCards, favorites, selectedCity, cityFamilyIds]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
