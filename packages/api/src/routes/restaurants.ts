@@ -339,7 +339,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    const restaurant = await prisma.restaurant.create({
+    const createdRaw = await prisma.restaurant.create({
       data: {
         ...data,
       },
@@ -350,32 +350,39 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     if (payload.adminPassword && payload.adminPassword.trim().length > 0) {
       try {
         const hashedPassword = await bcrypt.hash(payload.adminPassword.trim(), 10);
-        const adminEmail = (restaurant.adminEmail || restaurant.slug).toLowerCase();
-        
+        const adminEmail = (createdRaw.adminEmail || createdRaw.slug).toLowerCase();
+
         const adminUser = await prisma.adminUser.upsert({
           where: { email: adminEmail },
-          update: { password: hashedPassword, isActive: true, name: `${restaurant.name} Admin` },
+          update: { password: hashedPassword, isActive: true, name: `${createdRaw.name} Admin` },
           create: {
             email: adminEmail,
             password: hashedPassword,
-            name: `${restaurant.name} Admin`,
+            name: `${createdRaw.name} Admin`,
             role: 'ADMIN',
             isActive: true,
           },
         });
         adminCreated = true;
-        console.log(`✅ Admin account created/updated for restaurant "${restaurant.name}" (login: ${adminEmail}, id: ${adminUser.id})`);
+        console.log(`✅ Admin account created/updated for restaurant "${createdRaw.name}" (login: ${adminEmail}, id: ${adminUser.id})`);
       } catch (adminErr: any) {
-        console.error(`❌ Failed to create admin account for restaurant "${restaurant.name}":`, adminErr.message);
+        console.error(`❌ Failed to create admin account for restaurant "${createdRaw.name}":`, adminErr.message);
       }
     } else {
-      console.warn(`⚠️  Restaurant "${restaurant.name}" created WITHOUT an admin password. No login account was created.`);
+      console.warn(`⚠️  Restaurant "${createdRaw.name}" created WITHOUT an admin password. No login account was created.`);
     }
 
-    // Returnera via formatRestaurant — annars får admin-form JSON-strängifierad
-    // openingHours/deliveryZones/tags, vilket parseHoursFromDetail inte kan
-    // läsa → form defaultar till "11:00 - 22:00". Konsekvent format mellan
-    // GET, POST och PATCH gör att admin-form aldrig glitchar efter save.
+    // Re-fetch med includes — samma mönster som PATCH, garanterar att svaret
+    // har parsed JSON-fält och orders-relation för activeOrdersCount.
+    const restaurant = await prisma.restaurant.findUniqueOrThrow({
+      where: { id: createdRaw.id },
+      include: {
+        orders: {
+          where: { status: { in: ['PENDING', 'ACCEPTED', 'COOKING', 'DELIVERING'] } },
+          select: { id: true },
+        },
+      },
+    });
     res.status(201).json({ ...formatRestaurant(restaurant), adminCreated });
   } catch (err: any) {
     console.error('[restaurants POST] Error:', err.message);
@@ -517,20 +524,40 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       data.deliveryZones = JSON.stringify(normalizeDeliveryZones(merged));
     }
 
-    // KEY FIX: When opening hours change, compute the correct isOpen immediately
-    // and include it in the SAME DB write (one atomic operation, no race conditions).
+    // Recompute isOpen from schedule — men bara om admin INTE explicit
+    // skickade isOpen (t.ex. togglade Öppen/Stängd). Annars vinner togglen.
+    // Frontend skickar alltid openingHours i payload (hela formen), så vi
+    // kollar om isOpen-värdet faktiskt ÄNDRADES vs. vad som fanns i DB.
     if (payload.openingHours !== undefined) {
       const newHoursStr = data.openingHours as string;
-      data.isOpen = isRestaurantOpen(newHoursStr);
-      console.log(`[Hours] Updating isOpen for ${existingRestaurant.name} -> ${data.isOpen} based on new schedule`);
+      const scheduleIsOpen = isRestaurantOpen(newHoursStr);
+      const adminExplicitlyChangedToggle =
+        payload.isOpen !== undefined && payload.isOpen !== existingRestaurant.isOpen;
+      if (!adminExplicitlyChangedToggle) {
+        data.isOpen = scheduleIsOpen;
+      }
     }
 
     const previousAdminLogin =
       (existingRestaurant.adminEmail || existingRestaurant.slug).toLowerCase();
 
-    const restaurant = await prisma.restaurant.update({
+    await prisma.restaurant.update({
       where: { id },
       data,
+    });
+
+    // Re-fetch med includes så svaret har EXAKT samma format som GET /:slug.
+    // Tidigare använde vi rå-resultatet från update() — det saknade relations
+    // (orders) och hade JSON-fält som strängar, vilket fick admin-formens
+    // parseHoursFromDetail att falla tillbaka till "11:00"-default.
+    const restaurant = await prisma.restaurant.findUniqueOrThrow({
+      where: { id },
+      include: {
+        orders: {
+          where: { status: { in: ['PENDING', 'ACCEPTED', 'COOKING', 'DELIVERING'] } },
+          select: { id: true },
+        },
+      },
     });
 
     const nextAdminLogin = (restaurant.adminEmail || restaurant.slug).toLowerCase();

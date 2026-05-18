@@ -48,8 +48,13 @@ const buildDefaultHours = (): HoursForm =>
 
 const parseHoursFromDetail = (raw: unknown): HoursForm => {
   const hours = buildDefaultHours();
-  if (!raw || typeof raw !== "object") return hours;
-  const root = raw as Record<string, any>;
+  if (!raw) return hours;
+  let parsed = raw;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); } catch { return hours; }
+  }
+  if (typeof parsed !== "object" || parsed === null) return hours;
+  const root = parsed as Record<string, any>;
   const regular = root.regular && typeof root.regular === "object" ? root.regular : root;
   if (!regular || typeof regular !== "object") return hours;
   for (const { key } of DAYS) {
@@ -99,7 +104,7 @@ const mapDetailToForm = (d: RestaurantDetail): FormState => ({
   imageUrl: d.imageUrl || "", heroImageUrl: d.heroImageUrl || "",
   etaOverride: d.etaOverrideMinutes != null ? String(d.etaOverrideMinutes) : "",
   etaCalculated: d.etaCalculatedMinutes ?? null, etaEffective: d.etaMinutes ?? 40,
-  featuredClass: (d as any).featuredClass || 3, isOpen: d.manualIsOpen,
+  featuredClass: (d as any).featuredClass ?? 3, isOpen: d.manualIsOpen,
   rating: d.rating || 0, ratingCount: d.ratingCount || 0,
   internalInfo: (d as any).internalInfo || "",
   latitude: d.latitude != null ? String(d.latitude) : "",
@@ -173,21 +178,17 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
     },
     onSuccess: async (saved) => {
       setSaveError(null);
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      await queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
-      await queryClient.invalidateQueries({ queryKey: ["tiers"] });
       if (isCreate) {
+        await queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
         router.push(`/restaurants/${(saved as any).id}`);
         return;
       }
-      // GLITCH-FIX: tidigare gjorde vi setInitialized(false) + detail.refetch().
-      // useEffect-populeringen körde då innan refetch var klar → form visade
-      // STALE data (eller tom default) några frames → såg ut som att allt
-      // resettades. Bättre: populera form direkt från backend-svaret (saved),
-      // som redan innehåller den nya datan. Invalidate-anropen ovan håller
-      // listings/dashboard synkade i bakgrunden.
       setForm(mapDetailToForm(saved as RestaurantDetail));
       showToast({ type: "success", message: "Restaurang sparad" });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["tiers"] });
+      queryClient.invalidateQueries({ queryKey: detailQueryKey(restaurantId!) });
     },
     onError: (e: any) => {
       const msg = e?.response?.data?.error || "Kunde inte spara.";
