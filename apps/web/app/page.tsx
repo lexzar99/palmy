@@ -394,15 +394,30 @@ export default function HomePage() {
       return a.name.localeCompare(b.name);
     });
 
+    // Sortera så in-zone-restauranger kommer FÖRST. Out-of-zone-restauranger
+    // hamnar längst ner (dimmade och markerade "Utanför zon" i UI). Detta är
+    // viktigt så vi inte rankar restauranger högt som ändå inte kan leverera.
+    const inZoneSorted = sorted.slice().sort((a, b) => {
+      if (zoneRestaurantIds === null) return 0;
+      const aIn = zoneRestaurantIds.includes(a.id) ? 0 : 1;
+      const bIn = zoneRestaurantIds.includes(b.id) ? 0 : 1;
+      return aIn - bIn;
+    });
+
     // Apply quick-filters
-    return sorted.filter((r) => {
+    return inZoneSorted.filter((r) => {
       if (quickFilter === "rated") return (r.rating || 0) >= 4.0;
       if (quickFilter === "fast") return (r.etaMinutes || 999) < 30;
       if (quickFilter === "deals") return allDealCards.some(d => d.relatedRestaurantIds?.includes(r.id));
-      if (quickFilter === "free") return !r.deliveryFee || r.deliveryFee === 0;
+      // "Free" baseras på ZON-fee, inte restaurang-default. Out-of-zone restauranger
+      // exkluderas eftersom vi inte kan veta om deras zon-fee är 0.
+      if (quickFilter === "free") {
+        const zi = zoneDeliveryInfo[r.id];
+        return zi != null && zi.deliveryFee === 0;
+      }
       return true;
     });
-  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, filteredByDeal, quickFilter, allDealCards, favorites, selectedCity]);
+  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, zoneDeliveryInfo, filteredByDeal, quickFilter, allDealCards, favorites, selectedCity]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
@@ -479,7 +494,16 @@ export default function HomePage() {
     return getImageSrc(r.heroImageUrl || r.imageUrl || "");
   };
 
-  const renderFeaturedRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[]) => (
+  const renderFeaturedRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[]) => {
+    // Sortera så in-zone-restauranger kommer FÖRST även i HomeCategorySections
+    // (PIZZA FREDAG, SNABB LUNCH osv). Out-of-zone hamnar längst ner dimmade.
+    const sortedSection = sectionRestaurants.slice().sort((a, b) => {
+      if (zoneRestaurantIds === null) return 0;
+      const aIn = zoneRestaurantIds.includes(a.id) ? 0 : 1;
+      const bIn = zoneRestaurantIds.includes(b.id) ? 0 : 1;
+      return aIn - bIn;
+    });
+    return (
     <section className="mb-3">
       <div className="flex items-end justify-between mb-1.5 px-1">
         <div className="min-w-0">
@@ -490,7 +514,7 @@ export default function HomePage() {
       </div>
       {/* Mobil: horisontell scroll • md+: 2-kolumn grid • lg+: 3-kolumn • xl+: 4-kolumn */}
       <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 overflow-x-auto md:overflow-visible pb-1 md:pb-0 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-        {sectionRestaurants.map((r, i) => {
+        {sortedSection.map((r, i) => {
           const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
           const dimmed = r.isOpen === false || !inZone;
           return (
@@ -580,12 +604,22 @@ export default function HomePage() {
                   <div className="flex items-center justify-between border-t pt-2" style={{ borderColor: "var(--border-muted)" }}>
                     {(() => {
                       const zi = zoneDeliveryInfo[r.id];
-                      const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
-                      const eta = r.etaMinutes ?? 30;
+                      const outOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
+                      // ENBART zon-data. Out-of-zone = "Levererar ej" istället för
+                      // gammal restaurang-default (49 kr fallback är borttagen).
+                      if (outOfZone || !zi) {
+                        return (
+                          <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-rose-500/80">
+                            <Bike size={11} className="text-rose-500/60" />
+                            <span>{t("home.status.outOfZone") ?? "Levererar ej"}</span>
+                          </div>
+                        );
+                      }
+                      const eta = zi.etaMinutes ?? r.etaMinutes ?? 30;
                       return (
                         <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-wider text-zinc-400">
                           <span className="flex items-center gap-1"><Clock size={11} className="text-gold-500/50" /> {eta} {t("home.minutesShort")}</span>
-                          <span className="flex items-center gap-1"><Bike size={11} className="text-gold-500/50" /> {fee === 0 ? t("home.feeFreeShort") : `${fee} ${t("home.feeUnitShort")}`}</span>
+                          <span className="flex items-center gap-1"><Bike size={11} className="text-gold-500/50" /> {zi.deliveryFee === 0 ? t("home.feeFreeShort") : `${zi.deliveryFee} ${t("home.feeUnitShort")}`}</span>
                         </div>
                       );
                     })()}
@@ -600,7 +634,8 @@ export default function HomePage() {
         })}
       </div>
     </section>
-  );
+    );
+  };
 
   const handleRestaurantClick = (e: React.MouseEvent, r: Restaurant) => {
     e.preventDefault();
