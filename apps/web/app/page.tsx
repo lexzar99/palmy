@@ -693,11 +693,9 @@ export default function HomePage() {
                   <p className="text-[9px] font-bold uppercase tracking-wider mb-2 truncate" style={{ color: "var(--text-secondary)" }}>{r.description || r.cuisine}</p>
 
                   <div className="flex items-center justify-between border-t pt-2" style={{ borderColor: "var(--border-muted)" }}>
-                    {(() => {
+                    {orderType === "DELIVERY" && (() => {
                       const zi = zoneDeliveryInfo[r.id];
-                      const outOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
-                      // ENBART zon-data. Out-of-zone = "Levererar ej" istället för
-                      // gammal restaurang-default (49 kr fallback är borttagen).
+                      const outOfZone = zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
                       if (outOfZone || !zi) {
                         return (
                           <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-rose-500/80">
@@ -1309,12 +1307,12 @@ export default function HomePage() {
                             </div>
                             {/* Rad 2: Kategori (subtil) */}
                             <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>{r.cuisine || r.description || t("home.restaurantFallback")}</p>
-                            {/* Rad 3: ★ rating (count) · ETA — ETA från ZON, inte restaurang-default */}
                             {(() => {
                               const zi = zoneDeliveryInfo[r.id];
-                              // Om zonen saknar ETA → visa "—" istället för restaurang-default.
-                              // Detta tvingar admin att sätta ETA i zonen för meningsfull info.
-                              const etaDisplay = zi?.etaMinutes != null ? `${zi.etaMinutes} ${t("home.minutes")}` : (isOutOfZone ? "—" : `${r.etaMinutes ?? 30} ${t("home.minutes")}`);
+                              const showEta = orderType === "DELIVERY";
+                              const etaDisplay = showEta
+                                ? (zi?.etaMinutes != null ? `${zi.etaMinutes} ${t("home.minutes")}` : (isOutOfZone ? "—" : `${r.etaMinutes ?? 30} ${t("home.minutes")}`))
+                                : null;
                               return (
                                 <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
                                   <span className="flex items-center gap-1">
@@ -1324,13 +1322,16 @@ export default function HomePage() {
                                       <span className="opacity-60">({r.ratingCount})</span>
                                     )}
                                   </span>
-                                  <span className="opacity-40">·</span>
-                                  <span>{etaDisplay}</span>
+                                  {etaDisplay && (
+                                    <>
+                                      <span className="opacity-40">·</span>
+                                      <span>{etaDisplay}</span>
+                                    </>
+                                  )}
                                 </div>
                               );
                             })()}
-                            {/* Rad 4: Delivery-info — ENDAST från zon. Out-of-zone visar varning, inte fallback-fee. */}
-                            {(() => {
+                            {orderType === "DELIVERY" && (() => {
                               const zi = zoneDeliveryInfo[r.id];
                               if (isOutOfZone || !zi) {
                                 return (

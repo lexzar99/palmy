@@ -631,8 +631,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           </button>
         )}
 
-        {/* Status-pill: flyter top-left ovanpå bilden, nedanför back-knappen */}
-        <div className={`absolute top-[4.25rem] left-4 px-3 py-1 rounded-full backdrop-blur-xl flex items-center gap-1.5 shadow-md ${restaurant?.isOpen ? "bg-emerald-500/95 text-white" : "bg-rose-500/95 text-white"}`}>
+        <div className={`absolute top-4 left-[4.25rem] px-3 py-1 rounded-full backdrop-blur-xl flex items-center gap-1.5 shadow-md ${restaurant?.isOpen ? "bg-emerald-500/95 text-white" : "bg-rose-500/95 text-white"}`}>
           <span className={`w-1.5 h-1.5 rounded-full bg-white ${restaurant?.isOpen ? "animate-pulse" : ""}`} />
           <span className="text-[10px] font-black uppercase tracking-[0.15em]">{restaurant?.isOpen ? t("menu.statusOpen") : t("menu.statusClosed")}</span>
         </div>

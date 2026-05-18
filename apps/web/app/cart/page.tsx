@@ -151,7 +151,11 @@ export default function CartPage() {
   }, []);
 
   const [user, setUser] = useState<any>(null);
-  const [orderType, setOrderType] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
+  const [orderType, setOrderType] = useState<"PICKUP" | "DELIVERY">(() => {
+    if (typeof window === "undefined") return "DELIVERY";
+    const stored = localStorage.getItem("cart_order_type");
+    return stored === "PICKUP" ? "PICKUP" : "DELIVERY";
+  });
   const [topUpToMinimum, setTopUpToMinimum] = useState(true);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
@@ -232,7 +236,7 @@ export default function CartPage() {
       deliveryZip: "",
       deliveryCity: "",
       deliveryInstructions: "",
-      note: "",
+      note: typeof window !== "undefined" ? localStorage.getItem("cart_note") || "" : "",
     };
   });
 
@@ -1534,7 +1538,6 @@ export default function CartPage() {
                     </div>
                   </button>
 
-                  {/* Quantity-spinner kompakt + pris + radera inline */}
                   <div className="flex items-center gap-2 shrink-0">
                     <div className="flex items-center gap-1.5 px-2 py-1 rounded-full" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(28,28,30,0.06)" }}>
                       <button
@@ -1566,6 +1569,34 @@ export default function CartPage() {
                   </div>
                 </motion.div>
               ))}
+            </div>
+
+            {/* Desktop: order controls under items */}
+            <div className="hidden lg:block mt-6 space-y-4">
+              <div className="p-5 rounded-[2rem] shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-6" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                  {(['DELIVERY', 'PICKUP'] as const).map(type => (
+                    <button key={`desktop-${type}`} type="button" onClick={() => { setOrderType(type); localStorage.setItem("cart_order_type", type); }} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
+                      {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
+                      {type === 'DELIVERY' ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-3 p-1.5 rounded-[1.8rem] mb-6" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                  <button type="button" onClick={() => setScheduledFor(null)} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${!scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    {t("cart.schedule.asap")}
+                  </button>
+                  <button type="button" onClick={() => { const min = new Date(Date.now() + 45 * 60 * 1000); setScheduledFor(min); setShowSchedulePicker(true); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    {t("cart.schedule.schedule")}
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.noteLabel")}</label>
+                  <textarea rows={2} value={formData.note} onChange={e => { setFormData({...formData, note: e.target.value}); localStorage.setItem("cart_note", e.target.value); }} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder={t("cart.fields.notePlaceholderExample")} />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1600,17 +1631,16 @@ export default function CartPage() {
                   </motion.div>
                 ) : (
                   <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                      <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                      <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-10 lg:hidden" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          {(['DELIVERY', 'PICKUP'] as const).map(type => (
-                            <button key={type} type="button" onClick={() => setOrderType(type)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
+                            <button key={type} type="button" onClick={() => { setOrderType(type); localStorage.setItem("cart_order_type", type); }} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
                                {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
                                {type === 'DELIVERY' ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
                             </button>
                          ))}
                       </div>
 
-                      {/* Schedule Toggle */}
-                      <div className="flex gap-3 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                      <div className="flex gap-3 p-1.5 rounded-[1.8rem] mb-10 lg:hidden" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          <button type="button" onClick={() => setScheduledFor(null)} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${!scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                             {t("cart.schedule.asap")}
@@ -2001,9 +2031,9 @@ export default function CartPage() {
                           </div>
                         )}
 
-                        <div className="space-y-2">
+                        <div className="space-y-2 lg:hidden">
                            <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.noteLabel")}</label>
-                           <textarea rows={2} value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder={t("cart.fields.notePlaceholderExample")} />
+                           <textarea rows={2} value={formData.note} onChange={e => { setFormData({...formData, note: e.target.value}); localStorage.setItem("cart_note", e.target.value); }} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder={t("cart.fields.notePlaceholderExample")} />
                         </div>
 
                         {/*
