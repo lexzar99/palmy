@@ -728,36 +728,38 @@ export default function HomePage() {
               );
             })()}
 
-            <div className="relative z-10 flex items-start justify-between gap-3">
-              <h1 className="text-2xl font-black tracking-tight leading-tight" style={{ color: "var(--text-primary)" }}>
+            <div className="relative z-10 flex items-start justify-between gap-2">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-tight min-w-0 flex-1" style={{ color: "var(--text-primary)" }}>
                 {t("home.heroMobile.titleLead")} <span className="text-gold-500 italic">{t("home.heroMobile.titleAccent")}</span>
               </h1>
-              {/* Mobil-action-cluster: språk + kontakta + theme bredvid rubriken */}
-              <div className="shrink-0 flex items-center gap-1.5">
-                <div style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }} className="rounded-2xl">
-                  <LocaleSwitcher buttonClassName="w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90" iconSize={16} />
+              {/* Mobil-action-cluster: språk + kontakta + theme bredvid rubriken.
+                  Knapparna är 9×9 (36×36) för att 3 st + titel ska få plats på
+                  smala telefoner (390px) utan att hamna utanför overflow:hidden. */}
+              <div className="shrink-0 flex items-center gap-1">
+                <div style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }} className="rounded-xl">
+                  <LocaleSwitcher buttonClassName="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90" iconSize={15} />
                 </div>
                 <Link
                   href="/contact"
                   aria-label={t("nav.contact")}
-                  className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90"
                   style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
                 >
-                  <Mail size={16} className="text-gold-600" />
+                  <Mail size={15} className="text-gold-600" />
                 </Link>
                 <button
                   onClick={toggleTheme}
                   aria-label={theme === "dark" ? t("nav.theme.toLight") : t("nav.theme.toDark")}
-                  className="w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90"
                   style={{
                     backgroundColor: "var(--bg-deep)",
                     border: "1px solid var(--border-muted)",
                   }}
                 >
                   {theme === "dark" ? (
-                    <Sun size={16} className="text-gold-500" />
+                    <Sun size={15} className="text-gold-500" />
                   ) : (
-                    <Moon size={16} className="text-gold-600" />
+                    <Moon size={15} className="text-gold-600" />
                   )}
                 </button>
               </div>
