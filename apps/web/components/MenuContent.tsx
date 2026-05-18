@@ -758,7 +758,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         )}
 
         {/* ── Stats-kort: vit kort med 3 kolumner (Leveransavgift / Leveranstid / Minimum) ── */}
-        <div className="grid grid-cols-3 mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 16px rgba(28,28,30,0.04)" }}>
+        {orderType === "DELIVERY" && <div className="grid grid-cols-3 mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 16px rgba(28,28,30,0.04)" }}>
           {[
             {
               icon: Bike,
@@ -795,7 +795,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               </div>
             );
           })}
-        </div>
+        </div>}
 
         {/* ── Sticky header: SÖK + KATEGORI-PILLS följer med när man scrollar ──
             Båda i samma wrapper så de sticky-positioneras tillsammans. Bryter
