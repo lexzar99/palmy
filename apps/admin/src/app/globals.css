@@ -20,10 +20,10 @@
   --text-secondary: #a1a1aa;
   --text-muted: #52525b;
 
-  /* New accent: electric lime — modern, distinctive, food-energetic */
-  --accent: #c2f54b;
-  --accent-strong: #d6ff6e;
-  --accent-soft: rgba(194, 245, 75, 0.12);
+  /* Accent: warm gold — matches FoodGo brand palette */
+  --accent: #E7B24B;
+  --accent-strong: #F4D086;
+  --accent-soft: rgba(231, 178, 75, 0.12);
   --accent-fg: #0a0b0e;
 
   --success: #4ade80;

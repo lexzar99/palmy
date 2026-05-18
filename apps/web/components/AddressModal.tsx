@@ -169,7 +169,7 @@ export default function AddressModal({
         setError("Välj en stad för avhämtning.");
         return;
       }
-      onConfirm(selectedCity.name, "PICKUP");
+      onConfirm(selectedCity.name, "PICKUP", undefined, undefined, selectedCity.name);
       return;
     }
     // DELIVERY

@@ -302,6 +302,10 @@ export default function HomePage() {
     if (typeof window !== "undefined") {
       localStorage.setItem(ORDER_TYPE_KEY, type);
     }
+
+    if (type === "PICKUP" && !detectedCityName) {
+      setShowAddressModal(true);
+    }
   };
 
   const handleAddressConfirm = async (addr: string, type: "DELIVERY" | "PICKUP", coords?: { lat: number; lng: number }, postalCode?: string, city?: string) => {
