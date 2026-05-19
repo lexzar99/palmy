@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Loader2, Info, ChevronLeft, MapPin, Phone, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, Tag } from "lucide-react";
+import { Search, Loader2, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, Tag } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import ProductModal from "@/components/ProductModal";
 import FloatingCartButton from "@/components/FloatingCartButton";
@@ -934,7 +934,17 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                     >
                       <div className="relative w-full aspect-square overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
                         {p.imageUrl && <img src={p.imageUrl} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />}
-                        <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider shadow-md">REA</div>
+                        {/* Discount badge — uses the actual discountPercent if
+                            present (e.g. "-30%"), falls back to a subtle gold
+                            tag if only discountPrice is set. The old "REA" word
+                            was redundant and shouty. */}
+                        {((p.discountPercent && p.discountPercent > 0) || p.discountPrice != null) && (
+                          <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-gold-500 text-zinc-950 text-[9px] font-black uppercase tracking-wider shadow">
+                            {p.discountPercent && p.discountPercent > 0
+                              ? `-${p.discountPercent}%`
+                              : p.discountLabel || ""}
+                          </div>
+                        )}
                       </div>
                       <div className="p-3 flex flex-col gap-1.5">
                         <h4 className="text-sm font-bold leading-tight line-clamp-1" style={{ color: "var(--text-primary)" }}>{p.name}</h4>
@@ -1083,46 +1093,109 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
        <AnimatePresence>
         {showInfoModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/40 backdrop-blur-md p-6" onClick={() => setShowInfoModal(false)}>
-            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative shadow-2xl" onClick={e => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-               <div className="w-16 h-16 bg-gold-500/10 rounded-[2rem] flex items-center justify-center mb-8 border border-gold-500/20 text-gold-500">
-                  <Info size={32} />
-               </div>
-               <h2 className="text-3xl font-black uppercase italic mb-8" style={{ color: "var(--text-primary)" }}>{t("menu.info.title")}</h2>
-               
-               <div className="space-y-8">
-                  {restaurant?.description && (
-                    <div className="flex items-start gap-4">
-                       <div className="min-w-0">
-                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("product.description")}</div>
-                          <p className="text-xs font-bold leading-relaxed uppercase tracking-wider italic" style={{ color: "var(--text-secondary)" }}>{restaurant.description}</p>
-                       </div>
-                    </div>
-                  )}
-                  {restaurant?.address && (
-                    <div className="flex items-start gap-4">
-                      <MapPin className="text-zinc-300 mt-1" size={18} />
-                      <div className="min-w-0">
-                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("menu.info.findHere")}</div>
-                        <div className="text-sm font-black italic uppercase" style={{ color: "var(--text-primary)" }}>{restaurant.address}</div>
-                        <div className="text-sm font-black italic uppercase opacity-40" style={{ color: "var(--text-secondary)" }}>{restaurant.zip} {restaurant.city}</div>
-                      </div>
-                    </div>
-                  )}
-                  {restaurant?.phone && (
-                    <div className="flex items-start gap-4">
-                      <Phone className="text-zinc-300 mt-1" size={18} />
-                      <div className="min-w-0">
-                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("menu.info.callUs")}</div>
-                        <a href={`tel:${restaurant.phone}`} className="text-lg font-black text-gold-500 hover:text-gold-600 transition-colors uppercase italic">{restaurant.phone}</a>
-                      </div>
-                    </div>
-                  )}
-               </div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/40 backdrop-blur-md p-4 sm:p-6" onClick={() => setShowInfoModal(false)}>
+            <motion.div
+              initial={{ scale: 0.96, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.96, y: 12 }}
+              className="w-full max-w-md rounded-3xl relative shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              onClick={e => e.stopPropagation()}
+              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+            >
+              {/* Header — restaurant name + close. The full info modal got a
+                  cleaner header so the rest of the body can breathe. */}
+              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b" style={{ borderColor: "var(--border-muted)" }}>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-1">{t("menu.info.title")}</div>
+                  <h2 className="text-lg sm:text-xl font-black uppercase italic tracking-tight truncate" style={{ color: "var(--text-primary)" }}>
+                    {restaurant?.name}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setShowInfoModal(false)}
+                  className="shrink-0 ml-3 w-9 h-9 rounded-full flex items-center justify-center hover:bg-zinc-100/50 transition-colors"
+                  aria-label={t("common.close")}
+                >
+                  <X size={18} className="text-zinc-500" />
+                </button>
+              </div>
 
-               <button onClick={() => setShowInfoModal(false)} className="absolute top-10 right-10 text-zinc-400 hover:text-zinc-600 transition-colors">
-                  <X size={24} />
-               </button>
+              <div className="overflow-y-auto px-6 py-5 space-y-5">
+                {restaurant?.description && (
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1.5">{t("product.description")}</div>
+                    <p className="text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>{restaurant.description}</p>
+                  </div>
+                )}
+
+                {restaurant?.address && (
+                  <div className="flex items-start gap-3">
+                    <MapPin className="text-gold-500 mt-0.5" size={16} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("menu.info.findHere")}</div>
+                      {/* Tappable address — opens Google Maps from any device.
+                          Falls back gracefully if no zip/city. */}
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([restaurant.address, restaurant.zip, restaurant.city].filter(Boolean).join(", "))}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block group"
+                      >
+                        <div className="text-sm font-bold leading-snug group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{restaurant.address}</div>
+                        {(restaurant.zip || restaurant.city) && (
+                          <div className="text-xs opacity-70" style={{ color: "var(--text-secondary)" }}>
+                            {[restaurant.zip, restaurant.city].filter(Boolean).join(" ")}
+                          </div>
+                        )}
+                        <span className="text-[10px] font-black uppercase tracking-widest text-gold-500 mt-1 inline-block">{t("menu.info.openMaps") || "Öppna i kartor →"}</span>
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {restaurant?.phone && (
+                  <div className="flex items-start gap-3">
+                    <Phone className="text-gold-500 mt-0.5" size={16} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("menu.info.callUs")}</div>
+                      <a href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`} className="text-sm font-bold text-gold-500 hover:text-gold-600 transition-colors">
+                        {restaurant.phone}
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {(restaurant as any)?.email && (
+                  <div className="flex items-start gap-3">
+                    <Mail className="text-gold-500 mt-0.5" size={16} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">E-post</div>
+                      <a href={`mailto:${(restaurant as any).email}`} className="text-sm font-bold text-gold-500 hover:text-gold-600 transition-colors break-words">
+                        {(restaurant as any).email}
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* Legal identity block — pulled live from Restaurant model
+                    (legalName + organizationNumber) instead of hardcoded. Only
+                    rendered when restaurant has filled in their company info. */}
+                {((restaurant as any)?.legalName || (restaurant as any)?.organizationNumber) && (
+                  <div className="pt-4 border-t" style={{ borderColor: "var(--border-muted)" }}>
+                    <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-2">Juridisk information</div>
+                    {(restaurant as any)?.legalName && (
+                      <div className="text-sm font-bold mb-0.5" style={{ color: "var(--text-primary)" }}>
+                        {(restaurant as any).legalName}
+                      </div>
+                    )}
+                    {(restaurant as any)?.organizationNumber && (
+                      <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                        Org.nr {(restaurant as any).organizationNumber}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}

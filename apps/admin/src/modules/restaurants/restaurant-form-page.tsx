@@ -75,7 +75,8 @@ const parseHoursFromDetail = (raw: unknown): HoursForm => {
 
 type FormState = {
   name: string; slug: string; description: string; cuisine: string;
-  address: string; city: string; zip: string; phone: string; adminEmail: string;
+  address: string; city: string; zip: string; phone: string; email: string; adminEmail: string;
+  legalName: string; organizationNumber: string;
   imageUrl: string; heroImageUrl: string;
   etaOverride: string; etaCalculated: number | null; etaEffective: number;
   featuredClass: number; isOpen: boolean; rating: number; ratingCount: number;
@@ -87,7 +88,8 @@ type FormState = {
 
 const emptyForm: FormState = {
   name: "", slug: "", description: "", cuisine: "",
-  address: "", city: "", zip: "", phone: "", adminEmail: "",
+  address: "", city: "", zip: "", phone: "", email: "", adminEmail: "",
+  legalName: "", organizationNumber: "",
   imageUrl: "", heroImageUrl: "",
   etaOverride: "", etaCalculated: null, etaEffective: 40,
   featuredClass: 3, isOpen: true, rating: 4.6, ratingCount: 0,
@@ -100,7 +102,11 @@ const emptyForm: FormState = {
 const mapDetailToForm = (d: RestaurantDetail): FormState => ({
   name: d.name, slug: d.slug, description: d.description || "",
   cuisine: d.cuisine || "", address: d.address || "", city: d.city || "",
-  zip: d.zip || "", phone: d.phone || "", adminEmail: (d as any).adminEmail || "",
+  zip: d.zip || "", phone: d.phone || "",
+  email: (d as any).email || "",
+  adminEmail: (d as any).adminEmail || "",
+  legalName: (d as any).legalName || "",
+  organizationNumber: (d as any).organizationNumber || "",
   imageUrl: d.imageUrl || "", heroImageUrl: d.heroImageUrl || "",
   etaOverride: d.etaOverrideMinutes != null ? String(d.etaOverrideMinutes) : "",
   etaCalculated: d.etaCalculatedMinutes ?? null, etaEffective: d.etaMinutes ?? 40,
@@ -120,7 +126,11 @@ const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
   name: f.name, slug: f.slug || undefined, description: f.description || null,
   cuisine: f.cuisine || undefined, address: f.address || undefined,
   city: f.city || undefined, zip: f.zip || undefined,
-  phone: f.phone || undefined, adminEmail: f.adminEmail || undefined,
+  phone: f.phone || undefined,
+  email: f.email || null,
+  legalName: f.legalName || null,
+  organizationNumber: f.organizationNumber || null,
+  adminEmail: f.adminEmail || undefined,
   imageUrl: f.imageUrl || null, heroImageUrl: f.heroImageUrl || null,
   etaOverrideMinutes: f.etaOverride.trim() === "" ? null : Number(f.etaOverride),
   featuredClass: Number(f.featuredClass || 3), isOpen: f.isOpen,
@@ -308,7 +318,18 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               </Field>
               <Field label="Postnummer"><Input value={form.zip} onChange={(e) => set("zip", e.target.value)} /></Field>
               <Field label="Telefon"><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+              <Field label="Kontakt-email (publik)">
+                <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="kontakt@palmyrapizzeria.se" />
+              </Field>
               <Field label="Admin-email"><Input value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} /></Field>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4 mt-1">
+              <Field label="Legalt namn (juridisk person)">
+                <Input value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="ex: Palmyra Pizzeria AB" />
+              </Field>
+              <Field label="Organisationsnummer">
+                <Input value={form.organizationNumber} onChange={(e) => set("organizationNumber", e.target.value)} placeholder="ex: 559123-4567" />
+              </Field>
             </div>
             <Field label="Beskrivning">
               <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} />

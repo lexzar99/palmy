@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { User, ArrowLeft, Loader2, Gift, CheckCircle2, Mail, Eye, EyeOff } from "lucide-react";
+import { User, ArrowLeft, Loader2, CheckCircle2, Mail, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -299,26 +299,11 @@ function RegisterContent() {
              )}
            </div>
 
-           {/* Referral-kod (frivilligt) — automatisk uppercase, max 12 tecken */}
-           <div className="space-y-1.5">
-             <label className="text-[9px] font-black uppercase tracking-widest text-zinc-500 ml-2 flex items-center gap-1.5">
-               <Gift size={11} className="text-gold-500" /> {t("auth.register.refLabel")}
-             </label>
-             <input
-               type="text"
-               placeholder={t("auth.register.refPlaceholder")}
-               maxLength={12}
-               value={referralCode}
-               onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
-               className="w-full rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-black tracking-[0.3em] text-base uppercase placeholder:text-zinc-400 placeholder:tracking-normal placeholder:font-bold text-gold-500 shadow-sm"
-               style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)" }}
-             />
-             {referralCode && (
-               <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 ml-2">
-                 {t("auth.register.refHint")}
-               </p>
-             )}
-           </div>
+           {/* Referral-system avstängt — håller fältet osynligt men låter
+               ?ref=KOD-URL-prefill fortsätta fungera tyst i bakgrunden så
+               befintliga referral-länkar inte 404:ar. Backend-redeemen
+               sker fortfarande automatiskt vid registrering om koden
+               är validate-bar. */}
 
            {error && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest text-center">{error}</p>}
 

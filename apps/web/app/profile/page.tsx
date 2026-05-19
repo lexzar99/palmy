@@ -21,7 +21,8 @@ import {
 import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
-import ReferralCard from "@/components/ReferralCard";
+// ReferralCard import removed — referral UI is disabled platform-wide.
+// Backend redeem-code endpoint stays intact for legacy URLs.
 import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 

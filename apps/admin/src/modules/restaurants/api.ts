@@ -28,6 +28,9 @@ export interface RestaurantDetail {
   city?: string | null;
   zip?: string | null;
   phone?: string | null;
+  email?: string | null;
+  legalName?: string | null;
+  organizationNumber?: string | null;
   imageUrl?: string | null;
   heroImageUrl?: string | null;
   rating?: number | null;
@@ -76,6 +79,9 @@ export interface RestaurantFormPayload {
   city?: string;
   zip?: string;
   phone?: string;
+  email?: string | null;
+  legalName?: string | null;
+  organizationNumber?: string | null;
   adminEmail?: string;
   imageUrl?: string | null;
   heroImageUrl?: string | null;

@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Hash, AlertCircle, Zap, ShieldCheck, ShoppingBag, Sparkles, MapPin, ArrowRight, Star, X, MessageSquare } from "lucide-react";
+import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, Hash, AlertCircle, Zap, ShieldCheck, ShoppingBag, Sparkles, MapPin, ArrowRight, Star, X, MessageSquare } from "lucide-react";
 import { openSupportChatWithOrder } from "@/components/SupportChat";
 import ShareInviteCard from "@/components/ShareInviteCard";
 import { io as socketIO } from "socket.io-client";
@@ -449,10 +449,29 @@ const OrderStatusPage = () => {
                     
                     <div className="flex items-start gap-5">
                        <Store className="text-gold-500/30 mt-1" size={20} />
-                        <div>
+                        <div className="min-w-0 flex-1">
                            <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("order.restaurant")}</div>
                            <div className="text-base font-black italic uppercase" style={{ color: "var(--text-primary)" }}>{order.restaurantName}</div>
-                           {order.restaurantPhone && <div className="text-[10px] font-black text-gold-500/60 mt-1">{order.restaurantPhone}</div>}
+                           {/* Contact restaurant — phone (tel:) and email
+                               (mailto:) shown as pill links when present. */}
+                           <div className="mt-2 flex flex-wrap gap-2">
+                             {order.restaurantPhone && (
+                               <a
+                                 href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`}
+                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gold-500/10 text-gold-600 text-[10px] font-black uppercase tracking-wider hover:bg-gold-500/20 transition-colors"
+                               >
+                                 <Phone size={11} /> {order.restaurantPhone}
+                               </a>
+                             )}
+                             {(order as any).restaurantEmail && (
+                               <a
+                                 href={`mailto:${(order as any).restaurantEmail}`}
+                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-500/10 text-sky-600 text-[10px] font-black uppercase tracking-wider hover:bg-sky-500/20 transition-colors break-all"
+                               >
+                                 <Mail size={11} /> {(order as any).restaurantEmail}
+                               </a>
+                             )}
+                           </div>
                         </div>
                     </div>
 
@@ -460,10 +479,18 @@ const OrderStatusPage = () => {
                        order.deliveryStreet && (
                           <div className="flex items-start gap-5">
                              <MapPin className="text-sky-500/30 mt-1" size={20} />
-                              <div>
+                              <div className="min-w-0 flex-1">
                                  <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("order.deliveryAddress")}</div>
-                                 <div className="text-sm font-black uppercase italic leading-tight" style={{ color: "var(--text-primary)" }}>{order.deliveryStreet}</div>
-                                 <div className="text-[11px] font-black text-zinc-400 uppercase tracking-widest mt-1">{order.restaurantCity || "LUND"}</div>
+                                 {/* Tappable delivery address — opens in maps */}
+                                 <a
+                                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([order.deliveryStreet, order.restaurantCity].filter(Boolean).join(", "))}`}
+                                   target="_blank"
+                                   rel="noreferrer"
+                                   className="group block"
+                                 >
+                                   <div className="text-sm font-black uppercase italic leading-tight group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{order.deliveryStreet}</div>
+                                   <div className="text-[11px] font-black text-zinc-400 uppercase tracking-widest mt-1">{order.restaurantCity || "LUND"}</div>
+                                 </a>
                               </div>
                           </div>
                        )
@@ -471,10 +498,18 @@ const OrderStatusPage = () => {
                        order.restaurantAddress && (
                           <div className="flex items-start gap-5">
                              <MapPin className="text-emerald-500/30 mt-1" size={20} />
-                              <div>
+                              <div className="min-w-0 flex-1">
                                  <div className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-600 mb-1">{t("order.pickupAt")}</div>
-                                 <div className="text-sm font-black uppercase italic leading-tight" style={{ color: "var(--text-primary)" }}>{order.restaurantAddress}</div>
-                                 <div className="text-[11px] font-black text-zinc-400 uppercase tracking-widest mt-1">{order.restaurantZip} {order.restaurantCity}</div>
+                                 {/* Tappable pickup address — opens in maps */}
+                                 <a
+                                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([order.restaurantAddress, order.restaurantZip, order.restaurantCity].filter(Boolean).join(", "))}`}
+                                   target="_blank"
+                                   rel="noreferrer"
+                                   className="group block"
+                                 >
+                                   <div className="text-sm font-black uppercase italic leading-tight group-hover:text-emerald-600 transition-colors" style={{ color: "var(--text-primary)" }}>{order.restaurantAddress}</div>
+                                   <div className="text-[11px] font-black text-zinc-400 uppercase tracking-widest mt-1">{order.restaurantZip} {order.restaurantCity}</div>
+                                 </a>
                               </div>
                           </div>
                        )

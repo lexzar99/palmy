@@ -1381,6 +1381,9 @@ router.get('/:id', async (req: Request, res: Response) => {
       restaurantZip: order.restaurant?.zip || '',
       restaurantCity: order.restaurant?.city || '',
       restaurantPhone: order.restaurant?.phone || '',
+      restaurantEmail: (order.restaurant as any)?.email || '',
+      restaurantLegalName: (order.restaurant as any)?.legalName || '',
+      restaurantOrgNr: (order.restaurant as any)?.organizationNumber || '',
       items: order.items.map((item: any) => ({
         id: item.id,
         productName: item.productName,

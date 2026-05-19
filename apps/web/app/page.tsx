@@ -335,10 +335,19 @@ export default function HomePage() {
 
     if (type === "PICKUP") {
       setZoneRestaurantIds(null);
+      // Pickup-city auto-default: prefer the delivery city the user already
+      // picked. Falls back to the previously-used pickup city, then to the
+      // address modal as a last resort. Old behaviour kept a stale pickup
+      // city (e.g. Malmö) forever — even after the user moved to Lund.
+      const storedDeliveryCity = typeof window !== "undefined" ? localStorage.getItem("platform_city") : null;
       const storedPickupCity = typeof window !== "undefined" ? localStorage.getItem("platform_pickup_city") : null;
-      if (storedPickupCity) {
-        setDetectedCityName(storedPickupCity);
-        resolveCityFamily(storedPickupCity);
+      const preferredCity = storedDeliveryCity || storedPickupCity;
+      if (preferredCity) {
+        // Sync pickup-city to whichever city we actually want to use so the
+        // next pickup toggle remembers it correctly.
+        if (typeof window !== "undefined") localStorage.setItem("platform_pickup_city", preferredCity);
+        setDetectedCityName(preferredCity);
+        resolveCityFamily(preferredCity);
       } else {
         setDetectedCityName(null);
         setCityFamilyIds(null);
@@ -887,7 +896,12 @@ export default function HomePage() {
                 hour < 17 ? t("home.greeting.day") :
                 hour < 22 ? t("home.greeting.evening") :
                 t("home.greeting.night");
-              const openCount = restaurants.filter((r) => r.isOpen !== false).length;
+              // Per-city open-count instead of platform-global. If the user
+              // has picked a city, only count restaurants in that city; if
+              // no city yet, fall back to global.
+              const openCount = restaurants
+                .filter(matchesCityFamily)
+                .filter((r) => r.isOpen !== false).length;
               return (
                 <div className="flex items-center gap-2 mb-3 relative z-10">
                   <div className="w-1.5 h-1.5 rounded-full bg-gold-500 shadow-[0_0_8px_rgba(212,167,74,0.8)]" />

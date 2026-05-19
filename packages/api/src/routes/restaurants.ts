@@ -37,6 +37,13 @@ const restaurantSchema = z.object({
   city: z.string().optional(),
   zip: z.string().optional(),
   phone: z.string().optional(),
+  // Public contact email for the restaurant — surfaces in the order-tracking
+  // "Contact restaurant" button. Optional, nullable.
+  email: z.string().nullable().optional(),
+  // Legal identity — surfaced in the restaurant info modal so customers can
+  // verify who they're ordering from. Both nullable.
+  legalName: z.string().nullable().optional(),
+  organizationNumber: z.string().nullable().optional(),
   adminEmail: z.string().optional(),
   imageUrl: z.string().nullable().optional(),
   heroImageUrl: z.string().nullable().optional(),
@@ -86,6 +93,9 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
     city: restaurant.city,
     zip: restaurant.zip,
     phone: restaurant.phone,
+    email: restaurant.email ?? null,
+    legalName: restaurant.legalName ?? null,
+    organizationNumber: restaurant.organizationNumber ?? null,
     imageUrl: restaurant.imageUrl,
     heroImageUrl: restaurant.heroImageUrl,
     rating: restaurant.rating ?? 4.6,
@@ -430,6 +440,9 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.city !== undefined) data.city = payload.city;
     if (payload.zip !== undefined) data.zip = payload.zip;
     if (payload.phone !== undefined) data.phone = payload.phone;
+    if ((payload as any).email !== undefined) data.email = (payload as any).email ? String((payload as any).email).trim().toLowerCase() : null;
+    if ((payload as any).legalName !== undefined) data.legalName = (payload as any).legalName ? String((payload as any).legalName).trim() : null;
+    if ((payload as any).organizationNumber !== undefined) data.organizationNumber = (payload as any).organizationNumber ? String((payload as any).organizationNumber).trim() : null;
     if (payload.adminEmail !== undefined) data.adminEmail = payload.adminEmail ? payload.adminEmail.trim().toLowerCase() : null;
     
     // Pictures

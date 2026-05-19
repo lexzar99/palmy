@@ -502,6 +502,14 @@ model Restaurant {
   city           String?      @default("Lund")
   zip            String?
   phone          String?
+  // Public contact email shown in the restaurant info modal + used by the
+  // order tracking "contact restaurant" button. Optional.
+  email          String?
+  // Legal / billing identity — shown in the restaurant info modal so customers
+  // can verify who they're buying from before checkout (consumer-protection
+  // best-practice + transparency). All optional; nothing breaks if blank.
+  legalName            String?     // ex: "Palmyra Pizzeria AB"
+  organizationNumber   String?     // ex: "559123-4567"
   imageUrl       String?
   heroImageUrl   String?
   rating         Float?       @default(4.6)
