@@ -81,6 +81,31 @@ router.get('/', async (_req, res) => {
           expiresAt: s.bannerExpiresAt,
         };
       })(),
+      // Platform pause: när aktiv stoppar API:t nya orderskapanden.
+      // Exponeras så kundappar kan visa en lugn "vi är tillbaka kl X"-skärm
+      // istället för cryptiska "Kunde inte skapa order"-felmeddelanden.
+      platformPause: (() => {
+        const s = settings as any;
+        if (!s.platformPausedUntil) return null;
+        const until = new Date(s.platformPausedUntil);
+        if (until.getTime() <= Date.now()) return null;
+        return {
+          until: until.toISOString(),
+          reason: s.platformPauseReason || null,
+        };
+      })(),
+      // Hero / brand-CMS — ifyllt = override default copy
+      hero: (() => {
+        const s = settings as any;
+        if (!s.heroTitle && !s.heroSubtitle && !s.heroImageUrl) return null;
+        return {
+          title: s.heroTitle || null,
+          subtitle: s.heroSubtitle || null,
+          imageUrl: s.heroImageUrl || null,
+          ctaLabel: s.heroCtaLabel || null,
+          ctaUrl: s.heroCtaUrl || null,
+        };
+      })(),
     });
   } catch (err) {
     console.error('Settings GET error:', err);
@@ -103,6 +128,7 @@ router.patch('/', authenticate, async (req, res) => {
       showDiscountedRail, bannerMessage, bannerSeverity, bannerExpiresAt,
       companyName, organizationNumber, companyAddress,
       supportEmail, privacyEmail, noReplyEmail,
+      heroTitle, heroSubtitle, heroImageUrl, heroCtaLabel, heroCtaUrl,
     } = req.body;
 
     // Lättviktig email-validering — bara om värdet är icke-tomt. Inte
@@ -172,6 +198,12 @@ router.patch('/', authenticate, async (req, res) => {
     if (noReplyEmail !== undefined) {
       data.noReplyEmail = validateEmail(noReplyEmail, 'No-reply-email');
     }
+    // Hero / CMS — all nullable, empty string clears the field
+    if (heroTitle !== undefined) data.heroTitle = validateString(heroTitle, 200, 'Hero-titel');
+    if (heroSubtitle !== undefined) data.heroSubtitle = validateString(heroSubtitle, 300, 'Hero-subtitel');
+    if (heroImageUrl !== undefined) data.heroImageUrl = validateString(heroImageUrl, 1000, 'Hero-bild-URL');
+    if (heroCtaLabel !== undefined) data.heroCtaLabel = validateString(heroCtaLabel, 80, 'Hero-CTA-etikett');
+    if (heroCtaUrl !== undefined) data.heroCtaUrl = validateString(heroCtaUrl, 1000, 'Hero-CTA-URL');
 
     const settings = await prisma.restaurantSettings.upsert({
       where: { id: 'settings' },

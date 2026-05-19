@@ -14,6 +14,12 @@ export interface PlatformSettings {
   supportEmail?: string | null;
   privacyEmail?: string | null;
   noReplyEmail?: string | null;
+  // A14: hero / brand CMS — visas på kund-webbens startsida.
+  heroTitle?: string | null;
+  heroSubtitle?: string | null;
+  heroImageUrl?: string | null;
+  heroCtaLabel?: string | null;
+  heroCtaUrl?: string | null;
 }
 
 export const platformSettingsQueryKey = ["platform-settings"] as const;

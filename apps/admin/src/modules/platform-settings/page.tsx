@@ -32,6 +32,11 @@ export function PlatformSettingsPage() {
     supportEmail: "",
     privacyEmail: "",
     noReplyEmail: "",
+    heroTitle: "",
+    heroSubtitle: "",
+    heroImageUrl: "",
+    heroCtaLabel: "",
+    heroCtaUrl: "",
   });
 
   const [savedFlash, setSavedFlash] = useState(false);
@@ -40,6 +45,8 @@ export function PlatformSettingsPage() {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     if (settings.data && !hydrated) {
+      // GET /settings returns a `hero` object; flatten it back into form fields.
+      const heroFromApi = (settings.data as { hero?: { title?: string; subtitle?: string; imageUrl?: string; ctaLabel?: string; ctaUrl?: string } | null }).hero ?? null;
       setForm({
         contactPhone: settings.data.contactPhone ?? "",
         contactPhoneHours: settings.data.contactPhoneHours ?? "",
@@ -53,6 +60,11 @@ export function PlatformSettingsPage() {
         supportEmail: settings.data.supportEmail ?? "",
         privacyEmail: settings.data.privacyEmail ?? "",
         noReplyEmail: settings.data.noReplyEmail ?? "",
+        heroTitle: heroFromApi?.title ?? "",
+        heroSubtitle: heroFromApi?.subtitle ?? "",
+        heroImageUrl: heroFromApi?.imageUrl ?? "",
+        heroCtaLabel: heroFromApi?.ctaLabel ?? "",
+        heroCtaUrl: heroFromApi?.ctaUrl ?? "",
       });
       setHydrated(true);
     }
@@ -221,6 +233,74 @@ export function PlatformSettingsPage() {
           placeholder="FoodGo är en plattform som..."
           rows={10}
         />
+      </Surface>
+
+      {/* A14 — Hero / brand CMS for the customer website */}
+      <Surface className="px-6 py-6">
+        <h2 className="text-base font-black uppercase tracking-tight mb-2">Hero på startsidan</h2>
+        <p className="text-xs mb-5" style={{ color: "var(--text-secondary)" }}>
+          Stora rubriken på kund-webbens startsida. Lämna fälten tomma för att använda default-texter (
+          <code>Hungrig? Vi fixar resten.</code>). Bilden visas till höger om texten.
+        </p>
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label="Rubrik">
+            <Input
+              value={form.heroTitle || ""}
+              onChange={(e) => setForm((p) => ({ ...p, heroTitle: e.target.value }))}
+              placeholder="Hungrig?"
+            />
+          </Field>
+          <Field label="Underrubrik">
+            <Input
+              value={form.heroSubtitle || ""}
+              onChange={(e) => setForm((p) => ({ ...p, heroSubtitle: e.target.value }))}
+              placeholder="Vi fixar resten."
+            />
+          </Field>
+          <Field label="Bild-URL (visas till höger)">
+            <Input
+              value={form.heroImageUrl || ""}
+              onChange={(e) => setForm((p) => ({ ...p, heroImageUrl: e.target.value }))}
+              placeholder="https://res.cloudinary.com/.../hero.png"
+            />
+          </Field>
+          <Field label="CTA-knapptext (valfritt)">
+            <Input
+              value={form.heroCtaLabel || ""}
+              onChange={(e) => setForm((p) => ({ ...p, heroCtaLabel: e.target.value }))}
+              placeholder="Beställ nu"
+            />
+          </Field>
+          <Field label="CTA-länk (valfritt)">
+            <Input
+              value={form.heroCtaUrl || ""}
+              onChange={(e) => setForm((p) => ({ ...p, heroCtaUrl: e.target.value }))}
+              placeholder="/upptack"
+            />
+          </Field>
+        </div>
+        {form.heroImageUrl && (
+          <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-2">Preview</div>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <div className="text-2xl font-black">{form.heroTitle || "Hungrig?"}</div>
+                <div className="text-xl font-bold text-[var(--accent)]">{form.heroSubtitle || "Vi fixar resten."}</div>
+                {form.heroCtaLabel && (
+                  <div className="mt-2 inline-block px-3 py-1.5 rounded-full bg-[var(--accent)]/20 text-xs font-bold">
+                    {form.heroCtaLabel}
+                  </div>
+                )}
+              </div>
+              <img
+                src={form.heroImageUrl}
+                alt=""
+                className="h-20 w-20 object-cover rounded-lg border border-[var(--border)]"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            </div>
+          </div>
+        )}
       </Surface>
     </div>
   );

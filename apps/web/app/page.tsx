@@ -127,6 +127,26 @@ export default function HomePage() {
   const [detectedCityName, setDetectedCityName] = useState<string | null>(null);
   // Quick-filter state
   const [quickFilter, setQuickFilter] = useState<"all" | "rated" | "fast" | "deals" | "free">("all");
+  // A14 — hero override from admin CMS. null = use translations (default).
+  const [heroOverride, setHeroOverride] = useState<{
+    title?: string | null;
+    subtitle?: string | null;
+    imageUrl?: string | null;
+    ctaLabel?: string | null;
+    ctaUrl?: string | null;
+  } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/settings`);
+        if (!cancelled && res.data?.hero) setHeroOverride(res.data.hero);
+      } catch {
+        /* fall back to translations */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
   // Favoriter (delad localStorage-backad store — paritet med RN)
   const { favorites, toggle: toggleFavorite } = useFavorites();
   // Tidsbaserad greeting — beräknas BARA client-side i useEffect för att
@@ -786,12 +806,20 @@ export default function HomePage() {
                 <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500">{t("home.heroDesktop.eyebrow")}</span>
               </div>
               <h1 className="text-5xl lg:text-6xl xl:text-7xl font-black italic tracking-tighter leading-[0.95] mb-3" style={{ color: "var(--text-primary)" }}>
-                {t("home.heroDesktop.titleLine1")}<br />
-                <span className="text-gold-500">{t("home.heroDesktop.titleLine2")}</span>
+                {heroOverride?.title || t("home.heroDesktop.titleLine1")}<br />
+                <span className="text-gold-500">{heroOverride?.subtitle || t("home.heroDesktop.titleLine2")}</span>
               </h1>
               <p className="text-sm lg:text-base font-bold mt-4 max-w-md" style={{ color: "var(--text-secondary)" }}>
                 {t("home.heroDesktop.subtitle")}
               </p>
+              {heroOverride?.ctaLabel && heroOverride?.ctaUrl ? (
+                <Link
+                  href={heroOverride.ctaUrl}
+                  className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest bg-gold-500 text-black hover:opacity-90 transition-opacity"
+                >
+                  {heroOverride.ctaLabel}
+                </Link>
+              ) : null}
               <div className="flex items-center gap-3 mt-6 flex-wrap">
                 {[t("home.heroDesktop.badge.fast"), t("home.heroDesktop.badge.secure"), t("home.heroDesktop.badge.local")].map((b) => (
                   <div key={b} className="flex items-center gap-1.5">
@@ -805,9 +833,18 @@ export default function HomePage() {
               <div className="absolute inset-0 rounded-full" style={{
                 background: "radial-gradient(circle, rgba(212,167,74,0.2) 0%, transparent 60%)",
               }} />
-              <div className="relative text-[180px] xl:text-[220px] font-black italic tracking-tighter leading-[1.15] opacity-90 text-gold-500 select-none">
-                🍕
-              </div>
+              {heroOverride?.imageUrl ? (
+                <img
+                  src={heroOverride.imageUrl}
+                  alt=""
+                  className="relative max-h-[260px] xl:max-h-[300px] w-auto object-contain drop-shadow-2xl"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              ) : (
+                <div className="relative text-[180px] xl:text-[220px] font-black italic tracking-tighter leading-[1.15] opacity-90 text-gold-500 select-none">
+                  🍕
+                </div>
+              )}
             </div>
           </div>
         </section>

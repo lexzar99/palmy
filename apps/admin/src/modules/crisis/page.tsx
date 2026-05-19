@@ -2,14 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Bell, BellOff, Ban, DollarSign, Loader2, Megaphone, Power, RotateCcw } from "lucide-react";
+import { AlertTriangle, Bell, BellOff, Ban, DollarSign, Loader2, Megaphone, Pause, Play, Power, RotateCcw, Timer, MapPin } from "lucide-react";
 import { Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import {
   bulkRefundRestaurant,
   deactivateRestaurant,
   emergencyCloseAll,
   emergencyOpenAll,
+  getCrisisState,
   getPlatformBanner,
+  pauseCity,
+  pausePlatform,
+  unpauseCity,
+  unpausePlatform,
   updatePlatformBanner,
 } from "@/modules/crisis/api";
 import { getDealRestaurants } from "@/modules/deals/api";
@@ -171,8 +176,180 @@ export function CrisisPage() {
         </div>
       </Surface>
 
+      <PlatformPauseControls />
+      <CityPauseControls />
       <PerRestaurantCrisis />
     </div>
+  );
+}
+
+// A11 — Pause the entire platform for X minutes (auto-resumes).
+// Use case: payment provider outage, infra incident. Less destructive than
+// emergency-close-all because (a) it auto-recovers, (b) restaurants stay open
+// once the pause lifts (no need to manually re-open everyone).
+function PlatformPauseControls() {
+  const queryClient = useQueryClient();
+  const state = useQuery({ queryKey: ["crisis-state"], queryFn: getCrisisState, refetchInterval: 30_000 });
+  const [minutes, setMinutes] = useState<number>(15);
+  const [reason, setReason] = useState("");
+
+  const pauseMut = useMutation({
+    mutationFn: () => pausePlatform(minutes, reason || undefined),
+    onSuccess: (data) => {
+      alert(`✅ Plattformen pausad till ${new Date(data.until).toLocaleString("sv-SE")}.`);
+      setReason("");
+      void queryClient.invalidateQueries({ queryKey: ["crisis-state"] });
+    },
+    onError: (err: any) => alert(`❌ ${err?.response?.data?.error || "Pause misslyckades"}`),
+  });
+  const unpauseMut = useMutation({
+    mutationFn: unpausePlatform,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["crisis-state"] });
+    },
+  });
+
+  const paused = state.data?.platformPaused ?? null;
+
+  return (
+    <Surface className="px-6 py-6">
+      <div className="flex items-center gap-3 mb-4">
+        <Pause size={18} className="text-amber-500" />
+        <h2 className="text-base font-black uppercase tracking-tight">Pausa plattformen</h2>
+      </div>
+      {paused ? (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 mb-4">
+          <div className="flex items-start gap-2 text-sm">
+            <Timer size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold">Plattformen är pausad till {new Date(paused.until).toLocaleString("sv-SE")}</div>
+              {paused.reason && <div className="text-xs text-amber-200/80 mt-1">{paused.reason}</div>}
+              <div className="text-[10px] text-[var(--text-muted)] mt-1">
+                Nya orderskapanden blockeras med HTTP 503. Auto-återställning vid utgång.
+              </div>
+            </div>
+          </div>
+          <Button
+            variant="secondary"
+            className="mt-3"
+            onClick={() => unpauseMut.mutate()}
+            disabled={unpauseMut.isPending}
+          >
+            {unpauseMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+            Lyft pausen nu
+          </Button>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
+            Stoppar nya orderskapanden globalt utan att stänga restauranger. Använd vid betalleverantörs-utfall
+            eller plattforms-incidenter. Auto-återupptar.
+          </p>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Field label="Tid (minuter, 1-360)">
+              <Input
+                type="number"
+                value={minutes}
+                onChange={(e) => setMinutes(Math.max(1, Math.min(360, Number(e.target.value) || 1)))}
+                min={1}
+                max={360}
+              />
+            </Field>
+            <Field label="Anledning (loggas)">
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Stripe outage" />
+            </Field>
+          </div>
+          <Button
+            variant="danger"
+            className="mt-4"
+            onClick={() => {
+              if (!window.confirm(`Pausa plattformen i ${minutes} min?\n\nIngen ny order kan skapas under denna tid. Anledning: ${reason || "(ingen)"}.`)) return;
+              pauseMut.mutate();
+            }}
+            disabled={pauseMut.isPending}
+          >
+            {pauseMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Pause size={14} />}
+            Pausa nu
+          </Button>
+        </>
+      )}
+    </Surface>
+  );
+}
+
+// A11 — Close all restaurants in a single city without taking down the whole platform.
+function CityPauseControls() {
+  const queryClient = useQueryClient();
+  const state = useQuery({ queryKey: ["crisis-state"], queryFn: getCrisisState });
+  const [cityId, setCityId] = useState("");
+  const [reason, setReason] = useState("");
+
+  const pauseMut = useMutation({
+    mutationFn: () => pauseCity({ cityId, reason: reason || undefined }),
+    onSuccess: (data) => {
+      alert(`✅ ${data.closedCount} restauranger i staden stängdes.`);
+      setReason("");
+      void queryClient.invalidateQueries({ queryKey: ["crisis-state"] });
+    },
+    onError: (err: any) => alert(`❌ ${err?.response?.data?.error || "Stadspaus misslyckades"}`),
+  });
+  const unpauseMut = useMutation({
+    mutationFn: () => unpauseCity({ cityId }),
+    onSuccess: (data) => {
+      alert(`✅ ${data.openedCount} restauranger i staden återöppnades.`);
+      void queryClient.invalidateQueries({ queryKey: ["crisis-state"] });
+    },
+  });
+
+  return (
+    <Surface className="px-6 py-6">
+      <div className="flex items-center gap-3 mb-4">
+        <MapPin size={18} className="text-rose-500" />
+        <h2 className="text-base font-black uppercase tracking-tight">Pausa en stad</h2>
+      </div>
+      <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
+        Stänger alla restauranger i en specifik stad. Använd vid lokala leveransproblem eller stadsspecifika incidenter — så slipper du stänga ner hela plattformen.
+      </p>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Välj stad">
+          <Select value={cityId} onChange={(e) => setCityId(e.target.value)}>
+            <option value="">— Välj —</option>
+            {(state.data?.cities ?? []).map((c) => (
+              <option key={c.id} value={c.id}>{c.name}{c.isActive ? "" : " (inaktiv)"}</option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Anledning (loggas)">
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Snöstorm — leverans stoppad" />
+        </Field>
+      </div>
+      <div className="flex gap-3 mt-4">
+        <Button
+          variant="danger"
+          disabled={!cityId || pauseMut.isPending}
+          onClick={() => {
+            if (!cityId) { alert("Välj stad först."); return; }
+            if (!window.confirm("Stäng alla restauranger i vald stad?")) return;
+            pauseMut.mutate();
+          }}
+        >
+          {pauseMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Pause size={14} />}
+          Stäng stad
+        </Button>
+        <Button
+          variant="secondary"
+          disabled={!cityId || unpauseMut.isPending}
+          onClick={() => {
+            if (!cityId) return;
+            if (!window.confirm("Återöppna alla restauranger i vald stad?")) return;
+            unpauseMut.mutate();
+          }}
+        >
+          {unpauseMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+          Återöppna stad
+        </Button>
+      </div>
+    </Surface>
   );
 }
 

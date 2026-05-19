@@ -189,6 +189,28 @@ router.post('/', async (req: Request, res: Response) => {
     } else {
       console.log('📦 New Order Request', { restaurantId: req.body?.restaurantId, type: req.body?.type, itemCount: req.body?.items?.length });
     }
+
+    // Crisis: platform-wide pause. Set via /api/admin/crisis/pause-platform.
+    // Reject before doing any work — cheaper than parsing/validating the body.
+    try {
+      const settings = await prisma.restaurantSettings.findUnique({
+        where: { id: 'settings' },
+        select: { platformPausedUntil: true, platformPauseReason: true } as any,
+      });
+      const until = (settings as any)?.platformPausedUntil;
+      if (until && new Date(until).getTime() > Date.now()) {
+        return res.status(503).json({
+          error: 'PLATFORM_PAUSED',
+          message: 'Plattformen är tillfälligt pausad. Försök igen om en stund.',
+          until: new Date(until).toISOString(),
+          reason: (settings as any)?.platformPauseReason || null,
+        });
+      }
+    } catch {
+      // If the settings check itself errors, fall through to normal flow —
+      // we never want a transient DB blip to silently block all orders.
+    }
+
     const data = CreateOrderSchema.parse(req.body);
     const isPendingPayment = data.pendingPayment === true;
     const hasPaymentIntent = Boolean(data.stripePaymentIntentId);

@@ -4257,6 +4257,126 @@ router.post('/emergency-open-all', authenticate, requireSuperAdmin, async (req: 
   }
 });
 
+// POST /api/admin/crisis/pause-platform — granular alternative to
+// emergency-close-all. Sets a platformPausedUntil deadline on settings;
+// order creation refuses while active. Auto-resumes when the deadline
+// passes — no manual unpause needed for the typical "Stripe down 15 min" case.
+// Body: { minutes: number (1-360), reason?: string }
+router.post('/crisis/pause-platform', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { minutes, reason } = req.body as { minutes?: number; reason?: string };
+    const m = Number(minutes);
+    if (!Number.isFinite(m) || m < 1 || m > 360) {
+      res.status(400).json({ error: 'minutes måste vara 1-360' });
+      return;
+    }
+    const until = new Date(Date.now() + m * 60_000);
+    const updated = await prisma.restaurantSettings.upsert({
+      where: { id: 'settings' },
+      update: { platformPausedUntil: until, platformPauseReason: reason || null } as any,
+      create: { id: 'settings', platformPausedUntil: until, platformPauseReason: reason || null } as any,
+    });
+    await audit(req, 'PLATFORM_PAUSE', {
+      resourceType: 'Platform',
+      changes: { until: until.toISOString(), minutes: m, reason: reason || null },
+    });
+    try {
+      getIO().emit('platform:paused', { until: until.toISOString(), reason: reason || null });
+    } catch {}
+    res.json({ success: true, until: until.toISOString(), reason: reason || null });
+  } catch (err) {
+    console.error('[crisis/pause-platform] error:', err);
+    res.status(500).json({ error: 'Pause misslyckades' });
+  }
+});
+
+// POST /api/admin/crisis/unpause-platform — lift the platform-wide pause
+router.post('/crisis/unpause-platform', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    await prisma.restaurantSettings.update({
+      where: { id: 'settings' },
+      data: { platformPausedUntil: null, platformPauseReason: null } as any,
+    });
+    await audit(req, 'PLATFORM_UNPAUSE', { resourceType: 'Platform', changes: {} });
+    try {
+      getIO().emit('platform:unpaused', {});
+    } catch {}
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Unpause misslyckades' });
+  }
+});
+
+// POST /api/admin/crisis/pause-city — close all restaurants in a single city
+// (or matching a city name) without taking down the rest of the platform.
+// Body: { cityId?: string, city?: string, reason?: string }
+// Returns the affected restaurant count. Use the existing emergency-open-all
+// or per-restaurant toggle to bring them back.
+router.post('/crisis/pause-city', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { cityId, city, reason } = req.body as { cityId?: string; city?: string; reason?: string };
+    if (!cityId && !city) {
+      res.status(400).json({ error: 'cityId eller city krävs' });
+      return;
+    }
+    const where: any = { isOpen: true };
+    if (cityId) where.cityId = cityId;
+    if (city && !cityId) where.city = city;
+    const result = await prisma.restaurant.updateMany({ where, data: { isOpen: false } });
+    await audit(req, 'CITY_PAUSE', {
+      resourceType: 'City',
+      resourceId: cityId || city,
+      changes: { reason: reason || null, restaurantsClosed: result.count },
+    });
+    res.json({ success: true, closedCount: result.count, cityId: cityId || null, city: city || null });
+  } catch (err) {
+    console.error('[crisis/pause-city] error:', err);
+    res.status(500).json({ error: 'Stadspaus misslyckades' });
+  }
+});
+
+// POST /api/admin/crisis/unpause-city — re-open all restaurants in a city
+router.post('/crisis/unpause-city', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { cityId, city } = req.body as { cityId?: string; city?: string };
+    if (!cityId && !city) {
+      res.status(400).json({ error: 'cityId eller city krävs' });
+      return;
+    }
+    const where: any = { isOpen: false };
+    if (cityId) where.cityId = cityId;
+    if (city && !cityId) where.city = city;
+    const result = await prisma.restaurant.updateMany({ where, data: { isOpen: true } });
+    await audit(req, 'CITY_UNPAUSE', {
+      resourceType: 'City',
+      resourceId: cityId || city,
+      changes: { restaurantsOpened: result.count },
+    });
+    res.json({ success: true, openedCount: result.count });
+  } catch (err) {
+    res.status(500).json({ error: 'Stadsåteröppning misslyckades' });
+  }
+});
+
+// GET /api/admin/crisis/state — what's currently paused
+router.get('/crisis/state', authenticate, requireSuperAdmin, async (_req: AuthRequest, res) => {
+  try {
+    const [settings, cities] = await Promise.all([
+      prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
+      prisma.city.findMany({
+        select: { id: true, name: true, slug: true, isActive: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+    const s = settings as any;
+    const pausedUntil = s?.platformPausedUntil ? new Date(s.platformPausedUntil) : null;
+    const platformPaused = pausedUntil && pausedUntil.getTime() > Date.now() ? { until: pausedUntil.toISOString(), reason: s.platformPauseReason || null } : null;
+    res.json({ platformPaused, cities });
+  } catch (err) {
+    res.status(500).json({ error: 'Kunde inte hämta krisstatus' });
+  }
+});
+
 // GET /api/admin/audit-log?limit=100&offset=0
 router.get('/audit-log', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
   try {

@@ -436,6 +436,20 @@ model RestaurantSettings {
   bannerSeverity        String?  // "info" | "warning" | "critical"
   bannerExpiresAt       DateTime? // Auto-rensar — null = visas tills manuellt borttagen
 
+  // Plattform-paus: när satt blockerar API:t nya orderskapanden globalt
+  // (t.ex. betalleverantörs-utfall). Auto-rensar när tiden passerat.
+  // Sätts via /api/admin/crisis/pause-platform och rensas av unpause/expiry.
+  platformPausedUntil   DateTime?
+  platformPauseReason   String?
+
+  // Hero / brand-CMS — visas på kund-webbens startsida.
+  // Tomt = använd default-strängar i översättningsfiler (status quo).
+  heroTitle             String?  // ex: "Hungrig?"
+  heroSubtitle          String?  // ex: "Vi fixar resten."
+  heroImageUrl          String?  // bild visad till höger om hero-texten
+  heroCtaLabel          String?  // valfri CTA-knapptext
+  heroCtaUrl            String?  // valfri CTA-länk
+
   // Welcome deal — auto-tilldelas vid registrering om aktiv. Pekar på
   // en Personal Template-Deal (samma pattern som referral). Admin skapar
   // mallen i /marketing-referrals och pekar hit via welcomeDealId.

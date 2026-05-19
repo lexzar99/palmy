@@ -32,3 +32,33 @@ export interface PlatformBannerSettings {
 export const getPlatformBanner = () => apiGet<PlatformBannerSettings & Record<string, unknown>>("/settings");
 export const updatePlatformBanner = (payload: PlatformBannerSettings) =>
   apiPatch<{ success: boolean }>("/settings", payload);
+
+// A11 — platform / city granular crisis controls
+export interface CrisisState {
+  platformPaused: { until: string; reason: string | null } | null;
+  cities: Array<{ id: string; name: string; slug: string; isActive: boolean }>;
+}
+export const getCrisisState = () => apiGet<CrisisState>("/admin/crisis/state");
+
+export const pausePlatform = (minutes: number, reason?: string) =>
+  apiPost<{ success: boolean; until: string; reason: string | null }>("/admin/crisis/pause-platform", { minutes, reason });
+
+export const unpausePlatform = () =>
+  apiPost<{ success: boolean }>("/admin/crisis/unpause-platform");
+
+export const pauseCity = (input: { cityId?: string; city?: string; reason?: string }) =>
+  apiPost<{ success: boolean; closedCount: number }>("/admin/crisis/pause-city", input);
+
+export const unpauseCity = (input: { cityId?: string; city?: string }) =>
+  apiPost<{ success: boolean; openedCount: number }>("/admin/crisis/unpause-city", input);
+
+// A14 — hero / brand CMS (PATCH /api/settings)
+export interface HeroSettings {
+  heroTitle?: string | null;
+  heroSubtitle?: string | null;
+  heroImageUrl?: string | null;
+  heroCtaLabel?: string | null;
+  heroCtaUrl?: string | null;
+}
+export const updateHero = (payload: HeroSettings) =>
+  apiPatch<{ success: boolean }>("/settings", payload);
