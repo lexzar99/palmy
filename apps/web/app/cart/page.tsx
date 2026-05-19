@@ -2585,7 +2585,6 @@ export default function CartPage() {
                               {selectedPersonalDeal ? t("cart.discount.promoRemove") : t("cart.discount.promoCheck")}
                            </button>
                         </div>
-                     </div>
 
                      {/* BOGO: påminn om gratisprodukt(er) om fler kan väljas.
                          För scaled-BOGO (maxFreeItems > 1): visar antal kvar.
@@ -2829,7 +2828,8 @@ export default function CartPage() {
                           </p>
                         </div>
                      )}
-                        </div>{/* end mobile-only extras */}
+                        </div>{/* end lg:hidden mobile-only extras */}
+                     </div>{/* end space-y-8 */}
 
                      {/* Mobile: zone error + checkout (desktop has these in left column) */}
                      <div className="lg:hidden">
