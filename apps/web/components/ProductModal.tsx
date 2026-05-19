@@ -260,40 +260,31 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         {/* Scrollbar yta — hero + body + extras scrollar tillsammans */}
         <div className="flex-1 overflow-y-auto no-scrollbar" style={{ overscrollBehavior: "contain" }}>
 
-          {/* Hero (skrollar med innehållet) */}
-          <div
-            className="relative w-full"
-            style={{
-              height: "260px",
-              backgroundImage: hasImage
-                ? `url("${product.imageUrl}")`
-                : "radial-gradient(circle at 22% 28%, rgba(200,154,60,0.30) 0%, transparent 45%), radial-gradient(circle at 78% 76%, rgba(200,154,60,0.22) 0%, transparent 50%), linear-gradient(135deg, rgba(200,154,60,0.20) 0%, rgba(200,154,60,0.10) 100%)",
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              backgroundColor: "rgba(200,154,60,0.10)",
-            }}
-          >
-            <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-white/70" />
-            {!hasImage && (
-              <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
-                <span
-                  className="font-black leading-none"
-                  style={{
-                    color: "#8a6418",
-                    fontSize: (product.name || "").length > 14 ? "32px" : (product.name || "").length > 10 ? "40px" : "48px",
-                    letterSpacing: "-1.4px",
-                  }}
-                >
-                  {product.name}
-                </span>
-              </div>
-            )}
-            {hasDiscount && hasImage && (
-              <div className="absolute top-5 left-1/2 -translate-x-1/2 bg-gold-500 text-zinc-900 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full">
-                −{Math.round((1 - effectiveBasePrice / product.price) * 100)}%
-              </div>
-            )}
-          </div>
+          {/* Hero (skrollar med innehållet). Bild ger 260px hero; utan bild
+              krymper hero till bara drag-handle + lite spacing — namnet visas
+              istället stort i titel-blocket nedanför. */}
+          {hasImage ? (
+            <div
+              className="relative w-full"
+              style={{
+                height: "260px",
+                backgroundImage: `url("${product.imageUrl}")`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+            >
+              <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-white/70" />
+              {hasDiscount && (
+                <div className="absolute top-5 left-1/2 -translate-x-1/2 bg-gold-500 text-zinc-900 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full">
+                  −{Math.round((1 - effectiveBasePrice / product.price) * 100)}%
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="relative w-full" style={{ height: "30px" }}>
+              <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full" style={{ backgroundColor: "rgba(28,28,30,0.18)" }} />
+            </div>
+          )}
 
           {/* Innehåll */}
           <div className="px-5 pt-5 pb-4">
@@ -304,10 +295,16 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
               </div>
             ) : null}
 
-            {/* Titel */}
+            {/* Titel — större när bild saknas så hero-luckan inte känns tom. */}
             <h2
               className="font-black m-0"
-              style={{ fontSize: "26px", letterSpacing: "-0.7px", lineHeight: 1.05, color: "var(--text-primary, #1c1c1e)" }}
+              style={{
+                fontSize: hasImage ? "26px" : "34px",
+                letterSpacing: "-0.7px",
+                lineHeight: 1.05,
+                color: "var(--text-primary, #1c1c1e)",
+                marginTop: hasImage ? "0" : "8px",
+              }}
             >
               {product.name}
             </h2>

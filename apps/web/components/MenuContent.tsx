@@ -160,29 +160,34 @@ function FullProductCard({ product, cartQty, onClick, disabled }: { product: any
  * beskrivning + pris under. Flytande "+"-knapp som overlay på bilden, och en
  * "🔥 Populär"-flagga i högra hörnet om kortet också finns i Mest Populära.
  */
-function UniformCard({ product, isPopular, onClick, disabled }: { product: any; isPopular?: boolean; onClick: () => void; disabled: boolean }) {
+function UniformCard({ product, isPopular, compact, onClick, disabled }: { product: any; isPopular?: boolean; compact?: boolean; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
   const hasImage = Boolean(product.imageUrl);
+  // Compact variant används av "Populärt"-raden — kortare totalhöjd och bild
+  // så korten inte ser smala och stretched ut vid sidan av grid-kortet.
+  const totalH = compact ? 210 : 270;
+  const imgH = compact ? 110 : 160;
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-disabled={disabled}
-      className={`group relative rounded-2xl overflow-hidden text-left flex flex-col h-[270px] transition-transform ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:scale-[0.98] cursor-pointer"}`}
-      style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 8px rgba(28,28,30,0.04), 0 1px 2px rgba(28,28,30,0.03)" }}
+      className={`group relative rounded-2xl overflow-hidden text-left flex flex-col transition-transform ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:scale-[0.98] cursor-pointer"}`}
+      style={{ height: `${totalH}px`, backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 8px rgba(28,28,30,0.04), 0 1px 2px rgba(28,28,30,0.03)" }}
     >
-      {/* Bild eller text-only platta (alltid 160px) */}
+      {/* Bild eller text-only platta */}
       <div
-        className="relative h-[160px] flex-shrink-0"
-        style={
-          hasImage
+        className="relative flex-shrink-0"
+        style={{
+          height: `${imgH}px`,
+          ...(hasImage
             ? { backgroundImage: `url("${product.imageUrl}")`, backgroundSize: "cover", backgroundPosition: "center" }
             : {
                 backgroundImage:
                   "radial-gradient(circle at 22% 28%, rgba(200,154,60,0.22) 0%, transparent 40%), radial-gradient(circle at 78% 76%, rgba(200,154,60,0.16) 0%, transparent 42%), linear-gradient(135deg, rgba(200,154,60,0.20) 0%, rgba(200,154,60,0.10) 100%)",
-              }
-        }
+              }),
+        }}
       >
         {!hasImage && (
           <div className="absolute inset-0 flex items-center justify-center px-2 pt-3 pb-5 text-center">
@@ -1206,10 +1211,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                        <div
                          key={`pop-${p.id}`}
                          className="snap-start shrink-0"
-                         style={{ width: "calc(50% - 18px)", maxWidth: "220px", minWidth: "160px" }}
+                         style={{ width: "calc(50% - 18px)", maxWidth: "200px", minWidth: "150px" }}
                        >
                          <UniformCard
                            product={p}
+                           compact
                            onClick={() => handleOpenProduct(p)}
                            disabled={!restaurant?.isOpen || zoneAvailable === false}
                          />
