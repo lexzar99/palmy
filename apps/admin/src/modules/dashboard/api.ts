@@ -25,6 +25,10 @@ export interface ControlCenterRestaurantSnapshot {
   adminEmail: string | null;
   hasHours: boolean;
   hasVisuals: boolean;
+  // Image URLs so the restaurants list/dashboard card can render the actual
+  // profile pic instead of falling back to an emoji.
+  imageUrl?: string | null;
+  heroImageUrl?: string | null;
   etaMinutes: number;
   deliveryFee: number;
   minOrderAmount: number;

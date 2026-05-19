@@ -644,23 +644,36 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           </button>
         )}
 
-        <div className={`absolute top-4 left-[4.25rem] px-3 py-1 rounded-full backdrop-blur-xl flex items-center gap-1.5 shadow-md ${restaurant?.isOpen ? "bg-emerald-500/95 text-white" : "bg-rose-500/95 text-white"}`}>
-          <span className={`w-1.5 h-1.5 rounded-full bg-white ${restaurant?.isOpen ? "animate-pulse" : ""}`} />
-          <span className="text-[10px] font-black uppercase tracking-[0.15em]">{restaurant?.isOpen ? t("menu.statusOpen") : t("menu.statusClosed")}</span>
-        </div>
       </div>
 
       {/* ── Restaurang-info DIREKT under hero (titel, rating, knappar) ──── */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="px-5 sm:px-6 lg:px-12 pt-4 sm:pt-6 max-w-5xl mx-auto">
-        <h1 className="font-black italic uppercase tracking-tight leading-[0.95] text-[2.4rem] sm:text-5xl">
-          <span style={{ color: "var(--text-primary)" }}>{firstWord}</span>
-          {restOfTitle && (
-            <>
-              {" "}
-              <span className="text-gold-500">{restOfTitle}</span>
-            </>
-          )}
-        </h1>
+      <div className="px-5 sm:px-6 lg:px-12 pt-4 sm:pt-6 max-w-5xl mx-auto">
+        <div className="flex items-start gap-3 flex-wrap">
+          <h1 className="font-black italic uppercase tracking-tight leading-[0.95] text-[2.4rem] sm:text-5xl">
+            <span style={{ color: "var(--text-primary)" }}>{firstWord}</span>
+            {restOfTitle && (
+              <>
+                {" "}
+                <span className="text-gold-500">{restOfTitle}</span>
+              </>
+            )}
+          </h1>
+          {/* Open/closed status now sits next to the title instead of being
+              stuck to the hero — easier to spot above the fold on mobile and
+              doesn't overlap the back button on small screens. */}
+          <div
+            className={`mt-2 sm:mt-3 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm ${
+              restaurant?.isOpen
+                ? "bg-emerald-500/95 text-white"
+                : "bg-rose-500/95 text-white"
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full bg-white ${restaurant?.isOpen ? "animate-pulse" : ""}`} />
+            <span className="text-[10px] font-black uppercase tracking-[0.15em]">
+              {restaurant?.isOpen ? t("menu.statusOpen") : t("menu.statusClosed")}
+            </span>
+          </div>
+        </div>
         {/* Inline metadata: cuisine · ★rating (votes) */}
         <div className="mt-2.5 flex items-center gap-2 text-sm">
           {restaurant?.cuisine && (
@@ -679,27 +692,26 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
         {/* Action-knappar: INFO (outline) + KONTAKTA OSS (solid gold) */}
         <div className="mt-4 flex items-center gap-2.5">
-          <motion.button
-            whileTap={{ scale: 0.95 }}
+          <button
+            type="button"
             onClick={() => setShowInfoModal(true)}
-            className="px-5 py-3 rounded-full flex items-center gap-2 text-xs font-black uppercase tracking-wider transition-all hover:bg-zinc-50"
+            className="px-5 py-3 rounded-full flex items-center gap-2 text-xs font-black uppercase tracking-wider transition-all hover:bg-zinc-50 active:scale-95"
             style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid var(--border-muted)", color: "var(--text-primary)" }}
           >
             <Info size={15} className="text-zinc-600" />
             {t("menu.info")}
-          </motion.button>
+          </button>
           {restaurant?.phone && (
-            <motion.a
-              whileTap={{ scale: 0.95 }}
+            <a
               href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`}
-              className="px-5 py-3 rounded-full flex items-center gap-2 text-xs font-black uppercase tracking-wider bg-gold-500 text-zinc-950 hover:bg-gold-400 transition-all shadow-md shadow-gold-500/20"
+              className="px-5 py-3 rounded-full flex items-center gap-2 text-xs font-black uppercase tracking-wider bg-gold-500 text-zinc-950 hover:bg-gold-400 transition-all shadow-md shadow-gold-500/20 active:scale-95"
             >
               <Phone size={15} />
               {t("menu.contact")}
-            </motion.a>
+            </a>
           )}
         </div>
-      </motion.div>
+      </div>
 
       <div className="mx-auto max-w-5xl px-5 sm:px-6 lg:px-12 pt-6 sm:pt-8 relative">
 
@@ -770,7 +782,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           <PreviouslyOrderedBar restaurantId={restaurant.id} restaurantSlug={restaurantSlug || restaurant.slug} />
         )}
 
-        {/* ── Stats-kort: vit kort med 3 kolumner (Leveransavgift / Leveranstid / Minimum) ── */}
+        {/* ── Stats-kort: 3 kolumner på desktop, kompakta på mobil ──
+            Tidigare hade kortet `grid-cols-3` även på 320px-skärmar →
+            "MINSTA ORDER" / "VÄNTETID" truncatedes till "MINSTA OR..." /
+            "VÄNTETI...". Nu: värdet är största elementet och får aldrig
+            wrappa, labels får wrappa till 2 rader, ikonen krymper på
+            extra-små viewports och horisontell padding minskas så all
+            text alltid syns. */}
         {orderType === "DELIVERY" && <div className="grid grid-cols-3 mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 16px rgba(28,28,30,0.04)" }}>
           {[
             {
@@ -795,15 +813,15 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
             return (
               <div
                 key={stat.label}
-                className={`flex items-center gap-2.5 px-3 py-3.5 sm:px-4 sm:py-4 ${i < arr.length - 1 ? "border-r" : ""}`}
+                className={`flex items-center gap-2 px-2 py-3 sm:gap-2.5 sm:px-4 sm:py-4 ${i < arr.length - 1 ? "border-r" : ""}`}
                 style={{ borderColor: "rgba(28,28,30,0.06)" }}
               >
-                <div className="w-9 h-9 rounded-full bg-gold-500/10 flex items-center justify-center shrink-0">
-                  <Icon size={16} className="text-gold-500" strokeWidth={2.2} />
+                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gold-500/10 flex items-center justify-center shrink-0">
+                  <Icon size={14} className="sm:[&]:size-4 text-gold-500" strokeWidth={2.2} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[9px] font-bold uppercase tracking-wider leading-tight truncate" style={{ color: "var(--text-secondary)" }}>{stat.label}</div>
-                  <div className="text-sm font-black leading-tight mt-0.5 truncate" style={{ color: "var(--text-primary)" }}>{stat.value}</div>
+                  <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider leading-tight break-words" style={{ color: "var(--text-secondary)" }}>{stat.label}</div>
+                  <div className="text-xs sm:text-sm font-black leading-tight mt-0.5 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{stat.value}</div>
                 </div>
               </div>
             );
@@ -954,20 +972,16 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                </p>
              </motion.div>
            ) : (
-             filteredCategories.map((cat, catIdx) => {
+             filteredCategories.map((cat) => {
                const catWords = (cat.name || "").trim().split(/\s+/);
                const catFirst = catWords[0] || cat.name;
                const catRest = catWords.slice(1).join(" ");
                const rows = groupProductsByDisplay(cat.products);
                return (
-                 <motion.section
-                   key={cat.id}
-                   id={cat.id}
-                   initial={{ opacity: 0, y: 20 }}
-                   whileInView={{ opacity: 1, y: 0 }}
-                   viewport={{ once: true, amount: 0.1 }}
-                   transition={{ delay: Math.min(catIdx * 0.05, 0.2) }}
-                 >
+                 // Products used to fade in via motion.section + whileInView
+                 // (felt slow + janky on scroll). Switched to a plain section
+                 // so categories render instantly.
+                 <section key={cat.id} id={cat.id}>
                    {/* Kategori-rubrik: EN rad, två-färgad (svart + gold) */}
                    <div className="flex items-end gap-4 mb-5">
                      <h2 className="font-black italic uppercase tracking-tight leading-none text-[1.8rem] sm:text-3xl">
@@ -1006,7 +1020,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                        );
                      })}
                    </div>
-                 </motion.section>
+                 </section>
                );
              })
            )}

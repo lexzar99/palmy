@@ -235,11 +235,24 @@ export function DashboardPage() {
               )}
             </div>
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {data.restaurantSnapshots.map((r) => (
+              {data.restaurantSnapshots.map((r) => {
+                const avatar = r.imageUrl || r.heroImageUrl;
+                return (
                 <div
                   key={r.id}
-                  className="surface-muted flex items-center gap-3 px-5 py-4"
+                  className="surface-muted flex items-center gap-3 px-4 py-3"
                 >
+                  {avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={avatar}
+                      alt=""
+                      className="h-10 w-10 rounded-lg object-cover shrink-0"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[rgba(99,102,241,0.1)] text-xl shrink-0">🍽️</div>
+                  )}
                   <span
                     className={`h-2 w-2 rounded-full shrink-0 ${
                       r.isOpen ? "bg-[var(--success)]" : "bg-[var(--text-muted)]"
@@ -267,7 +280,8 @@ export function DashboardPage() {
                     {r.isOpen ? "Stäng" : "Öppna"}
                   </Button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </Surface>
 

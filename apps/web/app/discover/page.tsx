@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import axios from "axios";
@@ -42,9 +42,35 @@ export default function DiscoverPage() {
   // Favoriter (paritet med RN — filtreras lokalt över både trending & sökresultat)
   const { favorites, toggle: toggleFavorite, isFavorite } = useFavorites();
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  // City-family filter — discover used to show every restaurant on the
+  // platform regardless of where the customer is. We now mirror the home
+  // page's matchesCityFamily logic so users only see restaurants for the
+  // address they picked.
+  const [cityFamilyIds, setCityFamilyIds] = useState<string[] | null>(null);
+  const [detectedCityName, setDetectedCityName] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
+
+    // Resolve city-family from whichever city the customer last picked on
+    // home (delivery → platform_city, pickup → platform_pickup_city).
+    try {
+      const storedType = localStorage.getItem("platform_order_type");
+      const cityName = storedType === "PICKUP"
+        ? localStorage.getItem("platform_pickup_city")
+        : localStorage.getItem("platform_city");
+      if (cityName) {
+        setDetectedCityName(cityName);
+        axios
+          .get(`${API_URL}/api/cities/family-by-name`, { params: { name: cityName } })
+          .then((res) => {
+            const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
+            setCityFamilyIds(familyIds.length > 0 ? familyIds : null);
+            if (res.data?.name) setDetectedCityName(res.data.name);
+          })
+          .catch(() => setCityFamilyIds(null));
+      }
+    } catch { /* localStorage unavailable — show everything */ }
 
     // Load zone data for the saved delivery address
     try {
@@ -93,21 +119,37 @@ export default function DiscoverPage() {
     }
   };
 
+  // Same shape as home page's matchesCityFamily — keeps both pages aligned.
+  const matchesCityFamily = useCallback((r: any): boolean => {
+    if (cityFamilyIds && cityFamilyIds.length > 0) {
+      const rCityId = r.cityId as string | null | undefined;
+      if (rCityId) return cityFamilyIds.includes(rCityId);
+      if (detectedCityName) return (r.city || "").toLowerCase() === detectedCityName.toLowerCase();
+      return false;
+    }
+    if (detectedCityName) return false;
+    // No address picked yet — show everything (browsing pre-onboarding).
+    return true;
+  }, [cityFamilyIds, detectedCityName]);
+
   const filteredRestaurants = useMemo(() => {
     return restaurants.filter((r) => {
       const matchesSearch =
         r.name.toLowerCase().includes(activeSearch.toLowerCase()) ||
         r.categories?.some((c: any) => c.name.toLowerCase().includes(activeSearch.toLowerCase()));
       const matchesFavorites = !favoritesOnly || favorites.has(r.id);
-      return matchesSearch && matchesFavorites;
+      const matchesCity = matchesCityFamily(r);
+      return matchesSearch && matchesFavorites && matchesCity;
     });
-  }, [restaurants, activeSearch, favoritesOnly, favorites]);
+  }, [restaurants, activeSearch, favoritesOnly, favorites, matchesCityFamily]);
 
   const trendingRestaurants = useMemo(() => {
-    const base = [...restaurants].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    const base = [...restaurants]
+      .filter(matchesCityFamily)
+      .sort((a, b) => (b.rating || 0) - (a.rating || 0));
     const filtered = favoritesOnly ? base.filter((r) => favorites.has(r.id)) : base;
     return filtered.slice(0, 5);
-  }, [restaurants, favoritesOnly, favorites]);
+  }, [restaurants, favoritesOnly, favorites, matchesCityFamily]);
 
   return (
     <div className="min-h-screen pb-32 md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
@@ -222,8 +264,18 @@ export default function DiscoverPage() {
                     <img src={getImageSrc(rest.imageUrl)} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    {/* Name — full row, truncates cleanly */}
-                    <h3 className="text-base font-black uppercase italic truncate leading-tight mb-1.5" style={{ color: "var(--text-primary)" }}>
+                    {/* Name wraps to 2 lines if needed so the full restaurant
+                        name shows on narrow phones instead of "Palmyra P…". */}
+                    <h3
+                      className="text-base font-black uppercase italic leading-tight mb-1.5 break-words"
+                      style={{
+                        color: "var(--text-primary)",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
                       {rest.name}
                     </h3>
                     {/* Info row below — badge + rating + city */}
@@ -298,7 +350,18 @@ export default function DiscoverPage() {
                         <img src={getImageSrc(rest.imageUrl)} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-black uppercase italic text-sm truncate" style={{ color: "var(--text-primary)" }}>{rest.name}</h3>
+                        <h3
+                          className="font-black uppercase italic text-sm leading-tight break-words"
+                          style={{
+                            color: "var(--text-primary)",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {rest.name}
+                        </h3>
                         <div className="flex items-center gap-2 mt-0.5">
                           <p className="text-[9px] font-bold uppercase" style={{ color: "var(--text-secondary)" }}>{rest.city}</p>
                           {!inZone && deliverableIds !== null && (

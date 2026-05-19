@@ -342,6 +342,11 @@ router.get('/control-center', async (req, res) => {
         adminEmail: restaurant.adminEmail ?? null,
         hasHours,
         hasVisuals: Boolean(restaurant.imageUrl || restaurant.heroImageUrl),
+        // Expose URLs directly so the admin restaurants list can render the
+        // profile pic. Previously only the boolean hasVisuals was returned
+        // and the frontend had no source for the image.
+        imageUrl: restaurant.imageUrl ?? null,
+        heroImageUrl: restaurant.heroImageUrl ?? null,
         etaMinutes: restaurant.etaMinutes,
         deliveryFee: restaurant.deliveryFee / 100,
         minOrderAmount: restaurant.minOrderAmount / 100,

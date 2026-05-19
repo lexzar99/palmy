@@ -87,12 +87,16 @@ export function RestaurantsPage() {
 
 function RestaurantCard({ restaurant: r, onClick }: { restaurant: ControlCenterRestaurantSnapshot; onClick: () => void }) {
   const needsAttention = r.pendingOrders > 0 || !r.hasHours || r.reviewScore < 4.2;
+  // Prefer the profile pic (imageUrl), fall back to heroImageUrl, then to
+  // the food emoji. Image fields are now part of the snapshot from
+  // /api/admin/control-center so this isn't an any-cast anymore.
+  const avatar = r.imageUrl || r.heroImageUrl;
   return (
     <button type="button" onClick={onClick} className="surface-muted px-5 py-5 text-left hover:brightness-110 transition-all">
       <div className="flex items-start gap-3">
-        {(r as any).imageUrl ? (
+        {avatar ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={(r as any).imageUrl} alt="" className="h-12 w-12 rounded-xl object-cover shrink-0" />
+          <img src={avatar} alt="" className="h-12 w-12 rounded-xl object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         ) : (
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(99,102,241,0.1)] text-2xl shrink-0">🍽️</div>
         )}
