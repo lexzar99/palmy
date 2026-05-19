@@ -1,15 +1,16 @@
 import axios from "axios";
 
-// Global axios-default: 12 sekunders timeout istället för 0 (oändlig).
+// Global axios-default: 25 sekunders timeout istället för 0 (oändlig).
 // På 3G/flakey-nät innebar oändliga timeouts att checkout-POSTs och
 // order-tracking-fetches kunde hänga 60+ sek utan att kunden förstod
 // att något var trasigt — bara en evig spinner.
 //
-// Varför 12s (höjt från 8s): Vercel cold-starts på /api/platform/[...]-
-// proxyn kan ta 8-12s vid första anropet efter idle. Med 8s avbröts
-// dessa innan responsen kom → kunden fick "Betaltjänsten är otillgänglig"
-// vid första försöket. 12s täcker normalvägen + Vercel-cold-start utan
-// att lämna kunden att vänta för länge.
+// Höjt från 12s till 25s 2026-05: Railway cold-starts + den första
+// menyhämtningen (deep-nested Prisma include på /api/menu/categories)
+// kunde nå ~15s totalt på ett kallt API. 12s lämnade restaurang-sidan
+// med "Ett fel uppstod / Kunde inte ladda menyn" innan svaret kom. En
+// in-memory TTL-cache på backend gör att andra-+ requests landar inom
+// 50-300ms; första cold-start får mer marginal med 25s.
 //
 // Stripe.confirmPayment har sin egen 30s timeout (i StripeCheckout.tsx)
 // och påverkas inte av denna global default.
@@ -17,7 +18,7 @@ import axios from "axios";
 // Sätts ENDAST på klient-sidan eftersom server-komponenter (proxy via
 // /api/platform/[...path]) använder native fetch och inte axios.
 if (typeof window !== "undefined" && axios.defaults.timeout === 0) {
-  axios.defaults.timeout = 12000;
+  axios.defaults.timeout = 25000;
 }
 
 export const getApiUrl = () => {

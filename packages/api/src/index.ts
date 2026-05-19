@@ -386,6 +386,31 @@ const PORT = Number(process.env.PORT || 4000);
     void dispatchScheduledPushes();
     setInterval(() => { void dispatchScheduledPushes(); }, 60 * 1000);
 
+    // P1 — pre-warm the menu cache for every restaurant on boot so the
+    // first customer who hits a restaurant page doesn't pay the deep-include
+    // cold-start cost. Fire-and-forget — failures are logged but not fatal.
+    (async () => {
+      try {
+        const prismaMod = await import('./lib/prisma');
+        const prisma = prismaMod.default;
+        const restaurants = await prisma.restaurant.findMany({
+          where: { isOpen: true },
+          select: { id: true, slug: true },
+        });
+        const axiosMod = await import('axios');
+        const axios = axiosMod.default;
+        const base = process.env.PUBLIC_API_URL || `http://localhost:${PORT}`;
+        for (const r of restaurants) {
+          axios
+            .get(`${base}/api/menu/categories?restaurantId=${r.id}`, { timeout: 30_000 })
+            .then(() => console.log(`🍕 Pre-warmed menu cache for ${r.slug}`))
+            .catch(() => { /* non-fatal — cache will populate on first real hit */ });
+        }
+      } catch (err) {
+        console.warn('[menu-prewarm] skipped', err);
+      }
+    })();
+
   } catch (error) {
     console.warn('⚠️ Bootstrap error:', error);
   }
