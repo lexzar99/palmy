@@ -35,9 +35,20 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Where to send the user after a successful login. The middleware sets
+  // ?next= when it bounces an unauthenticated request to /login.
+  const getRedirectTarget = (): string => {
+    if (typeof window === "undefined") return "/dashboard";
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next");
+    // Only allow same-origin paths (avoid open-redirects)
+    if (next && next.startsWith("/") && !next.startsWith("//")) return next;
+    return "/dashboard";
+  };
+
   useEffect(() => {
     if (getStoredToken()) {
-      router.replace("/dashboard");
+      router.replace(getRedirectTarget());
     }
   }, [router]);
 
@@ -71,7 +82,7 @@ export default function LoginPage() {
 
       if ("token" in response) {
         setStoredAdminSession(response.token, response.admin);
-        router.replace("/dashboard");
+        router.replace(getRedirectTarget());
         return;
       }
 

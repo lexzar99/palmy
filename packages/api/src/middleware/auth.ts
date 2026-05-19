@@ -79,7 +79,7 @@ const getRestaurantScope = async (admin: AdminRecord, payload: AdminJwtPayload) 
 };
 
 export const resolveAdminSessionFromToken = async (token: string) => {
-  const payload = jwt.verify(token, JWT_SECRET) as AdminJwtPayload;
+  const payload = jwt.verify(token, JWT_SECRET) as AdminJwtPayload & { tokenVersion?: number };
 
   const admin = await prisma.adminUser.findFirst({
     where: { id: payload.id, isActive: true },
@@ -88,6 +88,21 @@ export const resolveAdminSessionFromToken = async (token: string) => {
 
   if (!admin) {
     return null;
+  }
+
+  // A5 — reject tokens issued before the admin's tokenVersion was bumped.
+  // Tokens missing the field (issued before this migration) are treated as
+  // version 0. We do a second tiny lookup to keep TS happy without casting
+  // the parameterized findFirst result.
+  if (typeof payload.tokenVersion === 'number') {
+    const versionRow = await prisma.adminUser.findUnique({
+      where: { id: admin.id },
+      select: { tokenVersion: true } as any,
+    });
+    const adminVersion = (versionRow as any)?.tokenVersion ?? 0;
+    if (payload.tokenVersion !== adminVersion) {
+      return null;
+    }
   }
 
   const scope = await getRestaurantScope(admin, payload);

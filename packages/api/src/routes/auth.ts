@@ -705,19 +705,25 @@ router.post('/login', authLimiter, async (req, res) => {
       logoutCode = restaurant.logoutCode ?? null;
     }
 
+    // A5 — embed current tokenVersion so a future "logout everywhere" bump
+    // invalidates this token. Missing field (admin row predates the migration)
+    // defaults to 0.
+    const adminTokenVersion = (admin as any).tokenVersion ?? 0;
     const token = jwt.sign(
-      { id: admin.id, email: admin.email, role: admin.role, restaurantId, restaurantSlug },
+      { id: admin.id, email: admin.email, role: admin.role, restaurantId, restaurantSlug, tokenVersion: adminTokenVersion },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    // HttpOnly cookie — primär auth-metod. Frontend slipper röra token-värdet.
-    // SameSite: 'lax' så cookie följer med cross-site GET (Vercel preview, etc.)
-    // men inte cross-site POST — bra default för admin-flöde.
+    // HttpOnly cookie — primary auth method. Frontend never touches the
+    // raw token. The admin frontend lives on a different site (Vercel) from
+    // the API (Railway), so SameSite=None is required — combined with Secure,
+    // this is the standard cross-site auth-cookie posture. localStorage
+    // Bearer remains as a fallback for browsers that block 3rd-party cookies.
     res.cookie('admin_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: true,
+      sameSite: 'none',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
@@ -753,8 +759,29 @@ router.post('/login', authLimiter, async (req, res) => {
 // POST /api/auth/logout - Clearar admin-cookie. Klient ska också rensa
 // eventuell localStorage-token efter detta anrop.
 router.post('/logout', async (_req, res) => {
-  res.clearCookie('admin_token', { path: '/' });
+  // Must match the issue-time attributes or the browser refuses to clear it.
+  res.clearCookie('admin_token', { path: '/', sameSite: 'none', secure: true });
   res.json({ success: true });
+});
+
+// A5 — "Log out everywhere": bump the admin's tokenVersion so every previously
+// issued JWT becomes invalid on the next request. The login route always
+// embeds the current tokenVersion in newly issued tokens; the auth middleware
+// rejects any token whose version doesn't match the stored value.
+router.post('/logout-everywhere', authenticate, async (req: any, res) => {
+  try {
+    const adminId = req.admin?.id;
+    if (!adminId) return res.status(401).json({ error: 'Inte autentiserad' });
+    await (prisma as any).adminUser.update({
+      where: { id: adminId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+    res.clearCookie('admin_token', { path: '/', sameSite: 'none', secure: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[auth/logout-everywhere] error:', err);
+    res.status(500).json({ error: 'Kunde inte logga ut alla sessioner' });
+  }
 });
 
 // ============================================================

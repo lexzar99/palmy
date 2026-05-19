@@ -334,6 +334,11 @@ model AdminUser {
   // Tidstämpel när recovery codes senast genererades (för att visa varning
   // till admin om de är gamla)
   recoveryGeneratedAt DateTime?
+  // A5 — "logout everywhere". Incremented to invalidate all previously
+  // issued JWTs for this admin. Login embeds the current value in the
+  // token payload; the auth middleware rejects any token whose version
+  // doesn't match what's stored here.
+  tokenVersion  Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   trustedDevices TrustedDevice[]

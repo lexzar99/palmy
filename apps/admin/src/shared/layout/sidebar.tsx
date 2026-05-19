@@ -121,7 +121,31 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
     });
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Best-effort call so the backend can clear the httpOnly cookie.
+      // Errors here aren't fatal — we still wipe local state and redirect.
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {}
+    clearStoredAdminSession();
+    router.replace("/login");
+  };
+
+  // A5 — "Log out everywhere": bumps tokenVersion server-side so every
+  // previously-issued token for this admin becomes invalid on next request.
+  const handleLogoutEverywhere = async () => {
+    if (!window.confirm("Logga ut alla enheter och sessioner för detta konto?")) return;
+    try {
+      const token = (typeof localStorage !== "undefined" && localStorage.getItem("matgo_token")) || "";
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/auth/logout-everywhere`, {
+        method: "POST",
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+    } catch {}
     clearStoredAdminSession();
     router.replace("/login");
   };
@@ -196,6 +220,16 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
         >
           <LogOut size={14} />
           <span>Logga ut</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleLogoutEverywhere}
+          className="nav-link"
+          style={{ paddingLeft: 10, color: "var(--text-muted)", fontSize: 11 }}
+          title="Invaliderar alla utfärdade JWT — använd när token är läckt eller laptop tappad."
+        >
+          <LogOut size={12} />
+          <span>Logga ut alla enheter</span>
         </button>
       </div>
     </aside>
