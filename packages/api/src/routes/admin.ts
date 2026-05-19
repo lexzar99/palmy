@@ -355,9 +355,47 @@ router.get('/orders', async (req, res) => {
       prisma.order.count({ where }),
     ]);
 
+    // Customer context: lifetime order/refund counts per userId for any
+    // user-linked orders in this page. Single grouped query, no N+1.
+    const userIds = Array.from(new Set(orders.map((o) => o.userId).filter((id): id is string => Boolean(id))));
+    const statsByUser = new Map<string, { orderCount: number; refundCount: number; firstOrderAt: Date | null }>();
+    if (userIds.length > 0) {
+      const [allCounts, refundCounts, firstByUser] = await Promise.all([
+        prisma.order.groupBy({
+          by: ['userId'],
+          where: { userId: { in: userIds } },
+          _count: { _all: true },
+        }),
+        prisma.order.groupBy({
+          by: ['userId'],
+          where: { userId: { in: userIds }, refundedAt: { not: null } },
+          _count: { _all: true },
+        }),
+        prisma.order.groupBy({
+          by: ['userId'],
+          where: { userId: { in: userIds } },
+          _min: { createdAt: true },
+        }),
+      ]);
+      for (const row of allCounts) {
+        if (row.userId) statsByUser.set(row.userId, { orderCount: row._count._all, refundCount: 0, firstOrderAt: null });
+      }
+      for (const row of refundCounts) {
+        if (row.userId && statsByUser.has(row.userId)) {
+          statsByUser.get(row.userId)!.refundCount = row._count._all;
+        }
+      }
+      for (const row of firstByUser) {
+        if (row.userId && statsByUser.has(row.userId)) {
+          statsByUser.get(row.userId)!.firstOrderAt = row._min.createdAt ?? null;
+        }
+      }
+    }
+
     const showFullPII = canSeeCustomerPII(req as AuthRequest);
     res.json({
       orders: orders.map((o) => {
+        const stats = o.userId ? statsByUser.get(o.userId) : undefined;
         const base = {
           ...o,
           total: o.total / 100,
@@ -373,12 +411,142 @@ router.get('/orders', async (req, res) => {
             subtotal: i.subtotal / 100,
           })),
           restaurantName: o.restaurant?.name || 'Okänd restaurang',
+          // Customer context for inline badges (null for guest checkouts)
+          customerStats: stats
+            ? {
+                orderCount: stats.orderCount,
+                refundCount: stats.refundCount,
+                firstOrderAt: stats.firstOrderAt?.toISOString() ?? null,
+                refundRate: stats.orderCount > 0 ? stats.refundCount / stats.orderCount : 0,
+              }
+            : null,
         };
         return showFullPII ? base : maskOrderPII(base);
       }),
       total,
     });
   } catch (error) {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/admin/orders/bulk-refund — refund multiple orders in a single
+// click (typical use: restaurant outage, customer service crisis).
+// Body: { orderIds: string[], reason?: string }. Each order is fully refunded
+// for its total. Failures are reported per-order so the caller can show
+// granular results. Idempotent: already-refunded orders are skipped.
+router.post('/orders/bulk-refund', async (req, res) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!isSuperAdmin(authReq) && authReq.admin?.role !== 'ADMIN') {
+      res.status(403).json({ error: 'Endast admin får använda massåterbetalning' });
+      return;
+    }
+    const { orderIds, reason } = req.body || {};
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      res.status(400).json({ error: 'orderIds krävs (icke-tom array)' });
+      return;
+    }
+    if (orderIds.length > 100) {
+      res.status(400).json({ error: 'Max 100 ordrar per anrop' });
+      return;
+    }
+
+    const Stripe = require('stripe');
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+    const reasonText = typeof reason === 'string' && reason.trim() ? reason.trim() : 'Massåterbetalning';
+
+    const results: Array<{ orderId: string; status: 'refunded' | 'skipped' | 'failed'; reason?: string; refundStatus?: string; refundedAmount?: number }> = [];
+    let totalRefundedOre = 0;
+
+    for (const orderId of orderIds) {
+      try {
+        const order = await prisma.order.findUnique({ where: { id: orderId } });
+        if (!order) {
+          results.push({ orderId, status: 'failed', reason: 'not_found' });
+          continue;
+        }
+        if (order.refundedAt) {
+          results.push({ orderId, status: 'skipped', reason: 'already_refunded' });
+          continue;
+        }
+        if (!order.stripePaymentIntentId || order.stripePaymentIntentId === 'TEST_PAYMENT' || order.stripePaymentIntentId === 'FREE_PROMO') {
+          results.push({ orderId, status: 'failed', reason: 'no_stripe_intent' });
+          continue;
+        }
+
+        // Verify intent succeeded before refunding (same guard as single-order path)
+        let intent;
+        try {
+          intent = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
+        } catch (err: any) {
+          results.push({ orderId, status: 'failed', reason: `stripe_retrieve: ${err?.message?.slice(0, 100)}` });
+          continue;
+        }
+        if (intent.status !== 'succeeded') {
+          results.push({ orderId, status: 'failed', reason: `intent_status_${intent.status}` });
+          continue;
+        }
+
+        const refund = await stripe.refunds.create({
+          payment_intent: order.stripePaymentIntentId,
+          amount: order.total,
+          reason: 'requested_by_customer',
+        });
+        if (refund.status === 'failed' || refund.status === 'canceled') {
+          results.push({ orderId, status: 'failed', reason: `stripe_${refund.status}` });
+          continue;
+        }
+
+        await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            refundAmount: order.total,
+            refundReason: reasonText,
+            refundedAt: new Date(),
+            status: 'CANCELLED',
+          },
+        });
+        if (order.appliedDealId) {
+          await prisma.deal.updateMany({
+            where: { id: order.appliedDealId, usageCount: { gt: 0 } },
+            data: { usageCount: { decrement: 1 } },
+          });
+        }
+        if ((order as any).userDealId) {
+          await prisma.userDeal.updateMany({
+            where: { id: (order as any).userDealId, usedOnOrderId: order.id, status: { in: ['USED', 'RESERVED'] } },
+            data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
+          });
+        }
+        try {
+          getIO().to('admin-room').emit('order:updated', { orderId });
+          if (order.restaurantId) getIO().to(`admin-room:${order.restaurantId}`).emit('order:updated', { orderId });
+        } catch {}
+
+        results.push({ orderId, status: 'refunded', refundStatus: refund.status, refundedAmount: order.total / 100 });
+        totalRefundedOre += order.total;
+      } catch (err: any) {
+        results.push({ orderId, status: 'failed', reason: err?.message?.slice(0, 200) || 'unknown' });
+      }
+    }
+
+    await audit(req as AuthRequest, 'ORDER_BULK_REFUND', {
+      resourceType: 'Order',
+      resourceId: orderIds.join(','),
+      changes: { count: orderIds.length, totalRefundedOre, reason: reasonText },
+    });
+
+    res.json({
+      total: orderIds.length,
+      refunded: results.filter((r) => r.status === 'refunded').length,
+      skipped: results.filter((r) => r.status === 'skipped').length,
+      failed: results.filter((r) => r.status === 'failed').length,
+      totalRefundedKr: totalRefundedOre / 100,
+      results,
+    });
+  } catch (error) {
+    console.error('bulk-refund failed', error);
     res.status(500).json({ error: 'Serverfel' });
   }
 });

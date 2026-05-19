@@ -11,6 +11,13 @@ export interface OrderItem {
   selectedExtras?: string | Array<{ extraName?: string; name?: string }>;
 }
 
+export interface CustomerStats {
+  orderCount: number;
+  refundCount: number;
+  firstOrderAt: string | null;
+  refundRate: number;
+}
+
 export interface AdminOrder {
   id: string;
   orderNumber: string;
@@ -29,6 +36,9 @@ export interface AdminOrder {
   deliveryFee?: number;
   discountAmount?: number;
   createdAt: string;
+  updatedAt?: string;
+  preparingAt?: string | null;
+  deliveringAt?: string | null;
   estimatedTime?: number | null;
   restaurantName?: string;
   restaurantId?: string;
@@ -40,6 +50,16 @@ export interface AdminOrder {
   refundReason?: string | null;
   scheduledFor?: string | null;
   paymentStatus?: string | null;
+  customerStats?: CustomerStats | null;
+}
+
+export interface BulkRefundResult {
+  total: number;
+  refunded: number;
+  skipped: number;
+  failed: number;
+  totalRefundedKr: number;
+  results: Array<{ orderId: string; status: 'refunded' | 'skipped' | 'failed'; reason?: string; refundStatus?: string }>;
 }
 
 export const ordersQueryKey = (status: string, page: number = 1, pageSize: number = 50) =>
@@ -77,3 +97,21 @@ export const refundOrder = (orderId: string, amount?: number | null, reason?: st
   });
 
 export const deleteOrder = (orderId: string) => apiDelete<{ success: boolean }>(`/admin/orders/${orderId}`);
+
+export const bulkRefundOrders = (orderIds: string[], reason?: string) =>
+  apiPost<BulkRefundResult>(`/admin/orders/bulk-refund`, { orderIds, reason });
+
+// Canned reasons for the refund modal — saves typing on common cases and
+// makes refund-reason analytics possible later.
+export const REFUND_REASONS: { value: string; label: string }[] = [
+  { value: 'restaurant_cancelled', label: 'Restaurang avbröt order' },
+  { value: 'restaurant_closed', label: 'Restaurang stängd / förhindrad' },
+  { value: 'missing_item', label: 'Saknad artikel' },
+  { value: 'wrong_item', label: 'Fel artikel levererad' },
+  { value: 'cold_food', label: 'Maten var kall' },
+  { value: 'quality_issue', label: 'Kvalitetsproblem' },
+  { value: 'late_delivery', label: 'Sen leverans' },
+  { value: 'customer_cancelled', label: 'Kund avbokade' },
+  { value: 'goodwill', label: 'Goodwill / kundnöjdhet' },
+  { value: 'other', label: 'Annat (fyll i nedan)' },
+];

@@ -3,12 +3,60 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, Clock3, Loader2, ReceiptText, RefreshCw, Search, ShieldCheck, Trash2, UserRound, Wallet } from "lucide-react";
-import { deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
+import { bulkRefundOrders, deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
 import { CustomerModal } from "@/modules/customers/page";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone } from "@/shared/utils/format";
 
 const statusOptions = ["ALL", "PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERED", "CANCELLED"] as const;
+
+// "Time in current status" — picks the most relevant timestamp on the order
+// based on its current status. Falls back to updatedAt then createdAt.
+function statusTimestamp(order: AdminOrder): string | null {
+  switch (order.status) {
+    case "PREPARING":
+      return order.preparingAt ?? order.updatedAt ?? order.createdAt;
+    case "READY":
+    case "DELIVERING":
+      return order.deliveringAt ?? order.updatedAt ?? order.createdAt;
+    case "CANCELLED":
+      return order.refundedAt ?? order.updatedAt ?? order.createdAt;
+    case "PENDING":
+      return order.createdAt;
+    default:
+      return order.updatedAt ?? order.createdAt;
+  }
+}
+
+function formatTimeInStatus(order: AdminOrder, nowMs: number): { label: string; tone: "neutral" | "warning" | "danger" | "info" } {
+  const ts = statusTimestamp(order);
+  if (!ts) return { label: "—", tone: "neutral" };
+  const diffMin = Math.floor((nowMs - new Date(ts).getTime()) / 60_000);
+  if (diffMin < 0) return { label: "snart", tone: "neutral" };
+  const isLive = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(order.status);
+  // SLA thresholds for warning/danger tone on live orders
+  let tone: "neutral" | "warning" | "danger" | "info" = isLive ? "info" : "neutral";
+  if (isLive) {
+    if (diffMin >= 40) tone = "danger";
+    else if (diffMin >= 25) tone = "warning";
+  }
+  if (diffMin < 1) return { label: "<1m", tone };
+  if (diffMin < 60) return { label: `${diffMin}m`, tone };
+  const h = Math.floor(diffMin / 60);
+  const m = diffMin % 60;
+  return { label: m === 0 ? `${h}h` : `${h}h ${m}m`, tone };
+}
+
+// Customer context badge — distills lifetime stats into a single chip
+function customerContextBadge(stats: AdminOrder["customerStats"]): { label: string; tone: "neutral" | "success" | "warning" | "danger" | "info" } | null {
+  if (!stats) return null;
+  if (stats.orderCount <= 1) return { label: "Första order", tone: "info" };
+  // High refund rate is a fraud / dissatisfaction signal
+  if (stats.orderCount >= 3 && stats.refundRate >= 0.5) return { label: `${stats.refundCount}/${stats.orderCount} refunds`, tone: "danger" };
+  if (stats.refundCount >= 5) return { label: `${stats.refundCount} refunds`, tone: "danger" };
+  if (stats.refundCount >= 2) return { label: `${stats.orderCount} ordrar · ${stats.refundCount} refunds`, tone: "warning" };
+  return { label: `${stats.orderCount} ordrar, 0 refunds`, tone: "success" };
+}
 
 function parseExtras(value: AdminOrder["items"][number]["selectedExtras"]) {
   if (!value) return [] as Array<{ extraName?: string; name?: string }>;
@@ -34,13 +82,31 @@ function OrderDetailsModal({
   const queryClient = useQueryClient();
   const [estimatedTime, setEstimatedTime] = useState<number | "">("");
   const [refundAmount, setRefundAmount] = useState<number | "">("");
-  const [refundReason, setRefundReason] = useState("");
+  const [refundReasonKey, setRefundReasonKey] = useState<string>("");
+  const [refundReasonExtra, setRefundReasonExtra] = useState("");
 
   const orderQuery = useQuery({
     queryKey: orderDetailQueryKey(orderId),
     queryFn: () => getOrder(orderId!),
     enabled: open && Boolean(orderId),
   });
+
+  // Compose final refund reason from canned key + free-text extra.
+  const refundReason = useMemo(() => {
+    const cannedLabel = REFUND_REASONS.find((r) => r.value === refundReasonKey)?.label;
+    if (refundReasonKey === "other") return refundReasonExtra.trim();
+    if (!cannedLabel) return refundReasonExtra.trim();
+    const extra = refundReasonExtra.trim();
+    return extra ? `${cannedLabel} — ${extra}` : cannedLabel;
+  }, [refundReasonKey, refundReasonExtra]);
+
+  // When order loads (or changes), default the refund amount to the full
+  // order total. Saves a redundant typed field on the most common case.
+  useEffect(() => {
+    if (orderQuery.data && !orderQuery.data.refundedAt && refundAmount === "") {
+      setRefundAmount(orderQuery.data.total);
+    }
+  }, [orderQuery.data, refundAmount]);
 
   const statusMutation = useMutation({
     mutationFn: ({ status, nextEstimatedTime }: { status: string; nextEstimatedTime?: number | null }) =>
@@ -69,7 +135,8 @@ function OrderDetailsModal({
     setRefundError(null);
     setRefundStatus(null);
     setRefundAmount("");
-    setRefundReason("");
+    setRefundReasonKey("");
+    setRefundReasonExtra("");
     setEstimatedTime("");
   }, [orderId]);
 
@@ -248,10 +315,36 @@ function OrderDetailsModal({
                 ) : (
                   <div className="mt-4 grid gap-4">
                     <Field label="Refund amount (kr)">
-                      <Input type="number" value={refundAmount} onChange={(event) => setRefundAmount(event.target.value ? Number(event.target.value) : "")} placeholder={String(order.total)} />
+                      <Input
+                        type="number"
+                        value={refundAmount}
+                        onChange={(event) => setRefundAmount(event.target.value ? Number(event.target.value) : "")}
+                        placeholder={String(order.total)}
+                      />
+                      <p className="mt-1.5 text-[10px] text-[var(--text-muted)]">
+                        Förifyllt med ordertotalen — ändra för delvis refund.
+                      </p>
                     </Field>
                     <Field label="Reason">
-                      <Textarea value={refundReason} onChange={(event) => setRefundReason(event.target.value)} placeholder="Reason for refund" />
+                      <select
+                        value={refundReasonKey}
+                        onChange={(event) => setRefundReasonKey(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-strong)]"
+                      >
+                        <option value="">Välj orsak…</option>
+                        {REFUND_REASONS.map((r) => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ))}
+                      </select>
+                      {(refundReasonKey === "other" || refundReasonKey) && (
+                        <div className="mt-2">
+                          <Textarea
+                            value={refundReasonExtra}
+                            onChange={(event) => setRefundReasonExtra(event.target.value)}
+                            placeholder={refundReasonKey === "other" ? "Beskriv anledningen" : "Tillägg (valfritt)"}
+                          />
+                        </div>
+                      )}
                     </Field>
                     {refundSuccess && (
                       <div className="rounded-2xl border border-[rgba(48,199,143,0.2)] bg-[rgba(48,199,143,0.08)] px-4 py-3 text-sm text-[#c4ffeb] flex items-start gap-2">
@@ -312,21 +405,51 @@ function OrderDetailsModal({
 }
 
 export function OrdersPage() {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<(typeof statusOptions)[number]>("ALL");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [activeCustomerId, setActiveCustomerId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
+
+  // Tick `nowMs` every 30s so the "time in status" badge updates without
+  // refetching. Cheap — just a state bump.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
 
   // Återställ till första sidan när status-filter byts
   useEffect(() => {
     setPage(1);
+    setSelectedIds(new Set());
   }, [status]);
 
   const orders = useQuery({
     queryKey: ordersQueryKey(status, page, ORDERS_PAGE_SIZE),
     queryFn: () => getOrders(status, page, ORDERS_PAGE_SIZE),
     refetchInterval: 10_000,
+  });
+
+  const bulkRefundMutation = useMutation({
+    mutationFn: (orderIds: string[]) => bulkRefundOrders(orderIds, "Massåterbetalning från admin"),
+    onSuccess: async (data) => {
+      setBulkResult(
+        `Refunderade ${data.refunded} av ${data.total} ordrar` +
+        (data.skipped ? ` · ${data.skipped} redan refunderade` : "") +
+        (data.failed ? ` · ${data.failed} misslyckades` : "") +
+        ` · totalt ${data.totalRefundedKr.toFixed(2)} kr`
+      );
+      setSelectedIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ["orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["finance"] });
+    },
+    onError: (e: any) => {
+      setBulkResult(e?.response?.data?.error || "Massåterbetalning misslyckades");
+    },
   });
 
   const totalPages = orders.data ? Math.max(1, Math.ceil(orders.data.total / ORDERS_PAGE_SIZE)) : 1;
@@ -377,49 +500,119 @@ export function OrdersPage() {
           <Tabs value={status} onChange={(value) => setStatus(value)} options={statusOptions.map((item) => ({ value: item, label: item }))} />
         </div>
 
+        {/* Bulk action bar — only refundable orders are eligible; the API
+            silently skips already-refunded ones, so we keep this UX permissive. */}
+        {selectedIds.size > 0 && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--accent-strong)]/40 bg-[var(--accent-strong)]/10 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 size={14} className="text-[var(--accent-strong)]" />
+              <span className="font-bold">{selectedIds.size} valda</span>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set())}
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                Rensa val
+              </button>
+            </div>
+            <Button
+              variant="secondary"
+              disabled={bulkRefundMutation.isPending}
+              onClick={() => {
+                const ids = Array.from(selectedIds);
+                const msg = `Massåterbetala ${ids.length} ordrar?\n\nVarje order refunderas till sin totalsumma via Stripe. Redan refunderade ordrar hoppas över.`;
+                if (!window.confirm(msg)) return;
+                setBulkResult(null);
+                bulkRefundMutation.mutate(ids);
+              }}
+            >
+              {bulkRefundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
+              {bulkRefundMutation.isPending ? "Refunderar…" : `Refundera ${selectedIds.size} valda`}
+            </Button>
+          </div>
+        )}
+        {bulkResult && (
+          <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-xs flex items-start justify-between gap-3">
+            <span>{bulkResult}</span>
+            <button onClick={() => setBulkResult(null)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">×</button>
+          </div>
+        )}
+
         {filteredOrders.length === 0 ? (
           <div className="mt-6"><EmptyState title="No orders in this view" /></div>
         ) : (
           <>
           <div className="mt-6 grid gap-3">
-            {filteredOrders.map((order) => (
-              <button
-                key={order.id}
-                type="button"
-                onClick={() => setActiveOrderId(order.id)}
-                className="surface-muted w-full px-5 py-5 text-left"
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-lg font-black tracking-[-0.02em]">{order.orderNumber}</p>
-                      <Badge tone={orderStatusTone(order.status) as "success" | "danger" | "warning" | "info" | "neutral"}>{orderStatusLabel(order.status)}</Badge>
-                      <Badge tone="neutral">{order.type}</Badge>
-                      {order.restaurantName ? <Badge tone="info">{order.restaurantName}</Badge> : null}
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-[var(--text-secondary)]">
-                      {order.userId ? (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setActiveCustomerId(order.userId!); }}
-                          className="flex items-center gap-1 hover:text-[var(--accent-strong)] transition-colors font-semibold"
-                        >
-                          <UserRound size={13} /> {order.customerName}
-                        </button>
+            {filteredOrders.map((order) => {
+              const isSelected = selectedIds.has(order.id);
+              const tis = formatTimeInStatus(order, nowMs);
+              const ctxBadge = customerContextBadge(order.customerStats);
+              const isRefundable = !order.refundedAt && Boolean(order.stripePaymentIntentId) && order.stripePaymentIntentId !== "TEST_PAYMENT" && order.stripePaymentIntentId !== "FREE_PROMO";
+              return (
+                <div
+                  key={order.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setActiveOrderId(order.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveOrderId(order.id); } }}
+                  className="surface-muted w-full px-5 py-5 text-left cursor-pointer"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      {/* Checkbox — only for refundable orders */}
+                      {isRefundable ? (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(order.id); else next.delete(order.id);
+                              return next;
+                            });
+                          }}
+                          className="mt-1 h-4 w-4 cursor-pointer accent-[var(--accent-strong)]"
+                          aria-label={`Välj order ${order.orderNumber}`}
+                        />
                       ) : (
-                        <span>{order.customerName}</span>
+                        <span className="mt-1 inline-block h-4 w-4 shrink-0" aria-hidden />
                       )}
-                      <span>{order.customerPhone}</span>
-                      <span>{order.items.length} items</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-lg font-black tracking-[-0.02em]">{order.orderNumber}</p>
+                          <Badge tone={orderStatusTone(order.status) as "success" | "danger" | "warning" | "info" | "neutral"}>{orderStatusLabel(order.status)}</Badge>
+                          <Badge tone="neutral">{order.type}</Badge>
+                          {order.restaurantName ? <Badge tone="info">{order.restaurantName}</Badge> : null}
+                          {ctxBadge && <Badge tone={ctxBadge.tone}>{ctxBadge.label}</Badge>}
+                          <Badge tone={tis.tone}>I {orderStatusLabel(order.status).toLowerCase()} {tis.label}</Badge>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-[var(--text-secondary)]">
+                          {order.userId ? (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setActiveCustomerId(order.userId!); }}
+                              className="flex items-center gap-1 hover:text-[var(--accent-strong)] transition-colors font-semibold"
+                            >
+                              <UserRound size={13} /> {order.customerName}
+                            </button>
+                          ) : (
+                            <span>{order.customerName}</span>
+                          )}
+                          <span>{order.customerPhone}</span>
+                          <span>{order.items.length} items</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--text-secondary)]">
-                    <span className="inline-flex items-center gap-2"><Clock3 size={14} /> {formatDateTime(order.createdAt)}</span>
-                    <span className="font-black text-[var(--text-primary)]">{formatCurrency(order.total)}</span>
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--text-secondary)]">
+                      <span className="inline-flex items-center gap-2"><Clock3 size={14} /> {formatDateTime(order.createdAt)}</span>
+                      <span className="font-black text-[var(--text-primary)]">{formatCurrency(order.total)}</span>
+                    </div>
                   </div>
                 </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
 
           {/* Pagination — bara om mer än en sida */}
