@@ -185,10 +185,24 @@ function UniformCard({ product, isPopular, onClick, disabled }: { product: any; 
         }
       >
         {!hasImage && (
-          <div className="absolute inset-0 flex items-center justify-center px-3 pt-3 pb-5 text-center">
+          <div className="absolute inset-0 flex items-center justify-center px-3 pt-4 pb-6 text-center">
             <span
-              className="font-black leading-none overflow-hidden"
-              style={{ color: "#8a6418", fontSize: "26px", letterSpacing: "-0.8px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}
+              className="font-black leading-tight overflow-hidden line-clamp-2 max-w-full"
+              style={{
+                color: "#8a6418",
+                // Skala font efter namnlängd så långa namn (Quattro Stagioni)
+                // får plats på 1-2 rader utan att brytas mitt i ord.
+                fontSize:
+                  (product.name || "").length > 16
+                    ? "14px"
+                    : (product.name || "").length > 12
+                      ? "17px"
+                      : (product.name || "").length > 9
+                        ? "20px"
+                        : "23px",
+                letterSpacing: "-0.4px",
+                lineHeight: 1.1,
+              }}
             >
               {product.name}
             </span>
