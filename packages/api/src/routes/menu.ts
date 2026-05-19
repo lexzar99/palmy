@@ -204,10 +204,12 @@ router.get('/categories', async (req, res) => {
       }
     }
 
-    // Plockar 6 slumpade produkter per huvudkategori för "Populärt"-raden.
-     // Bild-vikt: produkter med imageUrl får 1.5x sannolikhet att rankas högt
-     // så raden alltid ser bild-tung ut. Random-värdet är per-request → varierar
-     // varje gång kunden öppnar menyn (discovery-effekt).
+    // Plockar slumpade produkter per huvudkategori för "Populärt"-raden.
+     // Antal val skalas mot kategorins storlek: små kategorier (≤8 produkter)
+     // visar 3, större visar 6 — annars blir sektionen redundant när hälften av
+     // utbudet redan är i raden. Bild-vikt: produkter med imageUrl får 1.5x
+     // sannolikhet att rankas högt så raden alltid ser bild-tung ut. Random
+     // per request → varierar varje gång kunden öppnar menyn (discovery).
     const popularProductIdsFor = (cats: typeof formattedCategories): string[] => {
       const productsInScope: Array<{ id: string; score: number }> = [];
       for (const cat of cats) {
@@ -217,7 +219,8 @@ router.get('/categories', async (req, res) => {
           productsInScope.push({ id: p.id, score });
         }
       }
-      return productsInScope.sort((a, b) => b.score - a.score).slice(0, 6).map((p) => p.id);
+      const take = productsInScope.length <= 8 ? 3 : 6;
+      return productsInScope.sort((a, b) => b.score - a.score).slice(0, take).map((p) => p.id);
     };
 
     const mainCategoriesPayload = mainCategories
