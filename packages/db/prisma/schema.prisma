@@ -9,18 +9,40 @@ datasource db {
 }
 
 model Category {
+  id              String         @id @default(cuid())
+  name            String
+  slug            String         @unique
+  description     String?
+  position        Int            @default(0)
+  isActive        Boolean        @default(true)
+  imageUrl        String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  restaurantId    String?
+  restaurant      Restaurant?    @relation(fields: [restaurantId], references: [id])
+  mainCategoryId  String?
+  mainCategory    MainCategory?  @relation(fields: [mainCategoryId], references: [id], onDelete: SetNull)
+  products        Product[]
+
+  @@index([mainCategoryId])
+}
+
+// Topplagret i restaurangens meny — kunden ser dessa som stora bild-tiles
+// och borrar ner till underkategorier. Bilden är design-bild med inbakad text;
+// `name` används bara internt (sök, debug) och visas inte i kund-UI.
+model MainCategory {
   id           String      @id @default(cuid())
   name         String
-  slug         String      @unique
-  description  String?
+  imageUrl     String?
   position     Int         @default(0)
   isActive     Boolean     @default(true)
-  imageUrl     String?
+  restaurantId String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  categories   Category[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
-  restaurantId String?
-  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
-  products     Product[]
+
+  @@index([restaurantId, position])
 }
 
 model Product {
@@ -382,6 +404,7 @@ model Restaurant {
   announcementText String?          // Info-banner på restaurangsidan (t.ex. adressändring, stängt idag)
   vatPercent     Int?               // Moms i % som visas i kassan (6 eller 12). null = visas inte
   categories     Category[]
+  mainCategories MainCategory[]
   deals          Deal[]
   extraGroups    ExtraGroup[]
   orders         Order[]

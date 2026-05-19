@@ -23,11 +23,12 @@ import ScalePressable from '../components/ScalePressable';
 import { useTranslation } from 'react-i18next';
 import { useArabic } from '../hooks/useArabic';
 
-import type { Restaurant, MenuCategory, MenuProduct, PublicDeal, City } from '../types';
+import type { Restaurant, MenuCategory, MenuMainCategory, MenuProduct, PublicDeal, City } from '../types';
 
 type RestaurantScreenCache = {
   restaurant: Restaurant | null;
   categories: MenuCategory[];
+  mainCategories: MenuMainCategory[];
   deals: PublicDeal[];
   cities: City[];
 };
@@ -66,6 +67,8 @@ export default function RestaurantScreen({
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(() => cachedData?.restaurant || null);
   const [categories, setCategories] = useState<MenuCategory[]>(() => cachedData?.categories || []);
+  const [mainCategories, setMainCategories] = useState<MenuMainCategory[]>(() => cachedData?.mainCategories || []);
+  const [selectedMainCategoryId, setSelectedMainCategoryId] = useState<string | null>(null);
   const [deals, setDeals] = useState<PublicDeal[]>(() => cachedData?.deals || []);
   const [loading, setLoading] = useState(!cachedData);
   const [searchTerm, setSearchTerm] = useState("");
@@ -118,14 +121,23 @@ export default function RestaurantScreen({
     (async () => {
       try {
         const [menuRes, restaurantRes, dealsRes, citiesRes] = await Promise.all([
-          api.get("/api/menu/categories", { params: { slug, v: "20260428" } }),
+          api.get("/api/menu/categories", { params: { slug, v: "20260519" } }),
           api.get(`/api/restaurants/${slug}`),
           api.get("/api/deals").catch(() => ({ data: [] })),
           api.get("/api/cities").catch(() => ({ data: [] })),
         ]);
         if (!active) return;
-        const nextCategories = (menuRes.data || []) as MenuCategory[];
+        // Endpoint returnerar nu { mainCategories, categories }. Gammalt format
+        // (platt array) stöds som fallback under övergångsfasen.
+        const menuData = menuRes.data;
+        const nextCategories: MenuCategory[] = Array.isArray(menuData)
+          ? (menuData as MenuCategory[])
+          : (menuData?.categories || []);
+        const nextMainCategories: MenuMainCategory[] = Array.isArray(menuData)
+          ? []
+          : (menuData?.mainCategories || []);
         setCategories(nextCategories);
+        setMainCategories(nextMainCategories);
         setActiveCategory(nextCategories[0]?.id || null);
         
         const rawRest = restaurantRes.data || null;
@@ -143,6 +155,7 @@ export default function RestaurantScreen({
         setScreenCache<RestaurantScreenCache>('restaurant', slug, {
           restaurant: rawRest,
           categories: nextCategories,
+          mainCategories: nextMainCategories,
           deals: nextDeals,
           cities: nextCities,
         });
@@ -248,8 +261,22 @@ export default function RestaurantScreen({
     };
   }, [slug]);
 
+  // När en huvudkategori är vald filtreras menyn ner till bara dess kategorier.
+  // Den virtuella "Erbjudanden"-huvudkategorin bär sina egna produkter (ingen
+  // mainCategoryId-matchning på category-nivå), så hanteras separat.
+  const activeMainCategory = useMemo(
+    () => mainCategories.find((mc) => mc.id === selectedMainCategoryId) || null,
+    [mainCategories, selectedMainCategoryId],
+  );
+
+  const scopedCategories = useMemo<MenuCategory[]>(() => {
+    if (!selectedMainCategoryId) return categories;
+    if (activeMainCategory?.isVirtual) return activeMainCategory.categories;
+    return categories.filter((c) => c.mainCategoryId === selectedMainCategoryId);
+  }, [activeMainCategory, categories, selectedMainCategoryId]);
+
   const filteredCategories = useMemo(() => {
-    return categories
+    return scopedCategories
       .map((category) => ({
         ...category,
         products: category.products.filter((product) => {
@@ -258,14 +285,13 @@ export default function RestaurantScreen({
         }),
       }))
       .filter((category) => category.products.length > 0);
-  }, [categories, searchTerm]);
+  }, [scopedCategories, searchTerm]);
 
-  const categoryTabs = useMemo(() => (searchTerm.trim() ? filteredCategories : categories), [categories, filteredCategories, searchTerm]);
+  const categoryTabs = useMemo(() => (searchTerm.trim() ? filteredCategories : scopedCategories), [scopedCategories, filteredCategories, searchTerm]);
 
-  const discountedProducts = useMemo(
-    () => categories.flatMap((category) => category.products).filter((product) => product.discountActive && product.discountScope === "PRODUCT"),
-    [categories]
-  );
+  // Rabatterade produkter exponeras nu via egen huvudkategori-tile. Ingen
+  // top-of-page-rail längre.
+  const discountedProducts: MenuProduct[] = useMemo(() => [], []);
 
   const restaurantNameParts = useMemo(() => {
     const parts = (restaurant?.name || "Restaurant").trim().split(/\s+/).filter(Boolean);
@@ -360,7 +386,7 @@ export default function RestaurantScreen({
     <>
       <Animated.ScrollView
         ref={menuScrollRef}
-        stickyHeaderIndices={[3]}
+        stickyHeaderIndices={mainCategories.length > 0 && !selectedMainCategoryId && !searchTerm.trim() ? [] : [3]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollYAnim } } }],
           { useNativeDriver: false, listener: handleMenuScroll }
@@ -489,64 +515,139 @@ export default function RestaurantScreen({
           </View>
         </View>
 
-        <Animated.View
-          pointerEvents="box-none"
-          style={{ zIndex: 20, elevation: 20 }}
-          onLayout={(e) => setStickyY(e.nativeEvent.layout.y)}
-        >
-          <LinearGradient
-            pointerEvents="none"
-            colors={[bgRgbaBase(0.98), bgRgbaBase(0.95), bgRgbaBase(0.76), bgRgbaBase(0)]}
-            locations={[0, 0.38, 0.76, 1]}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <Animated.View style={[styles.restaurantStickyNavWrap, { paddingTop: headerPaddingTop }]}>
-            <View style={styles.restaurantStickyNavCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Pressable 
-                  onPress={goBack} 
-                  style={{ backgroundColor: palette.panel, padding: 12, borderRadius: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(125,97,38,0.12)', shadowColor: palette.gold, shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}
-                >
-                  <Ionicons name="chevron-back" size={20} color={palette.gold} />
-                </Pressable>
-                
-                <View style={[styles.restaurantSearchInputWrap, { flex: 1 }]}>
-                  <Ionicons name="search-outline" size={18} color={palette.muted} />
+        {(() => {
+          const isGridMode = mainCategories.length > 0 && !selectedMainCategoryId && !searchTerm.trim();
+          if (isGridMode) {
+            return (
+              <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 }} onLayout={(e) => setStickyY(e.nativeEvent.layout.y)}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 }}>
+                  {mainCategories.map((mc) => {
+                    const productCount = mc.categories.reduce((sum, c) => sum + c.products.length, 0);
+                    return (
+                      <View key={mc.id} style={{ width: '50%', paddingHorizontal: 6, paddingBottom: 12 }}>
+                        <ScalePressable
+                          style={{
+                            aspectRatio: 1,
+                            borderRadius: 18,
+                            overflow: 'hidden',
+                            backgroundColor: palette.panelMuted,
+                            borderWidth: 1,
+                            borderColor: 'rgba(125,97,38,0.12)',
+                          }}
+                          onPress={() => setSelectedMainCategoryId(mc.id)}
+                        >
+                          {mc.imageUrl ? (
+                            <Image source={{ uri: getImageUrl(mc.imageUrl) }} style={StyleSheet.absoluteFillObject as any} />
+                          ) : (
+                            <LinearGradient
+                              colors={[palette.panel, palette.panelMuted]}
+                              style={StyleSheet.absoluteFillObject as any}
+                            />
+                          )}
+                          <LinearGradient
+                            pointerEvents="none"
+                            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']}
+                            style={StyleSheet.absoluteFillObject as any}
+                          />
+                          {!mc.imageUrl && (
+                            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+                              <Text numberOfLines={2} style={{ color: palette.text, fontSize: 22, fontWeight: '900', textAlign: 'center', letterSpacing: -0.5 }}>
+                                {mc.name}
+                              </Text>
+                            </View>
+                          )}
+                          <View style={{ position: 'absolute', left: 12, bottom: 10, right: 12 }}>
+                            <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 9, fontWeight: '900', letterSpacing: ls(1.4), textTransform: 'uppercase' }}>
+                              {productCount} {productCount === 1 ? 'rätt' : 'rätter'}
+                            </Text>
+                          </View>
+                        </ScalePressable>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                <View style={{ marginTop: 8, paddingVertical: 4, paddingHorizontal: 16, borderRadius: 14, backgroundColor: palette.panel, borderWidth: 1, borderColor: 'rgba(125,97,38,0.12)', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Ionicons name="search-outline" size={16} color={palette.muted} />
                   <TextInput
                     value={searchTerm}
                     onChangeText={setSearchTerm}
                     placeholder={t('restaurant.searchPlaceholder')}
                     placeholderTextColor={palette.muted}
-                    style={styles.restaurantSearchInput}
+                    style={{ flex: 1, color: palette.text, fontSize: 13, fontWeight: '700', paddingVertical: 12 }}
                   />
                 </View>
               </View>
+            );
+          }
+          return (
+            <Animated.View
+              pointerEvents="box-none"
+              style={{ zIndex: 20, elevation: 20 }}
+              onLayout={(e) => setStickyY(e.nativeEvent.layout.y)}
+            >
+              <LinearGradient
+                pointerEvents="none"
+                colors={[bgRgbaBase(0.98), bgRgbaBase(0.95), bgRgbaBase(0.76), bgRgbaBase(0)]}
+                locations={[0, 0.38, 0.76, 1]}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <Animated.View style={[styles.restaurantStickyNavWrap, { paddingTop: headerPaddingTop }]}>
+                <View style={styles.restaurantStickyNavCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Pressable
+                      onPress={() => {
+                        if (selectedMainCategoryId || searchTerm.trim()) {
+                          setSelectedMainCategoryId(null);
+                          setSearchTerm("");
+                          return;
+                        }
+                        goBack();
+                      }}
+                      style={{ backgroundColor: palette.panel, padding: 12, borderRadius: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(125,97,38,0.12)', shadowColor: palette.gold, shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}
+                    >
+                      <Ionicons name="chevron-back" size={20} color={palette.gold} />
+                    </Pressable>
 
-              <ScrollView
-                ref={categoryRailRef}
-                horizontal
-                nestedScrollEnabled
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.restaurantCategoryRail}
-              >
-                {categoryTabs.map((category) => (
-                  <ScalePressable
-                    key={category.id}
-                    onLayout={(event: any) => {
-                      categoryRailPositions.current[category.id] = event.nativeEvent.layout.x;
-                    }}
-                    style={[styles.restaurantCategoryChip, activeCategory === category.id && styles.restaurantCategoryChipActive]}
-                    onPress={() => scrollToCategory(category.id)}
+                    <View style={[styles.restaurantSearchInputWrap, { flex: 1 }]}>
+                      <Ionicons name="search-outline" size={18} color={palette.muted} />
+                      <TextInput
+                        value={searchTerm}
+                        onChangeText={setSearchTerm}
+                        placeholder={t('restaurant.searchPlaceholder')}
+                        placeholderTextColor={palette.muted}
+                        style={styles.restaurantSearchInput}
+                      />
+                    </View>
+                  </View>
+
+                  <ScrollView
+                    ref={categoryRailRef}
+                    horizontal
+                    nestedScrollEnabled
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.restaurantCategoryRail}
                   >
-                    <Text numberOfLines={1} style={[styles.restaurantCategoryChipText, activeCategory === category.id && styles.restaurantCategoryChipTextActive]}>
-                      {category.name}
-                    </Text>
-                  </ScalePressable>
-                ))}
-              </ScrollView>
-            </View>
-          </Animated.View>
-        </Animated.View>
+                    {categoryTabs.map((category) => (
+                      <ScalePressable
+                        key={category.id}
+                        onLayout={(event: any) => {
+                          categoryRailPositions.current[category.id] = event.nativeEvent.layout.x;
+                        }}
+                        style={[styles.restaurantCategoryChip, activeCategory === category.id && styles.restaurantCategoryChipActive]}
+                        onPress={() => scrollToCategory(category.id)}
+                      >
+                        <Text numberOfLines={1} style={[styles.restaurantCategoryChipText, activeCategory === category.id && styles.restaurantCategoryChipTextActive]}>
+                          {category.name}
+                        </Text>
+                      </ScalePressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              </Animated.View>
+            </Animated.View>
+          );
+        })()}
 
         <View style={styles.restaurantMenuSectionsWrap}>
           {discountedProducts.length > 0 && (

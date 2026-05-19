@@ -15,7 +15,20 @@ export interface CategoryRecord {
   position: number;
   isActive?: boolean;
   restaurantId?: string | null;
+  mainCategoryId?: string | null;
+  mainCategory?: { id: string; name: string } | null;
   _count?: { products: number };
+}
+
+export interface MainCategoryRecord {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
+  position: number;
+  isActive: boolean;
+  restaurantId: string;
+  categories?: Array<{ id: string; name: string; position: number; isActive: boolean; _count?: { products: number } }>;
+  _count?: { categories: number };
 }
 
 export interface ExtraRecord {
@@ -67,6 +80,7 @@ export const menuRestaurantsQueryKey = ["menu", "restaurants"] as const;
 export const menuCategoriesQueryKey = (restaurantId: string | null) => ["menu", "categories", restaurantId] as const;
 export const menuProductsQueryKey = (restaurantId: string | null) => ["menu", "products", restaurantId] as const;
 export const menuGroupsQueryKey = (restaurantId: string | null) => ["menu", "extra-groups", restaurantId] as const;
+export const menuMainCategoriesQueryKey = (restaurantId: string | null) => ["menu", "main-categories", restaurantId] as const;
 
 export const getMenuRestaurants = () => apiGet<RestaurantRef[]>("/restaurants");
 
@@ -89,6 +103,14 @@ export const deleteProduct = (productId: string) => apiDelete<{ success: boolean
 export const createExtraGroup = (payload: Record<string, unknown>) => apiPost<ExtraGroupRecord>("/admin/extra-groups", payload);
 export const updateExtraGroup = (groupId: string, payload: Record<string, unknown>) => apiPatch<ExtraGroupRecord>(`/admin/extra-groups/${groupId}`, payload);
 export const deleteExtraGroup = (groupId: string) => apiDelete<{ success: boolean }>(`/admin/extra-groups/${groupId}`);
+
+export const getMainCategories = (restaurantId: string) =>
+  apiGet<MainCategoryRecord[]>(`/admin/main-categories?restaurantId=${restaurantId}`);
+export const createMainCategory = (payload: Partial<MainCategoryRecord> & { restaurantId: string; categoryIds?: string[] }) =>
+  apiPost<MainCategoryRecord>("/admin/main-categories", payload);
+export const updateMainCategory = (id: string, payload: Partial<MainCategoryRecord> & { categoryIds?: string[] }) =>
+  apiPatch<MainCategoryRecord>(`/admin/main-categories/${id}`, payload);
+export const deleteMainCategory = (id: string) => apiDelete<{ success: boolean }>(`/admin/main-categories/${id}`);
 
 // Copy/import — nya id genereras, källan rörs inte.
 export const copyCategory = (sourceId: string, targetRestaurantId: string) =>

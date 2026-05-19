@@ -210,6 +210,8 @@ function CompactProductCard({ product, cartQty, onClick, disabled }: { product: 
 const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: MenuContentProps) => {
   const { t } = useTranslation();
   const [categories, setCategories] = useState<any[]>([]);
+  const [mainCategories, setMainCategories] = useState<any[]>([]);
+  const [selectedMainCategoryId, setSelectedMainCategoryId] = useState<string | null>(null);
   const [deals, setDeals] = useState<PublicDeal[]>([]);
   const [restaurant, setRestaurant] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -352,7 +354,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         axios.get(`${API_URL}/api/deals`, { params: restaurantId ? { restaurantId } : restaurantSlug ? { slug: restaurantSlug } : {} }),
       ]);
 
-      setCategories(menuRes.data);
+      // Endpoint returnerar nu { mainCategories, categories }. Gammalt format
+      // (platt array) stöds som fallback.
+      const menuData = menuRes.data;
+      const nextCategories = Array.isArray(menuData) ? menuData : (menuData?.categories || []);
+      const nextMainCategories = Array.isArray(menuData) ? [] : (menuData?.mainCategories || []);
+      setCategories(nextCategories);
+      setMainCategories(nextMainCategories);
       setDeals(dealsRes.data);
       if (restaurantRes.data) {
         setRestaurant(restaurantRes.data);
@@ -369,7 +377,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         });
       }
 
-      if (menuRes.data.length > 0) setActiveCategory(menuRes.data[0].id);
+      if (nextCategories.length > 0) setActiveCategory(nextCategories[0].id);
     } catch (err) {
       console.error("Error fetching menu data:", err);
       setError(t("menu.loadError"));
@@ -565,8 +573,18 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     }
   }, [restaurant?.isOpen, zoneAvailable, address, orderType]);
 
-  const filteredCategories = categories
-    .map((cat) => ({
+  // Skopa till vald huvudkategori. Virtuella huvudkategorier (Erbjudanden,
+  // Övrigt) bär sina egna kategorier direkt — alla andra matchar på
+  // mainCategoryId.
+  const activeMainCategory = mainCategories.find((mc) => mc.id === selectedMainCategoryId) || null;
+  const scopedCategories = !selectedMainCategoryId
+    ? categories
+    : activeMainCategory?.isVirtual
+      ? activeMainCategory.categories
+      : categories.filter((c: any) => c.mainCategoryId === selectedMainCategoryId);
+
+  const filteredCategories = scopedCategories
+    .map((cat: any) => ({
       ...cat,
       products: cat.products.filter(
         (p: any) =>
@@ -574,7 +592,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           p.description?.toLowerCase().includes(searchTerm.toLowerCase())
       ),
     }))
-    .filter((cat) => cat.products.length > 0);
+    .filter((cat: any) => cat.products.length > 0);
+
+  const isGridMode = mainCategories.length > 0 && !selectedMainCategoryId && !searchTerm.trim();
 
   if (loading) {
     return (
@@ -828,11 +848,70 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           })}
         </div>}
 
+        {/* ── Huvudkategori-grid: visas tills användaren väljer en kategori ── */}
+        {isGridMode && (
+          <div className="mb-10">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+              {mainCategories.map((mc: any) => {
+                const productCount = (mc.categories || []).reduce((sum: number, c: any) => sum + (c.products?.length || 0), 0);
+                return (
+                  <button
+                    key={mc.id}
+                    type="button"
+                    onClick={() => setSelectedMainCategoryId(mc.id)}
+                    className="group relative aspect-square rounded-2xl overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]"
+                    style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}
+                  >
+                    {mc.imageUrl ? (
+                      <img src={mc.imageUrl} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center p-4">
+                        <span className="text-2xl md:text-3xl font-black text-center" style={{ color: "var(--text-primary)" }}>{mc.name}</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                    <div className="absolute bottom-3 left-3 right-3 text-left">
+                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-white/75">
+                        {productCount} {productCount === 1 ? "rätt" : "rätter"}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
+              <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+              <input
+                type="text"
+                placeholder={t("menu.searchPlaceholder")}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-transparent border-none text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-zinc-400"
+                style={{ color: "var(--text-primary)" }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ── Tillbaka till huvudkategorier (visas i drilldown-läge) ── */}
+        {!isGridMode && mainCategories.length > 0 && (
+          <button
+            type="button"
+            onClick={() => { setSelectedMainCategoryId(null); setSearchTerm(""); }}
+            className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            <ChevronLeft size={14} />
+            Alla kategorier
+          </button>
+        )}
+
         {/* ── Sticky header: SÖK + KATEGORI-PILLS följer med när man scrollar ──
             Båda i samma wrapper så de sticky-positioneras tillsammans. Bryter
             ut ur parent-padding (-mx-5 osv) så bakgrunden täcker hela viewport-
             bredden när sticky → ingen content "syns igenom" på sidorna. */}
-        <div
+        {!isGridMode && <div
           className="sticky z-40 mb-8 -mx-5 sm:-mx-6 lg:-mx-12 top-0 md:top-20"
           style={{ backgroundColor: "var(--bg-primary)" }}
         >
@@ -854,13 +933,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           {/* Kategori-pills — egen horisontell scroll edge-to-edge med inner padding.
               touch-action: pan-x → tillåter swipe-att-scrolla horisontellt utan
               att kollidera med sidans vertikala scroll. */}
-          {categories.length > 0 && (
+          {scopedCategories.length > 0 && (
             <div className="py-2.5">
               <div
                 className="flex gap-2 no-scrollbar px-5 sm:px-6 lg:px-12"
                 style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
               >
-              {categories.map(cat => {
+              {scopedCategories.map((cat: any) => {
                 const isActive = activeCategory === cat.id;
                 return (
                   <motion.button
@@ -895,12 +974,15 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── REA: rabatterade produkter på horisontell 2-grid swipe ──────── */}
         {(() => {
+          // Visas inte i grid-läget — rabatterade rätter exponeras där via
+          // den virtuella "Erbjudanden"-tile istället.
+          if (isGridMode) return null;
           const discountedProducts = filteredCategories
-            .flatMap(cat => cat.products)
+            .flatMap((cat: any) => cat.products)
             .filter((p: any) => p.discountActive && p.discountScope === "PRODUCT");
           if (discountedProducts.length === 0) return null;
           const disabled = !restaurant?.isOpen || zoneAvailable === false;
@@ -969,8 +1051,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           );
         })()}
 
-        {/* ── Menyn: kategorier med produkter (FULL eller COMPACT per produkt) ── */}
-        <div className="space-y-12">
+        {/* ── Menyn: kategorier med produkter (FULL eller COMPACT per produkt) ──
+            Döljs i grid-läget — kunden borrar först ner via en huvudkategori. */}
+        {!isGridMode && <div className="space-y-12">
            {filteredCategories.length === 0 ? (
              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 flex flex-col items-center justify-center text-center">
                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5" style={{ backgroundColor: "var(--bg-deep)" }}>
@@ -982,7 +1065,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                </p>
              </motion.div>
            ) : (
-             filteredCategories.map((cat) => {
+             filteredCategories.map((cat: any) => {
                const catWords = (cat.name || "").trim().split(/\s+/);
                const catFirst = catWords[0] || cat.name;
                const catRest = catWords.slice(1).join(" ");
@@ -1034,7 +1117,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                );
              })
            )}
-        </div>
+        </div>}
       </div>
 
       {/* Overlays / Modals */}

@@ -148,7 +148,22 @@ export interface MenuProduct {
 export interface MenuCategory {
   id: string;
   name: string;
+  mainCategoryId?: string | null;
   products: MenuProduct[];
+}
+
+export interface MenuMainCategory {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  position: number;
+  isVirtual?: boolean;
+  categories: MenuCategory[];
+}
+
+export interface MenuTreeResponse {
+  mainCategories: MenuMainCategory[];
+  categories: MenuCategory[];
 }
 
 export interface CartItem {

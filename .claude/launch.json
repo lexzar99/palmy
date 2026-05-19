@@ -8,6 +8,13 @@
       "runtimeArgs": ["dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "api",
+      "cwd": "/Users/jalle/testa/packages/api",
+      "runtimeExecutable": "node_modules/.bin/ts-node",
+      "runtimeArgs": ["--transpile-only", "src/index.ts"],
+      "port": 4000
     }
   ]
 }

@@ -113,11 +113,23 @@ router.get('/categories', async (req, res) => {
       });
     };
 
+    const queryMainCategories = async (rid: string | null) => {
+      if (!rid) return [];
+      return prisma.mainCategory.findMany({
+        where: { restaurantId: rid, isActive: true },
+        orderBy: { position: 'asc' },
+        select: { id: true, name: true, imageUrl: true, position: true },
+      });
+    };
+
     const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
-    let categories = await queryActiveMenuByRestaurantId(primaryRestaurantId);
+    const [categories, mainCategories] = await Promise.all([
+      queryActiveMenuByRestaurantId(primaryRestaurantId),
+      queryMainCategories(primaryRestaurantId),
+    ]);
     const activeDeals = primaryRestaurantId
       ? await prisma.deal.findMany({
-          where: { isActive: true, showOnSite: true, isPersonalTemplate: false },
+          where: { isActive: true, showOnSite: true },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
         })
       : [];
@@ -127,14 +139,15 @@ router.get('/categories', async (req, res) => {
       console.info(`[menu] No active menu found for restaurant: ${slug || restaurantId}`);
     }
 
-    // Formatera för frontend
-    const formatted = categories.map((cat) => ({
+    // Formatera kategorier
+    const formattedCategories = categories.map((cat: any) => ({
       id: cat.id,
       name: cat.name,
       slug: cat.slug,
       description: cat.description,
       imageUrl: cat.imageUrl,
-      products: cat.products.map((prod) => ({
+      mainCategoryId: cat.mainCategoryId || null,
+      products: cat.products.map((prod: any) => ({
         ...toDisplayDiscount(prod, cat.id, primaryRestaurantId, activeDeals),
         id: prod.id,
         name: prod.name,
@@ -146,9 +159,9 @@ router.get('/categories', async (req, res) => {
         isVegetarian: prod.isVegetarian,
         isGlutenFree: prod.isGlutenFree,
         // Visningsläge för menykortet (FULL = 1-per-rad, COMPACT = 2-per-rad)
-        displayMode: (prod as any).displayMode || "FULL",
-        hideDescription: (prod as any).hideDescription || false,
-        extraGroups: prod.extraGroups.map((peg) => ({
+        displayMode: prod.displayMode || "FULL",
+        hideDescription: prod.hideDescription || false,
+        extraGroups: prod.extraGroups.map((peg: any) => ({
           id: peg.extraGroup.id,
           name: peg.extraGroup.name,
           description: peg.extraGroup.description,
@@ -156,20 +169,87 @@ router.get('/categories', async (req, res) => {
           required: peg.extraGroup.required,
           minSelections: peg.extraGroup.minSelections,
           maxSelections: peg.extraGroup.maxSelections,
-          extras: peg.extraGroup.extras.map((e) => ({
+          extras: peg.extraGroup.extras.map((e: any) => ({
             id: e.id,
             name: e.name,
             priceAddon: e.priceAddon / 100,
             isDefault: e.isDefault,
           })),
-          position: (peg.extraGroup as any).position || 0,
+          position: peg.extraGroup.position || 0,
         })),
       })),
     }));
 
-    menuCache.set(ck, { payload: formatted, expiresAt: Date.now() + MENU_CACHE_TTL_MS });
+    // Bygg topplagret. Huvudkategorier som har minst en kategori dyker upp som
+    // tiles i kund-UI:t. Kategorier som ännu inte tilldelats samlas i en virtuell
+    // "Övrigt"-tile så ingen meny går sönder under övergångsfasen.
+    const categoriesByMain = new Map<string, typeof formattedCategories>();
+    const orphanCategories: typeof formattedCategories = [];
+    for (const cat of formattedCategories) {
+      if (cat.mainCategoryId) {
+        const arr = categoriesByMain.get(cat.mainCategoryId) || [];
+        arr.push(cat);
+        categoriesByMain.set(cat.mainCategoryId, arr);
+      } else {
+        orphanCategories.push(cat);
+      }
+    }
+
+    const mainCategoriesPayload = mainCategories
+      .map((mc) => ({
+        id: mc.id,
+        name: mc.name,
+        imageUrl: mc.imageUrl,
+        position: mc.position,
+        isVirtual: false,
+        categories: categoriesByMain.get(mc.id) || [],
+      }))
+      .filter((mc) => mc.categories.length > 0);
+
+    if (orphanCategories.length > 0) {
+      mainCategoriesPayload.push({
+        id: '__uncategorized__',
+        name: 'Övrigt',
+        imageUrl: null,
+        position: 9999,
+        isVirtual: true,
+        categories: orphanCategories,
+      });
+    }
+
+    // Virtuell "Erbjudanden"-tile — samlar produkter med aktiv display-rabatt
+    // i en egen sektion istället för att lyfta dem till toppen av menyn.
+    const discountedProducts = formattedCategories.flatMap((cat) =>
+      cat.products.filter((p) => p.discountActive).map((p) => ({ cat, product: p })),
+    );
+    if (discountedProducts.length > 0) {
+      const offerCategory = {
+        id: '__offers__',
+        name: 'Erbjudanden',
+        slug: '__offers__',
+        description: null,
+        imageUrl: null,
+        mainCategoryId: '__offers_main__',
+        products: discountedProducts.map(({ product }) => product),
+      };
+      mainCategoriesPayload.unshift({
+        id: '__offers_main__',
+        name: 'Erbjudanden',
+        imageUrl: null,
+        position: -1,
+        isVirtual: true,
+        categories: [offerCategory as any],
+      });
+    }
+
+    const payload = {
+      mainCategories: mainCategoriesPayload,
+      categories: formattedCategories,
+    };
+
+    menuCache.set(ck, { payload, expiresAt: Date.now() + MENU_CACHE_TTL_MS });
     res.set('X-Cache', 'MISS');
-    res.json(formatted);
+    res.json(payload);
   } catch (error) {
     console.error('Error fetching menu:', error);
     res.status(500).json({ error: 'Kunde inte hämta menyn' });
