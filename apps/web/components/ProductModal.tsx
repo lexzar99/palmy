@@ -221,12 +221,14 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
     onClose();
   };
 
+  const hasImage = Boolean(product.imageUrl);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-zinc-900/10 backdrop-blur-md p-0 sm:p-6"
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-zinc-900/50 backdrop-blur-sm p-0 sm:p-6"
       onClick={onClose}
     >
       <motion.div
@@ -238,128 +240,286 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-        className="w-full max-w-2xl sm:rounded-2xl rounded-t-3xl border overflow-hidden shadow-2xl relative flex flex-col max-h-[95vh]"
+        className="w-full max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden relative flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
-        style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
+        style={{ backgroundColor: "var(--bg-primary, #fff8ef)" }}
       >
-        
-        <button onClick={onClose} aria-label={t("common.close")} className="absolute top-5 right-5 w-12 h-12 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 hover:text-zinc-600 transition-all z-20 shadow-sm">
-           <X size={20} />
-        </button>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto no-scrollbar px-8 sm:px-10 pb-6" style={{ paddingTop: product.imageUrl ? '0' : '4rem', overscrollBehavior: "contain" }}>
-
-        {/* Image scrolls with content */}
-        {product.imageUrl && (
-        <div className="relative h-56 sm:h-64 -mx-8 sm:-mx-10 mb-6">
-           <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-           <div className="absolute inset-0 bg-gradient-to-t" style={{ background: "linear-gradient(to top, var(--bg-secondary), rgba(252,252,249,0.4), transparent)" }} />
+        {/* Sticky top-overlay — X + favorit-knapp flyter alltid över hero */}
+        <div className="absolute top-5 left-5 right-5 z-30 flex justify-between pointer-events-none">
+          <button
+            onClick={onClose}
+            aria-label={t("common.close")}
+            className="w-10 h-10 rounded-full bg-white/95 backdrop-blur-md flex items-center justify-center text-zinc-800 transition-transform active:scale-95 shadow-sm pointer-events-auto"
+          >
+            <X size={18} strokeWidth={2.5} />
+          </button>
+          <div className="pointer-events-none" />
         </div>
-        )}
-           
-           <div className="mb-10">
-              {bogoFreeFromDealId ? (
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
-                  🎁 {t("product.freeVia", { deal: bogoDealTitle || "BOGO" })}
-                </div>
-              ) : (
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
-                  <Sparkles size={12} /> {t("product.speciality")}
-                </div>
+
+        {/* Scrollbar yta — hero + body + extras scrollar tillsammans */}
+        <div className="flex-1 overflow-y-auto no-scrollbar" style={{ overscrollBehavior: "contain" }}>
+
+          {/* Hero (skrollar med innehållet) */}
+          <div
+            className="relative w-full"
+            style={{
+              height: "260px",
+              backgroundImage: hasImage
+                ? `url("${product.imageUrl}")`
+                : "radial-gradient(circle at 22% 28%, rgba(200,154,60,0.30) 0%, transparent 45%), radial-gradient(circle at 78% 76%, rgba(200,154,60,0.22) 0%, transparent 50%), linear-gradient(135deg, rgba(200,154,60,0.20) 0%, rgba(200,154,60,0.10) 100%)",
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundColor: "rgba(200,154,60,0.10)",
+            }}
+          >
+            <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-white/70" />
+            {!hasImage && (
+              <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+                <span
+                  className="font-black leading-none"
+                  style={{
+                    color: "#8a6418",
+                    fontSize: (product.name || "").length > 14 ? "32px" : (product.name || "").length > 10 ? "40px" : "48px",
+                    letterSpacing: "-1.4px",
+                  }}
+                >
+                  {product.name}
+                </span>
+              </div>
+            )}
+            {hasDiscount && hasImage && (
+              <div className="absolute top-5 left-1/2 -translate-x-1/2 bg-gold-500 text-zinc-900 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full">
+                −{Math.round((1 - effectiveBasePrice / product.price) * 100)}%
+              </div>
+            )}
+          </div>
+
+          {/* Innehåll */}
+          <div className="px-5 pt-5 pb-4">
+            {/* Speciality/BOGO tag */}
+            {bogoFreeFromDealId ? (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 text-[9px] font-black uppercase tracking-widest mb-3">
+                🎁 {t("product.freeVia", { deal: bogoDealTitle || "BOGO" })}
+              </div>
+            ) : null}
+
+            {/* Titel */}
+            <h2
+              className="font-black m-0"
+              style={{ fontSize: "26px", letterSpacing: "-0.7px", lineHeight: 1.05, color: "var(--text-primary, #1c1c1e)" }}
+            >
+              {product.name}
+            </h2>
+
+            {/* Beskrivning */}
+            {product.description ? (
+              <p
+                className="m-0 mt-2.5"
+                style={{ fontSize: "14px", lineHeight: 1.5, color: "var(--text-secondary, #6b6b6b)", fontWeight: 500 }}
+              >
+                {product.description}
+              </p>
+            ) : null}
+
+            {/* Pris-rad */}
+            <div className="mt-3.5 flex items-baseline gap-2.5">
+              <span style={{ fontSize: "22px", fontWeight: 900, letterSpacing: "-0.4px", color: "var(--text-primary, #1c1c1e)" }}>
+                {effectiveBasePrice}
+                <small style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-tertiary, #9a9a9a)", marginLeft: "3px" }}>KR</small>
+              </span>
+              {hasDiscount && (
+                <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-tertiary, #9a9a9a)", textDecoration: "line-through" }}>
+                  {product.price}
+                </span>
               )}
-              <h2 className="text-3xl sm:text-4xl font-black uppercase italic tracking-tight leading-[1.15] mb-4" style={{ color: "var(--text-primary)" }}>{product.name}</h2>
-              <p className="text-xs font-bold uppercase tracking-widest leading-relaxed border-l-2 border-gold-500/50 pl-4" style={{ color: "var(--text-secondary)" }}>{product.description || t("product.noDescription")}</p>
-           </div>
+            </div>
 
-           {/* Extra Groups */}
-           <div className="space-y-16">
-              {[...filteredExtraGroups].sort((a, b) => (a.position || 0) - (b.position || 0)).map((group) => {
-                 const selectionCount = selectedExtras.filter((e) => e.groupId === group.id).length;
-                 return (
-                 <div key={group.id} className="relative">
-                     <div className="flex items-center justify-between mb-8">
-                        <div>
-                           <h3 className="text-xl font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>{group.name}</h3>
-                           <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500">{group.required ? t("product.required") : t("product.optional")}</span>
-                              {group.maxSelections > 1 && (
-                                 <div className="px-3 py-1 rounded-lg" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                                   <span className="text-[9px] font-black text-gold-600 italic uppercase tracking-tighter">{selectionCount} <span className="text-zinc-400 not-italic">{t("product.of")}</span> {group.maxSelections}</span>
-                                 </div>
-                              )}
-                           </div>
-                        </div>
-                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                       {group.extras.map((extra: any) => {
-                          const isSelected = selectedExtras.some((e) => e.extraId === extra.id);
-                          return (
-                              <button
-                                 key={extra.id}
-                                 onClick={() => handleToggleExtra(group, extra)}
-                                 className={`flex items-center justify-between p-5 rounded-[1.8rem] border-2 transition-all duration-300 ${
-                                    isSelected 
-                                       ? "bg-gold-500/5 border-gold-500/60 shadow-[0_10px_20px_rgba(231,178,75,0.1)]" 
-                                       : "bg-white border-zinc-100 hover:border-zinc-200"
-                                 }`}
-                                 style={{ backgroundColor: isSelected ? undefined : "var(--bg-primary)", borderColor: isSelected ? undefined : "var(--border-muted)" }}
-                              >
-                                 <div className="flex items-center gap-4">
-                                    <div className={`w-6 h-6 rounded-3xl border-2 flex items-center justify-center transition-all ${isSelected ? "bg-gold-500 border-gold-500" : "border-zinc-200"}`}>
-                                       {isSelected && <Check size={14} className="text-zinc-950" strokeWidth={4} />}
-                                    </div>
-                                    <span className={`text-[11px] font-black uppercase tracking-widest ${isSelected ? "text-gold-500" : "text-zinc-500"}`}>{extra.name}</span>
-                                 </div>
-                                 {extra.priceAddon > 0 && <span className="text-[9px] font-black text-zinc-400">+{extra.priceAddon} kr</span>}
-                              </button>
-                          );
-                       })}
-                    </div>
-                  </div>
-               );
-            })}
-         </div>
-
-           {/* Notes */}
-           <div className="space-y-4 mt-10">
-              <h3 className="text-sm font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>{t("product.requests")}</h3>
-              <div className="rounded-[1.8rem] p-1 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                 <textarea
-                    value={note}
-                    onChange={e => setNote(e.target.value)}
-                    placeholder={t("product.requestsPlaceholder")}
-                    className="w-full bg-transparent border-none rounded-[1.5rem] p-5 text-sm font-bold focus:ring-0 focus:outline-none min-h-[100px] placeholder:text-zinc-400 shadow-inner"
-                    style={{ color: "var(--text-primary)" }}
-                 />
+            {/* Dietary-pills */}
+            {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {product.isVegan && (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full" style={{ backgroundColor: "rgba(34,197,94,0.12)", color: "#16803c" }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "currentColor" }} />
+                    Vegan
+                  </span>
+                )}
+                {product.isVegetarian && !product.isVegan && (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full" style={{ backgroundColor: "rgba(245,158,11,0.12)", color: "#a36711" }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "currentColor" }} />
+                    Vegetariskt
+                  </span>
+                )}
+                {product.isGlutenFree && (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full" style={{ backgroundColor: "rgba(56,189,248,0.12)", color: "#036591" }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "currentColor" }} />
+                    Glutenfritt
+                  </span>
+                )}
               </div>
-           </div>
+            )}
+          </div>
 
-           {selectionError && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest text-center italic">{selectionError}</motion.div>
-           )}
+          {/* Extra grupper */}
+          <div className="px-5">
+            {[...filteredExtraGroups].sort((a, b) => (a.position || 0) - (b.position || 0)).map((group) => {
+              const selectionCount = selectedExtras.filter((e) => e.groupId === group.id).length;
+              return (
+                <section key={group.id} className="mt-6">
+                  <div className="flex items-baseline gap-2.5 mb-3">
+                    <h3 className="font-black m-0" style={{ fontSize: "17px", letterSpacing: "-0.4px", color: "var(--text-primary, #1c1c1e)" }}>
+                      {group.name}
+                    </h3>
+                    {group.required ? (
+                      <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--accent, #c89a3c)" }}>
+                        {t("product.required")}
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--text-tertiary, #9a9a9a)" }}>
+                        {t("product.optional")}
+                      </span>
+                    )}
+                    {group.maxSelections > 1 && (
+                      <span className="ml-auto inline-flex text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full" style={{ backgroundColor: "rgba(200,154,60,0.10)", color: "#8a6418" }}>
+                        {selectionCount} / {group.maxSelections}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {group.extras.map((extra: any) => {
+                      const isSelected = selectedExtras.some((e) => e.extraId === extra.id);
+                      return (
+                        <button
+                          key={extra.id}
+                          onClick={() => handleToggleExtra(group, extra)}
+                          className="rounded-xl px-3 py-3 flex items-center justify-between gap-2.5 transition-all active:scale-[0.98] text-left"
+                          style={{
+                            backgroundColor: isSelected ? "rgba(200,154,60,0.08)" : "var(--bg-secondary, #ffffff)",
+                            border: `1.5px solid ${isSelected ? "#c89a3c" : "rgba(28,28,30,0.06)"}`,
+                            boxShadow: "0 2px 8px rgba(28,28,30,0.04), 0 1px 2px rgba(28,28,30,0.03)",
+                          }}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span
+                              className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
+                              style={{
+                                backgroundColor: isSelected ? "#c89a3c" : "transparent",
+                                border: `2px solid ${isSelected ? "#c89a3c" : "#d4d4d8"}`,
+                              }}
+                            >
+                              {isSelected && <Check size={11} className="text-zinc-900" strokeWidth={4} />}
+                            </span>
+                            <span className="font-black truncate" style={{ fontSize: "13px", color: "var(--text-primary, #1c1c1e)", letterSpacing: "-0.2px" }}>
+                              {extra.name}
+                            </span>
+                          </div>
+                          {extra.priceAddon > 0 && (
+                            <span className="font-black flex-shrink-0" style={{ fontSize: "11px", color: "#8a6418" }}>
+                              +{extra.priceAddon}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+
+          {/* Notes */}
+          <div className="px-5 mt-6">
+            <h3 className="font-black m-0 mb-2.5" style={{ fontSize: "17px", letterSpacing: "-0.4px", color: "var(--text-primary, #1c1c1e)" }}>
+              {t("product.requests")}
+            </h3>
+            <div
+              className="rounded-xl px-3.5 py-3"
+              style={{
+                backgroundColor: "var(--bg-secondary, #ffffff)",
+                border: "1.5px solid rgba(28,28,30,0.06)",
+                boxShadow: "0 2px 8px rgba(28,28,30,0.04), 0 1px 2px rgba(28,28,30,0.03)",
+              }}
+            >
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={t("product.requestsPlaceholder")}
+                className="w-full bg-transparent border-0 outline-none resize-none placeholder:text-zinc-400"
+                style={{ color: "var(--text-primary, #1c1c1e)", fontSize: "13px", fontWeight: 500, minHeight: "50px", fontFamily: "inherit" }}
+              />
+            </div>
+          </div>
+
+          {selectionError && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mx-5 mt-4 px-3 py-2 rounded-lg text-center"
+              style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#c01818", fontSize: "11px", fontWeight: 800 }}
+            >
+              {selectionError}
+            </motion.div>
+          )}
+
+          {/* Spacer för sticky footer */}
+          <div className="h-6" />
         </div>
 
-        {/* Footer */}
-        <div className="shrink-0 p-6 sm:p-8 backdrop-blur-3xl border-t flex flex-col sm:flex-row items-center gap-4" style={{ backgroundColor: "var(--glass-bg)", borderColor: "var(--border-muted)" }}>
-           <div className="flex items-center gap-8 glass-panel p-2 px-8 rounded-[2rem]" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-              <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-2 text-zinc-400 hover:text-zinc-800 transition-colors active:scale-75"><Minus size={22} /></button>
-              <span className="text-2xl font-black w-8 text-center italic" style={{ color: "var(--text-primary)" }}>{quantity}</span>
-              <button onClick={() => setQuantity(quantity + 1)} className="p-2 text-zinc-400 hover:text-zinc-800 transition-colors active:scale-75"><Plus size={22} /></button>
-           </div>
-           
-           <button onClick={handleAddToCart} className={`w-full py-6 px-10 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-between shadow-[0_20px_40px_rgba(231,178,75,0.25)] transition-all active:scale-[0.97] group ${bogoFreeFromDealId ? "bg-emerald-500 hover:bg-emerald-400" : "bg-gold-500 hover:bg-gold-400"}`}>
-              <div className="flex items-center gap-3">
-                 <ShoppingBag size={20} />
-                 <span>{editCartItemId ? t("product.saveChanges") : bogoFreeFromDealId ? t("product.pickAsFree") : t("product.addToCart")}</span>
-              </div>
-              <div className="flex items-center gap-2 text-xl italic leading-[1.15]">
-                 {bogoFreeFromDealId
-                   ? (extrasPrice > 0 ? t("product.extrasPrice", { price: extrasPrice }) : t("product.free"))
-                   : `${totalPrice} KR`}
-              </div>
-           </button>
+        {/* Sticky bottom — kvantitet + lägg till */}
+        <div
+          className="flex-shrink-0 px-4 pt-3 pb-5 flex items-center gap-2.5"
+          style={{ backgroundColor: "var(--bg-primary, #fff8ef)", boxShadow: "0 -8px 24px rgba(28,28,30,0.08)" }}
+        >
+          <div
+            className="flex items-center p-1 rounded-full flex-shrink-0"
+            style={{
+              backgroundColor: "var(--bg-secondary, #ffffff)",
+              boxShadow: "0 2px 8px rgba(28,28,30,0.04), 0 1px 2px rgba(28,28,30,0.03)",
+            }}
+          >
+            <button
+              onClick={() => setQuantity(Math.max(1, quantity - 1))}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95"
+              style={{ color: "var(--text-primary, #1c1c1e)" }}
+              aria-label="Minska"
+            >
+              <Minus size={18} strokeWidth={3} />
+            </button>
+            <span className="font-black text-center min-w-[28px]" style={{ fontSize: "15px", color: "var(--text-primary, #1c1c1e)" }}>
+              {quantity}
+            </span>
+            <button
+              onClick={() => setQuantity(quantity + 1)}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95"
+              style={{ color: "var(--text-primary, #1c1c1e)" }}
+              aria-label="Öka"
+            >
+              <Plus size={18} strokeWidth={3} />
+            </button>
+          </div>
+
+          <button
+            onClick={handleAddToCart}
+            className={`flex-1 rounded-full px-4 py-3.5 flex items-center justify-between gap-3 transition-transform active:scale-[0.98] ${bogoFreeFromDealId ? "bg-emerald-500" : ""}`}
+            style={{
+              backgroundColor: bogoFreeFromDealId ? undefined : "#c89a3c",
+              color: "#1c1c1e",
+              boxShadow: bogoFreeFromDealId
+                ? "0 6px 18px rgba(16,185,129,0.35)"
+                : "0 6px 18px rgba(200,154,60,0.35)",
+            }}
+          >
+            <span className="inline-flex items-center gap-2 font-black" style={{ fontSize: "14px", letterSpacing: "-0.2px" }}>
+              <ShoppingBag size={16} strokeWidth={2.5} />
+              {editCartItemId ? t("product.saveChanges") : bogoFreeFromDealId ? t("product.pickAsFree") : t("product.addToCart")}
+            </span>
+            <span className="font-black" style={{ fontSize: "14px" }}>
+              {bogoFreeFromDealId
+                ? (extrasPrice > 0 ? t("product.extrasPrice", { price: extrasPrice }) : t("product.free"))
+                : <>{totalPrice}<small style={{ fontSize: "11px", fontWeight: 700, opacity: 0.7, marginLeft: "2px" }}>KR</small></>}
+            </span>
+          </button>
         </div>
 
         <ConfirmModal
