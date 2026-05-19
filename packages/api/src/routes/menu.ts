@@ -122,12 +122,21 @@ router.get('/categories', async (req, res) => {
       });
     };
 
-    // Tidigare räknade vi orderitem-counts här — bytt till random urval per
-     // request. Rätter med bild får en boost så att den horisontella raden
-     // "Populärt"-överst alltid är visuellt rik. Map kvar för att inte bryta
-     // call-site; returnerar tom Map.
-    const queryProductPopularity = async (_rid: string | null): Promise<Map<string, number>> => {
-      return new Map();
+    // Räknar OrderItem-rader per produkt senaste 30 dagar — bas för
+     // "Populärt"-raden. Returns Map: productId → count.
+    const queryProductPopularity = async (rid: string | null): Promise<Map<string, number>> => {
+      if (!rid) return new Map();
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const items = await prisma.orderItem.findMany({
+        where: { order: { restaurantId: rid, createdAt: { gte: since } } },
+        select: { productId: true },
+      });
+      const counts = new Map<string, number>();
+      for (const item of items) {
+        if (!item.productId) continue;
+        counts.set(item.productId, (counts.get(item.productId) || 0) + 1);
+      }
+      return counts;
     };
 
     const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
@@ -204,23 +213,26 @@ router.get('/categories', async (req, res) => {
       }
     }
 
-    // Plockar slumpade produkter per huvudkategori för "Populärt"-raden.
-     // Antal val skalas mot kategorins storlek: små kategorier (≤8 produkter)
-     // visar 3, större visar 6 — annars blir sektionen redundant när hälften av
-     // utbudet redan är i raden. Bild-vikt: produkter med imageUrl får 1.5x
-     // sannolikhet att rankas högt så raden alltid ser bild-tung ut. Random
-     // per request → varierar varje gång kunden öppnar menyn (discovery).
+    // Plockar 6 produkter per huvudkategori för "Populärt"-raden.
+     // - Kategorier med <10 totala produkter: tom lista (sektionen göms på
+     //   klienten) — annars blir raden redundant.
+     // - Med order-historik senaste 30d: rangordna efter OrderItem-counts +
+     //   1.2x bild-boost.
+     // - Utan historik (ny restaurang): random per request med 1.5x bild-vikt.
     const popularProductIdsFor = (cats: typeof formattedCategories): string[] => {
-      const productsInScope: Array<{ id: string; score: number }> = [];
-      for (const cat of cats) {
-        for (const p of cat.products) {
-          const r = Math.random();
-          const score = p.imageUrl ? r * 1.5 : r;
-          productsInScope.push({ id: p.id, score });
+      const all = cats.flatMap((c) => c.products);
+      if (all.length < 10) return [];
+
+      const hasOrders = all.some((p) => (popularity.get(p.id) || 0) > 0);
+      const scored = all.map((p) => {
+        if (hasOrders) {
+          const base = popularity.get(p.id) || 0;
+          return { id: p.id, score: p.imageUrl ? base * 1.2 + 0.001 : base };
         }
-      }
-      const take = productsInScope.length <= 8 ? 3 : 6;
-      return productsInScope.sort((a, b) => b.score - a.score).slice(0, take).map((p) => p.id);
+        const r = Math.random();
+        return { id: p.id, score: p.imageUrl ? r * 1.5 : r };
+      });
+      return scored.sort((a, b) => b.score - a.score).slice(0, 6).map((p) => p.id);
     };
 
     const mainCategoriesPayload = mainCategories
