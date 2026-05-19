@@ -263,10 +263,57 @@ export default function CartPage() {
   const sessionToken = useRef<string>("");
 
   useEffect(() => {
-    sessionToken.current = (typeof crypto !== 'undefined' && crypto.randomUUID) 
-      ? crypto.randomUUID() 
+    sessionToken.current = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
       : Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
   }, []);
+
+  // A15: When the menu changes for the restaurant we're checking out from,
+  // revalidate each cart line. Any item that's been disabled or removed is
+  // dropped from the cart with a friendly notice — beats the customer paying
+  // for a non-existent item and getting a refund later.
+  const [menuChangedNotice, setMenuChangedNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onMenuChanged = async (e: Event) => {
+      try {
+        const evt = (e as CustomEvent<{ restaurantId?: string | null }>).detail || {};
+        // If event scoped to a restaurant other than the cart's, ignore.
+        if (evt.restaurantId && cartRestaurantId && evt.restaurantId !== cartRestaurantId) return;
+        if (!items.length) return;
+        const removed: string[] = [];
+        // Fetch fresh product state for each unique productId in cart
+        const uniqueIds = Array.from(new Set(items.map((it: any) => it.productId)));
+        const fresh = await Promise.all(uniqueIds.map(async (pid) => {
+          try {
+            const r = await axios.get(`${API_URL}/api/menu/products/${pid}`);
+            return { id: pid, isActive: r.data?.isActive !== false, name: r.data?.name as string };
+          } catch {
+            return { id: pid, isActive: false, name: '' };
+          }
+        }));
+        const byId = new Map(fresh.map((p) => [p.id, p]));
+        for (const it of items as any[]) {
+          const f = byId.get(it.productId);
+          if (!f || !f.isActive) {
+            removeItem(it.cartItemId);
+            removed.push(it.name || f?.name || 'En artikel');
+          }
+        }
+        if (removed.length) {
+          setMenuChangedNotice(
+            removed.length === 1
+              ? `${removed[0]} är inte längre tillgänglig och togs bort från din varukorg.`
+              : `${removed.length} artiklar är inte längre tillgängliga och togs bort från din varukorg.`
+          );
+        }
+      } catch {
+        /* noop */
+      }
+    };
+    window.addEventListener('matgo:menu-changed', onMenuChanged as EventListener);
+    return () => window.removeEventListener('matgo:menu-changed', onMenuChanged as EventListener);
+  }, [items, cartRestaurantId, removeItem]);
 
   useEffect(() => {
     if (showSchedulePicker) {
@@ -1479,6 +1526,27 @@ export default function CartPage() {
               </p>
               <button
                 onClick={() => setBogoLostNotice(null)}
+                className="text-amber-300/60 hover:text-amber-200 transition-colors shrink-0"
+                aria-label={t("common.close")}
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          )}
+          {menuChangedNotice && (
+            <motion.div
+              key="menu-changed"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="rounded-2xl mb-6 border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-start gap-3"
+            >
+              <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+              <p className="flex-1 text-[11px] font-bold text-amber-200 leading-snug">
+                {menuChangedNotice}
+              </p>
+              <button
+                onClick={() => setMenuChangedNotice(null)}
                 className="text-amber-300/60 hover:text-amber-200 transition-colors shrink-0"
                 aria-label={t("common.close")}
               >

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { isRestaurantOpen } from '../lib/openingHours';
+import { isRestaurantOpen, hasOpeningHours } from '../lib/openingHours';
 
 const router = Router();
 router.use(authenticate);
@@ -301,8 +301,8 @@ router.get('/control-center', async (req, res) => {
       const orders = groupedByRestaurant.get(restaurant.id) || [];
       const currentLiveOrders = liveByRestaurant.get(restaurant.id) || [];
       const currentMonthOrders = monthByRestaurant.get(restaurant.id) || [];
-      const openingHours = parseJson<Record<string, { closed?: boolean }>>(restaurant.openingHours, {});
-      const hasHours = Object.values(openingHours).some((day) => day && day.closed !== undefined);
+      const openingHours = parseJson<Record<string, any>>(restaurant.openingHours, {});
+      const hasHours = hasOpeningHours(openingHours);
       let effectiveIsOpen = restaurant.isOpen;
       try {
         effectiveIsOpen = restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
@@ -314,7 +314,11 @@ router.get('/control-center', async (req, res) => {
       const monthSales = currentMonthOrders.reduce((sum, order) => sum + order.total, 0) / 100;
       const tier = TIER_CONFIG[restaurant.featuredClass ?? 3] || TIER_CONFIG[3];
       const commissionEstimate = (monthSales * tier.commissionPct) / 100;
-      const payoutEstimate = monthSales - commissionEstimate - tier.subscriptionFee;
+      // Payout = what we owe the restaurant. Floored at 0 — subscription is billed separately,
+      // not subtracted from a payout the restaurant didn't earn (was the source of the
+      // bogus negative "Utbetalning (mån)" on the dashboard).
+      const payoutEstimate = Math.max(0, monthSales - commissionEstimate - tier.subscriptionFee);
+      const subscriptionLiability = monthSales > 0 ? 0 : tier.subscriptionFee;
       const pendingOrders = currentLiveOrders.filter((order) => order.status === 'PENDING').length;
       const reviewScore = reviewOrders.length
         ? reviewOrders.reduce((sum, order) => sum + (order.rating || 0), 0) / reviewOrders.length

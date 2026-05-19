@@ -71,6 +71,55 @@ export function isRestaurantOpen(openingHours: any | string | null | undefined):
   return false;
 }
 
+/**
+ * Returns true if the restaurant has any meaningful opening-hours data configured.
+ * Accepts every shape isRestaurantOpen() handles:
+ *   - { monday: { open, close } }
+ *   - { monday: { open, close, closed } }
+ *   - { monday: [{ open, close }, ...] }
+ *   - { monday: { shifts: [{ open, close }, ...] } }
+ *   - { monday: { closed: true } }
+ *   - { specialHours: [...] }
+ *   - { regular: { monday: ... } }
+ */
+export function hasOpeningHours(openingHours: any | string | null | undefined): boolean {
+  if (!openingHours) return false;
+  let hours: any;
+  if (typeof openingHours === 'string') {
+    try {
+      hours = JSON.parse(openingHours);
+    } catch {
+      return false;
+    }
+  } else {
+    hours = openingHours;
+  }
+  if (!hours || typeof hours !== 'object') return false;
+
+  const dayHasData = (day: any): boolean => {
+    if (!day) return false;
+    if (Array.isArray(day)) return day.some((slot) => slot && (slot.open || slot.close));
+    if (typeof day !== 'object') return false;
+    if (day.closed === true || day.closed === false) return true;
+    if (day.open && day.close) return true;
+    if (Array.isArray(day.shifts) && day.shifts.some((s: any) => s && (s.open || s.close))) return true;
+    return false;
+  };
+
+  if (Array.isArray(hours.specialHours) && hours.specialHours.some(dayHasData)) return true;
+  if (hours.regular && typeof hours.regular === 'object') {
+    for (const k of Object.keys(hours.regular)) {
+      if (dayHasData(hours.regular[k])) return true;
+    }
+  }
+  const skip = new Set(['specialHours', 'regular']);
+  for (const key of Object.keys(hours)) {
+    if (skip.has(key)) continue;
+    if (dayHasData(hours[key])) return true;
+  }
+  return false;
+}
+
 function isWithinSlot(now: Date, open: any, close: any): boolean {
   if (typeof open !== 'string' || typeof close !== 'string') return false;
   if (!open.includes(':') || !close.includes(':')) return false;

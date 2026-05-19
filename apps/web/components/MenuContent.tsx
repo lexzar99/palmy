@@ -396,7 +396,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     socket.on("settings:updated", (nextSettings) => {
       const isGlobal = !nextSettings.slug && !nextSettings.restaurantId;
       const isMatch = nextSettings.slug === restaurantSlug || (restaurantId && nextSettings.restaurantId === restaurantId);
-      
+
       if (isMatch || (isGlobal && !restaurantSlug)) {
         setRestaurant((prev: any) => {
           if (!prev) return prev;
@@ -412,6 +412,19 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           };
         });
       }
+    });
+
+    // A15: real-time menu propagation. When admin/restaurant changes a product,
+    // category, or extra, we refetch the menu so customers never see stale data.
+    // Cart revalidation happens on next checkout (existing path) — the menu
+    // refetch alone removes the item from the catalog UI so users notice.
+    socket.on("menu:changed", (evt: { restaurantId?: string | null }) => {
+      const isMatch = !evt.restaurantId || (restaurantId && evt.restaurantId === restaurantId);
+      if (!isMatch) return;
+      // Notify the rest of the app (e.g. cart page) — listeners can decide
+      // whether to revalidate cart contents.
+      try { window.dispatchEvent(new CustomEvent("matgo:menu-changed", { detail: evt })); } catch {}
+      fetchData();
     });
 
     return () => { socket.disconnect(); };

@@ -16,9 +16,34 @@ import { recalculateRestaurantEta } from '../lib/restaurantEta';
 import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
 import { ALLOW_WIPE_ORDERS, ENABLE_PASSWORD_PLAIN } from '../lib/config';
 import { sanitizeError } from '../lib/errors';
+import { menuCacheBust } from './menu';
 
 const router = Router();
 router.use(authenticate);
+
+/**
+ * Broadcast a menu change so customer apps refresh in real-time and
+ * the server-side TTL cache for /api/menu/categories is busted.
+ * Idempotent — safe to call after every product/category/extra mutation.
+ */
+function broadcastMenuChange(restaurantId: string | null, payload: Record<string, unknown> = {}) {
+  try {
+    menuCacheBust(restaurantId);
+    const event = { restaurantId, ...payload, at: new Date().toISOString() };
+    // Public room for customers viewing this restaurant's menu
+    if (restaurantId) {
+      getIO().to(`menu:${restaurantId}`).emit('menu:changed', event);
+    }
+    // Admin/Flutter rooms watching their own menu
+    getIO().to('admin-room').emit('menu:changed', event);
+    if (restaurantId) {
+      getIO().to(`admin-room:${restaurantId}`).emit('menu:changed', event);
+    }
+  } catch (err) {
+    // Never let a socket broadcast failure abort the mutation
+    console.warn('[menu] broadcast failed', err);
+  }
+}
 // RBAC: VIEWER kan bara läsa, STAFF kan läsa+skriva men inte radera,
 // ADMIN/RESTAURANT_ADMIN/SUPER_ADMIN kan allt. Per-route `requireSuperAdmin`
 // gäller fortfarande för känsliga ops (wipe, refund, staff-management).
@@ -1003,6 +1028,7 @@ router.post('/categories', async (req, res) => {
       resourceId: category.id,
       changes: { name, restaurantId: scopedRestaurantId },
     });
+    broadcastMenuChange(scopedRestaurantId ?? null, { kind: 'category', categoryId: category.id });
     res.status(201).json(category);
   } catch (error: any) {
     console.error('Error creating category:', error);
@@ -1082,6 +1108,7 @@ router.patch('/categories/:id', async (req, res) => {
       resourceId: category.id,
       changes: data,
     });
+    broadcastMenuChange(category.restaurantId ?? null, { kind: 'category', categoryId: category.id });
     res.json(category);
   } catch {
     res.status(500).json({ error: 'Serverfel' });
@@ -1108,6 +1135,10 @@ router.delete('/categories/:id', async (req, res) => {
       }
     }
 
+    const doomedCat = await prisma.category.findUnique({
+      where: { id: req.params.id },
+      select: { restaurantId: true },
+    });
     await prisma.category.delete({
       where: { id: req.params.id },
     });
@@ -1115,6 +1146,7 @@ router.delete('/categories/:id', async (req, res) => {
       resourceType: 'Category',
       resourceId: req.params.id,
     });
+    broadcastMenuChange(doomedCat?.restaurantId ?? null, { kind: 'category', categoryId: req.params.id, deleted: true });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'Serverfel' });
@@ -1261,6 +1293,12 @@ router.post('/products', async (req, res) => {
       resourceId: product.id,
       changes: { name: data.name, price: data.price, categoryId: data.categoryId },
     });
+    // Resolve restaurantId via category for the broadcast
+    const cat = await prisma.category.findUnique({
+      where: { id: data.categoryId },
+      select: { restaurantId: true },
+    });
+    broadcastMenuChange(cat?.restaurantId ?? null, { kind: 'product', productId: product.id, created: true });
     res.status(201).json({ ...product, price: product.price / 100 });
   } catch {
     res.status(500).json({ error: 'Serverfel' });
@@ -1310,12 +1348,18 @@ router.patch('/products/:id', async (req, res) => {
           },
         } : {}),
       },
+      include: { category: { select: { restaurantId: true } } },
     });
 
     await audit(req as AuthRequest, 'PRODUCT_UPDATE', {
       resourceType: 'Product',
       resourceId: product.id,
       changes: updateData,
+    });
+    broadcastMenuChange(product.category?.restaurantId ?? null, {
+      kind: 'product',
+      productId: product.id,
+      isActive: product.isActive,
     });
     res.json({ ...product, price: product.price / 100 });
   } catch {
@@ -1343,10 +1387,19 @@ router.delete('/products/:id', async (req, res) => {
       }
     }
 
+    const doomed = await prisma.product.findUnique({
+      where: { id: req.params.id },
+      select: { category: { select: { restaurantId: true } } },
+    });
     await prisma.product.delete({ where: { id: req.params.id } });
     await audit(req as AuthRequest, 'PRODUCT_DELETE', {
       resourceType: 'Product',
       resourceId: req.params.id,
+    });
+    broadcastMenuChange(doomed?.category?.restaurantId ?? null, {
+      kind: 'product',
+      productId: req.params.id,
+      deleted: true,
     });
     res.json({ success: true });
   } catch {
@@ -1761,6 +1814,11 @@ router.patch('/extras/:id', async (req, res) => {
       resourceType: 'Extra',
       resourceId: extra.id,
       changes: updateData,
+    });
+    broadcastMenuChange(existing.extraGroup.restaurantId ?? null, {
+      kind: 'extra',
+      extraId: extra.id,
+      isActive: extra.isActive,
     });
     res.json({ ...extra, priceAddon: extra.priceAddon / 100 });
   } catch (err) {

@@ -4,6 +4,24 @@ import { getDealScopeType, isDealAvailableNow, parseApplicableRestaurantIds, par
 
 const router = Router();
 
+// In-memory TTL cache for /menu/categories (deep nested Prisma include is slow
+// enough to cause 12s axios timeouts on the customer web). Short TTL keeps
+// "real-time menu" feel without hammering the DB on every customer.
+// Bust with menuCacheBust(restaurantId | null) — wired into product/category
+// mutation routes elsewhere.
+const MENU_CACHE_TTL_MS = 30_000;
+type MenuCacheEntry = { payload: unknown; expiresAt: number };
+const menuCache = new Map<string, MenuCacheEntry>();
+const cacheKey = (rid: string | null) => `r:${rid ?? '_global'}`;
+export function menuCacheBust(restaurantId: string | null = null) {
+  if (restaurantId === null) {
+    menuCache.clear();
+    return;
+  }
+  menuCache.delete(cacheKey(restaurantId));
+  menuCache.delete(cacheKey(null));
+}
+
 const dealMatchesRestaurant = (deal: {
   restaurantId?: string | null;
   isGlobal?: boolean | null;
@@ -36,7 +54,9 @@ const toDisplayDiscount = (product: any, categoryId: string, restaurantId: strin
 // GET /api/menu/categories - Alla aktiva kategorier med produkter för en specifik restaurang
 router.get('/categories', async (req, res) => {
   try {
-    res.set('Cache-Control', 'no-store');
+    // Allow short browser/CDN caching too. Server-side TTL cache below is the
+    // main mechanism but a short shared cache shaves cold-start latency further.
+    res.set('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
     const { restaurantId, slug } = req.query;
     const hasRestaurantScope = Boolean(restaurantId || slug);
 
@@ -49,6 +69,15 @@ router.get('/categories', async (req, res) => {
       });
       return restaurant?.id ?? null;
     })();
+
+    // Cache hit?
+    const ck = cacheKey(hasRestaurantScope ? (resolvedRestaurantId ?? null) : null);
+    const cached = menuCache.get(ck);
+    if (cached && cached.expiresAt > Date.now()) {
+      res.set('X-Cache', 'HIT');
+      res.json(cached.payload);
+      return;
+    }
 
     const queryActiveMenuByRestaurantId = async (rid: string | null) => {
       return prisma.category.findMany({
@@ -138,6 +167,8 @@ router.get('/categories', async (req, res) => {
       })),
     }));
 
+    menuCache.set(ck, { payload: formatted, expiresAt: Date.now() + MENU_CACHE_TTL_MS });
+    res.set('X-Cache', 'MISS');
     res.json(formatted);
   } catch (error) {
     console.error('Error fetching menu:', error);
