@@ -1286,7 +1286,10 @@ export default function HomePage() {
                           style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 14px rgba(28,28,30,0.04)" }}
                         >
                           {/* ── IMAGE ──────────────────────────────────────── */}
-                          <div className="h-44 sm:h-52 w-full overflow-hidden relative" style={{ backgroundColor: "var(--bg-deep)" }}>
+                          {/* Bigger image on mobile (was h-44 / 176px → 200px)
+                              so restaurant cards feel substantial against the
+                              now-smaller sponsor rail. Stable at sm+. */}
+                          <div className="h-[200px] sm:h-52 w-full overflow-hidden relative" style={{ backgroundColor: "var(--bg-deep)" }}>
                             {r.imageUrl || r.heroImageUrl ? (
                               <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover group-hover:scale-105 transition-all duration-700" />
                             ) : (

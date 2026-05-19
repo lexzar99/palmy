@@ -122,7 +122,7 @@ const Navbar = () => {
           <Link
             href="/about"
             className="hidden md:flex p-2 transition-colors rounded-full items-center justify-center"
-            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
+            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)", border: "1px solid var(--border-muted)" }}
             aria-label={t("nav.about")}
             title={t("nav.about")}
           >
@@ -131,7 +131,7 @@ const Navbar = () => {
           <Link
             href="/contact"
             className="hidden md:flex p-2 transition-colors rounded-full items-center justify-center"
-            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
+            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)", border: "1px solid var(--border-muted)" }}
             aria-label={t("nav.contact")}
             title={t("nav.contact")}
           >
@@ -143,7 +143,7 @@ const Navbar = () => {
           <button
             onClick={toggleTheme}
             className="p-2 transition-colors rounded-full"
-            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
+            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)", border: "1px solid var(--border-muted)" }}
             aria-label={theme === 'dark' ? t("nav.theme.toLight") : t("nav.theme.toDark")}
           >
             {theme === 'dark' ? <Sun size={20} className="text-gold-500" /> : <Moon size={20} className="text-gold-600" />}
@@ -152,7 +152,7 @@ const Navbar = () => {
           <Link
             href="/cart"
             className="relative p-2 transition-colors group rounded-full"
-            style={{ backgroundColor: "var(--bg-deep)" }}
+            style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
             aria-label={t("nav.cart")}
           >
             <ShoppingCart size={20} className="text-gold-600 group-hover:scale-110 transition-transform" />
@@ -170,7 +170,7 @@ const Navbar = () => {
             type="button"
             onClick={() => setIsOpen(!isOpen)}
             className="md:hidden p-3 -mr-2 rounded-xl active:scale-95 transition-all select-none touch-manipulation"
-            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}
+            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)", border: "1px solid var(--border-muted)" }}
             aria-label="Toggle Menu"
           >
             {isOpen ? <X size={26} /> : <Menu size={26} />}

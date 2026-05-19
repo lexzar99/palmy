@@ -53,15 +53,15 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
       whileTap={isInteractive ? { scale: 0.98 } : undefined}
       transition={{ type: "spring", stiffness: 320, damping: 22 }}
       onClick={handleClick}
-      className={`relative shrink-0 rounded-3xl overflow-hidden group ${
+      // Smaller on mobile (200x115) so restaurant cards below get more
+      // visual weight; original 260x150 on >=sm so desktop layout stays.
+      className={`relative shrink-0 rounded-2xl sm:rounded-3xl overflow-hidden group w-[200px] h-[115px] sm:w-[260px] sm:h-[150px] ${
         isInteractive ? "cursor-pointer" : "cursor-default"
       }`}
       style={{
-        width: 260,
-        height: 150,
         backgroundColor: "#171513",
         boxShadow:
-          "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 28px -10px rgba(0,0,0,0.45), 0 4px 10px -4px rgba(234,181,69,0.18)",
+          "0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 20px -8px rgba(0,0,0,0.4), 0 3px 8px -3px rgba(234,181,69,0.15)",
       }}
     >
       {/* Tunn gradient-ram med gold-tint upptill */}

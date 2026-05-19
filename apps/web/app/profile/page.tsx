@@ -344,11 +344,15 @@ function ProfileContent() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [profileRes, ordersRes, dealsRes, claimedRes] = await Promise.all([
+      // Parallelise ALL 5 fetches — used to do addresses serially after the
+      // first 4 which made the profile page wait an extra ~300-500ms for
+      // the second round trip. Each call is independent.
+      const [profileRes, ordersRes, dealsRes, claimedRes, addrRes] = await Promise.all([
         axios.get(`/api/platform/profile`),
         axios.get(`/api/platform/profile/orders`),
         axios.get(`/api/platform/profile/deals`),
         axios.get(`/api/platform/profile/claimed-deals`).catch(() => ({ data: { claimed: [], global: [] } })),
+        axios.get(`/api/platform/profile/addresses`).catch(() => ({ data: [] })),
       ]);
       setHasPlatformSession(true);
       setUser(profileRes.data);
@@ -366,15 +370,8 @@ function ProfileContent() {
       // klämt än. Visas som banners med "Spara erbjudande"-knapp så man
       // kan claima dem från Profile om man missade popupen vid app-start.
       setAvailableDeals((claimedRes.data?.available || []) as any[]);
+      setSavedAddresses(addrRes.data || []);
 
-      // Fetch saved addresses
-      try {
-        const addrRes = await axios.get(`/api/platform/profile/addresses`);
-        setSavedAddresses(addrRes.data || []);
-      } catch (err) {
-        console.warn("Failed to load addresses:", err);
-      }
-      
       // If user has no phone, prompt them to add one
       if (!profileRes.data.phone) {
         setShowAddPhone(true);
