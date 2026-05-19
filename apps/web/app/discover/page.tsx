@@ -119,7 +119,10 @@ export default function DiscoverPage() {
     }
   };
 
-  // Same shape as home page's matchesCityFamily — keeps both pages aligned.
+  // Mirrors home's matchesCityFamily — but more permissive when the
+  // family-by-name API hasn't resolved yet OR returned empty. Falls back
+  // to a case-insensitive city-name match so the customer never sees an
+  // empty discover page in the brief window between mount and API response.
   const matchesCityFamily = useCallback((r: any): boolean => {
     if (cityFamilyIds && cityFamilyIds.length > 0) {
       const rCityId = r.cityId as string | null | undefined;
@@ -127,7 +130,11 @@ export default function DiscoverPage() {
       if (detectedCityName) return (r.city || "").toLowerCase() === detectedCityName.toLowerCase();
       return false;
     }
-    if (detectedCityName) return false;
+    // API hasn't returned (or returned empty). If we have a city name,
+    // fall back to a simple name match — better than rendering nothing.
+    if (detectedCityName) {
+      return (r.city || "").toLowerCase() === detectedCityName.toLowerCase();
+    }
     // No address picked yet — show everything (browsing pre-onboarding).
     return true;
   }, [cityFamilyIds, detectedCityName]);

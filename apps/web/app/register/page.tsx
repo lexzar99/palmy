@@ -209,8 +209,8 @@ function RegisterContent() {
              required
              value={firstName}
              onChange={(e) => setFirstName(e.target.value)}
-             className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
-             style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+             className="w-full rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-bold text-base placeholder:text-zinc-400 shadow-sm"
+             style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)", color: "var(--text-primary)" }}
            />
            <input
              type="text"
@@ -220,8 +220,8 @@ function RegisterContent() {
              required
              value={lastName}
              onChange={(e) => setLastName(e.target.value)}
-             className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
-             style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+             className="w-full rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-bold text-base placeholder:text-zinc-400 shadow-sm"
+             style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)", color: "var(--text-primary)" }}
            />
            <input
              type="email"
@@ -232,8 +232,8 @@ function RegisterContent() {
              required
              value={email}
              onChange={(e) => setEmail(e.target.value)}
-             className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
-             style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+             className="w-full rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-bold text-base placeholder:text-zinc-400 shadow-sm"
+             style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)", color: "var(--text-primary)" }}
            />
            <input
              type="tel"
@@ -244,8 +244,8 @@ function RegisterContent() {
              required
              value={phone}
              onChange={(e) => setPhone(e.target.value)}
-             className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
-             style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+             className="w-full rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-bold text-base placeholder:text-zinc-400 shadow-sm"
+             style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)", color: "var(--text-primary)" }}
            />
            <div className="space-y-2">
              <div className="relative">
@@ -258,8 +258,8 @@ function RegisterContent() {
                  minLength={6}
                  value={password}
                  onChange={(e) => setPassword(e.target.value)}
-                 className="w-full rounded-3xl py-5 px-8 pr-14 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
-                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                 className="w-full rounded-3xl py-4 px-6 pr-14 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-bold text-base placeholder:text-zinc-400 shadow-sm"
+                 style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)", color: "var(--text-primary)" }}
                />
                <button
                  type="button"
@@ -310,8 +310,8 @@ function RegisterContent() {
                maxLength={12}
                value={referralCode}
                onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
-               className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-black tracking-[0.3em] text-lg uppercase placeholder:text-zinc-600 placeholder:tracking-normal placeholder:font-bold text-gold-500"
-               style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+               className="w-full rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-black tracking-[0.3em] text-base uppercase placeholder:text-zinc-400 placeholder:tracking-normal placeholder:font-bold text-gold-500 shadow-sm"
+               style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)" }}
              />
              {referralCode && (
                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 ml-2">
