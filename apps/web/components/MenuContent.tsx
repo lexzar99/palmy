@@ -851,36 +851,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         {/* ── Huvudkategori-grid: visas tills användaren väljer en kategori ── */}
         {isGridMode && (
           <div className="mb-10">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-              {mainCategories.map((mc: any) => {
-                const productCount = (mc.categories || []).reduce((sum: number, c: any) => sum + (c.products?.length || 0), 0);
-                return (
-                  <button
-                    key={mc.id}
-                    type="button"
-                    onClick={() => setSelectedMainCategoryId(mc.id)}
-                    className="group relative aspect-square rounded-2xl overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]"
-                    style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}
-                  >
-                    {mc.imageUrl ? (
-                      <img src={mc.imageUrl} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center p-4">
-                        <span className="text-2xl md:text-3xl font-black text-center" style={{ color: "var(--text-primary)" }}>{mc.name}</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-                    <div className="absolute bottom-3 left-3 right-3 text-left">
-                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-white/75">
-                        {productCount} {productCount === 1 ? "rätt" : "rätter"}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-4 rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
+            <div className="mb-3 rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
               <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
               <input
                 type="text"
@@ -890,6 +861,26 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                 className="w-full bg-transparent border-none text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-zinc-400"
                 style={{ color: "var(--text-primary)" }}
               />
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1">
+              {mainCategories.map((mc: any) => (
+                <button
+                  key={mc.id}
+                  type="button"
+                  onClick={() => setSelectedMainCategoryId(mc.id)}
+                  className="group relative aspect-square rounded-md overflow-hidden cursor-pointer transition-transform hover:scale-[1.01]"
+                  style={{ backgroundColor: "var(--bg-secondary)" }}
+                >
+                  {mc.imageUrl ? (
+                    <img src={mc.imageUrl} alt={mc.name} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center p-4">
+                      <span className="text-2xl md:text-3xl font-black text-center" style={{ color: "var(--text-primary)" }}>{mc.name}</span>
+                    </div>
+                  )}
+                </button>
+              ))}
             </div>
           </div>
         )}

@@ -519,55 +519,8 @@ export default function RestaurantScreen({
           const isGridMode = mainCategories.length > 0 && !selectedMainCategoryId && !searchTerm.trim();
           if (isGridMode) {
             return (
-              <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 }} onLayout={(e) => setStickyY(e.nativeEvent.layout.y)}>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 }}>
-                  {mainCategories.map((mc) => {
-                    const productCount = mc.categories.reduce((sum, c) => sum + c.products.length, 0);
-                    return (
-                      <View key={mc.id} style={{ width: '50%', paddingHorizontal: 6, paddingBottom: 12 }}>
-                        <ScalePressable
-                          style={{
-                            aspectRatio: 1,
-                            borderRadius: 18,
-                            overflow: 'hidden',
-                            backgroundColor: palette.panelMuted,
-                            borderWidth: 1,
-                            borderColor: 'rgba(125,97,38,0.12)',
-                          }}
-                          onPress={() => setSelectedMainCategoryId(mc.id)}
-                        >
-                          {mc.imageUrl ? (
-                            <Image source={{ uri: getImageUrl(mc.imageUrl) }} style={StyleSheet.absoluteFillObject as any} />
-                          ) : (
-                            <LinearGradient
-                              colors={[palette.panel, palette.panelMuted]}
-                              style={StyleSheet.absoluteFillObject as any}
-                            />
-                          )}
-                          <LinearGradient
-                            pointerEvents="none"
-                            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)']}
-                            style={StyleSheet.absoluteFillObject as any}
-                          />
-                          {!mc.imageUrl && (
-                            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-                              <Text numberOfLines={2} style={{ color: palette.text, fontSize: 22, fontWeight: '900', textAlign: 'center', letterSpacing: -0.5 }}>
-                                {mc.name}
-                              </Text>
-                            </View>
-                          )}
-                          <View style={{ position: 'absolute', left: 12, bottom: 10, right: 12 }}>
-                            <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 9, fontWeight: '900', letterSpacing: ls(1.4), textTransform: 'uppercase' }}>
-                              {productCount} {productCount === 1 ? 'rätt' : 'rätter'}
-                            </Text>
-                          </View>
-                        </ScalePressable>
-                      </View>
-                    );
-                  })}
-                </View>
-
-                <View style={{ marginTop: 8, paddingVertical: 4, paddingHorizontal: 16, borderRadius: 14, backgroundColor: palette.panel, borderWidth: 1, borderColor: 'rgba(125,97,38,0.12)', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ paddingHorizontal: 12, paddingTop: 12, paddingBottom: 32 }} onLayout={(e) => setStickyY(e.nativeEvent.layout.y)}>
+                <View style={{ marginBottom: 8, paddingVertical: 4, paddingHorizontal: 16, borderRadius: 14, backgroundColor: palette.panel, borderWidth: 1, borderColor: 'rgba(125,97,38,0.12)', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <Ionicons name="search-outline" size={16} color={palette.muted} />
                   <TextInput
                     value={searchTerm}
@@ -576,6 +529,32 @@ export default function RestaurantScreen({
                     placeholderTextColor={palette.muted}
                     style={{ flex: 1, color: palette.text, fontSize: 13, fontWeight: '700', paddingVertical: 12 }}
                   />
+                </View>
+
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -2 }}>
+                  {mainCategories.map((mc) => (
+                    <View key={mc.id} style={{ width: '50%', paddingHorizontal: 2, paddingBottom: 4 }}>
+                      <ScalePressable
+                        style={{
+                          aspectRatio: 1,
+                          borderRadius: 8,
+                          overflow: 'hidden',
+                          backgroundColor: palette.panelMuted,
+                        }}
+                        onPress={() => setSelectedMainCategoryId(mc.id)}
+                      >
+                        {mc.imageUrl ? (
+                          <Image source={{ uri: getImageUrl(mc.imageUrl) }} style={StyleSheet.absoluteFillObject as any} />
+                        ) : (
+                          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 12, backgroundColor: palette.panel }}>
+                            <Text numberOfLines={2} style={{ color: palette.text, fontSize: 22, fontWeight: '900', textAlign: 'center', letterSpacing: -0.5 }}>
+                              {mc.name}
+                            </Text>
+                          </View>
+                        )}
+                      </ScalePressable>
+                    </View>
+                  ))}
                 </View>
               </View>
             );
