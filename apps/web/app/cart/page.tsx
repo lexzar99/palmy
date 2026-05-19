@@ -1797,6 +1797,12 @@ export default function CartPage() {
                   </button>
                 </div>
 
+                {/* Note */}
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.noteLabel")}</label>
+                  <textarea rows={2} value={formData.note} onChange={e => { setFormData({...formData, note: e.target.value}); localStorage.setItem("cart_note", e.target.value); }} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder={t("cart.fields.notePlaceholderExample")} />
+                </div>
+
                 {/* Min-order banner */}
                 {subtotal > 0 && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && addressZoneStatus !== "error" && (
                   <div className="rounded-2xl border px-4 py-3"
@@ -1877,6 +1883,41 @@ export default function CartPage() {
                     </p>
                   </div>
                 )}
+
+                {/* Zone status */}
+                {addressZoneStatus === "error" && orderType === "DELIVERY" && (
+                  <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center shrink-0">
+                      <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="white" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                    </div>
+                    <p className="text-[10px] font-bold text-rose-400 leading-snug">{t("cart.errors.zoneSummary")}</p>
+                  </div>
+                )}
+
+                {error && <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest text-center italic">{error}</div>}
+
+                {/* Checkout button */}
+                <button
+                  onClick={startCheckout}
+                  disabled={
+                    loading
+                    || (!isTestFlow && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
+                    || (!isTestFlow && !restaurantSettings.isOpen)
+                    || (!isTestFlow && addressZoneStatus === "error")
+                    || (!isTestFlow && addressZoneStatus === "checking")
+                  }
+                  className="w-full py-5 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[1.75rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
+                >
+                  {loading
+                    ? <Loader2 className="animate-spin" size={24} />
+                    : addressZoneStatus === "checking"
+                      ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
+                      : (Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
+                        ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
+                        : addressZoneStatus === "error"
+                          ? t("cart.submit.zoneError")
+                          : <>{t("cart.submit")} <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                </button>
               </div>
             </div>
           </div>
@@ -2312,7 +2353,7 @@ export default function CartPage() {
                           </div>
                         )}
 
-                        <div className="space-y-2">
+                        <div className="space-y-2 lg:hidden">
                            <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.noteLabel")}</label>
                            <textarea rows={2} value={formData.note} onChange={e => { setFormData({...formData, note: e.target.value}); localStorage.setItem("cart_note", e.target.value); }} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder={t("cart.fields.notePlaceholderExample")} />
                         </div>
@@ -2790,48 +2831,41 @@ export default function CartPage() {
                      )}
                         </div>{/* end mobile-only extras */}
 
-                     {/* Zone error summary line above checkout button */}
-                     {addressZoneStatus === "error" && orderType === "DELIVERY" && (
-                       <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3">
-                         <div className="w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center shrink-0">
-                           <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="white" strokeWidth="1.8" strokeLinecap="round"/></svg>
-                         </div>
-                         <p className="text-[10px] font-bold text-rose-400 leading-snug">{t("cart.errors.zoneSummary")}</p>
-                       </motion.div>
-                     )}
-                     {addressZoneStatus === "ok" && orderType === "DELIVERY" && (
-                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-end">
-                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.6)]" />
-                       </motion.div>
-                     )}
+                     {/* Mobile: zone error + checkout (desktop has these in left column) */}
+                     <div className="lg:hidden">
+                       {addressZoneStatus === "error" && orderType === "DELIVERY" && (
+                         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3">
+                           <div className="w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center shrink-0">
+                             <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="white" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                           </div>
+                           <p className="text-[10px] font-bold text-rose-400 leading-snug">{t("cart.errors.zoneSummary")}</p>
+                         </motion.div>
+                       )}
 
-                      {/* Desktop: compact total above checkout (full breakdown is in left column) */}
-                      <div className="hidden lg:flex justify-between items-center mt-8 mb-2">
-                        <span className="text-lg font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
-                        <span className="text-2xl font-black italic tracking-tighter text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span></span>
-                      </div>
+                       {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest text-center italic">{error}</motion.div>}
 
-                      <button
-                         onClick={startCheckout}
-                         disabled={
-                           loading
-                           || (!isTestFlow && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
-                           || (!isTestFlow && !restaurantSettings.isOpen)
-                           || (!isTestFlow && addressZoneStatus === "error")
-                           || (!isTestFlow && addressZoneStatus === "checking")
-                         }
-                        className="w-full mt-8 py-5 sm:py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[1.75rem] sm:rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
-                     >
-                        {loading
-                          ? <Loader2 className="animate-spin" size={24} />
-                          : addressZoneStatus === "checking"
-                            ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
-                            : (Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
-                              ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
-                              : addressZoneStatus === "error"
-                                ? t("cart.submit.zoneError")
-                                : <>{t("cart.submit")} <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
-                     </button>
+                       <button
+                          onClick={startCheckout}
+                          disabled={
+                            loading
+                            || (!isTestFlow && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
+                            || (!isTestFlow && !restaurantSettings.isOpen)
+                            || (!isTestFlow && addressZoneStatus === "error")
+                            || (!isTestFlow && addressZoneStatus === "checking")
+                          }
+                          className="w-full mt-8 py-5 sm:py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[1.75rem] sm:rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
+                       >
+                          {loading
+                            ? <Loader2 className="animate-spin" size={24} />
+                            : addressZoneStatus === "checking"
+                              ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
+                              : (Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
+                                ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
+                                : addressZoneStatus === "error"
+                                  ? t("cart.submit.zoneError")
+                                  : <>{t("cart.submit")} <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                       </button>
+                     </div>
                  </motion.div>
                )}
              </AnimatePresence>
