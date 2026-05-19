@@ -185,24 +185,28 @@ function UniformCard({ product, isPopular, onClick, disabled }: { product: any; 
         }
       >
         {!hasImage && (
-          <div className="absolute inset-0 flex items-center justify-center px-3 pt-4 pb-6 text-center">
+          <div className="absolute inset-0 flex items-center justify-center px-2 pt-3 pb-5 text-center">
             <span
-              className="font-black leading-tight overflow-hidden line-clamp-2 max-w-full"
+              className="font-black leading-tight overflow-hidden line-clamp-2 max-w-full break-words hyphens-auto"
               style={{
                 color: "#8a6418",
-                // Skala font efter namnlängd så långa namn (Quattro Stagioni)
-                // får plats på 1-2 rader utan att brytas mitt i ord.
+                // Aggressiv skalning så även Margherita (10) får plats utan att
+                // klippas i 190px-kort. Wrap (break-words) är säkerhetsnät för
+                // ovanliga ord-längder.
                 fontSize:
-                  (product.name || "").length > 16
-                    ? "14px"
+                  (product.name || "").length > 15
+                    ? "13px"
                     : (product.name || "").length > 12
-                      ? "17px"
-                      : (product.name || "").length > 9
-                        ? "20px"
-                        : "23px",
+                      ? "15px"
+                      : (product.name || "").length > 8
+                        ? "17px"
+                        : (product.name || "").length > 6
+                          ? "20px"
+                          : "23px",
                 letterSpacing: "-0.4px",
                 lineHeight: 1.1,
               }}
+              lang="sv"
             >
               {product.name}
             </span>
