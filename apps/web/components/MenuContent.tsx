@@ -1185,7 +1185,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                      style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
                    >
                      {popularProducts.map((p) => (
-                       <div key={`pop-${p.id}`} className="snap-start shrink-0" style={{ width: "200px" }}>
+                       <div
+                         key={`pop-${p.id}`}
+                         className="snap-start shrink-0"
+                         style={{ width: "calc(50% - 18px)", maxWidth: "220px", minWidth: "160px" }}
+                       >
                          <UniformCard
                            product={p}
                            onClick={() => handleOpenProduct(p)}

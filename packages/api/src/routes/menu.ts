@@ -9,7 +9,9 @@ const router = Router();
 // "real-time menu" feel without hammering the DB on every customer.
 // Bust with menuCacheBust(restaurantId | null) — wired into product/category
 // mutation routes elsewhere.
-const MENU_CACHE_TTL_MS = 30_000;
+// Kort TTL så "Populärt"-raden (random per request) faktiskt varierar synligt
+// för kunder som öppnar restaurang-sidan igen efter några sekunder.
+const MENU_CACHE_TTL_MS = 8_000;
 type MenuCacheEntry = { payload: unknown; expiresAt: number };
 const menuCache = new Map<string, MenuCacheEntry>();
 const cacheKey = (rid: string | null) => `r:${rid ?? '_global'}`;
@@ -56,7 +58,9 @@ router.get('/categories', async (req, res) => {
   try {
     // Allow short browser/CDN caching too. Server-side TTL cache below is the
     // main mechanism but a short shared cache shaves cold-start latency further.
-    res.set('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+    // Ingen browser-cache: "Populärt"-raden använder Math.random per request
+     // och måste verkligen variera när kunden öppnar sidan igen.
+    res.set('Cache-Control', 'no-store');
     const { restaurantId, slug } = req.query;
     const hasRestaurantScope = Boolean(restaurantId || slug);
 
@@ -70,12 +74,25 @@ router.get('/categories', async (req, res) => {
       return restaurant?.id ?? null;
     })();
 
-    // Cache hit?
+    // Cache hit? Vi shufflar populär-raden per request även vid HIT så
+    // discovery-känslan inte tappas på cached svar.
     const ck = cacheKey(hasRestaurantScope ? (resolvedRestaurantId ?? null) : null);
     const cached = menuCache.get(ck);
     if (cached && cached.expiresAt > Date.now()) {
+      const payload: any = cached.payload;
+      const mains: any[] = payload?.mainCategories || [];
+      const reshuffled = mains.map((m) => {
+        if (m.isVirtual) return m;
+        const all: any[] = (m.categories || []).flatMap((c: any) => c.products || []);
+        if (all.length < 10) return { ...m, popularProductIds: [] };
+        const scored = all.map((p) => {
+          const r = Math.random();
+          return { id: p.id, score: p.imageUrl ? r * 1.5 : r };
+        });
+        return { ...m, popularProductIds: scored.sort((a, b) => b.score - a.score).slice(0, 6).map((p) => p.id) };
+      });
       res.set('X-Cache', 'HIT');
-      res.json(cached.payload);
+      res.json({ ...payload, mainCategories: reshuffled });
       return;
     }
 
