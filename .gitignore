@@ -11,10 +11,11 @@ dist/
 build/
 .turbo/
 
-# Environment variables
+# Environment variables — never commit any of these
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
 
 # IDEs
 .vscode/
@@ -40,14 +41,28 @@ Thumbs.db
 # Mobile Apps (Isolated)
 # mobile_apps/
 
-# Project-wide ignore
+# Project-wide ignore — block every .env variant, allow only .env.example
 **/.env
-**/.env.local
+**/.env.*
+!**/.env.example
+!**/.env.*.example
 **/node_modules/
 **/dist/
 **/build/
 
 *.env.bak
+
+# Common secret files
+**/*.pem
+**/*.p8
+**/*.p12
+**/serviceAccountKey*.json
+**/firebase-adminsdk-*.json
+**/google-services.json
+**/GoogleService-Info.plist
+# Already-tracked Flutter Firebase iOS client config (safe to commit, protected by Firebase Rules + bundle ID)
+!mobile_apps/restaurant_mobile/ios/GoogleService-Info.plist
+!mobile_apps/restaurant_mobile/ios/Runner/GoogleService-Info.plist
 
 # Claude Code internals
 .claude/worktrees/
