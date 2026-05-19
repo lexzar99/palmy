@@ -155,6 +155,103 @@ function FullProductCard({ product, cartQty, onClick, disabled }: { product: any
 }
 
 /**
+ * UniformCard — den nya menyns produktkort (uniform6-design).
+ * Samma höjd för alla, bild eller text-only-platta upptill, namn + kort
+ * beskrivning + pris under. Flytande "+"-knapp som overlay på bilden, och en
+ * "🔥 Populär"-flagga i högra hörnet om kortet också finns i Mest Populära.
+ */
+function UniformCard({ product, isPopular, onClick, disabled }: { product: any; isPopular?: boolean; onClick: () => void; disabled: boolean }) {
+  const { final, original } = getDisplayPrice(product);
+  const hasImage = Boolean(product.imageUrl);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-disabled={disabled}
+      className={`group relative rounded-2xl overflow-hidden text-left flex flex-col h-[270px] transition-transform ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:scale-[0.98] cursor-pointer"}`}
+      style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 8px rgba(28,28,30,0.04), 0 1px 2px rgba(28,28,30,0.03)" }}
+    >
+      {/* Bild eller text-only platta (alltid 160px) */}
+      <div
+        className="relative h-[160px] flex-shrink-0"
+        style={
+          hasImage
+            ? { backgroundImage: `url("${product.imageUrl}")`, backgroundSize: "cover", backgroundPosition: "center" }
+            : {
+                backgroundImage:
+                  "radial-gradient(circle at 22% 28%, rgba(200,154,60,0.22) 0%, transparent 40%), radial-gradient(circle at 78% 76%, rgba(200,154,60,0.16) 0%, transparent 42%), linear-gradient(135deg, rgba(200,154,60,0.20) 0%, rgba(200,154,60,0.10) 100%)",
+              }
+        }
+      >
+        {!hasImage && (
+          <div className="absolute inset-0 flex items-center justify-center px-3 pt-3 pb-5 text-center">
+            <span
+              className="font-black leading-none overflow-hidden"
+              style={{ color: "#8a6418", fontSize: "26px", letterSpacing: "-0.8px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}
+            >
+              {product.name}
+            </span>
+          </div>
+        )}
+        {isPopular && (
+          <span
+            className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest backdrop-blur-md"
+            style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#8a6418" }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C12 2 8 6 8 10C8 11.5 8.5 12.5 9 13C8 12 7 11 6 11C5 11 4 12 4 14C4 18 7.5 22 12 22C16.5 22 20 18.5 20 14C20 9 16 7 16 4C16 3 15 2 14 2C13 2 12.5 3 12 4C11.5 3 12 2 12 2Z"/></svg>
+            Populär
+          </span>
+        )}
+        {/* Flytande add-knapp */}
+        <span
+          className="absolute right-2.5 -bottom-4 w-9 h-9 rounded-full grid place-items-center font-black text-[18px] leading-none"
+          style={{ backgroundColor: "var(--accent, #c89a3c)", color: "#1c1c1e", border: "3px solid var(--bg-secondary)", boxShadow: "0 3px 10px rgba(200,154,60,0.35)" }}
+        >
+          +
+        </span>
+      </div>
+
+      {/* Text-stack */}
+      <div className="flex-1 flex flex-col gap-1 px-3.5 pt-[22px] pb-3.5 min-h-0">
+        <h3
+          className="m-0 font-black leading-tight overflow-hidden"
+          style={{ fontSize: "17px", letterSpacing: "-0.5px", color: "var(--text-primary)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}
+        >
+          {product.name}
+        </h3>
+        {product.description && (
+          <p
+            className="m-0 leading-snug overflow-hidden"
+            style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 600, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}
+          >
+            {product.description}
+          </p>
+        )}
+        <div className="mt-auto flex items-center justify-between gap-2">
+          <div className="flex items-baseline gap-2">
+            {original != null && original !== final && (
+              <span className="text-xs font-bold line-through" style={{ color: "var(--text-tertiary, #9a9a9a)" }}>
+                {original}
+              </span>
+            )}
+            <span style={{ fontSize: "16px", fontWeight: 900, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
+              {final}
+              <small style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-tertiary, #9a9a9a)", marginLeft: 2 }}>KR</small>
+            </span>
+          </div>
+          <div className="flex gap-1">
+            {product.isVegan && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#22c55e" }} />}
+            {product.isVegetarian && !product.isVegan && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#f59e0b" }} />}
+            {product.isGlutenFree && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#38bdf8" }} />}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/**
  * CompactProductCard — för 2-grid-vyn (drycker, sidor, chili cheese etc).
  * Square-bild ovan, namn + pris + plus-knapp under. Ingen beskrivning visas.
  */
@@ -593,6 +690,16 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       ),
     }))
     .filter((cat: any) => cat.products.length > 0);
+
+  // Populära produkter för aktiv huvudkategori. Backend bygger ranking
+  // (orderitem-count + bild-boost). Klienten visar dem i en topp-sektion
+  // dubblerade — produkten visas både här OCH i sin riktiga kategori.
+  const popularProductIds: string[] = activeMainCategory?.popularProductIds || [];
+  const popularSet = new Set(popularProductIds);
+  const allScopedProducts: any[] = filteredCategories.flatMap((c: any) => c.products);
+  const popularProducts: any[] = popularProductIds
+    .map((id) => allScopedProducts.find((p) => p.id === id))
+    .filter(Boolean);
 
   const isGridMode = mainCategories.length > 0 && !selectedMainCategoryId && !searchTerm.trim();
 
@@ -1056,57 +1163,60 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                </p>
              </motion.div>
            ) : (
-             filteredCategories.map((cat: any) => {
-               const catWords = (cat.name || "").trim().split(/\s+/);
-               const catFirst = catWords[0] || cat.name;
-               const catRest = catWords.slice(1).join(" ");
-               const rows = groupProductsByDisplay(cat.products);
-               return (
-                 // Products used to fade in via motion.section + whileInView
-                 // (felt slow + janky on scroll). Switched to a plain section
-                 // so categories render instantly.
-                 <section key={cat.id} id={cat.id}>
-                   {/* Kategori-rubrik: EN rad, två-färgad (svart + gold) */}
-                   <div className="flex items-end gap-4 mb-5">
-                     <h2 className="font-black italic uppercase tracking-tight leading-none text-[1.8rem] sm:text-3xl">
-                       <span style={{ color: "var(--text-primary)" }}>{catFirst}</span>
-                       {catRest && (<>{" "}<span className="text-gold-500">{catRest}</span></>)}
+             <>
+               {/* MEST POPULÄRA — toppsektion, dyker upp om backend har rank-data
+                   för aktiv huvudkategori. Produkter visas ÄVEN i sin riktiga
+                   sektion nedanför, med en subtil "Populär"-flagga. */}
+               {popularProducts.length > 0 && !searchTerm.trim() && (
+                 <section className="mb-2">
+                   <div className="flex items-center gap-2.5 mb-4 px-1">
+                     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--accent, #c89a3c)" }}>
+                       <path d="M12 2C12 2 8 6 8 10C8 11.5 8.5 12.5 9 13C8 12 7 11 6 11C5 11 4 12 4 14C4 18 7.5 22 12 22C16.5 22 20 18.5 20 14C20 9 16 7 16 4C16 3 15 2 14 2C13 2 12.5 3 12 4C11.5 3 12 2 12 2Z"/>
+                     </svg>
+                     <h2 className="font-black leading-none m-0" style={{ fontSize: "26px", letterSpacing: "-0.7px", color: "var(--text-primary)" }}>
+                       Mest Populära
                      </h2>
-                     <div className="h-px bg-zinc-200 flex-1 mb-2.5" />
+                     <span className="ml-auto text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                       {popularProducts.length} toppval
+                     </span>
                    </div>
-
-                   {/* Produkter — full-rows och compact-rows */}
-                   <div className="space-y-3">
-                     {rows.map((row, idx) => {
-                       if (row.type === "FULL") {
-                         return (
-                           <FullProductCard
-                             key={row.product.id}
-                             product={row.product}
-                             cartQty={items.filter((i) => i.productId === row.product.id).reduce((s, i) => s + i.quantity, 0)}
-                             onClick={() => handleOpenProduct(row.product)}
-                             disabled={!restaurant?.isOpen || zoneAvailable === false}
-                           />
-                         );
-                       }
-                       return (
-                         <div key={`compact-${idx}`} className="grid grid-cols-2 gap-3">
-                           {row.products.map((p) => (
-                             <CompactProductCard
-                               key={p.id}
-                               product={p}
-                               cartQty={items.filter((i) => i.productId === p.id).reduce((s, i) => s + i.quantity, 0)}
-                               onClick={() => handleOpenProduct(p)}
-                               disabled={!restaurant?.isOpen || zoneAvailable === false}
-                             />
-                           ))}
-                         </div>
-                       );
-                     })}
+                   <div className="grid grid-cols-2 gap-3">
+                     {popularProducts.map((p) => (
+                       <UniformCard
+                         key={`pop-${p.id}`}
+                         product={p}
+                         onClick={() => handleOpenProduct(p)}
+                         disabled={!restaurant?.isOpen || zoneAvailable === false}
+                       />
+                     ))}
                    </div>
                  </section>
-               );
-             })
+               )}
+
+               {filteredCategories.map((cat: any) => (
+                 <section key={cat.id} id={cat.id}>
+                   <div className="flex items-center gap-3 pt-5 pb-4 px-1">
+                     <h2 className="font-black leading-none m-0" style={{ fontSize: "26px", letterSpacing: "-0.7px", color: "var(--text-primary)" }}>
+                       {cat.name}
+                     </h2>
+                     <span className="ml-auto text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                       {cat.products.length} {cat.products.length === 1 ? "rätt" : "rätter"}
+                     </span>
+                   </div>
+                   <div className="grid grid-cols-2 gap-3">
+                     {cat.products.map((p: any) => (
+                       <UniformCard
+                         key={p.id}
+                         product={p}
+                         isPopular={popularSet.has(p.id)}
+                         onClick={() => handleOpenProduct(p)}
+                         disabled={!restaurant?.isOpen || zoneAvailable === false}
+                       />
+                     ))}
+                   </div>
+                 </section>
+               ))}
+             </>
            )}
         </div>}
       </div>

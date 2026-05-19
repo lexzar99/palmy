@@ -122,10 +122,29 @@ router.get('/categories', async (req, res) => {
       });
     };
 
+    // Räknar OrderItem-rader per produkt senaste 30 dagarna för restaurangen,
+    // med en mild bild-boost (1.2x för produkter med imageUrl) så att rätter
+    // som ser aptitliga ut prioriteras i "Mest Populära"-vyn. Map: productId → score.
+    const queryProductPopularity = async (rid: string | null): Promise<Map<string, number>> => {
+      if (!rid) return new Map();
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const items = await prisma.orderItem.findMany({
+        where: { order: { restaurantId: rid, createdAt: { gte: since } } },
+        select: { productId: true },
+      });
+      const counts = new Map<string, number>();
+      for (const item of items) {
+        if (!item.productId) continue;
+        counts.set(item.productId, (counts.get(item.productId) || 0) + 1);
+      }
+      return counts;
+    };
+
     const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
-    const [categories, mainCategories] = await Promise.all([
+    const [categories, mainCategories, popularity] = await Promise.all([
       queryActiveMenuByRestaurantId(primaryRestaurantId),
       queryMainCategories(primaryRestaurantId),
+      queryProductPopularity(primaryRestaurantId),
     ]);
     const activeDeals = primaryRestaurantId
       ? await prisma.deal.findMany({
@@ -195,15 +214,44 @@ router.get('/categories', async (req, res) => {
       }
     }
 
+    // Räkna fram top 6 populära produkter per huvudkategori. Boost: produkter
+     // med bild får 1.2x vikt så att aptitliga rätter klättrar — kunden ser då
+     // bild-tunga "Mest Populära"-sektionen först. Tomma/nya kategorier får
+     // fallback till position-ordning (första 6 produkter i kategorin).
+    const popularProductIdsFor = (cats: typeof formattedCategories): string[] => {
+      const productsInScope: Array<{ id: string; imageUrl: string | null; score: number; position: number }> = [];
+      for (const cat of cats) {
+        for (const p of cat.products) {
+          const baseScore = popularity.get(p.id) || 0;
+          const withBoost = p.imageUrl ? baseScore * 1.2 + 0.001 : baseScore;
+          productsInScope.push({ id: p.id, imageUrl: p.imageUrl, score: withBoost, position: cat.products.indexOf(p) });
+        }
+      }
+      const hasAnyOrders = productsInScope.some((p) => p.score > 0);
+      if (hasAnyOrders) {
+        return productsInScope.sort((a, b) => b.score - a.score).slice(0, 6).map((p) => p.id);
+      }
+      // Fallback för restauranger utan order-historik: visa de 6 första i
+      // position-ordning, prioritera de med bild.
+      return productsInScope
+        .sort((a, b) => (b.imageUrl ? 1 : 0) - (a.imageUrl ? 1 : 0) || a.position - b.position)
+        .slice(0, 6)
+        .map((p) => p.id);
+    };
+
     const mainCategoriesPayload = mainCategories
-      .map((mc) => ({
-        id: mc.id,
-        name: mc.name,
-        imageUrl: mc.imageUrl,
-        position: mc.position,
-        isVirtual: false,
-        categories: categoriesByMain.get(mc.id) || [],
-      }))
+      .map((mc) => {
+        const cats = categoriesByMain.get(mc.id) || [];
+        return {
+          id: mc.id,
+          name: mc.name,
+          imageUrl: mc.imageUrl,
+          position: mc.position,
+          isVirtual: false,
+          categories: cats,
+          popularProductIds: popularProductIdsFor(cats),
+        };
+      })
       .filter((mc) => mc.categories.length > 0);
 
     if (orphanCategories.length > 0) {
@@ -214,6 +262,7 @@ router.get('/categories', async (req, res) => {
         position: 9999,
         isVirtual: true,
         categories: orphanCategories,
+        popularProductIds: popularProductIdsFor(orphanCategories),
       });
     }
 
@@ -239,6 +288,7 @@ router.get('/categories', async (req, res) => {
         position: -1,
         isVirtual: true,
         categories: [offerCategory as any],
+        popularProductIds: [],
       });
     }
 
