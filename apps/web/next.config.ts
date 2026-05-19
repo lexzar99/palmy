@@ -8,6 +8,12 @@ const apiTarget =
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['192.168.0.3'],
+  // Strip console.* in production builds. console.error stays so real
+  // problems still surface. Lots of OAuth-debug / image-error logs were
+  // leaking into prod and bloating the bundle.
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
+  },
   async rewrites() {
     return {
       fallback: [

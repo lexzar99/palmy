@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { User, ArrowLeft, Loader2, Gift, CheckCircle2, Mail } from "lucide-react";
+import { User, ArrowLeft, Loader2, Gift, CheckCircle2, Mail, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -31,6 +31,7 @@ function RegisterContent() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [referralCode, setReferralCode] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState("");
@@ -199,9 +200,11 @@ function RegisterContent() {
            </p>
         </div>
 
-        <form onSubmit={handleRegister} className="space-y-4">
+        <form onSubmit={handleRegister} className="space-y-4" noValidate>
            <input
              type="text"
+             autoComplete="given-name"
+             aria-label={t("auth.register.firstNamePlaceholder")}
              placeholder={t("auth.register.firstNamePlaceholder")}
              required
              value={firstName}
@@ -211,6 +214,8 @@ function RegisterContent() {
            />
            <input
              type="text"
+             autoComplete="family-name"
+             aria-label={t("auth.register.lastNamePlaceholder")}
              placeholder={t("auth.register.lastNamePlaceholder")}
              required
              value={lastName}
@@ -220,6 +225,9 @@ function RegisterContent() {
            />
            <input
              type="email"
+             autoComplete="email"
+             inputMode="email"
+             aria-label={t("auth.register.emailPlaceholder")}
              placeholder={t("auth.register.emailPlaceholder")}
              required
              value={email}
@@ -229,6 +237,9 @@ function RegisterContent() {
            />
            <input
              type="tel"
+             autoComplete="tel"
+             inputMode="tel"
+             aria-label={t("auth.register.phonePlaceholder")}
              placeholder={t("auth.register.phonePlaceholder")}
              required
              value={phone}
@@ -237,15 +248,29 @@ function RegisterContent() {
              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
            />
            <div className="space-y-2">
-             <input
-               type="password"
-               placeholder={t("auth.register.passwordPlaceholder")}
-               required
-               value={password}
-               onChange={(e) => setPassword(e.target.value)}
-               className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
-               style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-             />
+             <div className="relative">
+               <input
+                 type={showPassword ? "text" : "password"}
+                 autoComplete="new-password"
+                 aria-label={t("auth.register.passwordPlaceholder")}
+                 placeholder={t("auth.register.passwordPlaceholder")}
+                 required
+                 minLength={6}
+                 value={password}
+                 onChange={(e) => setPassword(e.target.value)}
+                 className="w-full rounded-3xl py-5 px-8 pr-14 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
+                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+               />
+               <button
+                 type="button"
+                 tabIndex={-1}
+                 onClick={() => setShowPassword((v) => !v)}
+                 aria-label={showPassword ? "Dölj lösenord" : "Visa lösenord"}
+                 className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-zinc-100/40 text-zinc-500 hover:text-zinc-800 transition-colors"
+               >
+                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+               </button>
+             </div>
              {/* Password-strength: 4-segment-bar visas så fort user börjat
                  skriva. Standard regler — längd + variation. Ingen tvingande
                  spärr, bara visuell hint som matchar RN-mobil-appen. */}

@@ -1260,13 +1260,11 @@ export default function HomePage() {
 
                   return (
                     <React.Fragment key={r.id}>
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.04, type: "spring", stiffness: 300, damping: 25 }}
-                        whileTap={{ scale: 0.99 }}
-                        className={`transition-opacity duration-300 ${dimmed ? "opacity-70" : ""}`}
-                      >
+                      {/* Was motion.div with staggered i*0.04 fade-in. For 30+
+                          cards that's ~1.2s before the last card appears —
+                          felt slow on cold-cache loads. Now: instant render
+                          with a CSS active:scale tap feedback only. */}
+                      <div className={`transition-opacity duration-200 active:scale-[0.99] ${dimmed ? "opacity-70" : ""}`}>
                         <Link
                           href={getRestaurantHref(r)}
                           onClick={(e) => handleRestaurantClick(e, r)}
@@ -1403,7 +1401,7 @@ export default function HomePage() {
                             })()}
                           </div>
                         </Link>
-                      </motion.div>
+                      </div>
 
                       {/* Inline Deal Injection */}
                       {injectDeal && (

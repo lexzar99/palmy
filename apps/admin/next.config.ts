@@ -8,6 +8,9 @@ const apiTarget =
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.0.3"],
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
+  },
   async rewrites() {
     return [
       {
