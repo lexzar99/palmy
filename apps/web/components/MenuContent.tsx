@@ -1164,30 +1164,34 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
              </motion.div>
            ) : (
              <>
-               {/* MEST POPULÄRA — toppsektion, dyker upp om backend har rank-data
-                   för aktiv huvudkategori. Produkter visas ÄVEN i sin riktiga
-                   sektion nedanför, med en subtil "Populär"-flagga. */}
+               {/* POPULÄRT — horisontell scroll-rail med slumpade rätter från
+                   huvudkategorin (bild-rätter får högre vikt). Produkten dubbleras
+                   nedan i sin riktiga kategori-sektion med en "Populär"-flagga. */}
                {popularProducts.length > 0 && !searchTerm.trim() && (
-                 <section className="mb-2">
-                   <div className="flex items-center gap-2.5 mb-4 px-1">
+                 <section className="mb-2 -mx-5 sm:-mx-6 lg:-mx-12">
+                   <div className="flex items-center gap-2.5 mb-4 px-6 sm:px-7 lg:px-13">
                      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--accent, #c89a3c)" }}>
                        <path d="M12 2C12 2 8 6 8 10C8 11.5 8.5 12.5 9 13C8 12 7 11 6 11C5 11 4 12 4 14C4 18 7.5 22 12 22C16.5 22 20 18.5 20 14C20 9 16 7 16 4C16 3 15 2 14 2C13 2 12.5 3 12 4C11.5 3 12 2 12 2Z"/>
                      </svg>
                      <h2 className="font-black leading-none m-0" style={{ fontSize: "26px", letterSpacing: "-0.7px", color: "var(--text-primary)" }}>
-                       Mest Populära
+                       Populärt
                      </h2>
                      <span className="ml-auto text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
-                       {popularProducts.length} toppval
+                       {popularProducts.length} val
                      </span>
                    </div>
-                   <div className="grid grid-cols-2 gap-3">
+                   <div
+                     className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1 px-5 sm:px-6 lg:px-12"
+                     style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
+                   >
                      {popularProducts.map((p) => (
-                       <UniformCard
-                         key={`pop-${p.id}`}
-                         product={p}
-                         onClick={() => handleOpenProduct(p)}
-                         disabled={!restaurant?.isOpen || zoneAvailable === false}
-                       />
+                       <div key={`pop-${p.id}`} className="snap-start shrink-0" style={{ width: "200px" }}>
+                         <UniformCard
+                           product={p}
+                           onClick={() => handleOpenProduct(p)}
+                           disabled={!restaurant?.isOpen || zoneAvailable === false}
+                         />
+                       </div>
                      ))}
                    </div>
                  </section>

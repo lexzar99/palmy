@@ -122,22 +122,12 @@ router.get('/categories', async (req, res) => {
       });
     };
 
-    // Räknar OrderItem-rader per produkt senaste 30 dagarna för restaurangen,
-    // med en mild bild-boost (1.2x för produkter med imageUrl) så att rätter
-    // som ser aptitliga ut prioriteras i "Mest Populära"-vyn. Map: productId → score.
-    const queryProductPopularity = async (rid: string | null): Promise<Map<string, number>> => {
-      if (!rid) return new Map();
-      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const items = await prisma.orderItem.findMany({
-        where: { order: { restaurantId: rid, createdAt: { gte: since } } },
-        select: { productId: true },
-      });
-      const counts = new Map<string, number>();
-      for (const item of items) {
-        if (!item.productId) continue;
-        counts.set(item.productId, (counts.get(item.productId) || 0) + 1);
-      }
-      return counts;
+    // Tidigare räknade vi orderitem-counts här — bytt till random urval per
+     // request. Rätter med bild får en boost så att den horisontella raden
+     // "Populärt"-överst alltid är visuellt rik. Map kvar för att inte bryta
+     // call-site; returnerar tom Map.
+    const queryProductPopularity = async (_rid: string | null): Promise<Map<string, number>> => {
+      return new Map();
     };
 
     const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
@@ -214,29 +204,20 @@ router.get('/categories', async (req, res) => {
       }
     }
 
-    // Räkna fram top 6 populära produkter per huvudkategori. Boost: produkter
-     // med bild får 1.2x vikt så att aptitliga rätter klättrar — kunden ser då
-     // bild-tunga "Mest Populära"-sektionen först. Tomma/nya kategorier får
-     // fallback till position-ordning (första 6 produkter i kategorin).
+    // Plockar 6 slumpade produkter per huvudkategori för "Populärt"-raden.
+     // Bild-vikt: produkter med imageUrl får 1.5x sannolikhet att rankas högt
+     // så raden alltid ser bild-tung ut. Random-värdet är per-request → varierar
+     // varje gång kunden öppnar menyn (discovery-effekt).
     const popularProductIdsFor = (cats: typeof formattedCategories): string[] => {
-      const productsInScope: Array<{ id: string; imageUrl: string | null; score: number; position: number }> = [];
+      const productsInScope: Array<{ id: string; score: number }> = [];
       for (const cat of cats) {
         for (const p of cat.products) {
-          const baseScore = popularity.get(p.id) || 0;
-          const withBoost = p.imageUrl ? baseScore * 1.2 + 0.001 : baseScore;
-          productsInScope.push({ id: p.id, imageUrl: p.imageUrl, score: withBoost, position: cat.products.indexOf(p) });
+          const r = Math.random();
+          const score = p.imageUrl ? r * 1.5 : r;
+          productsInScope.push({ id: p.id, score });
         }
       }
-      const hasAnyOrders = productsInScope.some((p) => p.score > 0);
-      if (hasAnyOrders) {
-        return productsInScope.sort((a, b) => b.score - a.score).slice(0, 6).map((p) => p.id);
-      }
-      // Fallback för restauranger utan order-historik: visa de 6 första i
-      // position-ordning, prioritera de med bild.
-      return productsInScope
-        .sort((a, b) => (b.imageUrl ? 1 : 0) - (a.imageUrl ? 1 : 0) || a.position - b.position)
-        .slice(0, 6)
-        .map((p) => p.id);
+      return productsInScope.sort((a, b) => b.score - a.score).slice(0, 6).map((p) => p.id);
     };
 
     const mainCategoriesPayload = mainCategories
