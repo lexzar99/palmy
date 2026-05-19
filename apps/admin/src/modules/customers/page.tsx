@@ -15,6 +15,7 @@ import {
   updateCustomerDeal,
   type CustomerDetail,
   type CustomerRecord,
+  FRAUD_FLAG_LABEL,
 } from "@/modules/customers/api";
 import { getPushHistoryForCustomer, type PushLogRecord } from "@/modules/push/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
@@ -324,18 +325,34 @@ export function CustomersPage() {
                     <th>Senaste order</th>
                     <th>Antal ordrar</th>
                     <th>Total spenderat</th>
+                    <th>Signaler</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
                   {pageRows.map((customer) => (
                     <tr key={customer.id}>
-                      <td className="font-black">{customer.name}</td>
+                      <td className="font-black">
+                        {customer.name}
+                        {customer.accountAgeDays !== undefined && customer.accountAgeDays <= 7 && (
+                          <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--accent)]/80">ny</span>
+                        )}
+                      </td>
                       <td className="text-[var(--text-secondary)]">{customer.email || "—"}</td>
                       <td>{customer.phone || "—"}</td>
                       <td className="text-[var(--text-secondary)]">{customer.lastOrder ? formatDate(customer.lastOrder) : "—"}</td>
                       <td>{formatNumber(customer._count?.orders || 0)}</td>
                       <td>{formatCurrency(customer.totalSpent)}</td>
+                      <td>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(customer.fraudFlags || []).map((flag) => (
+                            <Badge key={flag} tone="danger">{FRAUD_FLAG_LABEL[flag]}</Badge>
+                          ))}
+                          {(!customer.fraudFlags || customer.fraudFlags.length === 0) && (customer._count?.orders || 0) > 0 && (
+                            <Badge tone="success">OK</Badge>
+                          )}
+                        </div>
+                      </td>
                       <td><div className="flex justify-end"><Button variant="secondary" onClick={() => setActiveCustomer(customer)}><UserRound size={16} /> Open</Button></div></td>
                     </tr>
                   ))}

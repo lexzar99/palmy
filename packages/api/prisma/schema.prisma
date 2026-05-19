@@ -859,9 +859,10 @@ model GroupOrderItem {
 model PushLog {
   id         String   @id @default(cuid())
   createdAt  DateTime @default(now())
-  target     String   // "all" | "user" | "city"
+  target     String   // "all" | "user" | "city" | "cohort"
   identifier String?  // userId/email/phone for "user" target
   city       String?  // city name for "city" target
+  cohort     String?  // cohort key for "cohort" target (e.g. "inactive_30d")
   title      String
   body       String
   deeplink   String?
@@ -871,4 +872,29 @@ model PushLog {
   sentBy     String?
 
   @@index([createdAt])
+}
+
+// A13 — scheduled pushes. Stored at admin-schedule time, dispatched by the
+// background loop in index.ts when scheduledFor <= now() AND sentAt IS NULL.
+// On send we copy the result into PushLog and set sentAt + log so the same row
+// is never sent twice.
+model ScheduledPush {
+  id           String    @id @default(cuid())
+  createdAt    DateTime  @default(now())
+  scheduledFor DateTime
+  target       String    // "all" | "user" | "city" | "cohort"
+  identifier   String?
+  city         String?
+  cohort       String?   // "inactive_30d" | "new_users_7d" | etc.
+  title        String
+  body         String
+  deeplink     String?
+  sentAt       DateTime?
+  sentCount    Int?
+  sentSuccess  Boolean?
+  sentError    String?
+  cancelledAt  DateTime?
+  createdBy    String?   // adminUserId
+
+  @@index([sentAt, scheduledFor])
 }

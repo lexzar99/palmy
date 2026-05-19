@@ -31,9 +31,10 @@ export interface PushResult {
 export interface PushLogRecord {
   id: string;
   createdAt: string;
-  target: "all" | "user" | "city";
+  target: "all" | "user" | "city" | "cohort";
   identifier?: string | null;
   city?: string | null;
+  cohort?: string | null;
   title: string;
   body: string;
   deeplink?: string | null;
@@ -43,7 +44,53 @@ export interface PushLogRecord {
   sentBy?: string | null;
 }
 
+// A13 — cohort + scheduler types
+export type CohortKey = "inactive_30d" | "new_users_7d" | "active_repeaters";
+
+export const COHORT_LABEL: Record<CohortKey, string> = {
+  inactive_30d: "Inaktiva kunder (>30 dagar)",
+  new_users_7d: "Nya kunder (senaste 7 dagar, 0 ordrar)",
+  active_repeaters: "Aktiva återköpare (3+ ordrar/30d)",
+};
+
+export interface SendCohortPayload {
+  cohort: CohortKey;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+}
+
+export interface SchedulePushPayload {
+  scheduledFor: string; // ISO
+  target: "all" | "user" | "city" | "cohort";
+  identifier?: string;
+  city?: string;
+  cohort?: CohortKey;
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+}
+
+export interface ScheduledPushRecord {
+  id: string;
+  createdAt: string;
+  scheduledFor: string;
+  target: "all" | "user" | "city" | "cohort";
+  identifier?: string | null;
+  city?: string | null;
+  cohort?: string | null;
+  title: string;
+  body: string;
+  deeplink?: string | null;
+  sentAt?: string | null;
+  sentCount?: number | null;
+  sentSuccess?: boolean | null;
+  sentError?: string | null;
+  cancelledAt?: string | null;
+}
+
 export const pushHistoryQueryKey = ["push", "history"] as const;
+export const scheduledPushesQueryKey = ["push", "scheduled"] as const;
 
 export const sendPushBroadcast = (payload: PushBroadcastPayload) =>
   apiPost<PushResult>("/notifications/admin/send-all", payload);
@@ -53,6 +100,18 @@ export const sendPushToUser = (payload: PushUserPayload) =>
 
 export const sendPushToCity = (payload: PushCityPayload) =>
   apiPost<PushResult>("/notifications/admin/send-city", payload);
+
+export const sendPushToCohort = (payload: SendCohortPayload) =>
+  apiPost<{ cohort: CohortKey; recipients: number; count: number; errors: number }>("/notifications/admin/send-cohort", payload);
+
+export const schedulePush = (payload: SchedulePushPayload) =>
+  apiPost<ScheduledPushRecord>("/notifications/admin/schedule", payload);
+
+export const getScheduledPushes = () =>
+  apiGet<{ rows: ScheduledPushRecord[] }>("/notifications/admin/scheduled");
+
+export const cancelScheduledPush = (id: string) =>
+  apiPost<{ success: boolean }>(`/notifications/admin/scheduled/${id}/cancel`, {});
 
 export const getPushHistory = () =>
   apiGet<{ logs: PushLogRecord[] }>("/notifications/admin/history");

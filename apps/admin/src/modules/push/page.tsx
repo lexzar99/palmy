@@ -8,10 +8,17 @@ import { getCustomers, customersQueryKey } from "@/modules/customers/api";
 import { getRestaurantOverview, restaurantsQueryKey } from "@/modules/restaurants/api";
 import { getSystemHealth, healthQueryKey } from "@/modules/dashboard/api";
 import {
+  cancelScheduledPush,
+  COHORT_LABEL,
+  type CohortKey,
   getPushHistory,
+  getScheduledPushes,
   pushHistoryQueryKey,
+  schedulePush,
+  scheduledPushesQueryKey,
   sendPushBroadcast,
   sendPushToCity,
+  sendPushToCohort,
   sendPushToUser,
   type PushLogRecord,
   type PushResult,
@@ -19,7 +26,7 @@ import {
 import { Badge, Button, Field, Input, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { formatDateTime } from "@/shared/utils/format";
 
-type TargetMode = "all" | "user" | "city";
+type TargetMode = "all" | "user" | "city" | "cohort";
 type LinkType = "none" | "restaurant" | "discover" | "manual";
 
 interface ComposerForm {
@@ -31,6 +38,8 @@ interface ComposerForm {
   userId: string;
   city: string;
   userSearch: string;
+  cohort: CohortKey | "";
+  scheduledFor: string; // YYYY-MM-DDTHH:MM (local), empty = send now
 }
 
 const EMPTY_FORM: ComposerForm = {
@@ -42,6 +51,8 @@ const EMPTY_FORM: ComposerForm = {
   userId: "",
   city: "",
   userSearch: "",
+  cohort: "",
+  scheduledFor: "",
 };
 
 const TEMPLATES = [
@@ -89,6 +100,7 @@ function PhonePreview({ title, body, linkLabel }: { title: string; body: string;
 function targetLabel(target: PushLogRecord["target"]) {
   if (target === "all") return "Alla";
   if (target === "user") return "Användare";
+  if (target === "cohort") return "Cohort";
   return "Stad";
 }
 
@@ -130,13 +142,37 @@ export function PushPage() {
   const broadcastMutation = useMutation({ mutationFn: sendPushBroadcast, onSuccess, onError });
   const userMutation = useMutation({ mutationFn: sendPushToUser, onSuccess, onError });
   const cityMutation = useMutation({ mutationFn: sendPushToCity, onSuccess, onError });
+  const cohortMutation = useMutation({
+    mutationFn: sendPushToCohort,
+    onSuccess: async (r) => {
+      // Adapt cohort response to PushResult shape so the existing result panel works.
+      setResult({ success: r.errors === 0, count: r.count, errors: r.errors });
+      setSendError(null);
+      await queryClient.invalidateQueries({ queryKey: pushHistoryQueryKey });
+    },
+    onError,
+  });
+  const scheduleMutation = useMutation({
+    mutationFn: schedulePush,
+    onSuccess: async () => {
+      setResult({ success: true, count: 0 });
+      setSendError(null);
+      await queryClient.invalidateQueries({ queryKey: scheduledPushesQueryKey });
+    },
+    onError,
+  });
 
-  const isPending = broadcastMutation.isPending || userMutation.isPending || cityMutation.isPending;
+  const isPending = broadcastMutation.isPending || userMutation.isPending || cityMutation.isPending || cohortMutation.isPending || scheduleMutation.isPending;
 
   const canSend =
     form.title.trim() &&
     form.body.trim() &&
-    (mode === "all" || (mode === "user" && form.userId) || (mode === "city" && form.city)) &&
+    (
+      mode === "all" ||
+      (mode === "user" && form.userId) ||
+      (mode === "city" && form.city) ||
+      (mode === "cohort" && form.cohort)
+    ) &&
     (form.linkType !== "restaurant" || form.restaurantSlug) &&
     (form.linkType !== "manual" || form.manualLink.trim());
 
@@ -145,9 +181,21 @@ export function PushPage() {
     setSendError(null);
     const data = buildPushData(form);
     const base = { title: form.title, body: form.body, ...(data ? { data } : {}) };
+
+    // Scheduled path: same composer, dispatched later by the dispatcher.
+    if (form.scheduledFor) {
+      const payload: any = { scheduledFor: new Date(form.scheduledFor).toISOString(), target: mode, ...base };
+      if (mode === "user") payload.identifier = form.userId;
+      if (mode === "city") payload.city = form.city;
+      if (mode === "cohort") payload.cohort = form.cohort;
+      scheduleMutation.mutate(payload);
+      return;
+    }
+
     if (mode === "all") broadcastMutation.mutate(base);
     else if (mode === "user") userMutation.mutate({ ...base, identifier: form.userId });
-    else cityMutation.mutate({ ...base, city: form.city });
+    else if (mode === "city") cityMutation.mutate({ ...base, city: form.city });
+    else if (mode === "cohort" && form.cohort) cohortMutation.mutate({ ...base, cohort: form.cohort });
   };
 
   const handleModeChange = (next: TargetMode) => {
@@ -176,6 +224,7 @@ export function PushPage() {
             { value: "all", label: `Alla användare (${audience})` },
             { value: "user", label: "En användare" },
             { value: "city", label: "Stad" },
+            { value: "cohort", label: "Cohort" },
           ]}
         />
 
@@ -235,6 +284,17 @@ export function PushPage() {
                   {(cities.data || []).map((city) => (
                     <option key={city.id} value={city.name}>{city.name}</option>
                   ))}
+                </Select>
+              </Field>
+            )}
+
+            {mode === "cohort" && (
+              <Field label="Cohort">
+                <Select value={form.cohort} onChange={(e) => setForm((s) => ({ ...s, cohort: e.target.value as CohortKey | "" }))}>
+                  <option value="">Välj cohort…</option>
+                  <option value="inactive_30d">{COHORT_LABEL.inactive_30d}</option>
+                  <option value="new_users_7d">{COHORT_LABEL.new_users_7d}</option>
+                  <option value="active_repeaters">{COHORT_LABEL.active_repeaters}</option>
                 </Select>
               </Field>
             )}
@@ -301,10 +361,19 @@ export function PushPage() {
               </div>
             )}
 
+            {/* A13 — optional schedule. Empty = send now. */}
+            <Field label="Schemalägg (valfritt — tomt = skicka nu)">
+              <Input
+                type="datetime-local"
+                value={form.scheduledFor}
+                onChange={(e) => setForm((s) => ({ ...s, scheduledFor: e.target.value }))}
+              />
+            </Field>
+
             <div>
               <Button variant="primary" onClick={handleSend} disabled={isPending || !canSend}>
                 {isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                {isPending ? "Skickar…" : "Skicka push"}
+                {isPending ? "Skickar…" : form.scheduledFor ? "Schemalägg push" : "Skicka push"}
               </Button>
             </div>
           </div>
@@ -316,6 +385,8 @@ export function PushPage() {
           </div>
         </div>
       </Surface>
+
+      <ScheduledPushList />
 
       {/* History */}
       <Surface className="px-6 py-6">
@@ -357,5 +428,63 @@ export function PushPage() {
         )}
       </Surface>
     </div>
+  );
+}
+
+// A13 — list of scheduled pushes (upcoming + recently dispatched)
+function ScheduledPushList() {
+  const queryClient = useQueryClient();
+  const scheduled = useQuery({ queryKey: scheduledPushesQueryKey, queryFn: getScheduledPushes, refetchInterval: 30_000 });
+  const cancelMut = useMutation({
+    mutationFn: cancelScheduledPush,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: scheduledPushesQueryKey });
+    },
+  });
+  const rows = scheduled.data?.rows ?? [];
+  if (rows.length === 0) return null;
+  return (
+    <Surface className="px-6 py-6">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Schemalagda pushar</p>
+      <div className="mt-4 table-shell">
+        <table className="data-table">
+          <thead>
+            <tr><th>Schemalagd</th><th>Mål</th><th>Rubrik</th><th>Status</th><th /></tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const targetText =
+                row.target === "user" ? `Användare · ${row.identifier ?? "—"}` :
+                row.target === "city" ? `Stad · ${row.city ?? "—"}` :
+                row.target === "cohort" ? `Cohort · ${row.cohort ?? "—"}` :
+                "Alla";
+              const status = row.cancelledAt
+                ? { tone: "neutral" as const, label: "Avbokad" }
+                : row.sentAt
+                  ? row.sentSuccess
+                    ? { tone: "success" as const, label: `Skickad · ${row.sentCount ?? 0}` }
+                    : { tone: "danger" as const, label: `Fel · ${row.sentError?.slice(0, 40) || ""}` }
+                  : { tone: "info" as const, label: "Väntar" };
+              const canCancel = !row.cancelledAt && !row.sentAt;
+              return (
+                <tr key={row.id}>
+                  <td className="whitespace-nowrap text-sm">{formatDateTime(row.scheduledFor)}</td>
+                  <td className="text-sm">{targetText}</td>
+                  <td className="max-w-[280px] truncate text-sm">{row.title}</td>
+                  <td><Badge tone={status.tone}>{status.label}</Badge></td>
+                  <td className="text-right">
+                    {canCancel && (
+                      <Button variant="secondary" onClick={() => { if (window.confirm("Avboka schemalagd push?")) cancelMut.mutate(row.id); }} disabled={cancelMut.isPending}>
+                        Avboka
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Surface>
   );
 }

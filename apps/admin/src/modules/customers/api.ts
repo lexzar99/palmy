@@ -1,5 +1,12 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
 
+export type FraudFlag =
+  | "HIGH_REFUNDS_30D"
+  | "HIGH_REFUND_RATE"
+  | "ADDRESS_VELOCITY"
+  | "PAYMENT_FAILURE_VELOCITY"
+  | "NEW_ACCOUNT_LARGE_SPEND";
+
 export interface CustomerRecord {
   id: string;
   name: string;
@@ -15,7 +22,22 @@ export interface CustomerRecord {
   totalSpent: number;
   lastOrder: string | null;
   _count?: { orders: number };
+  // A12 — fraud signals
+  refundCount30d?: number;
+  failedPayments24h?: number;
+  distinctAddresses90d?: number;
+  refundRate?: number;
+  accountAgeDays?: number;
+  fraudFlags?: FraudFlag[];
 }
+
+export const FRAUD_FLAG_LABEL: Record<FraudFlag, string> = {
+  HIGH_REFUNDS_30D: "5+ refunds/30d",
+  HIGH_REFUND_RATE: "Hög refund-rate",
+  ADDRESS_VELOCITY: "10+ adresser/90d",
+  PAYMENT_FAILURE_VELOCITY: "Misslyckade betalningar",
+  NEW_ACCOUNT_LARGE_SPEND: "Nytt konto, stor order",
+};
 
 export interface CustomerDetail extends CustomerRecord {
   orders: Array<{

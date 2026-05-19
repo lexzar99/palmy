@@ -5,10 +5,12 @@ import { normalizeMoneyToOre } from '../utils/deliveryZones';
 
 const router = Router();
 
-// GET /api/customers - List all users with order summary
+// GET /api/customers - List all users with order summary + fraud signals
 router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
   try {
-    const [users, aggregates] = await Promise.all([
+    const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [users, aggregates, refundsRecent, addressesRecent, paymentsToday] = await Promise.all([
       (prisma as any).user.findMany({
         where: { deletedAt: null },
         include: { _count: { select: { orders: true } } },
@@ -19,19 +21,73 @@ router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
         where: { userId: { not: null } },
         _sum: { total: true },
         _max: { createdAt: true },
+        _count: { _all: true },
+      }),
+      // Refunds in last 30 days
+      prisma.order.groupBy({
+        by: ['userId'],
+        where: { userId: { not: null }, refundedAt: { gte: since30, not: null } },
+        _count: { _all: true },
+      }),
+      // Distinct delivery addresses in last 90 days
+      prisma.order.findMany({
+        where: { userId: { not: null }, createdAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } },
+        select: { userId: true, deliveryStreet: true, deliveryZip: true },
+      }),
+      // Orders with failed/awaiting payment in last 24h (velocity check)
+      prisma.order.groupBy({
+        by: ['userId'],
+        where: { userId: { not: null }, createdAt: { gte: since24h }, paymentStatus: { in: ['FAILED', 'AWAITING_PAYMENT'] } as any },
+        _count: { _all: true },
       }),
     ]);
 
     const aggMap = new Map(
-      aggregates.map((a: any) => [a.userId, { totalSpent: a._sum.total ?? 0, lastOrder: a._max.createdAt ?? null }])
+      aggregates.map((a: any) => [a.userId, {
+        totalSpent: a._sum.total ?? 0,
+        lastOrder: a._max.createdAt ?? null,
+        orderCount: a._count?._all ?? 0,
+      }])
     );
+    const refundMap = new Map(refundsRecent.map((r: any) => [r.userId, r._count._all]));
+    const failMap = new Map(paymentsToday.map((r: any) => [r.userId, r._count._all]));
+    // Distinct address sets per user
+    const addrMap = new Map<string, Set<string>>();
+    for (const row of addressesRecent) {
+      if (!row.userId) continue;
+      const key = `${(row.deliveryStreet || '').toLowerCase().trim()}|${(row.deliveryZip || '').trim()}`;
+      if (!addrMap.has(row.userId)) addrMap.set(row.userId, new Set());
+      addrMap.get(row.userId)!.add(key);
+    }
 
     res.json(users.map((u: any) => {
-      const agg = aggMap.get(u.id) as { totalSpent: number; lastOrder: string | null } | undefined;
+      const agg = aggMap.get(u.id) as { totalSpent: number; lastOrder: string | null; orderCount: number } | undefined;
+      const refundCount30d = (refundMap.get(u.id) as number | undefined) ?? 0;
+      const failedPayments24h = (failMap.get(u.id) as number | undefined) ?? 0;
+      const distinctAddresses90d = addrMap.get(u.id)?.size ?? 0;
+      const orderCount = agg?.orderCount ?? 0;
+      const refundRate = orderCount > 0 ? refundCount30d / orderCount : 0;
+      const accountAgeDays = Math.max(0, Math.floor((Date.now() - new Date(u.createdAt).getTime()) / (24 * 60 * 60 * 1000)));
+
+      // Compose a list of fraud-signal flags. UI shows badges; ops decides what to do.
+      const fraudFlags: string[] = [];
+      if (refundCount30d >= 5) fraudFlags.push('HIGH_REFUNDS_30D');
+      if (orderCount >= 3 && refundRate >= 0.5) fraudFlags.push('HIGH_REFUND_RATE');
+      if (distinctAddresses90d >= 10) fraudFlags.push('ADDRESS_VELOCITY');
+      if (failedPayments24h >= 3) fraudFlags.push('PAYMENT_FAILURE_VELOCITY');
+      if (accountAgeDays <= 1 && (agg?.totalSpent ?? 0) >= 80_000) fraudFlags.push('NEW_ACCOUNT_LARGE_SPEND'); // 800kr
+
       return {
         ...u,
         totalSpent: agg ? agg.totalSpent / 100 : 0,
         lastOrder: agg?.lastOrder ?? null,
+        // A12 — fraud signals
+        refundCount30d,
+        failedPayments24h,
+        distinctAddresses90d,
+        refundRate: Number(refundRate.toFixed(3)),
+        accountAgeDays,
+        fraudFlags,
       };
     }));
   } catch (error) {

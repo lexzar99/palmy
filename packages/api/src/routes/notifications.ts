@@ -223,4 +223,182 @@ router.get('/admin/history', authenticate, isSuperAdmin, async (_req, res) => {
   }
 });
 
+/**
+ * A13 — cohort send. Resolves users matching a cohort key and dispatches
+ * synchronously. Cohort keys:
+ *   - inactive_30d: users with no order in the last 30 days, account >= 7d old
+ *   - new_users_7d: users created in the last 7 days, 0 orders
+ *   - active_repeaters: users with >= 3 orders, last order in the last 30d
+ */
+async function resolveCohortUserIds(cohort: string): Promise<string[]> {
+  const now = Date.now();
+  if (cohort === 'inactive_30d') {
+    // Users whose latest order is >= 30 days ago
+    const since30 = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    const since7 = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const recentByUser = await prisma.order.groupBy({
+      by: ['userId'],
+      where: { userId: { not: null }, createdAt: { gte: since30 } },
+      _count: { _all: true },
+    });
+    const recentSet = new Set(recentByUser.map((r) => r.userId!));
+    const users = await (prisma as any).user.findMany({
+      where: { deletedAt: null, createdAt: { lte: since7 }, OR: [{ pushToken: { not: null } }, { apnsDeviceToken: { not: null } }] },
+      select: { id: true },
+    });
+    return (users as any[]).map((u) => u.id).filter((id) => !recentSet.has(id));
+  }
+  if (cohort === 'new_users_7d') {
+    const since7 = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const users = await (prisma as any).user.findMany({
+      where: { deletedAt: null, createdAt: { gte: since7 }, OR: [{ pushToken: { not: null } }, { apnsDeviceToken: { not: null } }] },
+      select: { id: true, _count: { select: { orders: true } } },
+    });
+    return (users as any[]).filter((u) => (u._count?.orders ?? 0) === 0).map((u) => u.id);
+  }
+  if (cohort === 'active_repeaters') {
+    const since30 = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    const recentByUser = await prisma.order.groupBy({
+      by: ['userId'],
+      where: { userId: { not: null }, createdAt: { gte: since30 } },
+      _count: { _all: true },
+    });
+    const candidates = recentByUser.filter((r) => r._count._all >= 3).map((r) => r.userId!);
+    return candidates;
+  }
+  return [];
+}
+
+/**
+ * POST /api/notifications/admin/send-cohort
+ * Body: { cohort, title, body, data? }
+ */
+router.post('/admin/send-cohort', authenticate, isSuperAdmin, async (req: any, res) => {
+  try {
+    const { cohort, title, body, data } = z.object({
+      cohort: z.enum(['inactive_30d', 'new_users_7d', 'active_repeaters']),
+      title: z.string().min(1),
+      body: z.string().min(1),
+      data: z.record(z.any()).optional(),
+    }).parse(req.body);
+
+    const userIds = await resolveCohortUserIds(cohort);
+    let totalCount = 0;
+    let errorsAccumulated = 0;
+    let firstError: string | null = null;
+    for (const userId of userIds) {
+      try {
+        const r = await sendToUser(userId, title, body, data);
+        totalCount += r.count || 0;
+        if (!r.success && !firstError) firstError = r.error || null;
+        if (r.errors) errorsAccumulated += r.errors;
+      } catch (e: any) {
+        if (!firstError) firstError = e?.message || 'unknown';
+      }
+    }
+
+    await (prisma as any).pushLog.create({
+      data: {
+        target: 'cohort',
+        cohort,
+        title,
+        body,
+        deeplink: data?.deeplink as string | undefined ?? null,
+        count: totalCount,
+        success: !firstError && errorsAccumulated === 0,
+        error: firstError || (errorsAccumulated > 0 ? `${errorsAccumulated} ticket errors` : null),
+        sentBy: req.user?.id ?? null,
+      },
+    });
+
+    res.json({ cohort, recipients: userIds.length, count: totalCount, errors: errorsAccumulated, firstError });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Felaktig input', details: error.errors });
+    }
+    console.error('Admin push (cohort) error:', error);
+    res.status(500).json({ error: 'Kunde inte skicka cohort-push' });
+  }
+});
+
+/**
+ * POST /api/notifications/admin/schedule
+ * Body: { scheduledFor: ISO, target, identifier?, city?, cohort?, title, body, data? }
+ * Stores the push for dispatch by the background loop in index.ts.
+ */
+router.post('/admin/schedule', authenticate, isSuperAdmin, async (req: any, res) => {
+  try {
+    const { scheduledFor, target, identifier, city, cohort, title, body, data } = z.object({
+      scheduledFor: z.string().min(1),
+      target: z.enum(['all', 'user', 'city', 'cohort']),
+      identifier: z.string().optional(),
+      city: z.string().optional(),
+      cohort: z.enum(['inactive_30d', 'new_users_7d', 'active_repeaters']).optional(),
+      title: z.string().min(1),
+      body: z.string().min(1),
+      data: z.record(z.any()).optional(),
+    }).parse(req.body);
+
+    const when = new Date(scheduledFor);
+    if (Number.isNaN(when.getTime())) {
+      return res.status(400).json({ error: 'Ogiltigt scheduledFor-datum' });
+    }
+    if (when.getTime() < Date.now() - 60_000) {
+      return res.status(400).json({ error: 'scheduledFor måste vara i framtiden' });
+    }
+
+    const row = await (prisma as any).scheduledPush.create({
+      data: {
+        scheduledFor: when,
+        target,
+        identifier: target === 'user' ? identifier ?? null : null,
+        city: target === 'city' ? city ?? null : null,
+        cohort: target === 'cohort' ? cohort ?? null : null,
+        title,
+        body,
+        deeplink: (data?.deeplink as string | undefined) ?? null,
+        createdBy: req.user?.id ?? null,
+      },
+    });
+    res.status(201).json(row);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Felaktig input', details: error.errors });
+    }
+    console.error('Schedule push error:', error);
+    res.status(500).json({ error: 'Kunde inte schemalägga push' });
+  }
+});
+
+/**
+ * GET /api/notifications/admin/scheduled
+ * List of upcoming + recently-sent scheduled pushes
+ */
+router.get('/admin/scheduled', authenticate, isSuperAdmin, async (_req, res) => {
+  try {
+    const rows = await (prisma as any).scheduledPush.findMany({
+      orderBy: { scheduledFor: 'desc' },
+      take: 100,
+    });
+    res.json({ rows });
+  } catch (error) {
+    res.status(500).json({ error: 'Kunde inte hämta schemalagda pushar' });
+  }
+});
+
+/**
+ * POST /api/notifications/admin/scheduled/:id/cancel
+ */
+router.post('/admin/scheduled/:id/cancel', authenticate, isSuperAdmin, async (req, res) => {
+  try {
+    await (prisma as any).scheduledPush.update({
+      where: { id: req.params.id },
+      data: { cancelledAt: new Date() },
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Kunde inte avboka push' });
+  }
+});
+
 export default router;

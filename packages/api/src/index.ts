@@ -372,6 +372,20 @@ const PORT = Number(process.env.PORT || 4000);
     // restarts because it's a periodic DB scan, not in-flight setTimeouts.
     startLiveActivityFinalizer();
 
+    // A13 — scheduled push dispatcher. Runs every 60s, picks rows where
+    // scheduledFor <= now AND sentAt IS NULL AND cancelledAt IS NULL, and
+    // dispatches them via the same paths as the immediate send endpoints.
+    const dispatchScheduledPushes = async () => {
+      try {
+        const { dispatchDueScheduledPushes } = await import('./lib/scheduledPushDispatcher');
+        await dispatchDueScheduledPushes();
+      } catch (err) {
+        console.error('[scheduledPush] dispatcher error:', err);
+      }
+    };
+    void dispatchScheduledPushes();
+    setInterval(() => { void dispatchScheduledPushes(); }, 60 * 1000);
+
   } catch (error) {
     console.warn('⚠️ Bootstrap error:', error);
   }
