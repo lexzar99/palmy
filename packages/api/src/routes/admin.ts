@@ -1509,12 +1509,19 @@ router.delete('/main-categories/:id', async (req, res) => {
 // PRODUKTER
 // =====================
 
+// Bas-schema utan price-validering — används för PATCH där alla fält är frivilliga
+// och vi inte vill blockera spara-flowet bara för att admin råkat ändra fel fält.
+// För CREATE förstärker vi schemat med `.required({ ... })`-ish via runtime-check
+// av name/categoryId, men tillåter price >= 0 (gratis-rätter / placeholder).
 const ProductSchema = z.object({
   name: z.string().min(1),
-  description: z.string().optional(),
-  price: z.number().positive(),
+  description: z.string().optional().nullable(),
+  // Tillåt 0 (gratis-rätter och nya produkter där admin sätter pris efteråt).
+  // Tidigare krav `.positive()` blockerade både skapande och uppdatering om
+  // formuläret någonsin innehöll 0 — utan att frontend visade vettigt fel.
+  price: z.number().min(0),
   categoryId: z.string(),
-  imageUrl: z.string().optional(),
+  imageUrl: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
   isVegan: z.boolean().optional(),
   isVegetarian: z.boolean().optional(),
@@ -1531,6 +1538,10 @@ const ProductSchema = z.object({
   discountLabel: z.string().nullable().optional(),
   discountActive: z.boolean().optional(),
 });
+
+// PATCH-schema: alla fält frivilliga. Vi använder `.partial()` så zod släpper
+// igenom delvisa uppdateringar utan att kräva name/price/categoryId.
+const ProductPatchSchema = ProductSchema.partial();
 
 // GET /api/admin/products
 router.get('/products', async (req, res) => {
@@ -1589,7 +1600,12 @@ router.get('/products', async (req, res) => {
 // POST /api/admin/products
 router.post('/products', async (req, res) => {
   try {
-    const data = ProductSchema.parse(req.body);
+    const parsed = ProductSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Ogiltig produktdata', details: parsed.error.flatten() });
+      return;
+    }
+    const data = parsed.data;
     const slug = data.name.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
 
     if (!isSuperAdmin(req as AuthRequest)) {
@@ -1613,10 +1629,10 @@ router.post('/products', async (req, res) => {
       data: {
         name: data.name,
         slug: `${slug}-${Date.now()}`,
-        description: data.description,
+        description: data.description ?? null,
         price: Math.round(data.price * 100),
         categoryId: data.categoryId,
-        imageUrl: data.imageUrl,
+        imageUrl: data.imageUrl ?? null,
         isActive: data.isActive ?? true,
         isVegan: data.isVegan ?? false,
         isVegetarian: data.isVegetarian ?? false,
@@ -1652,8 +1668,9 @@ router.post('/products', async (req, res) => {
     });
     broadcastMenuChange(cat?.restaurantId ?? null, { kind: 'product', productId: product.id, created: true });
     res.status(201).json({ ...product, price: product.price / 100 });
-  } catch {
-    res.status(500).json({ error: 'Serverfel' });
+  } catch (error: any) {
+    console.error('Error creating product:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Serverfel') });
   }
 });
 
@@ -1677,11 +1694,20 @@ router.patch('/products/:id', async (req, res) => {
       }
     }
 
-    const { extraGroupIds, price, discountPrice, ...rest } = req.body;
+    // Zod-parse PATCH-payloaden. `.partial()` släpper igenom delvisa
+    // uppdateringar. Viktigast: okända fält (t.ex. `restaurantId` som admin-UI
+    // skickar med på varje save) strippas så de inte når Prisma och kraschar
+    // hela updaten med "Unknown argument" → tidigare "Serverfel" 500.
+    const parsed = ProductPatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Ogiltig produktdata', details: parsed.error.flatten() });
+      return;
+    }
+    const { extraGroupIds, price, discountPrice, ...rest } = parsed.data;
     const updateData: Record<string, unknown> = { ...rest };
     if (price !== undefined) updateData.price = Math.round(price * 100);
     if (discountPrice !== undefined) {
-      updateData.discountPrice = discountPrice == null || discountPrice === ''
+      updateData.discountPrice = discountPrice == null
         ? null
         : Math.round(Number(discountPrice) * 100);
     }
@@ -1714,8 +1740,9 @@ router.patch('/products/:id', async (req, res) => {
       isActive: product.isActive,
     });
     res.json({ ...product, price: product.price / 100 });
-  } catch {
-    res.status(500).json({ error: 'Serverfel' });
+  } catch (error: any) {
+    console.error('Error updating product:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Serverfel') });
   }
 });
 
@@ -1772,10 +1799,16 @@ router.get('/extra-groups', async (req, res) => {
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
-    // Strikt filter per restaurang — extras-grupper ska aldrig läcka mellan
-    // restauranger även om någon legacy-rad har restaurantId=null.
+    // Inkludera GLOBALA grupper (restaurantId=null) tillsammans med
+    // restaurang-specifika. Globala grupper kan vara kopplade till produkter
+    // i flera restauranger (t.ex. "Storlek", "Drycker"), och om vi filtrerar
+    // dem bort försvinner kryssrutorna från produktmodalen även om gruppen
+    // i verkligheten är aktiv. Webappen ser dem via menyendpointen — admin
+    // måste också kunna se och toggla dem.
     const groups = await prisma.extraGroup.findMany({
-      where: scopedRestaurantId ? { restaurantId: scopedRestaurantId } : {},
+      where: scopedRestaurantId
+        ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
+        : {},
       include: {
         extras: { orderBy: { position: 'asc' } },
         _count: { select: { productGroups: true } },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Search, Tags } from "lucide-react";
@@ -753,6 +753,12 @@ export function MenuPage() {
   const restaurants = useQuery({ queryKey: menuRestaurantsQueryKey, queryFn: getMenuRestaurants });
   const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
 
+  // One-shot auto-pick av första restaurang vid första load. Utan denna ref
+  // skulle effekten nedan reagera så fort `activeRestaurantId` blir null
+  // (t.ex. när admin byter stad i CityRestaurantPicker) och tvinga tillbaka
+  // den första restaurangen → city-bytet blir omöjligt.
+  const didAutoSelectRef = useRef(false);
+
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const restaurantId = searchParams.get("restaurantId");
@@ -766,11 +772,13 @@ export function MenuPage() {
     if (pendingRouteRestaurantId) {
       setActiveRestaurantId(pendingRouteRestaurantId);
       setPendingRouteRestaurantId(null);
+      didAutoSelectRef.current = true;
       return;
     }
 
-    if (!activeRestaurantId && restaurants.data?.length) {
+    if (!didAutoSelectRef.current && !activeRestaurantId && restaurants.data?.length) {
       setActiveRestaurantId(restaurants.data[0].id);
+      didAutoSelectRef.current = true;
     }
   }, [activeRestaurantId, pendingRouteRestaurantId, restaurants.data]);
   /* eslint-enable react-hooks/set-state-in-effect */

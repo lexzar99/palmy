@@ -53,7 +53,10 @@ export function CityRestaurantPicker({
     return map;
   }, [cities.data]);
 
-  // Lokal stad-state — initieras från `value` om angiven
+  // Lokal stad-state — initieras från `value` om angiven. Vi sätter den BARA
+  // när parent ger en konkret restaurang som kan hittas i en stad — annars
+  // låter vi admins manuella city-val stå kvar. Detta är vad som gör att
+  // "byt stad → välj restaurang"-flowet fungerar utan att snäppa tillbaka.
   const [cityId, setCityId] = useState<string>("");
 
   useEffect(() => {

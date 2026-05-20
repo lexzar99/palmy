@@ -1118,7 +1118,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                 <div className="h-px bg-zinc-200 flex-1" />
               </div>
               <div
-                className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 sm:-mx-6 lg:-mx-12 px-5 sm:px-6 lg:px-12 pb-2 snap-x snap-mandatory"
+                className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 sm:-mx-6 lg:-mx-12 px-5 sm:px-6 lg:px-12 pb-2 snap-x snap-mandatory scroll-pl-5 sm:scroll-pl-6 lg:scroll-pl-12"
                 style={{ WebkitOverflowScrolling: "touch" as any }}
               >
                 {discountedProducts.map((p: any) => {
@@ -1192,7 +1192,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                    nedan i sin riktiga kategori-sektion med en "Populär"-flagga. */}
                {popularProducts.length > 0 && !searchTerm.trim() && (
                  <section className="mb-2 -mx-5 sm:-mx-6 lg:-mx-12">
-                   <div className="flex items-center gap-2.5 mb-4 px-6 sm:px-7 lg:px-13">
+                   <div className="flex items-center gap-2.5 mb-4 px-5 sm:px-6 lg:px-12">
                      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--accent, #c89a3c)" }}>
                        <path d="M12 2C12 2 8 6 8 10C8 11.5 8.5 12.5 9 13C8 12 7 11 6 11C5 11 4 12 4 14C4 18 7.5 22 12 22C16.5 22 20 18.5 20 14C20 9 16 7 16 4C16 3 15 2 14 2C13 2 12.5 3 12 4C11.5 3 12 2 12 2Z"/>
                      </svg>
@@ -1203,8 +1203,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                        {popularProducts.length} val
                      </span>
                    </div>
+                   {/* scroll-padding-* gör att `snap-start` respekterar rail-ens
+                       left-padding — annars snappar första kortet flush mot
+                       viewport-kanten och hamnar utanför heading-indenten. */}
                    <div
-                     className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1 px-5 sm:px-6 lg:px-12"
+                     className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1 px-5 sm:px-6 lg:px-12 scroll-pl-5 sm:scroll-pl-6 lg:scroll-pl-12"
                      style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
                    >
                      {popularProducts.map((p) => (
