@@ -5,28 +5,44 @@ import { ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/shared/api/client";
 import { Button, Input } from "@/shared/components/ui";
 
-const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_BYTES = 15 * 1024 * 1024;
 
 /**
- * Bildfält som låter admin antingen ladda upp en bild från enheten
- * (POST /api/admin/upload → Cloudinary, returnerar URL) eller klistra in
- * en URL manuellt. Fungerar för alla bildfält i panelen — hero, profil,
- * sponsor, restaurang etc.
+ * Bildfält som laddar upp till R2 (Cloudflare) som default. Filen
+ * konverteras till WebP på servern (sharp) och hamnar på en kanonisk path:
+ *   {city}/{restaurant}/hero.webp
+ *   {city}/{restaurant}/logo.webp
+ *   {city}/{restaurant}/main/{category}.webp
+ *   {city}/{restaurant}/menu/{category}/{product}.webp
  *
- * Backend: packages/api/src/routes/upload.ts. Maxstorlek 5 MB,
- * format jpg/jpeg/png/gif/webp (validering på server). Vi gör en
- * snabb klient-side check för storlek så användaren får direkt feedback.
+ * Falls back till POST /admin/upload (Cloudinary) bara om R2 inte är
+ * konfigurerat på servern (503). Admin kan också klistra in en URL manuellt
+ * — det fältet är kvar och fungerar oberoende.
+ *
+ * Backend: packages/api/src/routes/upload.ts. Max raw-storlek 15 MB,
+ * komprimeras till ~250 KB WebP.
  */
+export type ImageUploadKind = 'hero' | 'logo' | 'main-category' | 'product' | 'misc';
+
 export function ImageUploadField({
   value,
   onChange,
   label = "Bild",
   placeholder = "https://...",
+  // R2-context. Om allt detta saknas faller upload tillbaka på Cloudinary.
+  kind,
+  restaurantId,
+  categoryId,
+  productId,
 }: {
   value: string;
   onChange: (url: string) => void;
   label?: string;
   placeholder?: string;
+  kind?: ImageUploadKind;
+  restaurantId?: string | null;
+  categoryId?: string | null;
+  productId?: string | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -37,11 +53,36 @@ export function ImageUploadField({
     if (!file) return;
     setError(null);
     if (file.size > MAX_BYTES) {
-      setError("Filen är för stor (max 5 MB).");
+      setError("Filen är för stor (max 15 MB raw).");
       return;
     }
     setUploading(true);
     try {
+      const useR2 = Boolean(kind && restaurantId);
+      if (useR2) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("kind", kind!);
+        if (restaurantId) fd.append("restaurantId", restaurantId);
+        if (categoryId) fd.append("categoryId", categoryId);
+        if (productId) fd.append("productId", productId);
+        try {
+          const response = await api.post<{ url: string; key: string }>(
+            "/api/admin/upload-r2",
+            fd,
+            { headers: { "Content-Type": "multipart/form-data" } },
+          );
+          onChange(response.data.url);
+          return;
+        } catch (err: any) {
+          // 503 = R2 inte konfigurerat → fall genom till Cloudinary
+          if (err?.response?.status !== 503) {
+            setError(err?.response?.data?.error || "R2-uppladdning misslyckades.");
+            return;
+          }
+        }
+      }
+      // Fallback: Cloudinary
       const fd = new FormData();
       fd.append("file", file);
       const response = await api.post<{ url: string; filename: string }>(

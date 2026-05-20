@@ -112,6 +112,23 @@ export const updateMainCategory = (id: string, payload: Partial<MainCategoryReco
   apiPatch<MainCategoryRecord>(`/admin/main-categories/${id}`, payload);
 export const deleteMainCategory = (id: string) => apiDelete<{ success: boolean }>(`/admin/main-categories/${id}`);
 
+// R2 image operations
+export type R2AutoMatchResult = {
+  restaurant: string;
+  city: string;
+  prefix: string;
+  totalObjectsInPrefix: number;
+  matched: { hero: boolean; logo: boolean; mainCategories: number; products: number };
+  updates: Array<{ kind: string; id: string; url: string; key: string }>;
+  dryRun: boolean;
+};
+
+export const r2AutoMatch = (restaurantId: string, dryRun: boolean) =>
+  apiPost<R2AutoMatchResult>("/admin/images/auto-match", { restaurantId, dryRun });
+
+export const r2ListImages = (prefix: string) =>
+  apiGet<Array<{ key: string; url: string; size: number; lastModified?: string }>>(`/admin/images/list?prefix=${encodeURIComponent(prefix)}`);
+
 // Copy/import — nya id genereras, källan rörs inte.
 export const copyCategory = (sourceId: string, targetRestaurantId: string) =>
   apiPost<CategoryRecord>(`/admin/categories/${sourceId}/copy`, { targetRestaurantId });

@@ -28,6 +28,7 @@ import {
   menuMainCategoriesQueryKey,
   menuProductsQueryKey,
   menuRestaurantsQueryKey,
+  r2AutoMatch,
   updateCategory,
   updateExtraGroup,
   updateMainCategory,
@@ -36,6 +37,7 @@ import {
   type ExtraGroupRecord,
   type MainCategoryRecord,
   type ProductRecord,
+  type R2AutoMatchResult,
   type RestaurantRef,
 } from "@/modules/menu/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
@@ -157,7 +159,14 @@ function MainCategoryModal({
           <Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} />
         </Field>
         <div className="md:col-span-2">
-          <ImageUploadField label="Tile-bild (16:9 eller 1:1 rekommenderas, designad bild med inbakad text)" value={form.imageUrl} onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))} />
+          <ImageUploadField
+            label="Tile-bild (16:9 eller 1:1 rekommenderas, designad bild med inbakad text)"
+            value={form.imageUrl}
+            onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))}
+            kind="main-category"
+            restaurantId={restaurantId}
+            categoryId={mainCategory?.id || null}
+          />
         </div>
         <Field label="Status">
           <Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}>
@@ -258,7 +267,14 @@ function CategoryModal({ open, restaurantId, category, mainCategories, onClose }
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Name"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
         <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
-        <ImageUploadField label="Bild" value={form.imageUrl} onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))} />
+        <ImageUploadField
+          label="Bild"
+          value={form.imageUrl}
+          onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))}
+          kind="main-category"
+          restaurantId={restaurantId}
+          categoryId={category?.id || null}
+        />
         <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
         <div className="md:col-span-2">
           <Field label="Huvudkategori (topplager i kund-appen)">
@@ -388,7 +404,15 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
         <Field label="Price"><Input type="number" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: Number(event.target.value) }))} /></Field>
         <Field label="Category"><Select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select></Field>
         <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
-        <ImageUploadField label="Bild" value={form.imageUrl} onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))} />
+        <ImageUploadField
+          label="Bild"
+          value={form.imageUrl}
+          onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))}
+          kind="product"
+          restaurantId={restaurantId}
+          categoryId={form.categoryId || null}
+          productId={product?.id || null}
+        />
         <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
         <div className="md:col-span-2"><Field label="Description"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
@@ -733,6 +757,105 @@ function ImportFromOtherModal({
   );
 }
 
+/**
+ * R2 Auto-match-knapp: scannar Cloudflare R2-bucketen för restaurangen och
+ * binder automatiskt bilder till produkter/kategorier/main-categories baserat
+ * på slug-konventionen. Visar alltid dry-run-resultat först så admin kan se
+ * vad som kommer hända innan något skrivs till DB.
+ */
+function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [dryRun, setDryRun] = useState<R2AutoMatchResult | null>(null);
+
+  const dryMutation = useMutation({
+    mutationFn: () => r2AutoMatch(restaurantId, true),
+    onSuccess: (data) => { setDryRun(data); setOpen(true); },
+  });
+
+  const applyMutation = useMutation({
+    mutationFn: () => r2AutoMatch(restaurantId, false),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });
+      await queryClient.invalidateQueries({ queryKey: menuMainCategoriesQueryKey(restaurantId) });
+      await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(restaurantId) });
+      setOpen(false);
+      setDryRun(null);
+    },
+  });
+
+  const error = (dryMutation.error as any)?.response?.data?.error || (applyMutation.error as any)?.response?.data?.error;
+
+  return (
+    <>
+      <Button variant="secondary" onClick={() => dryMutation.mutate()} disabled={dryMutation.isPending}>
+        {dryMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+        Matcha bilder från R2
+      </Button>
+
+      <Modal
+        open={open && !!dryRun}
+        onClose={() => { setOpen(false); setDryRun(null); }}
+        title="R2 auto-match"
+        description="Scannar bucket-prefixet och föreslår vilka bilder som ska kopplas till produkter, kategorier och main-categories baserat på slug-konventionen."
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => { setOpen(false); setDryRun(null); }}>Avbryt</Button>
+            <Button variant="primary" onClick={() => applyMutation.mutate()} disabled={applyMutation.isPending}>
+              {applyMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+              Skriv till databasen
+            </Button>
+          </div>
+        }
+      >
+        {dryRun ? (
+          <div className="grid gap-4">
+            <div className="surface-muted px-4 py-3 text-xs">
+              <div className="text-[var(--text-secondary)]">Bucket-prefix</div>
+              <code className="text-sm">{dryRun.prefix}</code>
+              <div className="mt-2 text-[var(--text-secondary)]">{dryRun.totalObjectsInPrefix} object i bucketen</div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="surface-muted px-3 py-3 text-center">
+                <div className="text-2xl font-black">{dryRun.matched.hero ? "✓" : "—"}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Hero</div>
+              </div>
+              <div className="surface-muted px-3 py-3 text-center">
+                <div className="text-2xl font-black">{dryRun.matched.logo ? "✓" : "—"}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Logo</div>
+              </div>
+              <div className="surface-muted px-3 py-3 text-center">
+                <div className="text-2xl font-black">{dryRun.matched.mainCategories}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Main cats</div>
+              </div>
+              <div className="surface-muted px-3 py-3 text-center">
+                <div className="text-2xl font-black">{dryRun.matched.products}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Produkter</div>
+              </div>
+            </div>
+            {dryRun.updates.length > 0 ? (
+              <div>
+                <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">Exempel på vad som kommer kopplas</p>
+                <div className="surface-muted max-h-64 overflow-y-auto px-3 py-2 text-xs">
+                  {dryRun.updates.map((u) => (
+                    <div key={u.key} className="border-b border-[var(--border-subtle)] py-1.5 last:border-b-0">
+                      <Badge tone="neutral">{u.kind}</Badge>
+                      <code className="ml-2 break-all">{u.key}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--text-secondary)]">Inga matchningar hittades. Kontrollera att bilderna ligger under prefixet ovan med rätt slug-namn.</p>
+            )}
+            {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+          </div>
+        ) : null}
+      </Modal>
+    </>
+  );
+}
+
 export function MenuPage() {
   const searchParams = useSearchParams();
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
@@ -836,6 +959,9 @@ export function MenuPage() {
         title="Menu"
         actions={
           <>
+            {activeRestaurantId ? (
+              <R2AutoMatchButton restaurantId={activeRestaurantId} />
+            ) : null}
             {activeRestaurantId && tab !== "main-categories" ? (
               <Button variant="secondary" onClick={() => setImportModalOpen(true)}>
                 <Copy size={14} /> Importera från annan
