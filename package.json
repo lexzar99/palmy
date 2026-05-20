@@ -19,5 +19,32 @@
     "apps/*",
     "packages/*"
   ],
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@10.33.0",
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": [
+        "linux",
+        "darwin",
+        "win32"
+      ],
+      "cpu": [
+        "x64",
+        "arm64"
+      ],
+      "libc": [
+        "glibc",
+        "musl"
+      ]
+    },
+    "onlyBuiltDependencies": [
+      "sharp",
+      "@prisma/client",
+      "prisma",
+      "@prisma/engines",
+      "@sentry/cli",
+      "esbuild",
+      "@biomejs/biome",
+      "core-js"
+    ]
+  }
 }
