@@ -29,6 +29,7 @@ import {
   menuProductsQueryKey,
   menuRestaurantsQueryKey,
   r2AutoMatch,
+  r2Migrate,
   updateCategory,
   updateExtraGroup,
   updateMainCategory,
@@ -38,6 +39,7 @@ import {
   type MainCategoryRecord,
   type ProductRecord,
   type R2AutoMatchResult,
+  type R2MigrateResult,
   type RestaurantRef,
 } from "@/modules/menu/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
@@ -758,6 +760,130 @@ function ImportFromOtherModal({
 }
 
 /**
+ * R2 Migrate-knapp: triggar migration från Cloudinary → R2 SERVER-SIDE.
+ * Använder Railway-env-varsen så admin inte behöver hantera secrets själv.
+ * Default = dry-run; admin ser exempel + statistik innan confirm.
+ */
+function R2MigrateButton() {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [dryRun, setDryRun] = useState<R2MigrateResult | null>(null);
+  const [liveResult, setLiveResult] = useState<R2MigrateResult | null>(null);
+
+  const dryMutation = useMutation({
+    mutationFn: () => r2Migrate({ apply: false }),
+    onSuccess: (data) => { setDryRun(data); setLiveResult(null); setOpen(true); },
+  });
+
+  const applyMutation = useMutation({
+    mutationFn: () => r2Migrate({ apply: true }),
+    onSuccess: async (data) => {
+      setLiveResult(data);
+      // Cache invalidation — alla bild-URL:er har bytts i DB
+      await queryClient.invalidateQueries({ queryKey: ["menu"] });
+    },
+  });
+
+  const error = (dryMutation.error as any)?.response?.data?.error || (applyMutation.error as any)?.response?.data?.error;
+  const isApplying = applyMutation.isPending;
+  const finalResult = liveResult || dryRun;
+
+  return (
+    <>
+      <Button variant="secondary" onClick={() => dryMutation.mutate()} disabled={dryMutation.isPending}>
+        {dryMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+        Migrera till R2
+      </Button>
+
+      <Modal
+        open={open && !!finalResult}
+        onClose={() => { if (!isApplying) { setOpen(false); setDryRun(null); setLiveResult(null); } }}
+        title={liveResult ? "Migration klar" : "R2-migration (dry-run)"}
+        description={
+          liveResult
+            ? "Bilder har flyttats till R2 och databasen uppdaterad. Cloudinary-originalen rörs inte (du kan radera dem manuellt senare när du verifierat allt funkar)."
+            : "Skannar alla rader med imageUrl. Inget skrivs till databasen än — klicka Apply för att köra på riktigt."
+        }
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => { if (!isApplying) { setOpen(false); setDryRun(null); setLiveResult(null); } }} disabled={isApplying}>
+              {liveResult ? "Stäng" : "Avbryt"}
+            </Button>
+            {!liveResult ? (
+              <Button variant="primary" onClick={() => applyMutation.mutate()} disabled={isApplying || !finalResult || finalResult.migrated === 0}>
+                {isApplying ? <Loader2 size={14} className="animate-spin" /> : null}
+                {isApplying ? "Migrerar…" : `Migrera ${finalResult?.migrated || 0} bilder`}
+              </Button>
+            ) : null}
+          </div>
+        }
+      >
+        {finalResult ? (
+          <div className="grid gap-4">
+            {!finalResult.configured ? (
+              <div className="surface-muted px-4 py-3 text-sm text-rose-400">
+                R2 är inte konfigurerat på servern. Sätt R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET och R2_PUBLIC_BASE_URL på Railway och redeploy.
+              </div>
+            ) : null}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <div className="surface-muted px-3 py-3 text-center">
+                <div className="text-2xl font-black">{finalResult.scanned}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Skannade</div>
+              </div>
+              <div className="surface-muted px-3 py-3 text-center">
+                <div className="text-2xl font-black">{finalResult.migrated}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">{liveResult ? "Migrerade" : "Kommer migreras"}</div>
+              </div>
+              <div className="surface-muted px-3 py-3 text-center">
+                <div className="text-2xl font-black">{finalResult.alreadyR2}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Redan i R2</div>
+              </div>
+              <div className="surface-muted px-3 py-3 text-center">
+                <div className="text-2xl font-black">{finalResult.skippedNoUrl}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Saknar URL</div>
+              </div>
+              <div className="surface-muted px-3 py-3 text-center">
+                <div className={`text-2xl font-black ${finalResult.failed > 0 ? "text-rose-400" : ""}`}>{finalResult.failed}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Misslyckade</div>
+              </div>
+            </div>
+            {finalResult.migratedExamples.length > 0 ? (
+              <div>
+                <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                  {liveResult ? "Exempel på vad som flyttades" : "Exempel på vad som KOMMER flyttas"}
+                </p>
+                <div className="surface-muted max-h-64 overflow-y-auto px-3 py-2 text-xs">
+                  {finalResult.migratedExamples.map((u, i) => (
+                    <div key={i} className="border-b border-[var(--border-subtle)] py-1.5 last:border-b-0">
+                      <div className="font-semibold">{u.label}</div>
+                      <code className="break-all text-[10px] text-[var(--text-muted)]">→ {u.to}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {finalResult.failedExamples.length > 0 ? (
+              <div>
+                <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-rose-400">Misslyckade nedladdningar</p>
+                <div className="surface-muted max-h-40 overflow-y-auto px-3 py-2 text-xs">
+                  {finalResult.failedExamples.map((f, i) => (
+                    <div key={i} className="border-b border-[var(--border-subtle)] py-1.5 last:border-b-0">
+                      <div className="font-semibold">{f.label}</div>
+                      <code className="break-all text-[10px] text-rose-400">{f.error}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+          </div>
+        ) : null}
+      </Modal>
+    </>
+  );
+}
+
+/**
  * R2 Auto-match-knapp: scannar Cloudflare R2-bucketen för restaurangen och
  * binder automatiskt bilder till produkter/kategorier/main-categories baserat
  * på slug-konventionen. Visar alltid dry-run-resultat först så admin kan se
@@ -959,6 +1085,7 @@ export function MenuPage() {
         title="Menu"
         actions={
           <>
+            <R2MigrateButton />
             {activeRestaurantId ? (
               <R2AutoMatchButton restaurantId={activeRestaurantId} />
             ) : null}

@@ -129,6 +129,21 @@ export const r2AutoMatch = (restaurantId: string, dryRun: boolean) =>
 export const r2ListImages = (prefix: string) =>
   apiGet<Array<{ key: string; url: string; size: number; lastModified?: string }>>(`/admin/images/list?prefix=${encodeURIComponent(prefix)}`);
 
+export type R2MigrateResult = {
+  scanned: number;
+  alreadyR2: number;
+  migrated: number;
+  failed: number;
+  skippedNoUrl: number;
+  failedExamples: Array<{ label: string; url: string; error: string }>;
+  migratedExamples: Array<{ label: string; from: string; to: string }>;
+  dryRun: boolean;
+  configured: boolean;
+};
+
+export const r2Migrate = (payload: { apply: boolean; only?: 'restaurants' | 'main-categories' | 'categories' | 'products'; restaurantSlug?: string; maxItems?: number }) =>
+  apiPost<R2MigrateResult>("/admin/images/migrate", payload);
+
 // Copy/import — nya id genereras, källan rörs inte.
 export const copyCategory = (sourceId: string, targetRestaurantId: string) =>
   apiPost<CategoryRecord>(`/admin/categories/${sourceId}/copy`, { targetRestaurantId });

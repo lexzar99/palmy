@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/auth';
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { r2Enabled, buildR2Key, uploadToR2, toWebp, listR2, existsInR2, slugifyPathSegment, r2KeyToPublicUrl } from '../lib/r2';
+import { runR2Migration, type MigrateOptions } from '../lib/r2Migrate';
 import prisma from '../lib/prisma';
 import axios from 'axios';
 
@@ -295,6 +296,49 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Auto-match error:', error);
     res.status(500).json({ error: error?.message || 'Auto-match misslyckades' });
+  }
+});
+
+/**
+ * POST /api/admin/images/migrate
+ *
+ * Triggar migration från Cloudinary (eller andra URL:er) till R2 SERVER-SIDE.
+ * Använder env-värdena som redan finns på Railway — inget behöver skickas
+ * från admin-klienten. Default = dry-run så admin kan se vad som händer
+ * innan de godkänner.
+ *
+ * Body:
+ *   { apply?: boolean = false,
+ *     only?: 'restaurants'|'main-categories'|'categories'|'products',
+ *     restaurantSlug?: string,
+ *     maxItems?: number }
+ *
+ * Säkerhet:
+ *   - Kräver superadmin (authenticate-middleware checkar token, men hela
+ *     /admin-routern är scoped till admins). Endpointen rör bara imageUrl-
+ *     kolumner, ingen radering av data.
+ *   - apply måste vara explicit true — annars dry-run.
+ *   - maxItems kan stoppa körningen tidigt.
+ */
+router.post('/images/migrate', async (req: Request, res: Response) => {
+  try {
+    if (!r2Enabled) {
+      res.status(503).json({ error: 'R2 är inte konfigurerat på servern' });
+      return;
+    }
+    const opts: MigrateOptions = {
+      apply: Boolean(req.body?.apply),
+      only: req.body?.only,
+      restaurantSlug: req.body?.restaurantSlug,
+      maxItems: typeof req.body?.maxItems === 'number' ? req.body.maxItems : undefined,
+    };
+    // Long-running — säg åt klienten att vänta
+    res.setTimeout(10 * 60 * 1000);
+    const result = await runR2Migration(opts);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: error?.message || 'Migration misslyckades' });
   }
 });
 
