@@ -155,18 +155,128 @@ function FullProductCard({ product, cartQty, onClick, disabled }: { product: any
 }
 
 /**
+ * SquareRailCard — kompakt kvadratiskt kort för horisontella rails
+ * ("Populärt"). Hela kortet är aspect-square. Bilden fyller övre 62%,
+ * text-stack med namn + pris i undre 38%. Mycket tightare än grid-kortet
+ * och fungerar både med och utan bild (gold-fallback med stort namn).
+ */
+function SquareRailCard({ product, onClick, disabled }: { product: any; onClick: () => void; disabled: boolean }) {
+  const { final, original } = getDisplayPrice(product);
+  const hasImage = Boolean(product.imageUrl);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-disabled={disabled}
+      className={`group relative snap-start shrink-0 rounded-2xl overflow-hidden text-left flex flex-col ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:scale-[0.97] cursor-pointer"}`}
+      style={{
+        width: "42vw",
+        maxWidth: "170px",
+        minWidth: "138px",
+        aspectRatio: "1 / 1",
+        backgroundColor: "var(--bg-secondary)",
+        boxShadow: "0 2px 10px rgba(28,28,30,0.06), 0 1px 2px rgba(28,28,30,0.03)",
+      }}
+    >
+      {/* Övre 62% — bild eller gold-fallback */}
+      <div
+        className="relative w-full flex-shrink-0"
+        style={{
+          height: "62%",
+          ...(hasImage
+            ? { backgroundImage: `url("${product.imageUrl}")`, backgroundSize: "cover", backgroundPosition: "center" }
+            : {
+                backgroundImage:
+                  "radial-gradient(circle at 22% 28%, rgba(200,154,60,0.26) 0%, transparent 50%), radial-gradient(circle at 78% 76%, rgba(200,154,60,0.18) 0%, transparent 50%), linear-gradient(135deg, rgba(200,154,60,0.22) 0%, rgba(200,154,60,0.10) 100%)",
+              }),
+        }}
+      >
+        {!hasImage && (
+          <div className="absolute inset-0 flex items-center justify-center px-2 text-center">
+            <span
+              className="font-black leading-tight line-clamp-2 break-words"
+              style={{
+                color: "#8a6418",
+                fontSize:
+                  (product.name || "").length > 14 ? "12px"
+                    : (product.name || "").length > 10 ? "14px"
+                      : (product.name || "").length > 7 ? "16px"
+                        : "19px",
+                letterSpacing: "-0.3px",
+                lineHeight: 1.05,
+              }}
+              lang="sv"
+            >
+              {product.name}
+            </span>
+          </div>
+        )}
+        {/* Flytande "+"-bubbla i nedre högra hörnet på bilden, krymper
+            mot textraden så den syns över skarven utan att täcka pris. */}
+        <span
+          className="absolute right-1.5 -bottom-3 w-7 h-7 rounded-full grid place-items-center font-black text-[14px] leading-none"
+          style={{
+            backgroundColor: "var(--accent, #c89a3c)",
+            color: "#1c1c1e",
+            border: "2.5px solid var(--bg-secondary)",
+            boxShadow: "0 2px 6px rgba(200,154,60,0.35)",
+          }}
+        >+</span>
+      </div>
+
+      {/* Undre 38% — namn (1 rad) + pris */}
+      <div className="flex-1 flex flex-col justify-between px-2.5 pt-2.5 pb-2 min-h-0">
+        <h3
+          className="m-0 font-black leading-tight line-clamp-1 overflow-hidden"
+          style={{
+            fontSize: "12.5px",
+            letterSpacing: "-0.3px",
+            color: "var(--text-primary)",
+          }}
+        >
+          {product.name}
+        </h3>
+        <div className="flex items-baseline gap-1.5">
+          {original != null && original !== final && (
+            <span
+              className="text-[9px] font-bold line-through"
+              style={{ color: "var(--text-tertiary, #9a9a9a)" }}
+            >
+              {original}
+            </span>
+          )}
+          <span style={{
+            fontSize: "13px",
+            fontWeight: 900,
+            color: "var(--text-primary)",
+            letterSpacing: "-0.2px",
+          }}>
+            {final}
+            <small style={{
+              fontSize: "9px",
+              fontWeight: 700,
+              color: "var(--text-tertiary, #9a9a9a)",
+              marginLeft: 1,
+            }}>KR</small>
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/**
  * UniformCard — den nya menyns produktkort (uniform6-design).
  * Samma höjd för alla, bild eller text-only-platta upptill, namn + kort
  * beskrivning + pris under. Flytande "+"-knapp som overlay på bilden, och en
  * "🔥 Populär"-flagga i högra hörnet om kortet också finns i Mest Populära.
  */
-function UniformCard({ product, isPopular, compact, onClick, disabled }: { product: any; isPopular?: boolean; compact?: boolean; onClick: () => void; disabled: boolean }) {
+function UniformCard({ product, isPopular, onClick, disabled }: { product: any; isPopular?: boolean; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
   const hasImage = Boolean(product.imageUrl);
-  // Compact variant används av "Populärt"-raden — kortare totalhöjd och bild
-  // så korten inte ser smala och stretched ut vid sidan av grid-kortet.
-  const totalH = compact ? 210 : 270;
-  const imgH = compact ? 110 : 160;
+  const totalH = 270;
+  const imgH = 160;
   return (
     <button
       type="button"
@@ -1192,7 +1302,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                    nedan i sin riktiga kategori-sektion med en "Populär"-flagga. */}
                {popularProducts.length > 0 && !searchTerm.trim() && (
                  <section className="mb-2 -mx-5 sm:-mx-6 lg:-mx-12">
-                   <div className="flex items-center gap-2.5 mb-4 px-5 sm:px-6 lg:px-12">
+                   <div className="flex items-center gap-2.5 mb-3 px-5 sm:px-6 lg:px-12">
                      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--accent, #c89a3c)" }}>
                        <path d="M12 2C12 2 8 6 8 10C8 11.5 8.5 12.5 9 13C8 12 7 11 6 11C5 11 4 12 4 14C4 18 7.5 22 12 22C16.5 22 20 18.5 20 14C20 9 16 7 16 4C16 3 15 2 14 2C13 2 12.5 3 12 4C11.5 3 12 2 12 2Z"/>
                      </svg>
@@ -1203,26 +1313,20 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                        {popularProducts.length} val
                      </span>
                    </div>
-                   {/* scroll-padding-* gör att `snap-start` respekterar rail-ens
-                       left-padding — annars snappar första kortet flush mot
-                       viewport-kanten och hamnar utanför heading-indenten. */}
+                   {/* gap-2 = tight spacing mellan kvadratiska kort.
+                       scroll-pl-* gör att `snap-start` respekterar left-padding
+                       så första kortet inte snäpper flush mot viewport-kanten. */}
                    <div
-                     className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1 px-5 sm:px-6 lg:px-12 scroll-pl-5 sm:scroll-pl-6 lg:scroll-pl-12"
+                     className="flex gap-2 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2 px-5 sm:px-6 lg:px-12 scroll-pl-5 sm:scroll-pl-6 lg:scroll-pl-12"
                      style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
                    >
                      {popularProducts.map((p) => (
-                       <div
+                       <SquareRailCard
                          key={`pop-${p.id}`}
-                         className="snap-start shrink-0"
-                         style={{ width: "calc(50% - 18px)", maxWidth: "200px", minWidth: "150px" }}
-                       >
-                         <UniformCard
-                           product={p}
-                           compact
-                           onClick={() => handleOpenProduct(p)}
-                           disabled={!restaurant?.isOpen || zoneAvailable === false}
-                         />
-                       </div>
+                         product={p}
+                         onClick={() => handleOpenProduct(p)}
+                         disabled={!restaurant?.isOpen || zoneAvailable === false}
+                       />
                      ))}
                    </div>
                  </section>
