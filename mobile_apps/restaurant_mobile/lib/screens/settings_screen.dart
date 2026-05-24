@@ -7,7 +7,6 @@ import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
 import '../providers/theme_provider.dart';
-import '../widgets/app_ui.dart';
 import 'log_screen.dart';
 import 'print_settings_screen.dart';
 
@@ -40,155 +39,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final orderProvider = Provider.of<OrderProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
-    final isDark = AppTheme.isDark(context);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-        children: [
-          // ── Title ──────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 6, 4, 18),
-            child: Text(
-              'Inställningar',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-                color: isDark ? Colors.white : AppTheme.ink,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 140),
+          children: [
+            _Header(),
+            const SizedBox(height: 22),
+            _ProfileCard(
+              name:
+                  (authProvider.user?['name'] ?? 'Restaurangkonto').toString(),
+              role: (authProvider.user?['role'] ?? 'personal')
+                  .toString()
+                  .toUpperCase(),
+              isOpen: orderProvider.isRestaurantOpen,
+            ),
+            const SizedBox(height: 26),
+            _SectionLabel(label: 'Hårdvara'),
+            const SizedBox(height: 8),
+            _SettingRow(
+              icon: Icons.print_rounded,
+              iconColor: AppTheme.info,
+              title: 'Skrivarinställningar',
+              subtitle: 'Bluetooth och nätverk',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const PrintSettingsScreen()),
               ),
             ),
-          ),
-
-          // ── Profile card ────────────────────────────────────────────────
-          AppPanel(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: isDark ? AppTheme.gold : AppTheme.lightGold,
-                    borderRadius: BorderRadius.circular(10),
+            const SizedBox(height: 26),
+            _SectionLabel(label: 'Utseende'),
+            const SizedBox(height: 10),
+            _ThemePicker(provider: themeProvider),
+            const SizedBox(height: 26),
+            _SectionLabel(label: 'Support'),
+            const SizedBox(height: 8),
+            _SettingRow(
+              icon: Icons.notifications_active_rounded,
+              iconColor: AppTheme.success,
+              title: 'Skicka test-order',
+              subtitle: 'Simulerar en inkommande order',
+              onTap: () {
+                orderProvider.simulateOrder();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        'Test-order skapad · se fliken Order'),
+                    backgroundColor: AppTheme.success,
                   ),
-                  child: Icon(Icons.storefront_rounded,
-                      color: isDark ? AppTheme.ink : Colors.white, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        authProvider.user?['name'] ?? 'Restaurangkonto',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : AppTheme.ink,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        (authProvider.user?['role'] ?? 'personal')
-                            .toString()
-                            .toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0.6,
-                          color: AppTheme.mutedColor(context),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                AppPill(
-                  label: orderProvider.isRestaurantOpen ? 'Öppet' : 'Stängt',
-                  color: orderProvider.isRestaurantOpen
-                      ? AppTheme.success
-                      : AppTheme.danger,
-                ),
-              ],
+                );
+              },
             ),
-          ),
-          const SizedBox(height: 20),
-
-          // ── Hårdvara ────────────────────────────────────────────────────
-          _SectionLabel(label: 'Hårdvara'),
-          const SizedBox(height: 8),
-          _CompactTile(
-            icon: Icons.print_rounded,
-            title: 'Skrivarinställningar',
-            subtitle: 'Bluetooth och nätverk',
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const PrintSettingsScreen())),
-          ),
-          const SizedBox(height: 20),
-
-          // ── Tema ────────────────────────────────────────────────────────
-          _SectionLabel(label: 'Tema'),
-          const SizedBox(height: 8),
-          Row(
-            children: ThemePreference.values.map((pref) {
-              final selected = themeProvider.themePreference == pref;
-              final accent = switch (pref) {
-                ThemePreference.midnight => AppTheme.gold,
-                ThemePreference.light => AppTheme.info,
-                ThemePreference.system => AppTheme.success,
-              };
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: pref != ThemePreference.values.last ? 8 : 0,
-                  ),
-                  child: _CompactThemeCard(
-                    preference: pref,
-                    selected: selected,
-                    accent: accent,
-                    onTap: () => themeProvider.setThemePreference(pref),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-
-          // ── Support ─────────────────────────────────────────────────────
-          _SectionLabel(label: 'Support'),
-          const SizedBox(height: 8),
-          _CompactTile(
-            icon: Icons.notifications_active_rounded,
-            title: 'Skicka test-order',
-            subtitle: 'Simulerar en inkommande order',
-            onTap: () {
-              orderProvider.simulateOrder();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Test-order skapad · se fliken Ordrar'),
-                  backgroundColor: AppTheme.success,
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 8),
-          _CompactTile(
-            icon: Icons.info_outline_rounded,
-            title: 'Appversion',
-            subtitle: _version,
-            onTap: _handleVersionTap,
-            trailing: AppPill(label: 'Beta', color: AppTheme.gold),
-          ),
-          const SizedBox(height: 8),
-          _CompactTile(
-            icon: Icons.logout_rounded,
-            iconColor: AppTheme.danger,
-            title: 'Logga ut',
-            subtitle: 'Avsluta sessionen på den här enheten',
-            onTap: () => _handleLogout(context, authProvider),
-          ),
-        ],
+            const SizedBox(height: 8),
+            _SettingRow(
+              icon: Icons.info_outline_rounded,
+              iconColor: AppTheme.lavender,
+              title: 'Appversion',
+              subtitle: _version,
+              onTap: _handleVersionTap,
+              trailing: _BetaPill(),
+            ),
+            const SizedBox(height: 8),
+            _SettingRow(
+              icon: Icons.logout_rounded,
+              iconColor: AppTheme.danger,
+              title: 'Logga ut',
+              subtitle: 'Avsluta sessionen på den här enheten',
+              onTap: () => _handleLogout(context, authProvider),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -295,7 +218,153 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-// ── Section label ─────────────────────────────────────────────────────────────
+class _Header extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'INSTÄLLNINGAR',
+          style: TextStyle(
+            color: AppTheme.mutedColor(context),
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.4,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Konto & utrustning',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+            height: 1.0,
+            letterSpacing: -1.0,
+            color: isDark ? Colors.white : AppTheme.ink,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileCard extends StatelessWidget {
+  final String name;
+  final String role;
+  final bool isOpen;
+  const _ProfileCard({
+    required this.name,
+    required this.role,
+    required this.isOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final statusColor = isOpen ? AppTheme.success : AppTheme.danger;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.panelColor(context),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppTheme.borderColor(context)),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: AppTheme.ember.withOpacity(0.08),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.emberSoft, AppTheme.ember],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.ember.withOpacity(0.32),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.storefront_rounded,
+                color: AppTheme.ink,
+                size: 28,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                    color: isDark ? Colors.white : AppTheme.ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        isOpen ? 'ÖPPET' : 'STÄNGD',
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      role,
+                      style: TextStyle(
+                        color: AppTheme.mutedColor(context),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionLabel extends StatelessWidget {
   final String label;
   const _SectionLabel({required this.label});
@@ -303,13 +372,13 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 2),
+      padding: const EdgeInsets.only(left: 2),
       child: Text(
         label.toUpperCase(),
         style: TextStyle(
           fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.4,
           color: AppTheme.mutedColor(context),
         ),
       ),
@@ -317,8 +386,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ── Compact settings tile ─────────────────────────────────────────────────────
-class _CompactTile extends StatelessWidget {
+class _SettingRow extends StatelessWidget {
   final IconData icon;
   final Color? iconColor;
   final String title;
@@ -326,7 +394,7 @@ class _CompactTile extends StatelessWidget {
   final VoidCallback onTap;
   final Widget? trailing;
 
-  const _CompactTile({
+  const _SettingRow({
     required this.icon,
     this.iconColor,
     required this.title,
@@ -337,109 +405,189 @@ class _CompactTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolvedIconColor =
-        iconColor ?? Theme.of(context).colorScheme.primary;
-    return AppPanel(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: resolvedIconColor.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: resolvedIconColor, size: 17),
+    final isDark = AppTheme.isDark(context);
+    final iconC = iconColor ?? AppTheme.ember;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppTheme.panelColor(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.borderColor(context)),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text(subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.mutedColor(context),
-                    )),
-              ],
-            ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: iconC.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconC, size: 19),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : AppTheme.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.mutedColor(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              trailing ??
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppTheme.mutedColor(context),
+                    size: 20,
+                  ),
+            ],
           ),
-          const SizedBox(width: 8),
-          trailing ??
-              Icon(Icons.chevron_right_rounded,
-                  color: AppTheme.mutedColor(context), size: 18),
-        ],
+        ),
       ),
     );
   }
 }
 
-// ── Compact theme card ─────────────────────────────────────────────────────────
-class _CompactThemeCard extends StatelessWidget {
+class _BetaPill extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppTheme.ember.withOpacity(0.16),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Text(
+        'BETA',
+        style: TextStyle(
+          color: AppTheme.ember,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemePicker extends StatelessWidget {
+  final ThemeProvider provider;
+  const _ThemePicker({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: ThemePreference.values.map((pref) {
+        final selected = provider.themePreference == pref;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(
+              right: pref != ThemePreference.values.last ? 8 : 0,
+            ),
+            child: _ThemeCard(
+              preference: pref,
+              selected: selected,
+              onTap: () => provider.setThemePreference(pref),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _ThemeCard extends StatelessWidget {
   final ThemePreference preference;
   final bool selected;
-  final Color accent;
   final VoidCallback onTap;
 
-  const _CompactThemeCard({
+  const _ThemeCard({
     required this.preference,
     required this.selected,
-    required this.accent,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AppPanel(
-      onTap: onTap,
-      tint: accent,
-      color: selected
-          ? accent.withOpacity(0.10)
-          : AppTheme.panelColor(context),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              switch (preference) {
-                ThemePreference.midnight => Icons.dark_mode_rounded,
-                ThemePreference.light => Icons.light_mode_rounded,
-                ThemePreference.system => Icons.phone_android_rounded,
-              },
-              color: accent,
-              size: 16,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            preference.label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+    final isDark = AppTheme.isDark(context);
+    final accent = isDark ? AppTheme.ember : AppTheme.emberDeep;
+    final icon = switch (preference) {
+      ThemePreference.midnight => Icons.dark_mode_rounded,
+      ThemePreference.light => Icons.light_mode_rounded,
+      ThemePreference.system => Icons.phone_iphone_rounded,
+    };
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? accent.withOpacity(0.12)
+                : AppTheme.panelColor(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
               color: selected
-                  ? accent
-                  : AppTheme.mutedColor(context),
+                  ? accent.withOpacity(0.45)
+                  : AppTheme.borderColor(context),
+              width: selected ? 1.5 : 1,
             ),
-            textAlign: TextAlign.center,
           ),
-          if (selected) ...[
-            const SizedBox(height: 4),
-            Icon(Icons.check_circle_rounded, color: accent, size: 13),
-          ],
-        ],
+          child: Column(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(selected ? 0.18 : 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: accent, size: 19),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                preference.label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: selected
+                      ? accent
+                      : (isDark ? Colors.white : AppTheme.ink),
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

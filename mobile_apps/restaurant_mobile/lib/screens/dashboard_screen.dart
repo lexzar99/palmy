@@ -27,6 +27,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   final Set<String> _seenPendingIds = {};
   bool _initializedPending = false;
   late final AnimationController _bannerCtrl;
+  late final PageController _heroCtrl;
+  int _heroIndex = 0;
   bool _showNewOrderBanner = false;
   bool _alertScreenOpen = false;
   StreamSubscription<PrintFailure>? _printErrorSub;
@@ -38,6 +40,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       vsync: this,
       duration: const Duration(milliseconds: 480),
     );
+    _heroCtrl = PageController(viewportFraction: 0.92);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadOrders());
     _printErrorSub = PrintService.errors.listen(_handlePrintFailure);
   }
@@ -45,6 +48,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void dispose() {
     _bannerCtrl.dispose();
+    _heroCtrl.dispose();
     _printErrorSub?.cancel();
     super.dispose();
   }
@@ -71,13 +75,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                     'Order #${failure.orderNumber} ej utskriven',
                     style: const TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                         fontSize: 14),
                   ),
                   Text(
                     failure.reason,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 12),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ],
               ),
@@ -89,8 +92,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           textColor: Colors.white,
           onPressed: () => Navigator.push(
             context,
-            MaterialPageRoute(
-                builder: (_) => const PrintSettingsScreen()),
+            MaterialPageRoute(builder: (_) => const PrintSettingsScreen()),
           ),
         ),
       ),
@@ -116,7 +118,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       return;
     }
 
-    final newOrders = pending.where((o) => !_seenPendingIds.contains(o.id)).toList();
+    final newOrders =
+        pending.where((o) => !_seenPendingIds.contains(o.id)).toList();
     _seenPendingIds.addAll(pending.map((o) => o.id));
 
     if (newOrders.isNotEmpty && !_alertScreenOpen && mounted) {
@@ -146,6 +149,14 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
       ).whenComplete(() {
         _alertScreenOpen = false;
+        // Jump hero to the newest order so kock direkt ser den i swipen
+        if (mounted && _heroCtrl.hasClients) {
+          _heroCtrl.animateToPage(
+            0,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+          );
+        }
       });
     }
   }
@@ -188,11 +199,6 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
-    final dividerColor = isDark
-        ? Colors.white.withOpacity(0.06)
-        : const Color(0xFFE8E8E8);
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Consumer<OrderProvider>(
@@ -203,144 +209,116 @@ class _DashboardScreenState extends State<DashboardScreen>
 
           if (provider.isLoading && provider.orders.isEmpty) {
             return const Center(
-              child: CircularProgressIndicator(color: AppTheme.brandGold),
+              child: CircularProgressIndicator(color: AppTheme.ember),
             );
           }
+
+          final pending = provider.pendingOrders;
+          final recent = provider.recentOrders;
 
           return Stack(
             children: [
               RefreshIndicator(
                 onRefresh: () async => provider.refresh(),
-                color: AppTheme.brandGold,
+                color: AppTheme.ember,
                 edgeOffset: 0,
-                displacement: 60,
+                displacement: 80,
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(
                     parent: ClampingScrollPhysics(),
                   ),
                   slivers: [
-                    // ── Header ──────────────────────────────────────────
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
-                        child: _Header(
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: _EditorialHeader(
                           provider: provider,
-                          isDark: isDark,
-                          hasPending: provider.pendingOrders.isNotEmpty,
+                          onStatusTap: () => _showStatusPicker(context, provider),
                         ),
                       ),
                     ),
-
                     if (provider.isOffline)
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                           child: _OfflineBanner(),
                         ),
                       ),
-
-                    // Divider line under header
+                    // ── NYA ORDRAR — counter + swipable stack ───────────
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(0, 22, 0, 0),
-                        child: Container(height: 1, color: dividerColor),
+                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                        child: _PendingHeader(count: pending.length),
                       ),
                     ),
-
-                    // ── NYA ORDER section header ─────────────────────────
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 22, 16, 14),
-                        child: _SectionHeaderRow(
-                          title: 'NYA ORDER',
-                          countBadge: provider.pendingOrders.isNotEmpty
-                              ? provider.pendingOrders.length
-                              : null,
-                          trailing: provider.pendingOrders.isNotEmpty
-                              ? const _LinkText(label: 'Visa alla')
-                              : null,
-                        ),
-                      ),
-                    ),
-
-                    SliverToBoxAdapter(
-                      child: provider.pendingOrders.isEmpty
-                          ? const Padding(
-                              padding: EdgeInsets.fromLTRB(20, 0, 20, 4),
-                              child: _EmptyState(
-                                icon: Icons.task_alt_rounded,
-                                label: 'Inga nya ordrar',
-                              ),
-                            )
-                          : LayoutBuilder(
-                              builder: (context, constraints) {
-                                final sw = MediaQuery.of(context).size.width;
-                                final cardW = sw < 360
-                                    ? sw - 56.0
-                                    : (sw * 0.56).clamp(200.0, 230.0);
-                                return SizedBox(
-                                  height: 264,
-                                  child: ListView.separated(
-                                    padding: const EdgeInsets.fromLTRB(
-                                        16, 4, 16, 8),
-                                    scrollDirection: Axis.horizontal,
-                                    physics: const ClampingScrollPhysics(),
-                                    itemCount: provider.pendingOrders.length,
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(width: 12),
-                                    itemBuilder: (context, index) {
-                                      final o = provider.pendingOrders[index];
-                                      return NewOrderCard(
-                                        order: o,
-                                        width: cardW,
-                                        onTap: () => _openTake(o),
-                                      );
-                                    },
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-
-                    // ── FÖREGÅENDE ORDRAR section header ───────────────
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 28, 16, 6),
-                        child: const _SectionHeaderRow(
-                          title: 'FÖREGÅENDE ORDRAR',
-                          countBadge: null,
-                          trailing: null,
-                        ),
-                      ),
-                    ),
-
-                    if (provider.recentOrders.isEmpty)
+                    if (pending.isEmpty)
                       const SliverToBoxAdapter(
                         child: Padding(
-                          padding: EdgeInsets.fromLTRB(16, 8, 16, 40),
-                          child: _EmptyState(
-                            icon: Icons.inbox_outlined,
-                            label: 'Inga ordrar ännu idag',
+                          padding: EdgeInsets.fromLTRB(20, 14, 20, 8),
+                          child: _RestingState(),
+                        ),
+                      )
+                    else ...[
+                      SliverToBoxAdapter(
+                        child: SizedBox(
+                          height: 320,
+                          child: PageView.builder(
+                            controller: _heroCtrl,
+                            itemCount: pending.length,
+                            padEnds: true,
+                            onPageChanged: (i) {
+                              setState(() => _heroIndex = i);
+                            },
+                            itemBuilder: (context, i) {
+                              final o = pending[i];
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                    8, 14, 8, 6),
+                                child: NewOrderHeroCard(
+                                  order: o,
+                                  onAccept: () => _openTake(o),
+                                ),
+                              );
+                            },
                           ),
+                        ),
+                      ),
+                      SliverToBoxAdapter(
+                        child: _Pagination(
+                          count: pending.length,
+                          index: _heroIndex,
+                        ),
+                      ),
+                    ],
+
+                    // ── FÖREGÅENDE ──────────────────────────────────────
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 32, 20, 8),
+                      sliver: SliverToBoxAdapter(
+                        child: _RecentHeader(count: recent.length),
+                      ),
+                    ),
+
+                    if (recent.isEmpty)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(20, 4, 20, 24),
+                          child: _EmptyHistory(),
                         ),
                       )
                     else
                       SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+                        padding: const EdgeInsets.fromLTRB(20, 6, 20, 140),
                         sliver: SliverList.builder(
-                          itemCount: provider.recentOrders.length * 2 - 1,
+                          itemCount: recent.length,
                           itemBuilder: (context, i) {
-                            if (i.isOdd) {
-                              return Container(
-                                height: 1,
-                                margin: const EdgeInsets.only(left: 66),
-                                color: dividerColor,
-                              );
-                            }
-                            final o = provider.recentOrders[i ~/ 2];
-                            return OrderListTile(
-                              order: o,
-                              onTap: () => _openDetail(o),
+                            final o = recent[i];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 2),
+                              child: OrderListTile(
+                                order: o,
+                                onTap: () => _openDetail(o),
+                              ),
                             );
                           },
                         ),
@@ -351,12 +329,12 @@ class _DashboardScreenState extends State<DashboardScreen>
 
               if (_showNewOrderBanner)
                 Positioned(
-                  top: 12,
-                  left: 16,
-                  right: 16,
+                  top: 14,
+                  left: 20,
+                  right: 20,
                   child: _NewOrderBanner(
                     controller: _bannerCtrl,
-                    count: provider.pendingOrders.length,
+                    count: pending.length,
                   ),
                 ),
             ],
@@ -365,95 +343,27 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
   }
-}
-
-// ── Header ────────────────────────────────────────────────────────────────────
-class _Header extends StatelessWidget {
-  final OrderProvider provider;
-  final bool isDark;
-  final bool hasPending;
-
-  const _Header({
-    required this.provider,
-    required this.isDark,
-    required this.hasPending,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isOpen = provider.isRestaurantOpen;
-    final statusColor = isOpen ? AppTheme.success : AppTheme.danger;
-    final statusLabel = isOpen ? 'ÖPPET' : 'STÄNGD';
-    final title = isOpen ? 'Order' : 'Stängd';
-    final subtitle = isOpen
-        ? 'Hantera inkommande ordrar'
-        : 'Ni är utanför era öppettider.';
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.6,
-                  height: 1.05,
-                  color: isDark ? Colors.white : AppTheme.ink,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.mutedColor(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        _StatusButton(
-          isOpen: isOpen,
-          label: statusLabel,
-          color: statusColor,
-          onTap: () => _showStatusPicker(context, provider),
-        ),
-        const SizedBox(width: 4),
-        _BellButton(
-          hasPending: hasPending,
-          isDark: isDark,
-          onTap: provider.testAlarm,
-        ),
-      ],
-    );
-  }
 
   void _showStatusPicker(BuildContext context, OrderProvider provider) {
     logger.log('TAP: Open restaurant status picker');
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         child: Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: AppTheme.panelColor(ctx),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(color: AppTheme.borderColor(ctx)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 14),
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 18),
                 child: Row(
                   children: [
                     Text(
@@ -462,16 +372,16 @@ class _Header extends StatelessWidget {
                         color: AppTheme.isDark(ctx)
                             ? Colors.white
                             : AppTheme.ink,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
                       ),
                     ),
                     const Spacer(),
                     GestureDetector(
                       onTap: () => Navigator.pop(ctx),
                       child: Icon(Icons.close_rounded,
-                          size: 22,
-                          color: AppTheme.mutedColor(ctx)),
+                          size: 22, color: AppTheme.mutedColor(ctx)),
                     ),
                   ],
                 ),
@@ -489,7 +399,7 @@ class _Header extends StatelessWidget {
                   }
                 },
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               _StatusTile(
                 title: 'Pausa i 30 min',
                 subtitle: 'Tillfällig paus — viloläge med nedräkning',
@@ -499,11 +409,10 @@ class _Header extends StatelessWidget {
                 onTap: () async {
                   Navigator.pop(ctx);
                   await provider.pauseFor(30);
-                  // Direkt in i viloläget med countdown
                   triggerSleep();
                 },
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               _StatusTile(
                 title: 'Stängt',
                 subtitle: 'Tar inte emot beställningar',
@@ -517,6 +426,7 @@ class _Header extends StatelessWidget {
                   }
                 },
               ),
+              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -525,56 +435,148 @@ class _Header extends StatelessWidget {
   }
 }
 
+// ── Editorial header ─────────────────────────────────────────────────────────
+class _EditorialHeader extends StatelessWidget {
+  final OrderProvider provider;
+  final VoidCallback onStatusTap;
+
+  const _EditorialHeader({
+    required this.provider,
+    required this.onStatusTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isOpen = provider.isRestaurantOpen;
+    final statusColor = isOpen ? AppTheme.success : AppTheme.danger;
+    final statusLabel = isOpen ? 'Öppet' : 'Stängd';
+
+    final restName = (auth.user?['name'] ?? 'MatGo').toString();
+    final today = _formatToday();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          today.toUpperCase(),
+          style: TextStyle(
+            color: AppTheme.mutedColor(context),
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.4,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          restName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w900,
+            height: 1.0,
+            letterSpacing: -1.0,
+            color: isDark ? Colors.white : AppTheme.ink,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            _StatusButton(
+              color: statusColor,
+              label: statusLabel,
+              isPaused: provider.isPaused,
+              onTap: onStatusTap,
+            ),
+            const Spacer(),
+            _BellButton(
+              hasPending: provider.pendingOrders.isNotEmpty,
+              onTap: provider.testAlarm,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _formatToday() {
+    final months = [
+      'jan', 'feb', 'mar', 'apr', 'maj', 'jun',
+      'jul', 'aug', 'sep', 'okt', 'nov', 'dec'
+    ];
+    final weekdays = [
+      'måndag', 'tisdag', 'onsdag', 'torsdag',
+      'fredag', 'lördag', 'söndag'
+    ];
+    final now = DateTime.now();
+    return '${weekdays[now.weekday - 1]} ${now.day} ${months[now.month - 1]}';
+  }
+}
+
 class _StatusButton extends StatelessWidget {
-  final bool isOpen;
-  final String label;
   final Color color;
+  final String label;
+  final bool isPaused;
   final VoidCallback onTap;
 
   const _StatusButton({
-    required this.isOpen,
-    required this.label,
     required this.color,
+    required this.label,
+    required this.isPaused,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.10),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.25), width: 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
+    final isDark = AppTheme.isDark(context);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+          decoration: BoxDecoration(
+            color: color.withOpacity(isDark ? 0.16 : 0.12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withOpacity(0.35), width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.45),
+                      blurRadius: 6,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 7),
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.6,
+              const SizedBox(width: 9),
+              Text(
+                isPaused ? 'Pausad' : label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.1,
+                ),
               ),
-            ),
-            const SizedBox(width: 2),
-            Icon(Icons.expand_more_rounded, color: color, size: 14),
-          ],
+              const SizedBox(width: 4),
+              Icon(Icons.expand_more_rounded, color: color, size: 17),
+            ],
+          ),
         ),
       ),
     );
@@ -583,165 +585,297 @@ class _StatusButton extends StatelessWidget {
 
 class _BellButton extends StatelessWidget {
   final bool hasPending;
-  final bool isDark;
   final VoidCallback onTap;
 
-  const _BellButton({
-    required this.hasPending,
-    required this.isDark,
-    required this.onTap,
-  });
+  const _BellButton({required this.hasPending, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 44,
-        height: 44,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Center(
-              child: Icon(
-                Icons.notifications_none_rounded,
-                size: 30,
-                color: isDark ? Colors.white : AppTheme.ink,
-              ),
+    final isDark = AppTheme.isDark(context);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppTheme.faintColor(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppTheme.borderColor(context),
+              width: 1,
             ),
-            if (hasPending)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: AppTheme.brandGold,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isDark
-                          ? AppTheme.deepSea
-                          : const Color(0xFFF4F4F4),
-                      width: 1.5,
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Center(
+                child: Icon(
+                  Icons.notifications_none_rounded,
+                  size: 22,
+                  color: isDark ? Colors.white : AppTheme.ink,
+                ),
+              ),
+              if (hasPending)
+                Positioned(
+                  top: 10,
+                  right: 11,
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: AppTheme.ember,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isDark
+                            ? AppTheme.deepSea
+                            : AppTheme.paper,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Section header row ────────────────────────────────────────────────────────
-class _SectionHeaderRow extends StatelessWidget {
-  final String title;
-  final int? countBadge;
-  final Widget? trailing;
-
-  const _SectionHeaderRow({
-    required this.title,
-    required this.countBadge,
-    this.trailing,
-  });
+// ── Pending header — eyebrow + giant counter ─────────────────────────────────
+class _PendingHeader extends StatelessWidget {
+  final int count;
+  const _PendingHeader({required this.count});
 
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
-    return Row(
+    final accent = AppTheme.ember;
+    final hasOrders = count > 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: AppTheme.mutedColor(context),
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.9,
-          ),
-        ),
-        if (countBadge != null) ...[
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppTheme.gold,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              '$countBadge',
+        Row(
+          children: [
+            Text(
+              'NYA ORDRAR',
               style: TextStyle(
-                color: isDark ? AppTheme.ink : AppTheme.ink,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
+                color: AppTheme.mutedColor(context),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
               ),
+            ),
+            const Spacer(),
+            if (hasOrders)
+              Text(
+                'svep för att se nästa',
+                style: TextStyle(
+                  color: AppTheme.mutedColor(context),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.3,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 56,
+                fontWeight: FontWeight.w900,
+                height: 1.0,
+                letterSpacing: -2.5,
+                color: hasOrders
+                    ? accent
+                    : (isDark
+                        ? Colors.white.withOpacity(0.25)
+                        : AppTheme.ink.withOpacity(0.20)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                count == 1 ? 'väntar' : 'väntar',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.mutedColor(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _RestingState extends StatelessWidget {
+  const _RestingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 14, 0, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppTheme.borderColor(context),
+          width: 1,
+        ),
+        color: AppTheme.faintColor(context),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppTheme.success.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.check_circle_outline_rounded,
+              color: AppTheme.success,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Inga väntande ordrar',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.isDark(context)
+                        ? Colors.white
+                        : AppTheme.ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Ni får ett ljudlarm när nästa kommer in.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.mutedColor(context),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
-        const Spacer(),
-        if (trailing != null) trailing!,
-      ],
+      ),
     );
   }
 }
 
-class _LinkText extends StatelessWidget {
-  final String label;
-  const _LinkText({required this.label});
+class _Pagination extends StatelessWidget {
+  final int count;
+  final int index;
+  const _Pagination({required this.count, required this.index});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
-    final color = isDark
-        ? Colors.white.withOpacity(0.55)
-        : const Color(0xFF8E8E93);
+    if (count <= 1) return const SizedBox(height: 12);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 4, 0, 8),
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(count, (i) {
+            final selected = i == index;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: selected ? 22 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppTheme.ember
+                    : AppTheme.mutedColor(context).withOpacity(0.30),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentHeader extends StatelessWidget {
+  final int count;
+  const _RecentHeader({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text(
-          label,
+          'Föregående ordrar',
           style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: color,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+            color: AppTheme.isDark(context) ? Colors.white : AppTheme.ink,
           ),
         ),
-        const SizedBox(width: 4),
-        Icon(Icons.chevron_right_rounded, size: 18, color: color),
+        const SizedBox(width: 10),
+        if (count > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 5),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.mutedColor(context),
+              ),
+            ),
+          ),
       ],
     );
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _EmptyState({required this.icon, required this.label});
+class _EmptyHistory extends StatelessWidget {
+  const _EmptyHistory();
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.symmetric(vertical: 28),
       child: Row(
         children: [
           Icon(
-            icon,
+            Icons.inbox_outlined,
             size: 18,
-            color: isDark
-                ? Colors.white.withOpacity(0.22)
-                : AppTheme.ink.withOpacity(0.22),
+            color: AppTheme.mutedColor(context).withOpacity(0.5),
           ),
           const SizedBox(width: 10),
           Text(
-            label,
+            'Inga ordrar idag ännu',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: isDark
-                  ? Colors.white.withOpacity(0.30)
-                  : AppTheme.ink.withOpacity(0.30),
+              color: AppTheme.mutedColor(context).withOpacity(0.7),
             ),
           ),
         ],
@@ -754,17 +888,17 @@ class _OfflineBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppTheme.danger.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border:
-            Border.all(color: AppTheme.danger.withOpacity(0.45), width: 1.2),
+            Border.all(color: AppTheme.danger.withOpacity(0.40), width: 1),
       ),
       child: const Row(
         children: [
           Icon(Icons.wifi_off_rounded, color: AppTheme.danger, size: 16),
-          SizedBox(width: 8),
+          SizedBox(width: 10),
           Text(
             'Ingen uppkoppling · arbetar offline',
             style: TextStyle(
@@ -778,7 +912,6 @@ class _OfflineBanner extends StatelessWidget {
     );
   }
 }
-
 
 class _StatusTile extends StatelessWidget {
   final String title;
@@ -799,56 +932,68 @@ class _StatusTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: selected ? color.withOpacity(0.08) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected
-                ? color.withOpacity(0.30)
-                : AppTheme.borderColor(context),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 18),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: selected ? color.withOpacity(0.10) : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? color.withOpacity(0.35)
+                  : AppTheme.borderColor(context),
+              width: 1,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 18),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 14)),
-                  Text(subtitle,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
-                        fontSize: 12,
+                        fontSize: 12.5,
                         color: AppTheme.mutedColor(context),
-                      )),
-                ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Icon(
-              selected
-                  ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked,
-              color: selected ? color : AppTheme.mutedColor(context),
-              size: 20,
-            ),
-          ],
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked,
+                color: selected ? color : AppTheme.mutedColor(context),
+                size: 22,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -872,26 +1017,33 @@ class _NewOrderBanner extends StatelessWidget {
           CurvedAnimation(parent: controller, curve: Curves.easeOutCubic),
         ),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           decoration: BoxDecoration(
-            color: AppTheme.gold,
-            borderRadius: BorderRadius.circular(10),
+            color: AppTheme.ember,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.ember.withOpacity(0.4),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.notifications_active_rounded,
-                  color: AppTheme.ink, size: 16),
-              const SizedBox(width: 8),
+                  color: AppTheme.ink, size: 18),
+              const SizedBox(width: 10),
               Text(
                 count > 1
-                    ? '$count nya ordrar inkommen'
+                    ? '$count nya ordrar inkomna'
                     : 'Ny order inkommen',
                 style: const TextStyle(
                   color: AppTheme.ink,
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
                 ),
               ),
             ],

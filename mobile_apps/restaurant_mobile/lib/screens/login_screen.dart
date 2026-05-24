@@ -57,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
       );
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -78,7 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
-    final accent = isDark ? AppTheme.gold : AppTheme.lightGold;
+    final accent = isDark ? AppTheme.ember : AppTheme.emberDeep;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -86,70 +86,103 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(28),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
+                constraints: const BoxConstraints(maxWidth: 420),
                 child: FadeInUp(
-                  duration: const Duration(milliseconds: 220),
+                  duration: const Duration(milliseconds: 240),
                   child: Consumer<AuthProvider>(
                     builder: (context, auth, _) {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Brand-logo + namn
+                          // Stor logo
                           Center(
                             child: Container(
-                              width: 56,
-                              height: 56,
+                              width: 96,
+                              height: 96,
                               decoration: BoxDecoration(
-                                color: accent,
-                                borderRadius: BorderRadius.circular(12),
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    AppTheme.emberSoft,
+                                    AppTheme.ember,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(28),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.ember.withOpacity(0.38),
+                                    blurRadius: 30,
+                                    offset: const Offset(0, 12),
+                                  ),
+                                ],
                               ),
-                              child: Center(
+                              child: const Center(
                                 child: Text(
                                   'M',
                                   style: TextStyle(
-                                    color: isDark
-                                        ? AppTheme.ink
-                                        : AppTheme.paper,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: -0.5,
+                                    color: AppTheme.ink,
+                                    fontSize: 44,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -2,
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 28),
                           Center(
                             child: Text(
                               'MatGo Business',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: -0.5,
-                                  ),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -1.2,
+                                height: 1.0,
+                                color:
+                                    isDark ? Colors.white : AppTheme.ink,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 10),
                           Center(
                             child: Text(
                               'Logga in på din restaurang',
-                              style: Theme.of(context).textTheme.bodyMedium,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.mutedColor(context),
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 36),
 
-                          // Form
-                          AppPanel(
-                            padding: const EdgeInsets.all(20),
+                          // Form-panel
+                          Container(
+                            padding: const EdgeInsets.all(22),
+                            decoration: BoxDecoration(
+                              color: AppTheme.panelColor(context),
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                  color: AppTheme.borderColor(context)),
+                              boxShadow: isDark
+                                  ? []
+                                  : [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.04),
+                                        blurRadius: 28,
+                                        offset: const Offset(0, 10),
+                                      ),
+                                    ],
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 _FieldLabel(label: 'Användarnamn'),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: 8),
                                 TextField(
                                   controller: _emailController,
                                   keyboardType: TextInputType.emailAddress,
@@ -158,13 +191,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                     hintText: 'användarnamn',
                                     prefixIcon: Icon(
                                       Icons.person_outline_rounded,
-                                      size: 18,
+                                      size: 19,
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 18),
                                 _FieldLabel(label: 'Lösenord'),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: 8),
                                 TextField(
                                   controller: _passwordController,
                                   obscureText: _obscurePassword,
@@ -174,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     hintText: '••••••••',
                                     prefixIcon: const Icon(
                                       Icons.lock_outline_rounded,
-                                      size: 18,
+                                      size: 19,
                                     ),
                                     suffixIcon: IconButton(
                                       onPressed: () {
@@ -187,25 +220,26 @@ class _LoginScreenState extends State<LoginScreen> {
                                         _obscurePassword
                                             ? Icons.visibility_outlined
                                             : Icons.visibility_off_outlined,
-                                        size: 18,
+                                        size: 19,
                                       ),
                                     ),
                                   ),
                                 ),
                                 if (auth.error != null &&
                                     auth.error!.trim().isNotEmpty) ...[
-                                  const SizedBox(height: 14),
+                                  const SizedBox(height: 16),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
+                                      horizontal: 14,
+                                      vertical: 12,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: AppTheme.danger.withOpacity(0.08),
-                                      borderRadius: BorderRadius.circular(8),
+                                      color:
+                                          AppTheme.danger.withOpacity(0.10),
+                                      borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color:
-                                            AppTheme.danger.withOpacity(0.22),
+                                        color: AppTheme.danger
+                                            .withOpacity(0.28),
                                       ),
                                     ),
                                     child: Row(
@@ -213,52 +247,60 @@ class _LoginScreenState extends State<LoginScreen> {
                                         const Icon(
                                           Icons.error_outline_rounded,
                                           color: AppTheme.danger,
-                                          size: 16,
+                                          size: 18,
                                         ),
-                                        const SizedBox(width: 8),
+                                        const SizedBox(width: 10),
                                         Expanded(
                                           child: Text(
                                             auth.error!,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodyMedium
-                                                ?.copyWith(
-                                                  color: AppTheme.danger,
-                                                ),
+                                            style: const TextStyle(
+                                              color: AppTheme.danger,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
                                 ],
-                                const SizedBox(height: 20),
-                                SizedBox(
-                                  height: 48,
-                                  child: ElevatedButton(
-                                    onPressed:
-                                        auth.isLoading ? null : _handleLogin,
-                                    child: auth.isLoading
-                                        ? SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: isDark
-                                                  ? AppTheme.ink
-                                                  : AppTheme.paper,
-                                            ),
-                                          )
-                                        : const Text('Logga in'),
-                                  ),
+                                const SizedBox(height: 22),
+                                EmberButton(
+                                  label: auth.isLoading
+                                      ? 'Loggar in...'
+                                      : 'Logga in',
+                                  icon: auth.isLoading
+                                      ? null
+                                      : Icons.arrow_forward_rounded,
+                                  busy: auth.isLoading,
+                                  onPressed: auth.isLoading
+                                      ? null
+                                      : _handleLogin,
+                                  height: 56,
+                                  color: accent,
+                                  foreground:
+                                      isDark ? AppTheme.ink : Colors.white,
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 16),
                           Center(
-                            child: TextButton(
+                            child: TextButton.icon(
                               onPressed: _testServer,
-                              child: const Text('Testa serveranslutning'),
+                              icon: Icon(
+                                Icons.wifi_tethering_rounded,
+                                size: 16,
+                                color: AppTheme.mutedColor(context),
+                              ),
+                              label: Text(
+                                'Testa serveranslutning',
+                                style: TextStyle(
+                                  color: AppTheme.mutedColor(context),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -283,10 +325,12 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label.toUpperCase(),
-      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: AppTheme.mutedColor(context),
-            letterSpacing: 0.9,
-          ),
+      style: TextStyle(
+        color: AppTheme.mutedColor(context),
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.2,
+      ),
     );
   }
 }

@@ -6,6 +6,7 @@ import '../core/order_ui.dart';
 import '../core/theme.dart';
 import '../models/order_model.dart';
 import '../providers/order_provider.dart';
+import '../widgets/app_ui.dart';
 import 'accept_result_screen.dart';
 import 'order_detail_screen.dart';
 
@@ -40,8 +41,6 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
 
   Future<void> _accept() async {
     if (_busy || _rejecting) return;
-    // Omedelbar feedback INNAN nätverksanrop – så snabb dubbel-tap
-    // visuellt syns blockerad. setState först, sen haptic.
     setState(() => _busy = true);
     HapticFeedback.mediumImpact();
 
@@ -62,7 +61,7 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
           behavior: SnackBarBehavior.floating,
           content: const Text(
             'Kunde inte godkänna order — kontrollera nätverk',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
           ),
         ),
       );
@@ -85,9 +84,11 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text('Neka order?',
-            style: TextStyle(fontWeight: FontWeight.w600)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Neka order?',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
         content: const Text(
             'Ordern avvisas och kunden meddelas. Kan inte ångras.'),
         actions: [
@@ -100,11 +101,11 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
               backgroundColor: AppTheme.danger,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(14)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Neka',
-                style: TextStyle(fontWeight: FontWeight.w600)),
+                style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
       ),
@@ -124,49 +125,50 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
     final order = widget.order;
     final isDark = AppTheme.isDark(context);
     final accent = OrderUi.typeColor(order.type);
-    final goldColor = isDark ? AppTheme.gold : AppTheme.brandGold;
 
     return Scaffold(
-      backgroundColor: isDark ? AppTheme.midnight : AppTheme.mist,
-      body: AbsorbPointer(
-        // Blockera ALLA touch-events (inkl. accept-knappen själv) så fort
-        // ett accept/reject pågår – garanterar att dubbeltap inte triggar
-        // två requests innan setState hunnit re-rendera.
-        absorbing: _busy || _rejecting,
-        child: SafeArea(
-          child: Column(
-          children: [
-            _MinimalHeader(order: order, accent: accent),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                children: [
-                  _CustomerCard(order: order, accent: accent, isDark: isDark),
-                  if (order.note?.isNotEmpty == true ||
-                      order.deliveryInstructions?.isNotEmpty == true) ...[
-                    const SizedBox(height: 10),
-                    _NoteCard(order: order, accent: accent, isDark: isDark),
-                  ],
-                  const SizedBox(height: 10),
-                  _OrderSection(
-                      order: order, accent: accent, isDark: isDark),
-                ],
-              ),
+      backgroundColor: Colors.transparent,
+      body: AppBackdrop(
+        child: AbsorbPointer(
+          absorbing: _busy || _rejecting,
+          child: SafeArea(
+            child: Column(
+              children: [
+                _HeroHeader(order: order, accent: accent, onReject: _reject),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+                    children: [
+                      _BigOrderNumber(order: order, accent: accent),
+                      const SizedBox(height: 18),
+                      _CustomerStrip(order: order, accent: accent),
+                      if (order.note?.isNotEmpty == true ||
+                          order.deliveryInstructions?.isNotEmpty == true) ...[
+                        const SizedBox(height: 12),
+                        _NoteStrip(order: order, accent: accent),
+                      ],
+                      const SizedBox(height: 18),
+                      _ItemList(order: order, accent: accent),
+                      const SizedBox(height: 18),
+                      _TotalRow(order: order, accent: accent),
+                    ],
+                  ),
+                ),
+                _BottomBar(
+                  options: _minuteOptions,
+                  selected: _selectedMinutes,
+                  accent: accent,
+                  isDark: isDark,
+                  busy: _busy,
+                  rejecting: _rejecting,
+                  onTimeChanged: (m) => setState(() {
+                    HapticFeedback.selectionClick();
+                    _selectedMinutes = m;
+                  }),
+                  onAccept: _accept,
+                ),
+              ],
             ),
-            _BottomBar(
-              options: _minuteOptions,
-              selected: _selectedMinutes,
-              accent: accent,
-              goldColor: goldColor,
-              isDark: isDark,
-              busy: _busy,
-              rejecting: _rejecting,
-              order: order,
-              onTimeChanged: (m) => setState(() => _selectedMinutes = m),
-              onAccept: _accept,
-              onReject: _reject,
-            ),
-          ],
           ),
         ),
       ),
@@ -174,78 +176,58 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
   }
 }
 
-// ── Minimal header med stort Order # + typ-pill ─────────────────────────────
-class _MinimalHeader extends StatelessWidget {
+// ── Hero header: back + neka + info ──────────────────────────────────────────
+class _HeroHeader extends StatelessWidget {
   final OrderModel order;
   final Color accent;
-  const _MinimalHeader({required this.order, required this.accent});
+  final VoidCallback onReject;
+  const _HeroHeader({
+    required this.order,
+    required this.accent,
+    required this.onReject,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
-    final isPickup = order.type == 'PICKUP';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 4, 8, 8),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: Icon(Icons.arrow_back_rounded,
-                color: isDark ? Colors.white : AppTheme.ink),
+          _IconButton(
+            icon: Icons.arrow_back_rounded,
+            onTap: () => Navigator.of(context).maybePop(),
           ),
-          Expanded(
-            child: Row(
-              children: [
-                Text(
-                  '#${order.orderNumber}',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.4,
-                    color: isDark ? Colors.white : AppTheme.ink,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: accent.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isPickup
-                            ? Icons.shopping_bag_rounded
-                            : Icons.delivery_dining_rounded,
-                        size: 12,
-                        color: accent,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        isPickup ? 'AVHÄMTNING' : 'LEVERANS',
-                        style: TextStyle(
-                          color: accent,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          const Spacer(),
+          _IconButton(
+            icon: Icons.info_outline_rounded,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => OrderDetailScreen(order: order),
+              ),
             ),
           ),
-          IconButton(
-            tooltip: 'Alla detaljer',
-            icon: Icon(Icons.info_outline_rounded,
-                color: AppTheme.mutedColor(context)),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                  builder: (_) => OrderDetailScreen(order: order)),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: onReject,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              decoration: BoxDecoration(
+                color: AppTheme.danger.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppTheme.danger.withOpacity(0.40),
+                  width: 1,
+                ),
+              ),
+              child: const Text(
+                'NEKA',
+                style: TextStyle(
+                  color: AppTheme.danger,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
+              ),
             ),
           ),
         ],
@@ -254,19 +236,149 @@ class _MinimalHeader extends StatelessWidget {
   }
 }
 
-// ── Customer card ─────────────────────────────────────────────────────────────
-class _CustomerCard extends StatelessWidget {
-  final OrderModel order;
-  final Color accent;
-  final bool isDark;
-  const _CustomerCard(
-      {required this.order, required this.accent, required this.isDark});
+class _IconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _IconButton({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return _Card(
-      isDark: isDark,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+    final isDark = AppTheme.isDark(context);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: AppTheme.faintColor(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.borderColor(context)),
+          ),
+          child: Icon(
+            icon,
+            color: isDark ? Colors.white : AppTheme.ink,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Massiv #nummer ──────────────────────────────────────────────────────────
+class _BigOrderNumber extends StatelessWidget {
+  final OrderModel order;
+  final Color accent;
+  const _BigOrderNumber({required this.order, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final isPickup = order.type == 'PICKUP';
+    final typeLabel = isPickup ? 'AVHÄMTNING' : 'LEVERANS';
+    final typeIcon =
+        isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+              decoration: BoxDecoration(
+                color: accent.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(typeIcon, color: accent, size: 14),
+                  const SizedBox(width: 6),
+                  Text(
+                    typeLabel,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              OrderUi.formatTime(order.createdAt),
+              style: TextStyle(
+                color: AppTheme.mutedColor(context),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '#',
+              style: TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.w700,
+                height: 1.0,
+                color: AppTheme.mutedColor(context),
+              ),
+            ),
+            const SizedBox(width: 2),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.bottomLeft,
+                child: Text(
+                  order.orderNumber,
+                  style: TextStyle(
+                    fontSize: 76,
+                    fontWeight: FontWeight.w900,
+                    height: 0.9,
+                    letterSpacing: -3,
+                    color: isDark ? Colors.white : AppTheme.ink,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ── Kundinfo som strip ──────────────────────────────────────────────────────
+class _CustomerStrip extends StatelessWidget {
+  final OrderModel order;
+  final Color accent;
+  const _CustomerStrip({required this.order, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final hasAddress = order.type == 'DELIVERY' && order.deliveryStreet != null;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.panelColor(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.borderColor(context)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -276,9 +388,11 @@ class _CustomerCard extends StatelessWidget {
               children: [
                 Text(
                   order.customerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
                     letterSpacing: -0.3,
                     color: isDark ? Colors.white : AppTheme.ink,
                   ),
@@ -292,14 +406,13 @@ class _CustomerCard extends StatelessWidget {
                     color: AppTheme.mutedColor(context),
                   ),
                 ),
-                if (order.type == 'DELIVERY' &&
-                    order.deliveryStreet != null) ...[
+                if (hasAddress) ...[
                   const SizedBox(height: 2),
                   Text(
                     '${order.deliveryStreet}, ${order.deliveryZip ?? ''} ${order.deliveryCity ?? ''}'
                         .trim(),
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.mutedColor(context),
                     ),
@@ -308,25 +421,30 @@ class _CustomerCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: order.customerPhone));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Nummer kopierat: ${order.customerPhone}'),
-                  duration: const Duration(seconds: 2),
+          const SizedBox(width: 12),
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: order.customerPhone));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Nummer kopierat: ${order.customerPhone}'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-              );
-            },
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: accent.withOpacity(0.12),
-                shape: BoxShape.circle,
+                child: Icon(Icons.phone_rounded, color: accent, size: 20),
               ),
-              child: Icon(Icons.phone_rounded, color: accent, size: 18),
             ),
           ),
         ],
@@ -335,41 +453,41 @@ class _CustomerCard extends StatelessWidget {
   }
 }
 
-// ── Note card – tunn rad med vänster färg-kant ─────────────────────────────
-class _NoteCard extends StatelessWidget {
+// ── Noteringsstrip ──────────────────────────────────────────────────────────
+class _NoteStrip extends StatelessWidget {
   final OrderModel order;
   final Color accent;
-  final bool isDark;
-  const _NoteCard(
-      {required this.order, required this.accent, required this.isDark});
+  const _NoteStrip({required this.order, required this.accent});
 
   @override
   Widget build(BuildContext context) {
-    final hasInstruction = order.deliveryInstructions?.isNotEmpty == true;
+    final isDark = AppTheme.isDark(context);
+    final hasInstr = order.deliveryInstructions?.isNotEmpty == true;
     final hasNote = order.note?.isNotEmpty == true;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
-        color: accent.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border(left: BorderSide(color: accent, width: 3)),
+        color: accent.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(18),
+        border: Border(left: BorderSide(color: accent, width: 4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (hasInstruction) ...[
+          if (hasInstr) ...[
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.directions_walk_rounded, color: accent, size: 16),
+                Icon(Icons.directions_walk_rounded, color: accent, size: 17),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    OrderUi.deliveryInstructionLabel(order.deliveryInstructions),
+                    OrderUi.deliveryInstructionLabel(
+                        order.deliveryInstructions),
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: isDark ? Colors.white : AppTheme.ink,
                     ),
                   ),
@@ -382,18 +500,18 @@ class _NoteCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.chat_bubble_outline_rounded, color: accent, size: 16),
+                Icon(Icons.chat_bubble_outline_rounded, color: accent, size: 17),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     order.note!,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w700,
                       color: isDark
-                          ? Colors.white.withOpacity(0.85)
-                          : AppTheme.ink.withOpacity(0.80),
-                      height: 1.35,
+                          ? Colors.white.withOpacity(0.92)
+                          : AppTheme.ink.withOpacity(0.86),
+                      height: 1.4,
                     ),
                   ),
                 ),
@@ -405,70 +523,37 @@ class _NoteCard extends StatelessWidget {
   }
 }
 
-// ── Order section – ren lista utan tung header ──────────────────────────────
-class _OrderSection extends StatelessWidget {
+// ── Item-list ───────────────────────────────────────────────────────────────
+class _ItemList extends StatelessWidget {
   final OrderModel order;
   final Color accent;
-  final bool isDark;
-  const _OrderSection(
-      {required this.order, required this.accent, required this.isDark});
+  const _ItemList({required this.order, required this.accent});
 
   @override
   Widget build(BuildContext context) {
-    return _Card(
-      isDark: isDark,
-      padding: EdgeInsets.zero,
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.panelColor(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.borderColor(context)),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ...order.items.asMap().entries.map((entry) {
-            final i = entry.key;
-            final item = entry.value;
-            return Column(
-              children: [
-                _ItemRow(item: item, accent: accent, isDark: isDark),
-                if (i < order.items.length - 1)
-                  Divider(
-                    height: 1,
-                    indent: 14,
-                    endIndent: 14,
-                    color: isDark
-                        ? Colors.white.withOpacity(0.06)
-                        : AppTheme.ink.withOpacity(0.06),
-                  ),
-              ],
-            );
-          }),
-          Divider(
-              height: 1,
-              color: isDark
-                  ? Colors.white.withOpacity(0.08)
-                  : AppTheme.ink.withOpacity(0.07)),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-            child: Row(
-              children: [
-                Text(
-                  'Totalt',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : AppTheme.ink,
-                  ),
+        children: List.generate(order.items.length, (i) {
+          final item = order.items[i];
+          return Column(
+            children: [
+              _ItemRow(item: item, accent: accent),
+              if (i < order.items.length - 1)
+                Divider(
+                  height: 1,
+                  indent: 18,
+                  endIndent: 18,
+                  color: AppTheme.borderColor(context),
                 ),
-                const Spacer(),
-                Text(
-                  OrderUi.formatCurrency(order.total),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: accent,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+            ],
+          );
+        }),
       ),
     );
   }
@@ -477,35 +562,34 @@ class _OrderSection extends StatelessWidget {
 class _ItemRow extends StatelessWidget {
   final OrderItemModel item;
   final Color accent;
-  final bool isDark;
-  const _ItemRow(
-      {required this.item, required this.accent, required this.isDark});
+  const _ItemRow({required this.item, required this.accent});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
     final hasExtras = item.selectedExtras.isNotEmpty;
     final hasNote = item.note?.isNotEmpty == true;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 28,
-            height: 28,
+            width: 32,
+            height: 32,
             alignment: Alignment.center,
             margin: const EdgeInsets.only(top: 1),
             decoration: BoxDecoration(
-              color: accent.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
+              color: accent.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               '${item.quantity}×',
               style: TextStyle(
                 color: accent,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
               ),
             ),
           ),
@@ -522,7 +606,7 @@ class _ItemRow extends StatelessWidget {
                         item.productName,
                         style: TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           letterSpacing: -0.2,
                           color: isDark ? Colors.white : AppTheme.ink,
                         ),
@@ -533,33 +617,39 @@ class _ItemRow extends StatelessWidget {
                       OrderUi.formatCurrency(item.subtotal),
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w800,
                         color: isDark ? Colors.white : AppTheme.ink,
                       ),
                     ),
                   ],
                 ),
                 if (hasExtras) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   ...item.selectedExtras.map((e) {
-                    final name =
-                        e is Map ? (e['name'] ?? '').toString() : e.toString();
-                    final price = e is Map
-                        ? ((e['price'] as num?)?.toDouble() ?? 0.0)
-                        : 0.0;
-                    final requiredFlag = e is Map ? e['required'] as bool? : null;
+                    final name = (e['name'] ?? '').toString();
+                    final price = (e['price'] as num?)?.toDouble() ?? 0.0;
+                    final requiredFlag = e['required'] as bool?;
                     final isMandatory = requiredFlag ?? (price == 0);
                     return Padding(
-                      padding: const EdgeInsets.only(top: 2),
+                      padding: const EdgeInsets.only(top: 3),
                       child: Row(
                         children: [
-                          Text(
-                            isMandatory ? '-- ' : '++ ',
-                            style: TextStyle(
-                              fontSize: isMandatory ? 13 : 12,
-                              fontWeight: FontWeight.w600,
+                          Container(
+                            width: 16,
+                            height: 16,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
                               color: isMandatory
-                                  ? (isDark ? Colors.white : AppTheme.ink)
+                                  ? AppTheme.mutedColor(context)
+                                      .withOpacity(0.20)
+                                  : accent.withOpacity(0.16),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Icon(
+                              isMandatory ? Icons.remove_rounded : Icons.add_rounded,
+                              size: 11,
+                              color: isMandatory
+                                  ? AppTheme.mutedColor(context)
                                   : accent,
                             ),
                           ),
@@ -567,10 +657,8 @@ class _ItemRow extends StatelessWidget {
                             child: Text(
                               name,
                               style: TextStyle(
-                                fontSize: isMandatory ? 13 : 12,
-                                fontWeight: isMandatory
-                                    ? FontWeight.w800
-                                    : FontWeight.w700,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
                                 color: isMandatory
                                     ? (isDark ? Colors.white : AppTheme.ink)
                                     : accent,
@@ -579,9 +667,9 @@ class _ItemRow extends StatelessWidget {
                           ),
                           if (!isMandatory)
                             Text(
-                              OrderUi.formatCurrency(price),
+                              '+ ${OrderUi.formatCurrency(price)}',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
                                 color: accent,
                               ),
@@ -592,14 +680,31 @@ class _ItemRow extends StatelessWidget {
                   }),
                 ],
                 if (hasNote) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '✎  ${item.note}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: accent,
-                      fontStyle: FontStyle.italic,
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
+                    decoration: BoxDecoration(
+                      color: AppTheme.warning.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.edit_note_rounded,
+                            size: 16, color: AppTheme.warning),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            item.note!,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.warning,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -612,207 +717,184 @@ class _ItemRow extends StatelessWidget {
   }
 }
 
-// ── Bottom bar ────────────────────────────────────────────────────────────────
+class _TotalRow extends StatelessWidget {
+  final OrderModel order;
+  final Color accent;
+  const _TotalRow({required this.order, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          'Totalt',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.mutedColor(context),
+            letterSpacing: 0.2,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          OrderUi.formatCurrency(order.total),
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            color: accent,
+            letterSpacing: -0.5,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Bottom bar ───────────────────────────────────────────────────────────────
 class _BottomBar extends StatelessWidget {
   final List<int> options;
   final int selected;
   final Color accent;
-  final Color goldColor;
   final bool isDark;
   final bool busy;
   final bool rejecting;
-  final OrderModel order;
   final ValueChanged<int> onTimeChanged;
   final VoidCallback onAccept;
-  final VoidCallback onReject;
 
   const _BottomBar({
     required this.options,
     required this.selected,
     required this.accent,
-    required this.goldColor,
     required this.isDark,
     required this.busy,
     required this.rejecting,
-    required this.order,
     required this.onTimeChanged,
     required this.onAccept,
-    required this.onReject,
   });
+
+  String _readyTime(int minutes) {
+    final ready = DateTime.now().add(Duration(minutes: minutes));
+    return OrderUi.formatTime(ready);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final bg = isDark ? AppTheme.storm : Colors.white;
     final borderC = isDark
         ? Colors.white.withOpacity(0.08)
-        : AppTheme.ink.withOpacity(0.08);
+        : AppTheme.ink.withOpacity(0.07);
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.storm : Colors.white,
+        color: bg,
         border: Border(top: BorderSide(color: borderC, width: 1)),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 18,
+                  offset: const Offset(0, -2),
+                ),
+              ],
       ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Time label row
               Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Icon(Icons.schedule_rounded,
-                      size: 15, color: AppTheme.mutedColor(context)),
-                  const SizedBox(width: 6),
-                  Text(
-                    'ÖNSKAD TID',
-                    style: TextStyle(
-                      color: AppTheme.mutedColor(context),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.4,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: goldColor.withOpacity(0.14),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '$selected min',
-                      style: TextStyle(
-                        color: goldColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'TID',
+                        style: TextStyle(
+                          color: AppTheme.mutedColor(context),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.4,
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 2),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '$selected',
+                            style: TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.w900,
+                              height: 1.0,
+                              letterSpacing: -1,
+                              color: isDark ? Colors.white : AppTheme.ink,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              'min',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.mutedColor(context),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                   const Spacer(),
-                  // Ready time estimate
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'Beräknas klar',
+                        'KLAR',
                         style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
                           color: AppTheme.mutedColor(context),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.4,
                         ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         _readyTime(selected),
                         style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: goldColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: accent,
+                          letterSpacing: -0.3,
                         ),
                       ),
                     ],
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              // Horizontal scroll pill picker (mix: info-rad ovan + scroll)
-              _TimePicker(
+              const SizedBox(height: 12),
+              _TimeStrip(
                 options: options,
                 selected: selected,
-                accent: goldColor,
+                accent: accent,
                 isDark: isDark,
                 onChanged: onTimeChanged,
               ),
-              const SizedBox(height: 14),
-              // NEKA + ACCEPTERA
-              Row(
-                children: [
-                  // NEKA button
-                  GestureDetector(
-                    onTap: rejecting ? null : onReject,
-                    child: Container(
-                      width: 62,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: AppTheme.danger.withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: AppTheme.danger.withOpacity(0.50),
-                            width: 1.4),
-                      ),
-                      child: rejecting
-                          ? const Center(
-                              child: SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                    color: AppTheme.danger, strokeWidth: 2.5),
-                              ),
-                            )
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(Icons.close_rounded,
-                                    color: AppTheme.danger, size: 20),
-                                SizedBox(height: 2),
-                                Text(
-                                  'NEKA',
-                                  style: TextStyle(
-                                    color: AppTheme.danger,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  // ACCEPTERA button
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: busy ? null : onAccept,
-                      child: Container(
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: busy
-                              ? accent.withOpacity(0.60)
-                              : accent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: busy
-                            ? const Center(
-                                child: SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 3),
-                                ),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.check_rounded,
-                                      color: Colors.white, size: 20),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    'ACCEPTERA ORDER',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 1.0,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 16),
+              EmberButton(
+                label: rejecting ? 'NEKAR...' : 'ACCEPTERA · $selected min',
+                icon: Icons.bolt_rounded,
+                busy: busy,
+                onPressed: busy ? null : onAccept,
+                color: accent,
+                foreground: isDark ? AppTheme.ink : Colors.white,
+                height: 62,
               ),
             ],
           ),
@@ -820,24 +902,16 @@ class _BottomBar extends StatelessWidget {
       ),
     );
   }
-
-  String _readyTime(int minutes) {
-    final ready = DateTime.now().add(Duration(minutes: minutes));
-    final h = ready.hour.toString().padLeft(2, '0');
-    final m = ready.minute.toString().padLeft(2, '0');
-    return '$h:$m';
-  }
 }
 
-// ── Horizontal scroll time picker ────────────────────────────────────────────
-class _TimePicker extends StatefulWidget {
+class _TimeStrip extends StatefulWidget {
   final List<int> options;
   final int selected;
   final Color accent;
   final bool isDark;
   final ValueChanged<int> onChanged;
 
-  const _TimePicker({
+  const _TimeStrip({
     required this.options,
     required this.selected,
     required this.accent,
@@ -846,12 +920,12 @@ class _TimePicker extends StatefulWidget {
   });
 
   @override
-  State<_TimePicker> createState() => _TimePickerState();
+  State<_TimeStrip> createState() => _TimeStripState();
 }
 
-class _TimePickerState extends State<_TimePicker> {
+class _TimeStripState extends State<_TimeStrip> {
   late final ScrollController _scroll;
-  static const double _itemW = 58.0;
+  static const double _itemW = 60.0;
   static const double _gap = 8.0;
 
   @override
@@ -863,11 +937,10 @@ class _TimePickerState extends State<_TimePicker> {
   }
 
   @override
-  void didUpdateWidget(_TimePicker old) {
+  void didUpdateWidget(_TimeStrip old) {
     super.didUpdateWidget(old);
     if (old.selected != widget.selected) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _scrollToSelected());
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
     }
   }
 
@@ -880,7 +953,7 @@ class _TimePickerState extends State<_TimePicker> {
     final clamped = target.clamp(0.0, _scroll.position.maxScrollExtent);
     if (animate) {
       _scroll.animateTo(clamped,
-          duration: const Duration(milliseconds: 260),
+          duration: const Duration(milliseconds: 280),
           curve: Curves.easeOutCubic);
     } else {
       _scroll.jumpTo(clamped);
@@ -916,30 +989,38 @@ class _TimePickerState extends State<_TimePicker> {
                 color: isSel
                     ? widget.accent
                     : (widget.isDark
-                        ? Colors.white.withOpacity(0.06)
-                        : AppTheme.ink.withOpacity(0.05)),
-                borderRadius: BorderRadius.circular(13),
+                        ? Colors.white.withOpacity(0.05)
+                        : AppTheme.ink.withOpacity(0.04)),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isSel
                       ? widget.accent
                       : (widget.isDark
-                          ? Colors.white.withOpacity(0.12)
-                          : AppTheme.ink.withOpacity(0.12)),
-                  width: isSel ? 2 : 1,
+                          ? Colors.white.withOpacity(0.10)
+                          : AppTheme.ink.withOpacity(0.10)),
+                  width: isSel ? 0 : 1,
                 ),
+                boxShadow: isSel
+                    ? [
+                        BoxShadow(
+                          color: widget.accent.withOpacity(0.32),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : null,
               ),
               child: Center(
                 child: AnimatedDefaultTextStyle(
                   duration: const Duration(milliseconds: 180),
                   style: TextStyle(
                     color: isSel
-                        ? Colors.white
+                        ? (widget.isDark ? AppTheme.ink : Colors.white)
                         : (widget.isDark
-                            ? Colors.white.withOpacity(0.60)
-                            : AppTheme.ink.withOpacity(0.55)),
-                    fontSize: isSel ? 20 : 17,
-                    fontWeight:
-                        isSel ? FontWeight.w900 : FontWeight.w700,
+                            ? Colors.white.withOpacity(0.68)
+                            : AppTheme.ink.withOpacity(0.62)),
+                    fontSize: isSel ? 19 : 16,
+                    fontWeight: isSel ? FontWeight.w900 : FontWeight.w700,
                   ),
                   child: Text('$m'),
                 ),
@@ -948,39 +1029,6 @@ class _TimePickerState extends State<_TimePicker> {
           );
         },
       ),
-    );
-  }
-}
-
-// ── Shared card container ─────────────────────────────────────────────────────
-class _Card extends StatelessWidget {
-  final Widget child;
-  final bool isDark;
-  final EdgeInsets? padding;
-  const _Card({required this.child, required this.isDark, this.padding});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: padding ?? const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF16233D) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withOpacity(0.09)
-              : AppTheme.ink.withOpacity(0.09),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.18 : 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: child,
     );
   }
 }

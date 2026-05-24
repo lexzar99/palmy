@@ -1,50 +1,51 @@
 import 'package:flutter/material.dart';
 
-/// MatGo Business — visuell stil matchad mot webben + admin-panelen v2.
+/// MatGo Business — "Ember Studio" redesign.
 ///
-/// Palett: electric lime (#c2f54b) på neutral näst-svart, zinc-grå texter,
-/// 14px hörnradie, semibold (600) typografi.
-///
-/// Vi behåller alla gamla constant-namn (gold, brandGold, deepSea, etc.) så att
-/// befintliga widgets kompilerar — bara värdena byts till de nya kort.
+/// Warm amber accent (#FF9D45) på en varm ink-svart eller paper-cream
+/// bakgrund. Editorial typography med större hierarki. Behåller alla
+/// legacy const-namn (gold, brandGold, deepSea, etc.) för bakåtkomp.
 class AppTheme {
-  // ── Neutral dark backgrounds (zinc/near-black, INTE blue-tinted) ───────────
-  static const Color midnight = Color(0xFF08090B); // bg-page
-  static const Color storm = Color(0xFF0B0C0F); // bg-primary
-  static const Color deepSea = Color(0xFF0E0F12); // bg-panel
-  static const Color steel = Color(0xFF16181B); // bg-panel-muted
+  // ── Dark — warm ink ────────────────────────────────────────────────────────
+  static const Color midnight = Color(0xFF0B0907); // bg-page (warm near-black)
+  static const Color storm = Color(0xFF110D0A); // bg-primary
+  static const Color deepSea = Color(0xFF181310); // bg-panel (warm)
+  static const Color steel = Color(0xFF221A15); // bg-panel-elevated
 
-  // ── Light surfaces ─────────────────────────────────────────────────────────
+  // ── Light — paper cream ────────────────────────────────────────────────────
   static const Color paper = Color(0xFFFFFFFF);
-  static const Color mist = Color(0xFFFAFAFA);
-  static const Color frost = Color(0xFFF4F4F5);
-  static const Color ink = Color(0xFF09090B); // zinc-950
-  static const Color mutedInk = Color(0xFF52525B); // zinc-600
+  static const Color mist = Color(0xFFFAF7F1); // warm off-white
+  static const Color frost = Color(0xFFF3EFE6); // panel-muted light
+  static const Color ink = Color(0xFF1A130C); // headline text (warm near-black)
+  static const Color mutedInk = Color(0xFF6B5C4D); // muted body text (warm gray)
 
-  // ── Accent: electric lime (matchar admin v2 #c2f54b) ───────────────────────
-  // Behåll gamla namn (gold/lightGold/goldAccent) för bakåtkomp.
-  static const Color gold = Color(0xFFC2F54B);
-  static const Color goldAccent = Color(0xFFD6FF6E);
-  static const Color lightGold = Color(0xFF84CC16); // lime-500 för light mode
+  // ── Accent — warm amber ("ember") ──────────────────────────────────────────
+  // Legacy names kept (gold/lightGold/goldAccent/brandGold) – pointing at amber.
+  static const Color ember = Color(0xFFFF9D45);
+  static const Color emberDeep = Color(0xFFE07A1F);
+  static const Color emberSoft = Color(0xFFFFBE7A);
 
-  /// Behåll "brandGold"-namnet — det är pickup-färgen i order-korten.
-  /// I nya paletten är pickup också lime.
-  static const Color brandGold = Color(0xFFC2F54B);
-  static const Color brandGoldSoft = Color(0xFFD6FF6E);
-  static const Color creamBg = Color(0x14C2F54B); // lime-soft bg
-  static const Color creamPill = Color(0x26C2F54B); // lime-soft pill
+  static const Color gold = ember; // legacy alias
+  static const Color goldAccent = emberSoft; // legacy alias
+  static const Color lightGold = emberDeep; // legacy alias (used for light theme primary)
 
-  /// Delivery-färgen (semantisk differentiering vs pickup). Soft sky-blue.
-  static const Color brandBlue = Color(0xFF60A5FA);
-  static const Color blueTint = Color(0x1460A5FA);
-  static const Color blueTintPill = Color(0x2660A5FA);
+  /// Pickup-accent. Warm amber.
+  static const Color brandGold = ember;
+  static const Color brandGoldSoft = emberSoft;
+  static const Color creamBg = Color(0x14FF9D45);
+  static const Color creamPill = Color(0x26FF9D45);
+
+  /// Delivery-accent. Cool sky för semantisk skillnad.
+  static const Color brandBlue = Color(0xFF38BDF8);
+  static const Color blueTint = Color(0x1438BDF8);
+  static const Color blueTintPill = Color(0x2638BDF8);
 
   // ── Status ────────────────────────────────────────────────────────────────
-  static const Color success = Color(0xFF4ADE80);
-  static const Color danger = Color(0xFFFB7185);
+  static const Color success = Color(0xFF34D399); // emerald
+  static const Color danger = Color(0xFFFB7185); // coral
   static const Color warning = Color(0xFFFBBF24);
   static const Color info = Color(0xFF60A5FA);
-  static const Color lavender = Color(0xFFA78BFA);
+  static const Color lavender = Color(0xFFC084FC);
 
   // Legacy aliases
   static const Color charcoal = midnight;
@@ -60,30 +61,32 @@ class AppTheme {
   static bool isDark(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark;
 
-  /// Backgrunds-gradient. I nya paletten är dark läget en RIKTIG neutral nästan-svart
-  /// (inte blå-tonad). Ljus är off-white.
+  /// Shell-gradient. Dark = warm ink, light = paper cream — båda subtila.
   static LinearGradient shellGradient(BuildContext context) {
     if (isDark(context)) {
       return const LinearGradient(
-        colors: [Color(0xFF08090B), Color(0xFF0B0C0F)],
+        colors: [Color(0xFF0B0907), Color(0xFF120D09)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
     }
-
     return const LinearGradient(
-      colors: [Color(0xFFFAFAFA), Color(0xFFF4F4F5)],
+      colors: [Color(0xFFFAF7F1), Color(0xFFF3EFE6)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
   }
 
   static Color panelColor(BuildContext context) {
-    return isDark(context) ? const Color(0xFF0E0F12) : paper;
+    return isDark(context) ? deepSea : paper;
+  }
+
+  static Color elevatedPanelColor(BuildContext context) {
+    return isDark(context) ? steel : paper;
   }
 
   static Color mutedColor(BuildContext context) {
-    return isDark(context) ? const Color(0xFFA1A1AA) : mutedInk;
+    return isDark(context) ? const Color(0xFFA89A8C) : mutedInk;
   }
 
   static Color faintColor(BuildContext context) {
@@ -93,17 +96,17 @@ class AppTheme {
   }
 
   static Color borderColor(BuildContext context, {Color? tint}) {
-    if (tint != null) return tint.withOpacity(isDark(context) ? 0.20 : 0.18);
+    if (tint != null) return tint.withOpacity(isDark(context) ? 0.22 : 0.18);
     return isDark(context)
-        ? Colors.white.withOpacity(0.06)
-        : ink.withOpacity(0.06);
+        ? Colors.white.withOpacity(0.07)
+        : ink.withOpacity(0.07);
   }
 
-  /// Panel-dekoration. Subtila borders, ingen tung skugga i dark. 14px hörn.
+  /// Panel-dekoration. 18px hörn (rundare än tidigare). Subtila skuggor i light.
   static BoxDecoration panelDecoration(
     BuildContext context, {
     Color? tint,
-    double radius = 14,
+    double radius = 18,
     Gradient? gradient,
     Color? color,
   }) {
@@ -120,9 +123,9 @@ class AppTheme {
           ? const []
           : [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 2),
+                color: const Color(0xFF1A130C).withOpacity(0.04),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
             ],
     );
@@ -131,9 +134,9 @@ class AppTheme {
   static ThemeData _buildDarkTheme() {
     const scheme = ColorScheme(
       brightness: Brightness.dark,
-      primary: gold,
+      primary: ember,
       onPrimary: ink,
-      secondary: info,
+      secondary: brandBlue,
       onSecondary: ink,
       error: danger,
       onError: paper,
@@ -147,8 +150,8 @@ class AppTheme {
       scrim: Colors.black,
       inverseSurface: paper,
       onInverseSurface: ink,
-      inversePrimary: lightGold,
-      surfaceTint: gold,
+      inversePrimary: emberDeep,
+      surfaceTint: ember,
     );
 
     final base = ThemeData.dark(useMaterial3: true);
@@ -158,11 +161,11 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: scheme,
-      primaryColor: gold,
+      primaryColor: ember,
       scaffoldBackgroundColor: Colors.transparent,
       canvasColor: midnight,
       cardColor: deepSea,
-      dividerColor: Colors.white.withOpacity(0.06),
+      dividerColor: Colors.white.withOpacity(0.07),
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -174,22 +177,22 @@ class AppTheme {
       ),
       inputDecorationTheme: _inputDecorationTheme(Brightness.dark),
       elevatedButtonTheme: _elevatedButtonTheme(
-        background: gold,
+        background: ember,
         foreground: ink,
       ),
       outlinedButtonTheme: _outlinedButtonTheme(Brightness.dark),
       textButtonTheme: _textButtonTheme(Brightness.dark),
       chipTheme: _chipTheme(Brightness.dark),
-      switchTheme: _switchTheme(gold),
+      switchTheme: _switchTheme(ember),
       snackBarTheme: _snackBarTheme(Brightness.dark),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.transparent,
-        indicatorColor: gold.withOpacity(0.14),
+        indicatorColor: ember.withOpacity(0.18),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => textTheme.labelSmall?.copyWith(
             color: states.contains(WidgetState.selected)
-                ? gold
-                : Colors.white.withOpacity(0.58),
+                ? ember
+                : Colors.white.withOpacity(0.55),
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w700
                 : FontWeight.w500,
@@ -200,15 +203,15 @@ class AppTheme {
         backgroundColor: Colors.transparent,
         selectedIconTheme: const IconThemeData(color: ink),
         unselectedIconTheme:
-            IconThemeData(color: Colors.white.withOpacity(0.56)),
-        selectedLabelTextStyle: textTheme.labelSmall?.copyWith(color: gold),
+            IconThemeData(color: Colors.white.withOpacity(0.55)),
+        selectedLabelTextStyle: textTheme.labelSmall?.copyWith(color: ember),
         unselectedLabelTextStyle: textTheme.labelSmall
             ?.copyWith(color: Colors.white.withOpacity(0.52)),
-        indicatorColor: gold,
+        indicatorColor: ember,
       ),
       tabBarTheme: TabBarTheme(
-        indicatorColor: gold,
-        labelColor: gold,
+        indicatorColor: ember,
+        labelColor: ember,
         unselectedLabelColor: Colors.white.withOpacity(0.55),
         labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
         unselectedLabelStyle:
@@ -219,13 +222,13 @@ class AppTheme {
         color: deepSea,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: Colors.white.withOpacity(0.06)),
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: Colors.white.withOpacity(0.07)),
         ),
       ),
       dialogTheme: DialogTheme(
-        backgroundColor: storm,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        backgroundColor: steel,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       ),
     );
   }
@@ -233,9 +236,9 @@ class AppTheme {
   static ThemeData _buildLightTheme() {
     const scheme = ColorScheme(
       brightness: Brightness.light,
-      primary: lightGold,
+      primary: emberDeep,
       onPrimary: paper,
-      secondary: info,
+      secondary: brandBlue,
       onSecondary: paper,
       error: danger,
       onError: paper,
@@ -243,14 +246,14 @@ class AppTheme {
       onSurface: ink,
       tertiary: lavender,
       onTertiary: paper,
-      outline: Color(0x14111827),
-      outlineVariant: Color(0x0A111827),
+      outline: Color(0x141A130C),
+      outlineVariant: Color(0x0A1A130C),
       shadow: Color(0x14000000),
       scrim: Color(0x33000000),
       inverseSurface: ink,
       onInverseSurface: paper,
-      inversePrimary: gold,
-      surfaceTint: lightGold,
+      inversePrimary: ember,
+      surfaceTint: emberDeep,
     );
 
     final base = ThemeData.light(useMaterial3: true);
@@ -260,11 +263,11 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       colorScheme: scheme,
-      primaryColor: lightGold,
+      primaryColor: emberDeep,
       scaffoldBackgroundColor: Colors.transparent,
       canvasColor: mist,
       cardColor: paper,
-      dividerColor: ink.withOpacity(0.06),
+      dividerColor: ink.withOpacity(0.07),
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -276,20 +279,21 @@ class AppTheme {
       ),
       inputDecorationTheme: _inputDecorationTheme(Brightness.light),
       elevatedButtonTheme: _elevatedButtonTheme(
-        background: lightGold,
+        background: emberDeep,
         foreground: paper,
       ),
       outlinedButtonTheme: _outlinedButtonTheme(Brightness.light),
       textButtonTheme: _textButtonTheme(Brightness.light),
       chipTheme: _chipTheme(Brightness.light),
-      switchTheme: _switchTheme(lightGold),
+      switchTheme: _switchTheme(emberDeep),
       snackBarTheme: _snackBarTheme(Brightness.light),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.transparent,
-        indicatorColor: lightGold.withOpacity(0.12),
+        indicatorColor: emberDeep.withOpacity(0.14),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => textTheme.labelSmall?.copyWith(
-            color: states.contains(WidgetState.selected) ? lightGold : mutedInk,
+            color:
+                states.contains(WidgetState.selected) ? emberDeep : mutedInk,
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w700
                 : FontWeight.w500,
@@ -301,14 +305,14 @@ class AppTheme {
         selectedIconTheme: const IconThemeData(color: paper),
         unselectedIconTheme: const IconThemeData(color: mutedInk),
         selectedLabelTextStyle:
-            textTheme.labelSmall?.copyWith(color: lightGold),
+            textTheme.labelSmall?.copyWith(color: emberDeep),
         unselectedLabelTextStyle:
             textTheme.labelSmall?.copyWith(color: mutedInk),
-        indicatorColor: lightGold,
+        indicatorColor: emberDeep,
       ),
       tabBarTheme: TabBarTheme(
-        indicatorColor: lightGold,
-        labelColor: lightGold,
+        indicatorColor: emberDeep,
+        labelColor: emberDeep,
         unselectedLabelColor: mutedInk,
         labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
         unselectedLabelStyle:
@@ -319,41 +323,70 @@ class AppTheme {
         color: paper,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: ink.withOpacity(0.06)),
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: ink.withOpacity(0.07)),
         ),
       ),
       dialogTheme: DialogTheme(
         backgroundColor: paper,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       ),
     );
   }
 
+  /// Editorial typography — large hierarchies, generous spacing.
   static TextTheme _buildTextTheme(TextTheme base, Brightness brightness) {
     final bodyColor = brightness == Brightness.dark ? paper : ink;
     final secondary = brightness == Brightness.dark
-        ? const Color(0xFFA1A1AA) // zinc-400
+        ? const Color(0xFFA89A8C)
         : mutedInk;
 
     return base.copyWith(
-      displaySmall: base.displaySmall?.copyWith(
-        fontSize: 30,
-        fontWeight: FontWeight.w600,
+      displayLarge: base.displayLarge?.copyWith(
+        fontSize: 64,
+        fontWeight: FontWeight.w800,
         color: bodyColor,
-        letterSpacing: -0.6,
-        height: 1.1,
+        letterSpacing: -2.0,
+        height: 0.98,
+      ),
+      displayMedium: base.displayMedium?.copyWith(
+        fontSize: 48,
+        fontWeight: FontWeight.w800,
+        color: bodyColor,
+        letterSpacing: -1.4,
+        height: 1.0,
+      ),
+      displaySmall: base.displaySmall?.copyWith(
+        fontSize: 36,
+        fontWeight: FontWeight.w700,
+        color: bodyColor,
+        letterSpacing: -0.8,
+        height: 1.05,
+      ),
+      headlineLarge: base.headlineLarge?.copyWith(
+        fontSize: 30,
+        fontWeight: FontWeight.w700,
+        color: bodyColor,
+        letterSpacing: -0.5,
+        height: 1.15,
       ),
       headlineMedium: base.headlineMedium?.copyWith(
-        fontSize: 22,
-        fontWeight: FontWeight.w600,
+        fontSize: 24,
+        fontWeight: FontWeight.w700,
+        color: bodyColor,
+        letterSpacing: -0.4,
+        height: 1.2,
+      ),
+      headlineSmall: base.headlineSmall?.copyWith(
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
         color: bodyColor,
         letterSpacing: -0.3,
-        height: 1.2,
+        height: 1.25,
       ),
       titleLarge: base.titleLarge?.copyWith(
         fontSize: 18,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         color: bodyColor,
         letterSpacing: -0.2,
       ),
@@ -362,8 +395,13 @@ class AppTheme {
         fontWeight: FontWeight.w600,
         color: bodyColor,
       ),
+      titleSmall: base.titleSmall?.copyWith(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: bodyColor,
+      ),
       bodyLarge: base.bodyLarge?.copyWith(
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: FontWeight.w500,
         color: bodyColor,
         height: 1.45,
@@ -381,13 +419,18 @@ class AppTheme {
         height: 1.4,
       ),
       labelLarge: base.labelLarge?.copyWith(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.1,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.2,
       ),
       labelMedium: base.labelMedium?.copyWith(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.8,
+      ),
+      labelSmall: base.labelSmall?.copyWith(
         fontSize: 10,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         letterSpacing: 0.6,
       ),
     );
@@ -395,12 +438,11 @@ class AppTheme {
 
   static InputDecorationTheme _inputDecorationTheme(Brightness brightness) {
     final isDarkMode = brightness == Brightness.dark;
-    final fill = isDarkMode ? const Color(0xFF16181B) : paper;
-    final borderColor =
+    final fill = isDarkMode ? steel : paper;
+    final border =
         isDarkMode ? Colors.white.withOpacity(0.08) : ink.withOpacity(0.08);
-    final labelColor = isDarkMode
-        ? const Color(0xFFA1A1AA)
-        : mutedInk;
+    final labelColor =
+        isDarkMode ? const Color(0xFFA89A8C) : mutedInk;
 
     return InputDecorationTheme(
       filled: true,
@@ -413,28 +455,29 @@ class AppTheme {
       ),
       prefixIconColor: labelColor,
       suffixIconColor: labelColor,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: borderColor, width: 1),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: border, width: 1),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(
-          color: isDarkMode ? gold : lightGold,
+          color: isDarkMode ? ember : emberDeep,
           width: 1.5,
         ),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: danger, width: 1.2),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: danger, width: 1.4),
       ),
     );
@@ -450,13 +493,13 @@ class AppTheme {
         foregroundColor: foreground,
         elevation: 0,
         shadowColor: Colors.transparent,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
         textStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.1,
-          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+          fontSize: 15,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }
@@ -468,21 +511,21 @@ class AppTheme {
         foregroundColor: isDarkMode ? paper : ink,
         side: BorderSide(
           color: isDarkMode
-              ? Colors.white.withOpacity(0.10)
-              : ink.withOpacity(0.10),
+              ? Colors.white.withOpacity(0.12)
+              : ink.withOpacity(0.12),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }
 
   static TextButtonThemeData _textButtonTheme(Brightness brightness) {
-    final color = brightness == Brightness.dark ? gold : lightGold;
+    final color = brightness == Brightness.dark ? ember : emberDeep;
     return TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: color,
-        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -493,15 +536,16 @@ class AppTheme {
       backgroundColor:
           isDarkMode ? Colors.white.withOpacity(0.04) : ink.withOpacity(0.04),
       selectedColor:
-          isDarkMode ? gold.withOpacity(0.16) : lightGold.withOpacity(0.14),
+          isDarkMode ? ember.withOpacity(0.18) : emberDeep.withOpacity(0.14),
       side: BorderSide(
-        color:
-            isDarkMode ? Colors.white.withOpacity(0.08) : ink.withOpacity(0.06),
+        color: isDarkMode
+            ? Colors.white.withOpacity(0.08)
+            : ink.withOpacity(0.06),
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       labelStyle: TextStyle(
         color: isDarkMode ? paper : ink,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
         fontSize: 12,
       ),
     );
@@ -516,7 +560,7 @@ class AppTheme {
       ),
       trackColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
-            ? activeColor.withOpacity(0.28)
+            ? activeColor.withOpacity(0.32)
             : Colors.grey.withOpacity(0.18),
       ),
     );
@@ -527,7 +571,7 @@ class AppTheme {
       backgroundColor: brightness == Brightness.dark ? steel : ink,
       contentTextStyle:
           const TextStyle(color: paper, fontWeight: FontWeight.w500),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       behavior: SnackBarBehavior.floating,
     );
   }
