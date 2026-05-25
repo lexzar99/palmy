@@ -82,6 +82,10 @@ export async function runR2Migration(opts: MigrateOptions): Promise<MigrateResul
   const migrateOne = async (args: { label: string; currentUrl: string; targetKey: string; apply: ItemHandler }) => {
     result.scanned++;
     if (!args.currentUrl) { result.skippedNoUrl++; return; }
+    // Relative paths (t.ex. "/menu/categories/x.svg") är statiska assets i
+    // web-appen, inte HTTP-bilder som kan migreras. Räkna som "skipped",
+    // inte "failed" — det är inte ett fel utan ett data-tillstånd.
+    if (!/^https?:\/\//i.test(args.currentUrl)) { result.skippedNoUrl++; return; }
     if (basePublicUrl && args.currentUrl.startsWith(basePublicUrl)) { result.alreadyR2++; return; }
     if (opts.maxItems && result.migrated >= opts.maxItems) return;
     if (!opts.apply) {
