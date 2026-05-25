@@ -51,15 +51,16 @@ export async function runR2Migration(opts: MigrateOptions): Promise<MigrateResul
     failedExamples: [],
     migratedExamples: [],
     dryRun: !opts.apply,
-    configured: r2Enabled,
+    configured: r2Enabled(),
   };
 
-  if (!r2Enabled) return result;
+  if (!r2Enabled()) return result;
+  const basePublicUrl = r2PublicBase();
 
   const migrateOne = async (args: { label: string; currentUrl: string; targetKey: string; apply: ItemHandler }) => {
     result.scanned++;
     if (!args.currentUrl) { result.skippedNoUrl++; return; }
-    if (args.currentUrl.startsWith(r2PublicBase)) { result.alreadyR2++; return; }
+    if (basePublicUrl && args.currentUrl.startsWith(basePublicUrl)) { result.alreadyR2++; return; }
     if (opts.maxItems && result.migrated >= opts.maxItems) return;
     if (!opts.apply) {
       result.migrated++;

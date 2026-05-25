@@ -103,7 +103,7 @@ const memoryUpload = multer({
  */
 router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res: Response) => {
   try {
-    if (!r2Enabled) {
+    if (!r2Enabled()) {
       res.status(503).json({ error: 'R2 är inte konfigurerat på servern — sätt R2_* env vars' });
       return;
     }
@@ -182,7 +182,7 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
  */
 router.get('/images/list', async (req: Request, res: Response) => {
   try {
-    if (!r2Enabled) { res.status(503).json({ error: 'R2 är inte konfigurerat' }); return; }
+    if (!r2Enabled()) { res.status(503).json({ error: 'R2 är inte konfigurerat' }); return; }
     const prefix = String(req.query.prefix || '');
     const items = await listR2(prefix, 1000);
     res.json(items.map((it) => ({ ...it, url: r2KeyToPublicUrl(it.key) })));
@@ -198,7 +198,7 @@ router.get('/images/list', async (req: Request, res: Response) => {
  */
 router.get('/images/exists', async (req: Request, res: Response) => {
   try {
-    if (!r2Enabled) { res.json({ exists: false, configured: false }); return; }
+    if (!r2Enabled()) { res.json({ exists: false, configured: false }); return; }
     const key = String(req.query.key || '');
     if (!key) { res.status(400).json({ error: 'Saknar ?key=' }); return; }
     const exists = await existsInR2(key);
@@ -220,7 +220,7 @@ router.get('/images/exists', async (req: Request, res: Response) => {
  */
 router.post('/images/auto-match', async (req: Request, res: Response) => {
   try {
-    if (!r2Enabled) { res.status(503).json({ error: 'R2 är inte konfigurerat' }); return; }
+    if (!r2Enabled()) { res.status(503).json({ error: 'R2 är inte konfigurerat' }); return; }
     const restaurantId = String(req.body.restaurantId || '');
     const dryRun = Boolean(req.body.dryRun);
     if (!restaurantId) { res.status(400).json({ error: 'Saknar restaurantId' }); return; }
@@ -322,7 +322,7 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
  */
 router.post('/images/migrate', async (req: Request, res: Response) => {
   try {
-    if (!r2Enabled) {
+    if (!r2Enabled()) {
       res.status(503).json({ error: 'R2 är inte konfigurerat på servern' });
       return;
     }
