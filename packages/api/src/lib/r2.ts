@@ -159,16 +159,28 @@ export async function toWebp(input: Buffer, opts?: { maxWidth?: number; quality?
 export async function uploadToR2(key: string, body: Buffer, contentType = 'image/webp'): Promise<{ key: string; url: string }> {
   const c = getClient();
   if (!c) throw new Error('R2 är inte konfigurerat — sätt R2_* env vars');
-  await c.client.send(new PutObjectCommand({
-    Bucket: c.cfg.bucket,
-    Key: key,
-    Body: body,
-    ContentType: contentType,
-    // Public-read sätts via bucket-policy/custom-domain. CacheControl ger
-    // CDN-cache 1 år så bilder cachas hårt — om vi behöver byta gör vi
-    // det via en ny path (key = {slug}.{hash}.webp t.ex.).
-    CacheControl: 'public, max-age=31536000, immutable',
-  }));
+  try {
+    await c.client.send(new PutObjectCommand({
+      Bucket: c.cfg.bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      // Public-read sätts via bucket-policy/custom-domain. CacheControl ger
+      // CDN-cache 1 år så bilder cachas hårt — om vi behöver byta gör vi
+      // det via en ny path (key = {slug}.{hash}.webp t.ex.).
+      CacheControl: 'public, max-age=31536000, immutable',
+    }));
+  } catch (e: any) {
+    // S3-SDK-fel: bygg meddelande med code + bucket + key så vi ser
+    // exakt vad R2 svarade. Vanliga case:
+    //   "AccessDenied"  → API-token saknar Object Write för bucketen
+    //   "NoSuchBucket"  → R2_BUCKET-namnet matchar inte verklig bucket
+    //   "InvalidAccessKeyId" → R2_ACCESS_KEY_ID stämmer inte
+    //   "SignatureDoesNotMatch" → R2_SECRET_ACCESS_KEY stämmer inte
+    const code = e?.Code || e?.name || e?.$metadata?.httpStatusCode || 'unknown';
+    const msg = e?.message || String(e);
+    throw new Error(`R2 PutObject misslyckades (${code}): bucket="${c.cfg.bucket}", key="${key}" — ${msg}`);
+  }
   return { key, url: r2KeyToPublicUrl(key) };
 }
 
