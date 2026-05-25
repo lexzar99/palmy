@@ -32,10 +32,32 @@ async function downloadAsBuffer(url: string): Promise<{ buf: Buffer | null; erro
       responseType: 'arraybuffer',
       timeout: 30_000,
       maxContentLength: 50 * 1024 * 1024,
+      // Följ redirect (default), men kasta för 4xx/5xx (default).
+      // Lägg till User-Agent — vissa CDN:er blockerar requests utan UA.
+      headers: { 'User-Agent': 'matgo-r2-migrate/1.0' },
     });
     return { buf: Buffer.from(res.data) };
   } catch (e: any) {
-    return { buf: null, error: e?.message || String(e) };
+    // Bygg en informativ error-message: status + host + ev. body-text-utdrag.
+    const status = e?.response?.status;
+    let bodyExcerpt = '';
+    const rawBody = e?.response?.data;
+    if (rawBody) {
+      try {
+        const text = Buffer.isBuffer(rawBody)
+          ? rawBody.toString('utf8')
+          : (rawBody instanceof ArrayBuffer ? Buffer.from(rawBody).toString('utf8') : String(rawBody));
+        bodyExcerpt = text.slice(0, 120).replace(/\s+/g, ' ').trim();
+      } catch { /* ignore */ }
+    }
+    let host = '';
+    try { host = new URL(url).host; } catch { /* invalid url */ }
+    const parts: string[] = [];
+    if (status) parts.push(`HTTP ${status}`);
+    if (host) parts.push(host);
+    if (bodyExcerpt) parts.push(bodyExcerpt);
+    if (!parts.length) parts.push(e?.message || String(e));
+    return { buf: null, error: parts.join(' · ') };
   }
 }
 

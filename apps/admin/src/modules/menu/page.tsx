@@ -899,11 +899,19 @@ function R2MigrateButton() {
             {finalResult.failedExamples.length > 0 ? (
               <div>
                 <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-rose-400">Misslyckade nedladdningar</p>
-                <div className="surface-muted max-h-40 overflow-y-auto px-3 py-2 text-xs">
+                <div className="surface-muted max-h-56 overflow-y-auto px-3 py-2 text-xs">
                   {finalResult.failedExamples.map((f, i) => (
-                    <div key={i} className="border-b border-[var(--border-subtle)] py-1.5 last:border-b-0">
+                    <div key={i} className="border-b border-[var(--border-subtle)] py-2 last:border-b-0">
                       <div className="font-semibold">{f.label}</div>
-                      <code className="break-all text-[10px] text-rose-400">{f.error}</code>
+                      <code className="mt-0.5 block break-all text-[10px] text-rose-400">{f.error}</code>
+                      <a
+                        href={f.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-0.5 block break-all text-[10px] text-[var(--text-muted)] hover:underline"
+                      >
+                        {f.url}
+                      </a>
                     </div>
                   ))}
                 </div>
