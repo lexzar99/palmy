@@ -30,6 +30,7 @@ import {
   menuRestaurantsQueryKey,
   r2AutoMatch,
   r2Migrate,
+  r2PathsTemplate,
   updateCategory,
   updateExtraGroup,
   updateMainCategory,
@@ -40,6 +41,7 @@ import {
   type ProductRecord,
   type R2AutoMatchResult,
   type R2MigrateResult,
+  type R2PathsTemplate,
   type RestaurantRef,
 } from "@/modules/menu/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
@@ -1041,6 +1043,206 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
   );
 }
 
+/**
+ * R2 Paths-knapp: visar exakt vilka filnamn admin ska använda för varje
+ * produkt/main-cat/hero när de manuellt laddar upp till R2-dashboarden.
+ * Inga kollisionsrisker — varje produkt har en deterministisk canonical path
+ * baserad på dess slug + kategorins slug + restaurangens slug + city slug.
+ */
+function R2PathsButton({ restaurantId }: { restaurantId: string }) {
+  const { showToast } = useToast();
+  const [open, setOpen] = useState(false);
+
+  const query = useQuery({
+    queryKey: ["r2-paths-template", restaurantId],
+    queryFn: () => r2PathsTemplate(restaurantId),
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  const copyToClipboard = async (text: string, label = 'Kopierat') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast({ type: 'success', message: label });
+    } catch {
+      showToast({ type: 'error', message: 'Kunde inte kopiera' });
+    }
+  };
+
+  const buildFullList = (data: R2PathsTemplate): string => {
+    const lines: string[] = [];
+    lines.push(`# R2-paths för ${data.restaurant.name}`);
+    lines.push(`# Rot-prefix: ${data.prefix}`);
+    lines.push('');
+    lines.push('## ROT-FILER');
+    lines.push(data.hero.key);
+    lines.push(data.logo.key);
+    if (data.mainCategories.length) {
+      lines.push('');
+      lines.push('## MAIN-KATEGORIER');
+      for (const mc of data.mainCategories) {
+        lines.push(`${mc.key}  # ${mc.name}`);
+      }
+    }
+    if (data.categories.length) {
+      lines.push('');
+      lines.push('## KATEGORIER & PRODUKTER');
+      for (const c of data.categories) {
+        lines.push('');
+        lines.push(`# ${c.name}  (slug: ${c.slug})`);
+        for (const p of c.products) {
+          lines.push(`${p.key}  # ${p.name}`);
+        }
+      }
+    }
+    return lines.join('\n');
+  };
+
+  const totalProducts = query.data?.categories.reduce((s, c) => s + c.products.length, 0) || 0;
+
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        R2-paths
+      </Button>
+
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="R2-paths mall"
+        description="Döp dina filer enligt listan, dra-och-släpp i Cloudflare R2-dashboarden, klicka sen 'Matcha bilder från R2'. Garanterad korrekt match utan kollisionsrisk."
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setOpen(false)}>Stäng</Button>
+            {query.data ? (
+              <Button variant="primary" onClick={() => copyToClipboard(buildFullList(query.data!), 'Hela listan kopierad')}>
+                Kopiera hela listan
+              </Button>
+            ) : null}
+          </div>
+        }
+      >
+        {query.isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 size={24} className="animate-spin" />
+          </div>
+        ) : query.error ? (
+          <p className="text-sm text-rose-400">Kunde inte ladda template. Försök igen.</p>
+        ) : query.data ? (
+          <div className="grid gap-4">
+            <div className="surface-muted px-4 py-3 text-xs">
+              <div className="text-[var(--text-secondary)]">Rot-prefix</div>
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <code className="text-sm">{query.data.prefix}</code>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(query.data!.prefix, 'Prefix kopierat')}
+                  className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                >
+                  Kopiera
+                </button>
+              </div>
+              <div className="mt-2 text-[var(--text-secondary)]">
+                {query.data.mainCategories.length} main-kategorier · {query.data.categories.length} kategorier · {totalProducts} produkter
+              </div>
+            </div>
+
+            <_PathSection
+              title="Rot-filer (ladda upp direkt i restaurangens rotmapp)"
+              rows={[
+                { label: query.data.hero.label, key: query.data.hero.key },
+                { label: query.data.logo.label, key: query.data.logo.key },
+              ]}
+              onCopy={copyToClipboard}
+            />
+
+            {query.data.mainCategories.length ? (
+              <_PathSection
+                title={`Main-kategorier (${query.data.mainCategories.length})`}
+                rows={query.data.mainCategories.map((mc) => ({ label: mc.name, key: mc.key }))}
+                onCopy={copyToClipboard}
+              />
+            ) : null}
+
+            {query.data.categories.length ? (
+              <div>
+                <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                  Produkter per kategori ({totalProducts} totalt)
+                </p>
+                <div className="grid gap-3">
+                  {query.data.categories.map((c) => (
+                    <div key={c.id} className="surface-muted overflow-hidden">
+                      <div className="flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] px-3 py-2">
+                        <div>
+                          <div className="text-sm font-bold">{c.name}</div>
+                          <code className="text-[10px] text-[var(--text-muted)]">{c.folder}</code>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(c.products.map((p) => p.key).join('\n'), `${c.name}: ${c.products.length} paths kopierade`)}
+                          className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                        >
+                          Kopiera {c.products.length}
+                        </button>
+                      </div>
+                      <div className="px-3 py-2 text-xs">
+                        {c.products.length ? c.products.map((p) => (
+                          <div key={p.id} className="flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] py-1 last:border-b-0">
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-semibold">{p.name}</div>
+                              <code className="block break-all text-[10px] text-[var(--text-muted)]">{p.key}</code>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(p.key, `${p.name}: path kopierad`)}
+                              className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                            >
+                              Kopiera
+                            </button>
+                          </div>
+                        )) : <p className="text-[var(--text-muted)]">Inga produkter</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
+    </>
+  );
+}
+
+function _PathSection({ title, rows, onCopy }: {
+  title: string;
+  rows: Array<{ label: string; key: string }>;
+  onCopy: (text: string, label?: string) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">{title}</p>
+      <div className="surface-muted px-3 py-2 text-xs">
+        {rows.map((r) => (
+          <div key={r.key} className="flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] py-1.5 last:border-b-0">
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold">{r.label}</div>
+              <code className="block break-all text-[10px] text-[var(--text-muted)]">{r.key}</code>
+            </div>
+            <button
+              type="button"
+              onClick={() => onCopy(r.key, `${r.label}: path kopierad`)}
+              className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            >
+              Kopiera
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MenuPage() {
   const searchParams = useSearchParams();
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
@@ -1146,7 +1348,10 @@ export function MenuPage() {
           <>
             <R2MigrateButton />
             {activeRestaurantId ? (
-              <R2AutoMatchButton restaurantId={activeRestaurantId} />
+              <>
+                <R2PathsButton restaurantId={activeRestaurantId} />
+                <R2AutoMatchButton restaurantId={activeRestaurantId} />
+              </>
             ) : null}
             {activeRestaurantId && tab !== "main-categories" ? (
               <Button variant="secondary" onClick={() => setImportModalOpen(true)}>

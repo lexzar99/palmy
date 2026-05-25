@@ -225,42 +225,6 @@ router.get('/images/exists', async (req: Request, res: Response) => {
  *
  * Returnerar en summering: { matched: N, skipped: N, examples: [...] }
  */
-/**
- * Bryt upp en R2-key i tokens. Splittar på `/`, `-`, `_` och tar bort extension.
- *   "lund/palmy/menu/pizzor-standard/vesuvio.webp"
- *     → ["lund","palmy","menu","pizzor","standard","vesuvio"]
- *   "lund/palmy/pizza-standard-1-palmy-vesuvio.webp"
- *     → ["lund","palmy","pizza","standard","1","palmy","vesuvio"]
- *
- * Båda konventioner blir jämförbara — vi matchar mot tokens, inte rå path.
- */
-function pathSegmentsFromKey(key: string): string[] {
-  const noExt = key.replace(/\.[a-z0-9]+$/i, '');
-  return noExt.toLowerCase().split(/[/_-]+/).filter(Boolean);
-}
-
-/**
- * Returnerar true om slug:ens tokens förekommer konsekutivt i path-tokens.
- * Multi-word slugs (t.ex. "pizzor-standard") måste finnas i samma ordning.
- *   slug "vesuvio" i ["pizza","standard","1","vesuvio"] → true
- *   slug "pizzor-standard" i ["pizza","standard","vesuvio"] → false (pizzor ≠ pizza)
- *   slug "pizzor-standard" i ["menu","pizzor","standard","vesuvio"] → true
- */
-function pathContainsSlugAsWord(key: string, slug: string): boolean {
-  if (!slug) return false;
-  const slugTokens = slug.toLowerCase().split(/[-_]+/).filter(Boolean);
-  if (slugTokens.length === 0) return false;
-  const segs = pathSegmentsFromKey(key);
-  for (let i = 0; i + slugTokens.length <= segs.length; i++) {
-    let ok = true;
-    for (let j = 0; j < slugTokens.length; j++) {
-      if (segs[i + j] !== slugTokens[j]) { ok = false; break; }
-    }
-    if (ok) return true;
-  }
-  return false;
-}
-
 router.post('/images/auto-match', async (req: Request, res: Response) => {
   try {
     if (!r2Enabled()) { res.status(503).json({ error: 'R2 är inte konfigurerat' }); return; }
@@ -277,69 +241,45 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
     const prefix = `${citySlug}/${rest.slug}/`;
     const items = await listR2(prefix, 5000);
     const keyByKey = new Map(items.map((it) => [it.key, it]));
-    const allKeys = [...keyByKey.keys()];
+
+    // STRIKT canonical-match — ingen fuzzy. Den enda säkra strategin när
+    // flera restauranger kan ha produkter med samma slug (t.ex. "Margherita").
+    // För att matcha en bild MÅSTE den ligga på den exakta path:en som
+    // /admin/images/paths-template anger. Användaren får mall via UI.
 
     let matchedHero = false;
     let matchedLogo = false;
     let matchedMain = 0;
     let matchedProducts = 0;
-    const updates: Array<{ kind: string; id: string; url: string; key: string; via: 'canonical' | 'fuzzy' }> = [];
+    const updates: Array<{ kind: string; id: string; url: string; key: string }> = [];
 
-    /**
-     * Hitta bästa R2-key som matchar slug. Försök i ordning:
-     *   1. Exakt canonical path (om angiven)
-     *   2. Fuzzy: key innehåller prodSlug som hel-ord, prefererar de som
-     *      även innehåller catSlug.
-     * Returnerar { key, via } eller null.
-     */
-    const findBestKey = (canonical: string | null, slug: string, secondarySlug?: string)
-      : { key: string; via: 'canonical' | 'fuzzy' } | null => {
-      if (canonical && keyByKey.has(canonical)) return { key: canonical, via: 'canonical' };
-      if (!slug) return null;
-      const candidates = allKeys.filter((k) => pathContainsSlugAsWord(k, slug));
-      if (candidates.length === 0) return null;
-      if (secondarySlug) {
-        const refined = candidates.filter((k) => pathContainsSlugAsWord(k, secondarySlug));
-        if (refined.length) return { key: refined[0], via: 'fuzzy' };
-      }
-      return { key: candidates[0], via: 'fuzzy' };
-    };
-
-    // hero / logo — canonical först, sen fuzzy på ordet "hero"/"logo"
-    const heroMatch = findBestKey(`${prefix}hero.webp`, 'hero');
-    if (heroMatch) {
+    // hero / logo
+    const heroKey = `${prefix}hero.webp`;
+    const logoKey = `${prefix}logo.webp`;
+    if (keyByKey.has(heroKey)) {
       matchedHero = true;
-      updates.push({ kind: 'hero', id: restaurantId, url: r2KeyToPublicUrl(heroMatch.key), key: heroMatch.key, via: heroMatch.via });
-      if (!dryRun) await prisma.restaurant.update({ where: { id: restaurantId }, data: { imageUrl: r2KeyToPublicUrl(heroMatch.key) } });
+      updates.push({ kind: 'hero', id: restaurantId, url: r2KeyToPublicUrl(heroKey), key: heroKey });
+      if (!dryRun) await prisma.restaurant.update({ where: { id: restaurantId }, data: { imageUrl: r2KeyToPublicUrl(heroKey) } });
     }
-    const logoMatch = findBestKey(`${prefix}logo.webp`, 'logo');
-    if (logoMatch) {
+    if (keyByKey.has(logoKey)) {
       matchedLogo = true;
       // Restaurant.logoUrl finns inte i schema, så loggar bara — admin kan sätta hero separat.
-      updates.push({ kind: 'logo', id: restaurantId, url: r2KeyToPublicUrl(logoMatch.key), key: logoMatch.key, via: logoMatch.via });
+      updates.push({ kind: 'logo', id: restaurantId, url: r2KeyToPublicUrl(logoKey), key: logoKey });
     }
-
-    // Spåra vilka keys som redan blivit "tagna" så produkter inte kan stjäla
-    // hero/logo-filen, och två produkter inte mappar mot samma fil.
-    const usedKeys = new Set<string>();
-    if (heroMatch) usedKeys.add(heroMatch.key);
-    if (logoMatch) usedKeys.add(logoMatch.key);
 
     // main-categories
     const mainCats = await prisma.mainCategory.findMany({ where: { restaurantId } });
     for (const mc of mainCats) {
       const slug = slugifyPathSegment(mc.name);
-      const canonical = `${prefix}main/${slug}.webp`;
-      const match = findBestKey(canonical, slug);
-      if (match && !usedKeys.has(match.key)) {
-        usedKeys.add(match.key);
+      const key = `${prefix}main/${slug}.webp`;
+      if (keyByKey.has(key)) {
         matchedMain++;
-        updates.push({ kind: 'main-category', id: mc.id, url: r2KeyToPublicUrl(match.key), key: match.key, via: match.via });
-        if (!dryRun) await prisma.mainCategory.update({ where: { id: mc.id }, data: { imageUrl: r2KeyToPublicUrl(match.key) } });
+        updates.push({ kind: 'main-category', id: mc.id, url: r2KeyToPublicUrl(key), key });
+        if (!dryRun) await prisma.mainCategory.update({ where: { id: mc.id }, data: { imageUrl: r2KeyToPublicUrl(key) } });
       }
     }
 
-    // products via kategori — föredra match som även innehåller catSlug
+    // products via kategori
     const products = await prisma.product.findMany({
       where: { category: { restaurantId } },
       select: { id: true, slug: true, name: true, category: { select: { slug: true, name: true } } },
@@ -347,14 +287,11 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
     for (const p of products) {
       const catSlug = p.category.slug || slugifyPathSegment(p.category.name);
       const prodSlug = p.slug || slugifyPathSegment(p.name);
-      const canonical = `${prefix}menu/${catSlug}/${prodSlug}.webp`;
-      // Försök canonical först, sedan fuzzy på prodSlug filtrerat med catSlug
-      const match = findBestKey(canonical, prodSlug, catSlug);
-      if (match && !usedKeys.has(match.key)) {
-        usedKeys.add(match.key);
+      const key = `${prefix}menu/${catSlug}/${prodSlug}.webp`;
+      if (keyByKey.has(key)) {
         matchedProducts++;
-        updates.push({ kind: 'product', id: p.id, url: r2KeyToPublicUrl(match.key), key: match.key, via: match.via });
-        if (!dryRun) await prisma.product.update({ where: { id: p.id }, data: { imageUrl: r2KeyToPublicUrl(match.key) } });
+        updates.push({ kind: 'product', id: p.id, url: r2KeyToPublicUrl(key), key });
+        if (!dryRun) await prisma.product.update({ where: { id: p.id }, data: { imageUrl: r2KeyToPublicUrl(key) } });
       }
     }
 
@@ -364,12 +301,95 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
       prefix,
       totalObjectsInPrefix: items.length,
       matched: { hero: matchedHero, logo: matchedLogo, mainCategories: matchedMain, products: matchedProducts },
-      updates: updates.slice(0, 20), // sample (utökad från 10)
+      updates: updates.slice(0, 20),
       dryRun,
     });
   } catch (error: any) {
     console.error('Auto-match error:', error);
     res.status(500).json({ error: error?.message || 'Auto-match misslyckades' });
+  }
+});
+
+/**
+ * GET /api/admin/images/paths-template?restaurantId=X
+ *
+ * Returnerar exakt R2-path-template för en restaurang så admin kan se
+ * vilka filnamn att använda när de manuellt laddar upp bilder till
+ * Cloudflare R2-dashboarden. Direkt-canonical = noll kollisionsrisk.
+ *
+ * Struktur:
+ *   {city}/{rest}/hero.webp                          — Hero (banner)
+ *   {city}/{rest}/logo.webp                          — Logo
+ *   {city}/{rest}/main/{main-cat-slug}.webp          — Main-categories
+ *   {city}/{rest}/menu/{cat-slug}/{prod-slug}.webp   — Produkter
+ */
+router.get('/images/paths-template', async (req: Request, res: Response) => {
+  try {
+    const restaurantId = String(req.query.restaurantId || '');
+    if (!restaurantId) { res.status(400).json({ error: 'Saknar restaurantId' }); return; }
+
+    const rest = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: {
+        name: true,
+        slug: true,
+        city: true,
+        city_relation: { select: { slug: true, name: true } },
+      },
+    });
+    if (!rest) { res.status(404).json({ error: 'Restaurang hittades inte' }); return; }
+
+    const citySlug = rest.city_relation?.slug || slugifyPathSegment(rest.city_relation?.name || rest.city || 'global');
+    const prefix = `${citySlug}/${rest.slug}/`;
+
+    const mainCats = await prisma.mainCategory.findMany({
+      where: { restaurantId },
+      select: { id: true, name: true },
+      orderBy: { position: 'asc' },
+    });
+
+    const categories = await prisma.category.findMany({
+      where: { restaurantId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        products: {
+          select: { id: true, name: true, slug: true },
+          orderBy: { position: 'asc' },
+        },
+      },
+      orderBy: { position: 'asc' },
+    });
+
+    res.json({
+      restaurant: { name: rest.name, slug: rest.slug },
+      city: { slug: citySlug },
+      prefix,
+      hero: { key: `${prefix}hero.webp`, label: 'Hero (top banner)' },
+      logo: { key: `${prefix}logo.webp`, label: 'Logo' },
+      mainCategories: mainCats.map((mc) => ({
+        id: mc.id,
+        name: mc.name,
+        slug: slugifyPathSegment(mc.name),
+        key: `${prefix}main/${slugifyPathSegment(mc.name)}.webp`,
+      })),
+      categories: categories.map((c) => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug || slugifyPathSegment(c.name),
+        folder: `${prefix}menu/${c.slug || slugifyPathSegment(c.name)}/`,
+        products: c.products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          slug: p.slug || slugifyPathSegment(p.name),
+          key: `${prefix}menu/${c.slug || slugifyPathSegment(c.name)}/${p.slug || slugifyPathSegment(p.name)}.webp`,
+        })),
+      })),
+    });
+  } catch (error: any) {
+    console.error('Paths-template error:', error);
+    res.status(500).json({ error: error?.message || 'Kunde inte bygga paths-template' });
   }
 });
 

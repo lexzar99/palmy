@@ -146,6 +146,25 @@ export const r2Migrate = (payload: { apply: boolean; only?: 'restaurants' | 'mai
   // Default axios = ingen timeout, men proxy-layers kan dö mycket tidigare.
   apiPost<R2MigrateResult>("/admin/images/migrate", payload, { timeout: 10 * 60 * 1000 });
 
+export type R2PathsTemplate = {
+  restaurant: { name: string; slug: string };
+  city: { slug: string };
+  prefix: string;
+  hero: { key: string; label: string };
+  logo: { key: string; label: string };
+  mainCategories: Array<{ id: string; name: string; slug: string; key: string }>;
+  categories: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    folder: string;
+    products: Array<{ id: string; name: string; slug: string; key: string }>;
+  }>;
+};
+
+export const r2PathsTemplate = (restaurantId: string) =>
+  apiGet<R2PathsTemplate>(`/admin/images/paths-template?restaurantId=${encodeURIComponent(restaurantId)}`);
+
 // Copy/import — nya id genereras, källan rörs inte.
 export const copyCategory = (sourceId: string, targetRestaurantId: string) =>
   apiPost<CategoryRecord>(`/admin/categories/${sourceId}/copy`, { targetRestaurantId });
