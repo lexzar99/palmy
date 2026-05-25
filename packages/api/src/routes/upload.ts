@@ -50,7 +50,7 @@ const upload = multer({
 });
 
 // POST /api/admin/upload - Upload a single image (Cloudinary, legacy)
-router.post('/', (req: Request, res: Response, next) => {
+router.post('/upload', (req: Request, res: Response, next) => {
   if (!hasCloudinaryConfig) {
     res.status(503).json({ error: 'Bilduppladdning är inte konfigurerad på servern' });
     return;

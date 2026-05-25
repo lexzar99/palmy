@@ -243,7 +243,10 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/admin/reports', reportRoutes);
-app.use('/api/admin/upload', uploadRoutes);
+// uploadRoutes monteras direkt på /api/admin så routern's egna paths
+// (/upload, /upload-r2, /images/list, /images/exists, /images/auto-match,
+// /images/migrate) hamnar på de URL:er admin-klienten faktiskt anropar.
+app.use('/api/admin', uploadRoutes);
 app.use('/api/maps-stats', mapsStatsRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/notifications', notificationRoutes);
