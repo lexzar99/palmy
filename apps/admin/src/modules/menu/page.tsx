@@ -45,6 +45,7 @@ import {
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
 import { ImageUploadField } from "@/shared/components/image-upload";
+import { useToast } from "@/shared/components/toast";
 import { Copy } from "lucide-react";
 import { formatCurrency } from "@/shared/utils/format";
 
@@ -766,13 +767,39 @@ function ImportFromOtherModal({
  */
 function R2MigrateButton() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [dryRun, setDryRun] = useState<R2MigrateResult | null>(null);
   const [liveResult, setLiveResult] = useState<R2MigrateResult | null>(null);
 
+  const extractError = (e: any): string => {
+    if (e?.code === 'ECONNABORTED' || /timeout/i.test(e?.message || '')) {
+      return 'Tidsgränsen för request:en passerades. Migrationen kan ha startat på servern — kontrollera resultatet om en stund.';
+    }
+    if (e?.response?.status === 401 || e?.response?.status === 403) {
+      return 'Saknar behörighet — logga in som superadmin.';
+    }
+    if (e?.response?.status === 503) {
+      return e?.response?.data?.error || 'R2 är inte konfigurerat på servern.';
+    }
+    if (e?.response?.data?.error) return e.response.data.error;
+    if (e?.message) return e.message;
+    return 'Okänt fel — kolla nätverk eller serverloggar.';
+  };
+
   const dryMutation = useMutation({
     mutationFn: () => r2Migrate({ apply: false }),
-    onSuccess: (data) => { setDryRun(data); setLiveResult(null); setOpen(true); },
+    onSuccess: (data) => {
+      setDryRun(data);
+      setLiveResult(null);
+      setOpen(true);
+      if (!data.configured) {
+        showToast({ type: 'error', message: 'R2 är inte konfigurerat på servern' });
+      }
+    },
+    onError: (e) => {
+      showToast({ type: 'error', message: `Dry-run misslyckades: ${extractError(e)}` });
+    },
   });
 
   const applyMutation = useMutation({
@@ -781,6 +808,13 @@ function R2MigrateButton() {
       setLiveResult(data);
       // Cache invalidation — alla bild-URL:er har bytts i DB
       await queryClient.invalidateQueries({ queryKey: ["menu"] });
+      showToast({
+        type: data.failed > 0 ? 'info' : 'success',
+        message: `Migration klar: ${data.migrated} flyttade, ${data.failed} fel`,
+      });
+    },
+    onError: (e) => {
+      showToast({ type: 'error', message: `Migration misslyckades: ${extractError(e)}` });
     },
   });
 
@@ -891,22 +925,39 @@ function R2MigrateButton() {
  */
 function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [dryRun, setDryRun] = useState<R2AutoMatchResult | null>(null);
+
+  const extractError = (e: any): string => {
+    if (e?.response?.status === 401 || e?.response?.status === 403) return 'Saknar behörighet';
+    if (e?.response?.status === 503) return e?.response?.data?.error || 'R2 är inte konfigurerat';
+    if (e?.response?.data?.error) return e.response.data.error;
+    if (e?.message) return e.message;
+    return 'Okänt fel';
+  };
 
   const dryMutation = useMutation({
     mutationFn: () => r2AutoMatch(restaurantId, true),
     onSuccess: (data) => { setDryRun(data); setOpen(true); },
+    onError: (e) => {
+      showToast({ type: 'error', message: `Auto-match dry-run misslyckades: ${extractError(e)}` });
+    },
   });
 
   const applyMutation = useMutation({
     mutationFn: () => r2AutoMatch(restaurantId, false),
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });
       await queryClient.invalidateQueries({ queryKey: menuMainCategoriesQueryKey(restaurantId) });
       await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(restaurantId) });
       setOpen(false);
       setDryRun(null);
+      const total = (data.matched.hero ? 1 : 0) + (data.matched.logo ? 1 : 0) + data.matched.mainCategories + data.matched.products;
+      showToast({ type: 'success', message: `Auto-match klar: ${total} bilder kopplade` });
+    },
+    onError: (e) => {
+      showToast({ type: 'error', message: `Auto-match misslyckades: ${extractError(e)}` });
     },
   });
 

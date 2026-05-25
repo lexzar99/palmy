@@ -142,7 +142,9 @@ export type R2MigrateResult = {
 };
 
 export const r2Migrate = (payload: { apply: boolean; only?: 'restaurants' | 'main-categories' | 'categories' | 'products'; restaurantSlug?: string; maxItems?: number }) =>
-  apiPost<R2MigrateResult>("/admin/images/migrate", payload);
+  // Migration kan ta minuter när det är på riktigt — bumpa timeout till 10 min.
+  // Default axios = ingen timeout, men proxy-layers kan dö mycket tidigare.
+  apiPost<R2MigrateResult>("/admin/images/migrate", payload, { timeout: 10 * 60 * 1000 });
 
 // Copy/import — nya id genereras, källan rörs inte.
 export const copyCategory = (sourceId: string, targetRestaurantId: string) =>
