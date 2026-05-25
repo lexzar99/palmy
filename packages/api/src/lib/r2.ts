@@ -26,6 +26,8 @@ type R2Config = {
   secretAccessKey: string;
   bucket: string;
   publicBase: string;
+  /** Resolved endpoint URL — beror på jurisdiktion (default/EU/FedRAMP). */
+  endpoint: string;
 };
 
 let _cachedConfig: R2Config | null = null;
@@ -47,7 +49,21 @@ function loadConfig(): R2Config | null {
     return null;
   }
 
-  _cachedConfig = { accountId, accessKeyId, secretAccessKey, bucket, publicBase };
+  // Endpoint väljs baserat på bucket-jurisdiktion. EU-buckets MÅSTE använda
+  // .eu.r2.cloudflarestorage.com — annars returnerar R2 AccessDenied vid
+  // PutObject även med valid token. Default = global (auto-region).
+  //   R2_JURISDICTION=eu      → https://{account}.eu.r2.cloudflarestorage.com
+  //   R2_JURISDICTION=fedramp → https://{account}.fedramp.r2.cloudflarestorage.com
+  //   (saknat eller "default") → https://{account}.r2.cloudflarestorage.com
+  // R2_ENDPOINT kan också sättas explicit för att overrida helt.
+  const jurisdiction = (process.env.R2_JURISDICTION || '').trim().toLowerCase();
+  const subdomain = jurisdiction === 'eu' ? 'eu.'
+    : jurisdiction === 'fedramp' ? 'fedramp.'
+    : '';
+  const endpoint = process.env.R2_ENDPOINT
+    || `https://${accountId}.${subdomain}r2.cloudflarestorage.com`;
+
+  _cachedConfig = { accountId, accessKeyId, secretAccessKey, bucket, publicBase, endpoint };
   return _cachedConfig;
 }
 
@@ -57,7 +73,7 @@ function getClient(): { client: S3Client; cfg: R2Config } | null {
   if (!_cachedClient) {
     _cachedClient = new S3Client({
       region: 'auto',
-      endpoint: `https://${cfg.accountId}.r2.cloudflarestorage.com`,
+      endpoint: cfg.endpoint,
       credentials: {
         accessKeyId: cfg.accessKeyId,
         secretAccessKey: cfg.secretAccessKey,
