@@ -1044,11 +1044,16 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
 }
 
 /**
- * R2 Paths-knapp: visar exakt vilka filnamn admin ska använda för varje
- * produkt/main-cat/hero när de manuellt laddar upp till R2-dashboarden.
- * Inga kollisionsrisker — varje produkt har en deterministisk canonical path
- * baserad på dess slug + kategorins slug + restaurangens slug + city slug.
+ * R2 Bulk-upload-knapp: visar mappar + exakta filnamn admin ska använda.
+ * Workflow: kopiera mapp-path, gå till R2-dashboard, döp filerna enligt listan,
+ * dra in i mappen. Klicka sen "Matcha bilder från R2" så uppdateras DB.
  */
+const basenameOf = (key: string) => key.split('/').pop() || key;
+const folderOf = (key: string) => {
+  const i = key.lastIndexOf('/');
+  return i >= 0 ? key.slice(0, i + 1) : '';
+};
+
 function R2PathsButton({ restaurantId }: { restaurantId: string }) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(false);
@@ -1069,56 +1074,22 @@ function R2PathsButton({ restaurantId }: { restaurantId: string }) {
     }
   };
 
-  const buildFullList = (data: R2PathsTemplate): string => {
-    const lines: string[] = [];
-    lines.push(`# R2-paths för ${data.restaurant.name}`);
-    lines.push(`# Rot-prefix: ${data.prefix}`);
-    lines.push('');
-    lines.push('## ROT-FILER');
-    lines.push(data.hero.key);
-    lines.push(data.logo.key);
-    if (data.mainCategories.length) {
-      lines.push('');
-      lines.push('## MAIN-KATEGORIER');
-      for (const mc of data.mainCategories) {
-        lines.push(`${mc.key}  # ${mc.name}`);
-      }
-    }
-    if (data.categories.length) {
-      lines.push('');
-      lines.push('## KATEGORIER & PRODUKTER');
-      for (const c of data.categories) {
-        lines.push('');
-        lines.push(`# ${c.name}  (slug: ${c.slug})`);
-        for (const p of c.products) {
-          lines.push(`${p.key}  # ${p.name}`);
-        }
-      }
-    }
-    return lines.join('\n');
-  };
-
   const totalProducts = query.data?.categories.reduce((s, c) => s + c.products.length, 0) || 0;
 
   return (
     <>
       <Button variant="secondary" onClick={() => setOpen(true)}>
-        R2-paths
+        R2 bulk-upload mall
       </Button>
 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="R2-paths mall"
-        description="Döp dina filer enligt listan, dra-och-släpp i Cloudflare R2-dashboarden, klicka sen 'Matcha bilder från R2'. Garanterad korrekt match utan kollisionsrisk."
+        title="Bulk-upload mall"
+        description="Per sektion: kopiera mappen, döp dina filer enligt listan, dra in i R2-dashboarden. Klicka sen 'Matcha bilder från R2' så uppdateras databasen."
         footer={
           <div className="flex justify-end gap-2">
             <Button onClick={() => setOpen(false)}>Stäng</Button>
-            {query.data ? (
-              <Button variant="primary" onClick={() => copyToClipboard(buildFullList(query.data!), 'Hela listan kopierad')}>
-                Kopiera hela listan
-              </Button>
-            ) : null}
           </div>
         }
       >
@@ -1127,39 +1098,37 @@ function R2PathsButton({ restaurantId }: { restaurantId: string }) {
             <Loader2 size={24} className="animate-spin" />
           </div>
         ) : query.error ? (
-          <p className="text-sm text-rose-400">Kunde inte ladda template. Försök igen.</p>
+          <p className="text-sm text-rose-400">Kunde inte ladda mall. Försök igen.</p>
         ) : query.data ? (
           <div className="grid gap-4">
-            <div className="surface-muted px-4 py-3 text-xs">
-              <div className="text-[var(--text-secondary)]">Rot-prefix</div>
-              <div className="mt-1 flex items-center justify-between gap-2">
-                <code className="text-sm">{query.data.prefix}</code>
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(query.data!.prefix, 'Prefix kopierat')}
-                  className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                >
-                  Kopiera
-                </button>
+            <div className="surface-muted px-4 py-3 text-[11px]">
+              <div className="flex items-baseline gap-2">
+                <span className="font-bold text-[var(--text-primary)]">{query.data.restaurant.name}</span>
+                <span className="text-[var(--text-secondary)]">·</span>
+                <span className="text-[var(--text-secondary)]">
+                  {query.data.mainCategories.length} main · {query.data.categories.length} kategorier · {totalProducts} produkter
+                </span>
               </div>
-              <div className="mt-2 text-[var(--text-secondary)]">
-                {query.data.mainCategories.length} main-kategorier · {query.data.categories.length} kategorier · {totalProducts} produkter
+              <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
+                Format: WebP rekommenderas. Andra format (jpg, png) funkar men endpoints konverterar bara via admin-upload, inte vid direkt-upload till R2.
               </div>
             </div>
 
-            <_PathSection
-              title="Rot-filer (ladda upp direkt i restaurangens rotmapp)"
+            <_R2Section
+              title="Rot-filer"
+              folder={query.data.prefix}
               rows={[
-                { label: query.data.hero.label, key: query.data.hero.key },
-                { label: query.data.logo.label, key: query.data.logo.key },
+                { filename: basenameOf(query.data.hero.key), label: query.data.hero.label },
+                { filename: basenameOf(query.data.logo.key), label: query.data.logo.label },
               ]}
               onCopy={copyToClipboard}
             />
 
             {query.data.mainCategories.length ? (
-              <_PathSection
+              <_R2Section
                 title={`Main-kategorier (${query.data.mainCategories.length})`}
-                rows={query.data.mainCategories.map((mc) => ({ label: mc.name, key: mc.key }))}
+                folder={`${query.data.prefix}main/`}
+                rows={query.data.mainCategories.map((mc) => ({ filename: basenameOf(mc.key), label: mc.name }))}
                 onCopy={copyToClipboard}
               />
             ) : null}
@@ -1167,42 +1136,20 @@ function R2PathsButton({ restaurantId }: { restaurantId: string }) {
             {query.data.categories.length ? (
               <div>
                 <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">
-                  Produkter per kategori ({totalProducts} totalt)
+                  Kategorier — produkter ({totalProducts})
                 </p>
                 <div className="grid gap-3">
                   {query.data.categories.map((c) => (
-                    <div key={c.id} className="surface-muted overflow-hidden">
-                      <div className="flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] px-3 py-2">
-                        <div>
-                          <div className="text-sm font-bold">{c.name}</div>
-                          <code className="text-[10px] text-[var(--text-muted)]">{c.folder}</code>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(c.products.map((p) => p.key).join('\n'), `${c.name}: ${c.products.length} paths kopierade`)}
-                          className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                        >
-                          Kopiera {c.products.length}
-                        </button>
-                      </div>
-                      <div className="px-3 py-2 text-xs">
-                        {c.products.length ? c.products.map((p) => (
-                          <div key={p.id} className="flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] py-1 last:border-b-0">
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate font-semibold">{p.name}</div>
-                              <code className="block break-all text-[10px] text-[var(--text-muted)]">{p.key}</code>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => copyToClipboard(p.key, `${p.name}: path kopierad`)}
-                              className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                            >
-                              Kopiera
-                            </button>
-                          </div>
-                        )) : <p className="text-[var(--text-muted)]">Inga produkter</p>}
-                      </div>
-                    </div>
+                    <_R2Section
+                      key={c.id}
+                      title={c.name}
+                      subtitle={`slug: ${c.slug}`}
+                      folder={c.folder}
+                      rows={c.products.map((p) => ({ filename: basenameOf(p.key), label: p.name }))}
+                      onCopy={copyToClipboard}
+                      empty="Inga produkter"
+                      compact
+                    />
                   ))}
                 </div>
               </div>
@@ -1214,30 +1161,76 @@ function R2PathsButton({ restaurantId }: { restaurantId: string }) {
   );
 }
 
-function _PathSection({ title, rows, onCopy }: {
+/**
+ * R2-sektion = en mapp + lista av filer som ska in i den mappen.
+ * Visar mapp-path med kopieringsknapp och varje fil med basename + produktnamn.
+ * Kopierings-actions: hela sektionen, bara filnamn, eller fil-för-fil.
+ */
+function _R2Section({ title, subtitle, folder, rows, onCopy, empty, compact }: {
   title: string;
-  rows: Array<{ label: string; key: string }>;
+  subtitle?: string;
+  folder: string;
+  rows: Array<{ filename: string; label: string }>;
   onCopy: (text: string, label?: string) => void;
+  empty?: string;
+  compact?: boolean;
 }) {
+  const filenamesOnly = rows.map((r) => r.filename).join('\n');
+  const mapping = rows.map((r) => `${r.filename}\t${r.label}`).join('\n');
   return (
-    <div>
-      <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">{title}</p>
-      <div className="surface-muted px-3 py-2 text-xs">
-        {rows.map((r) => (
-          <div key={r.key} className="flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] py-1.5 last:border-b-0">
+    <div className="surface-muted overflow-hidden">
+      <div className="flex items-start justify-between gap-2 border-b border-[var(--border-subtle)] px-3 py-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold">{title}</div>
+          {subtitle ? (
+            <div className="text-[10px] text-[var(--text-muted)]">{subtitle}</div>
+          ) : null}
+          <div className="mt-1 flex items-center gap-2">
+            <code className="break-all text-[10px] text-[var(--text-secondary)]">{folder}</code>
+            <button
+              type="button"
+              onClick={() => onCopy(folder, 'Mapp kopierad')}
+              className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            >
+              Kopiera mapp
+            </button>
+          </div>
+        </div>
+        {rows.length ? (
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <button
+              type="button"
+              onClick={() => onCopy(filenamesOnly, `${rows.length} filnamn kopierade`)}
+              className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            >
+              Kopiera filnamn ({rows.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => onCopy(mapping, 'Filnamn → produkt CSV kopierat')}
+              className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            >
+              Kopiera CSV
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div className={compact ? "max-h-60 overflow-y-auto px-3 py-2 text-xs" : "px-3 py-2 text-xs"}>
+        {rows.length ? rows.map((r) => (
+          <div key={r.filename} className="flex items-center justify-between gap-2 border-b border-[var(--border-subtle)] py-1.5 last:border-b-0">
             <div className="min-w-0 flex-1">
-              <div className="font-semibold">{r.label}</div>
-              <code className="block break-all text-[10px] text-[var(--text-muted)]">{r.key}</code>
+              <code className="block break-all text-[12px] font-semibold text-[var(--text-primary)]">{r.filename}</code>
+              <div className="text-[10px] text-[var(--text-muted)]">→ {r.label}</div>
             </div>
             <button
               type="button"
-              onClick={() => onCopy(r.key, `${r.label}: path kopierad`)}
+              onClick={() => onCopy(r.filename, `${r.filename} kopierat`)}
               className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             >
               Kopiera
             </button>
           </div>
-        ))}
+        )) : <p className="text-[var(--text-muted)]">{empty || '—'}</p>}
       </div>
     </div>
   );
