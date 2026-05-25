@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { getDealScopeType, isDealAvailableNow, parseApplicableRestaurantIds, parseDealTargetIds, resolveDisplayPromotionForProduct } from '../lib/deals';
+import { predictedProductUrl, predictedMainCategoryUrl, predictedHeroUrl, slugifyPathSegment } from '../lib/r2';
 
 const router = Router();
 
@@ -64,15 +65,31 @@ router.get('/categories', async (req, res) => {
     const { restaurantId, slug } = req.query;
     const hasRestaurantScope = Boolean(restaurantId || slug);
 
-    const resolvedRestaurantId = await (async () => {
-      if (restaurantId) return restaurantId as string;
-      if (!slug) return null;
-      const restaurant = await prisma.restaurant.findFirst({
-        where: { slug: slug as string },
-        select: { id: true },
+    // Hämta restaurang inkl. slug + city så vi kan bygga R2 predicted URLs
+    // för bilder som saknas i databasen (Auto-discovery vid manuell R2-upload).
+    const resolvedRestaurant = await (async () => {
+      const where = restaurantId
+        ? { id: restaurantId as string }
+        : slug
+          ? { slug: slug as string }
+          : null;
+      if (!where) return null;
+      return prisma.restaurant.findFirst({
+        where,
+        select: {
+          id: true,
+          slug: true,
+          city: true,
+          city_relation: { select: { slug: true, name: true } },
+        },
       });
-      return restaurant?.id ?? null;
     })();
+    const resolvedRestaurantId = resolvedRestaurant?.id ?? null;
+    const restSlugForR2 = resolvedRestaurant?.slug ?? '';
+    const citySlugForR2 = resolvedRestaurant
+      ? (resolvedRestaurant.city_relation?.slug
+          || slugifyPathSegment(resolvedRestaurant.city_relation?.name || resolvedRestaurant.city || 'global'))
+      : '';
 
     // Cache hit? Vi shufflar populär-raden per request även vid HIT så
     // discovery-känslan inte tappas på cached svar.
@@ -182,14 +199,26 @@ router.get('/categories', async (req, res) => {
       description: cat.description,
       imageUrl: cat.imageUrl,
       mainCategoryId: cat.mainCategoryId || null,
-      products: cat.products.map((prod: any) => ({
+      products: cat.products.map((prod: any) => {
+        // Predicted R2 URL — om DB.imageUrl är null testar klienten denna.
+        // Om filen finns i R2 (på kanonisk slug-path) visas den direkt.
+        // Om inte → onError-fallback triggas och text-only kort visas.
+        const catSlug = cat.slug || slugifyPathSegment(cat.name);
+        const prodSlug = prod.slug || slugifyPathSegment(prod.name);
+        const predicted = predictedProductUrl({
+          city: citySlugForR2,
+          restaurant: restSlugForR2,
+          category: catSlug,
+          product: prodSlug,
+        });
+        return ({
         ...toDisplayDiscount(prod, cat.id, primaryRestaurantId, activeDeals),
         id: prod.id,
         name: prod.name,
         slug: prod.slug,
         description: prod.description,
         price: prod.price / 100, // konvertera ören till kr
-        imageUrl: prod.imageUrl,
+        imageUrl: prod.imageUrl || predicted,
         isVegan: prod.isVegan,
         isVegetarian: prod.isVegetarian,
         isGlutenFree: prod.isGlutenFree,
@@ -212,7 +241,8 @@ router.get('/categories', async (req, res) => {
           })),
           position: peg.extraGroup.position || 0,
         })),
-      })),
+        });
+      }),
     }));
 
     // Bygg topplagret. Huvudkategorier som har minst en kategori dyker upp som
@@ -255,10 +285,15 @@ router.get('/categories', async (req, res) => {
     const mainCategoriesPayload = mainCategories
       .map((mc) => {
         const cats = categoriesByMain.get(mc.id) || [];
+        const mcPredicted = predictedMainCategoryUrl({
+          city: citySlugForR2,
+          restaurant: restSlugForR2,
+          category: slugifyPathSegment(mc.name),
+        });
         return {
           id: mc.id,
           name: mc.name,
-          imageUrl: mc.imageUrl,
+          imageUrl: mc.imageUrl || mcPredicted,
           position: mc.position,
           isVirtual: false,
           categories: cats,

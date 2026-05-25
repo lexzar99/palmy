@@ -154,6 +154,41 @@ export function r2KeyToPublicUrl(key: string): string {
 }
 
 /**
+ * Predicera kanonisk R2-URL för en produkt baserat på slug-konventionen.
+ * Returnerar null om R2 inte är konfigurerat eller någon slug saknas.
+ *
+ * Används av menu-routen för att returnera en "speculative" imageUrl när
+ * databasens imageUrl är null — klienten försöker hämta, om filen finns
+ * i R2 visas den; annars triggas browser-fallback (text-only kort).
+ *
+ * Detta gör att uppladdning direkt till R2 med rätt namn → auto-discovery
+ * utan att admin behöver klicka "Matcha bilder från R2".
+ */
+export function predictedProductUrl(args: { city: string; restaurant: string; category: string; product: string }): string | null {
+  if (!r2Enabled()) return null;
+  if (!args.city || !args.restaurant || !args.category || !args.product) return null;
+  return r2KeyToPublicUrl(buildR2Key({ kind: 'product', ...args }));
+}
+
+export function predictedMainCategoryUrl(args: { city: string; restaurant: string; category: string }): string | null {
+  if (!r2Enabled()) return null;
+  if (!args.city || !args.restaurant || !args.category) return null;
+  return r2KeyToPublicUrl(buildR2Key({ kind: 'main-category', ...args }));
+}
+
+export function predictedHeroUrl(args: { city: string; restaurant: string }): string | null {
+  if (!r2Enabled()) return null;
+  if (!args.city || !args.restaurant) return null;
+  return r2KeyToPublicUrl(buildR2Key({ kind: 'hero', ...args }));
+}
+
+export function predictedLogoUrl(args: { city: string; restaurant: string }): string | null {
+  if (!r2Enabled()) return null;
+  if (!args.city || !args.restaurant) return null;
+  return r2KeyToPublicUrl(buildR2Key({ kind: 'logo', ...args }));
+}
+
+/**
  * Konvertera buffer till WebP, max 1200px bred, kvalitet 82.
  * Behåller original-aspect ratio. Bild som redan är WebP processas ändå
  * för konsistent komprimering — sharp är snabbt nog att inte spelar roll.

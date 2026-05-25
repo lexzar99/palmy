@@ -65,6 +65,51 @@ function getDisplayPrice(p: any): { final: number; original: number | null } {
 }
 
 /**
+ * Probar bildens load-state via en hidden Image()-instans. Returnerar true
+ * när URL:en faktiskt har laddats utan fel; false om null, fortfarande
+ * laddar, eller 404/network-error.
+ *
+ * Används så vi kan skilja mellan:
+ *  - "imageUrl saknas" (DB är null OCH ingen R2-prediction)         → text-only fallback direkt
+ *  - "imageUrl finns men 404:ar" (raderad i R2, dead Cloudinary)   → text-only fallback efter probe
+ *  - "imageUrl finns och funkar"                                    → visa bilden
+ *
+ * Probe cache:as i browsern via vanlig HTTP-cache så samma URL inte hämtas
+ * två gånger (preload + render).
+ */
+function useImageReachable(url: string | null | undefined): boolean {
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    if (!url) { setOk(false); return; }
+    let cancelled = false;
+    setOk(false);
+    const img = new window.Image();
+    img.onload = () => { if (!cancelled) setOk(true); };
+    img.onerror = () => { if (!cancelled) setOk(false); };
+    img.src = url;
+    return () => { cancelled = true; };
+  }, [url]);
+  return ok;
+}
+
+/**
+ * Tile-bild för main-kategori. Visar bilden om den går att hämta, annars
+ * faller tillbaka till stort centerat namn på neutral bakgrund (samma
+ * design som UniformCard:s text-only-platta).
+ */
+function MainCatImage({ url, name }: { url: string | null | undefined; name: string }) {
+  const ok = useImageReachable(url);
+  if (ok && url) {
+    return <img src={url} alt={name} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />;
+  }
+  return (
+    <div className="absolute inset-0 flex items-center justify-center p-4">
+      <span className="text-2xl md:text-3xl font-black text-center" style={{ color: "var(--text-primary)" }}>{name}</span>
+    </div>
+  );
+}
+
+/**
  * FullProductCard — produktrad för 1-per-rad-mode.
  *
  * Layout:
@@ -80,7 +125,9 @@ function getDisplayPrice(p: any): { final: number; original: number | null } {
  */
 function FullProductCard({ product, cartQty, onClick, disabled }: { product: any; cartQty: number; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
-  const hasImage = Boolean(product.imageUrl);
+  // hasImage = URL finns OCH bilden går faktiskt att hämta (probe via Image()).
+  // 404/raderad i R2 → false → text-fallback visas istället för broken-img-ikon.
+  const hasImage = useImageReachable(product.imageUrl);
   const showDescription = !product.hideDescription && Boolean(product.description);
 
   return (
@@ -162,7 +209,7 @@ function FullProductCard({ product, cartQty, onClick, disabled }: { product: any
  */
 function SquareRailCard({ product, onClick, disabled }: { product: any; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
-  const hasImage = Boolean(product.imageUrl);
+  const hasImage = useImageReachable(product.imageUrl);
   return (
     <button
       type="button"
@@ -274,7 +321,7 @@ function SquareRailCard({ product, onClick, disabled }: { product: any; onClick:
  */
 function UniformCard({ product, isPopular, onClick, disabled }: { product: any; isPopular?: boolean; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
-  const hasImage = Boolean(product.imageUrl);
+  const hasImage = useImageReachable(product.imageUrl);
   const totalH = 270;
   const imgH = 160;
   return (
@@ -390,7 +437,7 @@ function UniformCard({ product, isPopular, onClick, disabled }: { product: any; 
  */
 function CompactProductCard({ product, cartQty, onClick, disabled }: { product: any; cartQty: number; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
-  const hasImage = Boolean(product.imageUrl);
+  const hasImage = useImageReachable(product.imageUrl);
   return (
     <motion.button
       type="button"
@@ -1112,13 +1159,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                   className="group relative aspect-square rounded-md overflow-hidden cursor-pointer transition-transform hover:scale-[1.01]"
                   style={{ backgroundColor: "var(--bg-secondary)" }}
                 >
-                  {mc.imageUrl ? (
-                    <img src={mc.imageUrl} alt={mc.name} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center p-4">
-                      <span className="text-2xl md:text-3xl font-black text-center" style={{ color: "var(--text-primary)" }}>{mc.name}</span>
-                    </div>
-                  )}
+                  <MainCatImage url={mc.imageUrl} name={mc.name} />
                 </button>
               ))}
             </div>
