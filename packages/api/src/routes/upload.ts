@@ -136,8 +136,15 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
       }
     }
     if (categoryId) {
-      const cat = await prisma.category.findUnique({ where: { id: categoryId }, select: { slug: true, name: true } });
-      if (cat) categorySlug = cat.slug || slugifyPathSegment(cat.name);
+      // För main-category är ID:t i MainCategory-tabellen (saknar slug-kolumn).
+      // För product är ID:t i Category-tabellen (har slug). Lookup-tabell avgörs av kind.
+      if (kind === 'main-category') {
+        const mc = await prisma.mainCategory.findUnique({ where: { id: categoryId }, select: { name: true } });
+        if (mc) categorySlug = slugifyPathSegment(mc.name);
+      } else {
+        const cat = await prisma.category.findUnique({ where: { id: categoryId }, select: { slug: true, name: true } });
+        if (cat) categorySlug = cat.slug || slugifyPathSegment(cat.name);
+      }
     }
     if (productId) {
       const prod = await prisma.product.findUnique({ where: { id: productId }, select: { slug: true, name: true } });
