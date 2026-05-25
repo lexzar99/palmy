@@ -119,7 +119,9 @@ export type R2AutoMatchResult = {
   prefix: string;
   totalObjectsInPrefix: number;
   matched: { hero: boolean; logo: boolean; mainCategories: number; products: number };
-  updates: Array<{ kind: string; id: string; url: string; key: string }>;
+  /** Antal DB-skrivningar som faktiskt gjordes (skip:s om värdet redan var samma). */
+  writes?: number;
+  updates: Array<{ kind: string; id: string; url: string; key: string; changed?: boolean }>;
   dryRun: boolean;
 };
 

@@ -6,6 +6,7 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { r2Enabled, buildR2Key, uploadToR2, toWebp, listR2, existsInR2, slugifyPathSegment, r2KeyToPublicUrl } from '../lib/r2';
 import { runR2Migration, type MigrateOptions } from '../lib/r2Migrate';
 import prisma from '../lib/prisma';
+import { menuCacheBust } from './menu';
 import axios from 'axios';
 
 const router = Router();
@@ -234,7 +235,11 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
 
     const rest = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { slug: true, city: true, city_relation: { select: { slug: true, name: true } } },
+      select: {
+        slug: true, city: true,
+        imageUrl: true, heroImageUrl: true,
+        city_relation: { select: { slug: true, name: true } },
+      },
     });
     if (!rest) { res.status(404).json({ error: 'Restaurang hittades inte' }); return; }
     const citySlug = rest.city_relation?.slug || slugifyPathSegment(rest.city_relation?.name || rest.city || 'global');
@@ -246,43 +251,70 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
     // flera restauranger kan ha produkter med samma slug (t.ex. "Margherita").
     // För att matcha en bild MÅSTE den ligga på den exakta path:en som
     // /admin/images/paths-template anger. Användaren får mall via UI.
+    //
+    // No-op skydd: vi gör BARA prisma.update om värdet faktiskt skiljer sig
+    // från DB:s nuvarande imageUrl. Detta gör knappen helt idempotent —
+    // klicka 100 gånger utan DB-skrivningar om inget har förändrats.
 
     let matchedHero = false;
     let matchedLogo = false;
     let matchedMain = 0;
     let matchedProducts = 0;
-    const updates: Array<{ kind: string; id: string; url: string; key: string }> = [];
+    let actualWrites = 0;
+    const updates: Array<{ kind: string; id: string; url: string; key: string; changed: boolean }> = [];
 
-    // hero / logo
+    // hero.webp → Restaurant.heroImageUrl (banner-bilden)
     const heroKey = `${prefix}hero.webp`;
-    const logoKey = `${prefix}logo.webp`;
     if (keyByKey.has(heroKey)) {
       matchedHero = true;
-      updates.push({ kind: 'hero', id: restaurantId, url: r2KeyToPublicUrl(heroKey), key: heroKey });
-      if (!dryRun) await prisma.restaurant.update({ where: { id: restaurantId }, data: { imageUrl: r2KeyToPublicUrl(heroKey) } });
+      const url = r2KeyToPublicUrl(heroKey);
+      const changed = rest.heroImageUrl !== url;
+      updates.push({ kind: 'hero', id: restaurantId, url, key: heroKey, changed });
+      if (!dryRun && changed) {
+        await prisma.restaurant.update({ where: { id: restaurantId }, data: { heroImageUrl: url } });
+        actualWrites++;
+      }
     }
+    // logo.webp → Restaurant.imageUrl (mindre logo/avatar)
+    const logoKey = `${prefix}logo.webp`;
     if (keyByKey.has(logoKey)) {
       matchedLogo = true;
-      // Restaurant.logoUrl finns inte i schema, så loggar bara — admin kan sätta hero separat.
-      updates.push({ kind: 'logo', id: restaurantId, url: r2KeyToPublicUrl(logoKey), key: logoKey });
+      const url = r2KeyToPublicUrl(logoKey);
+      const changed = rest.imageUrl !== url;
+      updates.push({ kind: 'logo', id: restaurantId, url, key: logoKey, changed });
+      if (!dryRun && changed) {
+        await prisma.restaurant.update({ where: { id: restaurantId }, data: { imageUrl: url } });
+        actualWrites++;
+      }
     }
 
     // main-categories
-    const mainCats = await prisma.mainCategory.findMany({ where: { restaurantId } });
+    const mainCats = await prisma.mainCategory.findMany({
+      where: { restaurantId },
+      select: { id: true, name: true, imageUrl: true },
+    });
     for (const mc of mainCats) {
       const slug = slugifyPathSegment(mc.name);
       const key = `${prefix}main/${slug}.webp`;
       if (keyByKey.has(key)) {
         matchedMain++;
-        updates.push({ kind: 'main-category', id: mc.id, url: r2KeyToPublicUrl(key), key });
-        if (!dryRun) await prisma.mainCategory.update({ where: { id: mc.id }, data: { imageUrl: r2KeyToPublicUrl(key) } });
+        const url = r2KeyToPublicUrl(key);
+        const changed = mc.imageUrl !== url;
+        updates.push({ kind: 'main-category', id: mc.id, url, key, changed });
+        if (!dryRun && changed) {
+          await prisma.mainCategory.update({ where: { id: mc.id }, data: { imageUrl: url } });
+          actualWrites++;
+        }
       }
     }
 
     // products via kategori
     const products = await prisma.product.findMany({
       where: { category: { restaurantId } },
-      select: { id: true, slug: true, name: true, category: { select: { slug: true, name: true } } },
+      select: {
+        id: true, slug: true, name: true, imageUrl: true,
+        category: { select: { slug: true, name: true } },
+      },
     });
     for (const p of products) {
       const catSlug = p.category.slug || slugifyPathSegment(p.category.name);
@@ -290,9 +322,20 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
       const key = `${prefix}menu/${catSlug}/${prodSlug}.webp`;
       if (keyByKey.has(key)) {
         matchedProducts++;
-        updates.push({ kind: 'product', id: p.id, url: r2KeyToPublicUrl(key), key });
-        if (!dryRun) await prisma.product.update({ where: { id: p.id }, data: { imageUrl: r2KeyToPublicUrl(key) } });
+        const url = r2KeyToPublicUrl(key);
+        const changed = p.imageUrl !== url;
+        updates.push({ kind: 'product', id: p.id, url, key, changed });
+        if (!dryRun && changed) {
+          await prisma.product.update({ where: { id: p.id }, data: { imageUrl: url } });
+          actualWrites++;
+        }
       }
+    }
+
+    // Busta menu-cache så frontend ser de nya URL:erna direkt (utan att
+    // vänta på 8s TTL-utgång). Bara om vi faktiskt skrev något.
+    if (!dryRun && actualWrites > 0) {
+      menuCacheBust(restaurantId);
     }
 
     res.json({
@@ -301,6 +344,7 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
       prefix,
       totalObjectsInPrefix: items.length,
       matched: { hero: matchedHero, logo: matchedLogo, mainCategories: matchedMain, products: matchedProducts },
+      writes: actualWrites,
       updates: updates.slice(0, 20),
       dryRun,
     });
