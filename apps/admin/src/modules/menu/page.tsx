@@ -31,8 +31,6 @@ import {
   r2AutoMatch,
   r2Migrate,
   r2PathsTemplate,
-  setProductSoldOut,
-  clearProductSoldOut,
   updateCategory,
   updateExtraGroup,
   updateMainCategory,
@@ -1240,8 +1238,6 @@ function _R2Section({ title, subtitle, folder, rows, onCopy, empty, compact }: {
 
 export function MenuPage() {
   const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
-  const { showToast: toast } = useToast();
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
   const [pendingRouteProductId, setPendingRouteProductId] = useState<string | null>(null);
   const [tab, setTab] = useState<MenuTab>("main-categories");
@@ -1335,18 +1331,6 @@ export function MenuPage() {
   }, [pendingRouteProductId, products.data]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // "Slut idag" mutation — togglar Product.soldOutUntil. Auto-resettar via
-  // timestamp så personalen slipper komma ihåg att aktivera produkten igen.
-  const soldOutMutation = useMutation({
-    mutationFn: ({ productId, on }: { productId: string; on: boolean }) =>
-      on ? setProductSoldOut(productId) : clearProductSoldOut(productId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(activeRestaurantId) });
-    },
-    onError: (err: any) => {
-      toast({ type: "error", message: err?.response?.data?.error || "Kunde inte uppdatera 'Slut idag'" });
-    },
-  });
 
   if (restaurants.isLoading) {
     return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading menu module...</Surface>;
@@ -1471,42 +1455,26 @@ export function MenuPage() {
 
         {tab === "products" ? (
           <div className="mt-5 grid gap-2">
-            {filteredProducts.length === 0 ? <EmptyState title="No products found" /> : filteredProducts.map((product) => {
-              const soldOutActive = !!product.soldOutUntil && new Date(product.soldOutUntil).getTime() > Date.now();
-              return (
-              <div key={product.id} className="surface-muted w-full px-5 py-5 text-left">
+            {filteredProducts.length === 0 ? <EmptyState title="No products found" /> : filteredProducts.map((product) => (
+              <button key={product.id} type="button" onClick={() => { setActiveProduct(product); setProductModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <button type="button" onClick={() => { setActiveProduct(product); setProductModalOpen(true); }} className="flex-1 text-left">
+                  <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-lg font-black tracking-[-0.02em]">{product.name}</p>
                       <Badge tone={product.isActive === false ? "danger" : "success"}>{product.isActive === false ? "Inactive" : "Active"}</Badge>
-                      {soldOutActive ? <Badge tone="warning">Slut idag</Badge> : null}
                     </div>
                     <p className="mt-2 text-sm text-[var(--text-secondary)]">{product.category.name} • {product.description || "No description"}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {product.extraGroups.map((group) => <Badge key={group.id} tone="info">{group.name}</Badge>)}
                     </div>
-                  </button>
-                  <div className="flex items-start gap-4">
-                    <div className="text-right">
-                      <p className="text-lg font-black">{formatCurrency(product.price)}</p>
-                      <p className="mt-2 text-sm text-[var(--text-secondary)]">Position {product.position}</p>
-                    </div>
-                    <Button
-                      variant={soldOutActive ? "primary" : "secondary"}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        soldOutMutation.mutate({ productId: product.id, on: !soldOutActive });
-                      }}
-                      disabled={soldOutMutation.isPending}
-                    >
-                      {soldOutActive ? "Aktivera" : "Slut idag"}
-                    </Button>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-black">{formatCurrency(product.price)}</p>
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">Position {product.position}</p>
                   </div>
                 </div>
-              </div>
-              );
-            })}
+              </button>
+            ))}
           </div>
         ) : null}
 
