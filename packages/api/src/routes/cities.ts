@@ -4,8 +4,15 @@ import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZo
 import { isPointInZone, pointInPolygon, haversineKm, findDeliveryZone, DeliveryZone } from '../utils/geo';
 import { getEffectiveZoneEta } from '../lib/restaurantZoneEta';
 import { resolveOrCreateCity, getCityFamilyIds } from '../lib/cityResolver';
+import { authenticate, requireSuperAdmin } from '../middleware/auth';
 
 const router = Router();
+
+// Cities-routes: GET-endpoints är publika (kunden behöver lista städer +
+// validera leverans till sin adress). Mutate-endpoints (merge/aliases/upsert/
+// delete) påverkar hela stad-hierarkin och ska bara köras av SUPER_ADMIN.
+// Detta middleware gäller bara routes som monteras EFTER raden nedan — alla
+// GET-routes är därför fortsatt publika.
 
 const safeJsonParse = <T>(value: unknown, fallback: T): T => {
   if (typeof value !== 'string') return fallback;
@@ -124,7 +131,7 @@ router.get('/hierarchy', async (_req, res) => {
 // Malmö när Google säger "Arlöv". Web-filter visar hela familjen.
 //
 // Sätt parentCityId till null för att lossa.
-router.patch('/:id/merge', async (req, res) => {
+router.patch('/:id/merge', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const childId = req.params.id;
     const { parentCityId } = req.body as { parentCityId: string | null };
@@ -169,7 +176,7 @@ router.patch('/:id/merge', async (req, res) => {
 // ── PATCH /api/cities/:id/aliases ────────────────────────────────────────────
 // Lägg till eller ta bort alias-namn. Body: { aliases: string[] } — ersätter
 // hela listan. Admin styr själv vilka namn ska resolvas till denna stad.
-router.patch('/:id/aliases', async (req, res) => {
+router.patch('/:id/aliases', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const { aliases } = req.body as { aliases: unknown };
     if (!Array.isArray(aliases) || !aliases.every((a) => typeof a === 'string')) {
@@ -188,7 +195,7 @@ router.patch('/:id/aliases', async (req, res) => {
 });
 
 // ── POST /api/cities — upsert city ────────────────────────────────────────────
-router.post('/', async (req, res) => {
+router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const {
       id, name, slug, deliveryMode, zones, isActive,
@@ -398,7 +405,7 @@ router.post('/validate-location', async (req, res) => {
 });
 
 // ── DELETE /api/cities/:id ────────────────────────────────────────────────────
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     await (prisma as any).city.delete({ where: { id: req.params.id } });
     res.json({ success: true });

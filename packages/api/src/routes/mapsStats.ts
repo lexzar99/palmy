@@ -7,8 +7,16 @@
  * For multi-instance deployments, move storage to Redis/DB.
  */
 import { Router } from 'express';
+import { authenticate, requireSuperAdmin } from '../middleware/auth';
 
 const router = Router();
+
+// POST /log lämnas publik eftersom web-proxyn (apps/web/app/api/places/*)
+// fire-and-forget loggar Maps-anrop direkt — kräver ingen admin-auth. IP-
+// based abuse-tracking (flaggade IPs) finns redan i log-handlern.
+// GET / (dashboard) och DELETE /flag (admin rensar flaggning) får
+// däremot bara nås av SUPER_ADMIN — de exponerar abuse-data och låter
+// admin gömma missbruk om de är öppna.
 
 const DAILY_WARN = 500;   // warn admin at this many daily calls
 const DAILY_BLOCK = 2000; // hard daily cap (protects free-tier credit)
@@ -106,7 +114,7 @@ let blockSent = false;
 
 // ── GET /api/maps-stats ──────────────────────────────────────────────────────
 // Admin dashboard reads this
-router.get('/', (req, res) => {
+router.get('/', authenticate, requireSuperAdmin, (req, res) => {
   rolloverIfNeeded();
   res.json({
     today,
@@ -123,7 +131,7 @@ router.get('/', (req, res) => {
 });
 
 // ── DELETE /api/maps-stats/flag?ip=x ────────────────────────────────────────
-router.delete('/flag', (req, res) => {
+router.delete('/flag', authenticate, requireSuperAdmin, (req, res) => {
   const ip = req.query.ip as string;
   if (ip) flaggedIPs.delete(ip);
   res.json({ ok: true });

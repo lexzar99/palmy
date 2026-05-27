@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { authenticate } from '../middleware/auth';
+import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { r2Enabled, buildR2Key, uploadToR2, toWebp, listR2, existsInR2, slugifyPathSegment, r2KeyToPublicUrl } from '../lib/r2';
@@ -11,6 +11,25 @@ import axios from 'axios';
 
 const router = Router();
 router.use(authenticate);
+
+// Skydd mot att en RESTAURANT_ADMIN/STAFF för restaurang A laddar upp bilder
+// under restaurang B:s prefix (menu-hijacking). SUPER_ADMIN passerar alltid.
+// Returnerar true om OK, skickar 403 och returnerar false om scope inte matchar.
+const assertRestaurantScope = (
+  req: Request,
+  restaurantId: string | null,
+  res: Response,
+): boolean => {
+  if (!restaurantId) return true; // misc-uploads utan restaurang-koppling
+  const adminReq = req as AuthRequest;
+  const role = adminReq.admin?.role;
+  if (role === 'SUPER_ADMIN') return true;
+  if (adminReq.admin?.restaurantId === restaurantId) return true;
+  res
+    .status(403)
+    .json({ error: 'Du får bara hantera bilder för din egen restaurang' });
+  return false;
+};
 
 const hasCloudinaryConfig = Boolean(
   process.env.CLOUDINARY_URL ||
@@ -116,6 +135,8 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
     const restaurantId = req.body.restaurantId ? String(req.body.restaurantId) : null;
     const categoryId = req.body.categoryId ? String(req.body.categoryId) : null;
     const productId = req.body.productId ? String(req.body.productId) : null;
+
+    if (!assertRestaurantScope(req, restaurantId, res)) return;
 
     // Resolva slugs från DB så path:en blir kanonisk även om admin skriver
     // "ÅngermanlandsKött & Kebab"
@@ -232,6 +253,7 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
     const restaurantId = String(req.body.restaurantId || '');
     const dryRun = Boolean(req.body.dryRun);
     if (!restaurantId) { res.status(400).json({ error: 'Saknar restaurantId' }); return; }
+    if (!assertRestaurantScope(req, restaurantId, res)) return;
 
     const rest = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
@@ -458,7 +480,7 @@ router.get('/images/paths-template', async (req: Request, res: Response) => {
  *   - apply måste vara explicit true — annars dry-run.
  *   - maxItems kan stoppa körningen tidigt.
  */
-router.post('/images/migrate', async (req: Request, res: Response) => {
+router.post('/images/migrate', requireSuperAdmin, async (req: Request, res: Response) => {
   try {
     if (!r2Enabled()) {
       res.status(503).json({ error: 'R2 är inte konfigurerat på servern' });

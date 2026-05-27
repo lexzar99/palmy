@@ -1576,6 +1576,12 @@ router.post('/:id/live-activity-token', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Ogiltig token' });
       return;
     }
+    // TODO(mobile-launch): kräv ägar-bevis (JWT-match eller accessToken)
+    // när iOS-appen uppdaterats att forwarda Authorization-header eller
+    // order.accessToken. För nuvarande RN-klient (src/lib/api.ts saknar
+    // global Authorization-injection) skulle en strikt check breaka push-
+    // notiser i Live Activity för alla iOS-användare. Webappen påverkas
+    // inte — endpointen är iOS-only.
     const updated = await prisma.order.updateMany({
       where: { id: orderId },
       data: { liveActivityToken: token },

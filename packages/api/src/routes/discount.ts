@@ -1,10 +1,32 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 
 const router = Router();
 
+// Per-individ rate-limit (INTE global). Skyddar mot brute-force av rabatt-
+// koder utan att slå ut legitima kunder vid expansion: 200 olika kunder kan
+// validera samma kod parallellt utan att blocka varandra. Key:en kombinerar
+// IP + Authorization-header (om inloggad) så samma device delar bucket men
+// olika kunder/IPs får egna fönster. 20 anrop / 5 min är gott och väl för
+// vanligt kassaflöde — angripare som testar tusentals koder blir bromsade.
+const validateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const auth = (req.headers.authorization || '').trim();
+    // Använd sista 16 tecken av JWT för att skilja användare utan att läcka
+    // hela token i memory. Saknas auth → bara IP, vilket räcker som spärr.
+    const userPart = auth.startsWith('Bearer ') ? auth.slice(-16) : 'anon';
+    return `${req.ip}:${userPart}`;
+  },
+  message: { error: 'För många rabattkods-försök. Vänta några minuter.' },
+});
+
 // POST /api/discount/validate
-router.post('/validate', async (req, res) => {
+router.post('/validate', validateLimiter, async (req, res) => {
   try {
     const { code, subtotal } = req.body;
 
