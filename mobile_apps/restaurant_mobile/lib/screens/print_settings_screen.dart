@@ -6,6 +6,7 @@ import '../core/print_service.dart';
 import '../core/printing_config_service.dart';
 import '../core/theme.dart';
 import '../widgets/app_ui.dart';
+import 'printer_help_screen.dart';
 
 class PrintSettingsScreen extends StatefulWidget {
   const PrintSettingsScreen({super.key});
@@ -783,6 +784,20 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                             color: Colors.teal,
                             loading: false,
                             onTap: _showManualAddressModal,
+                          ),
+                          const SizedBox(height: 14),
+                          _buildActionTile(
+                            icon: Icons.help_outline_rounded,
+                            title: 'Hjälp och felsökning',
+                            subtitle:
+                                'Steg-för-steg-guide för Bluetooth- och nätverksskrivare',
+                            color: Colors.indigo,
+                            loading: false,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const PrinterHelpScreen()),
+                            ),
                           ),
                         ],
                       ),

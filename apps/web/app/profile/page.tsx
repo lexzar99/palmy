@@ -686,6 +686,10 @@ function ProfileContent() {
       setUser(null);
       setOrders([]);
       setDeals([]);
+      // Töm in-memory PII så listan inte visas under fade-out till logged-out-vy.
+      // localStorage rensas redan av clearPlatformSession (platform_quick_addresses
+      // m.fl.) men React-state måste nollas separat.
+      setSavedAddresses([]);
       // Sign out of both Supabase and NextAuth (legacy)
       const supabase = createSupabaseBrowserClient();
       await Promise.allSettled([

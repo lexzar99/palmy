@@ -1741,10 +1741,15 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/orders/:id/review  (public — works for both guests and logged-in users)
+// POST /api/orders/:id/review  (kräver ägar-bevis — guest eller inloggad).
+// Tidigare var endpointen helt publik och en angripare kunde betygsätta vilken
+// levererad order som helst, vilket gav en rating-attack-vektor mot konkurrenter.
+// Samma trefaldiga ägar-check som GET /:id: JWT (Supabase eller legacy) som
+// matchar order.userId, query/body-phone som matchar order.customerPhone, eller
+// accessToken som matchar order.accessToken (32-byte slumpad, 30 min TTL).
 router.post('/:id/review', async (req: Request, res: Response) => {
   try {
-    const { rating, review, likedItemIds } = req.body;
+    const { rating, review, likedItemIds, phone: bodyPhone, accessToken: bodyAccessToken } = req.body;
     if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({ error: 'Betyg måste vara mellan 1-5' });
     }
@@ -1758,6 +1763,50 @@ router.post('/:id/review', async (req: Request, res: Response) => {
     }
     if ((order as any).rating) {
       return res.status(400).json({ error: 'Denna order har redan fått ett betyg' });
+    }
+
+    let isOwner = false;
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const bearer = authHeader.split(' ')[1];
+      if (supabaseAdmin) {
+        try {
+          const { data: { user: sbUser } } = await supabaseAdmin.auth.getUser(bearer);
+          if (sbUser && (order as any).userId === sbUser.id) isOwner = true;
+        } catch { /* fallthrough */ }
+      }
+      if (!isOwner) {
+        try {
+          const payload = jwt.verify(bearer, JWT_SECRET) as any;
+          if (payload?.id && (order as any).userId === payload.id) isOwner = true;
+        } catch { /* fallthrough */ }
+      }
+    }
+    if (!isOwner) {
+      const phoneCandidate =
+        (typeof req.query.phone === 'string' ? req.query.phone : null) ||
+        (typeof bodyPhone === 'string' ? bodyPhone : null);
+      const normalize = (p: string | null | undefined) => (p || '').replace(/[^\d+]/g, '');
+      if (phoneCandidate && normalize(phoneCandidate) === normalize((order as any).customerPhone)) {
+        isOwner = true;
+      }
+    }
+    if (!isOwner) {
+      const tokenCandidate =
+        (typeof req.query.token === 'string' ? req.query.token : null) ||
+        (typeof bodyAccessToken === 'string' ? bodyAccessToken : null);
+      const orderToken = (order as any).accessToken as string | null | undefined;
+      if (tokenCandidate && orderToken && tokenCandidate === orderToken) {
+        // Reviews får vi tillåta hela 30 dagar efter delivery — review-fönstret
+        // är längre än access-fönstret för PII (30 min). Stoppar bara mycket
+        // gamla orders som ändå inte borde kunna betygsättas.
+        const ageMs = Date.now() - new Date(order.createdAt).getTime();
+        if (ageMs < 30 * 24 * 60 * 60 * 1000) isOwner = true;
+      }
+    }
+    if (!isOwner) {
+      // 404 (inte 403) så ID-gissning inte avslöjar om en order existerar.
+      return res.status(404).json({ error: 'Order hittades inte' });
     }
 
     const validProductIds = new Set((order.items as any[]).map((i) => i.productId));

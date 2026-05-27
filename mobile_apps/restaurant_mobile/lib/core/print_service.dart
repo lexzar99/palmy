@@ -114,12 +114,69 @@ class _RP {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Kategori av printer-fel — styr vilken hjälp-sektion vi öppnar och
+/// vilka åtgärdssteg vi visar för personal. Spara koden enkel: BT, NETWORK
+/// eller CONFIG/UNKNOWN för restkategorier.
+enum PrinterFailureCategory { bluetooth, network, config, unknown }
+
 /// Event som publiceras när ett auto-print misslyckas. UI:t (DashboardScreen)
-/// lyssnar på [PrintService.errors] och visar en SnackBar.
+/// lyssnar på [PrintService.errors] och visar en SnackBar med "HJÄLP"-action
+/// som leder direkt till relevant sektion i PrinterHelpScreen.
 class PrintFailure {
   final String orderNumber;
   final String reason;
-  PrintFailure({required this.orderNumber, required this.reason});
+  final PrinterFailureCategory category;
+  final List<String> troubleshootingSteps;
+  PrintFailure({
+    required this.orderNumber,
+    required this.reason,
+    this.category = PrinterFailureCategory.unknown,
+    this.troubleshootingSteps = const [],
+  });
+}
+
+// Kort steg-för-steg-instruktion per kategori. Visas i SnackBar-toast som
+// fallback om personal trycker på "DETALJER" innan de hinner till hjälp-
+// skärmen. Behåll listorna korta — 3-4 punkter — så de får plats i UI.
+const Map<PrinterFailureCategory, List<String>> _quickTroubleshooting = {
+  PrinterFailureCategory.bluetooth: [
+    'Kontrollera att skrivaren är på och inte i strömsparläge',
+    'Öppna Android Bluetooth-inställningar och verifiera att skrivaren är parad',
+    'Slå av/på Bluetooth på telefonen och försök igen',
+    'Om felet kvarstår: starta om skrivaren (5 sek nedtryckt power)',
+  ],
+  PrinterFailureCategory.network: [
+    'Kontrollera att skrivaren är ansluten till samma Wi-Fi som telefonen',
+    'Verifiera IP-adressen under Inställningar → Skrivare',
+    'Pinga IP:n från en dator för att bekräfta att den svarar',
+    'Starta om skrivaren och routern om felet kvarstår',
+  ],
+  PrinterFailureCategory.config: [
+    'Öppna Inställningar → Skrivare',
+    'Välj "Skanna nätverk" eller "Skanna Bluetooth"',
+    'Spara skrivaren och kör ett testkvitto',
+  ],
+  PrinterFailureCategory.unknown: [
+    'Försök igen — det kan vara ett tillfälligt fel',
+    'Om felet kvarstår: öppna Inställningar → Skrivare → Skriv ut test',
+    'Behåll skrivarens skärm framme så vi kan se ev. felkod',
+  ],
+};
+
+PrinterFailureCategory _categorizeFailure(String reason, {required bool hasPrinter}) {
+  if (!hasPrinter) return PrinterFailureCategory.config;
+  final lower = reason.toLowerCase();
+  if (lower.contains('bluetooth') || lower.contains('bt-')) {
+    return PrinterFailureCategory.bluetooth;
+  }
+  if (lower.contains('nätverk') ||
+      lower.contains('network') ||
+      lower.contains('socket') ||
+      lower.contains('ip') ||
+      RegExp(r'\d+\.\d+\.\d+\.\d+').hasMatch(reason)) {
+    return PrinterFailureCategory.network;
+  }
+  return PrinterFailureCategory.unknown;
 }
 
 class PrintService {
@@ -193,7 +250,7 @@ class PrintService {
 
     if (printer == null) {
       const reason = 'Ingen skrivare konfigurerad';
-      _emitFailure(order, reason, isAuto: respectAutoPrint);
+      _emitFailure(order, reason, isAuto: respectAutoPrint, hasPrinter: false);
       return reason;
     }
 
@@ -214,24 +271,32 @@ class PrintService {
 
       if (issue != null) {
         logger.log('PRINT FAIL #${order.orderNumber}: $issue');
-        _emitFailure(order, issue, isAuto: respectAutoPrint);
+        _emitFailure(order, issue, isAuto: respectAutoPrint, hasPrinter: true);
         return issue;
       }
       return null;
     } catch (e) {
       final reason = _humanizeError(e);
       logger.log('PRINT EXCEPTION #${order.orderNumber}: $e');
-      _emitFailure(order, reason, isAuto: respectAutoPrint);
+      _emitFailure(order, reason, isAuto: respectAutoPrint, hasPrinter: printer != null);
       return reason;
     }
   }
 
   static void _emitFailure(OrderModel order, String reason,
-      {required bool isAuto}) {
+      {required bool isAuto, required bool hasPrinter}) {
     if (!isAuto) return; // manuella prints har redan UI-feedback via knapp
     if (_errorController.isClosed) return;
+    final category = _categorizeFailure(reason, hasPrinter: hasPrinter);
     _errorController.add(
-      PrintFailure(orderNumber: order.orderNumber, reason: reason),
+      PrintFailure(
+        orderNumber: order.orderNumber,
+        reason: reason,
+        category: category,
+        troubleshootingSteps:
+            _quickTroubleshooting[category] ??
+                _quickTroubleshooting[PrinterFailureCategory.unknown]!,
+      ),
     );
   }
 
@@ -284,35 +349,62 @@ class PrintService {
     String? lastError;
 
     if (printer != null && paperWidth != 'A4' && address.isNotEmpty) {
+      // Retry-policy: två försök med 1500 ms paus emellan. Bluetooth-skrivare
+      // tappar ofta connection kort när Android väcker dem från strömsparläge,
+      // och nätverk kan ha tillfälliga timeouts. Ett retry är ofta nog för att
+      // återansluta utan att personalen märker något. Vi disconnectar Bluetooth
+      // explicit mellan försöken så nästa attempt får ren state.
+      const maxAttempts = 2;
+      const retryDelay = Duration(milliseconds: 1500);
+
       if (_isBluetoothPrinter(printer)) {
-        lastError = await _tryBluetoothPrint(
-          address: address,
-          paperWidth: paperWidth,
-          copies: copies,
-          receiptData: receiptData,
-          template: template,
-        );
-        if (lastError == null) {
-          await _printingConfigService.heartbeat(
-            printerId: printer.id,
+        for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+          lastError = await _tryBluetoothPrint(
             address: address,
+            paperWidth: paperWidth,
+            copies: copies,
+            receiptData: receiptData,
+            template: template,
           );
-          return null;
+          if (lastError == null) {
+            await _printingConfigService.heartbeat(
+              printerId: printer.id,
+              address: address,
+            );
+            return null;
+          }
+          if (attempt < maxAttempts) {
+            logger.log(
+                'PRINT BT försök $attempt misslyckades: $lastError — retry om ${retryDelay.inMilliseconds}ms');
+            try {
+              await BluetoothPrinterService.disconnect();
+            } catch (_) {
+              // disconnect kan kasta om skrivaren aldrig anslöts; det är OK
+            }
+            await Future.delayed(retryDelay);
+          }
         }
       } else if (_looksLikeNetworkPrinter(address)) {
-        lastError = await _tryNetworkPrint(
-          address: address,
-          paperWidth: paperWidth,
-          copies: copies,
-          receiptData: receiptData,
-          template: template,
-        );
-        if (lastError == null) {
-          await _printingConfigService.heartbeat(
-            printerId: printer.id,
+        for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+          lastError = await _tryNetworkPrint(
             address: address,
+            paperWidth: paperWidth,
+            copies: copies,
+            receiptData: receiptData,
+            template: template,
           );
-          return null;
+          if (lastError == null) {
+            await _printingConfigService.heartbeat(
+              printerId: printer.id,
+              address: address,
+            );
+            return null;
+          }
+          if (attempt < maxAttempts) {
+            logger.log(
+                'PRINT NET försök $attempt misslyckades: $lastError — retry om ${retryDelay.inMilliseconds}ms');
+            await Future.delayed(retryDelay);
+          }
         }
       }
     }

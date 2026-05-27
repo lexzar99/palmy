@@ -1239,7 +1239,6 @@ function _R2Section({ title, subtitle, folder, rows, onCopy, empty, compact }: {
 export function MenuPage() {
   const searchParams = useSearchParams();
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
-  const [pendingRouteRestaurantId, setPendingRouteRestaurantId] = useState<string | null>(null);
   const [pendingRouteProductId, setPendingRouteProductId] = useState<string | null>(null);
   const [tab, setTab] = useState<MenuTab>("main-categories");
   const [query, setQuery] = useState("");
@@ -1264,26 +1263,33 @@ export function MenuPage() {
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    // Läs URL-param OCH applicera den i ett enda effekt-pass. Tidigare fanns
+    // två separata effekter (sätt pendingRouteRestaurantId → sätt activeRestaurantId).
+    // De körde i samma render-batch men auto-pick-grenen läste pendingRouteRestaurantId
+    // från gammal closure (= null) → activeRestaurantId blev "första restaurang i listan"
+    // i stället för restaurangen i URL:en. Det här var bakomliggande orsaken till att
+    // "Öppna menyeditor" från en restaurangsida ibland visade fel restaurang på första
+    // renderingen (rapporterat av A6 Fredrik).
     const restaurantId = searchParams.get("restaurantId");
     const productId = searchParams.get("productId");
-    if (restaurantId) setPendingRouteRestaurantId(restaurantId);
-    if (productId) setPendingRouteProductId(productId);
-  }, [searchParams]);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (pendingRouteRestaurantId) {
-      setActiveRestaurantId(pendingRouteRestaurantId);
-      setPendingRouteRestaurantId(null);
+    if (productId) setPendingRouteProductId(productId);
+
+    // URL-param har ALLTID företräde — sätt activeRestaurantId direkt utan att gå
+    // via pendingRoute-state, så ingen efterföljande auto-pick-pass kan ta över.
+    if (restaurantId) {
+      setActiveRestaurantId(restaurantId);
       didAutoSelectRef.current = true;
       return;
     }
 
+    // Fallback: auto-pick första restaurang om ingen URL-param finns och vi inte
+    // redan har gjort ett val.
     if (!didAutoSelectRef.current && !activeRestaurantId && restaurants.data?.length) {
       setActiveRestaurantId(restaurants.data[0].id);
       didAutoSelectRef.current = true;
     }
-  }, [activeRestaurantId, pendingRouteRestaurantId, restaurants.data]);
+  }, [searchParams, activeRestaurantId, restaurants.data]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const categories = useQuery({ queryKey: menuCategoriesQueryKey(activeRestaurantId), queryFn: () => getCategories(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });

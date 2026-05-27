@@ -13,7 +13,7 @@ import '../main.dart' show triggerSleep;
 import 'new_order_alert_screen.dart';
 import 'order_detail_screen.dart';
 import 'order_take_screen.dart';
-import 'print_settings_screen.dart';
+import 'printer_help_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -57,10 +57,14 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
+    // Längre duration (10s) ger personalen tid att läsa felet och välja
+    // mellan HJÄLP (steg-för-steg) och FIXA (inställningar). Innan retry-
+    // logiken introducerades hade SnackBaren 6s — men nu rapporterar vi
+    // bara efter två auto-försök, så fel som visas är värda mer uppmärksamhet.
     messenger.showSnackBar(
       SnackBar(
         backgroundColor: AppTheme.danger,
-        duration: const Duration(seconds: 6),
+        duration: const Duration(seconds: 10),
         behavior: SnackBarBehavior.floating,
         content: Row(
           children: [
@@ -79,20 +83,35 @@ class _DashboardScreenState extends State<DashboardScreen>
                         fontSize: 14),
                   ),
                   Text(
-                    failure.reason,
+                    '${failure.reason} (efter 2 försök)',
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
+                  if (failure.troubleshootingSteps.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '→ ${failure.troubleshootingSteps.first}',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11.5,
+                          fontStyle: FontStyle.italic),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
               ),
             ),
           ],
         ),
         action: SnackBarAction(
-          label: 'FIXA',
+          label: 'HJÄLP',
           textColor: Colors.white,
           onPressed: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const PrintSettingsScreen()),
+            MaterialPageRoute(
+              builder: (_) =>
+                  PrinterHelpScreen(focusCategory: failure.category),
+            ),
           ),
         ),
       ),

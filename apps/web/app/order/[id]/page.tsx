@@ -228,7 +228,14 @@ const OrderStatusPage = () => {
     if (!reviewRating || !orderId) return;
     setReviewSubmitting(true);
     try {
-      await axios.post(`/api/platform/orders/${orderId}/review`, { rating: reviewRating, review: reviewText, likedItemIds });
+      // Backend kräver ägar-bevis (JWT från cookie, eller phone/accessToken
+      // från URL för gäster). Platform-proxyn lägger till Authorization
+      // automatiskt om kunden är inloggad; gäster måste skicka samma token/
+      // phone som vi använde för att hämta ordern (rad 117-126).
+      const body: any = { rating: reviewRating, review: reviewText, likedItemIds };
+      if (tokenFromUrl) body.accessToken = tokenFromUrl;
+      if (phoneFromUrl) body.phone = phoneFromUrl;
+      await axios.post(`/api/platform/orders/${orderId}/review`, body);
       setReviewDone(true);
       setShowReview(false);
       setOrder((prev: any) => prev ? { ...prev, rating: reviewRating } : prev);

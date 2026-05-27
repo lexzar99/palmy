@@ -80,12 +80,43 @@ class AuthProvider with ChangeNotifier {
     return false;
   }
 
+  // Lista med SharedPreferences-nycklar som hör till föregående inloggad
+  // staff och INTE ska överleva en logout. Petra (A16) påvisade att
+  // restaurang B:s personal kunde se restaurang A:s cachade ordrar,
+  // printer-konfig och app-logs när de loggade in på samma device.
+  static const List<String> _userScopedPrefKeys = [
+    'printer_id',
+    'printer_name',
+    'printer_ip',
+    'printer_paper_width',
+    'printer_connection_type',
+    'auto_print',
+    'print_copies',
+    'receipt_template_cache',
+    'app_logs',
+  ];
+
+  Future<void> _clearUserScopedData(SharedPreferences prefs) async {
+    // Cached orders har dynamiska nycklar (cached_orders_<restaurantId>),
+    // så vi iterar över alla keys och rensar matchande prefix.
+    final allKeys = prefs.getKeys();
+    for (final key in allKeys) {
+      if (key.startsWith('cached_orders_')) {
+        await prefs.remove(key);
+      }
+    }
+    for (final key in _userScopedPrefKeys) {
+      await prefs.remove(key);
+    }
+  }
+
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await PushService.unregister();
     await AppForegroundService.stop();
     await SecureTokenStore.deleteToken();
     await prefs.remove(AppConstants.adminKey);
+    await _clearUserScopedData(prefs);
     logger.log('LOGOUT: ${_user?['email']}');
     _user = null;
     _logoutCode = null;
