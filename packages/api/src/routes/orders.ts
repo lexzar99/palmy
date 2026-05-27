@@ -492,6 +492,17 @@ router.post('/', async (req: Request, res: Response) => {
         return;
       }
 
+      // "Slut idag"-skydd (#36). Admin kan markera produkt som slut för
+      // dagen — auto-resettar via timestamp. Reject:a beställning här som
+      // safety net även om klient skulle missa Slut-badgen.
+      const soldOutUntil = (product as any).soldOutUntil as Date | null | undefined;
+      if (soldOutUntil && new Date(soldOutUntil).getTime() > Date.now()) {
+        res.status(400).json({
+          error: `"${product.name}" är slut just nu. Ta bort den och försök igen.`,
+        });
+        return;
+      }
+
       const groupMap = new Map(
         product.extraGroups.map((peg) => [
           peg.extraGroup.id,

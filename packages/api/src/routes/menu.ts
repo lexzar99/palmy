@@ -225,6 +225,12 @@ router.get('/categories', async (req, res) => {
         // Visningsläge för menykortet (FULL = 1-per-rad, COMPACT = 2-per-rad)
         displayMode: prod.displayMode || "FULL",
         hideDescription: prod.hideDescription || false,
+        // "Slut idag" — klienter visar Slut-badge + disable cart-knapp om
+        // soldOutUntil > now. Backend reject:ar också beställningar med
+        // sold-out items som extra safety net i POST /api/orders.
+        soldOutUntil: prod.soldOutUntil
+          ? new Date(prod.soldOutUntil).toISOString()
+          : null,
         extraGroups: prod.extraGroups.map((peg: any) => ({
           id: peg.extraGroup.id,
           name: peg.extraGroup.name,

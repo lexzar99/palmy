@@ -1928,6 +1928,21 @@ export default function CartPage() {
                       <span>-{finalDiscount.toFixed(0)} {t("common.sek")}</span>
                     </div>
                   )}
+                  {/* Promo applied men inte aktiverad än (subtotal under deal:s min-order).
+                      Utan denna rad ser kunden bara "kod applied" i input-fältet utan att
+                      förstå varför totalen inte ändras — Bilal A2 fynd. */}
+                  {finalDiscount === 0 && selectedPersonalDeal && (selectedPersonalDeal.campaign.minOrder || 0) > subtotal && (
+                    <div className="flex justify-between text-[11px] font-black uppercase tracking-wider text-amber-500/90 leading-snug">
+                      <span>{selectedPersonalDeal.code}</span>
+                      <span>{t("cart.summary.discountPendingMin", { defaultValue: "Aktiveras vid {{amount}} kr", amount: (selectedPersonalDeal.campaign.minOrder || 0).toFixed(0) })}</span>
+                    </div>
+                  )}
+                  {finalDiscount === 0 && selectedAccountDeal && (selectedAccountDeal.minOrderKr ?? 0) > subtotal && (
+                    <div className="flex justify-between text-[11px] font-black uppercase tracking-wider text-amber-500/90 leading-snug">
+                      <span>{formatDealLabel(selectedAccountDeal, t)}</span>
+                      <span>{t("cart.summary.discountPendingMin", { defaultValue: "Aktiveras vid {{amount}} kr", amount: (selectedAccountDeal.minOrderKr ?? 0).toFixed(0) })}</span>
+                    </div>
+                  )}
                   {restaurantSettings.vatPercent ? (
                     <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
                       <span>{t("cart.summary.vat", { percent: restaurantSettings.vatPercent })}</span>
@@ -1962,7 +1977,7 @@ export default function CartPage() {
                   </div>
                 )}
 
-                {error && <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest text-center italic">{error}</div>}
+                {error && <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13px] font-black uppercase tracking-wider text-center leading-snug">{error}</div>}
 
                 {/* Checkout button */}
                 <button
@@ -2883,7 +2898,7 @@ export default function CartPage() {
                         </div>
                      </div>
 
-                    {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest text-center italic">{error}</motion.div>}
+                    {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13px] font-black uppercase tracking-wider text-center leading-snug">{error}</motion.div>}
 
                       {/* Guest info banner — not blocking, just informative */}
                       {!user && (
@@ -2910,7 +2925,7 @@ export default function CartPage() {
                          </motion.div>
                        )}
 
-                       {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest text-center italic">{error}</motion.div>}
+                       {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13px] font-black uppercase tracking-wider text-center leading-snug">{error}</motion.div>}
 
                        <button
                           onClick={startCheckout}

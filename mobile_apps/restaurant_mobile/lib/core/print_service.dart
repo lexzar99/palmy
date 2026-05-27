@@ -513,18 +513,26 @@ class PrintService {
         debugPrint('Bitmap render failed, using ESC/POS text fallback: $bitmapErr');
         oneCopy = _buildEscPosBytes(generator, receiptData, template);
       }
-      final allBytes = <int>[
-        for (var i = 0; i < copies; i++) ...oneCopy,
-      ];
-      final printed = await BluetoothPrinterService.printBytes(
+      // Skicka kopia för kopia (inte en konkatenerad buffer) så vi kan
+      // rapportera exakt antal lyckade kopior — B5-fix från A9 Ivar:
+      // tidigare returnerades false när socket dog efter kopia 1 av 2,
+      // personal tryckte igen → dubbel-utskrift av kopia 1.
+      final result = await BluetoothPrinterService.printBytes(
         address: address,
-        bytes: allBytes,
+        bytes: oneCopy,
+        copies: copies,
       );
-      if (!printed) {
-        return 'Bluetooth-skrivaren ($address) svarade inte. '
-            'Kontrollera att skrivaren är påslagen och parad i Android Bluetooth-inställningarna.';
+      if (result.isFullSuccess) return null;
+      if (result.isPartial) {
+        // Kritiskt UX: säg åt personalen att INTE trycka igen — vi har redan
+        // tryckt det mesta. Bara så många kopior som saknas behövs handprintas.
+        final missing = result.totalCopies - result.successCopies;
+        final remainsTxt = missing == 1 ? '1 kopia saknas' : '$missing kopior saknas';
+        return 'Bluetooth: ${result.successCopies}/${result.totalCopies} kopior klara — $remainsTxt. '
+            'Tryck INTE skriv-ut igen, dela hand-skrivna kopior istället. (${result.error ?? "okänt fel"})';
       }
-      return null;
+      return result.error ?? 'Bluetooth-skrivaren ($address) svarade inte. '
+          'Kontrollera att skrivaren är påslagen och parad i Android Bluetooth-inställningarna.';
     } catch (error) {
       debugPrint('Bluetooth print failed: $error');
       return 'Bluetooth-fel: $error';

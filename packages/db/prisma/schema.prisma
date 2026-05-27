@@ -65,6 +65,11 @@ model Product {
   // När true: hoppa över beskrivningen i menyn (för compact-items där beskrivning
   // inte behövs eller bara är brus). Admin-styrt.
   hideDescription     Boolean             @default(false)
+  // "Slut idag"-toggle. När satt till en framtida timestamp så är produkten
+  // gömd från kund-menyn och nya beställningar med denna produkt avvisas.
+  // Auto-rensar sig själv genom att tiden passerar — typiskt sätter admin
+  // den till nästa midnatt. Personal slipper komma ihåg att aktivera igen.
+  soldOutUntil        DateTime?
   // Discount / sale fields for "Rea & rabatterat" section on home.
   // discountPercent overrides discountPrice if both are set.
   discountPercent     Int?                // 1-95 (%)

@@ -1746,6 +1746,105 @@ router.patch('/products/:id', async (req, res) => {
   }
 });
 
+// POST /api/admin/products/:id/sold-out
+// Sätter produkten som "slut idag" — auto-resettar vid nästa midnatt så
+// personalen slipper komma ihåg att aktivera igen. Body { until?: ISO-string }
+// låter admin override till annan tidpunkt (t.ex. "slut till kl 18").
+router.post('/products/:id/sold-out', async (req, res) => {
+  try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      const existing = await prisma.product.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, category: { select: { restaurantId: true } } },
+      });
+      if (!existing) {
+        res.status(404).json({ error: 'Produkt hittades inte' });
+        return;
+      }
+      if (existing.category.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara hantera produkter för din restaurang' });
+        return;
+      }
+    }
+
+    // Default: nästa midnatt i lokal tid (Europe/Stockholm).
+    let until: Date;
+    if (typeof req.body?.until === 'string') {
+      const parsed = new Date(req.body.until);
+      if (Number.isNaN(parsed.getTime())) {
+        res.status(400).json({ error: 'Ogiltigt until-datum' });
+        return;
+      }
+      until = parsed;
+    } else {
+      const now = new Date();
+      until = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+    }
+
+    const product = await (prisma as any).product.update({
+      where: { id: req.params.id },
+      data: { soldOutUntil: until },
+      include: { category: { select: { restaurantId: true } } },
+    });
+    await audit(req as AuthRequest, 'PRODUCT_SOLD_OUT', {
+      resourceType: 'Product',
+      resourceId: product.id,
+      changes: { soldOutUntil: until.toISOString() },
+    });
+    broadcastMenuChange(product.category?.restaurantId ?? null, {
+      kind: 'product',
+      productId: product.id,
+      isActive: product.isActive,
+    });
+    res.json({ ok: true, soldOutUntil: until.toISOString() });
+  } catch (error: any) {
+    console.error('Error setting product sold-out:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Serverfel') });
+  }
+});
+
+// DELETE /api/admin/products/:id/sold-out — rensa "slut idag" innan timeout.
+router.delete('/products/:id/sold-out', async (req, res) => {
+  try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      const existing = await prisma.product.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, category: { select: { restaurantId: true } } },
+      });
+      if (!existing) {
+        res.status(404).json({ error: 'Produkt hittades inte' });
+        return;
+      }
+      if (existing.category.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara hantera produkter för din restaurang' });
+        return;
+      }
+    }
+    const product = await (prisma as any).product.update({
+      where: { id: req.params.id },
+      data: { soldOutUntil: null },
+      include: { category: { select: { restaurantId: true } } },
+    });
+    await audit(req as AuthRequest, 'PRODUCT_SOLD_OUT_CLEAR', {
+      resourceType: 'Product',
+      resourceId: product.id,
+    });
+    broadcastMenuChange(product.category?.restaurantId ?? null, {
+      kind: 'product',
+      productId: product.id,
+      isActive: product.isActive,
+    });
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error('Error clearing product sold-out:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Serverfel') });
+  }
+});
+
 // DELETE /api/admin/products/:id
 router.delete('/products/:id', async (req, res) => {
   try {
@@ -4594,19 +4693,70 @@ router.get('/crisis/state', authenticate, requireSuperAdmin, async (_req: AuthRe
   }
 });
 
-// GET /api/admin/audit-log?limit=100&offset=0
+// GET /api/admin/audit-log?limit=100&offset=0&action=ORDER_REFUND&actor=alice@matgo.se&from=2026-05-01&to=2026-05-27&q=searchText
+// Filter:
+//   - action: matchar AuditLog.action exakt (eller prefix via *)
+//   - actor:  matchar AuditLog.adminEmail (substring, case-insensitive)
+//   - from/to: ISO-datum eller YYYY-MM-DD, inkluderar hela to-dagen
+//   - q:      söker i resourceType, resourceId och adminEmail
+// Saknas filter — backwards-compatibel beteende (alla loggar paginerade).
 router.get('/audit-log', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(String(req.query.limit || '100'), 10) || 100, 1), 500);
     const offset = Math.max(parseInt(String(req.query.offset || '0'), 10) || 0, 0);
 
+    const where: any = {};
+    const action = String(req.query.action || '').trim();
+    if (action) {
+      // Stöd `ORDER_*` för wildcard-prefix (vanligaste case: filtrera alla
+      // order-relaterade events utan att lista varje action-typ för sig).
+      if (action.endsWith('*')) {
+        where.action = { startsWith: action.slice(0, -1) };
+      } else {
+        where.action = action;
+      }
+    }
+    const actor = String(req.query.actor || '').trim();
+    if (actor) {
+      where.adminEmail = { contains: actor, mode: 'insensitive' };
+    }
+    const q = String(req.query.q || '').trim();
+    if (q) {
+      where.OR = [
+        { resourceType: { contains: q, mode: 'insensitive' } },
+        { resourceId: { contains: q, mode: 'insensitive' } },
+        { adminEmail: { contains: q, mode: 'insensitive' } },
+        { action: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    const fromRaw = String(req.query.from || '').trim();
+    const toRaw = String(req.query.to || '').trim();
+    if (fromRaw || toRaw) {
+      where.createdAt = {};
+      if (fromRaw) {
+        const fromDate = new Date(fromRaw);
+        if (!Number.isNaN(fromDate.getTime())) where.createdAt.gte = fromDate;
+      }
+      if (toRaw) {
+        // Inkludera hela to-dagen: lägg på 23:59:59 om bara YYYY-MM-DD.
+        const toDate = new Date(toRaw);
+        if (!Number.isNaN(toDate.getTime())) {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(toRaw)) {
+            toDate.setHours(23, 59, 59, 999);
+          }
+          where.createdAt.lte = toDate;
+        }
+      }
+    }
+
     const [logs, total] = await Promise.all([
       prisma.auditLog.findMany({
+        where,
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
       }),
-      prisma.auditLog.count(),
+      prisma.auditLog.count({ where }),
     ]);
     res.json({
       logs: logs.map((l) => ({

@@ -66,6 +66,9 @@ export interface ProductRecord {
   // Visningsläge i menyn — "FULL" eller "COMPACT".
   displayMode?: "FULL" | "COMPACT";
   hideDescription?: boolean;
+  /** ISO-timestamp medan produkten är markerad "slut idag" — auto-rensas
+   *  vid den tidpunkten så personalen slipper komma ihåg att aktivera igen. */
+  soldOutUntil?: string | null;
   category: { name: string; restaurantId?: string | null };
   extraGroups: Array<{
     id: string;
@@ -99,6 +102,13 @@ export const deleteCategory = (categoryId: string) => apiDelete<{ success: boole
 export const createProduct = (payload: Record<string, unknown>) => apiPost<ProductRecord>("/admin/products", payload);
 export const updateProduct = (productId: string, payload: Record<string, unknown>) => apiPatch<ProductRecord>(`/admin/products/${productId}`, payload);
 export const deleteProduct = (productId: string) => apiDelete<{ success: boolean }>(`/admin/products/${productId}`);
+
+// "Slut idag"-toggle. Backend defaultar `until` till midnatt om vi inte
+// skickar något — admin slipper räkna ut tiden själv.
+export const setProductSoldOut = (productId: string, until?: string) =>
+  apiPost<{ ok: boolean; soldOutUntil: string }>(`/admin/products/${productId}/sold-out`, until ? { until } : {});
+export const clearProductSoldOut = (productId: string) =>
+  apiDelete<{ ok: boolean }>(`/admin/products/${productId}/sold-out`);
 
 export const createExtraGroup = (payload: Record<string, unknown>) => apiPost<ExtraGroupRecord>("/admin/extra-groups", payload);
 export const updateExtraGroup = (groupId: string, payload: Record<string, unknown>) => apiPatch<ExtraGroupRecord>(`/admin/extra-groups/${groupId}`, payload);
