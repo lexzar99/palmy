@@ -66,7 +66,7 @@ class ReceiptTemplateSettings {
     final rawElements = json['elements'] as List? ?? const [];
     return ReceiptTemplateSettings(
       paperWidth: json['paperWidth']?.toString() ?? '80mm',
-      platformName: json['platformName']?.toString() ?? 'MatGo',
+      platformName: json['platformName']?.toString() ?? 'Levera',
       elements: rawElements
           .whereType<Map>()
           .map((element) => ReceiptTemplateElement.fromJson(
@@ -370,7 +370,7 @@ class PrintingConfigService {
 
   ReceiptTemplateSettings _defaultTemplate() => ReceiptTemplateSettings(
         paperWidth: '80mm',
-        platformName: 'MatGo',
+        platformName: 'Levera',
         elements: [
           ReceiptTemplateElement(
               key: 'restaurantName',
@@ -383,7 +383,7 @@ class PrintingConfigService {
               uppercase: true),
           ReceiptTemplateElement(
               key: 'platformName',
-              label: 'Plattformsnamn (MatGo)',
+              label: 'Plattformsnamn (Levera)',
               content: null,
               visible: true,
               size: 8,

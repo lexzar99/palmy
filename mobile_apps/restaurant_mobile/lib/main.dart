@@ -63,14 +63,14 @@ void main() async {
         ChangeNotifierProvider(create: (_) => OrderProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: MatGoBusinessApp(version: fullVersion),
+      child: LeveraBusinessApp(version: fullVersion),
     ),
   );
 }
 
-class MatGoBusinessApp extends StatelessWidget {
+class LeveraBusinessApp extends StatelessWidget {
   final String version;
-  const MatGoBusinessApp({super.key, required this.version});
+  const LeveraBusinessApp({super.key, required this.version});
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +79,7 @@ class MatGoBusinessApp extends StatelessWidget {
         return Consumer<AuthProvider>(
           builder: (context, auth, _) {
             return MaterialApp(
-              title: 'MatGo Business v$version',
+              title: 'Levera Business v$version',
               debugShowCheckedModeBanner: false,
               theme: themeProvider.currentTheme,
               scrollBehavior: const MaterialScrollBehavior().copyWith(

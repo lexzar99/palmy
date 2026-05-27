@@ -94,7 +94,7 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
         'Som sista utväg: starta om appen helt och försök igen.',
       ],
       footerNote:
-          'Om problemet kvarstår mer än 10 minuter, kontakta MatGo support med en bild på skrivarens display.',
+          'Om problemet kvarstår mer än 10 minuter, kontakta Levera support med en bild på skrivarens display.',
     ),
   ];
 

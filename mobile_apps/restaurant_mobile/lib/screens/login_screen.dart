@@ -135,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 28),
                           Center(
                             child: Text(
-                              'MatGo Business',
+                              'Levera Business',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 32,

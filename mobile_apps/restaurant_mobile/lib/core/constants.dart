@@ -64,5 +64,5 @@ class AppConstants {
   static const String fcmTokenKey = 'matgo_fcm_token';
 
   // App settings
-  static const String appTitle = 'MatGo Business';
+  static const String appTitle = 'Levera Business';
 }

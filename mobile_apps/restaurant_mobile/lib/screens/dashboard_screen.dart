@@ -472,7 +472,7 @@ class _EditorialHeader extends StatelessWidget {
     final statusColor = isOpen ? AppTheme.success : AppTheme.danger;
     final statusLabel = isOpen ? 'Öppet' : 'Stängd';
 
-    final restName = (auth.user?['name'] ?? 'MatGo').toString();
+    final restName = (auth.user?['name'] ?? 'Levera').toString();
     final today = _formatToday();
 
     return Column(

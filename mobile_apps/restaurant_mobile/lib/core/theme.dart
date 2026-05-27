@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// MatGo Business — "Ember Studio" redesign.
+/// Levera Business — "Ember Studio" redesign.
 ///
 /// Warm amber accent (#FF9D45) på en varm ink-svart eller paper-cream
 /// bakgrund. Editorial typography med större hierarki. Behåller alla

@@ -330,7 +330,7 @@ class PrintService {
       printer: effectivePrinter,
       allowPdfFallback:
           effectivePrinter == null || effectivePrinter.paperWidth == 'A4',
-      printJobName: 'MatGo_Testkvitto',
+      printJobName: 'Levera_Testkvitto',
     );
   }
 
@@ -1505,7 +1505,7 @@ class PrintService {
 
     return {
       'header': {
-        'restaurantName': 'MatGo Business',
+        'restaurantName': 'Levera Business',
         'address': '',
         'city': '',
         'zip': '',
@@ -1568,7 +1568,7 @@ class PrintService {
       orderNumber: 'TEST-01',
       status: 'PENDING',
       type: 'DELIVERY',
-      customerName: 'MatGo Testkvitto',
+      customerName: 'Levera Testkvitto',
       customerPhone: '070-000 00 00',
       total: 219,
       deliveryFee: 29,
