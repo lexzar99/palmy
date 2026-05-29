@@ -39,9 +39,38 @@ function broadcastMenuChange(restaurantId: string | null, payload: Record<string
     if (restaurantId) {
       getIO().to(`admin-room:${restaurantId}`).emit('menu:changed', event);
     }
+    // Fire-and-forget: purge the customer web app's SSR cache for this slug so a
+    // menu edit shows immediately (falls back to time-based revalidate if the web
+    // app is unreachable or REVALIDATE_SECRET isn't configured).
+    void revalidateWebMenu(restaurantId);
   } catch (err) {
     // Never let a socket broadcast failure abort the mutation
     console.warn('[menu] broadcast failed', err);
+  }
+}
+
+// POST to the customer web app's on-demand revalidation endpoint so the SSR'd
+// menu for this restaurant refreshes instantly on any menu change. Safe no-op
+// until REVALIDATE_SECRET + FRONTEND_URL are configured on both services.
+async function revalidateWebMenu(restaurantId: string | null) {
+  if (!restaurantId) return;
+  const secret = process.env.REVALIDATE_SECRET;
+  const webUrl = process.env.FRONTEND_URL;
+  if (!secret || !webUrl) return;
+  try {
+    const r = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { slug: true },
+    });
+    if (!r?.slug) return;
+    const axios = (await import('axios')).default;
+    await axios.post(
+      `${webUrl.replace(/\/$/, '')}/api/revalidate`,
+      { slug: r.slug },
+      { headers: { 'x-revalidate-secret': secret }, timeout: 4000 },
+    );
+  } catch (err) {
+    console.warn('[menu] web revalidate failed', (err as any)?.message ?? err);
   }
 }
 // RBAC: VIEWER kan bara läsa, STAFF kan läsa+skriva men inte radera,

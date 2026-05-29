@@ -77,6 +77,8 @@ model Product {
   orderItems          OrderItem[]
   category            Category            @relation(fields: [categoryId], references: [id])
   extraGroups         ProductExtraGroup[]
+
+  @@index([categoryId])
 }
 
 model ExtraGroup {
@@ -216,6 +218,9 @@ model OrderItem {
   createdAt      DateTime @default(now())
   order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product        Product  @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 model DiscountCode {
