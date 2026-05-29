@@ -868,7 +868,11 @@ export default function CartPage() {
                 : "FIXED",
             discountValue: data.value,
             title: data.description || data.code,
-            minOrder: 0,
+            // minOrder från backend (kr) — tidigare hårdkodat 0, vilket gjorde
+            // att pending-discount-raden aldrig triggades för manuella kupong-
+            // koder (A2 Bilal-fynd). Nu visas "Aktiveras vid X kr" korrekt om
+            // kunden tar bort varor och hamnar under tröskeln.
+            minOrder: typeof data.minOrder === "number" ? data.minOrder : 0,
             freeDelivery: Boolean(data.freeDelivery),
           }
         });

@@ -27,6 +27,11 @@ const BoxCheckIcon = ({ size = 24, className = "" }: { size?: number; className?
 // Stil + icon per status. Label + desc resolveras via t() inne i komponenten
 // (order.status.*.label / .desc) eftersom STATUS_CONFIG är module-level.
 const STATUS_CONFIG: Record<string, { icon: any; colorClass: string; textClass: string }> = {
+  AWAITING_PAYMENT: {
+    icon: Clock,
+    colorClass: "bg-amber-500/10 border-amber-500/20 shadow-amber-500/5",
+    textClass: "text-amber-500",
+  },
   PENDING: {
     icon: Clock,
     colorClass: "bg-amber-500/10 border-amber-500/20 shadow-amber-500/5",

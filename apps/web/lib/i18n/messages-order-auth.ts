@@ -4,6 +4,8 @@
 export const orderAuthPending = {
   sv: {
     // ── Order status (STATUS_CONFIG label + desc) ─────────────────────────
+    "order.status.AWAITING_PAYMENT.label": "Väntar på betalning",
+    "order.status.AWAITING_PAYMENT.desc": "Vi väntar på att din betalning ska bekräftas. Det tar oftast bara några sekunder.",
     "order.status.PENDING.label": "Granskas",
     "order.status.PENDING.desc": "Vi har tagit emot din beställning. Väntar på att köket ska bekräfta.",
     "order.status.ACCEPTED.label": "Bekräftad!",
@@ -225,6 +227,8 @@ export const orderAuthPending = {
   },
   en: {
     // ── Order status (STATUS_CONFIG label + desc) ─────────────────────────
+    "order.status.AWAITING_PAYMENT.label": "Awaiting payment",
+    "order.status.AWAITING_PAYMENT.desc": "We're waiting for your payment to be confirmed. This usually only takes a few seconds.",
     "order.status.PENDING.label": "Under review",
     "order.status.PENDING.desc": "We've received your order. Waiting for the kitchen to confirm.",
     "order.status.ACCEPTED.label": "Confirmed!",

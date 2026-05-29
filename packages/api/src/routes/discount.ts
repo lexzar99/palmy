@@ -74,6 +74,9 @@ router.post('/validate', validateLimiter, async (req, res) => {
         type: discount.type,
         value: 0,
         discountAmount: 0,
+        // minOrder (kr) returneras så klienten kan visa "Aktiveras vid X kr"
+        // om kunden senare tar bort varor och hamnar under tröskeln.
+        minOrder: discount.minOrder / 100,
         freeDelivery: true,
       });
       return;
@@ -94,6 +97,10 @@ router.post('/validate', validateLimiter, async (req, res) => {
       value: discount.value,
       // Client expects kr
       discountAmount: discountAmountOre / 100,
+      // minOrder (kr) — klienten lagrar detta så pending-discount-raden
+      // ("Aktiveras vid X kr") kan visas om kunden tar bort varor och
+      // hamnar under tröskeln efter att koden applicerats.
+      minOrder: discount.minOrder / 100,
       // Stackbar fri leverans-flagga. Klienten använder den för att räkna
       // ut total = subtotal - discountAmount - (freeDelivery ? deliveryFee : 0).
       // Utan denna såg kunden bara halva rabatten i kassan (Eriks bugg).
