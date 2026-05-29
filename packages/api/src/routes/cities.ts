@@ -5,6 +5,7 @@ import { isPointInZone, pointInPolygon, haversineKm, findDeliveryZone, DeliveryZ
 import { getEffectiveZoneEta } from '../lib/restaurantZoneEta';
 import { resolveOrCreateCity, getCityFamilyIds } from '../lib/cityResolver';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
+import { cached } from '../lib/ttlCache';
 
 const router = Router();
 
@@ -23,19 +24,22 @@ const safeJsonParse = <T>(value: unknown, fallback: T): T => {
 router.get('/', async (req, res) => {
   try {
     const all = req.query.all === 'true';
-    const cities = await (prisma as any).city.findMany({
-      where: all ? {} : { isActive: true },
-      include: {
-        restaurants: {
-          select: {
-            id: true, name: true, slug: true, isOpen: true, city: true,
-            freeDeliveryAbove: true, // EXCLUDED deliveryZones
-            latitude: true, longitude: true,
+    // Cache 30s: identical for all anonymous callers; collapses the home herd.
+    const cities = await cached('cities:list', all ? 'all' : 'active', 30_000, () =>
+      (prisma as any).city.findMany({
+        where: all ? {} : { isActive: true },
+        include: {
+          restaurants: {
+            select: {
+              id: true, name: true, slug: true, isOpen: true, city: true,
+              freeDeliveryAbove: true, // EXCLUDED deliveryZones
+              latitude: true, longitude: true,
+            }
           }
-        }
-      },
-      orderBy: { name: 'asc' }
-    });
+        },
+        orderBy: { name: 'asc' }
+      })
+    );
     res.json(cities);
   } catch (err) {
     console.error('Cities fetch error:', err);
@@ -308,6 +312,11 @@ router.post('/validate-location', async (req, res) => {
     const { lat, lng } = req.body as { lat: number; lng: number };
     if (!lat || !lng) return res.status(400).json({ error: 'lat/lng required' });
 
+    // Cache 60s keyed by coarse coords (~11m): validate-location scans ALL active
+    // cities x their restaurants + runs polygon math in JS. Without this, 1000
+    // concurrent address checks each re-run the full scan and exhaust the DB pool.
+    const geoKey = `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
+    const result = await cached('zone:validate', geoKey, 60_000, async () => {
     const cities = await (prisma as any).city.findMany({
       where: { isActive: true },
       include: {
@@ -392,12 +401,10 @@ router.post('/validate-location', async (req, res) => {
       });
     }
 
-    res.json({
-      covered: matchedCities.length > 0,
-      cities: matchedCities,
-      lat,
-      lng,
+    return { covered: matchedCities.length > 0, cities: matchedCities };
     });
+
+    res.json({ ...result, lat, lng });
   } catch (err) {
     console.error('Zone validation error:', err);
     res.status(500).json({ error: 'Zonvalidering misslyckades' });

@@ -9,6 +9,7 @@ import { isRestaurantOpen } from '../lib/openingHours';
 import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
 import { getEffectiveEtaMinutes, ETA_DEFAULT_MINUTES } from '../lib/restaurantEta';
 import { resolveOrCreateCity } from '../lib/cityResolver';
+import { cached } from '../lib/ttlCache';
 
 const router = Router();
 
@@ -260,6 +261,10 @@ router.post('/seed', authenticate, async (req: AuthRequest, res) => {
 router.get('/', async (req, res) => {
   try {
     const { withMenu, city } = req.query;
+    // Cache 20s: the public restaurant list is identical for all anonymous
+    // callers (home/search/discover share it); also caches the per-row
+    // formatRestaurant CPU. Collapses the herd to one query+format per window.
+    const out = await cached('rest:list', `${withMenu === '1' ? 'menu' : 'lite'}|${(city as string) || ''}`, 20_000, async () => {
     const restaurants = await prisma.restaurant.findMany({
       where: city ? { city: city as string } : {},
       include: {
@@ -287,7 +292,10 @@ router.get('/', async (req, res) => {
       orderBy: { featuredClass: 'asc' },
     });
 
-    res.json(restaurants.map(r => formatRestaurant(r, withMenu === '1')));
+    return restaurants.map(r => formatRestaurant(r, withMenu === '1'));
+    });
+
+    res.json(out);
   } catch (err) {
     res.status(500).json({ error: 'Kunde inte hämta restauranger' });
   }

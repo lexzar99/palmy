@@ -134,6 +134,7 @@ function getDynamicETA(order: any): string {
 
 const TERMINAL_STATUSES = new Set(["DELIVERED", "COMPLETED", "CANCELLED", "REJECTED"]);
 const STORAGE_KEY = "matgo_active_order_id";
+const DISMISS_KEY = "matgo_dismissed_order_id";
 
 export default function LiveOrderBanner() {
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -146,8 +147,12 @@ export default function LiveOrderBanner() {
     const read = () => {
       try {
         const id = localStorage.getItem(STORAGE_KEY);
+        const dismissedId = localStorage.getItem(DISMISS_KEY);
         setOrderId(id || null);
-        setDismissed(false);
+        // Dismiss must PERSIST per order — only un-dismiss when a NEW order id
+        // appears. Previously this reset to false every 30s, so the banner could
+        // never actually be dismissed.
+        setDismissed(Boolean(id) && id === dismissedId);
       } catch { }
     };
     read();
@@ -227,7 +232,10 @@ export default function LiveOrderBanner() {
 
   const display = useMemo(() => (order ? getStatusDisplay(order.status) : null), [order]);
 
-  if (!order || dismissed || !display) return null;
+  // Never show the live banner for an unpaid (AWAITING_PAYMENT) order — it's not
+  // a live order yet, and an abandoned one would otherwise sit here forever.
+  // (Backend deletes abandoned ones after 30 min; the poll then 404s and clears.)
+  if (!order || dismissed || !display || order.status === "AWAITING_PAYMENT") return null;
 
   const orderNumber = (order.orderNumber || "").toString().replace(/^PX-/, "") || order.id;
   const isTerminal = order.status === "DELIVERED" || order.status === "COMPLETED";
@@ -322,7 +330,7 @@ export default function LiveOrderBanner() {
                   className="text-zinc-700 group-hover:text-white group-hover:translate-x-0.5 transition-all"
                 />
                 <button
-                  onClick={(e) => { e.preventDefault(); setDismissed(true); }}
+                  onClick={(e) => { e.preventDefault(); setDismissed(true); try { localStorage.setItem(DISMISS_KEY, order.id); } catch { } }}
                   className="p-2 rounded-xl text-zinc-700 hover:text-white hover:bg-white/8 transition-colors"
                   aria-label="Dölj"
                 >

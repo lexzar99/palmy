@@ -2,6 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { evaluateDeal, formatDealForClient, isBasketDeal, isDealAvailableNow, parseDealProductIds, type CartItemForBogo } from '../lib/deals';
+import { cached } from '../lib/ttlCache';
 
 const router = Router();
 
@@ -166,6 +167,12 @@ router.get('/banners', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
+    // Cache 30s keyed by restaurant scope: public deals are identical for all
+    // anonymous callers of the same restaurant. Collapses the deal-fetch herd.
+    const dealsKey = (typeof req.query.restaurantId === 'string' && req.query.restaurantId)
+      || (typeof req.query.slug === 'string' && req.query.slug.trim())
+      || 'all';
+    const out = await cached('deals:public', dealsKey, 30_000, async () => {
     let targetRestaurantId = typeof req.query.restaurantId === 'string' ? req.query.restaurantId : null;
 
     if (!targetRestaurantId && typeof req.query.slug === 'string' && req.query.slug.trim()) {
@@ -211,7 +218,7 @@ router.get('/', async (req, res) => {
 
     const productNameMap = new Map(comboProducts.map((product) => [product.id, product.name]));
 
-    res.json(
+    return (
       deals
         .filter((deal) => isDealAvailableNow(deal) && (isBasketDeal(deal) || deal.triggerType === 'BOGO_CATEGORY'))
         .map((deal) =>
@@ -226,8 +233,11 @@ router.get('/', async (req, res) => {
               : null,
             applicableRestaurantIds: parseJsonArray(deal.applicableRestaurantIds),
           }),
-        ),
+        )
     );
+    });
+
+    res.json(out);
   } catch (error) {
     console.error('Public deals error:', error);
     res.status(500).json({ error: 'Kunde inte hämta deals' });

@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import twilio from 'twilio';
 import prisma from '../lib/prisma';
 import { JWT_SECRET } from '../lib/config';
+import { cached } from '../lib/ttlCache';
 import { getRestaurantAdminLogin, normalizeAdminLoginAlias } from '../lib/adminLogin';
 import supabaseAdmin, { supabasePublic } from '../lib/supabase';
 import { authenticate, resolveAdminSessionFromToken } from '../middleware/auth';
@@ -282,7 +283,11 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
   // ── 1. Try Supabase JWT ───────────────────────────────────────────────────
   if (supabaseAdmin) {
     try {
-      const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+      // Cache token validation 30s: a logged-in user fires many requests and
+      // without this each one is a network call to Supabase Auth (the
+      // 1000-concurrent auth bottleneck). Keyed by the exact token; an invalid
+      // token caches harmlessly for 30s.
+      const { data: { user }, error } = await cached('auth:sb', token, 30_000, () => supabaseAdmin!.auth.getUser(token));
       if (!error && user) {
         // Soft-delete revival. Admin-deleted accounts have deletedAt set
         // and identifying fields nulled out; when the same Apple/Google

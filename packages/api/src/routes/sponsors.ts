@@ -10,6 +10,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
+import { cached } from '../lib/ttlCache';
 
 const router = Router();
 const RECORD_ID = 'global_sponsors';
@@ -62,7 +63,8 @@ async function writeSponsors(sponsors: Sponsor[]): Promise<void> {
 // ── GET /api/sponsors — public, returns only active sponsors ─────────────────
 router.get('/', async (_req, res) => {
   try {
-    const all = await readSponsors();
+    // Cache 60s: sponsors change rarely and are identical for everyone.
+    const all = await cached('sponsors:public', 'all', 60_000, () => readSponsors());
     res.json(all.filter(s => s.isActive).sort((a, b) => a.sortOrder - b.sortOrder));
   } catch {
     res.status(500).json({ error: 'Kunde inte hämta sponsorer' });

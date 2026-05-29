@@ -106,43 +106,43 @@ export default function OrdersPage() {
         if (!cancelled) setLoading(false);
       });
 
-    // 3) Per-order-fetch för status/orderNumber. Var och en uppdaterar sin
-    //    egen rad utan att blockera resten.
+    // 3) Status/orderNumber för gäst-ordrar i EN batch per telefonnummer
+    //    (istället för ett anrop per order — ~21/laddning förut). Kollapsar
+    //    fan-out:en så order-historiken håller vid hög samtidig last.
+    const idsByPhone = new Map<string, string[]>();
     refs.forEach((ref) => {
+      const p = ref.phone || "";
+      const list = idsByPhone.get(p) ?? [];
+      list.push(ref.id);
+      idsByPhone.set(p, list);
+    });
+    idsByPhone.forEach((ids, phone) => {
       axios
-        .get(`${API_URL}/api/orders/${ref.id}`, {
-          params: { phone: ref.phone },
+        .get(`${API_URL}/api/orders/status-batch`, {
+          params: { ids: ids.join(","), phone },
           timeout: 5000,
         })
         .then((res) => {
-          if (cancelled) return;
+          if (cancelled || !Array.isArray(res.data)) return;
+          const byId = new Map<string, any>(res.data.map((o: any) => [o.id, o]));
           setRows((prev) =>
-            prev.map((row) =>
-              row.id === ref.id
+            prev.map((row) => {
+              const m = byId.get(row.id);
+              return m
                 ? {
                     ...row,
                     loaded: true as const,
-                    orderNumber: res.data.orderNumber,
-                    status: res.data.status,
-                    fetchedTotal: res.data.total,
-                    restaurantName: res.data.restaurantName ?? row.restaurantName ?? null,
+                    orderNumber: m.orderNumber,
+                    status: m.status,
+                    fetchedTotal: m.total,
+                    restaurantName: m.restaurantName ?? row.restaurantName ?? null,
                   }
-                : row,
-            ),
+                : row;
+            }),
           );
         })
-        .catch((err) => {
-          if (cancelled) return;
-          const httpStatus = (err as { response?: { status?: number } })?.response?.status;
-          // Bara markera som broken om 404 — nätfel låter vi vara, då har vi
-          // ändå basic localStorage-data att visa
-          if (httpStatus === 404) {
-            setRows((prev) =>
-              prev.map((row) =>
-                row.id === ref.id ? { ...row, loaded: false as const, error: "not_found" as const } : row,
-              ),
-            );
-          }
+        .catch(() => {
+          // Nätfel/inte inloggad — vi har redan basic localStorage-data att visa.
         });
     });
 

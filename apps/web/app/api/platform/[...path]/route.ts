@@ -38,6 +38,11 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     if (contentType) headers.set("content-type", contentType);
     if (accept) headers.set("accept", accept);
     if (token) headers.set("authorization", `Bearer ${token}`);
+    // Forward the idempotency key — it was being dropped here, so the API's
+    // order-create idempotency never triggered (duplicate orders / orphaned
+    // payments on a retry). With it forwarded, the existing server-side replay works.
+    const idempotencyKey = request.headers.get("idempotency-key");
+    if (idempotencyKey) headers.set("idempotency-key", idempotencyKey);
 
     stage = "fetch-upstream";
     const upstreamResponse = await fetch(targetUrl, {

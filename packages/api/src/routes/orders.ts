@@ -14,6 +14,7 @@ import {
 import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, type CartItemForBogo } from '../lib/deals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
+import { cached } from '../lib/ttlCache';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
 import supabaseAdmin from '../lib/supabase';
@@ -1280,6 +1281,37 @@ router.get('/draft/:id', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/orders/status-batch?ids=a,b,c&phone=46... — lightweight status for
+// many orders in ONE request (guest order-history list). Replaces the per-order
+// fan-out (~21 requests/load) so 1000 concurrent history loads don't melt the DB.
+// Same ownership model as GET /:id: phone must match (ids are unguessable cuids).
+// NOTE: must be declared BEFORE GET /:id so it isn't captured as id="status-batch".
+router.get('/status-batch', async (req: Request, res: Response) => {
+  try {
+    const idsParam = typeof req.query.ids === 'string' ? req.query.ids : '';
+    const phone = typeof req.query.phone === 'string' ? req.query.phone : '';
+    const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 30);
+    if (ids.length === 0) return res.json([]);
+    const orders = await prisma.order.findMany({
+      where: { id: { in: ids }, ...(phone ? { customerPhone: phone } : {}) },
+      select: {
+        id: true, orderNumber: true, status: true, total: true,
+        restaurant: { select: { name: true } },
+      },
+    });
+    res.json(orders.map((o) => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      status: o.status,
+      total: o.total,
+      restaurantName: o.restaurant?.name ?? null,
+    })));
+  } catch (err) {
+    console.error('status-batch error:', err);
+    res.status(500).json({ error: 'Kunde inte hämta orderstatus' });
+  }
+});
+
 // GET /api/orders/:id - Hämta en order (för kund att följa sin order).
 // Ägarskap krävs: antingen via JWT (inloggad kund) ELLER customerPhone som
 // query-param som matchar order.customerPhone (för guest-ordrar).
@@ -1287,10 +1319,16 @@ router.get('/draft/:id', async (req: Request, res: Response) => {
 // ID-gissning inte avslöjar vilka ordrar som existerar.
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const order: any = await prisma.order.findUnique({
-      where: { id: req.params.id },
-      include: { items: true, restaurant: true },
-    });
+    // Cache 4s by id: order-tracking AND the app-wide banner both poll this every
+    // 15s for the SAME order — collapses synchronized polls to ~1 DB read per 4s.
+    // The owner check below still gates access; the socket pushes realtime so a
+    // ≤4s lag on the poll path is invisible.
+    const order: any = await cached('order:byid', req.params.id, 4000, () =>
+      prisma.order.findUnique({
+        where: { id: req.params.id },
+        include: { items: true, restaurant: true },
+      })
+    );
 
     if (!order) {
       res.status(404).json({ error: 'Order hittades inte' });

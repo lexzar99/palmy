@@ -2,9 +2,32 @@ import { Metadata } from "next";
 import MenuContent from "@/components/MenuContent";
 import FadeInWrapper from "@/components/FadeInWrapper";
 
+// ISR: cache the rendered page per slug for 5 min so 1000 same-restaurant loads
+// hit a cached shell instead of 1000 live SSR renders (each re-parsing ~1.5MB).
+// On-demand purge still works via /api/revalidate (tag-based) on menu changes.
+export const revalidate = 300;
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://palmy-production-2021.up.railway.app";
+
+// Pre-render known restaurant slugs at build and ISR-cache the rest on demand,
+// so 1000 same-restaurant loads hit a cached shell instead of 1000 live SSR
+// renders. dynamicParams=true (default) lets unknown slugs render on-demand then
+// cache. Build never breaks if the API is unreachable (catch → []).
+export const dynamicParams = true;
+export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
+  try {
+    const res = await fetch(`${API_URL}/api/restaurants`, { next: { revalidate: 3600 } });
+    if (!res.ok) return [];
+    const list = await res.json();
+    return Array.isArray(list)
+      ? list.filter((r: any) => r?.slug).map((r: any) => ({ slug: String(r.slug) }))
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 interface Restaurant {
   name?: string;

@@ -10,8 +10,11 @@ import {
   normalizeHomeCategorySchedule,
   serializeHomeCategorySection,
 } from '../lib/homeCategorySections';
+import { cached } from '../lib/ttlCache';
 
 const router = Router();
+// Defaults are idempotent and only need creating once per process.
+let homeDefaultsEnsured = false;
 
 const homeCategorySchema = z.object({
   title: z.string().min(2),
@@ -55,15 +58,22 @@ const homeCategorySchema = z.object({
 
 router.get('/', async (_req, res) => {
   try {
-    await ensureDefaultHomeCategorySections();
-    const rows = await prisma.homeCategorySection.findMany({
-      where: { isActive: true },
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    // Run the 6 serial default-section queries once per process, not per request.
+    if (!homeDefaultsEnsured) {
+      await ensureDefaultHomeCategorySections();
+      homeDefaultsEnsured = true;
+    }
+    // Cache 30s the serialized DB rows; keep the time-based visibility filter
+    // per-request so scheduled sections still flip on time.
+    const sections = await cached('home:categories', 'public', 30_000, async () => {
+      const rows = await prisma.homeCategorySection.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      });
+      return rows.map(serializeHomeCategorySection);
     });
 
-    const payload = rows
-      .map(serializeHomeCategorySection)
-      .filter((section) => isHomeCategoryVisibleNow(section.schedule));
+    const payload = sections.filter((section) => isHomeCategoryVisibleNow(section.schedule));
 
     res.json(payload);
   } catch (error) {
