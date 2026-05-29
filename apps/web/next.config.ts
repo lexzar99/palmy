@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
   },
+  images: {
+    // Serve modern formats + right-sized variants instead of full-res originals.
+    // All product/restaurant imagery lives in this single R2 bucket.
+    formats: ["image/avif", "image/webp"],
+    remotePatterns: [
+      { protocol: "https", hostname: "pub-3aa62f4934014835956fe3777d5b3abd.r2.dev" },
+    ],
+  },
   async rewrites() {
     return {
       fallback: [

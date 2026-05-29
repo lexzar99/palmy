@@ -181,7 +181,10 @@ export default function LiveOrderBanner() {
       }
     };
     load();
-    const pollInterval = setInterval(load, 5_000);
+    // Socket pushes realtime order:status updates below — this poll is only a
+    // fallback for when the socket drops. 15s (was 5s) cuts request volume ~3x
+    // during an active order without hurting perceived freshness.
+    const pollInterval = setInterval(load, 15_000);
 
     const socket = socketIO(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
     socketRef.current = socket;

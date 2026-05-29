@@ -11,6 +11,7 @@ import FloatingCartButton from "@/components/FloatingCartButton";
 import DealSpotlight from "@/components/DealSpotlight";
 import { PublicDeal, formatDealReward } from "@/lib/deals";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import AddressModal from "@/components/AddressModal";
 import PreviouslyOrderedBar from "@/components/PreviouslyOrderedBar";
@@ -20,10 +21,20 @@ import { useFavorites } from "@/lib/favoritesStore";
 import BogoPickerModal, { type BogoPickerProduct } from "@/components/BogoPickerModal";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
+interface MenuContentInitialData {
+  categories?: any[];
+  mainCategories?: any[];
+  deals?: PublicDeal[];
+  restaurant?: any;
+}
+
 interface MenuContentProps {
   restaurantSlug?: string;
   restaurantId?: string;
   isStandalone?: boolean;
+  /** Server-rendered first-paint data (from app/restaurants/[slug]/page.tsx).
+   *  When present, the menu renders immediately with no client fetch waterfall. */
+  initialData?: MenuContentInitialData | null;
 }
 
 // ─── Produktkort-helpers ─────────────────────────────────────────────────
@@ -64,33 +75,8 @@ function getDisplayPrice(p: any): { final: number; original: number | null } {
   return { final: p.price, original: null };
 }
 
-/**
- * Probar bildens load-state via en hidden Image()-instans. Returnerar true
- * när URL:en faktiskt har laddats utan fel; false om null, fortfarande
- * laddar, eller 404/network-error.
- *
- * Används så vi kan skilja mellan:
- *  - "imageUrl saknas" (DB är null OCH ingen R2-prediction)         → text-only fallback direkt
- *  - "imageUrl finns men 404:ar" (raderad i R2, dead Cloudinary)   → text-only fallback efter probe
- *  - "imageUrl finns och funkar"                                    → visa bilden
- *
- * Probe cache:as i browsern via vanlig HTTP-cache så samma URL inte hämtas
- * två gånger (preload + render).
- */
-function useImageReachable(url: string | null | undefined): boolean {
-  const [ok, setOk] = useState(false);
-  useEffect(() => {
-    if (!url) { setOk(false); return; }
-    let cancelled = false;
-    setOk(false);
-    const img = new window.Image();
-    img.onload = () => { if (!cancelled) setOk(true); };
-    img.onerror = () => { if (!cancelled) setOk(false); };
-    img.src = url;
-    return () => { cancelled = true; };
-  }, [url]);
-  return ok;
-}
+// (useImageReachable-proben borttagen — korten använder nu next/image med
+//  onError-fallback, vilket tar bort den dubbla bild-laddningen per kort.)
 
 /**
  * Tile-bild för main-kategori. Visar bilden om den går att hämta, annars
@@ -98,14 +84,26 @@ function useImageReachable(url: string | null | undefined): boolean {
  * design som UniformCard:s text-only-platta).
  */
 function MainCatImage({ url, name }: { url: string | null | undefined; name: string }) {
-  const ok = useImageReachable(url);
-  if (ok && url) {
-    return <img src={url} alt={name} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />;
-  }
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [url]);
   return (
-    <div className="absolute inset-0 flex items-center justify-center p-4">
-      <span className="text-2xl md:text-3xl font-black text-center" style={{ color: "var(--text-primary)" }}>{name}</span>
-    </div>
+    <>
+      {url && !failed && (
+        <Image
+          src={url}
+          alt={name}
+          fill
+          sizes="(max-width: 640px) 50vw, 220px"
+          className="object-cover"
+          onError={() => setFailed(true)}
+        />
+      )}
+      {(!url || failed) && (
+        <div className="absolute inset-0 flex items-center justify-center p-4">
+          <span className="text-2xl md:text-3xl font-black text-center" style={{ color: "var(--text-primary)" }}>{name}</span>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -125,9 +123,11 @@ function MainCatImage({ url, name }: { url: string | null | undefined; name: str
  */
 function FullProductCard({ product, cartQty, onClick, disabled }: { product: any; cartQty: number; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
-  // hasImage = URL finns OCH bilden går faktiskt att hämta (probe via Image()).
-  // 404/raderad i R2 → false → text-fallback visas istället för broken-img-ikon.
-  const hasImage = useImageReachable(product.imageUrl);
+  // imageUrl finns OCH laddar OK. onError (404/raderad i R2) → text-only istället
+  // för broken-img-ikon. Ingen separat probe-laddning längre.
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
+  const hasImage = Boolean(product.imageUrl) && !imgFailed;
   const showDescription = !product.hideDescription && Boolean(product.description);
 
   return (
@@ -186,13 +186,14 @@ function FullProductCard({ product, cartQty, onClick, disabled }: { product: any
 
         {/* Bild som square — INNE i kortet med padding, INTE edge-to-edge */}
         {hasImage && (
-          <div className="shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
-            <img
+          <div className="relative shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+            <Image
               src={product.imageUrl}
               alt={product.name}
-              loading="lazy"
-              decoding="async"
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              fill
+              sizes="(max-width: 640px) 96px, 112px"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              onError={() => setImgFailed(true)}
             />
           </div>
         )}
@@ -209,7 +210,9 @@ function FullProductCard({ product, cartQty, onClick, disabled }: { product: any
  */
 function SquareRailCard({ product, onClick, disabled }: { product: any; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
-  const hasImage = useImageReachable(product.imageUrl);
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
+  const hasImage = Boolean(product.imageUrl) && !imgFailed;
   return (
     <button
       type="button"
@@ -226,19 +229,25 @@ function SquareRailCard({ product, onClick, disabled }: { product: any; onClick:
         boxShadow: "0 2px 10px rgba(28,28,30,0.06), 0 1px 2px rgba(28,28,30,0.03)",
       }}
     >
-      {/* Övre 62% — bild eller gold-fallback */}
+      {/* Övre 62% — bild (overlay) eller gold-fallback */}
       <div
         className="relative w-full flex-shrink-0"
         style={{
           height: "62%",
-          ...(hasImage
-            ? { backgroundImage: `url("${product.imageUrl}")`, backgroundSize: "cover", backgroundPosition: "center" }
-            : {
-                backgroundImage:
-                  "radial-gradient(circle at 22% 28%, rgba(200,154,60,0.26) 0%, transparent 50%), radial-gradient(circle at 78% 76%, rgba(200,154,60,0.18) 0%, transparent 50%), linear-gradient(135deg, rgba(200,154,60,0.22) 0%, rgba(200,154,60,0.10) 100%)",
-              }),
+          backgroundImage:
+            "radial-gradient(circle at 22% 28%, rgba(200,154,60,0.26) 0%, transparent 50%), radial-gradient(circle at 78% 76%, rgba(200,154,60,0.18) 0%, transparent 50%), linear-gradient(135deg, rgba(200,154,60,0.22) 0%, rgba(200,154,60,0.10) 100%)",
         }}
       >
+        {hasImage && (
+          <Image
+            src={product.imageUrl}
+            alt={product.name}
+            fill
+            sizes="170px"
+            className="object-cover"
+            onError={() => setImgFailed(true)}
+          />
+        )}
         {!hasImage && (
           <div className="absolute inset-0 flex items-center justify-center px-2 text-center">
             <span
@@ -321,7 +330,9 @@ function SquareRailCard({ product, onClick, disabled }: { product: any; onClick:
  */
 function UniformCard({ product, isPopular, onClick, disabled }: { product: any; isPopular?: boolean; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
-  const hasImage = useImageReachable(product.imageUrl);
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
+  const hasImage = Boolean(product.imageUrl) && !imgFailed;
   const totalH = 270;
   const imgH = 160;
   return (
@@ -333,19 +344,25 @@ function UniformCard({ product, isPopular, onClick, disabled }: { product: any; 
       className={`group relative rounded-2xl overflow-hidden text-left flex flex-col transition-transform ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:scale-[0.98] cursor-pointer"}`}
       style={{ height: `${totalH}px`, backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 8px rgba(28,28,30,0.04), 0 1px 2px rgba(28,28,30,0.03)" }}
     >
-      {/* Bild eller text-only platta */}
+      {/* Bild (overlay) eller text-only platta */}
       <div
         className="relative flex-shrink-0"
         style={{
           height: `${imgH}px`,
-          ...(hasImage
-            ? { backgroundImage: `url("${product.imageUrl}")`, backgroundSize: "cover", backgroundPosition: "center" }
-            : {
-                backgroundImage:
-                  "radial-gradient(circle at 22% 28%, rgba(200,154,60,0.22) 0%, transparent 40%), radial-gradient(circle at 78% 76%, rgba(200,154,60,0.16) 0%, transparent 42%), linear-gradient(135deg, rgba(200,154,60,0.20) 0%, rgba(200,154,60,0.10) 100%)",
-              }),
+          backgroundImage:
+            "radial-gradient(circle at 22% 28%, rgba(200,154,60,0.22) 0%, transparent 40%), radial-gradient(circle at 78% 76%, rgba(200,154,60,0.16) 0%, transparent 42%), linear-gradient(135deg, rgba(200,154,60,0.20) 0%, rgba(200,154,60,0.10) 100%)",
         }}
       >
+        {hasImage && (
+          <Image
+            src={product.imageUrl}
+            alt={product.name}
+            fill
+            sizes="(max-width: 640px) 50vw, 220px"
+            className="object-cover"
+            onError={() => setImgFailed(true)}
+          />
+        )}
         {!hasImage && (
           <div className="absolute inset-0 flex items-center justify-center px-2 pt-3 pb-5 text-center">
             <span
@@ -437,7 +454,9 @@ function UniformCard({ product, isPopular, onClick, disabled }: { product: any; 
  */
 function CompactProductCard({ product, cartQty, onClick, disabled }: { product: any; cartQty: number; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
-  const hasImage = useImageReachable(product.imageUrl);
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
+  const hasImage = Boolean(product.imageUrl) && !imgFailed;
   return (
     <motion.button
       type="button"
@@ -453,8 +472,8 @@ function CompactProductCard({ product, cartQty, onClick, disabled }: { product: 
       }}
     >
       {hasImage ? (
-        <div className="w-full aspect-square overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
-          <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        <div className="relative w-full aspect-square overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+          <Image src={product.imageUrl} alt={product.name} fill sizes="(max-width: 640px) 50vw, 220px" className="object-cover transition-transform duration-500 group-hover:scale-105" onError={() => setImgFailed(true)} />
         </div>
       ) : (
         <div className="w-full aspect-square flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
@@ -484,16 +503,17 @@ function CompactProductCard({ product, cartQty, onClick, disabled }: { product: 
   );
 }
 
-const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: MenuContentProps) => {
+const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initialData = null }: MenuContentProps) => {
   const { t } = useTranslation();
-  const [categories, setCategories] = useState<any[]>([]);
-  const [mainCategories, setMainCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>(initialData?.categories ?? []);
+  const [mainCategories, setMainCategories] = useState<any[]>(initialData?.mainCategories ?? []);
   const [selectedMainCategoryId, setSelectedMainCategoryId] = useState<string | null>(null);
-  const [deals, setDeals] = useState<PublicDeal[]>([]);
-  const [restaurant, setRestaurant] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [deals, setDeals] = useState<PublicDeal[]>(initialData?.deals ?? []);
+  const [restaurant, setRestaurant] = useState<any>(initialData?.restaurant ?? null);
+  // SSR seeded the menu → start without the blocking spinner / client fetch.
+  const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>(initialData?.categories?.[0]?.id ?? null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
@@ -615,7 +635,18 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   // ↓ Only stable Zustand action — no deliveryOverrides in deps (prevents infinite loop)
   }, [updateDeliveryOverride]);
 
+  const ssrSeededRef = useRef(!!initialData);
   const fetchData = useCallback(async () => {
+    // First mount with SSR-seeded data: the menu is already rendered from the
+    // server, so skip the redundant client refetch and only run the client-only
+    // zone check. Later calls (socket "menu:changed") refetch normally.
+    if (ssrSeededRef.current) {
+      ssrSeededRef.current = false;
+      if (initialData?.restaurant) {
+        try { await checkZone(initialData.restaurant); } catch {}
+      }
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -661,7 +692,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, restaurantSlug, checkZone]);
+  }, [restaurantId, restaurantSlug, checkZone, initialData]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -714,6 +745,25 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
     return () => { socket.disconnect(); };
   }, [restaurantSlug, restaurantId, fetchData]);
+
+  // ── Adress-grind vid restaurang-öppning ────────────────────────────────
+  // Flyttad hit från handleOpenProduct: när en gäst landar på en restaurang
+  // (DELIVERY utan sparad adress/koordinater) öppnas SAMMA AddressModal direkt,
+  // istället för att kapa det första produktklicket. handleOpenProduct behålls
+  // som skyddsnät om gästen stänger modalen. Endast på fristående restaurangsida.
+  const addressPromptedRef = useRef(false);
+  useEffect(() => {
+    if (!isStandalone) return;
+    if (addressPromptedRef.current) return;
+    if (loading || !restaurant?.isOpen) return;
+    if (typeof window === "undefined") return;
+    const noAddr = !localStorage.getItem("platform_address");
+    const noCoords = !localStorage.getItem("platform_coords");
+    if (noAddr || (orderType === "DELIVERY" && noCoords)) {
+      addressPromptedRef.current = true;
+      setShowAddressModal(true);
+    }
+  }, [isStandalone, loading, restaurant, orderType]);
 
   // Refs för pill-knapparna — används för att auto-scrolla aktiv pill in i
   // viewport horisontellt när användaren scrollar mellan kategorier vertikalt.
