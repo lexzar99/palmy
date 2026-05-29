@@ -976,9 +976,15 @@ router.post('/', async (req: Request, res: Response) => {
       return orderNumber;
     };
 
-    const nextNumber = await generateOrderNumber();
-
-    const order: any = await prisma.order.create({
+    // Collision-safe order-number assignment. `orderNumber` is @unique, so on a
+    // concurrent duplicate the DB throws P2002 — we catch ONLY that, regenerate
+    // (generateOrderNumber re-reads the latest number so it advances), and retry,
+    // instead of 500-ing an order whose payment may already have gone through.
+    let order: any = null;
+    for (let orderAttempt = 1; orderAttempt <= 8; orderAttempt++) {
+      const nextNumber = await generateOrderNumber();
+      try {
+        order = await prisma.order.create({
       data: {
         orderNumber: nextNumber,
         status: isPendingPayment ? 'AWAITING_PAYMENT' : 'PENDING',
@@ -1033,7 +1039,25 @@ router.post('/', async (req: Request, res: Response) => {
         restaurant: { select: { name: true } },
         items: true,
       },
-    });
+        });
+        break; // success
+      } catch (err: any) {
+        const target = err?.meta?.target;
+        const isOrderNumberCollision =
+          err?.code === 'P2002' &&
+          (Array.isArray(target)
+            ? target.includes('orderNumber')
+            : String(target ?? '').includes('orderNumber'));
+        if (isOrderNumberCollision && orderAttempt < 8) {
+          console.warn(`[order] orderNumber collision (attempt ${orderAttempt}) — regenerating`);
+          continue;
+        }
+        throw err; // non-collision error, or out of attempts → bubble up as before
+      }
+    }
+    if (!order) {
+      throw new OrderValidationError('Kunde inte skapa order just nu, försök igen.');
+    }
 
     // ── UserDeal-reservation ────────────────────────────────────────────
     // Atomisk reserve så två parallella orders inte kan båda använda samma
