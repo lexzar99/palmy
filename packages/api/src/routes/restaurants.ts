@@ -760,41 +760,47 @@ router.post('/:restaurantId/items', authenticate, async (req: AuthRequest, res) 
 router.get('/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
-    const restaurant = await prisma.restaurant.findFirst({
-      where: {
-        OR: [
-          { slug },
-          { id: slug }
-        ]
-      },
-    });
 
-    if (!restaurant) {
-      return res.status(404).json({ error: 'Restaurang hittades inte' });
-    }
+    // Cache the expensive part (restaurant + deep category/product/extras include
+    // + formatRestaurant) 15s per slug. This is the same heavy query as the menu
+    // route and the checkout flow hits it per request — caching collapses the herd.
+    // The admin-only fields are kept in the cached object but only EXPOSED below
+    // after the per-request auth check, so caching never leaks them.
+    const data = await cached('rest:detail', slug, 15_000, async () => {
+      const restaurant = await prisma.restaurant.findFirst({
+        where: {
+          OR: [
+            { slug },
+            { id: slug }
+          ]
+        },
+      });
 
-    // Explicitly fetch categories using the same unified logic as the admin/app
-    const categories = await prisma.category.findMany({
-      where: {
-        OR: [
-          { restaurantId: restaurant.id },
-          { restaurantId: null }
-        ],
-        isActive: true,
-      },
-      orderBy: { position: 'asc' },
-      include: {
-        products: {
-          where: { isActive: true },
-          orderBy: { position: 'asc' },
-          include: {
-            extraGroups: {
-              include: {
-                extraGroup: {
-                  include: {
-                    extras: {
-                      where: { isActive: true },
-                      orderBy: { position: 'asc' },
+      if (!restaurant) return null;
+
+      // Explicitly fetch categories using the same unified logic as the admin/app
+      const categories = await prisma.category.findMany({
+        where: {
+          OR: [
+            { restaurantId: restaurant.id },
+            { restaurantId: null }
+          ],
+          isActive: true,
+        },
+        orderBy: { position: 'asc' },
+        include: {
+          products: {
+            where: { isActive: true },
+            orderBy: { position: 'asc' },
+            include: {
+              extraGroups: {
+                include: {
+                  extraGroup: {
+                    include: {
+                      extras: {
+                        where: { isActive: true },
+                        orderBy: { position: 'asc' },
+                      },
                     },
                   },
                 },
@@ -802,16 +808,20 @@ router.get('/:slug', async (req, res) => {
             },
           },
         },
-      },
+      });
+
+      const restaurantWithMenu = { ...restaurant, categories };
+      return {
+        formatted: formatRestaurant(restaurantWithMenu, true),
+        restaurantId: restaurant.id,
+        adminEmail: restaurant.adminEmail ?? null,
+        logoutCode: restaurant.logoutCode ?? null,
+      };
     });
 
-    // Attach categories to the restaurant object for formatting
-    const restaurantWithMenu = {
-      ...restaurant,
-      categories
-    };
-
-    const formatted = formatRestaurant(restaurantWithMenu, true);
+    if (!data) {
+      return res.status(404).json({ error: 'Restaurang hittades inte' });
+    }
 
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
@@ -821,7 +831,7 @@ router.get('/:slug', async (req, res) => {
       try {
         const session = await resolveAdminSessionFromToken(token);
         canViewSensitiveAdminFields = Boolean(
-          session && (session.role === 'SUPER_ADMIN' || session.restaurantId === restaurant.id)
+          session && (session.role === 'SUPER_ADMIN' || session.restaurantId === data.restaurantId)
         );
       } catch {
         canViewSensitiveAdminFields = false;
@@ -830,8 +840,8 @@ router.get('/:slug', async (req, res) => {
 
     return res.json(
       canViewSensitiveAdminFields
-        ? { ...formatted, adminEmail: restaurant.adminEmail ?? null, logoutCode: restaurant.logoutCode ?? null }
-        : formatted
+        ? { ...data.formatted, adminEmail: data.adminEmail, logoutCode: data.logoutCode }
+        : data.formatted
     );
   } catch (error) {
     console.error('Error fetching restaurant', error);

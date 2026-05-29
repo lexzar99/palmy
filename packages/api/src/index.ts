@@ -192,6 +192,15 @@ const orderLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => ['GET', 'HEAD', 'OPTIONS'].includes(req.method),
+  // Order POSTs arrive via the Vercel proxy → same egress IP for everyone, so an
+  // IP-keyed limiter would throttle ALL customers as one (max 20/min globally,
+  // collapsing checkout at scale). Key per customer (phone, else idempotency-key)
+  // so legit concurrent orders aren't blocked; IP is only a last-resort fallback.
+  keyGenerator: (req) => {
+    const phone = typeof req.body?.customerPhone === 'string' ? req.body.customerPhone.trim() : '';
+    const idem = req.headers['idempotency-key'];
+    return phone || (typeof idem === 'string' ? idem : '') || req.ip || 'order';
+  },
 });
 
 const adminLoginLimiter = rateLimit({

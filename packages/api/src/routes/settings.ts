@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { getIO } from '../lib/socket';
+import { cached } from '../lib/ttlCache';
 import {
   defaultRestaurantSettings,
   parseOpeningHours,
@@ -17,14 +18,20 @@ const router = Router();
 // GET /api/settings - Publika inställningar för kundsidan
 router.get('/', async (_req, res) => {
   try {
-    const [settings, primaryRestaurant] = await Promise.all([
-      prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
-      // Hämta första aktiva restaurang för pause-status (single-tenant setup)
-      prisma.restaurant.findFirst({
-        select: { pausedUntil: true, isOpen: true },
-        orderBy: { createdAt: 'asc' },
-      }),
-    ]);
+    // Cache the DB read 15s — /api/settings is hit on every home load (page +
+    // PlatformBanner) and polled every 60s by the banner, so without this it
+    // scales linearly with visitors. The time-sensitive isPaused is computed
+    // per-request below from the cached pausedUntil, so it stays accurate.
+    const [settings, primaryRestaurant] = await cached('settings:public', 'global', 15_000, () =>
+      Promise.all([
+        prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
+        // Hämta första aktiva restaurang för pause-status (single-tenant setup)
+        prisma.restaurant.findFirst({
+          select: { pausedUntil: true, isOpen: true },
+          orderBy: { createdAt: 'asc' },
+        }),
+      ])
+    );
 
     const pausedUntilDate = primaryRestaurant?.pausedUntil ?? null;
     const isPaused =
