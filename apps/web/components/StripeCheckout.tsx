@@ -12,12 +12,20 @@ interface StripeCheckoutProps {
   onSuccess: (paymentIntentId: string) => Promise<void> | void;
   amount: number;
   draftId?: string;
+  /**
+   * Anropas direkt när användaren klickat "Betala" och vi börjar
+   * confirmPayment(). Cart-sidan använder detta för att markera "payment in
+   * flight" så pagehide-handlern INTE abandonar ordern när Stripe redirectar
+   * till Klarna/Swish/3DS. Utan denna gate skulle vi radera ordern precis när
+   * webhook bekräftar betalningen → race.
+   */
+  onSubmitStart?: () => void;
 }
 
-const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => {
+const StripeCheckout = ({ onSuccess, amount, draftId, onSubmitStart }: StripeCheckoutProps) => {
   const stripe = useStripe();
   const elements = useElements();
-  
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -28,6 +36,9 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
       return;
     }
 
+    // Signalera "betalning på väg" innan confirmPayment — som kan redirecta
+    // synkront (Klarna/Swish/3DS) och därmed trigga pagehide på cart-sidan.
+    onSubmitStart?.();
     setIsProcessing(true);
     setErrorMessage(null);
 

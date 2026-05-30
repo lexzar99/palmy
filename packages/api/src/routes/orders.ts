@@ -1919,4 +1919,115 @@ router.post('/:id/review', async (req: Request, res: Response) => {
   }
 });
 
+// ── POST /:id/abandon ────────────────────────────────────────────────────────
+// Idempotent cancel av en AWAITING_PAYMENT-order. Anropas när kunden trycker
+// browser-back / stänger taben / Stripe redirectar tillbaka utan succeeded.
+//
+// Säker mot race med webhook: re-assertar status=AWAITING_PAYMENT + paymentStatus
+// != PAID i deleteMany — om Stripe just bekräftade betalningen mellan vår fetch
+// och delete så raderas ordern INTE (den blev en riktig PENDING-order i samma
+// transaktion). Reverterar reserverad UserDeal samma sätt som
+// expireAbandonedAwaitingPayment-cronen.
+//
+// Returnerar alltid 200 (idempotent — sendBeacon/beforeunload kan trigga
+// flera gånger; vi vill inte krascha klienten på en redan-raderad order).
+router.post('/:id/abandon', async (req: Request, res: Response) => {
+  try {
+    const { phone: bodyPhone, accessToken: bodyAccessToken } = req.body || {};
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        status: true,
+        paymentStatus: true,
+        customerPhone: true,
+        userId: true,
+        userDealId: true,
+        accessToken: true,
+      } as any,
+    });
+
+    // Order hittades inte = redan raderad av tidigare abandon-call eller av
+    // cleanup-cronen. Idempotent: returnera 200 så klienten inte retryar.
+    if (!order) return res.json({ success: true, alreadyGone: true });
+
+    // Bara AWAITING_PAYMENT som inte är PAID får raderas. Allt annat är
+    // antingen en betald order (vill inte radera!) eller en redan cancellerad.
+    // Returnera 200 även här — klienten ska inte logga fel.
+    if (order.status !== 'AWAITING_PAYMENT' || (order as any).paymentStatus === 'PAID') {
+      return res.json({ success: true, skipped: 'not-awaiting' });
+    }
+
+    // ── Owner-check (samma pattern som /:id/review) ────────────────────────
+    let isOwner = false;
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const bearer = authHeader.split(' ')[1];
+      if (supabaseAdmin) {
+        try {
+          const { data: { user: sbUser } } = await supabaseAdmin.auth.getUser(bearer);
+          if (sbUser && (order as any).userId === sbUser.id) isOwner = true;
+        } catch { /* fallthrough */ }
+      }
+      if (!isOwner) {
+        try {
+          const payload = jwt.verify(bearer, JWT_SECRET) as any;
+          if (payload?.id && (order as any).userId === payload.id) isOwner = true;
+        } catch { /* fallthrough */ }
+      }
+    }
+    if (!isOwner) {
+      const tokenCandidate =
+        (typeof req.query.token === 'string' ? req.query.token : null) ||
+        (typeof bodyAccessToken === 'string' ? bodyAccessToken : null);
+      const orderToken = (order as any).accessToken as string | null | undefined;
+      if (tokenCandidate && orderToken && tokenCandidate === orderToken) {
+        isOwner = true;
+      }
+    }
+    if (!isOwner) {
+      const phoneCandidate =
+        (typeof req.query.phone === 'string' ? req.query.phone : null) ||
+        (typeof bodyPhone === 'string' ? bodyPhone : null);
+      const normalize = (p: string | null | undefined) => (p || '').replace(/[^\d+]/g, '');
+      if (phoneCandidate && normalize(phoneCandidate) === normalize((order as any).customerPhone)) {
+        isOwner = true;
+      }
+    }
+    if (!isOwner) {
+      // 404 inte 403 — ID-gissning ska inte avslöja existens.
+      return res.status(404).json({ error: 'Order hittades inte' });
+    }
+
+    // ── Revert UserDeal (om någon reserverats) ─────────────────────────────
+    if ((order as any).userDealId) {
+      await (prisma as any).userDeal
+        .updateMany({
+          where: { id: (order as any).userDealId, status: 'RESERVED', usedOnOrderId: order.id },
+          data: { status: 'ACTIVE', usedOnOrderId: null },
+        })
+        .catch(() => {});
+    }
+
+    // ── Delete (race-safe via re-assertad where) ───────────────────────────
+    // Om webhook precis flippade ordern till PENDING+PAID i en parallell
+    // transaktion så matchar where-klausulen INTE → 0 rows affected → ordern
+    // bevaras. Det är exakt vad vi vill.
+    const deleted = await prisma.order.deleteMany({
+      where: {
+        id: order.id,
+        status: 'AWAITING_PAYMENT',
+        paymentStatus: { not: 'PAID' },
+      },
+    });
+
+    return res.json({ success: true, deleted: deleted.count });
+  } catch (error) {
+    console.error('Abandon order error:', error);
+    // Idempotent: även vid serverfel ska klienten inte spinna i en retry-
+    // loop. Cleanup-cronen tar hand om kvarvarande ordrar inom 5 min ändå.
+    return res.json({ success: false, error: 'internal' });
+  }
+});
+
 export default router;

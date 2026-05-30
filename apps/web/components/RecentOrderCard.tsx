@@ -85,6 +85,13 @@ export default function RecentOrderCard() {
 
   if (!order) return null;
 
+  // AWAITING_PAYMENT visas ALDRIG som "Pågående beställning" på home — då
+  // skulle en kund som backade ur Stripe-flödet se sin (aldrig betalda) order
+  // sitta som aktiv tills cleanup-cronen tar den. Cart-sidans abandon-flöde
+  // raderar normalt direkt, men detta är en belt-and-suspenders mot race med
+  // backend-fetch och guests som har AWAITING_PAYMENT i localStorage-history.
+  if (order.status === "AWAITING_PAYMENT") return null;
+
   // Dölj kortet för gamla "DELIVERED" eller "CANCELLED" orders (>24h) —
   // ingen poäng med "fortsätt"-CTA då
   const ageMs = Date.now() - new Date(order.createdAt).getTime();

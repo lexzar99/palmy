@@ -1113,9 +1113,18 @@ export default function CartPage() {
     };
 
     if (redirectStatus === "failed" || redirectStatus === "requires_payment_method") {
-      // Kunden avbröt / banken nekade — låt dem retrya på kassan. Behåll
-      // pending_order_id så att om de gör en ny PaymentIntent mot SAMMA
-      // order så återanvänds den (backend matchar via orderId).
+      // Kunden avbröt / banken nekade. Tidigare behöll vi pending_order_id
+      // för retry-på-samma-order, men det gjorde att den fastnade som
+      // "Pågående beställning" på hemskärmen (AWAITING_PAYMENT). Nu abandonar
+      // vi ordern (backend reverterar UserDeal + raderar) och rensar
+      // localStorage. Retry skapar en ny order — minimal DB-skräp eftersom
+      // cleanup-cronen ändå tar tag i abandonade ordrar inom 5 min.
+      paymentInFlightRef.current = false;
+      void abandonPendingOrder(storedOrderId);
+      try {
+        localStorage.removeItem("pending_order_id");
+        localStorage.removeItem("pending_order_token");
+      } catch { /* noop */ }
       setError(
         redirectStatus === "requires_payment_method"
           ? t("cart.errors.paymentCancelled")
@@ -1233,8 +1242,78 @@ export default function CartPage() {
     }
   };
 
+  // ── Abandon en pre-skapad AWAITING_PAYMENT-order ───────────────────────────
+  // Anropas när kunden avbryter (Stripe redirect_status=failed/cancelled) eller
+  // navigerar bort från cart-sidan utan att slutföra betalning. Backend gör
+  // owner-check via accessToken (eller phone-fallback), reverterar reserverad
+  // UserDeal och raderar ordern. Idempotent: säker att kalla flera gånger.
+  const abandonPendingOrder = useCallback(async (orderId: string): Promise<void> => {
+    try {
+      const token = (typeof window !== "undefined" ? localStorage.getItem("pending_order_token") : "") || "";
+      const phone = (formData.customerPhone || "").trim();
+      const qs = new URLSearchParams();
+      if (token) qs.set("token", token);
+      if (phone) qs.set("phone", phone);
+      const url = `/api/platform/orders/${orderId}/abandon${qs.toString() ? `?${qs.toString()}` : ""}`;
+      await axios.post(url, {});
+    } catch {
+      // Backend cleanup-cron (5 min) hanterar misslyckanden — kunden ska inte
+      // se fel här. Race med webhook är också säkert eftersom abandon-route
+      // re-assertar status=AWAITING_PAYMENT + paymentStatus != PAID.
+    }
+  }, [formData.customerPhone]);
+
+  // ── Tracka pågående betalning så pagehide-handlern inte abandonar ─────────
+  // Sätts till true precis innan stripe.confirmPayment() körs (Stripe kan
+  // synchronously redirecta browsern till Klarna/Swish/3DS). Återställs vid
+  // success/error eller när kunden kommer tillbaka via return_url.
+  const paymentInFlightRef = useRef(false);
+
+  // ── pagehide → abandon orphaned AWAITING_PAYMENT-order ─────────────────────
+  // Kunden stänger taben / navigerar bort från /cart efter att vi pre-skapade
+  // ordern men innan Stripe-flödet startade → ordern skulle annars sitta som
+  // "Pågående beställning" på hemskärmen tills cleanup-cronen tar den.
+  //
+  // GATE 1: paymentInFlightRef — om Stripe just redirectade, hoppa över
+  //   (webhook bekräftar betalningen async; vi får inte radera mitt i).
+  // GATE 2: pending_order_id måste finnas — annars har success-flödet redan
+  //   rensat localStorage och navigerat till /order/{id}.
+  //
+  // Använder sendBeacon för att survive page-unload. Param via query-string så
+  // backend kan läsa token+phone utan att parsa body.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPageHide = () => {
+      if (paymentInFlightRef.current) return;
+      const orderId = localStorage.getItem("pending_order_id");
+      if (!orderId) return;
+      const token = localStorage.getItem("pending_order_token") || "";
+      const phone = (formData.customerPhone || "").trim();
+      const qs = new URLSearchParams();
+      if (token) qs.set("token", token);
+      if (phone) qs.set("phone", phone);
+      const url = `/api/platform/orders/${orderId}/abandon${qs.toString() ? `?${qs.toString()}` : ""}`;
+      try {
+        if (navigator.sendBeacon) {
+          // Tom Blob — alla parametrar går via query-stringen.
+          navigator.sendBeacon(url, new Blob([], { type: "application/json" }));
+        } else {
+          fetch(url, { method: "POST", keepalive: true }).catch(() => {});
+        }
+        localStorage.removeItem("pending_order_id");
+        localStorage.removeItem("pending_order_token");
+      } catch {
+        /* swallow — cleanup-cron fångar upp */
+      }
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [formData.customerPhone]);
+
   // Called by StripeCheckout after payment succeeds — navigate to the pre-created order
   const handlePaymentSuccess = useCallback(async (_paymentIntentId: string) => {
+    // Betalningen lyckades — pagehide ska inte abandona längre.
+    paymentInFlightRef.current = false;
     const orderId = pendingOrderId || localStorage.getItem("pending_order_id");
     if (!orderId) {
       // Fallback: shouldn't happen in normal flow
@@ -2021,7 +2100,11 @@ export default function CartPage() {
                      </div>
                      <div className="rounded-3xl p-6 mb-10 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                         <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#e7b24b', colorBackground: '#ffffff', colorText: '#1C1C1E', colorDanger: '#ef4444' } } }}>
-                           <StripeCheckout amount={total} onSuccess={handlePaymentSuccess} />
+                           <StripeCheckout
+                            amount={total}
+                            onSuccess={handlePaymentSuccess}
+                            onSubmitStart={() => { paymentInFlightRef.current = true; }}
+                          />
                         </Elements>
                      </div>
                      <button onClick={() => setShowPayment(false)} className="w-full text-[10px] font-black uppercase tracking-widest hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}>{t("cart.payment.backToDetails")}</button>
