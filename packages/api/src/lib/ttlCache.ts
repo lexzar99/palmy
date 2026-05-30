@@ -64,3 +64,14 @@ export function bustCache(name: string, key?: string): void {
   if (key === undefined) s.clear();
   else s.delete(key);
 }
+
+// Invalidate every public cache that embeds restaurant / zone / city data, so an
+// admin change (new restaurant, edited zones/fees/open-hours, etc.) shows
+// IMMEDIATELY instead of waiting out the TTL. Pass the slug to clear just that
+// restaurant's detail entry; omit it to clear the whole rest:detail namespace.
+export function bustRestaurantCaches(slug?: string): void {
+  bustCache('rest:list');
+  bustCache('rest:detail', slug);
+  bustCache('zone:validate');
+  bustCache('cities:list');
+}

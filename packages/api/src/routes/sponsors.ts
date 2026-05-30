@@ -10,7 +10,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
-import { cached } from '../lib/ttlCache';
+import { cached, bustCache } from '../lib/ttlCache';
 
 const router = Router();
 const RECORD_ID = 'global_sponsors';
@@ -58,6 +58,9 @@ async function writeSponsors(sponsors: Sponsor[]): Promise<void> {
     },
     update: { openingHours: json },
   });
+  // Single write path for all sponsor mutations → bust the public cache here so
+  // sponsor changes show immediately.
+  bustCache('sponsors:public', 'all');
 }
 
 // ── GET /api/sponsors — public, returns only active sponsors ─────────────────

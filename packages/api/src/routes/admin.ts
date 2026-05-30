@@ -17,6 +17,7 @@ import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
 import { ALLOW_WIPE_ORDERS, ENABLE_PASSWORD_PLAIN } from '../lib/config';
 import { sanitizeError } from '../lib/errors';
 import { menuCacheBust } from './menu';
+import { bustCache } from '../lib/ttlCache';
 
 const router = Router();
 router.use(authenticate);
@@ -29,6 +30,11 @@ router.use(authenticate);
 function broadcastMenuChange(restaurantId: string | null, payload: Record<string, unknown> = {}) {
   try {
     menuCacheBust(restaurantId);
+    // The public restaurant list (?withMenu) and the /:slug detail both embed the
+    // full menu in a SEPARATE cache, so a menu change must clear them too — else
+    // the menu looks updated on the menu route but stale on those.
+    bustCache('rest:detail');
+    bustCache('rest:list');
     const event = { restaurantId, ...payload, at: new Date().toISOString() };
     // Public room for customers viewing this restaurant's menu
     if (restaurantId) {

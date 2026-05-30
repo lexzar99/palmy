@@ -163,8 +163,12 @@ router.post('/', async (req: Request, res: Response) => {
   // som temporär scope-proxy här. För säkerhets skull bryts cache-keyen ändå per
   // klient via IP-fallback. Det här är säkert nog för att eliminera cross-user leak.
   const authHeaderForScope = req.headers.authorization || '';
+  // Hash the WHOLE token for the per-user scope. The previous slice(7,39) took the
+  // first 32 token chars, but for Supabase JWTs those are the CONSTANT header
+  // (eyJhbG...) — identical for every user → all logged-in users shared one scope,
+  // so a duplicate Idempotency-Key could replay another user's order response.
   const tokenScopeHash = authHeaderForScope.startsWith('Bearer ')
-    ? authHeaderForScope.slice(7, 39) // de första 32 chars av token = unique per user
+    ? crypto.createHash('sha256').update(authHeaderForScope.slice(7)).digest('hex').slice(0, 32)
     : '';
   const scope = tokenScopeHash || req.ip || 'anon';
   if (idempotencyKey) {
@@ -1291,9 +1295,11 @@ router.get('/status-batch', async (req: Request, res: Response) => {
     const idsParam = typeof req.query.ids === 'string' ? req.query.ids : '';
     const phone = typeof req.query.phone === 'string' ? req.query.phone : '';
     const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 30);
-    if (ids.length === 0) return res.json([]);
+    // Require phone ownership proof — order ids alone (even cuids) must never
+    // return order data. No phone → empty (the web always sends the stored phone).
+    if (ids.length === 0 || !phone) return res.json([]);
     const orders = await prisma.order.findMany({
-      where: { id: { in: ids }, ...(phone ? { customerPhone: phone } : {}) },
+      where: { id: { in: ids }, customerPhone: phone },
       select: {
         id: true, orderNumber: true, status: true, total: true,
         restaurant: { select: { name: true } },

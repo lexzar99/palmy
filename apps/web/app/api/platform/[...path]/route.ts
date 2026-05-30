@@ -45,11 +45,15 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     if (idempotencyKey) headers.set("idempotency-key", idempotencyKey);
 
     stage = "fetch-upstream";
+    // 15s timeout so a slow/stuck upstream can't pile up Vercel function instances
+    // under load. 15s is well above order-create p99 (sub-second + one Stripe call),
+    // and the forwarded Idempotency-Key makes any client retry safe (server replays).
     const upstreamResponse = await fetch(targetUrl, {
       method: request.method,
       headers,
       body: requestBody,
       cache: "no-store",
+      signal: AbortSignal.timeout(15000),
     });
 
     stage = "build-response";
@@ -63,10 +67,13 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     return response;
   } catch (err: any) {
     const detail = err?.message || String(err);
+    // Log the internal detail server-side ONLY — never return the upstream host /
+    // connection error (e.g. "ECONNREFUSED <railway-host>") to the client.
     console.error(`[platform-proxy] FAILED at stage="${stage}":`, detail);
+    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
     return NextResponse.json(
-      { error: "Proxy-fel", stage, detail, path: pathSegments.join("/") },
-      { status: 500 },
+      { error: isTimeout ? "Tidsgräns mot servern, försök igen." : "Tjänsten är tillfälligt otillgänglig, försök igen." },
+      { status: stage === "fetch-upstream" ? 502 : 500 },
     );
   }
 }

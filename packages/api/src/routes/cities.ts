@@ -5,7 +5,7 @@ import { isPointInZone, pointInPolygon, haversineKm, findDeliveryZone, DeliveryZ
 import { getEffectiveZoneEta } from '../lib/restaurantZoneEta';
 import { resolveOrCreateCity, getCityFamilyIds } from '../lib/cityResolver';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
-import { cached } from '../lib/ttlCache';
+import { cached, bustCache } from '../lib/ttlCache';
 
 const router = Router();
 
@@ -287,6 +287,14 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
 
       return cityRecord;
     });
+
+    // City/zone edits change which restaurants deliver where → bust the public
+    // cities list, the per-coord zone-check, and the restaurant list/detail
+    // (restaurant zones may have changed).
+    bustCache('cities:list');
+    bustCache('zone:validate');
+    bustCache('rest:list');
+    bustCache('rest:detail');
 
     res.json(city);
   } catch (err) {

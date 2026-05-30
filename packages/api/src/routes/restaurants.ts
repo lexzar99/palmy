@@ -9,7 +9,7 @@ import { isRestaurantOpen } from '../lib/openingHours';
 import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
 import { getEffectiveEtaMinutes, ETA_DEFAULT_MINUTES } from '../lib/restaurantEta';
 import { resolveOrCreateCity } from '../lib/cityResolver';
-import { cached } from '../lib/ttlCache';
+import { cached, bustRestaurantCaches } from '../lib/ttlCache';
 
 const router = Router();
 
@@ -362,6 +362,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         ...data,
       },
     });
+    bustRestaurantCaches(createdRaw.slug); // new restaurant appears immediately
 
     // Create admin user for the new restaurant if password provided
     let adminCreated = false;
@@ -668,6 +669,11 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     });
     getIO().emit('settings:updated', { isOpen: effectiveIsOpen });
 
+    // Edit shows immediately: bust the API caches that embed this restaurant
+    // (list, detail, zone-check, cities). Open customer pages also update live
+    // via the settings:updated socket above.
+    bustRestaurantCaches(restaurant.slug);
+
     // Returnera via formatRestaurant — JSON-strängifierade fält (openingHours,
     // deliveryZones, tags) blir parsade objekt så admin-form kan repopulera
     // utan glitch. Tidigare gick raw Prisma-objekt direkt vilket gjorde att
@@ -686,6 +692,7 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
     }
 
     await prisma.restaurant.delete({ where: { id: req.params.id } });
+    bustRestaurantCaches(); // restaurant gone → clear list/detail/zone/cities
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ error: 'Kunde inte radera restaurang' });

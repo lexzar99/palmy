@@ -273,12 +273,40 @@ const PHONE_LINKING_ALLOWED_PATHS = new Set<string>([
   '/api/auth/lookup-phone',
 ]);
 
+// Cache the RESOLVED local identity per token for 30s so authenticated requests
+// don't re-run the Supabase call + user findUnique/upsert on EVERY request (the
+// profile/auth scaling bottleneck — it was ~3-4 DB queries + an upsert per call).
+// Only successful auths are cached below; banned/invalid tokens are never cached.
+// ≤30s staleness on a ban/role change is acceptable (same window as token validation).
+const identityCache = new Map<string, { value: any; expiresAt: number }>();
+function getCachedIdentity(token: string): any | null {
+  const e = identityCache.get(token);
+  if (e && e.expiresAt > Date.now()) return e.value;
+  if (e) identityCache.delete(token);
+  return null;
+}
+function setCachedIdentity(token: string, value: any): void {
+  identityCache.set(token, { value, expiresAt: Date.now() + 30_000 });
+  if (identityCache.size > 5000) {
+    for (const k of identityCache.keys()) { identityCache.delete(k); if (identityCache.size <= 4000) break; }
+  }
+}
+
 export const authenticateUser = async (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Logga in först' });
   }
   const token = authHeader.split(' ')[1];
+
+  // Fast path: a recently-resolved identity for this exact token → skip the
+  // Supabase call AND the per-request user findUnique/upsert entirely. This is
+  // what lets the profile/auth path survive 1000 concurrent.
+  const cachedIdentity = getCachedIdentity(token);
+  if (cachedIdentity) {
+    req.user = cachedIdentity;
+    return next();
+  }
 
   // ── 1. Try Supabase JWT ───────────────────────────────────────────────────
   if (supabaseAdmin) {
@@ -483,6 +511,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
         }
 
         req.user = { id: user.id, email: user.email, phone: normalizedPhone, role: 'USER' };
+        setCachedIdentity(token, req.user);
         return next();
       }
     } catch {
@@ -503,6 +532,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
       }
     }
     req.user = payload;
+    setCachedIdentity(token, req.user);
     return next();
   } catch {
     return res.status(401).json({ error: 'Session utgången' });
@@ -1004,10 +1034,12 @@ router.get('/check-admin/:slug', async (req, res) => {
       select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true, updatedAt: true },
     });
 
+    // Public, unauthenticated endpoint → return ONLY existence. Never expose the
+    // admin's email/role/timestamps or the restaurant's adminEmail (that was an
+    // account-enumeration + PII leak to anyone who knows a slug).
     res.json({
       exists: !!admin,
-      admin: admin ? { id: admin.id, email: admin.email, name: admin.name, role: admin.role, isActive: admin.isActive, createdAt: admin.createdAt, updatedAt: admin.updatedAt } : null,
-      restaurant: restaurant || null,
+      restaurant: restaurant ? { id: restaurant.id, slug: restaurant.slug, name: restaurant.name } : null,
     });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });

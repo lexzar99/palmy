@@ -2,7 +2,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { getIO } from '../lib/socket';
-import { cached } from '../lib/ttlCache';
+import { cached, bustCache } from '../lib/ttlCache';
 import {
   defaultRestaurantSettings,
   parseOpeningHours,
@@ -228,6 +228,7 @@ router.patch('/', authenticate, async (req, res) => {
         openingHours: JSON.stringify(openingHours ?? defaultRestaurantSettings.openingHours),
       },
     });
+    bustCache('settings:public', 'global'); // settings change shows immediately
 
     const publicSettings = {
       isOpen: settings.isOpen,
