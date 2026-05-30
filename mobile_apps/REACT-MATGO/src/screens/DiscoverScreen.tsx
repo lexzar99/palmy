@@ -115,6 +115,8 @@ export default function DiscoverScreen({
   const pickupCity = useAppStore((s) => s.pickupCity);
   const storeAddress = useAppStore((s) => s.address);
   const deliveryCoords = useAppStore((s) => s.deliveryCoords);
+  const cityFamilyIds = useAppStore((s) => s.cityFamilyIds);
+  const detectedCityName = useAppStore((s) => s.detectedCityName);
   const cachedData = getScreenCache<Cache>('discover', cacheKey);
   const clearFilteredIds = useAppStore((s) => s.setFilteredRestaurantIds);
   const storedFilteredIds = useAppStore((s) => s.filteredRestaurantIds);
@@ -263,16 +265,28 @@ export default function DiscoverScreen({
     if (zoneRestaurantIds !== null) {
       return zoneRestaurantIds.includes(r.id);
     }
-    // 2. City-name fallback (pickup, or no coords)
+    // 2. Stad-familje-baserad filtrering (paritet med HomeScreen + web).
+    // Hanterar parent/child-hierarki: kund i Malmö ser även Arlöv. Tomma
+    // cityFamilyIds = ingen stad satt → fall igenom till nästa fallback.
+    if (cityFamilyIds && cityFamilyIds.length > 0) {
+      const rCityId = (r as { cityId?: string | null }).cityId;
+      if (rCityId) return cityFamilyIds.includes(rCityId);
+      // r saknar cityId → fall tillbaka på namn-jämförelse mot detected name.
+      if (detectedCityName && r.city) {
+        return r.city.toLowerCase() === detectedCityName.toLowerCase();
+      }
+    }
+    // 3. Legacy city-name-fallback för fall där cityFamilyIds inte hunnit
+    // resolvas än (första cold-start innan /api/cities/family-by-name svarat).
     if (userCity && r.city) {
       return r.city.toLowerCase() === userCity;
     }
     if (matchedCityNames.length > 0 && r.city) {
       return matchedCityNames.includes(r.city.toLowerCase());
     }
-    // 3. No location signal → show everything (we'll prompt user to set address)
+    // 4. No location signal → show everything (we'll prompt user to set address)
     return true;
-  }, [zoneRestaurantIds, userCity, matchedCityNames]);
+  }, [zoneRestaurantIds, cityFamilyIds, detectedCityName, userCity, matchedCityNames]);
 
   const results = (activeFilteredIds
     ? restaurants.filter((r) => activeFilteredIds.includes(r.id))

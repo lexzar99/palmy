@@ -8,6 +8,8 @@ import type { Restaurant } from '../types';
 import { Header, ScreenWrap, RestaurantCard, EmptyPanel } from '../components/ui';
 import ScalePressable from '../components/ScalePressable';
 import { SearchScreenSkeleton } from '../components/SkeletonLoader';
+import { useAppStore } from '../store/useAppStore';
+import { matchesCityFamily } from '../lib/cityFamily';
 
 const DISCOVER_CATEGORIES = [
   { name: "Pizza", icon: "pizza-outline" as const, tint: "#ef4444", bg: "rgba(239,68,68,0.1)" },
@@ -29,6 +31,10 @@ export default function SearchScreen({ openRestaurant }: { openRestaurant: (slug
   const [restaurants, setRestaurants] = useState<Restaurant[]>(() => cachedData?.restaurants || []);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(!cachedData);
+  // Stad-familj-state från store — speglar HomeScreen/Discover. Tomt = visa alla.
+  const cityFamilyIds = useAppStore((s) => s.cityFamilyIds);
+  const detectedCityName = useAppStore((s) => s.detectedCityName);
+  const orderType = useAppStore((s) => s.orderType);
 
   useEffect(() => {
     let active = true;
@@ -49,6 +55,12 @@ export default function SearchScreen({ openRestaurant }: { openRestaurant: (slug
   }, []);
 
   const filtered = restaurants.filter((restaurant) => {
+    // Filtrera bort restauranger i andra städer — kund i Lund ska inte se
+    // Malmö-restauranger i sökresultaten (paritet med HomeScreen). Tomma
+    // cityFamilyIds = ingen stad satt → visa alla (typiskt onboarding).
+    if (!matchesCityFamily(restaurant, cityFamilyIds, detectedCityName, orderType)) {
+      return false;
+    }
     const haystack = `${restaurant.name} ${restaurant.cuisine || ""} ${restaurant.description || ""}`.toLowerCase();
     return haystack.includes(query.toLowerCase());
   });
