@@ -102,6 +102,8 @@ const persistState = async (state: AppStoreState) => {
       deliveryAddress: state.deliveryAddress,
       deliveryCoords: state.deliveryCoords,
       pickupCity: state.pickupCity,
+      cityFamilyIds: state.cityFamilyIds,
+      detectedCityName: state.detectedCityName,
       // token deliberately omitted — stored in SecureStore via TOKEN_KEY
       profile: state.profile,
       activeOrderId: state.activeOrderId,
@@ -133,6 +135,8 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   deliveryAddress: "",
   deliveryCoords: null,
   pickupCity: "",
+  cityFamilyIds: null,
+  detectedCityName: null,
   orderType: "DELIVERY",
   token: null,
   profile: null,
@@ -321,6 +325,15 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       update.coords = null;
     }
     set(update);
+    queueMicrotask(() => {
+      persistState(get()).catch(() => {});
+    });
+  },
+  setCityFamily: (familyIds, cityName) => {
+    // Tom array ska normaliseras till null så `matchesCityFamily` faller tillbaka
+    // till strict "visa inget" mode i stället för "visa allt" (samma logik som web).
+    const normalized = Array.isArray(familyIds) && familyIds.length > 0 ? familyIds : null;
+    set({ cityFamilyIds: normalized, detectedCityName: cityName || null });
     queueMicrotask(() => {
       persistState(get()).catch(() => {});
     });

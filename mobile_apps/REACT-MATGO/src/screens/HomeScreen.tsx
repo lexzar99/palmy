@@ -23,6 +23,7 @@ import AddressModal from "../components/AddressModal";
 import ScalePressable from "../components/ScalePressable";
 import { ToggleChip, RestaurantCard, EmptyPanel } from "../components/ui";
 import CityModal from "../components/CityModal";
+import { fetchCityFamily, matchesCityFamily } from "../lib/cityFamily";
 import RestaurantInfoModal from "../components/RestaurantInfoModal";
 import SponsorTile from "../components/SponsorTile";
 import AddressPullDown from "../components/AddressPullDown";
@@ -190,10 +191,13 @@ export default function HomeScreen({
   const orderType = useAppStore((s) => s.orderType);
   const pickupCity = useAppStore((s) => s.pickupCity);
   const deliveryOverrides = useAppStore((s) => s.deliveryOverrides);
+  const cityFamilyIds = useAppStore((s) => s.cityFamilyIds);
+  const detectedCityName = useAppStore((s) => s.detectedCityName);
   const setAddress = useAppStore((s) => s.setAddress);
   const setOrderType = useAppStore((s) => s.setOrderType);
   const setPendingPromoCode = useAppStore((s) => s.setPendingPromoCode);
   const setDeliveryOverrides = useAppStore((s) => s.setDeliveryOverrides);
+  const setCityFamily = useAppStore((s) => s.setCityFamily);
   const profile = useAppStore((s) => s.profile);
   const favorites = useAppStore((s) => s.favorites);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
@@ -287,6 +291,33 @@ export default function HomeScreen({
       setZoneError(null);
     }
   }, [coords, orderType, validateZone]);
+
+  // Hydratisera cityFamilyIds vid mount + när orderType byts. Mot webben:
+  // page.tsx läser localStorage("platform_pickup_city" / "platform_city") och
+  // kör resolveCityFamily(stored). I RN bor motsvarande i store-fälten address
+  // (PICKUP → stad-namn) och deliveryAddress (DELIVERY → full adress, ta sista
+  // kommaledet som stad-gissning).
+  const lastResolvedCityRef = useRef<string | null>(null);
+  useEffect(() => {
+    const cityGuess = orderType === "PICKUP"
+      ? (pickupCity || "").trim()
+      : (address.split(",").pop() || "").trim();
+    if (!cityGuess) {
+      if (lastResolvedCityRef.current !== null) {
+        lastResolvedCityRef.current = null;
+        setCityFamily(null, null);
+      }
+      return;
+    }
+    if (lastResolvedCityRef.current === cityGuess) return;
+    lastResolvedCityRef.current = cityGuess;
+    let cancelled = false;
+    fetchCityFamily(cityGuess).then((family) => {
+      if (cancelled) return;
+      setCityFamily(family.familyIds, family.resolvedName ?? cityGuess);
+    });
+    return () => { cancelled = true; };
+  }, [orderType, pickupCity, address, setCityFamily]);
 
   useEffect(() => {
     let active = true;
@@ -440,16 +471,23 @@ export default function HomeScreen({
       restaurants.filter((restaurant) => {
         const byCuisine =
           activeCuisine === "Alla" ||
+          activeCuisine === "Favoriter" ||  // favoriter-filter sköts separat nedan via cuisineChips
           (restaurant.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
           (restaurant.tags || []).some((tag) => tag.toLowerCase().includes(activeCuisine.toLowerCase()));
 
         if (!byCuisine) return false;
 
-        if (orderType === "PICKUP" && selectedCity) {
-          return (restaurant.city || "").toLowerCase() === selectedCity.name.toLowerCase();
+        // Favoriter-läge: använd local favorites-store i stället för cuisine-fält.
+        if (activeCuisine === "Favoriter" && !favorites.includes(restaurant.id)) {
+          return false;
         }
 
-        return true;
+        // City-family-filter — speglar webbens matchesCityFamily(). Detta gäller
+        // BÅDE DELIVERY OCH PICKUP (förr filtrerade RN bara på PICKUP-mode +
+        // exakt stad-namn → barn-städer (t.ex. Arlöv) syntes inte när användaren
+        // var i Malmö. Nu: använd cityFamilyIds från store så hierarkin matchar
+        // som på webben.
+        return matchesCityFamily(restaurant, cityFamilyIds, detectedCityName, orderType);
       }),
       orderType === "DELIVERY" ? zoneRestaurantIds : null
     );
@@ -468,7 +506,7 @@ export default function HomeScreen({
       if (quickFilter === "free") return !r.deliveryFee || r.deliveryFee === 0;
       return true;
     });
-  }, [activeCuisine, restaurants, selectedCity, orderType, zoneRestaurantIds, deliveryOverrides, quickFilter, homeDeals]);
+  }, [activeCuisine, restaurants, orderType, zoneRestaurantIds, deliveryOverrides, quickFilter, homeDeals, cityFamilyIds, detectedCityName, favorites]);
 
   const featured = useMemo(() => {
     const allPremium = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2);
@@ -483,11 +521,18 @@ export default function HomeScreen({
         ...section,
         restaurants: resolveHomeCategoryRestaurants({
           section,
-          restaurants,
+          // Pre-filtrera på stad-familjen INNAN rail-helpern kör — så home-rails
+          // (Heta listan, Pizza Fredag osv) respekterar samma city-hierarki som
+          // huvudgriden. Web gör samma sak i `matchesCityFamily`-helpern.
+          restaurants: restaurants.filter((r) => matchesCityFamily(r, cityFamilyIds, detectedCityName, orderType)),
           deals,
           deliveryOverrides,
           orderType,
-          selectedCityName: selectedCity?.name,
+          // VIKTIGT: lämna undefined här. Pre-filter ovan tar redan hand om
+          // city-scoping på familje-nivå (Arlöv ingår i Malmö-familjen). Om vi
+          // skickar selectedCityName="Malmö" kör helpern en EXAKT sträng-match
+          // som tappar barn-städerna igen.
+          selectedCityName: undefined,
           zoneRestaurantIds,
         }).map((r) => {
           const ovr = deliveryOverrides[r.id];
@@ -496,7 +541,7 @@ export default function HomeScreen({
         }),
       }))
       .filter((section) => section.restaurants.length > 0);
-  }, [homeCategorySections, restaurants, deals, deliveryOverrides, orderType, selectedCity?.name, zoneRestaurantIds]);
+  }, [homeCategorySections, restaurants, deals, deliveryOverrides, orderType, selectedCity?.name, zoneRestaurantIds, cityFamilyIds, detectedCityName]);
 
   const sponsorCards = useMemo<SponsorCarouselItem[]>(() => {
     return sponsors.map((sponsor: any) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
@@ -1140,11 +1185,16 @@ export default function HomeScreen({
         cities={cities}
         selected={selectedCity?.id}
         onClose={() => setCityModalOpen(false)}
-        onSelect={(city: City) => {
+        onSelect={async (city: City) => {
           setAddress(city.name, null);
           setCityModalOpen(false);
           if (city.deliveryMode === "ONLY_PICKUP") setOrderType("PICKUP");
           if (city.deliveryMode === "ONLY_DELIVERY") setOrderType("DELIVERY");
+          // Hydratisera stad-familjen direkt så filtered/sections kan filtrera
+          // på hela hierarkin (Arlöv → Malmö osv). Speglar webbens
+          // `resolveCityFamily(cityName)` i handleAddressConfirm.
+          const family = await fetchCityFamily(city.name);
+          setCityFamily(family.familyIds, family.resolvedName ?? city.name);
         }}
       />
 
@@ -1167,6 +1217,20 @@ export default function HomeScreen({
               latitude: coords.lat,
               longitude: coords.lng,
             });
+          }
+          // Försök extrahera stad från sista kommaseparerade ledet ("Stora
+          // Södergatan 12, Lund" → "Lund") och resolva familjen. Vid PICKUP är
+          // addressText redan rena stad-namnet. Detta speglar webbens
+          // `await resolveCityFamily(pickupCity)` / `resolveCityFamily(city)`
+          // i handleAddressConfirm.
+          const cityGuess = selectedOrderType === "PICKUP"
+            ? addressText.trim()
+            : (addressText.split(",").pop() || "").trim();
+          if (cityGuess) {
+            const family = await fetchCityFamily(cityGuess);
+            setCityFamily(family.familyIds, family.resolvedName ?? cityGuess);
+          } else {
+            setCityFamily(null, null);
           }
         }}
       />

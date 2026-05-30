@@ -20,6 +20,11 @@ export interface Restaurant {
   description?: string;
   address?: string;
   city?: string;
+  /** FK till City.id på backend. Används av matchesCityFamily() för att matcha
+   *  restauranger mot stad-hierarkin (Arlöv → Malmö). Backend returnerar fältet
+   *  i /api/restaurants men RN-typen saknade det → city-filter föll tillbaka
+   *  till sträng-match som missade barn-städer. */
+  cityId?: string | null;
   zip?: string;
   phone?: string;
   imageUrl?: string;
@@ -291,6 +296,15 @@ export interface AppStoreState {
   deliveryAddress: string;
   deliveryCoords: { lat: number; lng: number } | null;
   pickupCity: string;
+  /** Hela stad-familjen för den aktiva staden (parent + alla barn). Resolvad
+   *  via GET /api/cities/family-by-name. Används för att filtrera restauranger
+   *  så att t.ex. "Malmö" visar både Malmö och Arlöv (barn-stad). null = ingen
+   *  stad satt → visa alla. Spegel av webbens `cityFamilyIds`. */
+  cityFamilyIds: string[] | null;
+  /** Resolvat city-namn från backend (kan skilja sig från det användaren skrev
+   *  om backend hittade ett bättre alias-träff). Driver "Levererar i {city}".
+   *  Spegel av webbens `detectedCityName`. */
+  detectedCityName: string | null;
   orderType: OrderType;
   token: string | null;
   profile: Profile | null;
@@ -318,6 +332,9 @@ export interface AppStoreState {
   setAddress: (address: string, coords?: { lat: number; lng: number } | null) => void;
   setDeliveryAddress: (address: string, coords?: { lat: number; lng: number } | null) => void;
   setPickupCity: (city: string) => void;
+  /** Sätt resolvad stad-familj efter ett /api/cities/family-by-name-anrop.
+   *  Anropa med (null, null) för att rensa (t.ex. när användaren clear:ar adress). */
+  setCityFamily: (familyIds: string[] | null, cityName: string | null) => void;
   setOrderType: (orderType: OrderType) => void;
   setToken: (token: string | null) => void;
   setProfile: (profile: Profile | null) => void;
