@@ -558,11 +558,6 @@ export default function CartScreen({
   // Free delivery via userDeal → nolla fee:n så total räknas utan leverans
   const deliveryFee = userDealFreeDelivery ? 0 : rawDeliveryFee;
   const minOrder = deliveryCheck?.minOrder ?? restaurantSettings.minOrderAmount;
-  // Komplettering till minimum — bara aktiv när kunden kryssat i checkboxen och
-  // subtotal verkligen ligger under minimum (paritet med web).
-  const minOrderTopUp = topUpToMinimum && subtotal > 0 && subtotal < minOrder
-    ? Math.max(0, minOrder - subtotal)
-    : 0;
   const effectiveTip = orderType === "DELIVERY" ? Math.max(0, tipAmount) : 0;
   // BOGO-rabatt kommer från server-evaluering — vi visar den som rabatt-rad
   // när den är bäst (paritet med web: `finalDiscount = max(personal, bogo)`).
@@ -571,8 +566,27 @@ export default function CartScreen({
   // att avvisa dubbel-applicering. Vi tar den största så användaren ser den
   // mest fördelaktiga rabatten markerad.
   const finalDiscount = Math.max(personalDiscount, bogoDiscount, userDealDiscount);
+  // Min-order-tolerans: med aktiv rabatt sänks effektiv min med 40 kr så
+  // kunden kan applicera rabatten utan att totalen (efter rabatten) hamnar
+  // upp till 40 kr under restaurangens min-order. Anti-bypass: drycker
+  // (~20 kr) klarar fortfarande inte tröskeln med 100%-rabatt eftersom
+  // basbeloppet är för litet — vi mäter subtotal-finalDiscount, inte bara
+  // subtotal. Speglar webbens `effectiveMinOrder` + `valueForMinCheck`.
+  const MIN_ORDER_TOLERANCE_KR = 40;
+  const hasActiveDiscount = finalDiscount > 0;
+  const effectiveMinOrder = hasActiveDiscount
+    ? Math.max(0, minOrder - MIN_ORDER_TOLERANCE_KR)
+    : minOrder;
+  const valueForMinCheck = Math.max(0, subtotal - finalDiscount);
+  const minOrderTopUp = topUpToMinimum && subtotal > 0 && valueForMinCheck < effectiveMinOrder
+    ? Math.max(0, effectiveMinOrder - valueForMinCheck)
+    : 0;
   const isTestCode = __DEV__ && (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa");
-  const total = isTestCode ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp - finalDiscount + effectiveTip);
+  // Math.ceil: float-precision på t.ex. 20% av 199 kr blir 39.7999... → utan
+  // ceil hamnar totalen som "154.28999999999996 kr" på Stripe-knappen. Ceil
+  // betyder kunden betalar maximalt 1 kr mer än exakt — siffran blir ren.
+  // Backend matchar via samma Math.ceil i orders.ts. (Paritet med web.)
+  const total = isTestCode ? 0 : Math.ceil(Math.max(0, subtotal + deliveryFee + minOrderTopUp - finalDiscount + effectiveTip));
 
   // Initial data fetch
   useEffect(() => {
@@ -981,13 +995,17 @@ export default function CartScreen({
         }
       }
 
-      // Tillåt checkout om subtotal < minOrder ENDAST när användaren kryssat
-      // i komplettering-checkboxen (paritet med web). Annars blockera.
-      // OBS: `minOrder` är zone-aware (deliveryCheck.minOrder fallback till
-      // restaurantSettings.minOrderAmount). Vi använder den, inte restaurang-
-      // settings direkt, så min stämmer med zonen kunden levereras till.
-      if (subtotal < minOrder && !topUpToMinimum) {
-        Alert.alert(t('cart.errors.minimumOrder'), t('cart.summary.minimum', { amount: minOrder }));
+      // Tillåt checkout om kundens "post-rabatt"-belopp uppfyller effektiv min
+      // (sänkt 40 kr när rabatt är aktiv) — annars måste komplettering vara på.
+      // Speglar webbens valueForMinCheck < effectiveMinOrder, INTE den enkla
+      // subtotal < minOrder vi hade förr som blockerade "199 kr + 25% rabatt"-
+      // ordrar trots att kunden var precis vid gränsen.
+      if (!isTestCode && valueForMinCheck < effectiveMinOrder && !topUpToMinimum) {
+        const shortfall = Math.ceil(effectiveMinOrder - valueForMinCheck);
+        Alert.alert(
+          t('cart.errors.minimumOrder'),
+          t('cart.summary.minimum', { amount: effectiveMinOrder }) + (shortfall > 0 ? ` (saknas ${shortfall} kr)` : ''),
+        );
         setSubmitting(false);
         return;
       }
@@ -2183,7 +2201,11 @@ export default function CartScreen({
               OBS: minOrder är zone-aware (deliveryCheck.minOrder fallback till
               restaurantSettings.minOrderAmount) — kunden ser zonens minimum
               för den adress de levereras till, inte restaurangens default. */}
-          {subtotal > 0 && subtotal < minOrder && (
+          {/* Min-order-banner: visa när kundens efter-rabatt-belopp är under
+              effektiv min (paritet med web). Förr användes raw subtotal —
+              det dolde inte bannern när kunden faktiskt nådde över effektiv min
+              tack vare en aktiv rabatt. */}
+          {subtotal > 0 && valueForMinCheck < effectiveMinOrder && (
             <View
               style={{
                 marginTop: 4,
@@ -2437,15 +2459,15 @@ export default function CartScreen({
               label={
                 submitting
                   ? t('cart.submittingBtn')
-                  : (subtotal > 0 && subtotal < minOrder && !topUpToMinimum)
-                    ? `Köp för ${Math.round(minOrder - subtotal)} kr till`
+                  : (!isTestCode && subtotal > 0 && valueForMinCheck < effectiveMinOrder && !topUpToMinimum)
+                    ? `Köp för ${Math.ceil(effectiveMinOrder - valueForMinCheck)} kr till`
                     : t('cart.checkoutBtn', { amount: Math.round(total) })
               }
               onPress={handleCheckoutPress}
               disabled={
                 submitting
-                || !restaurantSettings.isOpen
-                || (subtotal > 0 && subtotal < minOrder && !topUpToMinimum)
+                || (!isTestCode && !restaurantSettings.isOpen)
+                || (!isTestCode && subtotal > 0 && valueForMinCheck < effectiveMinOrder && !topUpToMinimum)
               }
               icon="checkmark-circle-outline"
               style={{ marginTop: 22, paddingVertical: 19 }}
