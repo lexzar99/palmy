@@ -101,6 +101,10 @@ router.get('/categories', async (req, res) => {
       const mains: any[] = payload?.mainCategories || [];
       const reshuffled = mains.map((m) => {
         if (m.isVirtual) return m;
+        // Order-baserad ranking är stabil "mest beställda" — behåll den som den
+        // är. Bara random-fallbacken (restaurang utan order-historik) shufflas
+        // om per request för discovery-känsla.
+        if (m.popularFromOrders) return m;
         const all: any[] = (m.categories || []).flatMap((c: any) => c.products || []);
         if (all.length < 10) return { ...m, popularProductIds: [] };
         const scored = all.map((p) => {
@@ -164,12 +168,14 @@ router.get('/categories', async (req, res) => {
       const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const items = await prisma.orderItem.findMany({
         where: { order: { restaurantId: rid, createdAt: { gte: since } } },
-        select: { productId: true },
+        select: { productId: true, quantity: true },
       });
       const counts = new Map<string, number>();
       for (const item of items) {
         if (!item.productId) continue;
-        counts.set(item.productId, (counts.get(item.productId) || 0) + 1);
+        // Vikta efter antal sålda enheter, inte antal order-rader — en rätt som
+        // beställs 50× ska räknas som mer populär än en som beställts 1×.
+        counts.set(item.productId, (counts.get(item.productId) || 0) + (item.quantity || 1));
       }
       return counts;
     };
@@ -267,9 +273,13 @@ router.get('/categories', async (req, res) => {
      // - Med order-historik senaste 30d: rangordna efter OrderItem-counts +
      //   1.2x bild-boost.
      // - Utan historik (ny restaurang): random per request med 1.5x bild-vikt.
-    const popularProductIdsFor = (cats: typeof formattedCategories): string[] => {
+    // Returnerar både id-listan OCH om rankingen är order-baserad. fromOrders
+    // styr cache-hit-pathen: order-baserad ranking ska INTE shufflas om per
+    // request (den ska vara stabil = "mest beställda"); bara random-fallbacken
+    // (ny restaurang utan historik) shufflas för discovery-känsla.
+    const popularProductIdsFor = (cats: typeof formattedCategories): { ids: string[]; fromOrders: boolean } => {
       const all = cats.flatMap((c) => c.products);
-      if (all.length < 10) return [];
+      if (all.length < 10) return { ids: [], fromOrders: false };
 
       const hasOrders = all.some((p) => (popularity.get(p.id) || 0) > 0);
       const scored = all.map((p) => {
@@ -280,7 +290,7 @@ router.get('/categories', async (req, res) => {
         const r = Math.random();
         return { id: p.id, score: p.imageUrl ? r * 1.5 : r };
       });
-      return scored.sort((a, b) => b.score - a.score).slice(0, 6).map((p) => p.id);
+      return { ids: scored.sort((a, b) => b.score - a.score).slice(0, 6).map((p) => p.id), fromOrders: hasOrders };
     };
 
     const mainCategoriesPayload = mainCategories
@@ -291,6 +301,7 @@ router.get('/categories', async (req, res) => {
           restaurant: restSlugForR2,
           category: slugifyPathSegment(mc.name),
         });
+        const popular = popularProductIdsFor(cats);
         return {
           id: mc.id,
           name: mc.name,
@@ -298,7 +309,8 @@ router.get('/categories', async (req, res) => {
           position: mc.position,
           isVirtual: false,
           categories: cats,
-          popularProductIds: popularProductIdsFor(cats),
+          popularProductIds: popular.ids,
+          popularFromOrders: popular.fromOrders,
         };
       })
       .filter((mc) => mc.categories.length > 0);
@@ -311,7 +323,8 @@ router.get('/categories', async (req, res) => {
         position: 9999,
         isVirtual: true,
         categories: orphanCategories,
-        popularProductIds: popularProductIdsFor(orphanCategories),
+        popularProductIds: popularProductIdsFor(orphanCategories).ids,
+        popularFromOrders: false,
       });
     }
 
@@ -338,6 +351,7 @@ router.get('/categories', async (req, res) => {
         isVirtual: true,
         categories: [offerCategory as any],
         popularProductIds: [],
+        popularFromOrders: false,
       });
     }
 

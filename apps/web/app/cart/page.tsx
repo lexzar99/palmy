@@ -129,6 +129,28 @@ const stripePromise = stripeKeyMissing
   ? null
   : loadStripe(STRIPE_PUBLISHABLE_KEY as string);
 
+// Varukorgs-thumbnail: visar produktbilden om den finns OCH laddar. Saknas
+// bilden — eller är URL:en trasig (onError) — visar vi antalet i stället för
+// en ful brutet-bild-ikon.
+function CartItemThumb({ imageUrl, quantity, name }: { imageUrl?: string | null; quantity: number; name: string }) {
+  const [imgError, setImgError] = useState(false);
+  const showImage = Boolean(imageUrl) && !imgError;
+  if (!showImage) {
+    return (
+      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-gold-600 font-black italic text-sm shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(231,178,75,0.18)" }}>
+        {quantity}×
+      </div>
+    );
+  }
+  const src = imageUrl!.startsWith("/") ? `${API_URL}${imageUrl}` : imageUrl!;
+  return (
+    <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(28,28,30,0.06)" }}>
+      <img src={src} alt={name} loading="lazy" className="w-full h-full object-cover" onError={() => setImgError(true)} />
+      <span className="absolute bottom-0 right-0 px-1.5 py-0.5 text-[10px] font-black italic text-zinc-950 bg-gold-500 rounded-tl-lg leading-none">{quantity}×</span>
+    </div>
+  );
+}
+
 export default function CartPage() {
   const { t } = useTranslation();
   const { items, removeItem, updateQuantity, getTotal, clearCart, restaurantId: cartRestaurantId, restaurantSlug: cartRestaurantSlug } = useCartStore();
@@ -1772,21 +1794,7 @@ export default function CartPage() {
                     className="flex items-center gap-3 text-left flex-1 min-w-0"
                     aria-label={`${t("cart.tapToEdit")}: ${item.name}`}
                   >
-                    {item.imageUrl ? (
-                      <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(28,28,30,0.06)" }}>
-                        <img
-                          src={item.imageUrl.startsWith("/") ? `${API_URL}${item.imageUrl}` : item.imageUrl}
-                          alt={item.name}
-                          loading="lazy"
-                          className="w-full h-full object-cover"
-                        />
-                        <span className="absolute bottom-0 right-0 px-1.5 py-0.5 text-[10px] font-black italic text-zinc-950 bg-gold-500 rounded-tl-lg leading-none">{item.quantity}×</span>
-                      </div>
-                    ) : (
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-gold-600 font-black italic text-sm shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(231,178,75,0.18)" }}>
-                        {item.quantity}×
-                      </div>
-                    )}
+                    <CartItemThumb imageUrl={item.imageUrl} quantity={item.quantity} name={item.name} />
                     <div className="min-w-0 flex-1">
                       <h3 className="text-sm font-black uppercase italic tracking-tight truncate group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{item.name}</h3>
                       {item.extras.length > 0 && (

@@ -82,7 +82,9 @@ const getConfirmedPaymentIntent = async (paymentIntentId: string): Promise<Confi
 
 const OrderItemSchema = z.object({
   productId: z.string(),
-  quantity: z.number().min(1).max(20),
+  // Tillåt stora beställningar (fester/catering). Tidigare max 20 → "Ogiltig
+  // data" vid t.ex. 30–50 pizzor. Taket på 500 är bara ett sanity-skydd.
+  quantity: z.number().int().min(1).max(500),
   note: z.string().nullable().optional(),
   selectedExtras: z.array(z.object({
     groupId: z.string(),
