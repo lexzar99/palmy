@@ -345,12 +345,6 @@ model AdminUser {
   id            String   @id @default(cuid())
   email         String   @unique
   password      String
-  // Klartext-spegling av lösenordet — används BARA av admin-panelens
-  // restaurang-login-tab så superadmin kan se vad som faktiskt är satt
-  // (Flutter-appens credentials). Bcrypt är envägs så vi kan inte
-  // återhämta det från `password`. Befintliga konton har null tills
-  // någon sätter ett nytt lösenord.
-  passwordPlain String?
   name          String
   role          String   @default("STAFF")
   isActive      Boolean  @default(true)
@@ -370,6 +364,40 @@ model AdminUser {
   updatedAt     DateTime @updatedAt
   trustedDevices TrustedDevice[]
   recoveryCodes  RecoveryCode[]
+}
+
+// En restaurang-platta (Flutter-appen) parad till en restaurang. Nycklas på ett
+// stabilt device-id (Android ANDROID_ID) så bindningen överlever app-
+// ominstallation. revoked=true = utloggad av super-admin (enda sättet att logga
+// ut en terminal — appen har ingen egen utloggning).
+model RestaurantDevice {
+  id               String     @id @default(cuid())
+  restaurantId     String
+  restaurant       Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  deviceId         String     @unique
+  label            String?
+  refreshTokenHash String?
+  pushToken        String?
+  revoked          Boolean    @default(false)
+  lastSeenAt       DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([restaurantId])
+}
+
+// Engångskod som super-admin genererar för att para en ny platta till en
+// restaurang. Kort livslängd, single-use.
+model DevicePairingCode {
+  id           String     @id @default(cuid())
+  code         String     @unique
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId])
 }
 
 // Trusted device — när admin loggat in med TOTP får enheten en cookie som
@@ -575,6 +603,8 @@ model Restaurant {
   adminUserId    String?            @unique
   announcementText String?          // Info-banner på restaurangsidan (t.ex. adressändring, stängt idag)
   vatPercent     Int?               // Moms i % som visas i kassan (6 eller 12). null = visas inte
+  devices        RestaurantDevice[]
+  pairingCodes   DevicePairingCode[]
   categories     Category[]
   mainCategories MainCategory[]
   deals          Deal[]

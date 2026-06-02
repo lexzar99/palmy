@@ -49,16 +49,7 @@ export const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD || (isProdu
 // Säkerhetsflaggor som styr riskabla admin-funktioner. Läggs här så de syns
 // centralt och inte gömda i routes-filer.
 export const ALLOW_WIPE_ORDERS = process.env.ALLOW_WIPE_ORDERS === 'true';
-// passwordPlain lagrar admin-lösen i klartext för Flutter-restaurang-appen.
-// Default är AVSTÄNGT — måste explicit aktiveras med ENABLE_PASSWORD_PLAIN=true.
-// I prod bör Flutter-auth byggas om med ett separat refresh-token-system.
-export const ENABLE_PASSWORD_PLAIN = process.env.ENABLE_PASSWORD_PLAIN === 'true';
 
-if (isProduction && ENABLE_PASSWORD_PLAIN) {
-  console.warn(
-    '⚠️  ENABLE_PASSWORD_PLAIN=true i produktion — admin-lösen lagras i klartext. Stäng av snarast och migrera Flutter-auth.',
-  );
-}
 if (isProduction && ALLOW_WIPE_ORDERS) {
   console.warn(
     '⚠️  ALLOW_WIPE_ORDERS=true i produktion — wipe-endpoint är tillgänglig. Detta är ett test-only-feature.',

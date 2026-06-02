@@ -36,6 +36,7 @@ import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
 import controlCenterRoutes from './routes/controlCenter';
 import authRoutes from './routes/auth';
+import terminalRoutes from './routes/terminal';
 import paymentRoutes from './routes/payments';
 import discountRoutes from './routes/discount';
 import settingsRoutes from './routes/settings';
@@ -60,7 +61,7 @@ import { startStripeReconciliation } from './lib/stripeReconcile';
 import { startLiveActivityFinalizer } from './lib/liveActivityFinalize';
 import { logApnsBootStatus } from './lib/liveActivityPush';
 import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
-import { isOriginAllowed, ALLOW_WIPE_ORDERS, ENABLE_PASSWORD_PLAIN } from './lib/config';
+import { isOriginAllowed, ALLOW_WIPE_ORDERS } from './lib/config';
 import { ensureDefaultHomeCategorySections } from './lib/homeCategorySections';
 import { resolveAdminSessionFromToken } from './middleware/auth';
 
@@ -90,10 +91,6 @@ if (!googleMapsConfigured) {
 if (ALLOW_WIPE_ORDERS) {
   console.warn('⚠️  ALLOW_WIPE_ORDERS=true — destruktiv /admin/orders/wipe-endpoint är aktiv. Stäng av i produktion när du inte testar längre.');
 }
-if (!ENABLE_PASSWORD_PLAIN) {
-  console.log('ℹ️  ENABLE_PASSWORD_PLAIN=false — restaurang-login visar inte klartext-lösenord.');
-}
-
 // In development, we want to allow requests from any local network IP (e.g. 192.168.x.x)
 const allowedOrigins = [FRONTEND_URL, ADMIN_URL, 'http://localhost:3002'];
 
@@ -239,6 +236,8 @@ app.use('/api/admin/printing', printingRoutes);
 app.use('/api/admin', referralsAdmin);
 app.use('/api/account', authRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/terminal/pair', adminLoginLimiter);
+app.use('/api/terminal', terminalRoutes);
 app.use('/api/account', referralsRoutes);
 app.use('/api/public', referralsPublic);
 app.use('/api/payments', paymentRoutes);

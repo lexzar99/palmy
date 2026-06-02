@@ -300,7 +300,7 @@ const PHASES: ChecklistPhase[] = [
         id: "disable-dangerous-envs",
         title: "Force-disable farliga env-vars i prod",
         description:
-          "ALLOW_WIPE_ORDERS=true (wipe-endpoint), ENABLE_PASSWORD_PLAIN=true (klartext-lösenord) ska hård-disablas i production.",
+          "ALLOW_WIPE_ORDERS=true (wipe-endpoint) ska hård-disablas i production.",
         who: "Jag",
         effort: "5 min",
       },

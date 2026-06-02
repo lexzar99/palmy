@@ -14,7 +14,7 @@ import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivit
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
 import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
-import { ALLOW_WIPE_ORDERS, ENABLE_PASSWORD_PLAIN } from '../lib/config';
+import { ALLOW_WIPE_ORDERS } from '../lib/config';
 import { sanitizeError } from '../lib/errors';
 import { menuCacheBust } from './menu';
 import { bustCache } from '../lib/ttlCache';
@@ -3142,7 +3142,7 @@ const findCandidateAdminUsers = async (restaurant: {
           OR: filters,
         },
         orderBy: [{ updatedAt: 'desc' }],
-        select: { id: true, email: true, name: true, role: true, isActive: true, passwordPlain: true, updatedAt: true },
+        select: { id: true, email: true, name: true, role: true, isActive: true, updatedAt: true },
       });
 
   // Slutligt fuzzy-filter i node för att fånga edge cases
@@ -3185,14 +3185,11 @@ type CandidateAccount = {
   name: string;
   role: string;
   isActive: boolean;
-  passwordPlain: string | null;
   updatedAt: Date;
 };
 
 const pickPrimaryAccount = (candidates: CandidateAccount[]): CandidateAccount | null => {
   if (candidates.length === 0) return null;
-  const withPassword = candidates.find((account) => account.passwordPlain);
-  if (withPassword) return withPassword;
   return candidates[0]; // already sorted by updatedAt desc
 };
 
@@ -3213,7 +3210,7 @@ const resolveLoginAccount = async (restaurantId: string) => {
   if (restaurant.adminUserId) {
     const linked = await prisma.adminUser.findUnique({
       where: { id: restaurant.adminUserId },
-      select: { id: true, email: true, name: true, role: true, isActive: true, passwordPlain: true },
+      select: { id: true, email: true, name: true, role: true, isActive: true },
     });
     if (linked) return { restaurant, account: linked };
     // FK pekar på borttagen rad — nolla och fortsätt till auto-link.
@@ -3253,7 +3250,7 @@ const resolveLoginAccount = async (restaurantId: string) => {
 
   const fresh = await prisma.adminUser.findUnique({
     where: { id: primary.id },
-    select: { id: true, email: true, name: true, role: true, isActive: true, passwordPlain: true },
+    select: { id: true, email: true, name: true, role: true, isActive: true },
   });
   return { restaurant, account: fresh };
 };
@@ -3264,19 +3261,16 @@ const formatLoginAccount = (admin: {
   name: string;
   role: string;
   isActive: boolean;
-  passwordPlain: string | null;
 }) => ({
   id: admin.id,
   username: admin.email,
   name: admin.name,
   role: admin.role,
   isActive: admin.isActive,
-  // passwordPlain läcks ENDAST i klartext om ENABLE_PASSWORD_PLAIN=true (default false).
-  // I prod är detta avstängt → bcrypt-hashen är enda lagrade representationen.
-  // hasPassword reflekterar SANT huruvida ett lösen finns i DB, oavsett gate-flaggan,
-  // så admin kan se status även när själva strängen inte exponeras.
-  password: ENABLE_PASSWORD_PLAIN ? admin.passwordPlain : null,
-  hasPassword: Boolean(admin.passwordPlain),
+  // Klartext-lösen lagras inte längre. Ett konto har alltid ett bcrypt-lösen
+  // satt, så hasPassword är sant så länge kontot finns.
+  password: null,
+  hasPassword: true,
 });
 
 // GET: returnerar ENA inloggningskontot. Om inget finns returneras
@@ -3326,9 +3320,6 @@ router.put('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req
       }
       if (trimmedPassword) {
         data.password = await bcrypt.hash(trimmedPassword, 10);
-        // Lagra klartext bara om flaggan är på. Annars sätt null så ev.
-        // gammal klartext från en tidigare miljö rensas.
-        data.passwordPlain = ENABLE_PASSWORD_PLAIN ? trimmedPassword : null;
         data.isActive = true;
       }
       if (Object.keys(data).length > 0) {
@@ -3351,7 +3342,6 @@ router.put('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req
         data: {
           email: trimmedUsername,
           password: hashed,
-          passwordPlain: ENABLE_PASSWORD_PLAIN ? trimmedPassword : null,
           name: `${restaurant.name} Admin`,
           role: 'ADMIN',
           isActive: true,
@@ -4768,6 +4758,126 @@ router.get('/health/services', authenticate, requireSuperAdmin, async (_req, res
     : { status: 'unconfigured' };
 
   res.json({ services, checkedAt: new Date().toISOString() });
+});
+
+// ── Restaurang-terminaler (pairing-kod → device) ────────────────────────────
+// Super-admin styr vilka plattor som är länkade till en restaurang. En platta
+// paras EN gång med en kod och förblir länkad för alltid (överlever app-
+// ominstallation, se routes/terminal.ts). Endast super-admin kan logga ut
+// (revoke) eller åter-aktivera (restore) en enhet.
+const PAIR_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const generatePairCode = (len = 6): string => {
+  const bytes = randomBytes(len);
+  let out = '';
+  for (let i = 0; i < len; i++) out += PAIR_CODE_ALPHABET[bytes[i] % PAIR_CODE_ALPHABET.length];
+  return out;
+};
+
+// POST /restaurants/:id/devices/pairing-code — generera en ny engångskod (15 min).
+router.post('/restaurants/:id/devices/pairing-code', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, name: true },
+    });
+    if (!restaurant) return res.status(404).json({ error: 'Restaurang hittades inte' });
+
+    // Bara en giltig kod i taget per restaurang.
+    await (prisma as any).devicePairingCode.deleteMany({
+      where: { restaurantId: restaurant.id, usedAt: null },
+    });
+
+    let code = generatePairCode();
+    for (let i = 0; i < 5; i++) {
+      const exists = await (prisma as any).devicePairingCode.findUnique({ where: { code } });
+      if (!exists) break;
+      code = generatePairCode();
+    }
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    await (prisma as any).devicePairingCode.create({
+      data: { code, restaurantId: restaurant.id, expiresAt },
+    });
+    await audit(req as AuthRequest, 'DEVICE_PAIRING_CODE', {
+      resourceType: 'Restaurant',
+      resourceId: restaurant.id,
+    });
+    res.json({ code, expiresAt });
+  } catch (error) {
+    console.error('[devices/pairing-code] error:', error);
+    res.status(500).json({ error: 'Kunde inte generera pairing-kod' });
+  }
+});
+
+// GET /restaurants/:id/devices — länkade enheter + ev. väntande kod.
+router.get('/restaurants/:id/devices', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const devices = await (prisma as any).restaurantDevice.findMany({
+      where: { restaurantId: req.params.id },
+      orderBy: { lastSeenAt: 'desc' },
+      select: { id: true, deviceId: true, label: true, revoked: true, lastSeenAt: true, createdAt: true },
+    });
+    const pendingCode = await (prisma as any).devicePairingCode.findFirst({
+      where: { restaurantId: req.params.id, usedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+      select: { code: true, expiresAt: true },
+    });
+    res.json({
+      devices: devices.map((d: any) => ({
+        id: d.id,
+        deviceId: d.deviceId,
+        label: d.label,
+        status: d.revoked ? 'revoked' : 'linked',
+        lastSeenAt: d.lastSeenAt,
+        createdAt: d.createdAt,
+      })),
+      pendingCode: pendingCode || null,
+    });
+  } catch (error) {
+    console.error('[devices list] error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta enheter' });
+  }
+});
+
+// POST /devices/:id/revoke — logga ut en enhet.
+router.post('/devices/:id/revoke', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    await (prisma as any).restaurantDevice.update({
+      where: { id: req.params.id },
+      data: { revoked: true, refreshTokenHash: null },
+    });
+    await audit(req as AuthRequest, 'DEVICE_REVOKE', { resourceType: 'RestaurantDevice', resourceId: req.params.id });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[devices revoke] error:', error);
+    res.status(500).json({ error: 'Kunde inte logga ut enheten' });
+  }
+});
+
+// POST /devices/:id/restore — åter-aktivera (logga in igen).
+router.post('/devices/:id/restore', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    await (prisma as any).restaurantDevice.update({
+      where: { id: req.params.id },
+      data: { revoked: false },
+    });
+    await audit(req as AuthRequest, 'DEVICE_RESTORE', { resourceType: 'RestaurantDevice', resourceId: req.params.id });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[devices restore] error:', error);
+    res.status(500).json({ error: 'Kunde inte åter-aktivera enheten' });
+  }
+});
+
+// DELETE /devices/:id — ta bort länken helt (enheten måste paras om).
+router.delete('/devices/:id', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    await (prisma as any).restaurantDevice.delete({ where: { id: req.params.id } });
+    await audit(req as AuthRequest, 'DEVICE_DELETE', { resourceType: 'RestaurantDevice', resourceId: req.params.id });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[devices delete] error:', error);
+    res.status(500).json({ error: 'Kunde inte ta bort enheten' });
+  }
 });
 
 export default router;
