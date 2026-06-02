@@ -582,9 +582,6 @@ model Restaurant {
   etaMinutes     Int          @default(30)
   etaCalculatedMinutes Int?               // Auto-beräknad ETA baserad på senaste 20 ordrarnas createdAt → deliveringAt (clampad 25–55 min). null = för få ordrar än
   etaOverrideMinutes   Int?               // Manuell admin-override. Om satt åsidosätter etaCalculatedMinutes
-  // Avhämtningstid (min) — visas bara i avhämtningsläge (ej leverans, ej på kort).
-  // Default 10, clampad 5–25 i API:t. ≈ leveranstid minus 5 min.
-  pickupEtaMinutes     Int          @default(10)
   isOpen         Boolean      @default(true)
   tags           String       @default("[]")
   openingHours   String       @default("{}")

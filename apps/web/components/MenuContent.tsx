@@ -1218,7 +1218,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             {
               icon: Clock,
               label: t("cart.deliveryType.pickup"),
-              value: `~${restaurant.pickupEtaMinutes ?? 10} ${t("menu.stats.min")}`,
+              // Avhämtningstid = leveranstid − 5 min, clampad 5–25. Räknas alltid
+              // ur den visade leverans-ETA:n (etaMinutes) så värdet stämmer även
+              // om SSR-datan har ett gammalt cachat fält.
+              value: `~${Math.max(5, Math.min(25, (restaurant.etaMinutes ?? 30) - 5))} ${t("menu.stats.min")}`,
             },
             {
               icon: ShoppingBag,

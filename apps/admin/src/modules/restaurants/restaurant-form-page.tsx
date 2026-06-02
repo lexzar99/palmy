@@ -75,7 +75,7 @@ type FormState = {
   address: string; city: string; zip: string; phone: string; email: string; adminEmail: string;
   legalName: string; organizationNumber: string;
   imageUrl: string; heroImageUrl: string;
-  etaOverride: string; etaCalculated: number | null; etaEffective: number; pickupEta: string;
+  etaOverride: string; etaCalculated: number | null; etaEffective: number;
   featuredClass: number; isOpen: boolean; rating: number; ratingCount: number;
   internalInfo: string; latitude: string; longitude: string;
   placeId: string;
@@ -88,7 +88,7 @@ const emptyForm: FormState = {
   address: "", city: "", zip: "", phone: "", email: "", adminEmail: "",
   legalName: "", organizationNumber: "",
   imageUrl: "", heroImageUrl: "",
-  etaOverride: "", etaCalculated: null, etaEffective: 40, pickupEta: "10",
+  etaOverride: "", etaCalculated: null, etaEffective: 40,
   featuredClass: 3, isOpen: true, rating: 4.6, ratingCount: 0,
   internalInfo: "", latitude: "", longitude: "",
   placeId: "",
@@ -106,7 +106,6 @@ const mapDetailToForm = (d: RestaurantDetail): FormState => ({
   organizationNumber: (d as any).organizationNumber || "",
   imageUrl: d.imageUrl || "", heroImageUrl: d.heroImageUrl || "",
   etaOverride: d.etaOverrideMinutes != null ? String(d.etaOverrideMinutes) : "",
-  pickupEta: d.pickupEtaMinutes != null ? String(d.pickupEtaMinutes) : "10",
   etaCalculated: d.etaCalculatedMinutes ?? null, etaEffective: d.etaMinutes ?? 40,
   featuredClass: (d as any).featuredClass ?? 3, isOpen: d.manualIsOpen,
   rating: d.rating || 0, ratingCount: d.ratingCount || 0,
@@ -131,7 +130,6 @@ const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
   adminEmail: f.adminEmail || undefined,
   imageUrl: f.imageUrl || null, heroImageUrl: f.heroImageUrl || null,
   etaOverrideMinutes: f.etaOverride.trim() === "" ? null : Number(f.etaOverride),
-  pickupEtaMinutes: f.pickupEta.trim() === "" ? 10 : Math.max(5, Math.min(25, Number(f.pickupEta))),
   featuredClass: Number(f.featuredClass || 3), isOpen: f.isOpen,
   rating: Number(f.rating || 0), ratingCount: Number(f.ratingCount || 0),
   internalInfo: f.internalInfo || null,
@@ -490,11 +488,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <Field label="Beräknad (auto)"><Input value={form.etaCalculated != null ? `${form.etaCalculated} min` : "Default 40 min"} disabled /></Field>
                 <Field label="Override"><Input type="number" min={25} max={60} placeholder="t.ex. 35" value={form.etaOverride} onChange={(e) => set("etaOverride", e.target.value)} /></Field>
               </div>
-              <div className="mt-3">
-                <Field label="Avhämtningstid (min) — visas bara i avhämtningsläge, ≈ leveranstid minus 5">
-                  <Input type="number" min={5} max={25} placeholder="10" value={form.pickupEta} onChange={(e) => set("pickupEta", e.target.value)} />
-                </Field>
-              </div>
+              <p className="mt-2 text-[11px] text-[var(--text-muted)]">Avhämtningstid räknas automatiskt som leveranstid − 5 min (clampad 5–25) och visas bara i avhämtningsläge.</p>
             </div>
             <Field label="Moms">
               <Select value={form.vatPercent} onChange={(e) => set("vatPercent", e.target.value)}>
