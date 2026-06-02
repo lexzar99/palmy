@@ -255,12 +255,15 @@ class _MainShellState extends State<MainShell> {
                     Positioned(
                       left: 0,
                       right: 0,
-                      bottom: 16,
-                      child: Center(child: _FloatingPillNav(
-                        destinations: _destinations,
-                        currentIndex: _currentIndex,
-                        onSelect: _selectTab,
-                      )),
+                      bottom: 10,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: _FloatingPillNav(
+                          destinations: _destinations,
+                          currentIndex: _currentIndex,
+                          onSelect: _selectTab,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -359,7 +362,7 @@ class _MainShellState extends State<MainShell> {
   }
 }
 
-/// Flytande pill-nav (Apple Maps-stil). Rundad container, ikoner med aktiv glow.
+/// Fast Android-nav med varm amber-indikator.
 class _FloatingPillNav extends StatelessWidget {
   final List<_ShellDestination> destinations;
   final int currentIndex;
@@ -375,45 +378,48 @@ class _FloatingPillNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
     final activeColor = isDark ? AppTheme.ember : AppTheme.emberDeep;
-    final bg = isDark
-        ? AppTheme.steel.withOpacity(0.92)
-        : Colors.white.withOpacity(0.96);
+    final bg = isDark ? AppTheme.steel : Colors.white;
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(32),
+      borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: BorderRadius.circular(32),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isDark
-                  ? Colors.white.withOpacity(0.06)
-                  : AppTheme.ink.withOpacity(0.06),
+                  ? Colors.white.withOpacity(0.08)
+                  : AppTheme.ink.withOpacity(0.12),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.45 : 0.10),
-                blurRadius: 28,
-                offset: const Offset(0, 8),
+                color: Colors.black.withOpacity(isDark ? 0.38 : 0.14),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
             children: List.generate(destinations.length, (i) {
               final dest = destinations[i];
               final selected = i == currentIndex;
-              return _NavPillItem(
+              final item = _NavPillItem(
                 icon: selected ? dest.activeIcon : dest.icon,
                 label: dest.label,
                 selected: selected,
                 activeColor: activeColor,
                 onTap: () => onSelect(i),
               );
+              // Bara den valda fliken expanderar och visar sin etikett; övriga
+              // krymper till ren ikon-storlek. Det ger den valda etiketten
+              // gott om plats istället för att tvinga in långa ord som
+              // "Inställningar" i en fjärdedels bredd (där de svämmade över).
+              return selected ? Expanded(child: item) : item;
             }),
           ),
         ),
@@ -440,54 +446,53 @@ class _NavPillItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
+    final iconColor = selected
+        ? activeColor
+        : (isDark ? Colors.white.withOpacity(0.65) : AppTheme.mutedInk);
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
           padding: EdgeInsets.symmetric(
-            horizontal: selected ? 16 : 14,
+            horizontal: selected ? 14 : 11,
             vertical: 10,
           ),
           decoration: BoxDecoration(
             color: selected
                 ? activeColor.withOpacity(isDark ? 0.20 : 0.16)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(12),
           ),
+          // Vald flik ligger i en Expanded → max + Flexible-etikett som
+          // ellipsar inom pillen. Övriga är ikon-only och min-breda, så de
+          // aldrig får en obegränsad Flexible (skulle krascha layouten).
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: selected ? MainAxisSize.max : MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: 22,
-                color: selected
-                    ? activeColor
-                    : (isDark
-                        ? Colors.white.withOpacity(0.65)
-                        : AppTheme.mutedInk),
-              ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                child: selected
-                    ? Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            color: activeColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
+              Icon(icon, size: 21, color: iconColor),
+              if (selected)
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: activeColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

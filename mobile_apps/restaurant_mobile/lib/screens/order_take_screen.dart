@@ -30,7 +30,19 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
   bool _rejecting = false;
 
   static const _minuteOptions = [
-    10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90
+    10,
+    15,
+    20,
+    25,
+    30,
+    35,
+    40,
+    45,
+    50,
+    60,
+    70,
+    80,
+    90
   ];
 
   @override
@@ -89,8 +101,8 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
           'Neka order?',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
-        content: const Text(
-            'Ordern avvisas och kunden meddelas. Kan inte ångras.'),
+        content:
+            const Text('Ordern avvisas och kunden meddelas. Kan inte ångras.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -115,8 +127,23 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
     setState(() => _rejecting = true);
 
     final provider = Provider.of<OrderProvider>(context, listen: false);
-    await provider.updateStatus(widget.order.id, 'REJECTED');
+    final ok = await provider.updateStatus(widget.order.id, 'REJECTED');
     if (!mounted) return;
+    if (!ok) {
+      setState(() => _rejecting = false);
+      HapticFeedback.heavyImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppTheme.danger,
+          behavior: SnackBarBehavior.floating,
+          content: const Text(
+            'Kunde inte neka order — kontrollera nätverk',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+        ),
+      );
+      return;
+    }
     Navigator.of(context).pop();
   }
 
@@ -289,8 +316,7 @@ class _BigOrderNumber extends StatelessWidget {
         Row(
           children: [
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
               decoration: BoxDecoration(
                 color: accent.withOpacity(0.14),
                 borderRadius: BorderRadius.circular(10),
@@ -500,7 +526,8 @@ class _NoteStrip extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.chat_bubble_outline_rounded, color: accent, size: 17),
+                Icon(Icons.chat_bubble_outline_rounded,
+                    color: accent, size: 17),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -646,7 +673,9 @@ class _ItemRow extends StatelessWidget {
                               borderRadius: BorderRadius.circular(5),
                             ),
                             child: Icon(
-                              isMandatory ? Icons.remove_rounded : Icons.add_rounded,
+                              isMandatory
+                                  ? Icons.remove_rounded
+                                  : Icons.add_rounded,
                               size: 11,
                               color: isMandatory
                                   ? AppTheme.mutedColor(context)

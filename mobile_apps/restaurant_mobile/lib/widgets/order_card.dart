@@ -30,7 +30,7 @@ String _minutesAgo(DateTime dt) {
   return _relTime(dt);
 }
 
-/// Stor hero-kort som tar full bredd. Visas i swipable PageView för NYA ORDRAR.
+/// Primärt orderkort. Hög kontrast och tät information för restaurangterminal.
 class NewOrderHeroCard extends StatelessWidget {
   final OrderModel order;
   final VoidCallback onAccept;
@@ -52,59 +52,56 @@ class NewOrderHeroCard extends StatelessWidget {
         isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
     final typeLabel = isPickup ? 'AVHÄMTNING' : 'LEVERANS';
 
-    final cardBg = isDark ? AppTheme.deepSea : AppTheme.paper;
-    final borderC = isDark
-        ? Colors.white.withOpacity(0.07)
-        : AppTheme.ink.withOpacity(0.07);
+    final cardBg = isDark ? AppTheme.steel : Colors.white;
+    final borderC =
+        isDark ? accent.withOpacity(0.32) : AppTheme.ink.withOpacity(0.11);
 
     final itemCount = order.items.fold<int>(0, (s, i) => s + i.quantity);
     final totalStr = '${order.total.toStringAsFixed(0)} kr';
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onAccept,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
+          constraints: const BoxConstraints(minHeight: 260),
           decoration: BoxDecoration(
             color: cardBg,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: borderC, width: 1),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderC, width: 1.2),
             boxShadow: isDark
-                ? []
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.24),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
                 : [
                     BoxShadow(
-                      color: accent.withOpacity(0.10),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
+                      color: AppTheme.ink.withOpacity(0.08),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
                     ),
                   ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(14),
             child: Stack(
               children: [
-                // Decorative wash i hörnet
                 Positioned(
-                  top: -40,
-                  right: -40,
+                  top: 0,
+                  left: 0,
+                  bottom: 0,
                   child: Container(
-                    width: 180,
-                    height: 180,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          accent.withOpacity(0.18),
-                          accent.withOpacity(0),
-                        ],
-                      ),
-                    ),
+                    width: 7,
+                    color: accent,
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+                  padding: const EdgeInsets.fromLTRB(22, 20, 18, 18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -116,7 +113,7 @@ class NewOrderHeroCard extends StatelessWidget {
                                 horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
                               color: accent.withOpacity(0.14),
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -170,10 +167,10 @@ class NewOrderHeroCard extends StatelessWidget {
                               child: Text(
                                 order.orderNumber,
                                 style: TextStyle(
-                                  fontSize: 64,
+                                  fontSize: 78,
                                   fontWeight: FontWeight.w900,
                                   height: 0.9,
-                                  letterSpacing: -2.5,
+                                  letterSpacing: -1.2,
                                   color: isDark ? Colors.white : AppTheme.ink,
                                 ),
                               ),
@@ -187,8 +184,8 @@ class NewOrderHeroCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
                           letterSpacing: -0.2,
                           color: isDark ? Colors.white : AppTheme.ink,
                         ),
@@ -220,12 +217,153 @@ class NewOrderHeroCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 18),
-                      _AcceptBar(accent: accent, onTap: onAccept),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accent.withOpacity(isDark ? 0.18 : 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: accent.withOpacity(isDark ? 0.34 : 0.24),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.touch_app_rounded,
+                              size: 18,
+                              color: accent,
+                            ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                'Tryck på kortet för att öppna ordern',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: accent,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 18,
+                              color: accent,
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class NewOrderQueueTile extends StatelessWidget {
+  final OrderModel order;
+  final VoidCallback onTap;
+
+  const NewOrderQueueTile({
+    super.key,
+    required this.order,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final isPickup = order.type != 'DELIVERY';
+    final accent = isPickup ? AppTheme.ember : AppTheme.brandBlue;
+    final itemCount = order.items.fold<int>(0, (s, i) => s + i.quantity);
+
+    return Material(
+      color: isDark ? AppTheme.deepSea : Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.borderColor(context)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '#${order.orderNumber}',
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      order.customerName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : AppTheme.ink,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${isPickup ? "Avhämtning" : "Leverans"} · ${_minutesAgo(order.createdAt)} · $itemCount art.',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppTheme.mutedColor(context),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '${order.total.toStringAsFixed(0)} kr',
+                style: TextStyle(
+                  color: isDark ? Colors.white : AppTheme.ink,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: AppTheme.mutedColor(context),
+              ),
+            ],
           ),
         ),
       ),
@@ -306,67 +444,6 @@ class _MiniStat extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _AcceptBar extends StatelessWidget {
-  final Color accent;
-  final VoidCallback onTap;
-  const _AcceptBar({required this.accent, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
-    return Container(
-      height: 60,
-      decoration: BoxDecoration(
-        color: accent,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withOpacity(0.36),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.bolt_rounded,
-                  size: 20,
-                  color: isDark ? AppTheme.ink : Colors.white,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'GÅ TILL ORDER',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.6,
-                    color: isDark ? AppTheme.ink : Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 18,
-                  color: isDark ? AppTheme.ink : Colors.white,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -455,100 +532,118 @@ class OrderListTile extends StatelessWidget {
     final statusColor = _statusColor(order.status);
     final statusLabel = _statusLabel(order.status);
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      highlightColor:
-          (isDark ? Colors.white : AppTheme.ink).withOpacity(0.03),
-      splashColor: (isDark ? Colors.white : AppTheme.ink).withOpacity(0.04),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
-        child: Row(
-          children: [
-            // Type stripe
-            Container(
-              width: 3,
-              height: 32,
-              decoration: BoxDecoration(
-                color: typeColor,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        '#${order.orderNumber}',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.3,
-                          color: isDark ? Colors.white : AppTheme.ink,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Container(
-                        width: 4,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: statusColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        statusLabel,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: statusColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${isPickup ? "Avhämtning" : "Leverans"} · ${_relTime(order.createdAt)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.mutedColor(context),
+    return Material(
+      color: isDark ? AppTheme.deepSea : Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        highlightColor:
+            (isDark ? Colors.white : AppTheme.ink).withOpacity(0.03),
+        splashColor: (isDark ? Colors.white : AppTheme.ink).withOpacity(0.04),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.borderColor(context)),
+            boxShadow: isDark
+                ? const []
+                : [
+                    BoxShadow(
+                      color: AppTheme.ink.withOpacity(0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
                     ),
-                  ),
-                ],
+                  ],
+          ),
+          child: Row(
+            children: [
+              // Type stripe
+              Container(
+                width: 5,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: typeColor,
+                  borderRadius: BorderRadius.circular(5),
+                ),
               ),
-            ),
-            Text(
-              '${order.total.toStringAsFixed(0)} kr',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white : AppTheme.ink,
-                letterSpacing: -0.2,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          '#${order.orderNumber}',
+                          style: TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.3,
+                            color: isDark ? Colors.white : AppTheme.ink,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          width: 4,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          statusLabel,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: statusColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${isPickup ? "Avhämtning" : "Leverans"} · ${_relTime(order.createdAt)}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.mutedColor(context),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            // Inline advance-knapp för accepterade/tillagande ordrar — så
-            // restaurangen kan markera "På väg"/"Klar" utan att klicka in på
-            // detail-skärmen. Visas inte för PENDING (hanteras separat med
-            // accept-flow), inte heller för READY/DELIVERING/terminal.
-            if (onAdvance != null &&
-                (order.status == 'ACCEPTED' || order.status == 'PREPARING'))
-              _AdvanceChip(
-                isPickup: isPickup,
-                onPressed: () => onAdvance!(isPickup ? 'READY' : 'DELIVERING'),
-              )
-            else
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 20,
-                color: AppTheme.mutedColor(context).withOpacity(0.55),
+              Text(
+                '${order.total.toStringAsFixed(0)} kr',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : AppTheme.ink,
+                  letterSpacing: -0.2,
+                ),
               ),
-          ],
+              const SizedBox(width: 10),
+              // Inline advance-knapp för accepterade/tillagande ordrar — så
+              // restaurangen kan markera "På väg"/"Klar" utan att klicka in på
+              // detail-skärmen. Visas inte för PENDING (hanteras separat med
+              // accept-flow), inte heller för READY/DELIVERING/terminal.
+              if (onAdvance != null &&
+                  (order.status == 'ACCEPTED' || order.status == 'PREPARING'))
+                _AdvanceChip(
+                  isPickup: isPickup,
+                  onPressed: () =>
+                      onAdvance!(isPickup ? 'READY' : 'DELIVERING'),
+                )
+              else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 22,
+                  color: AppTheme.mutedColor(context).withOpacity(0.55),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -565,39 +660,42 @@ class _AdvanceChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = isPickup ? AppTheme.ember : AppTheme.brandBlue;
-    final label = isPickup ? 'Klar' : 'På väg';
-    final icon = isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
+    final label = isPickup ? 'Markera klar' : 'Maten på väg';
+    final icon =
+        isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
 
-    // GestureDetector med behavior=opaque stoppar tap från att bubbla upp till
-    // den omgivande InkWell (som annars öppnar detail-skärmen).
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onPressed,
-      child: Material(
-        color: color.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 15, color: color),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: color,
-                    letterSpacing: -0.1,
-                  ),
-                ),
-              ],
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.24),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
-          ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 17, color: AppTheme.ink),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                color: AppTheme.ink,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
         ),
       ),
     );

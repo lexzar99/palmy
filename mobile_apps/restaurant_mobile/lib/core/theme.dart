@@ -14,10 +14,11 @@ class AppTheme {
 
   // ── Light — paper cream ────────────────────────────────────────────────────
   static const Color paper = Color(0xFFFFFFFF);
-  static const Color mist = Color(0xFFFAF7F1); // warm off-white
-  static const Color frost = Color(0xFFF3EFE6); // panel-muted light
+  static const Color mist = Color(0xFFFFFCF7); // warm white
+  static const Color frost = Color(0xFFF3E7D4); // panel-muted light
   static const Color ink = Color(0xFF1A130C); // headline text (warm near-black)
-  static const Color mutedInk = Color(0xFF6B5C4D); // muted body text (warm gray)
+  static const Color mutedInk =
+      Color(0xFF6B5C4D); // muted body text (warm gray)
 
   // ── Accent — warm amber ("ember") ──────────────────────────────────────────
   // Legacy names kept (gold/lightGold/goldAccent/brandGold) – pointing at amber.
@@ -27,7 +28,8 @@ class AppTheme {
 
   static const Color gold = ember; // legacy alias
   static const Color goldAccent = emberSoft; // legacy alias
-  static const Color lightGold = emberDeep; // legacy alias (used for light theme primary)
+  static const Color lightGold =
+      emberDeep; // legacy alias (used for light theme primary)
 
   /// Pickup-accent. Warm amber.
   static const Color brandGold = ember;
@@ -71,7 +73,7 @@ class AppTheme {
       );
     }
     return const LinearGradient(
-      colors: [Color(0xFFFAF7F1), Color(0xFFF3EFE6)],
+      colors: [Color(0xFFFFFCF7), Color(0xFFF5E8D4)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
@@ -99,7 +101,7 @@ class AppTheme {
     if (tint != null) return tint.withOpacity(isDark(context) ? 0.22 : 0.18);
     return isDark(context)
         ? Colors.white.withOpacity(0.07)
-        : ink.withOpacity(0.07);
+        : ink.withOpacity(0.12);
   }
 
   /// Panel-dekoration. 18px hörn (rundare än tidigare). Subtila skuggor i light.
@@ -123,8 +125,8 @@ class AppTheme {
           ? const []
           : [
               BoxShadow(
-                color: const Color(0xFF1A130C).withOpacity(0.04),
-                blurRadius: 16,
+                color: const Color(0xFF1A130C).withOpacity(0.06),
+                blurRadius: 14,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -246,8 +248,8 @@ class AppTheme {
       onSurface: ink,
       tertiary: lavender,
       onTertiary: paper,
-      outline: Color(0x141A130C),
-      outlineVariant: Color(0x0A1A130C),
+      outline: Color(0x261A130C),
+      outlineVariant: Color(0x141A130C),
       shadow: Color(0x14000000),
       scrim: Color(0x33000000),
       inverseSurface: ink,
@@ -267,7 +269,7 @@ class AppTheme {
       scaffoldBackgroundColor: Colors.transparent,
       canvasColor: mist,
       cardColor: paper,
-      dividerColor: ink.withOpacity(0.07),
+      dividerColor: ink.withOpacity(0.12),
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -288,12 +290,11 @@ class AppTheme {
       switchTheme: _switchTheme(emberDeep),
       snackBarTheme: _snackBarTheme(Brightness.light),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.transparent,
-        indicatorColor: emberDeep.withOpacity(0.14),
+        backgroundColor: paper,
+        indicatorColor: emberDeep.withOpacity(0.16),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => textTheme.labelSmall?.copyWith(
-            color:
-                states.contains(WidgetState.selected) ? emberDeep : mutedInk,
+            color: states.contains(WidgetState.selected) ? emberDeep : mutedInk,
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w700
                 : FontWeight.w500,
@@ -337,9 +338,8 @@ class AppTheme {
   /// Editorial typography — large hierarchies, generous spacing.
   static TextTheme _buildTextTheme(TextTheme base, Brightness brightness) {
     final bodyColor = brightness == Brightness.dark ? paper : ink;
-    final secondary = brightness == Brightness.dark
-        ? const Color(0xFFA89A8C)
-        : mutedInk;
+    final secondary =
+        brightness == Brightness.dark ? const Color(0xFFA89A8C) : mutedInk;
 
     return base.copyWith(
       displayLarge: base.displayLarge?.copyWith(
@@ -441,8 +441,7 @@ class AppTheme {
     final fill = isDarkMode ? steel : paper;
     final border =
         isDarkMode ? Colors.white.withOpacity(0.08) : ink.withOpacity(0.08);
-    final labelColor =
-        isDarkMode ? const Color(0xFFA89A8C) : mutedInk;
+    final labelColor = isDarkMode ? const Color(0xFFA89A8C) : mutedInk;
 
     return InputDecorationTheme(
       filled: true,
@@ -455,8 +454,7 @@ class AppTheme {
       ),
       prefixIconColor: labelColor,
       suffixIconColor: labelColor,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide.none,
@@ -538,9 +536,8 @@ class AppTheme {
       selectedColor:
           isDarkMode ? ember.withOpacity(0.18) : emberDeep.withOpacity(0.14),
       side: BorderSide(
-        color: isDarkMode
-            ? Colors.white.withOpacity(0.08)
-            : ink.withOpacity(0.06),
+        color:
+            isDarkMode ? Colors.white.withOpacity(0.08) : ink.withOpacity(0.06),
       ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       labelStyle: TextStyle(

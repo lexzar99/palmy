@@ -1,7 +1,7 @@
 # Flutter Restaurant App — Levande Referensdokument
 
 > **Uppdateras automatiskt** av Claude efter varje ändring. Läs detta i början av varje session.
-> Senast uppdaterad: 2026-05-25
+> Senast uppdaterad: 2026-06-02
 
 ---
 
@@ -270,5 +270,6 @@ audio/disconnect.wav      # Offline-varning
 | 2026-05-02 | **fix alert-nav**: `NewOrderAlertScreen.onTap` poppar nu tillbaka till orderlistan, navigerar inte direkt in i en order |
 | 2026-05-02 | **redesign tid-väljare**: `_TimePicker` är nu `StatefulWidget`, sitter fast längst ner i `OrderTakeScreen` (ej i scroll), centrar vald tid automatiskt |
 | 2026-05-02 | **redesign `_ItemCard`**: extras visas nu staplade rader med `+`-ikon (grönt), notering visas i amber-rad nedanför — bättre på telefon i kök |
+| 2026-06-02 | **fix header + navbar (720p)**: `dashboard_screen.dart` — headern är nu en kompakt rad: liten klocka (38px) längst till vänster, endast restaurangnamnet (strippar ` Admin`-suffix från kontonamnet, `FittedBox` krymper för att passa), och öppet/stäng-knappen i nivå till höger istället för staplad under. `main.dart` `_FloatingPillNav` — endast vald flik expanderar (`Expanded`), övriga krymper till ikon; vald etikett ligger i `Flexible` → långa ord ("Inställningar") svämmar inte längre över i lika breda kolumner. Logik orörd. APK byggd lokalt (`build/app/outputs/flutter-apk/app-release.apk`). |
 | 2026-05-25 | **Ember Studio facelift**: komplett UI-omgörning. Lime → warm amber (#FF9D45), varm ink/paper backgrounds, editorial typografi (display weight 800/900). Bottom NavigationBar → flytande pill-nav med blur (Apple Maps-stil). Dashboard: giant counter + swipable full-width hero-kort + tight historik-rader. Order-take: 76pt #nummer + segmented tid-strip + fixed bottom action-bar. New order alert: 160pt #nummer + pulserande ringar + huge CTA. History: bento-tiles med sparkline + sticky day-headers (inga tabs). Menu: sökbar med X-clear + segment toggle + gradient-stripe tiles med PÅ/AV-pill. Settings: hero-profilkort med ember-gradient + iOS-stil grupperade rader. Order detail: status-progress strip (5 prickar). Login: 96pt logo med ember-glow + editorial headline. **Logik orörd**: provider, socket, print, alarm, accept/reject-flöde, audio watchdog — bara visuell skal. Legacy color-aliases (gold/brandGold/midnight/deepSea) behållna för bakåtkomp. |
 

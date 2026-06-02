@@ -28,8 +28,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   final Set<String> _seenPendingIds = {};
   bool _initializedPending = false;
   late final AnimationController _bannerCtrl;
-  late final PageController _heroCtrl;
-  int _heroIndex = 0;
   bool _showNewOrderBanner = false;
   bool _alertScreenOpen = false;
   StreamSubscription<PrintFailure>? _printErrorSub;
@@ -41,7 +39,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       vsync: this,
       duration: const Duration(milliseconds: 480),
     );
-    _heroCtrl = PageController(viewportFraction: 0.92);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadOrders());
     _printErrorSub = PrintService.errors.listen(_handlePrintFailure);
   }
@@ -49,7 +46,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void dispose() {
     _bannerCtrl.dispose();
-    _heroCtrl.dispose();
     _printErrorSub?.cancel();
     super.dispose();
   }
@@ -156,7 +152,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         }
       });
 
-      Navigator.of(context).push(
+      Navigator.of(context)
+          .push(
         PageRouteBuilder(
           opaque: true,
           transitionDuration: const Duration(milliseconds: 320),
@@ -167,16 +164,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           transitionsBuilder: (_, anim, __, child) =>
               FadeTransition(opacity: anim, child: child),
         ),
-      ).whenComplete(() {
+      )
+          .whenComplete(() {
         _alertScreenOpen = false;
-        // Jump hero to the newest order so kock direkt ser den i swipen
-        if (mounted && _heroCtrl.hasClients) {
-          _heroCtrl.animateToPage(
-            0,
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeOutCubic,
-          );
-        }
       });
     }
   }
@@ -253,7 +243,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                       sliver: SliverToBoxAdapter(
                         child: _EditorialHeader(
                           provider: provider,
-                          onStatusTap: () => _showStatusPicker(context, provider),
+                          onStatusTap: () =>
+                              _showStatusPicker(context, provider),
                         ),
                       ),
                     ),
@@ -280,35 +271,24 @@ class _DashboardScreenState extends State<DashboardScreen>
                       )
                     else ...[
                       SliverToBoxAdapter(
-                        child: SizedBox(
-                          height: 320,
-                          child: PageView.builder(
-                            controller: _heroCtrl,
-                            itemCount: pending.length,
-                            padEnds: true,
-                            onPageChanged: (i) {
-                              setState(() => _heroIndex = i);
-                            },
-                            itemBuilder: (context, i) {
-                              final o = pending[i];
-                              return Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                    8, 14, 8, 6),
-                                child: NewOrderHeroCard(
-                                  order: o,
-                                  onAccept: () => _openTake(o),
-                                ),
-                              );
-                            },
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                          child: NewOrderHeroCard(
+                            order: pending.first,
+                            onAccept: () => _openTake(pending.first),
                           ),
                         ),
                       ),
-                      SliverToBoxAdapter(
-                        child: _Pagination(
-                          count: pending.length,
-                          index: _heroIndex,
+                      if (pending.length > 1)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                            child: _PendingQueue(
+                              orders: pending.skip(1).toList(),
+                              onOpen: _openTake,
+                            ),
+                          ),
                         ),
-                      ),
                     ],
 
                     // ── FÖREGÅENDE ──────────────────────────────────────
@@ -354,7 +334,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ],
                 ),
               ),
-
               if (_showNewOrderBanner)
                 Positioned(
                   top: 14,
@@ -397,9 +376,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                     Text(
                       'Restaurangstatus',
                       style: TextStyle(
-                        color: AppTheme.isDark(ctx)
-                            ? Colors.white
-                            : AppTheme.ink,
+                        color:
+                            AppTheme.isDark(ctx) ? Colors.white : AppTheme.ink,
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.2,
@@ -481,7 +459,13 @@ class _EditorialHeader extends StatelessWidget {
     final statusColor = isOpen ? AppTheme.success : AppTheme.danger;
     final statusLabel = isOpen ? 'Öppet' : 'Stängd';
 
-    final restName = (auth.user?['name'] ?? 'Levera').toString();
+    // Visa endast restaurangnamnet — kontonamnet har ofta ett " Admin"-suffix
+    // (t.ex. "Palmyra Pizzeria Admin") som inte hör hemma i headern.
+    var restName = (auth.user?['name'] ?? 'Levera').toString().trim();
+    restName = restName
+        .replaceAll(RegExp(r'\s+admin$', caseSensitive: false), '')
+        .trim();
+    if (restName.isEmpty) restName = 'Levera';
     final today = _formatToday();
 
     return Column(
@@ -496,32 +480,42 @@ class _EditorialHeader extends StatelessWidget {
             letterSpacing: 1.4,
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          restName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.w900,
-            height: 1.0,
-            letterSpacing: -1.0,
-            color: isDark ? Colors.white : AppTheme.ink,
-          ),
-        ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 10),
+        // Kompakt en-rads header: liten klocka till vänster, restaurangnamnet i
+        // mitten (krymper för att passa), och öppet/stängt-knappen i nivå till
+        // höger — allt på samma rad istället för staplat.
         Row(
           children: [
+            _BellButton(
+              hasPending: provider.pendingOrders.isNotEmpty,
+              onTap: provider.testAlarm,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  restName,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 23,
+                    fontWeight: FontWeight.w900,
+                    height: 1.0,
+                    letterSpacing: -0.8,
+                    color: isDark ? Colors.white : AppTheme.ink,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
             _StatusButton(
               color: statusColor,
               label: statusLabel,
               isPaused: provider.isPaused,
               onTap: onStatusTap,
-            ),
-            const Spacer(),
-            _BellButton(
-              hasPending: provider.pendingOrders.isNotEmpty,
-              onTap: provider.testAlarm,
             ),
           ],
         ),
@@ -531,12 +525,27 @@ class _EditorialHeader extends StatelessWidget {
 
   String _formatToday() {
     final months = [
-      'jan', 'feb', 'mar', 'apr', 'maj', 'jun',
-      'jul', 'aug', 'sep', 'okt', 'nov', 'dec'
+      'jan',
+      'feb',
+      'mar',
+      'apr',
+      'maj',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'okt',
+      'nov',
+      'dec'
     ];
     final weekdays = [
-      'måndag', 'tisdag', 'onsdag', 'torsdag',
-      'fredag', 'lördag', 'söndag'
+      'måndag',
+      'tisdag',
+      'onsdag',
+      'torsdag',
+      'fredag',
+      'lördag',
+      'söndag'
     ];
     final now = DateTime.now();
     return '${weekdays[now.weekday - 1]} ${now.day} ${months[now.month - 1]}';
@@ -627,11 +636,11 @@ class _BellButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          width: 44,
-          height: 44,
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
             color: AppTheme.faintColor(context),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: AppTheme.borderColor(context),
               width: 1,
@@ -643,24 +652,22 @@ class _BellButton extends StatelessWidget {
               Center(
                 child: Icon(
                   Icons.notifications_none_rounded,
-                  size: 22,
+                  size: 20,
                   color: isDark ? Colors.white : AppTheme.ink,
                 ),
               ),
               if (hasPending)
                 Positioned(
-                  top: 10,
-                  right: 11,
+                  top: 8,
+                  right: 9,
                   child: Container(
-                    width: 9,
-                    height: 9,
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
                       color: AppTheme.ember,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isDark
-                            ? AppTheme.deepSea
-                            : AppTheme.paper,
+                        color: isDark ? AppTheme.deepSea : AppTheme.paper,
                         width: 1.5,
                       ),
                     ),
@@ -702,7 +709,7 @@ class _PendingHeader extends StatelessWidget {
             const Spacer(),
             if (hasOrders)
               Text(
-                'svep för att se nästa',
+                count == 1 ? 'hantera direkt' : 'kö under första ordern',
                 style: TextStyle(
                   color: AppTheme.mutedColor(context),
                   fontSize: 11,
@@ -790,9 +797,8 @@ class _RestingState extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: AppTheme.isDark(context)
-                        ? Colors.white
-                        : AppTheme.ink,
+                    color:
+                        AppTheme.isDark(context) ? Colors.white : AppTheme.ink,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -813,36 +819,63 @@ class _RestingState extends StatelessWidget {
   }
 }
 
-class _Pagination extends StatelessWidget {
-  final int count;
-  final int index;
-  const _Pagination({required this.count, required this.index});
+class _PendingQueue extends StatelessWidget {
+  final List<OrderModel> orders;
+  final ValueChanged<OrderModel> onOpen;
+
+  const _PendingQueue({
+    required this.orders,
+    required this.onOpen,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (count <= 1) return const SizedBox(height: 12);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 4, 0, 8),
-      child: Center(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(count, (i) {
-            final selected = i == index;
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: selected ? 22 : 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: selected
-                    ? AppTheme.ember
-                    : AppTheme.mutedColor(context).withOpacity(0.30),
-                borderRadius: BorderRadius.circular(3),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'KÖ',
+              style: TextStyle(
+                color: AppTheme.mutedColor(context),
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
               ),
-            );
-          }),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Divider(
+                height: 1,
+                color: AppTheme.borderColor(context),
+              ),
+            ),
+          ],
         ),
-      ),
+        const SizedBox(height: 8),
+        ...orders.take(4).map(
+              (order) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: NewOrderQueueTile(
+                  order: order,
+                  onTap: () => onOpen(order),
+                ),
+              ),
+            ),
+        if (orders.length > 4)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              '+ ${orders.length - 4} till väntar',
+              style: TextStyle(
+                color: AppTheme.mutedColor(context),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -920,8 +953,7 @@ class _OfflineBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.danger.withOpacity(0.10),
         borderRadius: BorderRadius.circular(14),
-        border:
-            Border.all(color: AppTheme.danger.withOpacity(0.40), width: 1),
+        border: Border.all(color: AppTheme.danger.withOpacity(0.40), width: 1),
       ),
       child: const Row(
         children: [
@@ -1064,9 +1096,7 @@ class _NewOrderBanner extends StatelessWidget {
                   color: AppTheme.ink, size: 18),
               const SizedBox(width: 10),
               Text(
-                count > 1
-                    ? '$count nya ordrar inkomna'
-                    : 'Ny order inkommen',
+                count > 1 ? '$count nya ordrar inkomna' : 'Ny order inkommen',
                 style: const TextStyle(
                   color: AppTheme.ink,
                   fontSize: 14,
