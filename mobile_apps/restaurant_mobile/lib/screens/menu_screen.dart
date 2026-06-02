@@ -226,8 +226,10 @@ class _MenuScreenState extends State<MenuScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppTheme.ember),
+          ? Center(
+              child: CircularProgressIndicator(
+                color: isDark ? Colors.white : AppTheme.ink,
+              ),
             )
           : SafeArea(
               child: Column(
@@ -259,7 +261,7 @@ class _MenuScreenState extends State<MenuScreen> {
                   Expanded(
                     child: RefreshIndicator(
                       onRefresh: _loadMenu,
-                      color: AppTheme.ember,
+                      color: isDark ? Colors.white : AppTheme.ink,
                       child: _view == _MenuView.products
                           ? _ProductsList(
                               sections: productSections,
@@ -425,62 +427,23 @@ class _ViewToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppTheme.faintColor(context),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          _ViewTab(
-            label: 'Artiklar',
-            selected: current == _MenuView.products,
-            onTap: () => onChange(_MenuView.products),
-          ),
-          _ViewTab(
-            label: 'Tillbehör',
-            selected: current == _MenuView.extras,
-            onTap: () => onChange(_MenuView.extras),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ViewTab extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _ViewTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
-    final accent = isDark ? AppTheme.ember : AppTheme.emberDeep;
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
+    final ink = isDark ? Colors.white : AppTheme.ink;
+    final fg = isDark ? AppTheme.ink : Colors.white;
+    final muted = AppTheme.mutedColor(context);
+
+    Widget seg(String label, _MenuView view) {
+      final selected = current == view;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => onChange(view),
+          behavior: HitTestBehavior.opaque,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            padding: const EdgeInsets.symmetric(vertical: 11),
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: selected
-                  ? AppTheme.panelColor(context)
-                  : Colors.transparent,
+              color: selected ? ink : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
-              border: selected
-                  ? Border.all(color: AppTheme.borderColor(context))
-                  : null,
             ),
             child: Center(
               child: Text(
@@ -488,15 +451,26 @@ class _ViewTab extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 0.1,
-                  color: selected
-                      ? accent
-                      : AppTheme.mutedColor(context),
+                  color: selected ? fg : muted,
                 ),
               ),
             ),
           ),
         ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.borderColor(context)),
+      ),
+      child: Row(
+        children: [
+          seg('Artiklar', _MenuView.products),
+          seg('Tillbehör', _MenuView.extras),
+        ],
       ),
     );
   }
@@ -693,120 +667,91 @@ class _MenuItemTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
-    final accent = isDark ? AppTheme.ember : AppTheme.emberDeep;
-    final tileColor = active
-        ? AppTheme.panelColor(context)
-        : AppTheme.faintColor(context);
-    final borderC = active
-        ? accent.withOpacity(0.22)
-        : AppTheme.borderColor(context);
+    final ink = isDark ? Colors.white : AppTheme.ink;
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.panelColor(context),
         borderRadius: BorderRadius.circular(16),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: tileColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: borderC, width: 1),
-          ),
-          child: Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 10,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: active ? accent : AppTheme.mutedColor(context).withOpacity(0.25),
-                  borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: AppTheme.borderColor(context), width: 1),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    decoration: active ? null : TextDecoration.lineThrough,
+                    decorationThickness: 1.6,
+                    color: active ? ink : AppTheme.mutedColor(context),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        decoration: active ? null : TextDecoration.lineThrough,
-                        decorationThickness: 1.6,
-                        color: active
-                            ? (isDark ? Colors.white : AppTheme.ink)
-                            : AppTheme.mutedColor(context),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      price,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: active
-                            ? accent
-                            : AppTheme.mutedColor(context).withOpacity(0.75),
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 2),
+                Text(
+                  price,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.mutedColor(context),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              _StatusPill(active: active, accent: accent),
-            ],
+              ],
+            ),
           ),
-        ),
+          const SizedBox(width: 12),
+          _MonoSwitch(value: active, onChanged: (_) => onTap()),
+        ],
       ),
     );
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  final bool active;
-  final Color accent;
-  const _StatusPill({required this.active, required this.accent});
+/// Enkel monokrom toggle-switch (på = ink, av = muted).
+class _MonoSwitch extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _MonoSwitch({required this.value, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: active ? accent : AppTheme.mutedColor(context).withOpacity(0.14),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            active ? Icons.check_rounded : Icons.close_rounded,
-            size: 14,
-            color: active
-                ? (isDark ? AppTheme.ink : Colors.white)
-                : AppTheme.mutedColor(context),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            active ? 'PÅ' : 'AV',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.6,
-              color: active
-                  ? (isDark ? AppTheme.ink : Colors.white)
-                  : AppTheme.mutedColor(context),
+    final ink = isDark ? Colors.white : AppTheme.ink;
+    final knob = isDark ? AppTheme.ink : Colors.white;
+
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        width: 46,
+        height: 28,
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: value ? ink : AppTheme.mutedColor(context).withOpacity(0.30),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              color: value ? knob : Colors.white,
+              shape: BoxShape.circle,
             ),
           ),
-        ],
+        ),
       ),
     );
   }

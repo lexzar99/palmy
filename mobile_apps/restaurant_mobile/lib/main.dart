@@ -424,7 +424,7 @@ class _FloatingPillNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
-    final activeColor = isDark ? AppTheme.ember : AppTheme.emberDeep;
+    final activeColor = isDark ? Colors.white : AppTheme.ink;
     final bg = isDark ? AppTheme.steel : Colors.white;
 
     // Flat bar — ingen blur/gradient. Vald flik får guld-highlight.
@@ -488,9 +488,11 @@ class _NavPillItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
+    // Svartvit nav: vald flik = solid pill, ikon/text i kontrastfärg.
+    final selFg = isDark ? AppTheme.ink : Colors.white;
     final iconColor = selected
-        ? activeColor
-        : (isDark ? Colors.white.withOpacity(0.65) : AppTheme.mutedInk);
+        ? selFg
+        : (isDark ? Colors.white.withOpacity(0.6) : AppTheme.mutedInk);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -504,9 +506,7 @@ class _NavPillItem extends StatelessWidget {
             vertical: 10,
           ),
           decoration: BoxDecoration(
-            color: selected
-                ? activeColor.withOpacity(isDark ? 0.20 : 0.16)
-                : Colors.transparent,
+            color: selected ? activeColor : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           // Vald flik ligger i en Expanded → max + Flexible-etikett som
@@ -527,7 +527,7 @@ class _NavPillItem extends StatelessWidget {
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: activeColor,
+                        color: selFg,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0,

@@ -486,47 +486,30 @@ class _OrderHero extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              '#',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w700,
-                height: 1.0,
-                color: AppTheme.mutedColor(context),
-              ),
-            ),
-            const SizedBox(width: 2),
             Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.bottomLeft,
-                child: Text(
-                  order.orderNumber,
-                  style: TextStyle(
-                    fontSize: 64,
-                    fontWeight: FontWeight.w900,
-                    height: 0.9,
-                    letterSpacing: -2.5,
-                    color: isDark ? Colors.white : AppTheme.ink,
-                  ),
+              child: Text(
+                '#${order.orderNumber}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                  color: isDark ? Colors.white : AppTheme.ink,
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                OrderUi.formatCurrency(order.total),
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? Colors.white : AppTheme.ink,
-                  letterSpacing: -0.4,
-                ),
+            const SizedBox(width: 10),
+            Text(
+              OrderUi.formatCurrency(order.total),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.3,
+                color: isDark ? Colors.white : AppTheme.ink,
               ),
             ),
           ],
@@ -547,7 +530,6 @@ class _StatusProgressStrip extends StatelessWidget {
         _Step('PENDING', 'Inkommen'),
         _Step('PREPARING', 'Tillagas'),
         _Step('READY', 'Klar'),
-        _Step('COMPLETED', 'Hämtad'),
       ];
     }
     return const [

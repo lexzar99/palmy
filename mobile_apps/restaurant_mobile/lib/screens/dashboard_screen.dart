@@ -687,56 +687,29 @@ class _RestingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    // Enkel, flat vilolägesrad — ingen färgad chip, ingen extra rad.
     return Container(
       margin: const EdgeInsets.fromLTRB(0, 14, 0, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppTheme.borderColor(context),
-          width: 1,
-        ),
-        color: AppTheme.faintColor(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderColor(context), width: 1),
       ),
       child: Row(
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppTheme.success.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.check_circle_outline_rounded,
-              color: AppTheme.success,
-              size: 22,
-            ),
+          Icon(
+            Icons.check_circle_outline_rounded,
+            color: AppTheme.mutedColor(context),
+            size: 22,
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Inga väntande ordrar',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color:
-                        AppTheme.isDark(context) ? Colors.white : AppTheme.ink,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Ni får ett ljudlarm när nästa kommer in.',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.mutedColor(context),
-                  ),
-                ),
-              ],
+          const SizedBox(width: 12),
+          Text(
+            'Inga väntande ordrar',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white : AppTheme.ink,
             ),
           ),
         ],

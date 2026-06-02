@@ -8,21 +8,34 @@ import '../models/order_model.dart';
 import '../providers/order_provider.dart';
 import 'order_detail_screen.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
   @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  bool _showToday = true;
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final ink = isDark ? Colors.white : AppTheme.ink;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Consumer<OrderProvider>(
         builder: (context, provider, _) {
-          final today = provider.todayHistoryOrders;
-          final yesterday = provider.yesterdayHistoryOrders;
+          final orders = _showToday
+              ? provider.todayHistoryOrders
+              : provider.yesterdayHistoryOrders;
+          final total =
+              _showToday ? provider.todayTotal : provider.yesterdayTotal;
 
           return RefreshIndicator(
             onRefresh: () async => provider.refresh(),
-            color: AppTheme.ember,
+            color: ink,
             displacement: 80,
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(
@@ -30,80 +43,62 @@ class HistoryScreen extends StatelessWidget {
               ),
               slivers: [
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                  sliver: SliverToBoxAdapter(child: _HeaderTitle()),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
                   sliver: SliverToBoxAdapter(
-                    child: Row(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: _BentoStat(
-                            eyebrow: 'IDAG',
-                            value: OrderUi.formatCurrency(provider.todayTotal),
-                            count: today.length,
-                            accent: AppTheme.ember,
-                            orders: today,
+                        Text(
+                          'HISTORIK',
+                          style: TextStyle(
+                            color: AppTheme.mutedColor(context),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.4,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _BentoStat(
-                            eyebrow: 'IGÅR',
-                            value: OrderUi.formatCurrency(
-                                provider.yesterdayTotal),
-                            count: yesterday.length,
-                            accent: AppTheme.lavender,
-                            orders: yesterday,
+                        const SizedBox(height: 6),
+                        Text(
+                          'Senaste dagarna',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            height: 1.0,
+                            letterSpacing: -1.0,
+                            color: ink,
                           ),
                         ),
+                        const SizedBox(height: 18),
+                        // Idag / Igår-väljare (monokrom segment-kontroll).
+                        _DayToggle(
+                          showToday: _showToday,
+                          onChanged: (v) => setState(() => _showToday = v),
+                        ),
+                        const SizedBox(height: 14),
+                        // Liten omsättnings-rad.
+                        _RevenueRow(
+                          label: _showToday ? 'Omsättning idag' : 'Omsättning igår',
+                          value: OrderUi.formatCurrency(total),
+                          count: orders.length,
+                        ),
+                        const SizedBox(height: 8),
                       ],
                     ),
                   ),
                 ),
-                if (today.isEmpty && yesterday.isEmpty)
+                if (orders.isEmpty)
                   const SliverFillRemaining(
                     hasScrollBody: false,
                     child: _EmptyHistory(),
                   )
-                else ...[
-                  if (today.isNotEmpty) ...[
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 28, 20, 6),
-                      sliver: SliverToBoxAdapter(
-                        child: _DayHeader(label: 'Idag', count: today.length),
-                      ),
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(24, 6, 24, 140),
+                    sliver: SliverList.builder(
+                      itemCount: orders.length,
+                      itemBuilder: (context, i) => _HistoryTile(order: orders[i]),
                     ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                      sliver: SliverList.builder(
-                        itemCount: today.length,
-                        itemBuilder: (context, i) =>
-                            _HistoryTile(order: today[i]),
-                      ),
-                    ),
-                  ],
-                  if (yesterday.isNotEmpty) ...[
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 6),
-                      sliver: SliverToBoxAdapter(
-                        child: _DayHeader(
-                            label: 'Igår', count: yesterday.length),
-                      ),
-                    ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
-                      sliver: SliverList.builder(
-                        itemCount: yesterday.length,
-                        itemBuilder: (context, i) =>
-                            _HistoryTile(order: yesterday[i]),
-                      ),
-                    ),
-                  ] else
-                    const SliverToBoxAdapter(child: SizedBox(height: 140)),
-                ],
+                  ),
               ],
             ),
           );
@@ -113,252 +108,111 @@ class HistoryScreen extends StatelessWidget {
   }
 }
 
-class _HeaderTitle extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'HISTORIK',
-          style: TextStyle(
-            color: AppTheme.mutedColor(context),
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.4,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Senaste dagarna',
-          style: TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.w900,
-            height: 1.0,
-            letterSpacing: -1.0,
-            color: isDark ? Colors.white : AppTheme.ink,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BentoStat extends StatelessWidget {
-  final String eyebrow;
-  final String value;
-  final int count;
-  final Color accent;
-  final List<OrderModel> orders;
-
-  const _BentoStat({
-    required this.eyebrow,
-    required this.value,
-    required this.count,
-    required this.accent,
-    required this.orders,
-  });
+class _DayToggle extends StatelessWidget {
+  final bool showToday;
+  final ValueChanged<bool> onChanged;
+  const _DayToggle({required this.showToday, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.panelColor(context),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppTheme.borderColor(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: accent,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                eyebrow,
+    final ink = isDark ? Colors.white : AppTheme.ink;
+    final fg = isDark ? AppTheme.ink : Colors.white;
+    final muted = AppTheme.mutedColor(context);
+
+    Widget seg(String label, bool isToday) {
+      final selected = showToday == isToday;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => onChanged(isToday),
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? ink : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Text(
+                label,
                 style: TextStyle(
-                  color: accent,
-                  fontSize: 11,
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
+                  color: selected ? fg : muted,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-                color: isDark ? Colors.white : AppTheme.ink,
-                height: 1.0,
-              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$count ${count == 1 ? "order" : "ordrar"}',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.mutedColor(context),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 28,
-            child: _Sparkline(orders: orders, accent: accent),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Sparkline extends StatelessWidget {
-  final List<OrderModel> orders;
-  final Color accent;
-
-  const _Sparkline({required this.orders, required this.accent});
-
-  @override
-  Widget build(BuildContext context) {
-    if (orders.isEmpty) {
-      return Center(
-        child: Text(
-          '—',
-          style: TextStyle(
-            color: AppTheme.mutedColor(context).withOpacity(0.5),
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
           ),
         ),
       );
     }
 
-    final buckets = List<int>.filled(24, 0);
-    for (final o in orders) {
-      buckets[o.createdAt.hour] += 1;
-    }
-    final maxV = buckets.reduce((a, b) => a > b ? a : b);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        return CustomPaint(
-          size: Size(w, 28),
-          painter: _SparkPainter(
-            buckets: buckets,
-            maxV: maxV == 0 ? 1 : maxV,
-            color: accent,
-          ),
-        );
-      },
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.borderColor(context)),
+      ),
+      child: Row(children: [seg('Idag', true), seg('Igår', false)]),
     );
   }
 }
 
-class _SparkPainter extends CustomPainter {
-  final List<int> buckets;
-  final int maxV;
-  final Color color;
-
-  _SparkPainter({
-    required this.buckets,
-    required this.maxV,
-    required this.color,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withOpacity(0.85)
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [color.withOpacity(0.22), color.withOpacity(0)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    final path = Path();
-    final fillPath = Path();
-    final step = size.width / (buckets.length - 1);
-    for (var i = 0; i < buckets.length; i++) {
-      final x = i * step;
-      final ratio = buckets[i] / maxV;
-      final y = size.height - (size.height - 4) * ratio - 2;
-      if (i == 0) {
-        path.moveTo(x, y);
-        fillPath.moveTo(x, size.height);
-        fillPath.lineTo(x, y);
-      } else {
-        path.lineTo(x, y);
-        fillPath.lineTo(x, y);
-      }
-    }
-    fillPath.lineTo(size.width, size.height);
-    fillPath.close();
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SparkPainter old) =>
-      old.buckets != buckets || old.maxV != maxV || old.color != color;
-}
-
-class _DayHeader extends StatelessWidget {
+class _RevenueRow extends StatelessWidget {
   final String label;
+  final String value;
   final int count;
-  const _DayHeader({required this.label, required this.count});
+  const _RevenueRow({
+    required this.label,
+    required this.value,
+    required this.count,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.5,
-            color: isDark ? Colors.white : AppTheme.ink,
+    final ink = isDark ? Colors.white : AppTheme.ink;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.borderColor(context)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+                color: AppTheme.mutedColor(context),
+              ),
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 5),
-          child: Text(
-            '$count',
+          Text(
+            '$count ${count == 1 ? "order" : "ordrar"}',
             style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
               color: AppTheme.mutedColor(context),
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 14),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.4,
+              color: ink,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -433,9 +287,6 @@ class _HistoryTile extends StatelessWidget {
                             color: statusColor,
                           ),
                         ),
-                        // Refund-anmärkning från admin: visa en tunn pill när
-                        // ordern är helt eller delvis återbetald. Färgkodad så
-                        // restaurangen direkt ser att pengar har gått tillbaka.
                         if (order.isRefunded) ...[
                           const SizedBox(width: 8),
                           _RefundPill(
@@ -457,18 +308,16 @@ class _HistoryTile extends StatelessWidget {
                         color: AppTheme.mutedColor(context),
                       ),
                     ),
-                    // Refund-detalj-rad: belopp + anledning om angiven, så
-                    // restaurangen ser i en snabb-blick varför pengarna gick
-                    // tillbaka utan att klicka in på ordern.
                     if (order.isRefunded) ...[
                       const SizedBox(height: 4),
                       Text(
-                        order.refundReason != null && order.refundReason!.isNotEmpty
+                        order.refundReason != null &&
+                                order.refundReason!.isNotEmpty
                             ? 'Återbetalt ${OrderUi.formatCurrency(order.refundAmount ?? 0)} · ${order.refundReason}'
                             : 'Återbetalt ${OrderUi.formatCurrency(order.refundAmount ?? 0)}',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w700,
                           color: AppTheme.danger,
@@ -527,27 +376,19 @@ class _EmptyHistory extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: AppTheme.faintColor(context),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Icon(
-              Icons.history_toggle_off_rounded,
-              color: AppTheme.mutedColor(context),
-              size: 32,
-            ),
+          Icon(
+            Icons.history_toggle_off_rounded,
+            color: AppTheme.mutedColor(context),
+            size: 32,
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           Text(
-            'Ingen historik',
+            'Inga ordrar',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 6),
           Text(
-            'När ni levererat era första ordrar dyker de upp här.',
+            'Ordrar du markerat klar/på väg dyker upp här.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
@@ -558,7 +399,7 @@ class _EmptyHistory extends StatelessWidget {
 }
 
 /// Liten outlined pill som markerar att en order är (helt eller delvis)
-/// återbetald av admin. Dovt röd så restaurangen direkt ser anmärkningen.
+/// återbetald av admin.
 class _RefundPill extends StatelessWidget {
   final String label;
   const _RefundPill({required this.label});
@@ -570,11 +411,12 @@ class _RefundPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.danger.withOpacity(0.10),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppTheme.danger.withOpacity(0.30), width: 0.8),
+        border:
+            Border.all(color: AppTheme.danger.withOpacity(0.30), width: 0.8),
       ),
       child: Text(
         label,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 9.5,
           fontWeight: FontWeight.w900,
           letterSpacing: 0.6,
