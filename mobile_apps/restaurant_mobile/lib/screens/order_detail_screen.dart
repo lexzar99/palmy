@@ -420,7 +420,7 @@ class _SectionDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 18),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Divider(
         height: 1,
         thickness: 1,
@@ -565,106 +565,71 @@ class _StatusProgressStrip extends StatelessWidget {
     }
     if (isCancelled) currentIndex = -2;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final stepLabel = currentIndex >= 0 ? steps[currentIndex].label : '';
+
+    return Row(
       children: [
-          Row(
-            children: [
-              Text(
-                'STATUS',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                  color: AppTheme.mutedColor(context),
-                ),
-              ),
-              const Spacer(),
-              Text(
-                OrderUi.statusLabel(order.status),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: isCancelled
-                      ? AppTheme.danger
-                      : OrderUi.statusColor(order.status),
-                ),
-              ),
-            ],
+        Text(
+          'STATUS',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.2,
+            color: AppTheme.mutedColor(context),
           ),
-          const SizedBox(height: 14),
-          if (isCancelled)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppTheme.danger.withOpacity(0.10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.cancel_rounded,
-                      color: AppTheme.danger, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    OrderUi.statusLabel(order.status),
-                    style: const TextStyle(
-                      color: AppTheme.danger,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
+        ),
+        const SizedBox(width: 14),
+        if (isCancelled)
+          Expanded(
+            child: Row(
+              children: [
+                const Icon(Icons.cancel_rounded,
+                    color: AppTheme.danger, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  OrderUi.statusLabel(order.status),
+                  style: const TextStyle(
+                    color: AppTheme.danger,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          // Tunn segmenterad progress-bar — fylld upp t.o.m. nuvarande steg.
+          Expanded(
+            child: Row(
+              children: List.generate(steps.length, (i) {
+                final filled = i <= currentIndex;
+                return Expanded(
+                  child: Container(
+                    height: 4,
+                    margin: EdgeInsets.only(
+                        right: i == steps.length - 1 ? 0 : 6),
+                    decoration: BoxDecoration(
+                      color: filled
+                          ? accent
+                          : AppTheme.mutedColor(context).withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                ],
-              ),
-            )
-          else
-            Row(
-              children: List.generate(steps.length * 2 - 1, (i) {
-                if (i.isOdd) {
-                  final between = (i - 1) ~/ 2;
-                  final filled = between < currentIndex;
-                  return Expanded(
-                    child: Container(
-                      height: 2.5,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: filled
-                            ? accent
-                            : AppTheme.mutedColor(context).withOpacity(0.20),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  );
-                }
-                final idx = i ~/ 2;
-                final done = idx <= currentIndex;
-                final current = idx == currentIndex;
-                return _ProgressDot(
-                  active: done,
-                  current: current,
-                  accent: accent,
                 );
               }),
             ),
-          const SizedBox(height: 10),
-          if (!isCancelled)
-            Row(
-              children: steps.map((s) {
-                return Expanded(
-                  child: Text(
-                    s.label,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.mutedColor(context),
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                );
-              }).toList(),
+          ),
+          const SizedBox(width: 14),
+          Text(
+            stepLabel,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: OrderUi.statusColor(order.status),
             ),
+          ),
         ],
+      ],
     );
   }
 }
@@ -673,44 +638,6 @@ class _Step {
   final String key;
   final String label;
   const _Step(this.key, this.label);
-}
-
-class _ProgressDot extends StatelessWidget {
-  final bool active;
-  final bool current;
-  final Color accent;
-  const _ProgressDot({
-    required this.active,
-    required this.current,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: current ? 18 : 14,
-      height: current ? 18 : 14,
-      decoration: BoxDecoration(
-        color: active ? accent : Colors.transparent,
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: active
-              ? accent
-              : AppTheme.mutedColor(context).withOpacity(0.45),
-          width: current ? 3 : 1.5,
-        ),
-        boxShadow: current
-            ? [
-                BoxShadow(
-                  color: accent.withOpacity(0.42),
-                  blurRadius: 10,
-                  spreadRadius: 1,
-                ),
-              ]
-            : null,
-      ),
-    );
-  }
 }
 
 // ── Customer strip ──────────────────────────────────────────────────────────
@@ -979,204 +906,149 @@ class _ItemsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(0, 0, 0, 6),
-            child: Row(
-              children: [
-                Text(
-                  'ARTIKLAR',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
-                    color: AppTheme.mutedColor(context),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${order.items.fold<int>(0, (s, i) => s + i.quantity)} st',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.mutedColor(context),
-                  ),
-                ),
-              ],
+    final muted = AppTheme.mutedColor(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'BESTÄLLNING',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+                color: muted,
+              ),
             ),
-          ),
-          ...List.generate(order.items.length, (i) {
-            return Column(
-              children: [
-                _ItemRow(item: order.items[i], accent: accent),
-                if (i < order.items.length - 1)
-                  Divider(
-                    height: 1,
-                    color: AppTheme.borderColor(context),
-                  ),
-              ],
-            );
-          }),
-        ],
-      ),
+            const Spacer(),
+            Text(
+              '${order.items.fold<int>(0, (s, i) => s + i.quantity)} st',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: muted,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        ...List.generate(order.items.length, (i) {
+          return _ItemRow(
+            item: order.items[i],
+            ink: accent,
+            muted: muted,
+            isLast: i == order.items.length - 1,
+          );
+        }),
+      ],
     );
   }
 }
 
 class _ItemRow extends StatelessWidget {
   final OrderItemModel item;
-  final Color accent;
-  const _ItemRow({required this.item, required this.accent});
+  final Color ink;
+  final Color muted;
+  final bool isLast;
+  const _ItemRow({
+    required this.item,
+    required this.ink,
+    required this.muted,
+    required this.isLast,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
     final hasExtras = item.selectedExtras.isNotEmpty;
     final hasNote = item.note?.isNotEmpty == true;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 14, 0, 14),
-      child: Row(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            margin: const EdgeInsets.only(top: 1),
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '${item.quantity}×',
-              style: TextStyle(
-                color: accent,
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 34,
+                child: Text(
+                  '${item.quantity}×',
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w800, color: ink),
+                ),
               ),
-            ),
+              Expanded(
+                child: Text(
+                  item.productName,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                    color: ink,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                OrderUi.formatCurrency(item.subtotal),
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w800, color: ink),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          if (hasExtras)
+            ...item.selectedExtras.map((e) {
+              final name = (e['name'] ?? '').toString();
+              final price = (e['price'] as num?)?.toDouble() ?? 0.0;
+              return Padding(
+                padding: const EdgeInsets.only(left: 34, top: 5),
+                child: Row(
                   children: [
                     Expanded(
                       child: Text(
-                        item.productName,
+                        '+ $name',
                         style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : AppTheme.ink,
-                          letterSpacing: -0.2,
-                        ),
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w500,
+                            color: muted),
                       ),
                     ),
-                    Text(
-                      OrderUi.formatCurrency(item.subtotal),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : AppTheme.ink,
+                    if (price > 0)
+                      Text(
+                        '+ ${OrderUi.formatCurrency(price)}',
+                        style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w500,
+                            color: muted),
                       ),
-                    ),
                   ],
                 ),
-                if (hasExtras) ...[
-                  const SizedBox(height: 6),
-                  ...item.selectedExtras.map((e) {
-                    final name = (e['name'] ?? '').toString();
-                    final price = (e['price'] as num?)?.toDouble() ?? 0.0;
-                    final requiredFlag = e['required'] as bool?;
-                    final isMandatory = requiredFlag ?? (price == 0);
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 3),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 16,
-                            height: 16,
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              color: isMandatory
-                                  ? AppTheme.mutedColor(context)
-                                      .withOpacity(0.20)
-                                  : accent.withOpacity(0.16),
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Icon(
-                              isMandatory
-                                  ? Icons.remove_rounded
-                                  : Icons.add_rounded,
-                              size: 11,
-                              color: isMandatory
-                                  ? AppTheme.mutedColor(context)
-                                  : accent,
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              name,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: isMandatory
-                                    ? (isDark ? Colors.white : AppTheme.ink)
-                                    : accent,
-                              ),
-                            ),
-                          ),
-                          if (!isMandatory)
-                            Text(
-                              '+ ${OrderUi.formatCurrency(price)}',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: accent,
-                              ),
-                            ),
-                        ],
+              );
+            }),
+          if (hasNote)
+            Padding(
+              padding: const EdgeInsets.only(left: 34, top: 7),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.edit_note_rounded, size: 17, color: muted),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      item.note!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        fontStyle: FontStyle.italic,
+                        height: 1.3,
+                        color: muted,
                       ),
-                    );
-                  }),
-                ],
-                if (hasNote) ...[
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
-                    decoration: BoxDecoration(
-                      color: AppTheme.warning.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.edit_note_rounded,
-                            size: 16, color: AppTheme.warning),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            item.note!,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.warning,
-                              height: 1.3,
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
         ],
       ),
     );

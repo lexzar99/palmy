@@ -352,7 +352,7 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
 
 // Tunn skiljelinje (kvitto-känsla).
 Widget _rule(BuildContext context) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Divider(
         height: 1,
         thickness: 1,
