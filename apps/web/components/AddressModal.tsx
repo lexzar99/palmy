@@ -6,7 +6,7 @@ import {
   MapPin, X, ArrowRight, Truck, Store, AlertCircle,
   Loader2, CheckCircle2, Building2, ChevronRight, Search, LocateFixed, RotateCw, Home, Briefcase,
 } from "lucide-react";
-import { loadGoogleMaps, DEFAULT_MAP_CENTER } from "@/lib/googleMaps";
+import { loadLeaflet, CARTO_LIGHT, CARTO_DARK, CARTO_ATTRIBUTION, DEFAULT_MAP_CENTER } from "@/lib/leaflet";
 import { useTheme } from "@/app/providers";
 import { readQuickAddresses, formatQuickAddress, type QuickAddress } from "@/lib/quickAddresses";
 
@@ -24,34 +24,6 @@ const setCookie = (name: string, value: string, days = 365) => {
   const exp = new Date(Date.now() + days * 864e5).toUTCString();
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${exp}; path=/; SameSite=Lax`;
 };
-
-// Rena, moderna kart-stilar som matchar appens ljusa/mörka tema. Döljer POI:er
-// och transit för en lugn, minimalistisk look.
-const LIGHT_MAP_STYLE: any[] = [
-  { elementType: "geometry", stylers: [{ color: "#f4f4f2" }] },
-  { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#6b6b70" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
-  { featureType: "poi", stylers: [{ visibility: "off" }] },
-  { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#f0f0ee" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#ece6da" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#cfe3e6" }] },
-  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#eaece4" }] },
-];
-const DARK_MAP_STYLE: any[] = [
-  { elementType: "geometry", stylers: [{ color: "#1d1d20" }] },
-  { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#9aa0a6" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#1d1d20" }] },
-  { featureType: "poi", stylers: [{ visibility: "off" }] },
-  { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a2a2e" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#37373d" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#141619" }] },
-  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#212124" }] },
-];
 
 interface PlacePrediction {
   description: string;
@@ -78,20 +50,6 @@ interface AddressModalProps {
   onFail?: (reason: string) => void;
   orderType: "DELIVERY" | "PICKUP";
   setOrderType: (type: "DELIVERY" | "PICKUP") => void;
-}
-
-// Plocka ut ren gatuadress + postnummer + stad ur ett Geocoder-resultat.
-function parseGeocode(result: any): { clean: string; zip: string | null; city: string | null } {
-  const comp: any[] = result.address_components || [];
-  const get = (type: string) => comp.find((c) => c.types?.includes(type))?.long_name as string | undefined;
-  const route = get("route");
-  const num = get("street_number");
-  const zip = get("postal_code") || null;
-  const city = get("postal_town") || get("locality") || get("sublocality") || null;
-  const street = [route, num].filter(Boolean).join(" ") || (result.formatted_address || "").split(",")[0];
-  const zipCity = [zip, city].filter(Boolean).join(" ");
-  const clean = [street, zipCity].filter(Boolean).join(", ");
-  return { clean, zip, city };
 }
 
 export default function AddressModal({
@@ -121,7 +79,7 @@ export default function AddressModal({
   const [savedAddresses, setSavedAddresses] = useState<QuickAddress[]>([]);
   const autoLocatedRef = useRef(false);
   const mapRef = useRef<any>(null);
-  const geocoderRef = useRef<any>(null);
+  const tileLayerRef = useRef<any>(null);
   const userMovedRef = useRef(false); // true när användaren själv pannat kartan
   const selectedCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
@@ -162,81 +120,84 @@ export default function AddressModal({
     setCitySearch("");
   }, [isOpen]);
 
-  // ── Reverse-geocoda en kart-position → uppdatera adressfälten ─────────────────
-  const handleMapPosition = useCallback((lat: number, lng: number) => {
+  // ── Reverse-geocoda en kart-position via backend (keyless) → adressfält ───────
+  const handleMapPosition = useCallback(async (lat: number, lng: number) => {
     setSelectedCoords({ lat, lng });
     setError(null);
-    if (!geocoderRef.current) return;
     setLoading(true);
-    geocoderRef.current.geocode({ location: { lat, lng } }, (results: any[], status: string) => {
-      setLoading(false);
-      if (status === "OK" && results?.[0]) {
-        const { clean, zip, city } = parseGeocode(results[0]);
-        setSelectedAddress(clean);
-        setInput(clean);
-        setSelectedPostalCode(zip);
-        setSelectedDeliveryCity(city);
+    try {
+      const res = await fetch(`/api/places/reverse?lat=${lat}&lng=${lng}`);
+      const data = await res.json();
+      if (data?.address) {
+        setSelectedAddress(data.address);
+        setInput(data.address);
+        setSelectedPostalCode(data.postalCode ?? null);
+        setSelectedDeliveryCity(data.city ?? null);
       }
-    });
+    } catch { /* behåll koordinaterna även om reverse failar */ }
+    finally { setLoading(false); }
   }, []);
 
-  // ── Callback-ref: initierar kartan exakt när div:en monteras (undviker
-  //    race mellan effekt och ref som lämnade kartan tom). dataset-flaggan
-  //    skyddar mot dubbel-init (React StrictMode kör ref-callbacken två ggr). ──
+  // ── Callback-ref: initierar Leaflet-kartan (keyless CARTO-tiles) när div:en
+  //    monteras. Fast nål i mitten — man flyttar KARTAN för att välja plats. ──
   const initMap = useCallback((node: HTMLDivElement | null) => {
-    if (!node) { mapRef.current = null; geocoderRef.current = null; setMapReady(false); return; }
+    if (!node) { mapRef.current = null; tileLayerRef.current = null; setMapReady(false); return; }
     if (node.dataset.gmInit === "1") return;
     node.dataset.gmInit = "1";
     setMapError(false);
-    loadGoogleMaps()
-      .then((maps) => {
+    loadLeaflet()
+      .then((L) => {
         if (!node.isConnected) return;
         const start = selectedCoordsRef.current || DEFAULT_MAP_CENTER;
-        const map = new maps.Map(node, {
-          center: start,
-          zoom: selectedCoordsRef.current ? 16 : 12,
-          disableDefaultUI: true,
-          zoomControl: true,
-          gestureHandling: "greedy",
-          clickableIcons: false,
-          styles: (typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark") ? DARK_MAP_STYLE : LIGHT_MAP_STYLE,
-        });
+        const map = L.map(node, { zoomControl: false, attributionControl: true })
+          .setView([start.lat, start.lng], selectedCoordsRef.current ? 16 : 12);
+        const dark = typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark";
+        const tile = L.tileLayer(dark ? CARTO_DARK : CARTO_LIGHT, {
+          attribution: CARTO_ATTRIBUTION,
+          maxZoom: 19,
+          subdomains: "abcd",
+        }).addTo(map);
         mapRef.current = map;
-        geocoderRef.current = new maps.Geocoder();
+        tileLayerRef.current = tile;
         setMapReady(true);
+        // Bottom-sheet animerar in → säkerställ korrekt tile-storlek efteråt.
+        setTimeout(() => { try { map.invalidateSize(); } catch { /* noop */ } }, 300);
 
-        // ── Fast nål (center-pin): nålen sitter still mitt på kartan och man
-        //    flyttar KARTAN för att välja exakt plats. När användaren själv
-        //    pannar (dragstart) reverse-geocodar vi mittpunkten på idle.
-        //    Programmatiska setCenter (sök/sparad adress/GPS) fyller redan i
-        //    adressen, så vi hoppar över dem via userMovedRef.
-        map.addListener("dragstart", () => { userMovedRef.current = true; });
-        map.addListener("idle", () => {
+        // Fast nål: när användaren själv drar kartan (dragstart) reverse-geocodar
+        // vi mittpunkten på moveend. Programmatiska setView (sök/sparad/GPS)
+        // fyller redan i adressen → hoppas över via userMovedRef.
+        map.on("dragstart", () => { userMovedRef.current = true; });
+        map.on("moveend", () => {
           if (!userMovedRef.current) return;
           userMovedRef.current = false;
           const c = map.getCenter();
-          if (c) handleMapPosition(c.lat(), c.lng());
+          if (c) handleMapPosition(c.lat, c.lng);
         });
       })
       .catch(() => { node.dataset.gmInit = ""; setMapError(true); });
   }, [handleMapPosition]);
 
-  // Applicera rätt kart-stil när kartan blivit redo OCH varje gång temat
-  // ändras — så stilen alltid matchar aktivt ljust/mörkt läge oavsett när
-  // kartan hann initieras.
+  // Byt tile-lager när temat ändras (ljus/mörk CARTO).
   useEffect(() => {
-    if (mapReady && mapRef.current) {
-      mapRef.current.setOptions({ styles: theme === "dark" ? DARK_MAP_STYLE : LIGHT_MAP_STYLE });
+    if (mapReady && tileLayerRef.current) {
+      tileLayerRef.current.setUrl(theme === "dark" ? CARTO_DARK : CARTO_LIGHT);
     }
   }, [theme, mapReady]);
+
+  // Säkerställ rätt storlek när modalen öppnas (container var 0 under animation).
+  useEffect(() => {
+    if (isOpen && mapReady && mapRef.current) {
+      const t = setTimeout(() => { try { mapRef.current.invalidateSize(); } catch { /* noop */ } }, 320);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen, mapReady]);
 
   // Panna kartan till en ny position (fast nål följer mitten). Programmatisk
   // → triggar INTE reverse-geocode (userMovedRef förblir false).
   const recenterMap = useCallback((lat: number, lng: number) => {
     userMovedRef.current = false;
     if (mapRef.current) {
-      mapRef.current.setCenter({ lat, lng });
-      mapRef.current.setZoom(16);
+      mapRef.current.setView([lat, lng], 16);
     }
   }, []);
 
@@ -567,10 +528,10 @@ export default function AddressModal({
                         KARTAN under nålen för att välja exakt plats. */}
                     {!mapError && (
                       <>
-                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full -mt-1">
+                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-full -mt-1">
                           <MapPin size={40} strokeWidth={2.5} fill="#EAB545" className="text-gold-600" style={{ filter: "drop-shadow(0 5px 6px rgba(0,0,0,0.45))" }} />
                         </div>
-                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-zinc-900/40" />
+                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-zinc-900/40" />
                       </>
                     )}
                     {mapError && (
@@ -593,14 +554,14 @@ export default function AddressModal({
                       <button
                         onClick={() => useMyLocation()}
                         aria-label="Använd min plats"
-                        className="absolute bottom-3 right-3 z-10 w-11 h-11 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all bg-white text-zinc-900"
+                        className="absolute bottom-3 right-3 z-[1000] w-11 h-11 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all bg-white text-zinc-900"
                       >
                         {locating ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} />}
                       </button>
                     )}
                     {/* Hint-chip */}
                     {!mapError && (
-                      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-full bg-zinc-950/75 backdrop-blur-md pointer-events-none">
+                      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] px-3 py-1.5 rounded-full bg-zinc-950/75 backdrop-blur-md pointer-events-none">
                         <span className="text-[10px] font-black uppercase tracking-wider text-white flex items-center gap-1.5">
                           <MapPin size={11} className="text-gold-400" /> Flytta kartan för exakt plats
                         </span>

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Loader2, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, Tag } from "lucide-react";
+import { Search, Loader2, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, LayoutGrid } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import ProductModal from "@/components/ProductModal";
 import FloatingCartButton from "@/components/FloatingCartButton";
@@ -1236,19 +1236,6 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           </div>
         )}
 
-        {/* ── Tillbaka till huvudkategorier (visas i drilldown-läge) ── */}
-        {!isGridMode && mainCategories.length > 0 && (
-          <button
-            type="button"
-            onClick={() => { setSelectedMainCategoryId(null); setSearchTerm(""); }}
-            className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            <ChevronLeft size={14} />
-            Alla kategorier
-          </button>
-        )}
-
         {/* ── Sticky header: SÖK + KATEGORI-PILLS följer med när man scrollar ──
             Båda i samma wrapper så de sticky-positioneras tillsammans. Bryter
             ut ur parent-padding (-mx-5 osv) så bakgrunden täcker hela viewport-
@@ -1257,6 +1244,44 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           className="sticky z-40 mb-8 -mx-5 sm:-mx-6 lg:-mx-12 top-0 md:top-20"
           style={{ backgroundColor: "var(--bg-primary)" }}
         >
+          {/* Huvudkategori-bilder — horisontell scroll så man kan byta
+              huvudkategori medan man är inne i en annan. "Alla" → tillbaka
+              till bild-griden. */}
+          {mainCategories.length > 0 && (
+            <div className="pt-2">
+              <div className="flex gap-2.5 no-scrollbar px-5 sm:px-6 lg:px-12" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedMainCategoryId(null); setSearchTerm(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  className="shrink-0 flex flex-col items-center gap-1 w-[58px]"
+                >
+                  <div className="w-[52px] h-[52px] rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
+                    <LayoutGrid size={20} className="text-gold-500" />
+                  </div>
+                  <span className="text-[8.5px] font-bold uppercase tracking-wide text-center truncate w-full" style={{ color: "var(--text-secondary)" }}>Alla</span>
+                </button>
+                {mainCategories.map((mc: any) => {
+                  const active = selectedMainCategoryId === mc.id;
+                  return (
+                    <button
+                      key={mc.id}
+                      type="button"
+                      onClick={() => { setSelectedMainCategoryId(mc.id); setSearchTerm(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                      className="shrink-0 flex flex-col items-center gap-1 w-[58px]"
+                    >
+                      <div className={`relative w-[52px] h-[52px] rounded-2xl overflow-hidden transition-all ${active ? "ring-2 ring-gold-500 shadow-md shadow-gold-500/25" : "ring-1 ring-[rgba(28,28,30,0.08)]"}`} style={{ backgroundColor: "var(--bg-deep)" }}>
+                        {mc.imageUrl
+                          ? <img src={mc.imageUrl} alt={mc.name} loading="lazy" className="w-full h-full object-cover" />
+                          : <div className="absolute inset-0 flex items-center justify-center text-base font-black" style={{ color: "var(--text-primary)" }}>{(mc.name || "?").charAt(0)}</div>}
+                      </div>
+                      <span className={`text-[8.5px] font-bold uppercase tracking-wide text-center truncate w-full ${active ? "text-gold-600" : ""}`} style={{ color: active ? undefined : "var(--text-secondary)" }}>{mc.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Sök — egen horisontell padding så den inte ligger edge-to-edge */}
           <div className="px-5 sm:px-6 lg:px-12 pt-2">
             <div className="rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
@@ -1317,81 +1342,6 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             </div>
           )}
         </div>}
-
-        {/* ── REA: rabatterade produkter på horisontell 2-grid swipe ──────── */}
-        {(() => {
-          // Visas inte i grid-läget — rabatterade rätter exponeras där via
-          // den virtuella "Erbjudanden"-tile istället.
-          if (isGridMode) return null;
-          const discountedProducts = filteredCategories
-            .flatMap((cat: any) => cat.products)
-            .filter((p: any) => p.discountActive && p.discountScope === "PRODUCT");
-          if (discountedProducts.length === 0) return null;
-          const disabled = !restaurant?.isOpen || zoneAvailable === false;
-          const itemCount = (p: any) => items.filter((i) => i.productId === p.id).reduce((s, i) => s + i.quantity, 0);
-          return (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <Tag size={16} className="text-gold-500" strokeWidth={2.5} />
-                  <h3 className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>{t("menu.recommended")}</h3>
-                </div>
-                <div className="h-px bg-zinc-200 flex-1" />
-              </div>
-              <div
-                className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 sm:-mx-6 lg:-mx-12 px-5 sm:px-6 lg:px-12 pb-2 snap-x snap-mandatory scroll-pl-5 sm:scroll-pl-6 lg:scroll-pl-12"
-                style={{ WebkitOverflowScrolling: "touch" as any }}
-              >
-                {discountedProducts.map((p: any) => {
-                  const cartQty = itemCount(p);
-                  const finalPrice = p.discountPrice ?? Math.round(p.price - (p.price * (p.discountPercent || 0) / 100));
-                  return (
-                    <motion.button
-                      key={p.id}
-                      type="button"
-                      onClick={() => handleOpenProduct(p)}
-                      whileTap={disabled ? undefined : { scale: 0.97 }}
-                      disabled={disabled}
-                      aria-disabled={disabled}
-                      className={`shrink-0 snap-start text-left rounded-2xl overflow-hidden transition-all flex flex-col ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer"}`}
-                      style={{ width: "calc((100% - 12px) / 2)", maxWidth: 200, backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 12px rgba(28,28,30,0.04)" }}
-                    >
-                      <div className="relative w-full aspect-square overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
-                        {p.imageUrl && <img src={p.imageUrl} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />}
-                        {/* Discount badge — uses the actual discountPercent if
-                            present (e.g. "-30%"), falls back to a subtle gold
-                            tag if only discountPrice is set. The old "REA" word
-                            was redundant and shouty. */}
-                        {((p.discountPercent && p.discountPercent > 0) || p.discountPrice != null) && (
-                          <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-gold-500 text-zinc-950 text-[9px] font-black uppercase tracking-wider shadow">
-                            {p.discountPercent && p.discountPercent > 0
-                              ? `-${p.discountPercent}%`
-                              : p.discountLabel || ""}
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-3 flex flex-col gap-1.5">
-                        <h4 className="text-sm font-bold leading-tight line-clamp-1" style={{ color: "var(--text-primary)" }}>{p.name}</h4>
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-[11px] font-medium text-zinc-400 line-through">{p.price} kr</span>
-                          <span className="text-sm font-black text-gold-600">{finalPrice} kr</span>
-                        </div>
-                        <div className="mt-1 flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
-                            {cartQty > 0 ? `${cartQty} i varukorg` : "Lägg till"}
-                          </span>
-                          <div className="w-7 h-7 rounded-full bg-gold-500 flex items-center justify-center shadow-sm shadow-gold-500/25">
-                            <Plus size={16} className="text-zinc-950" strokeWidth={2.5} />
-                          </div>
-                        </div>
-                      </div>
-                    </motion.button>
-                  );
-                })}
-              </div>
-            </motion.div>
-          );
-        })()}
 
         {/* ── Menyn: kategorier med produkter (FULL eller COMPACT per produkt) ──
             Döljs i grid-läget — kunden borrar först ner via en huvudkategori. */}
