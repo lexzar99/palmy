@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/order_ui.dart';
 import '../core/theme.dart';
 import '../models/order_model.dart';
 
@@ -47,7 +48,7 @@ class NewOrderSquareCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
     final isPickup = order.type != 'DELIVERY';
-    final accent = isPickup ? AppTheme.ember : AppTheme.brandBlue;
+    final accent = OrderUi.colorFor(order);
     final typeIcon =
         isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
     final typeLabel = isPickup ? 'AVHÄMTNING' : 'LEVERANS';
@@ -211,7 +212,7 @@ class NewOrderHeroCard extends StatelessWidget {
     final isPickup = order.type != 'DELIVERY';
     // Typ-färg går igenom hela kortet: stripe, pill, kant och en subtil
     // bakgrundston — så leverans/avhämtning syns på en kvarts sekund.
-    final accent = isPickup ? AppTheme.ember : AppTheme.brandBlue;
+    final accent = OrderUi.colorFor(order);
     final typeIcon =
         isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
     final typeLabel = isPickup ? 'AVHÄMTNING' : 'LEVERANS';
@@ -361,7 +362,7 @@ class NewOrderQueueTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
     final isPickup = order.type != 'DELIVERY';
-    final accent = isPickup ? AppTheme.ember : AppTheme.brandBlue;
+    final accent = OrderUi.colorFor(order);
     final itemCount = order.items.fold<int>(0, (s, i) => s + i.quantity);
 
     return Material(
@@ -528,7 +529,7 @@ class OrderListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
     final isPickup = order.type != 'DELIVERY';
-    final typeColor = isPickup ? AppTheme.ember : AppTheme.brandBlue;
+    final typeColor = OrderUi.colorFor(order);
     final statusColor = _statusColor(order.status);
     final statusLabel = _statusLabel(order.status);
     final showAdvance = onAdvance != null &&
@@ -657,6 +658,7 @@ class OrderListTile extends StatelessWidget {
                 const SizedBox(height: 12),
                 _AdvanceChip(
                   isPickup: isPickup,
+                  color: typeColor,
                   onPressed: () =>
                       onAdvance!(isPickup ? 'READY' : 'DELIVERING'),
                 ),
@@ -673,12 +675,15 @@ class OrderListTile extends StatelessWidget {
 /// Stoppar event-propagation så klick på pill:en INTE öppnar detail-skärmen.
 class _AdvanceChip extends StatelessWidget {
   final bool isPickup;
+  final Color color;
   final VoidCallback onPressed;
-  const _AdvanceChip({required this.isPickup, required this.onPressed});
+  const _AdvanceChip(
+      {required this.isPickup, required this.color, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
-    final color = isPickup ? AppTheme.ember : AppTheme.brandBlue;
+    // Guld bär svart text; blå/lila bär vit text.
+    final fg = color == AppTheme.brandGold ? AppTheme.ink : Colors.white;
     final label = isPickup ? 'Markera klar' : 'Maten på väg';
     final icon =
         isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
@@ -703,14 +708,14 @@ class _AdvanceChip extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 18, color: AppTheme.ink),
+            Icon(icon, size: 18, color: fg),
             const SizedBox(width: 8),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
-                color: AppTheme.ink,
+                color: fg,
                 letterSpacing: 0.2,
               ),
             ),

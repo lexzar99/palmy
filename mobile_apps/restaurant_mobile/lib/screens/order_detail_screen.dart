@@ -209,7 +209,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    final accent = OrderUi.typeColor(order.type);
+    final accent = OrderUi.colorFor(order);
     final isOverdue = _checkIfOverdue();
 
     return Scaffold(
@@ -559,7 +559,7 @@ class _StatusProgressStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = OrderUi.typeColor(order.type);
+    final accent = OrderUi.colorFor(order);
     final steps = _stepsFor(order.type);
     final isCancelled =
         order.status == 'CANCELLED' || order.status == 'REJECTED';

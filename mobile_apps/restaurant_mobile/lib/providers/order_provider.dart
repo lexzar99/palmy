@@ -204,18 +204,12 @@ class OrderProvider with ChangeNotifier {
     }).toList();
   }
 
-  bool _isTestOrder(OrderModel o) {
-    if (o.id.startsWith('mock_')) return true;
-    final code = o.discountCode?.toLowerCase() ?? '';
-    if (code == 'test' || code == 'testa') return true;
-
-    final name = o.customerName.toLowerCase();
-    final note = o.note?.toLowerCase() ?? '';
-    if (name.contains('test jari')) return true;
-    if (note.contains('test-order') || note.contains('testorder')) return true;
-
-    return false;
-  }
+  // Endast lokalt simulerade ordrar (från "Skicka test-order"-knappen) döljs
+  // från historiken. Riktiga ordrar — även test/E2E-ordrar lagda via appen
+  // (t.ex. med "testorder" i noteringen) — ska visas och sparas i historiken
+  // (idag/igår). Den gamla heuristiken (note/namn/rabattkod) filtrerade bort
+  // riktiga ordrar och fick dem att försvinna efter "på väg".
+  bool _isTestOrder(OrderModel o) => o.id.startsWith('mock_');
 
   void simulateOrder() {
     final mockOrder = OrderModel(

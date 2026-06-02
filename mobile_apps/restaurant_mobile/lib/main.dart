@@ -427,11 +427,8 @@ class _FloatingPillNav extends StatelessWidget {
     final activeColor = isDark ? AppTheme.ember : AppTheme.emberDeep;
     final bg = isDark ? AppTheme.steel : Colors.white;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
+    // Flat bar — ingen blur/gradient. Vald flik får guld-highlight.
+    return Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           decoration: BoxDecoration(
             color: bg,
@@ -444,9 +441,9 @@ class _FloatingPillNav extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.38 : 0.14),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
+                color: Colors.black.withOpacity(isDark ? 0.30 : 0.10),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -469,8 +466,6 @@ class _FloatingPillNav extends StatelessWidget {
               return selected ? Expanded(child: item) : item;
             }),
           ),
-        ),
-      ),
     );
   }
 }

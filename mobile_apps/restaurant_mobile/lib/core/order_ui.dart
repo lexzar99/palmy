@@ -39,6 +39,13 @@ class OrderUi {
     return type == 'DELIVERY' ? AppTheme.brandBlue : AppTheme.brandGold;
   }
 
+  /// Order-accentfärg enligt temat: lila för förbeställningar (scheduledFor),
+  /// annars blå för leverans och guld för avhämtning.
+  static Color colorFor(OrderModel order) {
+    if (order.scheduledFor != null) return AppTheme.preorder;
+    return order.type == 'DELIVERY' ? AppTheme.brandBlue : AppTheme.brandGold;
+  }
+
   static String statusLabel(String status) {
     switch (status) {
       case 'PENDING':

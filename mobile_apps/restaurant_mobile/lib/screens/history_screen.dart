@@ -169,15 +169,6 @@ class _BentoStat extends StatelessWidget {
         color: AppTheme.panelColor(context),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: AppTheme.borderColor(context)),
-        boxShadow: isDark
-            ? []
-            : [
-                BoxShadow(
-                  color: accent.withOpacity(0.07),
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
-                ),
-              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -380,7 +371,7 @@ class _HistoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
-    final accent = OrderUi.typeColor(order.type);
+    final accent = OrderUi.colorFor(order);
     final statusColor = OrderUi.statusColor(order.status);
 
     return Material(

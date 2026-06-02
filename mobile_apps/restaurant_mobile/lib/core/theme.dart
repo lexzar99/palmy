@@ -48,6 +48,8 @@ class AppTheme {
   static const Color warning = Color(0xFFFF7A00); // orange — obs/kampanj
   static const Color info = Color(0xFF2563EB); // blå — info/länkar
   static const Color lavender = Color(0xFFC084FC);
+  // Lila — förbeställningar (scheduledFor). Egen accent skild från blå/guld.
+  static const Color preorder = Color(0xFF8B5CF6);
 
   // Legacy aliases
   static const Color charcoal = midnight;

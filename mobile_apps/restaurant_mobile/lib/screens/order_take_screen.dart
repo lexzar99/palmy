@@ -152,6 +152,7 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
     final isDark = AppTheme.isDark(context);
     final ink = isDark ? Colors.white : AppTheme.ink;
     final muted = AppTheme.mutedColor(context);
+    final accent = OrderUi.colorFor(order);
     final isPickup = order.type == 'PICKUP';
 
     final hasAddress = order.type == 'DELIVERY' && order.deliveryStreet != null;
@@ -181,12 +182,15 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
                       // Typ + tid
                       Row(
                         children: [
-                          Text(isPickup ? 'AVHÄMTNING' : 'LEVERANS',
+                          Text(
+                              order.scheduledFor != null
+                                  ? 'FÖRBESTÄLLNING'
+                                  : (isPickup ? 'AVHÄMTNING' : 'LEVERANS'),
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 1.2,
-                                color: ink,
+                                color: accent,
                               )),
                           const Spacer(),
                           Text(OrderUi.formatTime(order.createdAt),
@@ -327,6 +331,7 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
                 _BottomBar(
                   options: _minuteOptions,
                   selected: _selectedMinutes,
+                  accent: accent,
                   isDark: isDark,
                   busy: _busy,
                   rejecting: _rejecting,
@@ -582,6 +587,7 @@ class _ReceiptItem extends StatelessWidget {
 class _BottomBar extends StatelessWidget {
   final List<int> options;
   final int selected;
+  final Color accent;
   final bool isDark;
   final bool busy;
   final bool rejecting;
@@ -591,6 +597,7 @@ class _BottomBar extends StatelessWidget {
   const _BottomBar({
     required this.options,
     required this.selected,
+    required this.accent,
     required this.isDark,
     required this.busy,
     required this.rejecting,
@@ -606,8 +613,8 @@ class _BottomBar extends StatelessWidget {
     final bg = isDark ? AppTheme.storm : Colors.white;
     final ink = isDark ? Colors.white : AppTheme.ink;
     final muted = AppTheme.mutedColor(context);
-    final action = isDark ? Colors.white : AppTheme.ink;
-    final actionFg = isDark ? AppTheme.ink : Colors.white;
+    final action = accent;
+    final actionFg = accent == AppTheme.brandGold ? AppTheme.ink : Colors.white;
     final borderC = AppTheme.borderColor(context);
 
     return Container(
