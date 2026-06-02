@@ -575,7 +575,12 @@ export default function CartPage() {
   const deliveryFee = orderType === "DELIVERY"
     ? (deliveryCheck?.deliveryFee ?? 0)
     : 0;
-  const minOrder = deliveryCheck?.minOrder ?? restaurantSettings.minOrderAmount;
+  // Minsta orderbelopp gäller ENDAST leverans (zon-baserat koncept). För
+  // avhämtning finns inget minimum → ingen top-up, och första-order-rabatten
+  // (t.ex. 25%) neutraliseras inte längre av en påtvingad komplettering.
+  const minOrder = orderType === "DELIVERY"
+    ? (deliveryCheck?.minOrder ?? restaurantSettings.minOrderAmount)
+    : 0;
   // minOrderTopUp definieras längre ner — den behöver finalDiscount och
   // effectiveMinOrder som båda är beroende av deals/rabatter beräknade nedan.
   const productIds = items.flatMap((i) => Array.from({ length: i.quantity }, () => i.productId));

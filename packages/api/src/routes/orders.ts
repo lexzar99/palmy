@@ -356,11 +356,12 @@ router.post('/', async (req: Request, res: Response) => {
     // Vill en restaurang ha egen prissättning skapar de en egen zon i
     // admin → den vinner via resolveDeliveryFee polygon-match.
     //
-    // FÖR PICKUP: ingen leveransavgift (0). minOrder från globalSettings
-    // som fallback (om admin satt plattform-wide min). Ingen restaurant-
-    // specifik min för pickup heller — håll det enkelt.
+    // FÖR PICKUP: ingen leveransavgift (0) OCH inget minsta orderbelopp.
+    // Minsta-order är ett leveranskoncept (zon-baserat); på avhämtning skulle
+    // det annars tvinga fram en top-up som neutraliserar första-order-rabatten
+    // (t.ex. 25%) och lägga en spök-"leveransavgift" på pickup-ordern.
     let deliveryFee = 0;
-    let minOrderAmount = globalSettings?.minOrderAmount ?? 0;
+    let minOrderAmount = data.type === 'PICKUP' ? 0 : (globalSettings?.minOrderAmount ?? 0);
 
     if (data.type === 'DELIVERY') {
       if (!data.lat || !data.lng) {
