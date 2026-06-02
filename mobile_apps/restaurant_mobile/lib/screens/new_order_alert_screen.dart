@@ -59,7 +59,7 @@ class _NewOrderAlertScreenState extends State<NewOrderAlertScreen>
     final isDark = AppTheme.isDark(context);
     final order = widget.order;
     final isPickup = order.type != 'DELIVERY';
-    final accent = isPickup ? AppTheme.ember : AppTheme.brandBlue;
+    final accent = OrderUi.colorFor(order);
     // Solid bg, ingen radial-wash. Stark kontrast mot text. Använder mist
     // (warm off-white) i ljust läge i stället för paper (pure white) → matchar
     // resten av Ember Studio-paletten och blir mjukare mot ögat.

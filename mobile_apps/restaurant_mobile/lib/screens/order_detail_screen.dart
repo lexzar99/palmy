@@ -209,7 +209,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    final accent = OrderUi.colorFor(order);
+    final accent = OrderUi.colorFor(order); // typ-färg — bara hero-pillen
+    final ink = AppTheme.isDark(context) ? Colors.white : AppTheme.ink;
     final isOverdue = _checkIfOverdue();
 
     return Scaffold(
@@ -243,14 +244,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                       _OverdueBanner(pulse: _pulseController),
                     ],
                     const _SectionDivider(),
-                    _CustomerStrip(order: order, accent: accent),
+                    _CustomerStrip(order: order, accent: ink),
                     if (order.note?.isNotEmpty == true ||
                         order.deliveryInstructions?.isNotEmpty == true ||
                         _allergens.isNotEmpty) ...[
                       const SizedBox(height: 14),
                       _NotesStrip(
                         order: order,
-                        accent: accent,
+                        accent: ink,
                         allergens: _allergens,
                       ),
                     ],
@@ -259,9 +260,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                       _ScheduledStrip(order: order),
                     ],
                     const _SectionDivider(),
-                    _ItemsCard(order: order, accent: accent),
+                    _ItemsCard(order: order, accent: ink),
                     const _SectionDivider(),
-                    _SummaryCard(order: order, accent: accent),
+                    _SummaryCard(order: order, accent: ink),
                   ],
                 ),
               ),
@@ -523,7 +524,7 @@ class _OrderHero extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
-                  color: accent,
+                  color: isDark ? Colors.white : AppTheme.ink,
                   letterSpacing: -0.4,
                 ),
               ),
@@ -559,7 +560,8 @@ class _StatusProgressStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = OrderUi.colorFor(order);
+    // Monokrom progress-strip; status-ordet bär färgen.
+    final accent = AppTheme.isDark(context) ? Colors.white : AppTheme.ink;
     final steps = _stepsFor(order.type);
     final isCancelled =
         order.status == 'CANCELLED' || order.status == 'REJECTED';
@@ -834,7 +836,7 @@ class _NotesStrip extends StatelessWidget {
     final hasNote = order.note?.isNotEmpty == true;
     final hasAllergens = allergens.isNotEmpty;
 
-    final lineColor = AppTheme.warning;
+    final lineColor = AppTheme.mutedColor(context);
     final textColor = isDark ? Colors.white : AppTheme.ink;
 
     return Container(
@@ -949,9 +951,9 @@ class _ScheduledStrip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.ember.withOpacity(0.10),
+        color: AppTheme.preorder.withOpacity(0.10),
         borderRadius: BorderRadius.circular(18),
-        border: Border(left: BorderSide(color: AppTheme.ember, width: 4)),
+        border: Border(left: BorderSide(color: AppTheme.preorder, width: 4)),
       ),
       child: Row(
         children: [
@@ -959,11 +961,11 @@ class _ScheduledStrip extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: AppTheme.ember.withOpacity(0.18),
+              color: AppTheme.preorder.withOpacity(0.18),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(Icons.schedule_rounded,
-                color: AppTheme.ember, size: 22),
+                color: AppTheme.preorder, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(

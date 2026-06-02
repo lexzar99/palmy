@@ -316,11 +316,11 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.teal.withOpacity(0.12),
+                        color: AppTheme.faintColor(context),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.edit_rounded,
-                          color: Colors.teal, size: 20),
+                      child: Icon(Icons.edit_rounded,
+                          color: isDark ? Colors.white : AppTheme.ink, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Text(
@@ -407,7 +407,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
   void _showPrinterModal({required bool isBluetoothMode}) {
     final printers = isBluetoothMode ? _bluetoothPrinters : _networkPrinters;
     final isDark = AppTheme.isDark(context);
-    final accentColor = isBluetoothMode ? Colors.blueAccent : Colors.deepPurple;
+    final accentColor = isDark ? Colors.white : AppTheme.ink;
 
     showModalBottomSheet<void>(
       context: context,
@@ -576,6 +576,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
     required VoidCallback onTap,
   }) {
     final isDark = AppTheme.isDark(context);
+    final ink = isDark ? Colors.white : AppTheme.ink;
     return GestureDetector(
       onTap: loading ? null : onTap,
       child: AnimatedOpacity(
@@ -598,7 +599,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: AppTheme.faintColor(context),
                   borderRadius: BorderRadius.circular(17),
                 ),
                 child: loading
@@ -606,10 +607,10 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                         padding: const EdgeInsets.all(15),
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
-                          color: color,
+                          color: ink,
                         ),
                       )
-                    : Icon(icon, color: color, size: 28),
+                    : Icon(icon, color: ink, size: 28),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -654,9 +655,9 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
-        color: AppTheme.success.withOpacity(0.08),
+        color: AppTheme.faintColor(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.success.withOpacity(0.28)),
+        border: Border.all(color: AppTheme.borderColor(context)),
       ),
       child: Row(
         children: [
@@ -664,7 +665,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
             _connectionType == 'BLUETOOTH'
                 ? Icons.bluetooth_rounded
                 : Icons.print_rounded,
-            color: AppTheme.success,
+            color: isDark ? Colors.white : AppTheme.ink,
             size: 22,
           ),
           const SizedBox(width: 14),
@@ -685,22 +686,22 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                 const SizedBox(height: 2),
                 Text(
                   _addressController.text,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.success,
+                    color: AppTheme.mutedColor(context),
                   ),
                 ),
               ],
             ),
           ),
           if (_saving)
-            const SizedBox(
+            SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: AppTheme.success,
+                color: AppTheme.mutedColor(context),
               ),
             ),
         ],

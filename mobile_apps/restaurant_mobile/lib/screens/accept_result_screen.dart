@@ -3,9 +3,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import '../widgets/app_ui.dart';
 
-/// Full-screen feedback after accepting a pending order.
-/// Lime/success for fast (≤ 30 s), amber/warning for slow (> 30 s).
+/// Full-screen feedback efter att en order accepterats. Flat svartvitt — bara
+/// hastighets-ikonen/badgen bär färg: grön (≤ 30 s) eller amber (> 30 s).
 class AcceptResultScreen extends StatefulWidget {
   /// Seconds it took the staff to accept the order from when it landed.
   final int seconds;
@@ -24,10 +25,7 @@ class _AcceptResultScreenState extends State<AcceptResultScreen>
   static const _slowThresholdSeconds = 30;
 
   bool get _isSlow => widget.seconds > _slowThresholdSeconds;
-
   Color get _accent => _isSlow ? AppTheme.warning : AppTheme.success;
-  Color get _accentDeep =>
-      _isSlow ? const Color(0xFFE69500) : const Color(0xFF15803D);
 
   @override
   void initState() {
@@ -56,168 +54,161 @@ class _AcceptResultScreenState extends State<AcceptResultScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
+    final isDark = AppTheme.isDark(context);
+    final ink = isDark ? Colors.white : AppTheme.ink;
+    final muted = AppTheme.mutedColor(context);
+    final accent = _accent;
 
     return Scaffold(
-      backgroundColor: _accent,
-      body: Stack(
-        children: [
-          // Animated background pulses
-          ...List.generate(3, (i) {
-            return AnimatedBuilder(
-              animation: _ring,
-              builder: (context, _) {
-                final phase = (_ring.value + i / 3) % 1.0;
-                final s = size.shortestSide * (0.6 + phase * 1.4);
-                return Center(
-                  child: Container(
-                    width: s,
-                    height: s,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.18 - phase * 0.18),
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            );
-          }),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: IconButton(
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const Icon(Icons.close, color: Colors.white),
-                    ),
-                  ),
-                  const Spacer(),
-                  // Big animated icon
-                  ScaleTransition(
-                    scale: CurvedAnimation(
-                      parent: _entry,
-                      curve: Curves.elasticOut,
-                    ),
-                    child: Center(
+      backgroundColor: Colors.transparent,
+      body: AppBackdrop(
+        child: Stack(
+          children: [
+            // Lugna accent-ringar bakom ikonen.
+            ...List.generate(2, (i) {
+              return AnimatedBuilder(
+                animation: _ring,
+                builder: (context, _) {
+                  final phase = (_ring.value + i / 2) % 1.0;
+                  final s = size.shortestSide * (0.55 + phase * 1.2);
+                  return Center(
+                    child: IgnorePointer(
                       child: Container(
-                        width: 140,
-                        height: 140,
+                        width: s,
+                        height: s,
                         decoration: BoxDecoration(
-                          color: Colors.white,
                           shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: _accentDeep.withOpacity(0.4),
-                              blurRadius: 30,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          _isSlow
-                              ? Icons.timer_outlined
-                              : Icons.check_circle_rounded,
-                          color: _accentDeep,
-                          size: 84,
+                          border: Border.all(
+                            color: accent.withOpacity(0.18 - phase * 0.18),
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 36),
-                  FadeTransition(
-                    opacity: CurvedAnimation(
-                      parent: _entry,
-                      curve: const Interval(0.3, 1.0),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          _isSlow ? 'Lite långsamt' : 'Bra jobbat',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: -0.6,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _isSlow
-                              ? 'Du tog emot beställningen på ${_formatSeconds(widget.seconds)}.\nNästa gång — försök snabbare så vi inte tappar kunder.'
-                              : 'Du tog emot beställningen på ${_formatSeconds(widget.seconds)}.\nKunden är garanterat nöjd.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.90),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            height: 1.45,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  // Big seconds badge
-                  ScaleTransition(
-                    scale: CurvedAnimation(
-                      parent: _entry,
-                      curve: const Interval(0.5, 1.0, curve: Curves.elasticOut),
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.14),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white.withOpacity(0.22)),
+                  );
+                },
+              );
+            }),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(28, 14, 28, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: IconButton(
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: Icon(Icons.close_rounded, color: muted),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                    ),
+                    const Spacer(),
+                    ScaleTransition(
+                      scale: CurvedAnimation(
+                          parent: _entry, curve: Curves.elasticOut),
+                      child: Center(
+                        child: Container(
+                          width: 132,
+                          height: 132,
+                          decoration: BoxDecoration(
+                            color: accent.withOpacity(0.14),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _isSlow
+                                ? Icons.timer_outlined
+                                : Icons.check_circle_rounded,
+                            color: accent,
+                            size: 78,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 34),
+                    FadeTransition(
+                      opacity: CurvedAnimation(
+                        parent: _entry,
+                        curve: const Interval(0.3, 1.0),
+                      ),
+                      child: Column(
                         children: [
-                          const Icon(Icons.bolt_rounded, color: Colors.white, size: 22),
-                          const SizedBox(width: 6),
                           Text(
-                            _formatSeconds(widget.seconds),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w600,
-                              fontFeatures: [ui.FontFeature.tabularFigures()],
+                            _isSlow ? 'Lite långsamt' : 'Bra jobbat',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: ink,
+                              fontSize: 30,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.6,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _isSlow
+                                ? 'Du tog emot beställningen på ${_formatSeconds(widget.seconds)}.\nNästa gång — försök snabbare så vi inte tappar kunder.'
+                                : 'Du tog emot beställningen på ${_formatSeconds(widget.seconds)}.\nKunden är garanterat nöjd.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: muted,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              height: 1.45,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                  const Spacer(),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: _accentDeep,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                    const SizedBox(height: 28),
+                    ScaleTransition(
+                      scale: CurvedAnimation(
+                        parent: _entry,
+                        curve: const Interval(0.5, 1.0, curve: Curves.elasticOut),
                       ),
-                      textStyle: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: accent.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border:
+                                Border.all(color: accent.withOpacity(0.30)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.bolt_rounded, color: accent, size: 20),
+                              const SizedBox(width: 6),
+                              Text(
+                                _formatSeconds(widget.seconds),
+                                style: TextStyle(
+                                  color: accent,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  fontFeatures: const [
+                                    ui.FontFeature.tabularFigures()
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    child: const Text('Tillbaka till ordrar'),
-                  ),
-                ],
+                    const Spacer(),
+                    EmberButton(
+                      label: 'Tillbaka till ordrar',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      color: ink,
+                      foreground: isDark ? AppTheme.ink : Colors.white,
+                      height: 54,
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
