@@ -1007,7 +1007,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             else router.push("/");
           }}
           aria-label={t("common.back")}
-          className="absolute top-4 left-4 w-11 h-11 rounded-full backdrop-blur-xl bg-white/85 border border-white/40 flex items-center justify-center shadow-lg active:scale-90 transition-transform duration-200 ease-out"
+          className="absolute left-4 w-11 h-11 rounded-full backdrop-blur-xl bg-white/85 border border-white/40 flex items-center justify-center shadow-lg active:scale-90 transition-transform duration-200 ease-out"
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
         >
           <ChevronLeft size={20} className="text-zinc-900" />
         </button>
@@ -1017,7 +1018,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             aria-label="Spara favorit"
             aria-pressed={isFavorite(restaurant.id)}
             onClick={() => toggleFavorite(restaurant.id)}
-            className="absolute top-4 right-4 w-11 h-11 rounded-full backdrop-blur-xl bg-white/85 border border-white/40 flex items-center justify-center shadow-lg active:scale-95 transition-all"
+            className="absolute right-4 w-11 h-11 rounded-full backdrop-blur-xl bg-white/85 border border-white/40 flex items-center justify-center shadow-lg active:scale-95 transition-all"
+            style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
           >
             <Heart
               size={19}
