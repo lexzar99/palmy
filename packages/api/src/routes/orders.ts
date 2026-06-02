@@ -1944,7 +1944,7 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
         userId: true,
         userDealId: true,
         accessToken: true,
-      } as any,
+      },
     });
 
     // Order hittades inte = redan raderad av tidigare abandon-call eller av
