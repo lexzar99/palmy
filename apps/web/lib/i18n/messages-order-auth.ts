@@ -116,6 +116,7 @@ export const orderAuthPending = {
     // ── Profile page (logged in) ──────────────────────────────────────────
     "profile.verified": "Verifierad",
     "profile.notVerified": "Ej verifierad",
+    "profile.ordersSupport": "Beställningar & support",
     "profile.fixNow": "Fixa nu",
     "profile.actionRequired": "Åtgärd krävs",
     "profile.recommended": "Rekommenderat",
@@ -339,6 +340,7 @@ export const orderAuthPending = {
     // ── Profile page (logged in) ──────────────────────────────────────────
     "profile.verified": "Verified",
     "profile.notVerified": "Not verified",
+    "profile.ordersSupport": "Orders & support",
     "profile.fixNow": "Fix now",
     "profile.actionRequired": "Action required",
     "profile.recommended": "Recommended",

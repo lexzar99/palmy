@@ -714,21 +714,18 @@ function ProfileContent() {
   // ─── Not logged in ────────────────────────────────────────────────────────
   if (!hasPlatformSession || !user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-32" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-8">
+      <div className="min-h-screen flex flex-col items-center justify-start px-6 pt-16 md:pt-24 pb-32" style={{ backgroundColor: "var(--bg-primary)" }}>
+        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-5">
 
-          {/* Header */}
-          <div className="text-center space-y-3">
-            <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center text-gold-500 mx-auto bg-gold-500/10 border border-gold-500/20">
-              <Lock size={36} />
+          {/* Header — kompakt */}
+          <div className="text-center space-y-2">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-gold-500 mx-auto bg-gold-500/10 border border-gold-500/20">
+              <Lock size={22} />
             </div>
-            <h1 className="text-4xl font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
+            <h1 className="text-2xl font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
               {hasVisited ? t("auth.welcomeBack.title.welcome") : t("auth.welcomeBack.title.create")}{" "}
               <span className="text-gold-500">{hasVisited ? t("auth.welcomeBack.title.welcomeAccent") : t("auth.welcomeBack.title.createAccent")}</span>
             </h1>
-            <p className="text-zinc-400 text-[11px] font-bold uppercase tracking-widest">
-              {hasVisited ? t("auth.welcomeBack.subRecurring") : t("auth.welcomeBack.subNew")}
-            </p>
           </div>
 
           {/* Email + Password login form */}
@@ -841,6 +838,26 @@ function ProfileContent() {
               {t("auth.createFree")}
             </Link>
           </p>
+
+          {/* Beställningar & support — funkar utan inloggning (order-historik
+              ligger lokalt; support sker via en lagd order → restaurangen). */}
+          <div className="pt-2" style={{ borderTop: "1px solid var(--border-muted)" }}>
+            <Link
+              href="/orders"
+              className="mt-4 w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl transition-all active:scale-[0.99]"
+              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+            >
+              <span className="flex items-center gap-3">
+                <span className="w-9 h-9 rounded-xl bg-gold-500/10 text-gold-600 flex items-center justify-center">
+                  <History size={18} />
+                </span>
+                <span className="text-sm font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
+                  {t("profile.ordersSupport")}
+                </span>
+              </span>
+              <ChevronRight size={18} className="text-zinc-400" />
+            </Link>
+          </div>
         </motion.div>
       </div>
     );
@@ -1286,7 +1303,7 @@ function ProfileContent() {
                     <History size={20} />
                   </div>
                   <div>
-                    <p className="font-black uppercase italic text-sm" style={{ color: "var(--text-primary)" }}>{t("nav.myOrders")}</p>
+                    <p className="font-black uppercase italic text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.ordersSupport")}</p>
                     <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: "var(--text-secondary)" }}>{t("orders.subtitle")}</p>
                   </div>
                 </div>

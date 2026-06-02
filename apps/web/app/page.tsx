@@ -101,6 +101,7 @@ export default function HomePage() {
   const { t, locale } = useTranslation();
   const promoRailRef = useRef<HTMLDivElement | null>(null);
   const promoIndexRef = useRef(0);
+  const [activePromo, setActivePromo] = useState(0);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [address, setAddress] = useState("");
   const [query, setQuery] = useState("");
@@ -409,6 +410,20 @@ export default function HomePage() {
     }
   };
 
+  // Delad snabbväljar-handler — används av AddressPullDown både i sticky-headern
+  // (mobil) och i desktop-headern. Kallar samma confirm-flöde som modalen så
+  // stad-state alltid hålls konsekvent.
+  const handleQuickAddressSelect = (a: { latitude?: number | null; longitude?: number | null; zip?: string; city?: string }) => {
+    const full = formatQuickAddress(a as any);
+    handleAddressConfirm(
+      full,
+      orderType,
+      a.latitude != null && a.longitude != null ? { lat: a.latitude, lng: a.longitude } : undefined,
+      a.zip,
+      a.city,
+    );
+  };
+
   // allDealCards must be defined before filtered (filtered uses it for the 'deals' quick-filter)
   const allDealCards = useMemo<DealCardData[]>(() => {
     const personal: DealCardData[] = personalDeals.map(d => ({
@@ -590,24 +605,29 @@ export default function HomePage() {
   const handlePromoScroll = useCallback(() => {
     const rail = promoRailRef.current;
     if (!rail) return;
-    promoIndexRef.current = Math.max(
+    const idx = Math.max(
       0,
       Math.min(Math.round(rail.scrollLeft / PROMO_SNAP), Math.max(promoCards.length - 1, 0))
     );
+    promoIndexRef.current = idx;
+    setActivePromo(idx);
   }, [promoCards.length]);
 
   useEffect(() => {
     promoIndexRef.current = 0;
+    setActivePromo(0);
     if (promoCards.length <= 1) return;
 
+    // Skifta kort var 5:e sekund (önskemål).
     const interval = window.setInterval(() => {
       const rail = promoRailRef.current;
       if (!rail) return;
 
       const nextIndex = (promoIndexRef.current + 1) % promoCards.length;
       promoIndexRef.current = nextIndex;
+      setActivePromo(nextIndex);
       rail.scrollTo({ left: nextIndex * PROMO_SNAP, behavior: "smooth" });
-    }, 4000);
+    }, 5000);
 
     return () => window.clearInterval(interval);
   }, [promoCards.length]);
@@ -665,13 +685,13 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.07, type: "spring", stiffness: 300, damping: 25 }}
               whileTap={{ opacity: 0.7, scale: 0.99 }}
-              className={`transition-opacity duration-300 shrink-0 md:shrink w-[200px] sm:w-[230px] md:w-auto ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
+              className={`transition-all duration-300 shrink-0 md:shrink w-[230px] sm:w-[260px] md:w-auto ${dimmed ? "opacity-55 grayscale" : ""}`}
             >
               <Link
                 href={getRestaurantHref(r)}
                 onClick={(e) => handleRestaurantClick(e, r)}
-                className="group relative block h-full rounded-2xl p-2 flex flex-col overflow-hidden border transition-all hover:shadow-md"
-                style={{ backgroundColor: "var(--bg-secondary)", borderColor: "rgba(28,28,30,0.08)" }}
+                className="group relative block h-full rounded-2xl flex flex-col overflow-hidden transition-all hover:shadow-lg"
+                style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 12px rgba(17,17,19,0.06)" }}
               >
                 {(() => {
                   const badges = getBadgesForRestaurant(r.id);
@@ -690,32 +710,15 @@ export default function HomePage() {
                     </>
                   );
                 })()}
-                <div className="h-28 sm:h-32 md:h-36 lg:h-40 w-full rounded-xl sm:rounded-2xl bg-zinc-100 relative overflow-hidden mb-2.5">
+                <div className="h-36 sm:h-44 md:h-48 w-full relative overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
                   {r.heroImageUrl || r.imageUrl ? (
-                    <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition-all duration-700 group-hover:scale-110 group-hover:rotate-1" />
+                    <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition-all duration-700 group-hover:scale-105" />
                   ) : (
-                    <div className="h-full w-full flex items-center justify-center text-4xl" style={{ backgroundColor: "var(--bg-deep)" }}>🍴</div>
+                    <div className="h-full w-full flex items-center justify-center text-4xl">🍴</div>
                   )}
-
-                  {/* Status-pill top-left (minimal) */}
-                  {(() => {
-                    const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
-                    const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
-                    const open = r.isOpen !== false && !isPaused;
-                    const bg = isPaused ? "bg-amber-500/95 text-zinc-950" : open ? "bg-emerald-500/95 text-white" : "bg-rose-500/95 text-white";
-                    const label = isPaused
-                      ? t("home.status.pausedUntil", { time: `${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}` })
-                      : open ? t("home.restaurantOpen") : t("home.restaurantClosed");
-                    return (
-                      <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full backdrop-blur-md flex items-center gap-1.5 shadow-md ${bg}`}>
-                        <div className={`w-1.5 h-1.5 rounded-full bg-white ${open ? "animate-pulse" : ""}`} />
-                        <span className="text-[10px] font-black uppercase tracking-wider">{label}</span>
-                      </div>
-                    );
-                  })()}
                 </div>
 
-                <div className="px-1.5 pb-1.5">
+                <div className="px-3 py-2.5">
                   <h3 className="text-sm sm:text-base font-black group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-tight mb-1.5 truncate" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
                   <div className="flex items-center gap-2 text-[10px] font-bold" style={{ color: "var(--text-secondary)" }}>
                     <span className="flex items-center gap-1">
@@ -762,8 +765,74 @@ export default function HomePage() {
 
 
   return (
-    <div className="min-h-screen pb-36 pt-[max(1rem,env(safe-area-inset-top,0px))] md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
-      <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16">
+    <div className="min-h-screen pb-36 md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
+      {/* ── MOBIL STICKY HEADER ── varumärke + små knappar (rad 1), adress +
+          kompakt leverans/hämtning-toggle (rad 2). Sticky så adressen alltid
+          syns när man scrollar. Döljs på desktop (top-navbaren tar över). */}
+      <div
+        className="md:hidden sticky top-0 z-50"
+        style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", paddingTop: "env(safe-area-inset-top, 0px)" }}
+      >
+        <div className="px-4 pt-2 pb-2.5 space-y-2">
+          <div className="flex items-center justify-between">
+            <Link href="/" className="text-xl font-black italic tracking-tighter" style={{ color: "var(--text-primary)" }}>
+              Levera<span className="text-gold-500">.</span>
+            </Link>
+            <div className="flex items-center gap-1.5">
+              <div style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }} className="rounded-lg">
+                <LocaleSwitcher buttonClassName="w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90" iconSize={14} />
+              </div>
+              <button
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? t("nav.theme.toLight") : t("nav.theme.toDark")}
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90"
+                style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
+              >
+                {theme === "dark" ? <Sun size={14} className="text-gold-500" /> : <Moon size={14} className="text-gold-600" />}
+              </button>
+              <Link
+                href="/contact"
+                aria-label={t("nav.contact")}
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90"
+                style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
+              >
+                <Mail size={14} className="text-gold-600" />
+              </Link>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <AddressPullDown
+                currentAddress={address}
+                zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
+                onOpenFull={() => setShowAddressModal(true)}
+                orderType={orderType}
+                cityName={detectedCityName}
+                onSelect={handleQuickAddressSelect}
+              />
+            </div>
+            <div className="relative p-0.5 rounded-xl flex items-center shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+              <button
+                onClick={() => toggleOrderType("DELIVERY")}
+                aria-label={t("cart.deliveryType.delivery")}
+                className="w-9 h-8 rounded-lg flex items-center justify-center transition-all"
+                style={{ backgroundColor: orderType === "DELIVERY" ? "#EAB545" : "transparent", color: orderType === "DELIVERY" ? "#000" : "var(--text-secondary)" }}
+              >
+                <Truck size={15} />
+              </button>
+              <button
+                onClick={() => toggleOrderType("PICKUP")}
+                aria-label={t("cart.deliveryType.pickup")}
+                className="w-9 h-8 rounded-lg flex items-center justify-center transition-all"
+                style={{ backgroundColor: orderType === "PICKUP" ? "#EAB545" : "transparent", color: orderType === "PICKUP" ? "#000" : "var(--text-secondary)" }}
+              >
+                <Store size={15} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 pt-3 md:pt-0">
         {/* DESKTOP COMPACT HERO — only md+ — bakgrund + stor titel + tagline */}
         <section
           className="hidden md:block relative overflow-hidden rounded-3xl mb-8 mt-2"
@@ -832,73 +901,18 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* HEADER */}
-        <header className="mb-6 sm:mb-8 relative">
-          {/* Mobil: ren topprad — varumärke vänster (clean white look).
-              Språk/tema/kontakt-knapparna sitter bredvid adressväljaren nedan. */}
-          <div className="md:hidden flex items-center justify-between mb-4">
-            <Link href="/" className="text-2xl font-black italic tracking-tighter" style={{ color: "var(--text-primary)" }}>
-              Levera<span className="text-gold-500">.</span>
-            </Link>
-          </div>
-
-          {/* Senaste beställning — visas bara om kund har order-historik
-              (inloggad ELLER gäst). Conversion-CTA "fortsätt där du var". */}
-          <RecentOrderCard />
-
-          {/* Adress + Toggle + Sök — pancake på mobil, en rad på desktop */}
+        {/* DESKTOP HEADER — adress/toggle/sök. På mobil sköts detta av den
+            sticky toppbaren högst upp. */}
+        <header className="hidden md:block mb-6 sm:mb-8 relative">
           <div className="grid gap-3 lg:grid-cols-[1.4fr_auto_1fr] lg:items-center lg:gap-4">
-            <div className="flex items-center gap-2">
-              <div className="flex-1 min-w-0">
             <AddressPullDown
               currentAddress={address}
               zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
               onOpenFull={() => setShowAddressModal(true)}
               orderType={orderType}
               cityName={detectedCityName}
-              onSelect={(a) => {
-                // BUG-FIX: snabbväljaren triggade inte handleAddressConfirm tidigare
-                // → cityFamilyIds + detectedCityName hängde kvar från förra adressen
-                // → filter visade fel restauranger när användaren bytte adress via
-                // snabbväljaren istället för full address-modal. Nu kallar vi samma
-                // funktion som modalen så stad-state alltid uppdateras konsekvent.
-                const full = formatQuickAddress(a);
-                handleAddressConfirm(
-                  full,
-                  orderType,
-                  a.latitude != null && a.longitude != null
-                    ? { lat: a.latitude, lng: a.longitude }
-                    : undefined,
-                  a.zip,
-                  a.city,
-                );
-              }}
+              onSelect={handleQuickAddressSelect}
             />
-              </div>
-              {/* Språk + tema + kontakt — bredvid adressväljaren på mobil.
-                  Döljs på desktop (md+) där top-navbaren redan har dessa. */}
-              <div className="md:hidden flex items-center gap-1.5 shrink-0">
-                <div style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }} className="rounded-xl">
-                  <LocaleSwitcher buttonClassName="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90" iconSize={16} />
-                </div>
-                <button
-                  onClick={toggleTheme}
-                  aria-label={theme === "dark" ? t("nav.theme.toLight") : t("nav.theme.toDark")}
-                  className="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90"
-                  style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
-                >
-                  {theme === "dark" ? <Sun size={16} className="text-gold-500" /> : <Moon size={16} className="text-gold-600" />}
-                </button>
-                <Link
-                  href="/contact"
-                  aria-label={t("nav.contact")}
-                  className="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90"
-                  style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
-                >
-                  <Mail size={16} className="text-gold-600" />
-                </Link>
-              </div>
-            </div>
 
             {/* Leverans/Hämtning-toggle */}
             <div className="relative p-1 glass-panel rounded-2xl flex items-center shadow-sm lg:w-[280px]">
@@ -937,98 +951,86 @@ export default function HomePage() {
           </div>
         </header>
 
-        {/* Cuisine Selector */}
-        <section className="mb-6 sm:mb-8">
-          <div className="flex sm:justify-start gap-2 sm:gap-3 overflow-x-auto lg:flex-wrap lg:overflow-visible pb-2 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-            {cuisineFilters.map((c, i) => (
-              <motion.button
-                key={c.label}
-                initial={{ opacity: 0, scale: 0.85 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.05 + i * 0.04 }}
-                onClick={() => {
-                  setActiveCuisine(c.label);
-                  // Smooth-scroll till restaurang-listan så användaren ser
-                  // resultatet direkt utan att scrolla manuellt
-                  setTimeout(() => {
-                    const target = document.getElementById("restaurant-list");
-                    if (target) {
-                      const offset = target.getBoundingClientRect().top + window.scrollY - 80;
-                      window.scrollTo({ top: offset, behavior: "smooth" });
-                    }
-                  }, 80);
-                }}
-                className="flex flex-col items-center gap-1.5 transition-all active:scale-95 flex-shrink-0 group touch-manipulation"
-              >
-                <div className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-[1.5rem] overflow-hidden transition-all ${
-                  activeCuisine === c.label
-                    ? "ring-2 ring-gold-500 shadow-[0_6px_18px_rgba(234,181,69,0.3)]"
-                    : "ring-1 ring-[rgba(28,28,30,0.08)] group-hover:ring-gold-500/30"
-                }`} style={{ backgroundColor: c.image ? "var(--bg-deep)" : "var(--bg-card)", boxShadow: activeCuisine === c.label ? undefined : "var(--card-shadow)" }}>
-                  {c.image ? (
-                    <img
-                      src={c.image}
-                      alt={c.label}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                  ) : (
-                    <div className={`w-full h-full flex items-center justify-center text-2xl sm:text-3xl ${activeCuisine === c.label ? "bg-gold-500" : ""}`}>
-                      <span className={`${activeCuisine === c.label ? "" : "opacity-90 group-hover:opacity-100"} transition-all`}>{c.emoji}</span>
-                    </div>
-                  )}
+        {/* ── WHAT'S ON (Aktuellt) — först på sidan: stora banner-kort som
+            auto-skiftar var 5:e sekund, med prick-indikator under. ── */}
+        {promoCards.length > 0 && (
+          <section className="mb-6">
+            <div className="hidden lg:flex items-center gap-2 mb-3 px-1">
+              <Sparkles size={14} className="text-gold-500" />
+              <h2 className="text-base sm:text-lg font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>{t("home.section.current")}</h2>
+            </div>
+            <div
+              ref={promoRailRef}
+              onScroll={handlePromoScroll}
+              className="flex gap-3 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0"
+              style={{ scrollSnapType: "x mandatory" }}
+            >
+              {promoCards.map((item) => (
+                <div key={item.id} style={{ scrollSnapAlign: "start" }}>
+                  <SponsorCard sponsor={(item as any).sponsor} />
                 </div>
-                <span className={`text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wider ${
-                  activeCuisine === c.label ? "text-gold-500" : "group-hover:text-gold-400"
-                }`} style={{ color: activeCuisine === c.label ? undefined : "var(--text-secondary)" }}>
+              ))}
+            </div>
+            {/* Prick-indikator */}
+            {promoCards.length > 1 && (
+              <div className="flex items-center justify-center gap-1.5 mt-3">
+                {promoCards.map((item, i) => (
+                  <button
+                    key={`dot-${item.id}`}
+                    aria-label={`Visa erbjudande ${i + 1}`}
+                    onClick={() => {
+                      const rail = promoRailRef.current;
+                      if (rail) rail.scrollTo({ left: i * PROMO_SNAP, behavior: "smooth" });
+                      promoIndexRef.current = i;
+                      setActivePromo(i);
+                    }}
+                    className="h-1.5 rounded-full transition-all"
+                    style={{ width: activePromo === i ? "22px" : "6px", backgroundColor: activePromo === i ? "#EAB545" : "var(--border-muted)" }}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Senaste beställning — visas bara om kund har order-historik. */}
+        <RecentOrderCard />
+
+        {/* ── KATEGORIER — minimal text-chips (under What's on). ── */}
+        <section className="mb-7 sm:mb-8 mt-5">
+          <div className="flex gap-2 overflow-x-auto lg:flex-wrap lg:overflow-visible pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+            {cuisineFilters.map((c) => {
+              const active = activeCuisine === c.label;
+              return (
+                <button
+                  key={c.label}
+                  onClick={() => {
+                    setActiveCuisine(c.label);
+                    setTimeout(() => {
+                      const target = document.getElementById("restaurant-list");
+                      if (target) {
+                        const offset = target.getBoundingClientRect().top + window.scrollY - 80;
+                        window.scrollTo({ top: offset, behavior: "smooth" });
+                      }
+                    }, 80);
+                  }}
+                  className="shrink-0 px-4 py-2 rounded-full text-[12px] font-bold uppercase tracking-wide transition-all active:scale-95 touch-manipulation"
+                  style={{
+                    backgroundColor: active ? "#EAB545" : "var(--bg-card)",
+                    color: active ? "#000" : "var(--text-secondary)",
+                    border: active ? "1px solid #EAB545" : "1px solid var(--border-muted)",
+                    boxShadow: active ? "0 4px 12px rgba(234,181,69,0.25)" : "none",
+                  }}
+                >
                   {t(`home.cuisine.${c.label}`)}
-                </span>
-              </motion.button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </section>
 
-        {/*
-          Aktuellt + Rea & Rabatter:
-          - Mobil/tablet: stacked (Aktuellt först, Rea & Rabatter under)
-          - Desktop (lg+): 2-kolumn grid – Aktuellt (sponsor cards horisontell scroll, ~4 synliga)
-            tar huvudbredden, Rea & Rabatter är vertikal sidebar till höger.
-          Sponsor-korten behåller sin storlek (260px) — fler syns bara för att containern är bredare.
-        */}
-        <div className="mb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px] lg:gap-6 xl:gap-8 lg:items-start">
-          {promoCards.length > 0 ? (
-            <section className="mb-6 lg:mb-0">
-              {/* "Aktuellt / What's on"-rubriken döljs på mobil (ren look,
-                  stora banner-korten talar för sig själva). Syns på lg+. */}
-              <div className="hidden lg:flex items-center justify-between mb-3 px-1">
-                <div>
-                  <h2 className="text-base sm:text-lg font-black uppercase tracking-tight flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
-                    <Sparkles size={14} className="text-gold-500" /> {t("home.section.current")}
-                  </h2>
-                  <p className="text-[9px] font-black uppercase tracking-[0.25em] mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                    {t("home.section.currentSub")}
-                  </p>
-                </div>
-              </div>
-              <div
-                ref={promoRailRef}
-                onScroll={handlePromoScroll}
-                className="flex gap-3 overflow-x-auto pb-3 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0"
-                style={{ scrollSnapType: "x mandatory" }}
-              >
-                {promoCards.map((item) => (
-                  <div key={item.id} style={{ scrollSnapAlign: "start" }}>
-                    <SponsorCard sponsor={(item as any).sponsor} />
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : (
-            <div className="hidden lg:block" />
-          )}
-
-          {/* REA & RABATTER — horisontell rail på mobil/tablet, vertikal sidebar på lg+ */}
+        {/* REA & RABATTER */}
+        <div className="mb-8">
           <DiscountedDishesSection variant="responsive" />
         </div>
 
@@ -1193,50 +1195,28 @@ export default function HomePage() {
                           cards that's ~1.2s before the last card appears —
                           felt slow on cold-cache loads. Now: instant render
                           with a CSS active:scale tap feedback only. */}
-                      <div className={`transition-opacity duration-200 active:scale-[0.99] ${dimmed ? "opacity-70" : ""}`}>
+                      <div className={`transition-all duration-200 active:scale-[0.99] ${dimmed ? "opacity-55 grayscale" : ""}`}>
                         <Link
                           href={getRestaurantHref(r)}
                           onClick={(e) => handleRestaurantClick(e, r)}
-                          className="group block rounded-2xl overflow-hidden hover:shadow-[0_10px_30px_rgba(28,28,30,0.08)] transition-all relative"
-                          style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 14px rgba(28,28,30,0.04)" }}
+                          className="group block rounded-2xl overflow-hidden hover:shadow-[0_12px_34px_rgba(17,17,19,0.12)] transition-all relative"
+                          style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 12px rgba(17,17,19,0.06)" }}
                         >
                           {/* ── IMAGE ──────────────────────────────────────── */}
                           {/* Bigger image on mobile (was h-44 / 176px → 200px)
                               so restaurant cards feel substantial against the
                               now-smaller sponsor rail. Stable at sm+. */}
-                          <div className="h-[200px] sm:h-52 w-full overflow-hidden relative" style={{ backgroundColor: "var(--bg-deep)" }}>
+                          <div className="h-[210px] sm:h-56 w-full overflow-hidden relative" style={{ backgroundColor: "var(--bg-deep)" }}>
                             {r.imageUrl || r.heroImageUrl ? (
                               <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover group-hover:scale-105 transition-all duration-700" />
                             ) : (
                               <div className="h-full w-full flex items-center justify-center text-4xl">🍱</div>
                             )}
 
-                            {/* Status-pill: top-LEFT (matchar inspirations-bilden) */}
-                            {(() => {
-                              const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
-                              const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
-                              const open = r.isOpen !== false && !isPaused;
-                              const bg = isOutOfZone
-                                ? "bg-zinc-700/95 text-white"
-                                : isPaused
-                                  ? "bg-amber-500/95 text-zinc-950"
-                                  : open
-                                    ? "bg-emerald-500/95 text-white"
-                                    : "bg-rose-500/95 text-white";
-                              const label = isOutOfZone
-                                ? t("home.status.outOfZone")
-                                : isPaused
-                                  ? t("home.status.pausedUntil", { time: `${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}` })
-                                  : open ? t("home.restaurantOpen") : t("home.restaurantClosed");
-                              return (
-                                <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full backdrop-blur-md flex items-center gap-1.5 shadow-md ${bg}`}>
-                                  <div className={`w-1.5 h-1.5 rounded-full bg-white ${open && !isPaused ? "animate-pulse" : ""}`} />
-                                  <span className="text-[10px] font-black uppercase tracking-wider">{label}</span>
-                                </div>
-                              );
-                            })()}
+                            {/* Öppet/stängt-pill borttagen — stängda restauranger
+                                dimmas i stället (wrapper-opacity ovan). */}
 
-                            {/* Hjärta: top-RIGHT (matchar inspirations-bilden) */}
+                            {/* Hjärta: top-RIGHT */}
                             <button
                               onClick={toggleFav}
                               className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 backdrop-blur-md"

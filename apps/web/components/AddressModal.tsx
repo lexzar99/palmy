@@ -7,8 +7,37 @@ import {
   Loader2, CheckCircle2, Building2, ChevronRight, Search, LocateFixed,
 } from "lucide-react";
 import { loadGoogleMaps, DEFAULT_MAP_CENTER } from "@/lib/googleMaps";
+import { useTheme } from "@/app/providers";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+// Rena, moderna kart-stilar som matchar appens ljusa/mörka tema. Döljer POI:er
+// och transit för en lugn, minimalistisk look.
+const LIGHT_MAP_STYLE: any[] = [
+  { elementType: "geometry", stylers: [{ color: "#f4f4f2" }] },
+  { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#6b6b70" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#f0f0ee" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#ece6da" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#cfe3e6" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#eaece4" }] },
+];
+const DARK_MAP_STYLE: any[] = [
+  { elementType: "geometry", stylers: [{ color: "#1d1d20" }] },
+  { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#9aa0a6" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1d1d20" }] },
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a2a2e" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#37373d" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#141619" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#212124" }] },
+];
 
 interface PlacePrediction {
   description: string;
@@ -58,6 +87,7 @@ export default function AddressModal({
   orderType,
   setOrderType,
 }: AddressModalProps) {
+  const { theme } = useTheme();
   // ── Delivery state ──────────────────────────────────────────────────────────
   const [input, setInput] = useState("");
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
@@ -71,6 +101,7 @@ export default function AddressModal({
 
   // ── Map state ────────────────────────────────────────────────────────────────
   const [mapError, setMapError] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   const [locating, setLocating] = useState(false);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
@@ -134,7 +165,7 @@ export default function AddressModal({
   //    race mellan effekt och ref som lämnade kartan tom). dataset-flaggan
   //    skyddar mot dubbel-init (React StrictMode kör ref-callbacken två ggr). ──
   const initMap = useCallback((node: HTMLDivElement | null) => {
-    if (!node) { mapRef.current = null; markerRef.current = null; geocoderRef.current = null; return; }
+    if (!node) { mapRef.current = null; markerRef.current = null; geocoderRef.current = null; setMapReady(false); return; }
     if (node.dataset.gmInit === "1") return;
     node.dataset.gmInit = "1";
     setMapError(false);
@@ -149,6 +180,7 @@ export default function AddressModal({
           zoomControl: true,
           gestureHandling: "greedy",
           clickableIcons: false,
+          styles: (typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark") ? DARK_MAP_STYLE : LIGHT_MAP_STYLE,
         });
         const marker = new maps.Marker({
           position: start,
@@ -159,6 +191,7 @@ export default function AddressModal({
         mapRef.current = map;
         markerRef.current = marker;
         geocoderRef.current = new maps.Geocoder();
+        setMapReady(true);
 
         marker.addListener("dragend", () => {
           const p = marker.getPosition();
@@ -172,6 +205,15 @@ export default function AddressModal({
       })
       .catch(() => { node.dataset.gmInit = ""; setMapError(true); });
   }, [handleMapPosition]);
+
+  // Applicera rätt kart-stil när kartan blivit redo OCH varje gång temat
+  // ändras — så stilen alltid matchar aktivt ljust/mörkt läge oavsett när
+  // kartan hann initieras.
+  useEffect(() => {
+    if (mapReady && mapRef.current) {
+      mapRef.current.setOptions({ styles: theme === "dark" ? DARK_MAP_STYLE : LIGHT_MAP_STYLE });
+    }
+  }, [theme, mapReady]);
 
   // Flytta kartan + nålen till en ny position (utan reverse-geocode).
   const recenterMap = useCallback((lat: number, lng: number) => {

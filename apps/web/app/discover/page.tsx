@@ -114,22 +114,18 @@ export default function FavoritesPage() {
             {favoriteRestaurants.map((r) => {
               const dimmed = r.isOpen === false;
               return (
-                <div key={r.id} className={`transition-opacity ${dimmed ? "opacity-70" : ""}`}>
+                <div key={r.id} className={`transition-all ${dimmed ? "opacity-55 grayscale" : ""}`}>
                   <Link
                     href={`/restaurants/${r.slug}`}
-                    className="group block rounded-2xl overflow-hidden hover:shadow-[0_10px_30px_rgba(28,28,30,0.10)] transition-all relative"
-                    style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 14px rgba(28,28,30,0.04)" }}
+                    className="group block rounded-2xl overflow-hidden hover:shadow-[0_12px_34px_rgba(17,17,19,0.12)] transition-all relative"
+                    style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 12px rgba(17,17,19,0.06)" }}
                   >
-                    <div className="h-[200px] sm:h-52 w-full overflow-hidden relative" style={{ backgroundColor: "var(--bg-deep)" }}>
+                    <div className="h-[210px] sm:h-56 w-full overflow-hidden relative" style={{ backgroundColor: "var(--bg-deep)" }}>
                       {r.imageUrl || r.heroImageUrl ? (
                         <img src={getImageSrc(r.heroImageUrl || r.imageUrl)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover group-hover:scale-105 transition-all duration-700" />
                       ) : (
                         <div className="h-full w-full flex items-center justify-center text-4xl">🍱</div>
                       )}
-                      <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full backdrop-blur-md flex items-center gap-1.5 shadow-md ${r.isOpen !== false ? "bg-emerald-500/95 text-white" : "bg-rose-500/95 text-white"}`}>
-                        <div className={`w-1.5 h-1.5 rounded-full bg-white ${r.isOpen !== false ? "animate-pulse" : ""}`} />
-                        <span className="text-[10px] font-black uppercase tracking-wider">{r.isOpen !== false ? t("home.restaurantOpen") : t("home.restaurantClosed")}</span>
-                      </div>
                       <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(r.id); }}
                         className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 backdrop-blur-md"
