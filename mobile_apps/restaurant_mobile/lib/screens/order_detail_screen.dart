@@ -225,7 +225,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
               ),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 28),
                   children: [
                     _OrderHero(order: order, accent: accent),
                     const SizedBox(height: 18),
@@ -235,19 +235,19 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                     // läsa kund/items.
                     if (order.isRefunded) ...[
                       _RefundBanner(order: order),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 16),
                     ],
                     _StatusProgressStrip(order: order),
-                    const SizedBox(height: 18),
                     if (isOverdue) ...[
+                      const SizedBox(height: 16),
                       _OverdueBanner(pulse: _pulseController),
-                      const SizedBox(height: 14),
                     ],
+                    const _SectionDivider(),
                     _CustomerStrip(order: order, accent: accent),
                     if (order.note?.isNotEmpty == true ||
                         order.deliveryInstructions?.isNotEmpty == true ||
                         _allergens.isNotEmpty) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       _NotesStrip(
                         order: order,
                         accent: accent,
@@ -255,12 +255,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                       ),
                     ],
                     if (order.scheduledFor != null) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
                       _ScheduledStrip(order: order),
                     ],
-                    const SizedBox(height: 18),
+                    const _SectionDivider(),
                     _ItemsCard(order: order, accent: accent),
-                    const SizedBox(height: 12),
+                    const _SectionDivider(),
                     _SummaryCard(order: order, accent: accent),
                   ],
                 ),
@@ -406,6 +406,24 @@ class _CircleButton extends StatelessWidget {
             size: 20,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Tunn linje mellan flata sektioner — håller layouten "delad" utan att varje
+/// del behöver en egen ruta/container.
+class _SectionDivider extends StatelessWidget {
+  const _SectionDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      child: Divider(
+        height: 1,
+        thickness: 1,
+        color: AppTheme.borderColor(context),
       ),
     );
   }
@@ -563,16 +581,9 @@ class _StatusProgressStrip extends StatelessWidget {
     }
     if (isCancelled) currentIndex = -2;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      decoration: BoxDecoration(
-        color: AppTheme.panelColor(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.borderColor(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
           Row(
             children: [
               Text(
@@ -670,7 +681,6 @@ class _StatusProgressStrip extends StatelessWidget {
               }).toList(),
             ),
         ],
-      ),
     );
   }
 }
@@ -731,12 +741,7 @@ class _CustomerStrip extends StatelessWidget {
     final hasAddress =
         order.type == 'DELIVERY' && order.deliveryStreet != null;
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.panelColor(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.borderColor(context)),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -749,28 +754,28 @@ class _CustomerStrip extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.3,
                     color: isDark ? Colors.white : AppTheme.ink,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Text(
                   order.customerPhone,
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                     color: AppTheme.mutedColor(context),
                   ),
                 ),
                 if (hasAddress) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 3),
                   Text(
                     '${order.deliveryStreet}, ${order.deliveryZip ?? ''} ${order.deliveryCity ?? ''}'
                         .trim(),
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.mutedColor(context),
                     ),
@@ -991,15 +996,11 @@ class _ItemsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.panelColor(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.borderColor(context)),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 6),
             child: Row(
               children: [
                 Text(
@@ -1030,8 +1031,6 @@ class _ItemsCard extends StatelessWidget {
                 if (i < order.items.length - 1)
                   Divider(
                     height: 1,
-                    indent: 16,
-                    endIndent: 16,
                     color: AppTheme.borderColor(context),
                   ),
               ],
@@ -1054,13 +1053,13 @@ class _ItemRow extends StatelessWidget {
     final hasExtras = item.selectedExtras.isNotEmpty;
     final hasNote = item.note?.isNotEmpty == true;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.fromLTRB(0, 14, 0, 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             alignment: Alignment.center,
             margin: const EdgeInsets.only(top: 1),
             decoration: BoxDecoration(
@@ -1072,7 +1071,7 @@ class _ItemRow extends StatelessWidget {
               style: TextStyle(
                 color: accent,
                 fontWeight: FontWeight.w800,
-                fontSize: 13,
+                fontSize: 15,
               ),
             ),
           ),
@@ -1087,7 +1086,7 @@ class _ItemRow extends StatelessWidget {
                       child: Text(
                         item.productName,
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: 17,
                           fontWeight: FontWeight.w700,
                           color: isDark ? Colors.white : AppTheme.ink,
                           letterSpacing: -0.2,
@@ -1097,7 +1096,7 @@ class _ItemRow extends StatelessWidget {
                     Text(
                       OrderUi.formatCurrency(item.subtotal),
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: isDark ? Colors.white : AppTheme.ink,
                       ),
@@ -1208,12 +1207,7 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      decoration: BoxDecoration(
-        color: AppTheme.panelColor(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.borderColor(context)),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Column(
         children: [
           _Row(
@@ -1258,7 +1252,7 @@ class _SummaryCard extends StatelessWidget {
               Text(
                 OrderUi.formatCurrency(order.total),
                 style: TextStyle(
-                  fontSize: 26,
+                  fontSize: 30,
                   fontWeight: FontWeight.w900,
                   color: accent,
                   letterSpacing: -0.5,
@@ -1285,7 +1279,7 @@ class _Row extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: FontWeight.w600,
             color: AppTheme.mutedColor(context),
           ),
@@ -1294,7 +1288,7 @@ class _Row extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 15,
             fontWeight: FontWeight.w800,
             color: valueColor ??
                 (AppTheme.isDark(context) ? Colors.white : AppTheme.ink),

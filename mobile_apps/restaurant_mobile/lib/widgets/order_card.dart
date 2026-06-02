@@ -30,6 +30,165 @@ String _minutesAgo(DateTime dt) {
   return _relTime(dt);
 }
 
+/// Kvadratiskt orderkort för den horisontella "nya ordrar"-raden. Färgkodat
+/// efter typ (leverans = blå, avhämtning = amber). Hela kortet är tryckbart →
+/// öppnar ordern, så ingen "tryck här"-text behövs.
+class NewOrderSquareCard extends StatelessWidget {
+  final OrderModel order;
+  final VoidCallback onTap;
+
+  const NewOrderSquareCard({
+    super.key,
+    required this.order,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final isPickup = order.type != 'DELIVERY';
+    final accent = isPickup ? AppTheme.ember : AppTheme.brandBlue;
+    final typeIcon =
+        isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
+    final typeLabel = isPickup ? 'AVHÄMTNING' : 'LEVERANS';
+
+    final base = isDark ? AppTheme.steel : Colors.white;
+    final cardBg = Color.alphaBlend(
+      accent.withOpacity(isDark ? 0.14 : 0.06),
+      base,
+    );
+
+    final itemCount = order.items.fold<int>(0, (s, i) => s + i.quantity);
+    final totalStr = '${order.total.toStringAsFixed(0)} kr';
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: 172,
+          height: 172,
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: accent.withOpacity(isDark ? 0.45 : 0.30),
+              width: 1.3,
+            ),
+            boxShadow: isDark
+                ? const []
+                : [
+                    BoxShadow(
+                      color: AppTheme.ink.withOpacity(0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Typ (färgkodad).
+                Row(
+                  children: [
+                    Icon(typeIcon, color: accent, size: 15),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        typeLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Ordernummer.
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '#${order.orderNumber}',
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                      letterSpacing: -0.8,
+                      color: isDark ? Colors.white : AppTheme.ink,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  order.customerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : AppTheme.ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$itemCount art. · ${_minutesAgo(order.createdAt)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.mutedColor(context),
+                  ),
+                ),
+                const Spacer(),
+                // Summa + en liten pil som affordance (ingen text).
+                Row(
+                  children: [
+                    Text(
+                      totalStr,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.3,
+                        color: isDark ? Colors.white : AppTheme.ink,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: accent.withOpacity(isDark ? 0.26 : 0.16),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 16,
+                        color: accent,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Kompakt orderkort för den första väntande ordern. Färgkodat efter typ
 /// (leverans = blå, avhämtning = amber) och byggt litet så det inte äter upp
 /// halva skärmen på en 720p-terminal. Hela kortet är tryckbart → öppnar ordern,
@@ -372,6 +531,8 @@ class OrderListTile extends StatelessWidget {
     final typeColor = isPickup ? AppTheme.ember : AppTheme.brandBlue;
     final statusColor = _statusColor(order.status);
     final statusLabel = _statusLabel(order.status);
+    final showAdvance = onAdvance != null &&
+        (order.status == 'ACCEPTED' || order.status == 'PREPARING');
 
     return Material(
       color: isDark ? AppTheme.deepSea : Colors.white,
@@ -397,92 +558,109 @@ class OrderListTile extends StatelessWidget {
                     ),
                   ],
           ),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Type stripe
-              Container(
-                width: 5,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: typeColor,
-                  borderRadius: BorderRadius.circular(5),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              Row(
+                children: [
+                  // Typ-stripe (färgkodad).
+                  Container(
+                    width: 5,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: typeColor,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '#${order.orderNumber}',
-                          style: TextStyle(
-                            fontSize: 21,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.3,
-                            color: isDark ? Colors.white : AppTheme.ink,
-                          ),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '#${order.orderNumber}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.3,
+                                  color: isDark ? Colors.white : AppTheme.ink,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Container(
+                              width: 4,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: statusColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                statusLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: statusColor,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 10),
-                        Container(
-                          width: 4,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
+                        const SizedBox(height: 2),
                         Text(
-                          statusLabel,
+                          '${isPickup ? "Avhämtning" : "Leverans"} · ${_relTime(order.createdAt)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: statusColor,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.mutedColor(context),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${isPickup ? "Avhämtning" : "Leverans"} · ${_relTime(order.createdAt)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.mutedColor(context),
-                      ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${order.total.toStringAsFixed(0)} kr',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : AppTheme.ink,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  if (!showAdvance) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 22,
+                      color: AppTheme.mutedColor(context).withOpacity(0.55),
                     ),
                   ],
-                ),
+                ],
               ),
-              Text(
-                '${order.total.toStringAsFixed(0)} kr',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? Colors.white : AppTheme.ink,
-                  letterSpacing: -0.2,
-                ),
-              ),
-              const SizedBox(width: 10),
-              // Inline advance-knapp för accepterade/tillagande ordrar — så
-              // restaurangen kan markera "På väg"/"Klar" utan att klicka in på
-              // detail-skärmen. Visas inte för PENDING (hanteras separat med
-              // accept-flow), inte heller för READY/DELIVERING/terminal.
-              if (onAdvance != null &&
-                  (order.status == 'ACCEPTED' || order.status == 'PREPARING'))
+              // Advance-knapp för accepterade/tillagande ordrar — egen rad i
+              // full bredd så den aldrig trängs ihop med nummer/summa. Visas
+              // inte för PENDING/READY/terminal.
+              if (showAdvance) ...[
+                const SizedBox(height: 12),
                 _AdvanceChip(
                   isPickup: isPickup,
                   onPressed: () =>
                       onAdvance!(isPickup ? 'READY' : 'DELIVERING'),
-                )
-              else
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 22,
-                  color: AppTheme.mutedColor(context).withOpacity(0.55),
                 ),
+              ],
             ],
           ),
         ),
@@ -509,8 +687,8 @@ class _AdvanceChip extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onPressed,
       child: Container(
-        constraints: const BoxConstraints(minHeight: 48),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        width: double.infinity,
+        height: 46,
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(12),
@@ -523,17 +701,17 @@ class _AdvanceChip extends StatelessWidget {
           ],
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 17, color: AppTheme.ink),
-            const SizedBox(width: 7),
+            Icon(icon, size: 18, color: AppTheme.ink),
+            const SizedBox(width: 8),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: FontWeight.w900,
                 color: AppTheme.ink,
-                letterSpacing: 0,
+                letterSpacing: 0.2,
               ),
             ),
           ],

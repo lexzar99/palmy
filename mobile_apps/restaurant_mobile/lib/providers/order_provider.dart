@@ -274,19 +274,29 @@ class OrderProvider with ChangeNotifier {
       if (res.statusCode == 200) {
         final List data = res.data['orders'] ?? res.data;
 
-        // Merge strategy: Keep existing mock orders but update with server data
+        // Merge-strategi: servern är källan för de ordrar den returnerar, men
+        // vi BEHÅLLER lokala ordrar som servern inte skickade med — mock-ordrar
+        // OCH nyligen slutförda/på-väg-ordrar (inom 2-dygnsfönstret). Innan
+        // detta ersattes _orders rakt av med serversvaret, så en order försvann
+        // ur historiken så fort den markerats "på väg"/"klar" om backend prunar
+        // den ur aktiv-listan vid nästa fetch/reconnect.
         final List<OrderModel> serverOrders =
             data.map((o) => OrderModel.fromJson(o)).toList();
-        final mockOrders =
-            _orders.where((o) => o.id.startsWith('mock_')).toList();
+        final serverIds = serverOrders.map((o) => o.id).toSet();
+        final cutoff = DateTime.now().subtract(const Duration(days: 2));
+        final retainedLocal = _orders
+            .where((o) =>
+                !serverIds.contains(o.id) &&
+                (o.id.startsWith('mock_') || o.createdAt.isAfter(cutoff)))
+            .toList();
 
-        _orders = [...mockOrders, ...serverOrders];
+        _orders = [...serverOrders, ...retainedLocal];
 
-        // Remove duplicates if any (cases where a mock becomes a real order)
+        // Ta bort dubbletter (servern vinner — den ligger först)
         final seenIds = <String>{};
         _orders = _orders.where((o) => seenIds.add(o.id)).toList();
 
-        // Sort: pending first, then by date desc
+        // Sortera senaste först
         _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         logger.log(
             'SUCCESS: Fetched ${_orders.length} orders. Pending: ${pendingOrders.length}');

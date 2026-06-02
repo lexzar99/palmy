@@ -239,7 +239,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                   slivers: [
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                       sliver: SliverToBoxAdapter(
                         child: _EditorialHeader(
                           provider: provider,
@@ -255,41 +255,42 @@ class _DashboardScreenState extends State<DashboardScreen>
                           child: _OfflineBanner(),
                         ),
                       ),
-                    // ── NYA ORDRAR — counter + swipable stack ───────────
+                    // ── NYA ORDRAR — kompakt rubrik + horisontell kort-rad ──
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
                         child: _PendingHeader(count: pending.length),
                       ),
                     ),
                     if (pending.isEmpty)
                       const SliverToBoxAdapter(
                         child: Padding(
-                          padding: EdgeInsets.fromLTRB(20, 14, 20, 8),
+                          padding: EdgeInsets.fromLTRB(20, 12, 20, 8),
                           child: _RestingState(),
                         ),
                       )
-                    else ...[
+                    else
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                          child: NewOrderHeroCard(
-                            order: pending.first,
-                            onAccept: () => _openTake(pending.first),
-                          ),
-                        ),
-                      ),
-                      if (pending.length > 1)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                            child: _PendingQueue(
-                              orders: pending.skip(1).toList(),
-                              onOpen: _openTake,
+                          padding: const EdgeInsets.only(top: 12),
+                          child: SizedBox(
+                            height: 172,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              itemCount: pending.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(width: 12),
+                              itemBuilder: (context, i) => NewOrderSquareCard(
+                                order: pending[i],
+                                onTap: () => _openTake(pending[i]),
+                              ),
                             ),
                           ),
                         ),
-                    ],
+                      ),
 
                     // ── FÖREGÅENDE ──────────────────────────────────────
                     SliverPadding(
@@ -466,89 +467,44 @@ class _EditorialHeader extends StatelessWidget {
         .replaceAll(RegExp(r'\s+admin$', caseSensitive: false), '')
         .trim();
     if (restName.isEmpty) restName = 'Levera';
-    final today = _formatToday();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Header-bar på en ren rad: liten klocka, restaurangnamn (krymper för att
+    // passa) och öppet/stäng-knappen i nivå till höger. Inget datum.
+    return Row(
       children: [
-        Text(
-          today.toUpperCase(),
-          style: TextStyle(
-            color: AppTheme.mutedColor(context),
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.4,
-          ),
+        _BellButton(
+          hasPending: provider.pendingOrders.isNotEmpty,
+          onTap: provider.testAlarm,
         ),
-        const SizedBox(height: 10),
-        // Kompakt en-rads header: liten klocka till vänster, restaurangnamnet i
-        // mitten (krymper för att passa), och öppet/stängt-knappen i nivå till
-        // höger — allt på samma rad istället för staplat.
-        Row(
-          children: [
-            _BellButton(
-              hasPending: provider.pendingOrders.isNotEmpty,
-              onTap: provider.testAlarm,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  restName,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 23,
-                    fontWeight: FontWeight.w900,
-                    height: 1.0,
-                    letterSpacing: -0.8,
-                    color: isDark ? Colors.white : AppTheme.ink,
-                  ),
-                ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              restName,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 23,
+                fontWeight: FontWeight.w900,
+                height: 1.0,
+                letterSpacing: -0.8,
+                color: isDark ? Colors.white : AppTheme.ink,
               ),
             ),
-            const SizedBox(width: 12),
-            _StatusButton(
-              color: statusColor,
-              label: statusLabel,
-              isPaused: provider.isPaused,
-              onTap: onStatusTap,
-            ),
-          ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        _StatusButton(
+          color: statusColor,
+          label: statusLabel,
+          isPaused: provider.isPaused,
+          onTap: onStatusTap,
         ),
       ],
     );
-  }
-
-  String _formatToday() {
-    final months = [
-      'jan',
-      'feb',
-      'mar',
-      'apr',
-      'maj',
-      'jun',
-      'jul',
-      'aug',
-      'sep',
-      'okt',
-      'nov',
-      'dec'
-    ];
-    final weekdays = [
-      'måndag',
-      'tisdag',
-      'onsdag',
-      'torsdag',
-      'fredag',
-      'lördag',
-      'söndag'
-    ];
-    final now = DateTime.now();
-    return '${weekdays[now.weekday - 1]} ${now.day} ${months[now.month - 1]}';
   }
 }
 
@@ -688,68 +644,38 @@ class _PendingHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
     final accent = AppTheme.ember;
     final hasOrders = count > 0;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Kompakt rubrik: antalet ligger bredvid texten (inte under) som en pill.
+    return Row(
       children: [
-        Row(
-          children: [
-            Text(
-              'NYA ORDRAR',
-              style: TextStyle(
-                color: AppTheme.mutedColor(context),
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const Spacer(),
-            if (hasOrders)
-              Text(
-                count == 1 ? 'hantera direkt' : 'kö under första ordern',
-                style: TextStyle(
-                  color: AppTheme.mutedColor(context),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
-                ),
-              ),
-          ],
+        Text(
+          'NYA ORDRAR',
+          style: TextStyle(
+            color: AppTheme.mutedColor(context),
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+          ),
         ),
-        const SizedBox(height: 4),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 56,
-                fontWeight: FontWeight.w900,
-                height: 1.0,
-                letterSpacing: -2.5,
-                color: hasOrders
-                    ? accent
-                    : (isDark
-                        ? Colors.white.withOpacity(0.25)
-                        : AppTheme.ink.withOpacity(0.20)),
-              ),
+        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+          decoration: BoxDecoration(
+            color: hasOrders
+                ? accent
+                : AppTheme.mutedColor(context).withOpacity(0.16),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              color: hasOrders ? AppTheme.ink : AppTheme.mutedColor(context),
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
             ),
-            const SizedBox(width: 10),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                count == 1 ? 'väntar' : 'väntar',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.mutedColor(context),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     );
@@ -815,67 +741,6 @@ class _RestingState extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _PendingQueue extends StatelessWidget {
-  final List<OrderModel> orders;
-  final ValueChanged<OrderModel> onOpen;
-
-  const _PendingQueue({
-    required this.orders,
-    required this.onOpen,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              'KÖ',
-              style: TextStyle(
-                color: AppTheme.mutedColor(context),
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Divider(
-                height: 1,
-                color: AppTheme.borderColor(context),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ...orders.take(4).map(
-              (order) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: NewOrderQueueTile(
-                  order: order,
-                  onTap: () => onOpen(order),
-                ),
-              ),
-            ),
-        if (orders.length > 4)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              '+ ${orders.length - 4} till väntar',
-              style: TextStyle(
-                color: AppTheme.mutedColor(context),
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

@@ -8,7 +8,6 @@ import '../models/order_model.dart';
 import '../providers/order_provider.dart';
 import '../widgets/app_ui.dart';
 import 'accept_result_screen.dart';
-import 'order_detail_screen.dart';
 
 class OrderTakeScreen extends StatefulWidget {
   final OrderModel order;
@@ -161,7 +160,7 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
           child: SafeArea(
             child: Column(
               children: [
-                _HeroHeader(order: order, accent: accent, onReject: _reject),
+                _HeroHeader(onReject: _reject),
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
@@ -203,16 +202,10 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
   }
 }
 
-// ── Hero header: back + neka + info ──────────────────────────────────────────
+// ── Hero header: back + neka ─────────────────────────────────────────────────
 class _HeroHeader extends StatelessWidget {
-  final OrderModel order;
-  final Color accent;
   final VoidCallback onReject;
-  const _HeroHeader({
-    required this.order,
-    required this.accent,
-    required this.onReject,
-  });
+  const _HeroHeader({required this.onReject});
 
   @override
   Widget build(BuildContext context) {
@@ -225,15 +218,6 @@ class _HeroHeader extends StatelessWidget {
             onTap: () => Navigator.of(context).maybePop(),
           ),
           const Spacer(),
-          _IconButton(
-            icon: Icons.info_outline_rounded,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => OrderDetailScreen(order: order),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
           GestureDetector(
             onTap: onReject,
             child: Container(
@@ -830,7 +814,7 @@ class _BottomBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -857,7 +841,7 @@ class _BottomBar extends StatelessWidget {
                           Text(
                             '$selected',
                             style: TextStyle(
-                              fontSize: 30,
+                              fontSize: 26,
                               fontWeight: FontWeight.w900,
                               height: 1.0,
                               letterSpacing: -1,
@@ -897,7 +881,7 @@ class _BottomBar extends StatelessWidget {
                       Text(
                         _readyTime(selected),
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.w800,
                           color: accent,
                           letterSpacing: -0.3,
@@ -907,7 +891,7 @@ class _BottomBar extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               _TimeStrip(
                 options: options,
                 selected: selected,
@@ -915,7 +899,7 @@ class _BottomBar extends StatelessWidget {
                 isDark: isDark,
                 onChanged: onTimeChanged,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               EmberButton(
                 label: rejecting ? 'NEKAR...' : 'ACCEPTERA · $selected min',
                 icon: Icons.bolt_rounded,
@@ -923,7 +907,7 @@ class _BottomBar extends StatelessWidget {
                 onPressed: busy ? null : onAccept,
                 color: accent,
                 foreground: isDark ? AppTheme.ink : Colors.white,
-                height: 62,
+                height: 52,
               ),
             ],
           ),
@@ -954,7 +938,7 @@ class _TimeStrip extends StatefulWidget {
 
 class _TimeStripState extends State<_TimeStrip> {
   late final ScrollController _scroll;
-  static const double _itemW = 60.0;
+  static const double _itemW = 52.0;
   static const double _gap = 8.0;
 
   @override
@@ -998,7 +982,7 @@ class _TimeStripState extends State<_TimeStrip> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 54,
+      height: 46,
       child: ListView.separated(
         controller: _scroll,
         scrollDirection: Axis.horizontal,
@@ -1048,7 +1032,7 @@ class _TimeStripState extends State<_TimeStrip> {
                         : (widget.isDark
                             ? Colors.white.withOpacity(0.68)
                             : AppTheme.ink.withOpacity(0.62)),
-                    fontSize: isSel ? 19 : 16,
+                    fontSize: isSel ? 17 : 14,
                     fontWeight: isSel ? FontWeight.w900 : FontWeight.w700,
                   ),
                   child: Text('$m'),
