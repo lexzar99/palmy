@@ -18,6 +18,7 @@
  * funktionellt mot Cloudinary tills R2 är konfigurerat.
  */
 import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, CopyObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { createHash } from 'crypto';
 import sharp from 'sharp';
 
 type R2Config = {
@@ -154,6 +155,29 @@ export function r2KeyToPublicUrl(key: string): string {
 }
 
 /**
+ * Publik URL med en cache-busting-version (`?v=…`).
+ *
+ * Pathen i R2 är KANONISK ({stad}/{restaurang}/logo.webp) och objektet skrivs
+ * över på samma nyckel vid byte — så själva URL:en ändras aldrig. Men vi cachar
+ * stenhårt (`Cache-Control: immutable, max-age=1 år`), vilket betyder att en ny
+ * uppladdning annars fortsätter visa GAMLA bilden i upp till ett år. Lösningen:
+ * lägg en version i query-strängen som ändras när innehållet ändras. CDN/browser
+ * ser då en ny URL och hämtar färskt, medan immutable-cachen fortfarande gäller.
+ *
+ * `version` är en kort content-hash (vid uppladdning) eller objektets
+ * lastModified-ms (vid auto-match) — vad som helst som ändras vid byte.
+ */
+export function r2KeyToVersionedUrl(key: string, version: string | number): string {
+  const v = String(version);
+  return v ? `${r2KeyToPublicUrl(key)}?v=${encodeURIComponent(v)}` : r2KeyToPublicUrl(key);
+}
+
+/** Kort, deterministisk content-hash (sha1, 10 hex) för cache-busting. */
+export function shortContentHash(body: Buffer): string {
+  return createHash('sha1').update(body).digest('hex').slice(0, 10);
+}
+
+/**
  * Predicera kanonisk R2-URL för en produkt baserat på slug-konventionen.
  * Returnerar null om R2 inte är konfigurerat eller någon slug saknas.
  *
@@ -232,7 +256,10 @@ export async function uploadToR2(key: string, body: Buffer, contentType = 'image
     const msg = e?.message || String(e);
     throw new Error(`R2 PutObject misslyckades (${code}): bucket="${c.cfg.bucket}", key="${key}" — ${msg}`);
   }
-  return { key, url: r2KeyToPublicUrl(key) };
+  // Returnera en content-versionad URL så att en "replace" på samma kanoniska
+  // nyckel faktiskt syns: samma innehåll → samma ?v (idempotent), ny bild → ny
+  // ?v → CDN/browser hämtar färskt trots immutable-cachen.
+  return { key, url: r2KeyToVersionedUrl(key, shortContentHash(body)) };
 }
 
 /**

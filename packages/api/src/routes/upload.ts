@@ -3,7 +3,7 @@ import multer from 'multer';
 import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
-import { r2Enabled, buildR2Key, uploadToR2, toWebp, listR2, existsInR2, slugifyPathSegment, r2KeyToPublicUrl } from '../lib/r2';
+import { r2Enabled, buildR2Key, uploadToR2, toWebp, listR2, existsInR2, slugifyPathSegment, r2KeyToPublicUrl, r2KeyToVersionedUrl } from '../lib/r2';
 import { runR2Migration, type MigrateOptions } from '../lib/r2Migrate';
 import prisma from '../lib/prisma';
 import { menuCacheBust } from './menu';
@@ -277,6 +277,14 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
     const items = await listR2(prefix, 5000);
     const keyByKey = new Map(items.map((it) => [it.key, it]));
 
+    // Versionera matchade URL:er på objektets lastModified så ett byte (overwrite
+    // på samma kanoniska nyckel → ny lastModified) busta:r CDN/browser-cachen.
+    // Faller tillbaka till okvalificerad URL om R2 inte gav lastModified.
+    const urlFor = (key: string): string => {
+      const lm = keyByKey.get(key)?.lastModified;
+      return lm ? r2KeyToVersionedUrl(key, lm.getTime()) : r2KeyToPublicUrl(key);
+    };
+
     // STRIKT canonical-match — ingen fuzzy. Den enda säkra strategin när
     // flera restauranger kan ha produkter med samma slug (t.ex. "Margherita").
     // För att matcha en bild MÅSTE den ligga på den exakta path:en som
@@ -297,7 +305,7 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
     const heroKey = `${prefix}hero.webp`;
     if (keyByKey.has(heroKey)) {
       matchedHero = true;
-      const url = r2KeyToPublicUrl(heroKey);
+      const url = urlFor(heroKey);
       const changed = rest.heroImageUrl !== url;
       updates.push({ kind: 'hero', id: restaurantId, url, key: heroKey, changed });
       if (!dryRun && changed) {
@@ -309,7 +317,7 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
     const logoKey = `${prefix}logo.webp`;
     if (keyByKey.has(logoKey)) {
       matchedLogo = true;
-      const url = r2KeyToPublicUrl(logoKey);
+      const url = urlFor(logoKey);
       const changed = rest.imageUrl !== url;
       updates.push({ kind: 'logo', id: restaurantId, url, key: logoKey, changed });
       if (!dryRun && changed) {
@@ -328,7 +336,7 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
       const key = `${prefix}main/${slug}.webp`;
       if (keyByKey.has(key)) {
         matchedMain++;
-        const url = r2KeyToPublicUrl(key);
+        const url = urlFor(key);
         const changed = mc.imageUrl !== url;
         updates.push({ kind: 'main-category', id: mc.id, url, key, changed });
         if (!dryRun && changed) {
@@ -352,7 +360,7 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
       const key = `${prefix}menu/${catSlug}/${prodSlug}.webp`;
       if (keyByKey.has(key)) {
         matchedProducts++;
-        const url = r2KeyToPublicUrl(key);
+        const url = urlFor(key);
         const changed = p.imageUrl !== url;
         updates.push({ kind: 'product', id: p.id, url, key, changed });
         if (!dryRun && changed) {
