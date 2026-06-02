@@ -5,15 +5,30 @@
 // fortfarande via Next-proxyn (/api/places/*) för usage-loggning.
 
 let mapsPromise: Promise<any> | null = null;
+let cachedKey: string | null = null;
+
+// Hämta browser-nyckeln. Föredrar den build-inlinade NEXT_PUBLIC-varianten, men
+// faller tillbaka till runtime-API:t /api/maps-key — så kartan funkar i prod
+// även om NEXT_PUBLIC inte hann med i builden (nyckeln läses då server-side).
+async function resolveMapsKey(): Promise<string> {
+  const inlined = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
+  if (inlined) return inlined;
+  if (cachedKey !== null) return cachedKey;
+  try {
+    const res = await fetch("/api/maps-key");
+    const data = await res.json();
+    cachedKey = (data?.key as string) || "";
+  } catch {
+    cachedKey = "";
+  }
+  return cachedKey;
+}
 
 export function loadGoogleMaps(): Promise<any> {
   if (typeof window === "undefined") return Promise.reject(new Error("SSR"));
   const w = window as any;
   if (w.google?.maps?.Map) return Promise.resolve(w.google.maps);
   if (mapsPromise) return mapsPromise;
-
-  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
-  if (!key) return Promise.reject(new Error("Missing NEXT_PUBLIC_GOOGLE_MAPS_KEY"));
 
   mapsPromise = new Promise((resolve, reject) => {
     // VIKTIGT: cacha ALDRIG ett avvisat löfte. Tidigare poisonades singleton:en
@@ -44,14 +59,18 @@ export function loadGoogleMaps(): Promise<any> {
       waitForReady();
       return;
     }
-    const s = document.createElement("script");
-    s.id = "gmaps-js";
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places`;
-    s.async = true;
-    s.defer = true;
-    s.onload = () => waitForReady();
-    s.onerror = () => fail(new Error("Failed to load Google Maps"));
-    document.head.appendChild(s);
+
+    resolveMapsKey().then((key) => {
+      if (!key) { fail(new Error("Missing Google Maps key")); return; }
+      const s = document.createElement("script");
+      s.id = "gmaps-js";
+      s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places`;
+      s.async = true;
+      s.defer = true;
+      s.onload = () => waitForReady();
+      s.onerror = () => fail(new Error("Failed to load Google Maps"));
+      document.head.appendChild(s);
+    });
   });
 
   return mapsPromise;

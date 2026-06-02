@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence, PanInfo } from "framer-motion";
 import { MapPin, ChevronDown, Plus, Trash2, Home, Briefcase, Star, Pencil, Circle, Building2 } from "lucide-react";
 import {
@@ -27,6 +28,19 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
   const isPickup = orderType === "PICKUP";
   const [open, setOpen] = useState(false);
   const [addresses, setAddresses] = useState<QuickAddress[]>([]);
+  const [mounted, setMounted] = useState(false);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  // Position för dropdown (portal:as till body så den inte cuttas av
+  // sticky-headerns overflow-hidden).
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  const computePos = () => {
+    const r = triggerRef.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 8, left: r.left, width: r.width });
+  };
+  const openMenu = () => { computePos(); setOpen(true); };
 
   useEffect(() => {
     if (isPickup) return;
@@ -54,7 +68,7 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
 
   const handleDrag = (_: unknown, info: PanInfo) => {
     if (isPickup) return;
-    if (info.offset.y > 30 && !open) setOpen(true);
+    if (info.offset.y > 30 && !open) openMenu();
     if (info.offset.y < -30 && open) setOpen(false);
   };
 
@@ -90,11 +104,12 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
   return (
     <div className="relative z-30">
       <motion.div
+        ref={triggerRef}
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={0.2}
         onDrag={handleDrag}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => { if (open) setOpen(false); else openMenu(); }}
         whileTap={{ scale: 0.98 }}
         className="flex items-center gap-2 px-4 py-2.5 rounded-full border cursor-pointer select-none"
         style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
@@ -111,22 +126,23 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
         <div className="w-6 h-1 rounded-full" style={{ backgroundColor: "var(--border-muted)" }} />
       </motion.div>
 
-      <AnimatePresence>
-        {open && (
+      {mounted && createPortal(
+        <AnimatePresence>
+          {open && pos && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setOpen(false)}
-              className="fixed inset-0 bg-black/50 z-20"
+              className="fixed inset-0 bg-black/50 z-[120]"
             />
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="absolute top-full left-0 right-0 mt-2 rounded-2xl border p-2 shadow-2xl z-30"
-              style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}
+              className="fixed rounded-2xl border p-2 shadow-2xl z-[121]"
+              style={{ top: pos.top, left: pos.left, width: pos.width, backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}
             >
               <p className="text-[8px] font-black uppercase tracking-[0.3em] px-3 pt-1 pb-2" style={{ color: "var(--text-secondary)" }}>
                 Mina adresser ({addresses.length}/{MAX_ADDRESSES})
@@ -221,8 +237,10 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
               </button>
             </motion.div>
           </>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </div>
   );
 }

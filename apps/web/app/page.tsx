@@ -17,7 +17,6 @@ import {
   Sparkles,
   Info,
   Phone,
-  Mail,
   Sun,
   Moon,
 } from "lucide-react";
@@ -54,11 +53,37 @@ interface Restaurant {
   etaMinutes?: number;
   isOpen?: boolean;
   pausedUntil?: string | null;
+  openingHours?: Record<string, { closed?: boolean; shifts?: { open: string; close: string }[] }> | null;
   featuredClass?: number;
   tags?: string[];
   phone?: string;
   address?: string;
   zip?: string;
+}
+
+// Nästa öppettid → "Öppnar 10:00" / "Öppnar imorgon 11:00" / "Öppnar tis 11:00".
+const WEEKDAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+const WEEKDAY_SHORT = ["sön", "mån", "tis", "ons", "tor", "fre", "lör"];
+function nextOpenLabel(oh: Restaurant["openingHours"]): string | null {
+  if (!oh) return null;
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const todayIdx = now.getDay();
+  for (let offset = 0; offset < 7; offset++) {
+    const dayIdx = (todayIdx + offset) % 7;
+    const day = oh[WEEKDAY_KEYS[dayIdx]];
+    if (!day || day.closed || !Array.isArray(day.shifts)) continue;
+    for (const sh of day.shifts) {
+      const [h, m] = (sh.open || "").split(":").map(Number);
+      if (Number.isNaN(h)) continue;
+      const openMin = h * 60 + (m || 0);
+      if (offset === 0 && openMin <= nowMin) continue;
+      if (offset === 0) return `Öppnar ${sh.open}`;
+      if (offset === 1) return `Öppnar imorgon ${sh.open}`;
+      return `Öppnar ${WEEKDAY_SHORT[dayIdx]} ${sh.open}`;
+    }
+  }
+  return null;
 }
 
 interface City {
@@ -105,6 +130,10 @@ export default function HomePage() {
   // mjukt (adress + sök) när man scrollar upp eller är nära toppen.
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const lastScrollY = useRef(0);
+  // Ignorera scroll-events en kort stund efter en collapse/expand så reflow:en
+  // (innehållet skiftar när headern ändrar höjd) inte triggar en motsatt toggle
+  // → inget "glitch upp/ner".
+  const ignoreScrollUntil = useRef(0);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [address, setAddress] = useState("");
   const [query, setQuery] = useState("");
@@ -140,16 +169,24 @@ export default function HomePage() {
       if (saved) setActiveCuisine(saved);
     } catch { /* noop */ }
   }, []);
-  // Scroll-riktning → collapse/expand av sticky-headern.
+  // Scroll-riktning → collapse/expand av sticky-headern. rAF-throttlad + dödzon
+  // (≥10px) + ignore-fönster efter toggle → ingen flip-flop/glitch.
   useEffect(() => {
-    const onScroll = () => {
+    let ticking = false;
+    const update = () => {
+      ticking = false;
       const y = window.scrollY;
-      const last = lastScrollY.current;
-      if (y < 24) setHeaderCollapsed(false);
-      else if (y > last + 6) setHeaderCollapsed(true);
-      else if (y < last - 6) setHeaderCollapsed(false);
+      if (Date.now() < ignoreScrollUntil.current) { lastScrollY.current = y; return; }
+      const delta = y - lastScrollY.current;
+      if (Math.abs(delta) < 10) return; // dödzon — ignorera småjitter
+      const next = y < 80 ? false : delta > 0;
       lastScrollY.current = y;
+      setHeaderCollapsed((prev) => {
+        if (prev !== next) ignoreScrollUntil.current = Date.now() + 380;
+        return next;
+      });
     };
+    const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
@@ -355,21 +392,33 @@ export default function HomePage() {
         setShowAddressModal(true);
       }
     } else if (type === "DELIVERY") {
-      const storedDeliveryCity = typeof window !== "undefined" ? localStorage.getItem("platform_city") : null;
-      if (storedDeliveryCity) {
-        setDetectedCityName(storedDeliveryCity);
-        resolveCityFamily(storedDeliveryCity);
+      // Återställ den RIKTIGA leveransadressen — INTE pickup-stadens namn.
+      const realAddr = typeof window !== "undefined" ? localStorage.getItem("platform_delivery_address") : null;
+      const realCity = typeof window !== "undefined" ? localStorage.getItem("platform_delivery_city") : null;
+      const realCoordsRaw = typeof window !== "undefined" ? localStorage.getItem("platform_delivery_coords") : null;
+
+      if (realAddr) {
+        setAddress(realAddr);
+        localStorage.setItem("platform_address", realAddr);
+        if (realCity) {
+          localStorage.setItem("platform_city", realCity);
+          setDetectedCityName(realCity);
+          resolveCityFamily(realCity);
+        }
+        if (realCoordsRaw) {
+          try {
+            const coords = JSON.parse(realCoordsRaw);
+            localStorage.setItem("platform_coords", realCoordsRaw);
+            validateZone(coords.lat, coords.lng);
+          } catch { /* ignore */ }
+        }
       } else {
+        // Ingen sparad leveransadress → be om att skriva/välja en riktig.
+        setAddress("");
         setDetectedCityName(null);
         setCityFamilyIds(null);
         setCityFamilyNames(null);
-      }
-      const storedCoords = typeof window !== "undefined" ? localStorage.getItem("platform_coords") : null;
-      if (storedCoords) {
-        try {
-          const coords = JSON.parse(storedCoords);
-          validateZone(coords.lat, coords.lng);
-        } catch { /* ignore */ }
+        setShowAddressModal(true);
       }
     }
   };
@@ -392,8 +441,13 @@ export default function HomePage() {
       await resolveCityFamily(pickupCity);
     } else {
       saveAddress(addr);
+      // Spara den RIKTIGA leveransadressen separat så att pickup (som speglar
+      // stadsnamnet till platform_address) inte skriver över den. Vid byte
+      // pickup→leverans återställs denna istället för stadsnamnet.
+      localStorage.setItem("platform_delivery_address", addr);
       if (city) {
         localStorage.setItem("platform_city", city);
+        localStorage.setItem("platform_delivery_city", city);
         await resolveCityFamily(city);
       } else {
         localStorage.removeItem("platform_city");
@@ -402,6 +456,7 @@ export default function HomePage() {
       }
       if (coords) {
         localStorage.setItem("platform_coords", JSON.stringify(coords));
+        localStorage.setItem("platform_delivery_coords", JSON.stringify(coords));
         rememberQuickAddress({ street: addr.split(",")[0].trim(), latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
         await validateZone(coords.lat, coords.lng);
       } else {
@@ -684,6 +739,15 @@ export default function HomePage() {
         {sortedSection.map((r, i) => {
           const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
           const dimmed = r.isOpen === false || !inZone;
+          const railPaused = r.pausedUntil ? new Date(r.pausedUntil) : null;
+          const railIsPaused = railPaused !== null && railPaused.getTime() > Date.now();
+          const railDimReason = !inZone
+            ? "Utanför zon"
+            : r.isOpen === false
+              ? (railIsPaused
+                  ? `Öppnar ${railPaused!.getHours().toString().padStart(2, "0")}:${railPaused!.getMinutes().toString().padStart(2, "0")}`
+                  : (nextOpenLabel(r.openingHours) || "Stängd"))
+              : null;
           return (
             <motion.div
               key={`${title}-${r.id}`}
@@ -691,7 +755,7 @@ export default function HomePage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.07, type: "spring", stiffness: 300, damping: 25 }}
               whileTap={{ opacity: 0.7, scale: 0.99 }}
-              className={`transition-all duration-300 shrink-0 md:shrink w-[230px] sm:w-[260px] md:w-auto ${dimmed ? "opacity-55 grayscale" : ""}`}
+              className={`transition-all duration-300 shrink-0 md:shrink w-[230px] sm:w-[260px] md:w-auto ${dimmed ? "grayscale opacity-80" : ""}`}
             >
               <Link
                 href={getRestaurantHref(r)}
@@ -717,6 +781,12 @@ export default function HomePage() {
                   );
                 })()}
                 <div className="h-36 sm:h-44 md:h-48 w-full relative overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+                  {railDimReason && (
+                    <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm" style={{ backgroundColor: "rgba(17,17,19,0.82)", backdropFilter: "blur(6px)" }}>
+                      {!inZone ? <MapPin size={11} className="text-white" /> : <Clock size={11} className="text-white" />}
+                      <span className="text-[10px] font-black uppercase tracking-wide text-white">{railDimReason}</span>
+                    </div>
+                  )}
                   {r.heroImageUrl || r.imageUrl ? (
                     <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition-all duration-700 group-hover:scale-105" />
                   ) : (
@@ -815,14 +885,6 @@ export default function HomePage() {
               >
                 {theme === "dark" ? <Sun size={14} className="text-gold-500" /> : <Moon size={14} className="text-gold-600" />}
               </button>
-              <Link
-                href="/contact"
-                aria-label={t("nav.contact")}
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90"
-                style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
-              >
-                <Mail size={14} className="text-gold-600" />
-              </Link>
             </div>
           </div>
 
@@ -1142,6 +1204,15 @@ export default function HomePage() {
                   const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
                   const isClosed = r.isOpen === false;
                   const dimmed = isClosed || isOutOfZone;
+                  const pausedUntilDate = r.pausedUntil ? new Date(r.pausedUntil) : null;
+                  const isPaused = pausedUntilDate !== null && pausedUntilDate.getTime() > Date.now();
+                  const dimReason = isOutOfZone
+                    ? "Utanför zon"
+                    : isClosed
+                      ? (isPaused
+                          ? `Öppnar ${pausedUntilDate!.getHours().toString().padStart(2, "0")}:${pausedUntilDate!.getMinutes().toString().padStart(2, "0")}`
+                          : (nextOpenLabel(r.openingHours) || "Stängd"))
+                      : null;
                   const injectDeal = (allDealCards.length > 0 && (i + 1) % 4 === 0) ? allDealCards[Math.floor(i / 4) % allDealCards.length] : null;
                   const isFav = favorites.has(r.id);
 
@@ -1156,7 +1227,7 @@ export default function HomePage() {
                           cards that's ~1.2s before the last card appears —
                           felt slow on cold-cache loads. Now: instant render
                           with a CSS active:scale tap feedback only. */}
-                      <div className={`transition-all duration-200 active:scale-[0.99] ${dimmed ? "opacity-55 grayscale" : ""}`}>
+                      <div className={`transition-all duration-200 active:scale-[0.99] ${dimmed ? "grayscale opacity-80" : ""}`}>
                         <Link
                           href={getRestaurantHref(r)}
                           onClick={(e) => handleRestaurantClick(e, r)}
@@ -1174,8 +1245,14 @@ export default function HomePage() {
                               <div className="h-full w-full flex items-center justify-center text-4xl">🍱</div>
                             )}
 
-                            {/* Öppet/stängt-pill borttagen — stängda restauranger
-                                dimmas i stället (wrapper-opacity ovan). */}
+                            {/* Anledning till att kortet är grått (stängt / utanför
+                                zon) — enkel, fin pill. Visas bara när dimmed. */}
+                            {dimReason && (
+                              <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm" style={{ backgroundColor: "rgba(17,17,19,0.82)", backdropFilter: "blur(6px)" }}>
+                                {isOutOfZone ? <MapPin size={11} className="text-white" /> : <Clock size={11} className="text-white" />}
+                                <span className="text-[10px] font-black uppercase tracking-wide text-white">{dimReason}</span>
+                              </div>
+                            )}
 
                             {/* Hjärta: top-RIGHT */}
                             <button
