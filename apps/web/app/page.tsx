@@ -905,26 +905,29 @@ export default function HomePage() {
             className="grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out"
             style={{ gridTemplateRows: "1fr", opacity: 1, willChange: "grid-template-rows" }}
           >
-            <div className="min-h-0 overflow-hidden space-y-1.5 pt-1.5">
-              <AddressPullDown
-                currentAddress={address}
-                zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
-                onOpenFull={() => setShowAddressModal(true)}
-                orderType={orderType}
-                cityName={detectedCityName}
-                onSelect={handleQuickAddressSelect}
-              />
-              <Link
-                href="/search"
-                className="flex items-center gap-2 rounded-xl px-4 py-2.5 border transition-all active:scale-[0.99]"
-                style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-muted)" }}
-              >
-                <Search size={14} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-                <span className="text-[12px] font-bold flex-1 truncate" style={{ color: "var(--text-secondary)" }}>{t("home.searchCta")}</span>
-                <div className="w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 shrink-0">
-                  <ArrowRight size={13} />
+            {/* Adressväljare + kompakt sök-knapp på SAMMA rad — söket är en
+                liten rund knapp till höger i stället för en hel extra rad. */}
+            <div className="min-h-0 overflow-hidden pt-1.5">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <AddressPullDown
+                    currentAddress={address}
+                    zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
+                    onOpenFull={() => setShowAddressModal(true)}
+                    orderType={orderType}
+                    cityName={detectedCityName}
+                    onSelect={handleQuickAddressSelect}
+                  />
                 </div>
-              </Link>
+                <Link
+                  href="/search"
+                  aria-label={t("home.searchCta")}
+                  className="shrink-0 w-10 h-10 rounded-full border flex items-center justify-center transition-all active:scale-95"
+                  style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
+                >
+                  <Search size={16} className="text-gold-500" />
+                </Link>
+              </div>
             </div>
           </div>
         </div>
