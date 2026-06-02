@@ -30,7 +30,10 @@ String _minutesAgo(DateTime dt) {
   return _relTime(dt);
 }
 
-/// Primärt orderkort. Hög kontrast och tät information för restaurangterminal.
+/// Kompakt orderkort för den första väntande ordern. Färgkodat efter typ
+/// (leverans = blå, avhämtning = amber) och byggt litet så det inte äter upp
+/// halva skärmen på en 720p-terminal. Hela kortet är tryckbart → öppnar ordern,
+/// så ingen extra "tryck här"-knapp behövs.
 class NewOrderHeroCard extends StatelessWidget {
   final OrderModel order;
   final VoidCallback onAccept;
@@ -47,14 +50,18 @@ class NewOrderHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
     final isPickup = order.type != 'DELIVERY';
+    // Typ-färg går igenom hela kortet: stripe, pill, kant och en subtil
+    // bakgrundston — så leverans/avhämtning syns på en kvarts sekund.
     final accent = isPickup ? AppTheme.ember : AppTheme.brandBlue;
     final typeIcon =
         isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
     final typeLabel = isPickup ? 'AVHÄMTNING' : 'LEVERANS';
 
-    final cardBg = isDark ? AppTheme.steel : Colors.white;
-    final borderC =
-        isDark ? accent.withOpacity(0.32) : AppTheme.ink.withOpacity(0.11);
+    final base = isDark ? AppTheme.steel : Colors.white;
+    final cardBg = Color.alphaBlend(
+      accent.withOpacity(isDark ? 0.12 : 0.05),
+      base,
+    );
 
     final itemCount = order.items.fold<int>(0, (s, i) => s + i.quantity);
     final totalStr = '${order.total.toStringAsFixed(0)} kr';
@@ -66,202 +73,113 @@ class NewOrderHeroCard extends StatelessWidget {
         onTap: onAccept,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 260),
           decoration: BoxDecoration(
             color: cardBg,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: borderC, width: 1.2),
+            border: Border.all(
+              color: accent.withOpacity(isDark ? 0.42 : 0.28),
+              width: 1.2,
+            ),
             boxShadow: isDark
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.24),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ]
+                ? const []
                 : [
                     BoxShadow(
-                      color: AppTheme.ink.withOpacity(0.08),
-                      blurRadius: 18,
-                      offset: const Offset(0, 6),
+                      color: AppTheme.ink.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
                     ),
                   ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
-            child: Stack(
-              children: [
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 7,
-                    color: accent,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 20, 18, 18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Typ-färgad stripe i full höjd.
+                  Container(width: 6, color: accent),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: accent.withOpacity(0.14),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(typeIcon, color: accent, size: 14),
-                                const SizedBox(width: 6),
-                                Text(
-                                  typeLabel,
-                                  style: TextStyle(
-                                    color: accent,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.7,
-                                  ),
+                          // Rad 1: typ-pill + summa.
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 9, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color:
+                                      accent.withOpacity(isDark ? 0.24 : 0.14),
+                                  borderRadius: BorderRadius.circular(7),
                                 ),
-                              ],
-                            ),
-                          ),
-                          const Spacer(),
-                          _LiveDot(color: accent),
-                          const SizedBox(width: 6),
-                          Text(
-                            'NY',
-                            style: TextStyle(
-                              color: accent,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            '#',
-                            style: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w700,
-                              height: 1.0,
-                              color: AppTheme.mutedColor(context),
-                            ),
-                          ),
-                          const SizedBox(width: 2),
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.bottomLeft,
-                              child: Text(
-                                order.orderNumber,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(typeIcon, color: accent, size: 13),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      typeLabel,
+                                      style: TextStyle(
+                                        color: accent,
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.6,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                totalStr,
                                 style: TextStyle(
-                                  fontSize: 78,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.w900,
-                                  height: 0.9,
-                                  letterSpacing: -1.2,
+                                  letterSpacing: -0.3,
                                   color: isDark ? Colors.white : AppTheme.ink,
                                 ),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        order.customerName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.2,
-                          color: isDark ? Colors.white : AppTheme.ink,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          _MiniStat(
-                            icon: Icons.access_time_rounded,
-                            label: _minutesAgo(order.createdAt),
-                            color: AppTheme.mutedColor(context),
-                          ),
-                          const SizedBox(width: 18),
-                          _MiniStat(
-                            icon: Icons.shopping_basket_outlined,
-                            label: '$itemCount art.',
-                            color: AppTheme.mutedColor(context),
-                          ),
-                          const Spacer(),
-                          Text(
-                            totalStr,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white : AppTheme.ink,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: accent.withOpacity(isDark ? 0.18 : 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: accent.withOpacity(isDark ? 0.34 : 0.24),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.touch_app_rounded,
-                              size: 18,
-                              color: accent,
-                            ),
-                            const SizedBox(width: 9),
-                            Expanded(
-                              child: Text(
-                                'Tryck på kortet för att öppna ordern',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: accent,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0,
-                                ),
+                          const SizedBox(height: 8),
+                          // Rad 2: ordernummer (krymper om det blir långt).
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '#${order.orderNumber}',
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontSize: 27,
+                                fontWeight: FontWeight.w900,
+                                height: 1.0,
+                                letterSpacing: -0.8,
+                                color: isDark ? Colors.white : AppTheme.ink,
                               ),
                             ),
-                            Icon(
-                              Icons.arrow_forward_rounded,
-                              size: 18,
-                              color: accent,
+                          ),
+                          const SizedBox(height: 4),
+                          // Rad 3: kund · antal · tid.
+                          Text(
+                            '${order.customerName} · $itemCount art. · ${_minutesAgo(order.createdAt)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.mutedColor(context),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -367,83 +285,6 @@ class NewOrderQueueTile extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _LiveDot extends StatefulWidget {
-  final Color color;
-  const _LiveDot({required this.color});
-
-  @override
-  State<_LiveDot> createState() => _LiveDotState();
-}
-
-class _LiveDotState extends State<_LiveDot>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, __) => Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          color: widget.color,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: widget.color.withOpacity(0.5 * _c.value),
-              blurRadius: 10 * _c.value + 2,
-              spreadRadius: 2 * _c.value,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  const _MiniStat(
-      {required this.icon, required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w600,
-            color: color,
-          ),
-        ),
-      ],
     );
   }
 }
