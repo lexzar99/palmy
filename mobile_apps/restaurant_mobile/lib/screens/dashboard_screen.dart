@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/log_service.dart';
@@ -337,6 +338,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                               child: OrderListTile(
                                 order: o,
                                 onTap: () => _openDetail(o),
+                                // Inline "På väg"/"Klar"-knapp för accepterade
+                                // ordrar — slipper klicka in på detail-skärmen.
+                                // Uppdaterar status direkt via provider och
+                                // tar tag i haptic-feedback för bekräftelse.
+                                onAdvance: (nextStatus) async {
+                                  HapticFeedback.mediumImpact();
+                                  await provider.updateStatus(o.id, nextStatus);
+                                },
                               ),
                             );
                           },

@@ -442,6 +442,17 @@ class _HistoryTile extends StatelessWidget {
                             color: statusColor,
                           ),
                         ),
+                        // Refund-anmärkning från admin: visa en tunn pill när
+                        // ordern är helt eller delvis återbetald. Färgkodad så
+                        // restaurangen direkt ser att pengar har gått tillbaka.
+                        if (order.isRefunded) ...[
+                          const SizedBox(width: 8),
+                          _RefundPill(
+                            label: order.isFullyRefunded
+                                ? 'ÅTERBETALD'
+                                : 'DELVIS ÅTERBETALD',
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 3),
@@ -455,6 +466,24 @@ class _HistoryTile extends StatelessWidget {
                         color: AppTheme.mutedColor(context),
                       ),
                     ),
+                    // Refund-detalj-rad: belopp + anledning om angiven, så
+                    // restaurangen ser i en snabb-blick varför pengarna gick
+                    // tillbaka utan att klicka in på ordern.
+                    if (order.isRefunded) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        order.refundReason != null && order.refundReason!.isNotEmpty
+                            ? 'Återbetalt ${OrderUi.formatCurrency(order.refundAmount ?? 0)} · ${order.refundReason}'
+                            : 'Återbetalt ${OrderUi.formatCurrency(order.refundAmount ?? 0)}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.danger,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -532,6 +561,34 @@ class _EmptyHistory extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Liten outlined pill som markerar att en order är (helt eller delvis)
+/// återbetald av admin. Dovt röd så restaurangen direkt ser anmärkningen.
+class _RefundPill extends StatelessWidget {
+  final String label;
+  const _RefundPill({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppTheme.danger.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppTheme.danger.withOpacity(0.30), width: 0.8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.6,
+          color: AppTheme.danger,
+        ),
       ),
     );
   }

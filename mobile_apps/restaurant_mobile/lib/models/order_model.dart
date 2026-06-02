@@ -24,6 +24,18 @@ class OrderModel {
   final String? discountCode;
   final String? allergens;
   final List<OrderItemModel> items;
+  // Refund-info från admin-sidan. Backend (Order-tabellen) har refundAmount
+  // (öre), refundReason, refundedAt. När admin gör en refund propageras dessa
+  // till klienten via Socket.IO order:updated så att historik-vyn kan visa
+  // en liten "Återbetald"-anmärkning utan att kräva re-fetch.
+  final double? refundAmount;
+  final String? refundReason;
+  final DateTime? refundedAt;
+
+  bool get isRefunded => refundedAt != null || (refundAmount ?? 0) > 0;
+  bool get isFullyRefunded =>
+      isRefunded && (refundAmount ?? 0) >= total - 0.5; // 0.5 kr float-tol
+  bool get isPartiallyRefunded => isRefunded && !isFullyRefunded;
 
   OrderModel({
     required this.id,
@@ -48,6 +60,9 @@ class OrderModel {
     this.paymentMethod,
     this.discountCode,
     this.allergens,
+    this.refundAmount,
+    this.refundReason,
+    this.refundedAt,
     required this.items,
   });
 
@@ -78,6 +93,16 @@ class OrderModel {
       paymentMethod: json['paymentMethod'],
       discountCode: json['discountCode'],
       allergens: json['allergens'],
+      // Backend skickar refundAmount i ÖRE → konvertera till kr för UI-paritet
+      // med total. Saknas helt → null (= ingen refund).
+      refundAmount: json['refundAmount'] != null
+          ? ((json['refundAmount'] as num).toDouble() / 100)
+          : null,
+      refundReason: json['refundReason'],
+      refundedAt: json['refundedAt'] != null &&
+              json['refundedAt'].toString().isNotEmpty
+          ? DateTime.tryParse(json['refundedAt'].toString())
+          : null,
       items: (json['items'] as List?)
               ?.map((i) => OrderItemModel.fromJson(i))
               .toList() ??
@@ -85,8 +110,14 @@ class OrderModel {
     );
   }
 
-  OrderModel copyWith(
-      {String? status, int? estimatedTime, String? discountCode}) {
+  OrderModel copyWith({
+    String? status,
+    int? estimatedTime,
+    String? discountCode,
+    double? refundAmount,
+    String? refundReason,
+    DateTime? refundedAt,
+  }) {
     return OrderModel(
       id: id,
       orderNumber: orderNumber,
@@ -110,6 +141,9 @@ class OrderModel {
       paymentMethod: paymentMethod,
       discountCode: discountCode ?? this.discountCode,
       allergens: allergens,
+      refundAmount: refundAmount ?? this.refundAmount,
+      refundReason: refundReason ?? this.refundReason,
+      refundedAt: refundedAt ?? this.refundedAt,
       items: items,
     );
   }
@@ -138,6 +172,11 @@ class OrderModel {
       'paymentMethod': paymentMethod,
       'discountCode': discountCode,
       'allergens': allergens,
+      // Spara tillbaka i ÖRE för konsistens med backend (toJson används främst
+      // för disk-cache → vi vill att samma fromJson kan plocka upp värdet igen)
+      'refundAmount': refundAmount != null ? (refundAmount! * 100).round() : null,
+      'refundReason': refundReason,
+      'refundedAt': refundedAt?.toIso8601String(),
       'items': items.map((i) => i.toJson()).toList(),
     };
   }

@@ -135,12 +135,22 @@ class OrderProvider with ChangeNotifier {
       .where((o) => (['ACCEPTED', 'PREPARING'].contains(o.status)))
       .toList();
 
-  // FÖREGÅENDE ORDRAR på dashboard: ordrar som restaurangen jobbar på eller
-  // nyss avvisade idag. När en order är på väg / klar / levererad → historik.
+  // FÖREGÅENDE ORDRAR på dashboard: ordrar som restaurangen aktivt jobbar
+  // på just nu (accepterat / tillagas). När ordern är på väg / klar /
+  // levererad / NEKAD / AVBRUTEN → flytta till historik (terminal-states).
+  // BUG-FIX: REJECTED och CANCELLED saknades tidigare i moveToHistory →
+  // nekade ordrar fastnade i "Föregående" istället för att hamna i historik.
   List<OrderModel> get recentOrders {
     final now = DateTime.now();
     final startOfToday = DateTime(now.year, now.month, now.day);
-    const moveToHistory = ['DELIVERING', 'DELIVERED', 'COMPLETED', 'READY'];
+    const moveToHistory = [
+      'DELIVERING',
+      'DELIVERED',
+      'COMPLETED',
+      'READY',
+      'REJECTED',
+      'CANCELLED',
+    ];
     return _orders
         .where((o) =>
             o.status != 'PENDING' &&

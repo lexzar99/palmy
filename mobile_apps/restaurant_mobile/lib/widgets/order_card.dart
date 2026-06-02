@@ -388,11 +388,25 @@ class NewOrderCard extends StatelessWidget {
 }
 
 /// Tight list-rad för föregående ordrar. Inga boxar, bara label-textuell.
+///
+/// När restaurangen redan har accepterat ordern (status: ACCEPTED/PREPARING)
+/// och `onAdvance` finns, visar vi en inline-pill-knapp till höger:
+///   • DELIVERY → "På väg" → status DELIVERING
+///   • PICKUP   → "Klar"   → status READY
+/// Slipper kunden klicka in på detail-skärmen bara för att markera nästa
+/// steg. onAdvance får vidare-status som argument så dashboarden kan
+/// trigga updateStatus(orderId, nextStatus) direkt.
 class OrderListTile extends StatelessWidget {
   final OrderModel order;
   final VoidCallback onTap;
+  final ValueChanged<String>? onAdvance;
 
-  const OrderListTile({super.key, required this.order, required this.onTap});
+  const OrderListTile({
+    super.key,
+    required this.order,
+    required this.onTap,
+    this.onAdvance,
+  });
 
   static String _statusLabel(String s) {
     switch (s) {
@@ -517,13 +531,73 @@ class OrderListTile extends StatelessWidget {
                 letterSpacing: -0.2,
               ),
             ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: AppTheme.mutedColor(context).withOpacity(0.55),
-            ),
+            const SizedBox(width: 10),
+            // Inline advance-knapp för accepterade/tillagande ordrar — så
+            // restaurangen kan markera "På väg"/"Klar" utan att klicka in på
+            // detail-skärmen. Visas inte för PENDING (hanteras separat med
+            // accept-flow), inte heller för READY/DELIVERING/terminal.
+            if (onAdvance != null &&
+                (order.status == 'ACCEPTED' || order.status == 'PREPARING'))
+              _AdvanceChip(
+                isPickup: isPickup,
+                onPressed: () => onAdvance!(isPickup ? 'READY' : 'DELIVERING'),
+              )
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: AppTheme.mutedColor(context).withOpacity(0.55),
+              ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Liten advance-pill för OrderListTile — "På väg" (delivery) / "Klar" (pickup).
+/// Stoppar event-propagation så klick på pill:en INTE öppnar detail-skärmen.
+class _AdvanceChip extends StatelessWidget {
+  final bool isPickup;
+  final VoidCallback onPressed;
+  const _AdvanceChip({required this.isPickup, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isPickup ? AppTheme.ember : AppTheme.brandBlue;
+    final label = isPickup ? 'Klar' : 'På väg';
+    final icon = isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
+
+    // GestureDetector med behavior=opaque stoppar tap från att bubbla upp till
+    // den omgivande InkWell (som annars öppnar detail-skärmen).
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onPressed,
+      child: Material(
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 15, color: color),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

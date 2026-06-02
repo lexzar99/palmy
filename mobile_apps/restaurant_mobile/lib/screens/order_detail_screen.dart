@@ -229,6 +229,14 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                   children: [
                     _OrderHero(order: order, accent: accent),
                     const SizedBox(height: 18),
+                    // Refund-anmärkning från admin — visas tydligt högst upp
+                    // när ordern är (helt eller delvis) återbetald. Innan
+                    // status-strip:en så restaurangen ser det innan de börjar
+                    // läsa kund/items.
+                    if (order.isRefunded) ...[
+                      _RefundBanner(order: order),
+                      const SizedBox(height: 14),
+                    ],
                     _StatusProgressStrip(order: order),
                     const SizedBox(height: 18),
                     if (isOverdue) ...[
@@ -1344,6 +1352,105 @@ class _OverdueBanner extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Banner högst upp i detail-vyn när admin har återbetalat ordern.
+/// Tydlig röd accent med belopp + anledning, så restaurangen direkt ser att
+/// pengar har gått tillbaka (och varför).
+class _RefundBanner extends StatelessWidget {
+  final OrderModel order;
+  const _RefundBanner({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final isFull = order.isFullyRefunded;
+    final title = isFull ? 'ÅTERBETALD' : 'DELVIS ÅTERBETALD';
+    final amount = OrderUi.formatCurrency(order.refundAmount ?? 0);
+    final reason = (order.refundReason ?? '').trim();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: AppTheme.danger.withOpacity(isDark ? 0.16 : 0.10),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: AppTheme.danger.withOpacity(0.45),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: AppTheme.danger.withOpacity(0.20),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.assignment_return_rounded,
+              color: AppTheme.danger,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: AppTheme.danger,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '· $amount',
+                      style: TextStyle(
+                        color: AppTheme.danger,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                if (reason.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    reason,
+                    style: TextStyle(
+                      color: isDark ? Colors.white.withOpacity(0.82) : AppTheme.ink.withOpacity(0.78),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+                if (order.refundedAt != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Återbetalt ${OrderUi.formatDateTime(order.refundedAt!)}',
+                    style: TextStyle(
+                      color: AppTheme.mutedColor(context),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
