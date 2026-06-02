@@ -331,6 +331,14 @@ class OrderProvider with ChangeNotifier {
   Future<void> setStatus(bool open) async {
     if (_restaurantId == null) return;
     _isRestaurantOpen = open;
+    // Att öppna restaurangen avbryter alltid en aktiv paus — annars blir den
+    // kvar (isPaused = true) och statusen kan inte återgå till "Öppet".
+    if (open && _pausedUntil != null) {
+      _pauseTimer?.cancel();
+      _pausedUntil = null;
+      await _persistPause();
+      await _syncPauseToBackend();
+    }
     notifyListeners();
 
     try {

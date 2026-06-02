@@ -401,7 +401,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                 icon: Icons.storefront_rounded,
                 onTap: () async {
                   Navigator.pop(ctx);
-                  if (!provider.isRestaurantOpen) {
+                  if (provider.isPaused) {
+                    await provider.cancelPause();
+                  } else if (!provider.isRestaurantOpen) {
                     await provider.setStatus(true);
                   }
                 },

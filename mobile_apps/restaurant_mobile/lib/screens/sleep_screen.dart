@@ -12,11 +12,9 @@ class SleepScreen extends StatefulWidget {
   State<SleepScreen> createState() => _SleepScreenState();
 }
 
-class _SleepScreenState extends State<SleepScreen>
-    with SingleTickerProviderStateMixin {
+class _SleepScreenState extends State<SleepScreen> {
   late Timer _ticker;
   late DateTime _now;
-  late AnimationController _pulse;
 
   @override
   void initState() {
@@ -25,16 +23,11 @@ class _SleepScreenState extends State<SleepScreen>
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2800),
-    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _ticker.cancel();
-    _pulse.dispose();
     super.dispose();
   }
 
@@ -50,6 +43,13 @@ class _SleepScreenState extends State<SleepScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final bg = isDark ? const Color(0xFF09090B) : Colors.white;
+    final ink = isDark ? Colors.white : AppTheme.ink;
+    final muted = isDark ? Colors.white.withOpacity(0.45) : AppTheme.mutedInk;
+    final border =
+        isDark ? Colors.white.withOpacity(0.14) : const Color(0xFFE6E6E2);
+
     return Consumer<OrderProvider>(
       builder: (context, provider, _) {
         final isPaused = provider.isPaused;
@@ -64,73 +64,45 @@ class _SleepScreenState extends State<SleepScreen>
             '${weekdays[_now.weekday - 1]} ${_now.day} ${months[_now.month - 1]}';
 
         return Scaffold(
-          backgroundColor: AppTheme.midnight,
+          backgroundColor: bg,
           body: Stack(
             children: [
-              // Ambient glow
-              Center(
-                child: AnimatedBuilder(
-                  animation: _pulse,
-                  builder: (_, __) => Container(
-                    width: 320,
-                    height: 320,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: (isPaused
-                                  ? AppTheme.warning
-                                  : AppTheme.brandGold)
-                              .withOpacity(0.04 + _pulse.value * 0.05),
-                          blurRadius: 140,
-                          spreadRadius: 70,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              // X-button (top right) – enda sättet att stänga
+              // X-knapp uppe till höger — gå tillbaka utan att ändra status.
               Positioned(
                 top: 16,
                 right: 16,
                 child: SafeArea(
                   child: GestureDetector(
                     onTap: widget.onWake,
+                    behavior: HitTestBehavior.opaque,
                     child: Container(
-                      width: 48,
-                      height: 48,
+                      width: 46,
+                      height: 46,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.06),
                         shape: BoxShape.circle,
-                        border: Border.all(
-                            color: Colors.white.withOpacity(0.15),
-                            width: 1.2),
+                        border: Border.all(color: border, width: 1.2),
                       ),
-                      child: const Icon(Icons.close_rounded,
-                          color: Colors.white, size: 22),
+                      child: Icon(Icons.close_rounded, color: ink, size: 22),
                     ),
                   ),
                 ),
               ),
 
-              // Main content – centrerat innehåll i mitten av skärmen
+              // Centrerat innehåll.
               SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Klocka + datum
                         Text(
                           '$h:$m',
-                          style: const TextStyle(
-                            fontSize: 88,
+                          style: TextStyle(
+                            fontSize: 92,
                             fontWeight: FontWeight.w200,
-                            color: Colors.white,
+                            color: ink,
                             letterSpacing: -4,
                             height: 1.0,
                           ),
@@ -140,31 +112,32 @@ class _SleepScreenState extends State<SleepScreen>
                           dateStr,
                           style: TextStyle(
                             fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white.withOpacity(0.38),
+                            fontWeight: FontWeight.w600,
+                            color: muted,
                             letterSpacing: 0.2,
                           ),
                         ),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 32),
 
-                        // Status-badge
                         if (isPaused)
                           _PauseBadge(
-                              countdown:
-                                  _countdownText(provider.pausedUntil!))
+                            countdown: _countdownText(provider.pausedUntil!),
+                            ink: ink,
+                            muted: muted,
+                            border: border,
+                          )
                         else
-                          _ClosedBadge(),
+                          _ClosedBadge(ink: ink, muted: muted, border: border),
 
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 32),
 
-                        // Förläng-knappar (endast vid pause)
                         if (isPaused) ...[
                           Text(
                             'FÖRLÄNG PAUS',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.40),
+                              color: muted,
                               fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w800,
                               letterSpacing: 1.6,
                             ),
                           ),
@@ -174,18 +147,21 @@ class _SleepScreenState extends State<SleepScreen>
                             runSpacing: 8,
                             alignment: WrapAlignment.center,
                             children: [10, 15, 20, 25, 30]
-                                .map((m) => _ExtendChip(
-                                      minutes: m,
-                                      onTap: () => provider.extendPause(m),
+                                .map((min) => _ExtendChip(
+                                      minutes: min,
+                                      ink: ink,
+                                      border: border,
+                                      onTap: () => provider.extendPause(min),
                                     ))
                                 .toList(),
                           ),
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 26),
                         ],
 
-                        // Öppna nu
                         _OpenNowButton(
                           isPaused: isPaused,
+                          ink: ink,
+                          fg: isDark ? AppTheme.ink : Colors.white,
                           onTap: () async {
                             if (isPaused) {
                               await provider.cancelPause();
@@ -201,26 +177,20 @@ class _SleepScreenState extends State<SleepScreen>
                 ),
               ),
 
-              // X-hint längst ner (absolut positionerad)
+              // Hint längst ner.
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: 24,
                 child: SafeArea(
                   top: false,
-                  child: AnimatedBuilder(
-                    animation: _pulse,
-                    builder: (_, __) => Opacity(
-                      opacity: 0.20 + _pulse.value * 0.15,
-                      child: Text(
-                        'Tryck × i hörnet för att gå tillbaka',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                  child: Text(
+                    'Tryck × i hörnet för att gå tillbaka',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -234,33 +204,35 @@ class _SleepScreenState extends State<SleepScreen>
 }
 
 class _ClosedBadge extends StatelessWidget {
+  final Color ink;
+  final Color muted;
+  final Color border;
+  const _ClosedBadge({
+    required this.ink,
+    required this.muted,
+    required this.border,
+  });
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
       decoration: BoxDecoration(
-        color: AppTheme.danger.withOpacity(0.12),
         borderRadius: BorderRadius.circular(14),
-        border:
-            Border.all(color: AppTheme.danger.withOpacity(0.35), width: 1.2),
+        border: Border.all(color: border, width: 1.2),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: const BoxDecoration(
-                color: AppTheme.danger, shape: BoxShape.circle),
-          ),
+          Icon(Icons.nightlight_round, size: 14, color: muted),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             'STÄNGT · UTANFÖR ÖPPETTIDER',
             style: TextStyle(
-              color: AppTheme.danger,
+              color: ink,
               fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.6,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.4,
             ),
           ),
         ],
@@ -271,46 +243,50 @@ class _ClosedBadge extends StatelessWidget {
 
 class _PauseBadge extends StatelessWidget {
   final String countdown;
-  const _PauseBadge({required this.countdown});
+  final Color ink;
+  final Color muted;
+  final Color border;
+  const _PauseBadge({
+    required this.countdown,
+    required this.ink,
+    required this.muted,
+    required this.border,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: AppTheme.warning.withOpacity(0.12),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-                color: AppTheme.warning.withOpacity(0.35), width: 1.2),
+            border: Border.all(color: border, width: 1.2),
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.pause_circle_outline_rounded,
-                  color: AppTheme.warning, size: 14),
-              SizedBox(width: 6),
+              Icon(Icons.pause_circle_outline_rounded, color: muted, size: 14),
+              const SizedBox(width: 6),
               Text(
                 'PAUSAD',
                 style: TextStyle(
-                  color: AppTheme.warning,
+                  color: ink,
                   fontSize: 11,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w800,
                   letterSpacing: 1.6,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 14),
-        // Stor countdown
+        const SizedBox(height: 16),
         Text(
           countdown,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 56,
             fontWeight: FontWeight.w300,
-            color: AppTheme.warning,
+            color: ink,
             letterSpacing: -1,
             height: 1.0,
           ),
@@ -319,7 +295,7 @@ class _PauseBadge extends StatelessWidget {
         Text(
           'minuter kvar',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.40),
+            color: muted,
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
@@ -331,32 +307,38 @@ class _PauseBadge extends StatelessWidget {
 
 class _ExtendChip extends StatelessWidget {
   final int minutes;
+  final Color ink;
+  final Color border;
   final VoidCallback onTap;
-  const _ExtendChip({required this.minutes, required this.onTap});
+  const _ExtendChip({
+    required this.minutes,
+    required this.ink,
+    required this.border,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: AppTheme.warning.withOpacity(0.10),
-          borderRadius: BorderRadius.circular(14),
-          border:
-              Border.all(color: AppTheme.warning.withOpacity(0.30), width: 1.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: border, width: 1.2),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.add_rounded, color: AppTheme.warning, size: 14),
+            Icon(Icons.add_rounded, color: ink, size: 14),
             const SizedBox(width: 4),
             Text(
               '$minutes min',
-              style: const TextStyle(
-                color: AppTheme.warning,
+              style: TextStyle(
+                color: ink,
                 fontSize: 13,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -368,39 +350,39 @@ class _ExtendChip extends StatelessWidget {
 
 class _OpenNowButton extends StatelessWidget {
   final bool isPaused;
+  final Color ink;
+  final Color fg;
   final VoidCallback onTap;
-  const _OpenNowButton({required this.isPaused, required this.onTap});
+  const _OpenNowButton({
+    required this.isPaused,
+    required this.ink,
+    required this.fg,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
         decoration: BoxDecoration(
-          color: AppTheme.success,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.success.withOpacity(0.40),
-              blurRadius: 24,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          color: ink,
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.storefront_rounded,
-                color: Colors.white, size: 20),
+            Icon(Icons.storefront_rounded, color: fg, size: 20),
             const SizedBox(width: 10),
             Text(
-              isPaused ? 'AVBRYT PAUS · ÖPPNA NU' : 'BYT TILL ÖPPET',
-              style: const TextStyle(
-                color: Colors.white,
+              isPaused ? 'AVBRYT PAUS · ÖPPNA NU' : 'ÖPPNA RESTAURANG',
+              style: TextStyle(
+                color: fg,
                 fontSize: 13,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.0,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
               ),
             ),
           ],
