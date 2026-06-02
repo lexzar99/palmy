@@ -6,6 +6,7 @@ import { getIO } from '../lib/socket';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { incrementDiscountUsageIfNotCounted } from '../lib/discountUsage';
+import { applyPaymentSuccess, applyPaymentFailed } from '../lib/stripeReconcile';
 
 // Rate-limit på create-intent. Tidigare var routen öppen + utan limit,
 // vilket lät en angripare minta obegränsat antal Stripe-PaymentIntents
@@ -231,6 +232,72 @@ router.post('/create-intent', createIntentLimiter, async (req, res) => {
   } catch (error) {
     console.error('Stripe error:', error);
     res.status(500).json({ error: 'Kunde inte initiera betalning' });
+  }
+});
+
+// POST /api/payments/confirm
+// SNABB klient-driven bekräftelse. När kortbetalningen lyckats i browsern
+// (stripe.confirmPayment → paymentIntent.status === 'succeeded') anropar
+// klienten denna direkt istället för att vänta på webhook/reconcile-loopen.
+// Vi hämtar intent:en från Stripe (auktoritativ källa) och kör EXAKT samma
+// logik som webhook skulle: flippa AWAITING_PAYMENT → PENDING + broadcasta
+// 'order:new' till restaurangen. Kollapsar ~60-120s fördröjning → ~1-2s.
+//
+// SÄKERHET: ingen auth (gäster måste kunna bekräfta), men endpointen agerar
+// ENDAST på Stripe-auktoritativ status — en angripare kan inte förfalska
+// betalning genom att skicka ett godtyckligt orderId. Belopps-verifikationen
+// sitter i applyPaymentSuccess. Rate-limitad mot spam.
+router.post('/confirm', createIntentLimiter, async (req, res) => {
+  try {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      res.status(503).json({ error: 'Stripe är inte konfigurerat' });
+      return;
+    }
+    const orderId = req.body?.orderId;
+    if (!orderId || typeof orderId !== 'string') {
+      res.status(400).json({ error: 'orderId saknas' });
+      return;
+    }
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, status: true, paymentStatus: true, stripePaymentIntentId: true },
+    });
+    if (!order) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+    // Redan klar (webhook/reconcile hann före) → idempotent no-op.
+    if (order.paymentStatus === 'PAID') {
+      res.json({ status: order.status, paymentStatus: 'PAID', alreadyPaid: true });
+      return;
+    }
+    if (!order.stripePaymentIntentId) {
+      res.status(409).json({ error: 'Ordern saknar en kopplad betalning' });
+      return;
+    }
+
+    const intent = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
+
+    if (intent.status === 'succeeded') {
+      const result = await applyPaymentSuccess(order.id, intent);
+      res.json({
+        status: result.status ?? 'PENDING',
+        paymentStatus: result.paymentStatus ?? 'PAID',
+        mismatch: result.mismatch ?? false,
+      });
+      return;
+    }
+    if (intent.status === 'canceled' || (intent.status === 'requires_payment_method' && intent.last_payment_error)) {
+      await applyPaymentFailed(order.id, intent);
+      res.json({ status: order.status, paymentStatus: 'FAILED' });
+      return;
+    }
+    // 'processing' / 'requires_action' → ännu inte slutförd. Klienten navigerar
+    // ändå till tracking; reconcile-loopen finaliserar.
+    res.json({ status: order.status, paymentStatus: order.paymentStatus, pending: true, intentStatus: intent.status });
+  } catch (error: any) {
+    console.error('[payments confirm] error:', error?.message || error);
+    res.status(500).json({ error: 'Kunde inte bekräfta betalningen' });
   }
 });
 

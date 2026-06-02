@@ -1331,7 +1331,7 @@ export default function CartPage() {
           restaurantSlug: cartRestaurantSlug ?? null,
           total: total,
         });
-        rememberActiveOrder(orderId);
+        rememberActiveOrder(orderId, { token: res.data?.accessToken, phone: formData.customerPhone });
       }
       clearCart();
       if (orderId) {
@@ -1448,7 +1448,20 @@ export default function CartPage() {
     clearCart();
     localStorage.removeItem("pending_order_id");
     localStorage.removeItem("pending_order_token");
-    rememberActiveOrder(orderId);
+    rememberActiveOrder(orderId, { token: storedToken, phone: formData.customerPhone });
+
+    // SNABB bekräftelse: kortbetalningen är redan 'succeeded' i Stripe, så be
+    // backend finalisera NU (AWAITING_PAYMENT → PENDING + notifiera restaurangen)
+    // istället för att vänta upp till en minut på reconcile-loopen. Detta gör
+    // att ordern når köket inom ~1-2s OCH att LiveOrderBanner (som döljer
+    // AWAITING_PAYMENT) dyker upp direkt. Icke-blockerande: timeout + catch så
+    // navigeringen aldrig fastnar — reconcile-loopen är kvar som backup.
+    try {
+      await axios.post(`${API_URL}/api/payments/confirm`, { orderId }, { timeout: 6000 });
+    } catch (confirmErr) {
+      console.warn("[cart] snabb betalnings-bekräftelse misslyckades, faller tillbaka på reconcile", confirmErr);
+    }
+
     router.push(trackUrl);
   }, [pendingOrderId, clearCart, router, formData.customerPhone, cartRestaurantSlug, total]);
 

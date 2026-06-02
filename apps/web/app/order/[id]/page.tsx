@@ -172,6 +172,21 @@ const OrderStatusPage = () => {
     return () => { clearInterval(interval); socket.disconnect(); };
   }, [orderId, fetchOrder]);
 
+  // Snabb-bekräftelse (catch-all): landar vi på en AWAITING_PAYMENT-order —
+  // t.ex. efter en Klarna/Swish/3DS-redirect, eller om cart-confirm missade —
+  // ber vi backend hämta Stripe-intent:en och finalisera DIREKT (flippa till
+  // PENDING + notifiera restaurangen) istället för att vänta upp till en minut
+  // på reconcile-loopen. Körs en gång per order; idempotent server-side.
+  const confirmTriedRef = useRef(false);
+  useEffect(() => {
+    if (!orderId || order?.status !== "AWAITING_PAYMENT" || confirmTriedRef.current) return;
+    confirmTriedRef.current = true;
+    axios
+      .post(`${API_URL}/api/payments/confirm`, { orderId }, { timeout: 6000 })
+      .then(() => fetchOrder({ silent: true }))
+      .catch((e) => console.warn("[order] snabb betalnings-bekräftelse misslyckades", e));
+  }, [orderId, order?.status, fetchOrder]);
+
   // Auto-transition from DELIVERING to DELIVERED after 12 minutes
   useEffect(() => {
     if (!order?.deliveringAt || order.status !== "DELIVERING") return;

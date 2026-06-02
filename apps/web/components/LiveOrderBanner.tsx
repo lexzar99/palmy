@@ -135,6 +135,11 @@ function getDynamicETA(order: any): string {
 const TERMINAL_STATUSES = new Set(["DELIVERED", "COMPLETED", "CANCELLED", "REJECTED"]);
 const STORAGE_KEY = "matgo_active_order_id";
 const DISMISS_KEY = "matgo_dismissed_order_id";
+// Ägar-bevis för GET /api/orders/:id. Utan dessa svarar backend 404 (PII-skydd)
+// och bannern rensar sig själv → "försvann". phone är durabelt (matchar
+// order.customerPhone), token är 30-min-fallbacken direkt efter köp.
+const TOKEN_KEY = "matgo_active_order_token";
+const PHONE_KEY = "matgo_active_order_phone";
 
 export default function LiveOrderBanner() {
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -168,7 +173,18 @@ export default function LiveOrderBanner() {
 
     const load = async () => {
       try {
-        const res = await axios.get(`${API_URL}/api/orders/${orderId}`);
+        // Skicka ägar-bevis (token/phone) så backend inte 404:ar bort ordern.
+        const qs = new URLSearchParams();
+        try {
+          const tk = localStorage.getItem(TOKEN_KEY);
+          const ph = localStorage.getItem(PHONE_KEY);
+          if (tk) qs.set("token", tk);
+          if (ph) qs.set("phone", ph);
+        } catch { }
+        const url = qs.toString()
+          ? `${API_URL}/api/orders/${orderId}?${qs.toString()}`
+          : `${API_URL}/api/orders/${orderId}`;
+        const res = await axios.get(url);
         if (cancelled) return;
         setOrder(res.data);
         if (TERMINAL_STATUSES.has(res.data.status)) {
@@ -345,9 +361,19 @@ export default function LiveOrderBanner() {
   );
 }
 
-export function rememberActiveOrder(orderId: string) {
+export function rememberActiveOrder(
+  orderId: string,
+  proof?: { token?: string | null; phone?: string | null },
+) {
   try {
     localStorage.setItem(STORAGE_KEY, orderId);
+    // Spara/uppdatera ägar-beviset så bannern kan hämta ordern utan 404. Sätt
+    // alltid (eller rensa) båda så ingen stale proof från en tidigare order
+    // hänger kvar.
+    if (proof?.token) localStorage.setItem(TOKEN_KEY, proof.token);
+    else localStorage.removeItem(TOKEN_KEY);
+    if (proof?.phone) localStorage.setItem(PHONE_KEY, proof.phone);
+    else localStorage.removeItem(PHONE_KEY);
     window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: orderId }));
   } catch { }
 }

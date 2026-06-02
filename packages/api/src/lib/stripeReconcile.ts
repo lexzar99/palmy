@@ -25,21 +25,55 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2025-02-24.acacia',
 });
 
+export type ApplyPaymentResult = {
+  ok: boolean;
+  status?: string;
+  paymentStatus?: string;
+  mismatch?: boolean;
+};
+
 /**
  * Markera order som betald + broadcast till restaurang. Identisk logik som
  * webhook-handlerns `payment_intent.succeeded`-case.
+ *
+ * Exporterad så att den snabba klient-drivna confirm-endpointen
+ * (POST /api/payments/confirm) kan köra EXAKT samma logik direkt efter att
+ * kortbetalningen lyckats — istället för att vänta på webhook/reconcile-loopen.
+ * Idempotent: webhook, reconcile och confirm kan alla landa här utan
+ * dubbelräkning (race-guards på status/RESERVED/discountUsageCounted).
  */
-async function applyPaymentSuccess(orderId: string, paymentIntent: Stripe.PaymentIntent) {
+export async function applyPaymentSuccess(orderId: string, paymentIntent: Stripe.PaymentIntent): Promise<ApplyPaymentResult> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { restaurant: { select: { name: true } }, items: true },
   });
-  if (!order) return;
+  if (!order) return { ok: false };
 
   const isAwaitingPayment = order.status === 'AWAITING_PAYMENT';
 
   // Redan PAID? Skipa — idempotent.
-  if (order.paymentStatus === 'PAID' && !isAwaitingPayment) return;
+  if (order.paymentStatus === 'PAID' && !isAwaitingPayment) {
+    return { ok: true, status: order.status, paymentStatus: order.paymentStatus };
+  }
+
+  // BELOPPS-VERIFIKATION: samma skydd som webhook-handlern. Jämför vad Stripe
+  // faktiskt drog mot orderns total så ingen kan betala mindre än totalen.
+  // Tolerans 1 öre för float-rounding. På mismatch: flagga NEEDS_REVIEW och
+  // flippa INTE PAID/PENDING (ordern når aldrig restaurangen).
+  const expectedAmount = (order as any).total; // öre
+  const receivedAmount = paymentIntent.amount_received ?? paymentIntent.amount;
+  if (Math.abs(receivedAmount - expectedAmount) > 1) {
+    console.error('[stripe] amount mismatch — order NOT marked PAID', {
+      orderId: order.id, orderNumber: order.orderNumber, expectedAmount, receivedAmount,
+    });
+    await prisma.order.update({
+      where: { id: order.id }, data: { paymentStatus: 'NEEDS_REVIEW' },
+    }).catch((e: any) => console.error('[stripe] could not flag order for review:', e?.message));
+    getIO().to('admin-room').emit('order:amount_mismatch', {
+      orderId: order.id, orderNumber: order.orderNumber, expectedAmount, receivedAmount,
+    });
+    return { ok: false, mismatch: true, status: order.status, paymentStatus: 'NEEDS_REVIEW' };
+  }
 
   const updatedOrder = await prisma.order.update({
     where: { id: order.id },
@@ -99,13 +133,14 @@ async function applyPaymentSuccess(orderId: string, paymentIntent: Stripe.Paymen
     orderNumber: order.orderNumber,
   });
 
-  console.log(`[stripe-reconcile] ✅ Markerade order ${order.orderNumber} som PAID via polling (intent ${paymentIntent.id})`);
+  console.log(`[stripe] ✅ Markerade order ${order.orderNumber} som PAID (intent ${paymentIntent.id})`);
+  return { ok: true, status: updatedOrder.status, paymentStatus: 'PAID' };
 }
 
 /**
  * Markera order som FAILED. Samma logik som webhook 'payment_intent.payment_failed'.
  */
-async function applyPaymentFailed(orderId: string, paymentIntent: Stripe.PaymentIntent) {
+export async function applyPaymentFailed(orderId: string, paymentIntent: Stripe.PaymentIntent) {
   // Hämta order först så vi kan revert:a UserDeal-reservationen.
   const failedOrder = await prisma.order.findUnique({
     where: { id: orderId },
