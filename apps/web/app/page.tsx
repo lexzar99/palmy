@@ -136,6 +136,14 @@ export default function HomePage() {
     ctaLabel?: string | null;
     ctaUrl?: string | null;
   } | null>(null);
+  // Återställ senast valda kategori vid mount (t.ex. när man backar in från en
+  // restaurang) så man inte alltid hamnar på "Alla".
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("home_cuisine");
+      if (saved) setActiveCuisine(saved);
+    } catch { /* noop */ }
+  }, []);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -668,7 +676,8 @@ export default function HomePage() {
     <section className="mb-3">
       <div className="flex items-end justify-between mb-1.5 px-1">
         <div className="min-w-0">
-          <h2 className="text-gold-gradient text-lg sm:text-xl font-black tracking-tight leading-[1.05] italic uppercase truncate">{title}</h2>
+          {/* Flat guld (ingen gradient) för högre kontrast — samma guldiga ton. */}
+          <h2 className="text-lg sm:text-xl font-black tracking-tight leading-[1.05] italic uppercase truncate" style={{ color: "#C28E2E" }}>{title}</h2>
           {!!subtitle && <p className="text-zinc-500 text-[9px] font-bold uppercase tracking-wider mt-0.5 truncate">{subtitle}</p>}
         </div>
         <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-gold-500 transition-all shrink-0 ml-3">{t("home.viewAll")}</Link>
@@ -773,13 +782,32 @@ export default function HomePage() {
         className="md:hidden sticky top-0 z-50"
         style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
-        <div className="px-4 pt-2 pb-2.5 space-y-2">
-          {/* Rad 1: varumärke + små knappar */}
-          <div className="flex items-center justify-between">
-            <Link href="/" className="text-xl font-black italic tracking-tighter" style={{ color: "var(--text-primary)" }}>
+        <div className="px-4 pt-2 pb-2 space-y-1.5">
+          {/* Rad 1: varumärke + liten leverans/hämtning-toggle + knappar.
+              Toggeln sitter mellan "Delivera" och knapparna till höger. */}
+          <div className="flex items-center justify-between gap-2">
+            <Link href="/" className="text-xl font-black italic tracking-tighter shrink-0" style={{ color: "var(--text-primary)" }}>
               Deli<span className="text-gold-500">vera</span>
             </Link>
             <div className="flex items-center gap-1.5">
+              <div className="p-0.5 rounded-lg flex items-center" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                <button
+                  onClick={() => toggleOrderType("DELIVERY")}
+                  aria-label={t("cart.deliveryType.delivery")}
+                  className="w-8 h-7 rounded-md flex items-center justify-center transition-all"
+                  style={{ backgroundColor: orderType === "DELIVERY" ? "#EAB545" : "transparent", color: orderType === "DELIVERY" ? "#000" : "var(--text-secondary)" }}
+                >
+                  <Truck size={14} />
+                </button>
+                <button
+                  onClick={() => toggleOrderType("PICKUP")}
+                  aria-label={t("cart.deliveryType.pickup")}
+                  className="w-8 h-7 rounded-md flex items-center justify-center transition-all"
+                  style={{ backgroundColor: orderType === "PICKUP" ? "#EAB545" : "transparent", color: orderType === "PICKUP" ? "#000" : "var(--text-secondary)" }}
+                >
+                  <Store size={14} />
+                </button>
+              </div>
               <div style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }} className="rounded-lg">
                 <LocaleSwitcher buttonClassName="w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90" iconSize={14} />
               </div>
@@ -802,26 +830,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Rad 2: bred leverans/hämtning-toggle med text — centrerad och tydlig
-              så man direkt ser vad man väljer. */}
-          <div className="p-1 rounded-2xl flex items-center" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-            <button
-              onClick={() => toggleOrderType("DELIVERY")}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all"
-              style={{ backgroundColor: orderType === "DELIVERY" ? "#EAB545" : "transparent", color: orderType === "DELIVERY" ? "#000" : "var(--text-secondary)", boxShadow: orderType === "DELIVERY" ? "0 4px 12px rgba(234,181,69,0.25)" : "none" }}
-            >
-              <Truck size={15} /> {t("cart.deliveryType.delivery")}
-            </button>
-            <button
-              onClick={() => toggleOrderType("PICKUP")}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all"
-              style={{ backgroundColor: orderType === "PICKUP" ? "#EAB545" : "transparent", color: orderType === "PICKUP" ? "#000" : "var(--text-secondary)", boxShadow: orderType === "PICKUP" ? "0 4px 12px rgba(234,181,69,0.25)" : "none" }}
-            >
-              <Store size={15} /> {t("cart.deliveryType.pickup")}
-            </button>
-          </div>
-
-          {/* Rad 3: adressväljare (full bredd) */}
+          {/* Rad 2: adressväljare */}
           <AddressPullDown
             currentAddress={address}
             zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
@@ -830,6 +839,19 @@ export default function HomePage() {
             cityName={detectedCityName}
             onSelect={handleQuickAddressSelect}
           />
+
+          {/* Rad 3: sök */}
+          <Link
+            href="/search"
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 border transition-all active:scale-[0.99]"
+            style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-muted)" }}
+          >
+            <Search size={14} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+            <span className="text-[12px] font-bold flex-1 truncate" style={{ color: "var(--text-secondary)" }}>{t("home.searchCta")}</span>
+            <div className="w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 shrink-0">
+              <ArrowRight size={13} />
+            </div>
+          </Link>
         </div>
       </div>
       <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 pt-3 md:pt-0">
@@ -1006,6 +1028,9 @@ export default function HomePage() {
                   key={c.label}
                   onClick={() => {
                     setActiveCuisine(c.label);
+                    // Spara vald kategori så att man hamnar tillbaka på samma
+                    // kategori när man backar in från en restaurang (router.back).
+                    try { sessionStorage.setItem("home_cuisine", c.label); } catch { /* noop */ }
                     setTimeout(() => {
                       const target = document.getElementById("restaurant-list");
                       if (target) {

@@ -24,17 +24,15 @@ import {
   MapPin,
   Home,
   Briefcase,
-  DoorOpen,
-  Bell,
   User as UserIcon,
   ParkingCircle,
-  KeyRound,
   Gift,
   AlertCircle,
   Check,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
+import AddressModal from "@/components/AddressModal";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/components/LiveOrderBanner";
 import { loadStripe } from "@stripe/stripe-js";
@@ -353,6 +351,41 @@ export default function CartPage() {
   useEffect(() => {
     loadQuickAddresses();
   }, [loadQuickAddresses]);
+
+  // Adress-modal (karta + nål) i kassan. Ersätter den inline-autocomplete:n —
+  // visar bara vald adress + "Ändra" som öppnar modalen. Zone-check körs efter.
+  const [showCartAddressModal, setShowCartAddressModal] = useState(false);
+  const handleCartAddressConfirm = (
+    addr: string,
+    type: "DELIVERY" | "PICKUP",
+    coords?: { lat: number; lng: number },
+    postalCode?: string,
+    city?: string,
+  ) => {
+    setShowCartAddressModal(false);
+    if (typeof window !== "undefined") localStorage.setItem("platform_order_type", type);
+    setOrderType(type);
+    if (type === "PICKUP") {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("platform_pickup_city", city || addr);
+        localStorage.setItem("platform_address", city || addr);
+      }
+      return;
+    }
+    // DELIVERY
+    setAddressInput(addr);
+    const street = addr.split(",")[0].trim();
+    setFormData((prev) => ({ ...prev, deliveryStreet: street, deliveryZip: postalCode || prev.deliveryZip, deliveryCity: city || prev.deliveryCity }));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("platform_address", addr);
+      if (city) localStorage.setItem("platform_city", city);
+      if (coords) localStorage.setItem("platform_coords", JSON.stringify(coords));
+    }
+    if (coords) {
+      setQuickAddresses(rememberQuickAddress({ street, zip: postalCode || undefined, city: city || undefined, latitude: coords.lat, longitude: coords.lng }));
+      checkDeliverySpecific(coords.lat, coords.lng); // zon-check som vanligt
+    }
+  };
 
   const checkDeliverySpecific = async (lat: number, lng: number) => {
     if (!currentRestaurantId) return;
@@ -1789,35 +1822,6 @@ export default function CartPage() {
             <div className="hidden lg:block mt-6 space-y-6" id="desktop-left-extras">
               <div className="p-5 rounded-[2rem] shadow-xl space-y-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
 
-                {/* Delivery instructions */}
-                {orderType === 'DELIVERY' && (
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.deliveryInstructions.label")}</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { value: 'RING_DOORBELL', label: t("cart.deliveryInstructions.ringDoorbell"), icon: Bell },
-                        { value: 'LEAVE_AT_DOOR', label: t("cart.deliveryInstructions.leaveAtDoor"), icon: DoorOpen },
-                        { value: 'MEET_OUTSIDE', label: t("cart.deliveryInstructions.meetOutside"), icon: UserIcon },
-                        { value: 'ENTER_CODE', label: t("cart.deliveryInstructions.enterCode"), icon: KeyRound },
-                      ].map(opt => (
-                        <button
-                          key={`dl-${opt.value}`}
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, deliveryInstructions: prev.deliveryInstructions === opt.value ? '' : opt.value }))}
-                          className={`flex items-center gap-2.5 px-4 py-3.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                            formData.deliveryInstructions === opt.value
-                              ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
-                              : 'bg-[var(--bg-deep)] border-[var(--border-muted)] text-zinc-600 hover:text-gold-500 hover:border-gold-500/20'
-                          }`}
-                        >
-                          <opt.icon size={14} />
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* Tips */}
                 {orderType === 'DELIVERY' && (
                   <div className="space-y-3">
@@ -1893,44 +1897,8 @@ export default function CartPage() {
                   </div>
                 )}
 
-                {/* Auto deal — titel/belopp från centraliserade välkomst-medvetna
-                    consts (autoDealTitle/autoDealAmount ovan). */}
-                {(() => {
-                  const shouldShow = !!autoDealTitle && autoDealAmount > 0 && !selectedPersonalDeal && !selectedAccountDealId;
-                  if (!shouldShow) return null;
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => setAutomaticDealDismissed((v) => !v)}
-                      className="w-full flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition-all text-left hover:brightness-110 active:scale-[0.98]"
-                      style={{
-                        backgroundColor: automaticDealDismissed ? "var(--bg-deep)" : "rgba(231,178,75,0.18)",
-                        borderColor: automaticDealDismissed ? "var(--border-muted)" : "rgba(231,178,75,0.5)",
-                      }}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all ${automaticDealDismissed ? "bg-gold-500/10 text-gold-500" : "bg-gold-500 text-zinc-950"}`}>
-                          {automaticDealDismissed ? <Tag size={16} /> : <Check size={16} strokeWidth={3} />}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
-                            {automaticDealDismissed
-                              ? t("cart.discount.autoDismissed", { title: autoDealTitle ?? "" })
-                              : t("cart.discount.autoActive", { title: autoDealTitle ?? "" })}
-                          </p>
-                          <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                            {automaticDealDismissed
-                              ? t("cart.discount.autoDismissedSub")
-                              : t("cart.discount.autoActiveSub")}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-black text-gold-500 shrink-0">
-                        -{autoDealAmount.toFixed(0)} {t("common.kr")}
-                      </span>
-                    </button>
-                  );
-                })()}
+                {/* Auto-deal-toggeln borttagen — välkomst/första-beställning-rabatten
+                    appliceras automatiskt och syns i totalsammanställningen nedan. */}
 
                 {/* Account deals */}
                 {accountDeals.length > 0 && (
@@ -2195,7 +2163,7 @@ export default function CartPage() {
                       </div>
 
 
-                       <div className="space-y-8">
+                       <div className="space-y-4">
                         {(() => {
                           // Inline-validering: vi flagga fält som har varit "rört" och nu är ogiltigt.
                           // Definieras inline för att inte behöva nya useState.
@@ -2211,21 +2179,21 @@ export default function CartPage() {
                           const okBorder = "focus:border-gold-500/40";
                           return (
                             <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                           <div className="space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                           <div className="space-y-1.5">
                               <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.name")}</label>
                               <input
                                 value={formData.customerName}
                                 onChange={e => setFormData({...formData, customerName: e.target.value})}
                                 autoComplete="name"
                                 aria-invalid={nameInvalid || undefined}
-                                className={`w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${nameInvalid ? errorBorder : okBorder}`}
+                                className={`w-full border rounded-2xl p-3.5 sm:p-4 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${nameInvalid ? errorBorder : okBorder}`}
                                 style={{ backgroundColor: "var(--bg-deep)", borderColor: nameInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
                                 placeholder={t("cart.fields.namePlaceholder")}
                               />
                               {nameInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">{t("cart.errors.nameTooShort")}</p>}
                            </div>
-                           <div className="space-y-2">
+                           <div className="space-y-1.5">
                               <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.phone")}</label>
                               <input
                                 value={formData.customerPhone}
@@ -2234,14 +2202,14 @@ export default function CartPage() {
                                 autoComplete="tel"
                                 inputMode="tel"
                                 aria-invalid={phoneInvalid || undefined}
-                                className={`w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${phoneInvalid ? errorBorder : okBorder}`}
+                                className={`w-full border rounded-2xl p-3.5 sm:p-4 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${phoneInvalid ? errorBorder : okBorder}`}
                                 style={{ backgroundColor: "var(--bg-deep)", borderColor: phoneInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
                                 placeholder="+46 70 000 00 00"
                               />
                               {phoneInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">{t("cart.errors.phoneTooShort")}</p>}
                            </div>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                            <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.email")}</label>
                            <input
                              value={formData.customerEmail}
@@ -2250,7 +2218,7 @@ export default function CartPage() {
                              autoComplete="email"
                              inputMode="email"
                              aria-invalid={emailInvalid || undefined}
-                             className={`w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${emailInvalid ? errorBorder : okBorder}`}
+                             className={`w-full border rounded-2xl p-3.5 sm:p-4 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${emailInvalid ? errorBorder : okBorder}`}
                              style={{ backgroundColor: "var(--bg-deep)", borderColor: emailInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
                              placeholder={t("cart.fields.emailPlaceholderReceipt")}
                              required
@@ -2286,82 +2254,41 @@ export default function CartPage() {
                                   </div>
                                 </div>
                               )}
-                              <div className="space-y-2 relative z-50">
+                              {/* Kompakt adress — visar bara vald adress. "Ändra"
+                                  öppnar kart-modalen (nål + sök). Zon-check körs efter. */}
+                              <div className="space-y-1.5">
                                  <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.address")}</label>
-                                 <div className="relative">
-                                   <input 
-                                     value={addressInput} 
-                                     onChange={e => handleAddressChange(e.target.value)} 
-                                     className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:outline-none transition-all pl-12 pr-12"
-                                     style={{
-                                       backgroundColor: "var(--bg-deep)",
-                                       color: "var(--text-primary)",
-                                       borderColor:
-                                         addressZoneStatus === "error"
-                                           ? "rgba(244,63,94,0.6)"
-                                         : addressZoneStatus === "ok"
-                                             ? "rgba(16,185,129,0.4)"
-                                            : "var(--border-muted)",
-                                     }}
-                                     placeholder={t("cart.fields.addressPlaceholderFull")}
-                                   />
-                                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gold-500/50" size={18} />
-                                  {addressLoading || checkingDelivery || addressZoneStatus === "checking" ? (
-                                    <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 text-gold-500 animate-spin" size={18} />
-                                  ) : addressZoneStatus === "ok" ? (
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                    </div>
-                                  ) : addressZoneStatus === "error" ? (
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center">
-                                      <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="white" strokeWidth="1.8" strokeLinecap="round"/></svg>
-                                    </div>
-                                  ) : null}
-                                </div>
+                                 <button
+                                   type="button"
+                                   onClick={() => setShowCartAddressModal(true)}
+                                   className="w-full flex items-center gap-3 rounded-2xl border p-4 text-left transition-all active:scale-[0.99]"
+                                   style={{
+                                     backgroundColor: "var(--bg-deep)",
+                                     borderColor:
+                                       addressZoneStatus === "error" ? "rgba(244,63,94,0.6)"
+                                       : addressZoneStatus === "ok" ? "rgba(16,185,129,0.4)"
+                                       : "var(--border-muted)",
+                                   }}
+                                 >
+                                   <MapPin className="text-gold-500 shrink-0" size={18} />
+                                   <span className="flex-1 min-w-0 text-sm font-bold truncate" style={{ color: addressInput ? "var(--text-primary)" : "var(--text-secondary)" }}>
+                                     {addressInput || t("cart.fields.addressPlaceholderFull")}
+                                   </span>
+                                   {(checkingDelivery || addressZoneStatus === "checking") ? (
+                                     <Loader2 className="text-gold-500 animate-spin shrink-0" size={16} />
+                                   ) : addressZoneStatus === "ok" ? (
+                                     <span className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                                       <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                     </span>
+                                   ) : null}
+                                   <span className="text-[10px] font-black uppercase tracking-widest text-gold-600 shrink-0">{t("common.edit")}</span>
+                                   <ChevronRight size={15} className="text-gold-500/70 shrink-0 -ml-1" />
+                                 </button>
                                 {addressZoneStatus === "error" && (
                                   <p className="text-[10px] font-bold text-rose-400 ml-3 mt-1">{t("cart.errors.zoneNotCoveredInline")}</p>
                                 )}
-
-                                 <AnimatePresence>
-                                   {predictions.length > 0 && (
-                                     <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="absolute left-0 right-0 top-full mt-2 rounded-2xl overflow-hidden shadow-2xl z-50" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                                       {predictions.map(pred => (
-                                         <button key={pred.place_id} type="button" onClick={() => handleAddressSelect(pred)} className="w-full text-left px-5 py-4 transition-all border-b last:border-none flex flex-col gap-1 hover:bg-[var(--bg-deep)]" style={{ borderColor: "var(--border-muted)" }}>
-                                           <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{pred.description.split(",")[0]}</span>
-                                           <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{pred.description.split(",").slice(1).join(",").trim()}</span>
-                                         </button>
-                                       ))}
-                                     </motion.div>
-                                   )}
-                                 </AnimatePresence>
                              </div>
 
-                             {/* Delivery Instructions — desktop version is in left column */}
-                             <div className="space-y-2 lg:hidden">
-                                 <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.deliveryInstructions.label")}</label>
-                                 <div className="grid grid-cols-2 gap-2">
-                                   {[
-                                     { value: 'RING_DOORBELL', label: t("cart.deliveryInstructions.ringDoorbell"), icon: Bell },
-                                     { value: 'LEAVE_AT_DOOR', label: t("cart.deliveryInstructions.leaveAtDoor"), icon: DoorOpen },
-                                    { value: 'MEET_OUTSIDE', label: t("cart.deliveryInstructions.meetOutside"), icon: UserIcon },
-                                    { value: 'ENTER_CODE', label: t("cart.deliveryInstructions.enterCode"), icon: KeyRound },
-                                  ].map(opt => (
-                                    <button
-                                      key={opt.value}
-                                      type="button"
-                                       onClick={() => setFormData(prev => ({ ...prev, deliveryInstructions: prev.deliveryInstructions === opt.value ? '' : opt.value }))}
-                                       className={`flex items-center gap-2.5 px-4 py-3.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                                         formData.deliveryInstructions === opt.value
-                                           ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
-                                          : 'bg-[var(--bg-deep)] border-[var(--border-muted)] text-zinc-600 hover:text-gold-500 hover:border-gold-500/20'
-                                       }`}
-                                     >
-                                       <opt.icon size={14} />
-                                       {opt.label}
-                                    </button>
-                                  ))}
-                                </div>
-                             </div>
                           </div>
                         )}
 
@@ -2464,42 +2391,7 @@ export default function CartPage() {
                               - bogoPreview (server-eval via /evaluate-cart) — när
                                 bogo är PURE DISCOUNT (rewardProducts tom) räknas
                                 det som "vanlig" auto-deal och är dismissable. */}
-                        {(() => {
-                          const shouldShow = !!autoDealTitle && autoDealAmount > 0 && !selectedPersonalDeal && !selectedAccountDealId;
-                          if (!shouldShow) return null;
-                          return (
-                            <button
-                              type="button"
-                              onClick={() => setAutomaticDealDismissed((v) => !v)}
-                              className="w-full flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition-all text-left hover:brightness-110 active:scale-[0.98]"
-                              style={{
-                                backgroundColor: automaticDealDismissed ? "var(--bg-deep)" : "rgba(231,178,75,0.18)",
-                                borderColor: automaticDealDismissed ? "var(--border-muted)" : "rgba(231,178,75,0.5)",
-                              }}
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all ${automaticDealDismissed ? "bg-gold-500/10 text-gold-500" : "bg-gold-500 text-zinc-950"}`}>
-                                  {automaticDealDismissed ? <Tag size={16} /> : <Check size={16} strokeWidth={3} />}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
-                                    {automaticDealDismissed
-                                      ? t("cart.discount.autoDismissed", { title: autoDealTitle ?? "" })
-                                      : t("cart.discount.autoActive", { title: autoDealTitle ?? "" })}
-                                  </p>
-                                  <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                                    {automaticDealDismissed
-                                      ? t("cart.discount.autoDismissedSub")
-                                      : t("cart.discount.autoActiveSub")}
-                                  </p>
-                                </div>
-                              </div>
-                              <span className="text-[11px] font-black text-gold-500 shrink-0">
-                                -{autoDealAmount.toFixed(0)} {t("common.kr")}
-                              </span>
-                            </button>
-                          );
-                        })()}
+                        {/* Auto-deal-toggeln borttagen — rabatten appliceras automatiskt. */}
 
                         {/* Account-deals (WELCOME / REFERRAL_*) — tydlig
                             klickbar knapp per deal istället för checkbox.
@@ -2955,6 +2847,15 @@ export default function CartPage() {
           />
         )}
       </AnimatePresence>
+
+      {/* Adress-modal (karta + nål) — öppnas från "Ändra" i kassan. */}
+      <AddressModal
+        isOpen={showCartAddressModal}
+        onClose={() => setShowCartAddressModal(false)}
+        onConfirm={handleCartAddressConfirm}
+        orderType={orderType}
+        setOrderType={setOrderType}
+      />
     </div>
   );
 }

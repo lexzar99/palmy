@@ -80,6 +80,17 @@
     touch-action: manipulation;
   }
 
+  /* PWA: förhindra iOS auto-zoom vid input-fokus. Safari zoomar in om
+     textinmatningens font-size < 16px. Tvinga ≥16px på mobil för ALLA
+     textfält (rabattkod, anteckning, adress m.m.) så det känns som en app. */
+  @media (max-width: 640px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+
   /* Mjuk scroll för iOS (momentum scrolling) */
   [data-scroll], .overflow-y-auto, .overflow-x-auto, .overflow-auto {
     -webkit-overflow-scrolling: touch;

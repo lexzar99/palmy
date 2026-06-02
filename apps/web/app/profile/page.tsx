@@ -714,8 +714,8 @@ function ProfileContent() {
   // ─── Not logged in ────────────────────────────────────────────────────────
   if (!hasPlatformSession || !user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-start px-6 pt-16 md:pt-24 pb-32" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-5">
+      <div className="min-h-screen flex flex-col items-center justify-start px-6 pt-10 md:pt-20 pb-28" style={{ backgroundColor: "var(--bg-primary)" }}>
+        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-3.5">
 
           {/* Header — kompakt */}
           <div className="text-center space-y-2">
@@ -728,8 +728,27 @@ function ProfileContent() {
             </h1>
           </div>
 
+          {/* Beställningar & support — överst så man ser sina ordrar direkt utan
+              att logga in eller scrolla. Order-historik ligger lokalt; support
+              sker via en lagd order → restaurangen. */}
+          <Link
+            href="/orders"
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl transition-all active:scale-[0.99]"
+            style={{ backgroundColor: "rgba(231,178,75,0.08)", border: "1px solid rgba(231,178,75,0.28)" }}
+          >
+            <span className="flex items-center gap-3">
+              <span className="w-9 h-9 rounded-xl bg-gold-500/15 text-gold-600 flex items-center justify-center shrink-0">
+                <History size={18} />
+              </span>
+              <span className="text-sm font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
+                {t("profile.ordersSupport")}
+              </span>
+            </span>
+            <ChevronRight size={18} className="text-gold-500" />
+          </Link>
+
           {/* Email + Password login form */}
-          <form onSubmit={handleEmailLogin} className="space-y-4">
+          <form onSubmit={handleEmailLogin} className="space-y-3">
             <div>
               <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">{t("auth.email")}</label>
               <input
@@ -739,8 +758,8 @@ function ProfileContent() {
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
                 placeholder={t("auth.emailPlaceholder")}
-                className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
-                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                className="w-full rounded-2xl py-3.5 px-5 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)", fontSize: "16px" }}
               />
             </div>
             <div>
@@ -753,8 +772,8 @@ function ProfileContent() {
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   placeholder={t("auth.passwordPlaceholder")}
-                  className="w-full rounded-2xl py-4 px-5 pr-12 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
-                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                  className="w-full rounded-2xl py-3.5 px-5 pr-12 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)", fontSize: "16px" }}
                 />
                 <button
                   type="button"
@@ -771,7 +790,7 @@ function ProfileContent() {
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60"
+              className="w-full py-4 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60"
             >
               {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : t("auth.submitLogin")}
             </button>
@@ -838,26 +857,6 @@ function ProfileContent() {
               {t("auth.createFree")}
             </Link>
           </p>
-
-          {/* Beställningar & support — funkar utan inloggning (order-historik
-              ligger lokalt; support sker via en lagd order → restaurangen). */}
-          <div className="pt-2" style={{ borderTop: "1px solid var(--border-muted)" }}>
-            <Link
-              href="/orders"
-              className="mt-4 w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl transition-all active:scale-[0.99]"
-              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
-            >
-              <span className="flex items-center gap-3">
-                <span className="w-9 h-9 rounded-xl bg-gold-500/10 text-gold-600 flex items-center justify-center">
-                  <History size={18} />
-                </span>
-                <span className="text-sm font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
-                  {t("profile.ordersSupport")}
-                </span>
-              </span>
-              <ChevronRight size={18} className="text-zinc-400" />
-            </Link>
-          </div>
         </motion.div>
       </div>
     );
