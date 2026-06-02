@@ -52,6 +52,7 @@ const restaurantSchema = z.object({
   deliveryFee: z.any().optional(),
   minOrderAmount: z.any().optional(),
   etaMinutes: z.any().optional(),
+  pickupEtaMinutes: z.any().optional(),
   // etaOverrideMinutes: admin-manuell override. Sätt null för att rensa
   // override och låta dynamiska beräkningen styra. Number = nytt override
   // i minuter (clampas server-side till 25–55).
@@ -109,6 +110,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
     baseEtaMinutes: restaurant.etaMinutes ?? ETA_DEFAULT_MINUTES, // legacy raw stored value
     etaCalculatedMinutes: restaurant.etaCalculatedMinutes ?? null, // auto från historik (null = för få ordrar)
     etaOverrideMinutes: restaurant.etaOverrideMinutes ?? null,     // admin manuell override (null = av)
+    pickupEtaMinutes: restaurant.pickupEtaMinutes ?? 10,           // avhämtningstid (min), visas bara i pickup-läge
     activeOrdersCount,
   isOpen: (() => {
     try {
@@ -468,6 +470,11 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     };
 
     if (payload.etaMinutes !== undefined) data.etaMinutes = toSafeNum(payload.etaMinutes);
+    // Avhämtningstid: clampa 5–25 min. Tomt/ogiltigt → default 10.
+    if (payload.pickupEtaMinutes !== undefined) {
+      const n = toSafeNum(payload.pickupEtaMinutes);
+      data.pickupEtaMinutes = n != null ? Math.max(5, Math.min(25, Math.round(n))) : 10;
+    }
     // Manuell override: number = sätt nytt värde (clampat 25–55), null = rensa override
     if (payload.etaOverrideMinutes !== undefined) {
       if (payload.etaOverrideMinutes === null || payload.etaOverrideMinutes === '' || payload.etaOverrideMinutes === 0) {

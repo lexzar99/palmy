@@ -1192,6 +1192,40 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           })}
         </div>}
 
+        {/* Avhämtningsläge: visa avhämtningstid + minsta order (ingen leveransavgift).
+            pickupEtaMinutes är admin-satt (default 10, clamp 5–25) och visas BARA här. */}
+        {orderType === "PICKUP" && <div className="grid grid-cols-2 mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 16px rgba(28,28,30,0.04)" }}>
+          {[
+            {
+              icon: Clock,
+              label: t("cart.deliveryType.pickup"),
+              value: `~${restaurant.pickupEtaMinutes ?? 10} ${t("menu.stats.min")}`,
+            },
+            {
+              icon: ShoppingBag,
+              label: t("menu.stats.minOrder"),
+              value: `${restaurant.minOrderAmount} kr`,
+            },
+          ].map((stat, i, arr) => {
+            const Icon = stat.icon;
+            return (
+              <div
+                key={stat.label}
+                className={`flex items-center gap-2 px-2 py-3 sm:gap-2.5 sm:px-4 sm:py-4 ${i < arr.length - 1 ? "border-r" : ""}`}
+                style={{ borderColor: "rgba(28,28,30,0.06)" }}
+              >
+                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gold-500/10 flex items-center justify-center shrink-0">
+                  <Icon size={14} className="sm:[&]:size-4 text-gold-500" strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider leading-tight break-words" style={{ color: "var(--text-secondary)" }}>{stat.label}</div>
+                  <div className="text-xs sm:text-sm font-black leading-tight mt-0.5 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{stat.value}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>}
+
         {/* ── Huvudkategori-grid: visas tills användaren väljer en kategori ── */}
         {isGridMode && (
           <div className="mb-10">
