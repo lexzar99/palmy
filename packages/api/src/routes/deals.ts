@@ -3,8 +3,53 @@ import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { evaluateDeal, formatDealForClient, isBasketDeal, isDealAvailableNow, parseDealProductIds, type CartItemForBogo } from '../lib/deals';
 import { cached } from '../lib/ttlCache';
+import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 
 const router = Router();
+
+// ── GET /api/welcome-offer — publikt välkomsterbjudande för kassans toggle ──
+// Drivs av admin → Välkomstrabatt (welcomeDealActive + mall + audience +
+// maxOrders). Visas optimistiskt i kassan; checkout validerar mot riktig
+// telefon. Query: subtotal (kr), phone (valfri), loggedIn ("1"/"0").
+router.get('/welcome-offer', async (req, res) => {
+  try {
+    const subtotalKr = Math.max(0, Number(req.query.subtotal) || 0);
+    const phone = typeof req.query.phone === 'string' ? req.query.phone.trim() : '';
+    const isLoggedIn = req.query.loggedIn === '1' || req.query.loggedIn === 'true';
+
+    const offer = await getWelcomeOffer();
+    if (!offer) return res.json({ active: false });
+
+    // Tidigare ordrar för telefonen (om angiven) — för första-N-order-gating.
+    // Räknar bort avbrutna/nekade. null = okänt (gäst utan telefon) → optimistiskt.
+    let priorOrderCount: number | null = null;
+    if (phone) {
+      priorOrderCount = await prisma.order.count({
+        where: { customerPhone: phone, status: { notIn: ['CANCELLED', 'REJECTED'] } },
+      });
+    }
+
+    const eligible = isWelcomeEligible(offer, { priorOrderCount, isLoggedIn });
+    const subtotalOre = Math.round(subtotalKr * 100);
+    const discountOre = eligible ? welcomeOfferDiscountOre(offer, subtotalOre) : 0;
+
+    res.json({
+      active: true,
+      eligible,
+      title: offer.title,
+      discountPercent: offer.discountPercent,
+      amountKr: offer.amountKr,
+      freeDelivery: offer.freeDelivery,
+      minOrderKr: offer.minOrderKr,
+      audience: offer.audience,
+      maxOrders: offer.maxOrders,
+      discountKr: discountOre / 100,
+    });
+  } catch (err) {
+    console.error('welcome-offer error:', err);
+    res.json({ active: false });
+  }
+});
 
 // Rate-limit /evaluate-cart eftersom kunden POSTar för VARJE cart-mutation
 // (lägg till/ta bort/byt antal). 60 anrop/min/IP är generöst för interaktiv

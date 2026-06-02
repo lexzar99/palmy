@@ -203,6 +203,16 @@ export default function CartPage() {
   // status är "error" (out-of-zone) men ingen ny adress valts. Nollställs
   // i handleAddressSelect så ny adress alltid triggar färsk check.
   const lastCheckedCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
+  // Välkomsterbjudande från admin (GET /api/welcome-offer). Driver kassans
+  // "FÖRSTA BESTÄLLNING"-toggle. eligible/discountKr beräknas server-side
+  // utifrån audience + första-N-order (per telefon) + inloggning.
+  const [welcomeOffer, setWelcomeOffer] = useState<{
+    active: boolean;
+    eligible: boolean;
+    title: string;
+    discountKr: number;
+    minOrderKr: number;
+  } | null>(null);
   const [showBogoPicker, setShowBogoPicker] = useState(false);
   const [showDealsModal, setShowDealsModal] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -676,10 +686,26 @@ export default function CartPage() {
   //     varukorgen; dismiss skulle dölja rabatten men inte ta bort items.
   const bogoIsPureDiscount = !!bogoPreview && (bogoPreview.rewardProducts?.length ?? 0) === 0;
   const hasUserExplicitChoice = !!selectedPersonalDeal || !!selectedAccountDealId;
+  // Välkomsterbjudandet (admin) är en avstängbar auto-deal precis som globala
+  // pure-discount-deals. Den DRIVER toggeln: om den finns prioriteras dess
+  // titel/belopp. Globala deals appliceras fortfarande (störst vinner), men
+  // toggeln visar välkomsterbjudandet när det är aktivt.
+  const welcomeDiscount = welcomeOffer && welcomeOffer.eligible ? (welcomeOffer.discountKr || 0) : 0;
   // Pure-discount-bogo respekterar dismissal-flaggan; free-item-bogo gör inte det.
   const dismissibleAutoDiscount = automaticDealDismissed
     ? 0
-    : Math.max(automaticDeal.discountAmount, bogoIsPureDiscount ? bogoDiscount : 0);
+    : Math.max(automaticDeal.discountAmount, bogoIsPureDiscount ? bogoDiscount : 0, welcomeDiscount);
+  // Toggle-källa: välkomst först (om aktivt), annars global auto-deal/bogo.
+  const autoDealAmount = Math.max(automaticDeal.discountAmount, bogoIsPureDiscount ? bogoDiscount : 0, welcomeDiscount);
+  // Titeln följer den KÄLLA som faktiskt vinner (störst belopp), så texten
+  // matchar beloppet på toggeln. Välkomst vinner toggeln när det är störst.
+  const welcomeWinsToggle =
+    welcomeDiscount > 0 &&
+    welcomeDiscount >= automaticDeal.discountAmount &&
+    welcomeDiscount >= (bogoIsPureDiscount ? bogoDiscount : 0);
+  const autoDealTitle = welcomeWinsToggle
+    ? (welcomeOffer?.title ?? null)
+    : (automaticDeal.deal?.title ?? (bogoIsPureDiscount ? bogoPreview?.dealTitle : null));
   const freeItemBogoDiscount = bogoIsPureDiscount ? 0 : bogoDiscount;
   const finalDiscount = hasUserExplicitChoice
     ? Math.max(personalDiscount, accountDealDiscount, freeItemBogoDiscount)
@@ -1069,6 +1095,37 @@ export default function CartPage() {
     }, 400);
     return () => clearTimeout(timer);
   }, [items, currentRestaurantId, setBogoChoice, t]);
+
+  // Välkomsterbjudande — hämta server-side beräknat erbjudande för kassan.
+  // subtotal + telefon (för första-N-order) + inloggning skickas med så
+  // backend kan avgöra eligibility. Debounce så telefon-typning inte hammrar.
+  useEffect(() => {
+    if (subtotal <= 0) { setWelcomeOffer(null); return; }
+    const phone = (formData.customerPhone || "").trim();
+    const timer = setTimeout(async () => {
+      try {
+        const qs = new URLSearchParams({ subtotal: String(subtotal) });
+        if (phone) qs.set("phone", phone);
+        if (user) qs.set("loggedIn", "1");
+        const res = await axios.get(`${API_URL}/api/deals/welcome-offer?${qs.toString()}`);
+        const d = res.data;
+        if (d?.active) {
+          setWelcomeOffer({
+            active: true,
+            eligible: !!d.eligible,
+            title: d.title || "Välkomsterbjudande",
+            discountKr: typeof d.discountKr === "number" ? d.discountKr : 0,
+            minOrderKr: d.minOrderKr ?? 0,
+          });
+        } else {
+          setWelcomeOffer(null);
+        }
+      } catch {
+        setWelcomeOffer(null);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [subtotal, formData.customerPhone, user]);
 
   // Auto-dismiss BOGO-lost-notice efter 8s så banner inte hänger kvar
   // permanent på sidan.
@@ -1838,10 +1895,9 @@ export default function CartPage() {
                   </div>
                 )}
 
-                {/* Auto deal */}
+                {/* Auto deal — titel/belopp från centraliserade välkomst-medvetna
+                    consts (autoDealTitle/autoDealAmount ovan). */}
                 {(() => {
-                  const autoDealTitle = automaticDeal.deal?.title ?? (bogoIsPureDiscount ? bogoPreview?.dealTitle : null);
-                  const autoDealAmount = Math.max(automaticDeal.discountAmount, bogoIsPureDiscount ? bogoDiscount : 0);
                   const shouldShow = !!autoDealTitle && autoDealAmount > 0 && !selectedPersonalDeal && !selectedAccountDealId;
                   if (!shouldShow) return null;
                   return (
@@ -2631,8 +2687,6 @@ export default function CartPage() {
                                 bogo är PURE DISCOUNT (rewardProducts tom) räknas
                                 det som "vanlig" auto-deal och är dismissable. */}
                         {(() => {
-                          const autoDealTitle = automaticDeal.deal?.title ?? (bogoIsPureDiscount ? bogoPreview?.dealTitle : null);
-                          const autoDealAmount = Math.max(automaticDeal.discountAmount, bogoIsPureDiscount ? bogoDiscount : 0);
                           const shouldShow = !!autoDealTitle && autoDealAmount > 0 && !selectedPersonalDeal && !selectedAccountDealId;
                           if (!shouldShow) return null;
                           return (
@@ -2963,6 +3017,21 @@ export default function CartPage() {
                             );
                           }
                           // Auto-källor (bara om inga user-val ovan)
+                          // Välkomsterbjudandet visas först om det är den största
+                          // auto-rabatten (= det som faktiskt dras på totalen).
+                          if (
+                            !automaticDealDismissed &&
+                            welcomeDiscount > 0 &&
+                            welcomeDiscount >= automaticDeal.discountAmount &&
+                            welcomeDiscount >= bogoDiscount
+                          ) {
+                            return (
+                              <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
+                                <span>{welcomeOffer?.title}</span>
+                                <span>-{welcomeDiscount.toFixed(0)} {t("common.sek")}</span>
+                              </div>
+                            );
+                          }
                           if (!automaticDealDismissed && bogoPreview && bogoDiscount > 0) {
                             return (
                               <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">

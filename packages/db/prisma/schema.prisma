@@ -517,6 +517,10 @@ model RestaurantSettings {
   // bakåtkompat men används INTE av ny logik.
   welcomeDealActive       Boolean   @default(false)
   welcomeDealId           String?
+  // Vem välkomstrabatten gäller i kassan + på hur många av kundens FÖRSTA
+  // ordrar den appliceras. audience: FIRST_ORDER | ALL | LOGGED_IN.
+  welcomeAudience         String    @default("FIRST_ORDER")
+  welcomeMaxOrders        Int       @default(1)
   welcomeDealAmountKr     Int       @default(50)   // legacy
   welcomeDealPercent      Int       @default(20)   // legacy
   welcomeDealMinOrderKr   Int       @default(150)  // legacy

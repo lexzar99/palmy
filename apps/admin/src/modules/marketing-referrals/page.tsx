@@ -34,6 +34,7 @@ import {
   welcomeDealQueryKey,
   type CreatePersonalDealPayload,
   type PersonalDealType,
+  type WelcomeAudience,
   type WelcomeDealSettings,
 } from "@/modules/marketing-referrals/api";
 
@@ -524,10 +525,14 @@ function UnifiedMarketingTab({
   const queryClient = useQueryClient();
   const [form, setForm] = useState<{
     dealId: string | null;
+    audience: WelcomeAudience;
+    maxOrders: number;
     couponsPerSide: number;
     maxRewardsPerInviter: number;
   }>({
     dealId: null,
+    audience: "FIRST_ORDER",
+    maxOrders: 1,
     couponsPerSide: 1,
     maxRewardsPerInviter: 20,
   });
@@ -551,6 +556,8 @@ function UnifiedMarketingTab({
       const exists = savedId != null && (settings.availableDeals ?? []).some((d) => d.id === savedId);
       setForm({
         dealId: exists ? savedId : null,
+        audience: settings.welcomeAudience ?? "FIRST_ORDER",
+        maxOrders: settings.welcomeMaxOrders ?? 1,
         couponsPerSide: settings.referralCouponsPerSide ?? 1,
         maxRewardsPerInviter: settings.referralMaxRewardsPerInviter ?? 20,
       });
@@ -598,7 +605,11 @@ function UnifiedMarketingTab({
   // när man försökte byta till en ny mall. Att bara röra welcome-fältet
   // frikopplar de två och låter en ny mall aktiveras rent.
   const handleSaveConfig = () => {
-    mutation.mutate({ welcomeDealId: form.dealId });
+    mutation.mutate({
+      welcomeDealId: form.dealId,
+      welcomeAudience: form.audience,
+      welcomeMaxOrders: form.maxOrders,
+    });
   };
 
   return (
@@ -715,6 +726,67 @@ function UnifiedMarketingTab({
             ✓ Nya kunder får: <strong>{dealHint}</strong>
           </p>
         )}
+
+        {/* Vem erbjudandet gäller i kassan + på hur många av kundens första
+            ordrar. Driver kassans toggle (via /api/welcome-offer). */}
+        <div className="mt-6 grid gap-5">
+          <div>
+            <p className="field-label mb-2">Vem gäller erbjudandet?</p>
+            <div className="flex flex-wrap gap-2">
+              {([
+                { v: "FIRST_ORDER", label: "Första beställningen" },
+                { v: "ALL", label: "Alla" },
+                { v: "LOGGED_IN", label: "Endast inloggade" },
+              ] as { v: WelcomeAudience; label: string }[]).map(({ v, label }) => {
+                const sel = form.audience === v;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, audience: v }))}
+                    className="rounded-lg border px-4 py-2 text-sm font-bold transition-all"
+                    style={{
+                      backgroundColor: sel ? "var(--accent)" : "var(--bg-secondary)",
+                      color: sel ? "var(--accent-fg)" : "var(--text-secondary)",
+                      borderColor: sel ? "var(--accent)" : "var(--border-muted)",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {form.audience !== "ALL" && (
+            <div>
+              <p className="field-label mb-2">Gäller kundens första … beställningar</p>
+              <div className="flex gap-2">
+                {[1, 2, 3].map((n) => {
+                  const sel = form.maxOrders === n;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, maxOrders: n }))}
+                      className="rounded-lg border w-12 py-2 text-sm font-bold transition-all"
+                      style={{
+                        backgroundColor: sel ? "var(--accent)" : "var(--bg-secondary)",
+                        color: sel ? "var(--accent-fg)" : "var(--text-secondary)",
+                        borderColor: sel ? "var(--accent)" : "var(--border-muted)",
+                      }}
+                    >
+                      {n}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] mt-1.5" style={{ color: "var(--text-secondary)" }}>
+                Gästers första-order räknas per telefonnummer; inloggade per konto.
+              </p>
+            </div>
+          )}
+        </div>
 
         <div className="mt-6">
           <Button

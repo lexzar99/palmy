@@ -89,6 +89,8 @@ async function getSettings() {
     referralMaxRewardsPerInviter: row.referralMaxRewardsPerInviter ?? 20,
     welcomeDealActive: row.welcomeDealActive ?? true,
     welcomeDealId: row.welcomeDealId ?? null,
+    welcomeAudience: row.welcomeAudience ?? 'FIRST_ORDER',
+    welcomeMaxOrders: row.welcomeMaxOrders ?? 1,
     welcomeDealAmountKr: row.welcomeDealAmountKr ?? 50, // legacy
     welcomeDealPercent: row.welcomeDealPercent ?? 20, // legacy
     welcomeDealMinOrderKr: row.welcomeDealMinOrderKr ?? 150, // legacy
@@ -177,6 +179,66 @@ async function snapshotWelcomeDeal(): Promise<DealSnapshot | null> {
   const settings = await getSettings();
   if (!settings.welcomeDealActive) return null;
   return snapshotDealById(settings.welcomeDealId);
+}
+
+export type WelcomeOffer = {
+  dealId: string;
+  title: string;
+  discountPercent: number | null;
+  amountKr: number | null;
+  freeDelivery: boolean;
+  minOrderKr: number;
+  audience: 'FIRST_ORDER' | 'ALL' | 'LOGGED_IN' | string;
+  maxOrders: number;
+};
+
+// Det publika välkomsterbjudandet som driver kassans toggle. Returnerar null
+// om inaktivt eller om ingen giltig mall är vald. `eligible` avgörs av
+// anroparen utifrån audience/maxOrders (se isWelcomeEligible).
+export async function getWelcomeOffer(): Promise<WelcomeOffer | null> {
+  const settings = await getSettings();
+  if (!settings.welcomeDealActive) return null;
+  const snap = await snapshotDealById(settings.welcomeDealId);
+  if (!snap) return null;
+  return {
+    dealId: snap.dealId,
+    title: snap.title,
+    discountPercent: snap.discountPercent,
+    amountKr: snap.amountKr,
+    freeDelivery: snap.freeDelivery,
+    minOrderKr: snap.minOrderKr,
+    audience: settings.welcomeAudience ?? 'FIRST_ORDER',
+    maxOrders: settings.welcomeMaxOrders ?? 1,
+  };
+}
+
+// Avgör om en kund är berättigad till välkomsterbjudandet givet kontext.
+// priorOrderCount = null betyder "okänt" (gäst-preview utan telefon) →
+// optimistiskt true (kassan visar; checkout validerar med riktig telefon).
+export function isWelcomeEligible(
+  offer: WelcomeOffer,
+  opts: { priorOrderCount?: number | null; isLoggedIn?: boolean },
+): boolean {
+  if (offer.audience === 'ALL') return true;
+  if (offer.audience === 'LOGGED_IN') {
+    if (!opts.isLoggedIn) return false;
+    return opts.priorOrderCount == null ? true : opts.priorOrderCount < offer.maxOrders;
+  }
+  // FIRST_ORDER
+  return opts.priorOrderCount == null ? true : opts.priorOrderCount < offer.maxOrders;
+}
+
+// Rabattbelopp i öre för välkomsterbjudandet (exkl. fri leverans, som
+// hanteras separat av anroparen mot deliveryFee).
+export function welcomeOfferDiscountOre(offer: WelcomeOffer, subtotalOre: number): number {
+  if (subtotalOre < offer.minOrderKr * 100) return 0;
+  let d = 0;
+  if (offer.discountPercent && offer.discountPercent > 0) {
+    d = Math.round((subtotalOre * offer.discountPercent) / 100);
+  } else if (offer.amountKr && offer.amountKr > 0) {
+    d = offer.amountKr * 100;
+  }
+  return Math.min(d, subtotalOre);
 }
 
 // Format-helper för customer-facing UI. Bygger en grammatiskt komplett
@@ -700,6 +762,8 @@ adminRouter.get('/welcome-deal', authenticate, requireSuperAdmin, async (_req, r
     res.json({
       welcomeDealActive: !!settings.welcomeDealActive,
       welcomeDealId: settings.welcomeDealId ?? null,
+      welcomeAudience: settings.welcomeAudience ?? 'FIRST_ORDER',
+      welcomeMaxOrders: settings.welcomeMaxOrders ?? 1,
       referralEnabled: !!settings.referralEnabled,
       referralDealId: settings.referralDealId ?? null,
       referralCouponsPerSide: settings.referralCouponsPerSide ?? 1,
@@ -714,6 +778,8 @@ adminRouter.get('/welcome-deal', authenticate, requireSuperAdmin, async (_req, r
 const welcomeDealUpdateSchema = z.object({
   welcomeDealActive: z.boolean().optional(),
   welcomeDealId: z.string().nullable().optional(),
+  welcomeAudience: z.enum(['FIRST_ORDER', 'ALL', 'LOGGED_IN']).optional(),
+  welcomeMaxOrders: z.number().int().min(1).max(3).optional(),
   referralEnabled: z.boolean().optional(),
   referralDealId: z.string().nullable().optional(),
   referralCouponsPerSide: z.number().int().min(1).max(10).optional(),
@@ -762,6 +828,8 @@ adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, 
     res.json({
       welcomeDealActive: !!updated.welcomeDealActive,
       welcomeDealId: updated.welcomeDealId,
+      welcomeAudience: updated.welcomeAudience ?? 'FIRST_ORDER',
+      welcomeMaxOrders: updated.welcomeMaxOrders ?? 1,
       referralEnabled: !!updated.referralEnabled,
       referralDealId: updated.referralDealId,
       referralCouponsPerSide: updated.referralCouponsPerSide,

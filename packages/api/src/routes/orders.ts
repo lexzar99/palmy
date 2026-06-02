@@ -12,6 +12,7 @@ import {
   DEFAULT_MIN_ORDER_AMOUNT,
 } from '../lib/restaurantSettings';
 import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, type CartItemForBogo } from '../lib/deals';
+import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
 import { cached } from '../lib/ttlCache';
@@ -773,6 +774,45 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
+    // ── Välkomsterbjudande (driver kassans toggle) ──────────────────────────
+    // Appliceras som auto-rabatt om aktivt, kunden är berättigad (audience +
+    // första-N-order via telefon, eller inloggad) och auto-deals inte avstängda.
+    // Konkurrerar med publika auto-deals → störst belopp vinner. Detta är vad
+    // som gör att admin-konfigurerat välkomserbjudande faktiskt syns/appliceras
+    // i gäst-kassan (matchar /api/welcome-offer som kassan läser).
+    let welcomeAppliedTitle: string | null = null;
+    let welcomeAppliedDealId: string | null = null;
+    if (!skipAutoDeals) {
+      try {
+        const welcomeOffer = await getWelcomeOffer();
+        if (welcomeOffer) {
+          const priorOrders = await prisma.order.count({
+            where: {
+              customerPhone: data.customerPhone,
+              status: { notIn: ['CANCELLED', 'REJECTED'] },
+            },
+          });
+          const eligible = isWelcomeEligible(welcomeOffer, {
+            priorOrderCount: priorOrders,
+            isLoggedIn: !!authenticatedUserId,
+          });
+          if (eligible) {
+            const welcomeTotal =
+              welcomeOfferDiscountOre(welcomeOffer, subtotal) +
+              (welcomeOffer.freeDelivery ? Math.max(0, deliveryFee) : 0);
+            if (welcomeTotal > automaticDiscountAmount) {
+              automaticDiscountAmount = welcomeTotal;
+              appliedDeal = null;
+              welcomeAppliedTitle = welcomeOffer.title;
+              welcomeAppliedDealId = welcomeOffer.dealId;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[order] welcome-offer resolve failed:', e);
+      }
+    }
+
     // Användarens EXPLICITA val (kupong-kod) vinner alltid över auto-deal —
     // även om kupongen är mindre värd. Annars kunde inte kunden "byta" från
     // en stor auto-deal till sin egen kod. Frontend visar nu auto-dealen som
@@ -786,6 +826,10 @@ router.post('/', async (req: Request, res: Response) => {
 
     if (userSentDiscountCode) {
       appliedDeal = null;
+      // Kupong-kod vinner → välkomsterbjudandet gäller inte (discountAmount
+      // = manualDiscountAmount, inte automaticDiscountAmount).
+      welcomeAppliedTitle = null;
+      welcomeAppliedDealId = null;
     } else {
       validatedCode = undefined;
     }
@@ -848,6 +892,9 @@ router.post('/', async (req: Request, res: Response) => {
         discountAmount = totalDealOre;
         appliedDeal = null;
         validatedCode = undefined;
+        // UserDeal vinner → välkomst-auto-erbjudandet gäller inte.
+        welcomeAppliedTitle = null;
+        welcomeAppliedDealId = null;
         appliedUserDealId = userDeal.id;
         appliedUserDealAmountKr = Math.round(totalDealOre / 100);
       }
@@ -1012,8 +1059,8 @@ router.post('/', async (req: Request, res: Response) => {
         deliveryInstructions: data.deliveryInstructions || null,
         note: data.note || null,
         discountCode: validatedCode || null,
-        appliedDealId: appliedDeal?.id || null,
-        appliedDealTitle: appliedDeal?.title || null,
+        appliedDealId: appliedDeal?.id || welcomeAppliedDealId || null,
+        appliedDealTitle: appliedDeal?.title || welcomeAppliedTitle || null,
         userDealId: appliedUserDealId,
         userDealAmountKr: appliedUserDealAmountKr,
         discountAmount,

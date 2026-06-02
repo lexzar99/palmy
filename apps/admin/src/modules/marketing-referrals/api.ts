@@ -13,11 +13,16 @@ export interface AvailableDeal {
   validUntil: string | null;
 }
 
+export type WelcomeAudience = "FIRST_ORDER" | "ALL" | "LOGGED_IN";
+
 export interface WelcomeDealSettings {
   welcomeDealActive: boolean;
   // Welcome-deal pekar nu på en Personal Template-Deal (samma pattern
   // som referral). Inga hårdkodade kr/percent/days-fält.
   welcomeDealId: string | null;
+  // Vem erbjudandet gäller i kassan + på hur många av kundens första ordrar.
+  welcomeAudience?: WelcomeAudience;
+  welcomeMaxOrders?: number;
   referralEnabled: boolean;
   referralDealId: string | null;
   referralCouponsPerSide: number;
