@@ -41,9 +41,10 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
+  remove_alpha_ios: true
   image_path: "assets/icon/app_icon.png"
-  adaptive_icon_background: "#0E1628"
+  adaptive_icon_background: "#EEAE3C"
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
   min_sdk_android: 21
 

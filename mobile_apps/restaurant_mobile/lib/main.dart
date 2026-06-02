@@ -323,7 +323,7 @@ class _MainShellState extends State<MainShell> {
             ),
             child: const Center(
               child: Text(
-                'M',
+                'L',
                 style: TextStyle(
                   color: AppTheme.ink,
                   fontSize: 24,

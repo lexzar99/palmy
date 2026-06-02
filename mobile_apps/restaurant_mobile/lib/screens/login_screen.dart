@@ -96,38 +96,26 @@ class _LoginScreenState extends State<LoginScreen> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Stor logo
+                          // Levera Business-logga
                           Center(
                             child: Container(
-                              width: 96,
-                              height: 96,
                               decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    AppTheme.emberSoft,
-                                    AppTheme.ember,
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
                                 borderRadius: BorderRadius.circular(28),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppTheme.ember.withOpacity(0.38),
+                                    color: AppTheme.ember.withOpacity(0.30),
                                     blurRadius: 30,
                                     offset: const Offset(0, 12),
                                   ),
                                 ],
                               ),
-                              child: const Center(
-                                child: Text(
-                                  'M',
-                                  style: TextStyle(
-                                    color: AppTheme.ink,
-                                    fontSize: 44,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -2,
-                                  ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(28),
+                                child: Image.asset(
+                                  'assets/icon/levera_logo.png',
+                                  width: 116,
+                                  height: 116,
+                                  fit: BoxFit.cover,
                                 ),
                               ),
                             ),

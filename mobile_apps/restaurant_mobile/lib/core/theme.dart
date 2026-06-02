@@ -2,31 +2,29 @@ import 'package:flutter/material.dart';
 
 /// Levera Business — "Ember Studio" redesign.
 ///
-/// Guld-accent (#FF9D45) på en ren vit (light) eller varm ink-svart (dark)
-/// bakgrund. Light-temat är medvetet rent/neutralt vitt — guldet är enda
-/// värmen. Editorial typography med större hierarki. Behåller alla legacy
-/// const-namn (gold, brandGold, deepSea, etc.) för bakåtkomp.
+/// Levera Business — guld-accent (#E7B24B) på rent off-white (light) eller
+/// neutral svärta (dark), enligt Levera Brand Identity Guide v1.0. Guldskala
+/// #F4D086 / #E7B24B / #C28E2E. Light är rent/neutralt — guldet är enda värmen.
+/// Behåller alla legacy const-namn (gold, brandGold, deepSea, etc.) för bakåtkomp.
 class AppTheme {
   // ── Dark — warm ink ────────────────────────────────────────────────────────
-  static const Color midnight = Color(0xFF0B0907); // bg-page (warm near-black)
-  static const Color storm = Color(0xFF110D0A); // bg-primary
-  static const Color deepSea = Color(0xFF181310); // bg-panel (warm)
-  static const Color steel = Color(0xFF221A15); // bg-panel-elevated
+  static const Color midnight = Color(0xFF09090B); // bg-page (neutral svärta)
+  static const Color storm = Color(0xFF0E0E10); // bg-primary
+  static const Color deepSea = Color(0xFF18181B); // bg-panel (Levera dark yta)
+  static const Color steel = Color(0xFF202024); // bg-panel-elevated
 
-  // ── Light — clean white ─────────────────────────────────────────────────────
-  static const Color paper = Color(0xFFFFFFFF);
-  static const Color mist = Color(0xFFF7F8FA); // clean off-white (neutral)
-  static const Color frost = Color(0xFFEDEFF2); // panel-muted light (neutral)
-  static const Color ink =
-      Color(0xFF18191D); // headline text (neutral near-black)
-  static const Color mutedInk =
-      Color(0xFF6B7280); // muted body text (neutral gray)
+  // ── Light — Levera off-white ────────────────────────────────────────────────
+  static const Color paper = Color(0xFFFFFFFF); // Yta/Kort
+  static const Color mist = Color(0xFFFCFCF9); // BG/Primär (off-white)
+  static const Color frost = Color(0xFFF5F5F2); // BG/Djup (subtila sektioner)
+  static const Color ink = Color(0xFF1C1C1E); // Text/Primär
+  static const Color mutedInk = Color(0xFF6E6E73); // Text/Sekundär
 
-  // ── Accent — warm amber ("ember") ──────────────────────────────────────────
-  // Legacy names kept (gold/lightGold/goldAccent/brandGold) – pointing at amber.
-  static const Color ember = Color(0xFFFF9D45);
-  static const Color emberDeep = Color(0xFFE07A1F);
-  static const Color emberSoft = Color(0xFFFFBE7A);
+  // ── Accent — Levera guldskala ("ember"-alias bibehållet) ────────────────────
+  // Legacy names kept (gold/lightGold/goldAccent/brandGold) – pekar på guldet.
+  static const Color ember = Color(0xFFE7B24B); // Gold/Primär — märke, CTA, accent
+  static const Color emberDeep = Color(0xFFC28E2E); // Gold/Djup — hover, gradient-botten
+  static const Color emberSoft = Color(0xFFF4D086); // Gold/Highlight — glow, ljusa stopp
 
   static const Color gold = ember; // legacy alias
   static const Color goldAccent = emberSoft; // legacy alias
@@ -36,8 +34,8 @@ class AppTheme {
   /// Pickup-accent. Warm amber.
   static const Color brandGold = ember;
   static const Color brandGoldSoft = emberSoft;
-  static const Color creamBg = Color(0x14FF9D45);
-  static const Color creamPill = Color(0x26FF9D45);
+  static const Color creamBg = Color(0x14E7B24B);
+  static const Color creamPill = Color(0x26E7B24B);
 
   /// Delivery-accent. Cool sky för semantisk skillnad.
   static const Color brandBlue = Color(0xFF38BDF8);
@@ -45,10 +43,10 @@ class AppTheme {
   static const Color blueTintPill = Color(0x2638BDF8);
 
   // ── Status ────────────────────────────────────────────────────────────────
-  static const Color success = Color(0xFF34D399); // emerald
-  static const Color danger = Color(0xFFFB7185); // coral
-  static const Color warning = Color(0xFFFBBF24);
-  static const Color info = Color(0xFF60A5FA);
+  static const Color success = Color(0xFF16A34A); // grön — bekräftat/levererat
+  static const Color danger = Color(0xFFDC2626); // röd — fel/ångra
+  static const Color warning = Color(0xFFFF7A00); // orange — obs/kampanj
+  static const Color info = Color(0xFF2563EB); // blå — info/länkar
   static const Color lavender = Color(0xFFC084FC);
 
   // Legacy aliases
@@ -69,13 +67,13 @@ class AppTheme {
   static LinearGradient shellGradient(BuildContext context) {
     if (isDark(context)) {
       return const LinearGradient(
-        colors: [Color(0xFF0B0907), Color(0xFF120D09)],
+        colors: [Color(0xFF09090B), Color(0xFF101013)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
     }
     return const LinearGradient(
-      colors: [Color(0xFFFFFFFF), Color(0xFFF4F5F7)],
+      colors: [Color(0xFFFCFCF9), Color(0xFFF5F5F2)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
@@ -90,7 +88,7 @@ class AppTheme {
   }
 
   static Color mutedColor(BuildContext context) {
-    return isDark(context) ? const Color(0xFFA89A8C) : mutedInk;
+    return isDark(context) ? const Color(0xFF9C9CA3) : mutedInk;
   }
 
   static Color faintColor(BuildContext context) {
@@ -341,7 +339,7 @@ class AppTheme {
   static TextTheme _buildTextTheme(TextTheme base, Brightness brightness) {
     final bodyColor = brightness == Brightness.dark ? paper : ink;
     final secondary =
-        brightness == Brightness.dark ? const Color(0xFFA89A8C) : mutedInk;
+        brightness == Brightness.dark ? const Color(0xFF9C9CA3) : mutedInk;
 
     return base.copyWith(
       displayLarge: base.displayLarge?.copyWith(
@@ -443,7 +441,7 @@ class AppTheme {
     final fill = isDarkMode ? steel : paper;
     final border =
         isDarkMode ? Colors.white.withOpacity(0.08) : ink.withOpacity(0.08);
-    final labelColor = isDarkMode ? const Color(0xFFA89A8C) : mutedInk;
+    final labelColor = isDarkMode ? const Color(0xFF9C9CA3) : mutedInk;
 
     return InputDecorationTheme(
       filled: true,
