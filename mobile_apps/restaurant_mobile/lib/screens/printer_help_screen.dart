@@ -106,7 +106,8 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = AppTheme.isDark(context);
+    final ink = isDark ? Colors.white : AppTheme.ink;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: AppBackdrop(
@@ -114,33 +115,50 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 12, 16, 0),
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
                 child: Row(
                   children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.arrow_back_rounded),
+                    _CircleButton(
+                      icon: Icons.arrow_back_rounded,
+                      onTap: () => Navigator.pop(context),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        'Felsökning skrivare',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.4,
-                          color: isDark ? Colors.white : AppTheme.ink,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'HJÄLP',
+                            style: TextStyle(
+                              color: AppTheme.mutedColor(context),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Felsökning skrivare',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.5,
+                              color: ink,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    TextButton.icon(
-                      onPressed: () => Navigator.pushReplacement(
+                    const SizedBox(width: 8),
+                    _CircleButton(
+                      icon: Icons.settings_rounded,
+                      onTap: () => Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
                             builder: (_) => const PrintSettingsScreen()),
                       ),
-                      icon: const Icon(Icons.settings_rounded, size: 18),
-                      label: const Text('Inställningar'),
                     ),
                   ],
                 ),
@@ -149,10 +167,10 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
                   children: [
-                    _buildIntroCard(isDark),
-                    const SizedBox(height: 20),
+                    _buildIntroCard(context, isDark, ink),
+                    const SizedBox(height: 18),
                     for (final section in _sections) ...[
-                      _buildSection(section, isDark),
+                      _buildSection(context, section, isDark, ink),
                       const SizedBox(height: 12),
                     ],
                   ],
@@ -165,18 +183,18 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
     );
   }
 
-  Widget _buildIntroCard(bool isDark) {
+  Widget _buildIntroCard(BuildContext context, bool isDark, Color ink) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.ember.withOpacity(0.10),
+        color: AppTheme.faintColor(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.ember.withOpacity(0.30)),
+        border: Border.all(color: AppTheme.borderColor(context)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.auto_fix_high_rounded, color: AppTheme.ember),
+          Icon(Icons.auto_fix_high_rounded, color: ink, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -184,18 +202,16 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
               children: [
                 Text(
                   'Appen försöker automatiskt återansluta',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : AppTheme.ink),
+                  style: TextStyle(fontWeight: FontWeight.w700, color: ink),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Vid första misslyckande väntar vi 1,5 sek och försöker igen. Om vi fortfarande inte når skrivaren ser du detta meddelande — följ stegen nedan.',
                   style: TextStyle(
-                      fontSize: 13,
-                      color: isDark
-                          ? Colors.white.withOpacity(0.75)
-                          : AppTheme.mutedInk),
+                    fontSize: 13,
+                    height: 1.4,
+                    color: AppTheme.mutedColor(context),
+                  ),
                 ),
               ],
             ),
@@ -205,19 +221,17 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
     );
   }
 
-  Widget _buildSection(_HelpSection section, bool isDark) {
+  Widget _buildSection(
+      BuildContext context, _HelpSection section, bool isDark, Color ink) {
     final isExpanded = _expanded == section.category;
-    final accent = AppTheme.ember;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppTheme.deepSea
-            : AppTheme.mist,
+        color: AppTheme.panelColor(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isExpanded ? accent : Colors.transparent,
-          width: isExpanded ? 1.5 : 0,
+          color: isExpanded ? ink : AppTheme.borderColor(context),
+          width: isExpanded ? 1.5 : 1,
         ),
       ),
       child: Column(
@@ -236,10 +250,11 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: accent.withOpacity(0.12),
+                      color: AppTheme.faintColor(context),
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.borderColor(context)),
                     ),
-                    child: Icon(section.icon, color: accent, size: 22),
+                    child: Icon(section.icon, color: ink, size: 22),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -248,7 +263,7 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : AppTheme.ink,
+                        color: ink,
                       ),
                     ),
                   ),
@@ -256,9 +271,7 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
                     isExpanded
                         ? Icons.expand_less_rounded
                         : Icons.expand_more_rounded,
-                    color: isDark
-                        ? Colors.white.withOpacity(0.55)
-                        : AppTheme.mutedInk,
+                    color: AppTheme.mutedColor(context),
                   ),
                 ],
               ),
@@ -281,7 +294,7 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
                             height: 22,
                             margin: const EdgeInsets.only(top: 2, right: 12),
                             decoration: BoxDecoration(
-                              color: accent.withOpacity(0.18),
+                              color: ink,
                               shape: BoxShape.circle,
                             ),
                             child: Center(
@@ -290,7 +303,7 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w800,
-                                  color: accent,
+                                  color: isDark ? AppTheme.ink : Colors.white,
                                 ),
                               ),
                             ),
@@ -316,19 +329,16 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withOpacity(0.04)
-                            : Colors.black.withOpacity(0.04),
+                        color: AppTheme.faintColor(context),
                         borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.borderColor(context)),
                       ),
                       child: Text(
                         section.footerNote!,
                         style: TextStyle(
                           fontSize: 12.5,
                           fontStyle: FontStyle.italic,
-                          color: isDark
-                              ? Colors.white.withOpacity(0.7)
-                              : AppTheme.mutedInk,
+                          color: AppTheme.mutedColor(context),
                         ),
                       ),
                     ),
@@ -337,6 +347,39 @@ class _PrinterHelpScreenState extends State<PrinterHelpScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _CircleButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _CircleButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: AppTheme.faintColor(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.borderColor(context)),
+          ),
+          child: Icon(
+            icon,
+            color: isDark ? Colors.white : AppTheme.ink,
+            size: 20,
+          ),
+        ),
       ),
     );
   }
