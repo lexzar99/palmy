@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -146,6 +148,19 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
     Navigator.of(context).pop();
   }
 
+  List<String> get _allergens {
+    final raw = widget.order.allergens;
+    if (raw == null || raw.isEmpty || raw == '[]') return const [];
+    try {
+      return (jsonDecode(raw) as List)
+          .map((item) => item.toString())
+          .where((item) => item.trim().isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [raw];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final order = widget.order;
@@ -153,16 +168,15 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
     final ink = isDark ? Colors.white : AppTheme.ink;
     final muted = AppTheme.mutedColor(context);
     final accent = OrderUi.colorFor(order);
-    final isPickup = order.type == 'PICKUP';
 
-    final hasAddress = order.type == 'DELIVERY' && order.deliveryStreet != null;
     final hasInstr = order.deliveryInstructions?.isNotEmpty == true;
     final hasNote = order.note?.isNotEmpty == true;
+    final allergens = _allergens;
 
     final eyebrow = TextStyle(
-      fontSize: 12,
+      fontSize: 11,
       fontWeight: FontWeight.w800,
-      letterSpacing: 1.6,
+      letterSpacing: 1.2,
       color: muted,
     );
 
@@ -179,119 +193,84 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
                     children: [
-                      // Typ + tid
+                      // Hero: typ-pill + datum
                       Row(
                         children: [
+                          _TypePill(order: order, accent: accent),
+                          const SizedBox(width: 10),
                           Text(
-                              order.scheduledFor != null
-                                  ? 'FÖRBESTÄLLNING'
-                                  : (isPickup ? 'AVHÄMTNING' : 'LEVERANS'),
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.2,
-                                color: accent,
-                              )),
-                          const Spacer(),
-                          Text(OrderUi.formatTime(order.createdAt),
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: muted,
-                              )),
+                            OrderUi.formatDateTime(order.createdAt),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: muted,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 6),
-                      // Ordernummer — normal storlek, fint placerad.
-                      Text(
-                        '#${order.orderNumber}',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                          color: ink,
-                        ),
+                      // Ordernummer + total
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '#${order.orderNumber}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.5,
+                                color: ink,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            OrderUi.formatCurrency(order.total),
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.3,
+                              color: ink,
+                            ),
+                          ),
+                        ],
                       ),
 
                       _rule(context),
 
-                      // Kund
-                      Text(
-                        order.customerName,
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.3,
-                          color: ink,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _ContactLine(
-                        icon: Icons.phone_rounded,
-                        text: order.customerPhone,
-                        color: ink,
-                        muted: muted,
-                        onTap: () {
-                          Clipboard.setData(
-                              ClipboardData(text: order.customerPhone));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              behavior: SnackBarBehavior.floating,
-                              content:
-                                  Text('Nummer kopierat: ${order.customerPhone}'),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                      ),
-                      if (hasAddress) ...[
-                        const SizedBox(height: 6),
-                        _ContactLine(
-                          icon: Icons.location_on_outlined,
-                          text:
-                              '${order.deliveryStreet}, ${order.deliveryZip ?? ''} ${order.deliveryCity ?? ''}'
-                                  .trim(),
-                          color: muted,
-                          muted: muted,
-                        ),
-                      ],
+                      // Kund — namn + telefon + adress, ring-knapp till höger
+                      _CustomerBlock(order: order, ink: ink, muted: muted),
 
-                      // Meddelande
-                      if (hasInstr || hasNote) ...[
-                        _rule(context),
-                        Text('MEDDELANDE', style: eyebrow),
-                        if (hasInstr) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            OrderUi.deliveryInstructionLabel(
-                                order.deliveryInstructions),
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              height: 1.35,
-                              color: ink,
-                            ),
-                          ),
-                        ],
-                        if (hasNote) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            order.note!,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              height: 1.35,
-                              color: ink,
-                            ),
-                          ),
-                        ],
+                      // Meddelande / instruktioner / allergener (boxad callout)
+                      if (hasInstr || hasNote || allergens.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        _MessageCallout(
+                          order: order,
+                          allergens: allergens,
+                          ink: ink,
+                        ),
                       ],
 
                       _rule(context),
 
                       // Beställning (kvitto)
-                      Text('BESTÄLLNING', style: eyebrow),
-                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Text('BESTÄLLNING', style: eyebrow),
+                          const Spacer(),
+                          Text(
+                            '${order.items.fold<int>(0, (s, i) => s + i.quantity)} st',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
                       ...List.generate(order.items.length, (i) {
                         return _ReceiptItem(
                           item: order.items[i],
@@ -426,49 +405,254 @@ class _IconButton extends StatelessWidget {
   }
 }
 
-// ── Kontaktrad (telefon / adress) ───────────────────────────────────────────
-class _ContactLine extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color color;
+// ── Typ-pill (leverans/avhämtning/förbeställning) ────────────────────────────
+class _TypePill extends StatelessWidget {
+  final OrderModel order;
+  final Color accent;
+  const _TypePill({required this.order, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    final isPickup = order.type == 'PICKUP';
+    final isPre = order.scheduledFor != null;
+    final label =
+        isPre ? 'FÖRBESTÄLLNING' : (isPickup ? 'AVHÄMTNING' : 'LEVERANS');
+    final icon = isPre
+        ? Icons.schedule_rounded
+        : (isPickup
+            ? Icons.shopping_bag_rounded
+            : Icons.delivery_dining_rounded);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: accent, size: 14),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: accent,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Kund: namn + telefon + adress, ring-knapp till höger ─────────────────────
+class _CustomerBlock extends StatelessWidget {
+  final OrderModel order;
+  final Color ink;
   final Color muted;
-  final VoidCallback? onTap;
-  const _ContactLine({
-    required this.icon,
-    required this.text,
-    required this.color,
+  const _CustomerBlock({
+    required this.order,
+    required this.ink,
     required this.muted,
-    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final row = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final hasAddress =
+        order.type == 'DELIVERY' && order.deliveryStreet != null;
+    return Row(
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: Icon(icon, size: 17, color: muted),
-        ),
-        const SizedBox(width: 10),
         Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 15.5,
-              fontWeight: FontWeight.w600,
-              height: 1.3,
-              color: color,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                order.customerName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.3,
+                  color: ink,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                order.customerPhone,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: muted,
+                ),
+              ),
+              if (hasAddress) ...[
+                const SizedBox(height: 3),
+                Text(
+                  '${order.deliveryStreet}, ${order.deliveryZip ?? ''} ${order.deliveryCity ?? ''}'
+                      .trim(),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: order.customerPhone));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  behavior: SnackBarBehavior.floating,
+                  content: Text('Nummer kopierat: ${order.customerPhone}'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: ink.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(Icons.phone_rounded, color: ink, size: 20),
             ),
           ),
         ),
       ],
     );
-    if (onTap == null) return row;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: row),
+  }
+}
+
+// ── Meddelande / instruktioner / allergener (boxad callout) ──────────────────
+class _MessageCallout extends StatelessWidget {
+  final OrderModel order;
+  final List<String> allergens;
+  final Color ink;
+  const _MessageCallout({
+    required this.order,
+    required this.allergens,
+    required this.ink,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = AppTheme.mutedColor(context);
+    final hasInstr = order.deliveryInstructions?.isNotEmpty == true;
+    final hasNote = order.note?.isNotEmpty == true;
+    final hasAllergens = allergens.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: muted.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border(left: BorderSide(color: muted, width: 4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasInstr)
+            _NoteRow(
+              icon: Icons.directions_walk_rounded,
+              color: muted,
+              text: OrderUi.deliveryInstructionLabel(
+                  order.deliveryInstructions),
+              textColor: ink,
+            ),
+          if (hasNote) ...[
+            if (hasInstr) const SizedBox(height: 10),
+            _NoteRow(
+              icon: Icons.chat_bubble_outline_rounded,
+              color: muted,
+              text: order.note!,
+              textColor: ink,
+            ),
+          ],
+          if (hasAllergens) ...[
+            if (hasInstr || hasNote) const SizedBox(height: 12),
+            const Text(
+              'ALLERGENER',
+              style: TextStyle(
+                color: AppTheme.danger,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: allergens
+                  .map((a) => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: AppTheme.danger.withOpacity(0.14),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          a,
+                          style: const TextStyle(
+                            color: AppTheme.danger,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _NoteRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String text;
+  final Color textColor;
+  const _NoteRow({
+    required this.icon,
+    required this.color,
+    required this.text,
+    required this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: textColor,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
