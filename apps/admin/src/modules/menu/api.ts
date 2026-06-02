@@ -5,6 +5,8 @@ export interface RestaurantRef {
   name: string;
   slug: string;
   city?: string | null;
+  // Bild för den virtuella "Erbjudanden"-tilen (sätts i Main categories-fliken).
+  offersImageUrl?: string | null;
 }
 
 export interface CategoryRecord {
@@ -83,6 +85,10 @@ export const menuGroupsQueryKey = (restaurantId: string | null) => ["menu", "ext
 export const menuMainCategoriesQueryKey = (restaurantId: string | null) => ["menu", "main-categories", restaurantId] as const;
 
 export const getMenuRestaurants = () => apiGet<RestaurantRef[]>("/restaurants");
+
+// Uppdatera restaurang-fält (används för Erbjudande-tilens bild i menyfliken).
+export const updateRestaurant = (id: string, payload: Partial<RestaurantRef> & Record<string, unknown>) =>
+  apiPatch<RestaurantRef>(`/restaurants/${id}`, payload);
 
 export const getCategories = (restaurantId: string) =>
   apiGet<CategoryRecord[]>(`/admin/categories?restaurantId=${restaurantId}&includeGlobal=auto`);

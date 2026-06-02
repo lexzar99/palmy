@@ -35,6 +35,7 @@ import {
   updateExtraGroup,
   updateMainCategory,
   updateProduct,
+  updateRestaurant,
   type CategoryRecord,
   type ExtraGroupRecord,
   type MainCategoryRecord,
@@ -1299,6 +1300,26 @@ export function MenuPage() {
 
   const selectedRestaurant = restaurants.data?.find((restaurant) => restaurant.id === activeRestaurantId) || null;
 
+  // Erbjudande-tilens bild lagras på restaurangen (offersImageUrl). Tilen i
+  // kund-menyn genereras automatiskt från rabatterade produkter; här väljer
+  // admin dess bild precis som för vanliga huvudkategorier.
+  const menuQueryClient = useQueryClient();
+  const { showToast: showMenuToast } = useToast();
+  const offersImageMutation = useMutation({
+    mutationFn: (offersImageUrl: string | null) => updateRestaurant(activeRestaurantId!, { offersImageUrl }),
+    onMutate: (offersImageUrl: string | null) => {
+      // Optimistisk uppdatering så bilden syns direkt i fältet.
+      menuQueryClient.setQueryData<RestaurantRef[]>(menuRestaurantsQueryKey, (prev) =>
+        (prev || []).map((r) => (r.id === activeRestaurantId ? { ...r, offersImageUrl } : r)),
+      );
+    },
+    onSuccess: async () => {
+      await menuQueryClient.invalidateQueries({ queryKey: menuRestaurantsQueryKey });
+      showMenuToast({ type: "success", message: "Erbjudande-bild sparad" });
+    },
+    onError: () => showMenuToast({ type: "error", message: "Kunde inte spara erbjudande-bilden" }),
+  });
+
   const filteredCategories = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
     return (categories.data || []).filter((category) => !lowerQuery || `${category.name} ${category.description || ""}`.toLowerCase().includes(lowerQuery));
@@ -1397,6 +1418,45 @@ export function MenuPage() {
 
         {tab === "main-categories" ? (
           <div className="mt-5 grid gap-2">
+            {activeRestaurantId ? (
+              <Surface className="px-5 py-5">
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-black uppercase tracking-[-0.01em]">Erbjudande-tile</p>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Bild för den automatiska &quot;Erbjudanden&quot;-rutan i kund-menyns kategori-väljare.
+                    Rutan visas när restaurangen har rabatterade produkter — välj dess bild här,
+                    precis som för en vanlig huvudkategori.
+                  </p>
+                </div>
+                <div className="mt-3 flex items-start gap-4">
+                  {selectedRestaurant?.offersImageUrl ? (
+                    <img src={selectedRestaurant.offersImageUrl} alt="" className="h-20 w-32 flex-shrink-0 rounded-lg object-cover" />
+                  ) : (
+                    <div className="flex h-20 w-32 flex-shrink-0 items-center justify-center rounded-lg bg-[rgba(255,255,255,0.05)] text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
+                      Ingen bild
+                    </div>
+                  )}
+                  <div className="max-w-xs flex-1">
+                    <ImageUploadField
+                      label="Erbjudande-bild (16:9 eller 1:1, designad bild med inbakad text)"
+                      value={selectedRestaurant?.offersImageUrl || ""}
+                      onChange={(url) => offersImageMutation.mutate(url || null)}
+                      kind="main-category"
+                      restaurantId={activeRestaurantId}
+                    />
+                    {selectedRestaurant?.offersImageUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => offersImageMutation.mutate(null)}
+                        className="mt-2 text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)] hover:text-[#f87171]"
+                      >
+                        Ta bort bild
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </Surface>
+            ) : null}
             {filteredMainCategories.length === 0 ? (
               <EmptyState title="No main categories yet" />
             ) : filteredMainCategories.map((mc) => {

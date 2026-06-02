@@ -48,6 +48,7 @@ const restaurantSchema = z.object({
   adminEmail: z.string().optional(),
   imageUrl: z.string().nullable().optional(),
   heroImageUrl: z.string().nullable().optional(),
+  offersImageUrl: z.string().nullable().optional(),
   deliveryFee: z.any().optional(),
   minOrderAmount: z.any().optional(),
   etaMinutes: z.any().optional(),
@@ -99,6 +100,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
     organizationNumber: restaurant.organizationNumber ?? null,
     imageUrl: restaurant.imageUrl,
     heroImageUrl: restaurant.heroImageUrl,
+    offersImageUrl: restaurant.offersImageUrl ?? null,
     rating: restaurant.rating ?? 4.6,
     ratingCount: restaurant.ratingCount ?? 0,
     deliveryFee: fromOre(restaurant.deliveryFee),
@@ -457,6 +459,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     // Pictures
     if (payload.imageUrl !== undefined) data.imageUrl = payload.imageUrl;
     if (payload.heroImageUrl !== undefined) data.heroImageUrl = payload.heroImageUrl;
+    if (payload.offersImageUrl !== undefined) data.offersImageUrl = payload.offersImageUrl || null;
     
     // Numbers - with safety against NaN
     const toSafeNum = (v: any) => {

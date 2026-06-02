@@ -571,6 +571,10 @@ model Restaurant {
   organizationNumber   String?     // ex: "559123-4567"
   imageUrl       String?
   heroImageUrl   String?
+  // Bild för den virtuella "Erbjudanden"-tilen i menyns huvudkategori-switcher.
+  // Tilen genereras automatiskt från rabatterade produkter och har ingen egen
+  // DB-rad → bilden lagras här per restaurang. null = ingen bild (visar fallback).
+  offersImageUrl String?
   rating         Float?       @default(4.6)
   ratingCount    Int?         @default(120)
   deliveryFee    Int          @default(0)

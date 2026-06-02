@@ -80,6 +80,7 @@ router.get('/categories', async (req, res) => {
           id: true,
           slug: true,
           city: true,
+          offersImageUrl: true,
           city_relation: { select: { slug: true, name: true } },
         },
       });
@@ -332,7 +333,7 @@ router.get('/categories', async (req, res) => {
       mainCategoriesPayload.unshift({
         id: '__offers_main__',
         name: 'Erbjudanden',
-        imageUrl: null,
+        imageUrl: resolvedRestaurant?.offersImageUrl || null,
         position: -1,
         isVirtual: true,
         categories: [offerCategory as any],
