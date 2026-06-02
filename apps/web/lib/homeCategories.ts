@@ -43,6 +43,7 @@ interface RestaurantLike {
   featuredClass?: number;
   isOpen?: boolean;
   city?: string;
+  cityId?: string | null;
 }
 
 interface DealLike {
@@ -125,6 +126,8 @@ export function resolveHomeCategoryRestaurants<T extends RestaurantLike>({
   deliveryOverrides,
   orderType,
   selectedCityName,
+  cityFamilyIds,
+  cityFamilyNames,
   zoneRestaurantIds,
 }: {
   section: HomeCategorySection;
@@ -133,6 +136,10 @@ export function resolveHomeCategoryRestaurants<T extends RestaurantLike>({
   deliveryOverrides: DeliveryOverrideMap;
   orderType: "DELIVERY" | "PICKUP";
   selectedCityName?: string | null;
+  // Stad-familj (parent + sammanslagna barn). Behövs så att t.ex. en
+  // Dalby-restaurang räknas med när kunden valt den kombinerade staden Lund.
+  cityFamilyIds?: string[] | null;
+  cityFamilyNames?: string[] | null;
   zoneRestaurantIds: string[] | null;
 }) {
   const filters = section.filters || {};
@@ -142,8 +149,21 @@ export function resolveHomeCategoryRestaurants<T extends RestaurantLike>({
   );
 
   const contextRestaurants = restaurants.filter((restaurant) => {
-    if (orderType === "PICKUP" && selectedCityName) {
-      return (restaurant.city || "").toLowerCase() === selectedCityName.toLowerCase();
+    // PICKUP: matcha mot HELA stad-familjen (parent + sammanslagna barn),
+    // inte bara det valda stadnamnet. Samma logik som home-gridens
+    // matchesCityFamily — annars filtrerades barn-stadens restauranger
+    // (t.ex. Dalby under Lund) bort ur heta listan/kategorierna/tier-sektioner.
+    if (orderType === "PICKUP") {
+      if (cityFamilyIds && cityFamilyIds.length > 0) {
+        const rCityId = restaurant.cityId;
+        if (rCityId) return cityFamilyIds.includes(rCityId);
+        if (cityFamilyNames && cityFamilyNames.length > 0) {
+          return cityFamilyNames.includes((restaurant.city || "").toLowerCase());
+        }
+      }
+      if (selectedCityName) {
+        return (restaurant.city || "").toLowerCase() === selectedCityName.toLowerCase();
+      }
     }
     return true;
   });

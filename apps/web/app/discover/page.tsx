@@ -47,6 +47,7 @@ export default function DiscoverPage() {
   // page's matchesCityFamily logic so users only see restaurants for the
   // address they picked.
   const [cityFamilyIds, setCityFamilyIds] = useState<string[] | null>(null);
+  const [cityFamilyNames, setCityFamilyNames] = useState<string[] | null>(null);
   const [detectedCityName, setDetectedCityName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,10 +66,12 @@ export default function DiscoverPage() {
           .get(`${API_URL}/api/cities/family-by-name`, { params: { name: cityName } })
           .then((res) => {
             const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
+            const familyNames: string[] = Array.isArray(res.data?.familyNames) ? res.data.familyNames : [];
             setCityFamilyIds(familyIds.length > 0 ? familyIds : null);
+            setCityFamilyNames(familyNames.length > 0 ? familyNames.map((n) => n.toLowerCase()) : null);
             if (res.data?.name) setDetectedCityName(res.data.name);
           })
-          .catch(() => setCityFamilyIds(null));
+          .catch(() => { setCityFamilyIds(null); setCityFamilyNames(null); });
       }
     } catch { /* localStorage unavailable — show everything */ }
 
@@ -127,6 +130,11 @@ export default function DiscoverPage() {
     if (cityFamilyIds && cityFamilyIds.length > 0) {
       const rCityId = r.cityId as string | null | undefined;
       if (rCityId) return cityFamilyIds.includes(rCityId);
+      // Ingen cityId → matcha mot hela familjens namn (parent + barn), inte
+      // bara det valda namnet (annars tappas t.ex. Dalby under Lund).
+      if (cityFamilyNames && cityFamilyNames.length > 0) {
+        return cityFamilyNames.includes((r.city || "").toLowerCase());
+      }
       if (detectedCityName) return (r.city || "").toLowerCase() === detectedCityName.toLowerCase();
       return false;
     }
@@ -137,7 +145,7 @@ export default function DiscoverPage() {
     }
     // No address picked yet — show everything (browsing pre-onboarding).
     return true;
-  }, [cityFamilyIds, detectedCityName]);
+  }, [cityFamilyIds, cityFamilyNames, detectedCityName]);
 
   const filteredRestaurants = useMemo(() => {
     return restaurants.filter((r) => {

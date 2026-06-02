@@ -124,6 +124,9 @@ export default function HomePage() {
   // backend's parent-hierarki). null = ingen adress satt → visa alla. Annars
   // filtreras restauranglistan så bara restauranger i denna stad-familj syns.
   const [cityFamilyIds, setCityFamilyIds] = useState<string[] | null>(null);
+  // Stad-familjens namn (lowercase) — används som fallback i kategori-/heta-
+  // listan-filtret för restauranger som saknar cityId men har stad-namn.
+  const [cityFamilyNames, setCityFamilyNames] = useState<string[] | null>(null);
   const [detectedCityName, setDetectedCityName] = useState<string | null>(null);
   // Quick-filter state
   const [quickFilter, setQuickFilter] = useState<"all" | "rated" | "fast" | "deals" | "free">("all");
@@ -197,10 +200,12 @@ export default function HomePage() {
         axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: storedCity } })
           .then((res) => {
             const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
+            const familyNames: string[] = Array.isArray(res.data?.familyNames) ? res.data.familyNames : [];
             setCityFamilyIds(familyIds.length > 0 ? familyIds : null);
+            setCityFamilyNames(familyNames.length > 0 ? familyNames.map((n) => n.toLowerCase()) : null);
             if (res.data?.name) setDetectedCityName(res.data.name);
           })
-          .catch(() => setCityFamilyIds(null));
+          .catch(() => { setCityFamilyIds(null); setCityFamilyNames(null); });
       }
 
       const err = localStorage.getItem("platform_address_error");
@@ -315,10 +320,13 @@ export default function HomePage() {
     try {
       const res = await axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: cityName } });
       const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
+      const familyNames: string[] = Array.isArray(res.data?.familyNames) ? res.data.familyNames : [];
       setCityFamilyIds(familyIds.length > 0 ? familyIds : null);
+      setCityFamilyNames(familyNames.length > 0 ? familyNames.map((n) => n.toLowerCase()) : null);
       if (res.data?.name) setDetectedCityName(res.data.name);
     } catch {
       setCityFamilyIds(null);
+      setCityFamilyNames(null);
     }
   };
 
@@ -351,6 +359,7 @@ export default function HomePage() {
       } else {
         setDetectedCityName(null);
         setCityFamilyIds(null);
+        setCityFamilyNames(null);
         setShowAddressModal(true);
       }
     } else if (type === "DELIVERY") {
@@ -361,6 +370,7 @@ export default function HomePage() {
       } else {
         setDetectedCityName(null);
         setCityFamilyIds(null);
+        setCityFamilyNames(null);
       }
       const storedCoords = typeof window !== "undefined" ? localStorage.getItem("platform_coords") : null;
       if (storedCoords) {
@@ -475,6 +485,12 @@ export default function HomePage() {
     if (cityFamilyIds && cityFamilyIds.length > 0) {
       const rCityId = (r as any).cityId as string | null | undefined;
       if (rCityId) return cityFamilyIds.includes(rCityId);
+      // Ingen cityId → matcha stad-namnet mot HELA familjen (parent + barn),
+      // inte bara det valda namnet. Annars tappas barn-stadens restauranger
+      // (t.ex. Dalby under Lund) som saknar cityId.
+      if (cityFamilyNames && cityFamilyNames.length > 0) {
+        return cityFamilyNames.includes((r.city || "").toLowerCase());
+      }
       if (detectedCityName) {
         return (r.city || "").toLowerCase() === detectedCityName.toLowerCase();
       }
@@ -484,7 +500,7 @@ export default function HomePage() {
     if (detectedCityName) return false;
     if (orderType === "PICKUP") return false;
     return true;
-  }, [cityFamilyIds, detectedCityName, orderType]);
+  }, [cityFamilyIds, cityFamilyNames, detectedCityName, orderType]);
 
   const filtered = useMemo(() => {
     const list = restaurants.filter((r) => {
@@ -558,11 +574,13 @@ export default function HomePage() {
           deliveryOverrides,
           orderType,
           selectedCityName: detectedCityName,
+          cityFamilyIds,
+          cityFamilyNames,
           zoneRestaurantIds,
         }),
       }))
       .filter((section) => section.restaurants.length > 0);
-  }, [homeCategorySections, restaurants, deals, deliveryOverrides, orderType, detectedCityName, zoneRestaurantIds]);
+  }, [homeCategorySections, restaurants, deals, deliveryOverrides, orderType, detectedCityName, cityFamilyIds, cityFamilyNames, zoneRestaurantIds]);
 
   const promoCards = useMemo<PromoCardItem[]>(() => {
     return sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
