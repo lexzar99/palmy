@@ -10,6 +10,7 @@ import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZo
 import { getEffectiveEtaMinutes, ETA_DEFAULT_MINUTES } from '../lib/restaurantEta';
 import { resolveOrCreateCity } from '../lib/cityResolver';
 import { cached, bustRestaurantCaches } from '../lib/ttlCache';
+import { revalidateWebRestaurant } from '../lib/revalidate';
 
 const router = Router();
 
@@ -587,6 +588,10 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
         },
       },
     });
+
+    // Purga kund-webbens SSR-cache så ny hero/profilbild/profil syns direkt på
+    // restaurang-info-sidan (annars stale i upp till 1h pga revalidate: 3600).
+    void revalidateWebRestaurant(restaurant.slug);
 
     const nextAdminLogin = (restaurant.adminEmail || restaurant.slug).toLowerCase();
 

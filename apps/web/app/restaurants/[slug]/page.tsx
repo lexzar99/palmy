@@ -39,7 +39,9 @@ interface Restaurant {
 async function getRestaurant(slug: string): Promise<Restaurant | null> {
   try {
     const res = await fetch(`${API_URL}/api/restaurants/${slug}`, {
-      next: { revalidate: 3600, tags: [`restaurant:${slug}`] },
+      // Kort tids-revalidate som skyddsnät: även om on-demand-purgen (admin →
+      // /api/revalidate) inte är konfigurerad syns ny hero/profilbild inom 5 min.
+      next: { revalidate: 300, tags: [`restaurant:${slug}`] },
     });
     if (!res.ok) return null;
     return res.json();

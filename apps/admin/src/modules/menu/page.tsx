@@ -1441,9 +1441,11 @@ export function MenuPage() {
                       label="Erbjudande-bild (16:9 eller 1:1, designad bild med inbakad text)"
                       value={selectedRestaurant?.offersImageUrl || ""}
                       onChange={(url) => offersImageMutation.mutate(url || null)}
-                      kind="main-category"
+                      // Erbjudande-tilen är virtuell (ingen kategori-rad) → använd
+                      // "misc" som inte kräver kategori-slug. Bilden lagras per
+                      // restaurang via restaurantId och URL:en sparas i offersImageUrl.
+                      kind="misc"
                       restaurantId={activeRestaurantId}
-                      categorySlug="erbjudanden"
                     />
                     {selectedRestaurant?.offersImageUrl ? (
                       <button
