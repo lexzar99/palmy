@@ -789,7 +789,7 @@ export default function HomePage() {
               <Link
                 href={getRestaurantHref(r)}
                 onClick={(e) => handleRestaurantClick(e, r)}
-                className="group relative block h-full rounded-2xl flex flex-col overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+                className="group relative block h-full rounded-2xl flex flex-col overflow-hidden transition-all duration-300 ease-out hover:shadow-xl hover:-translate-y-1 hover:scale-[1.02]"
                 style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 12px rgba(17,17,19,0.06)" }}
               >
                 {(() => {
@@ -1006,7 +1006,7 @@ export default function HomePage() {
         {/* ── WHAT'S ON (Aktuellt) — först på sidan: stora banner-kort som
             auto-skiftar var 5:e sekund, med prick-indikator under. ── */}
         {promoCards.length > 0 && (
-          <section className="mb-6">
+          <section className="mb-5">
             <div className="hidden lg:flex items-center gap-2 mb-3 px-1">
               <Sparkles size={14} className="text-gold-500" />
               <h2 className="text-base sm:text-lg font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>{t("home.section.current")}</h2>
@@ -1049,7 +1049,7 @@ export default function HomePage() {
             bannern (LiveOrderBanner, fixed nederst) sköter aktiv order. */}
 
         {/* ── KATEGORIER — minimal text-chips (under What's on). ── */}
-        <section className="mb-7 sm:mb-8 mt-5">
+        <section className="mb-5 sm:mb-6 mt-4">
           <div className="flex gap-2 overflow-x-auto lg:flex-wrap lg:overflow-visible pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
             {cuisineFilters.map((c) => {
               const active = activeCuisine === c.label;
@@ -1097,7 +1097,7 @@ export default function HomePage() {
         </section>
 
         {/* REA & RABATTER */}
-        <div className="mb-8">
+        <div className="mb-6">
           <DiscountedDishesSection variant="responsive" />
         </div>
 
@@ -1275,7 +1275,7 @@ export default function HomePage() {
                         <Link
                           href={getRestaurantHref(r)}
                           onClick={(e) => handleRestaurantClick(e, r)}
-                          className="group block rounded-2xl overflow-hidden hover:shadow-[0_12px_34px_rgba(17,17,19,0.12)] transition-all duration-200 hover:-translate-y-0.5 relative"
+                          className="group block rounded-2xl overflow-hidden hover:shadow-[0_18px_44px_rgba(17,17,19,0.16)] transition-all duration-300 ease-out hover:-translate-y-1 hover:scale-[1.02] relative"
                           style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 12px rgba(17,17,19,0.06)" }}
                         >
                           {/* ── IMAGE ──────────────────────────────────────── */}

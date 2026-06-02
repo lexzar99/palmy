@@ -935,11 +935,30 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <div className="w-12 h-12 rounded-2xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center">
-          <Loader2 className="animate-spin text-gold-500" size={24} />
+      <div className="pb-32 md:pt-20 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
+        {/* Hero */}
+        <div className="skeleton w-full h-[32vh] sm:h-[40vh]" />
+        <div className="px-5 sm:px-6 lg:px-12 -mt-8 relative">
+          {/* Namn + cuisine */}
+          <div className="skeleton h-9 w-2/3 rounded-xl mb-3" />
+          <div className="skeleton h-4 w-1/3 rounded-lg mb-6" />
+          {/* Info/stat-rad */}
+          <div className="skeleton h-16 w-full rounded-2xl mb-6" />
+          {/* Sök */}
+          <div className="skeleton h-12 w-full rounded-full mb-6" />
+          {/* Kategori-grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 mb-8">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="skeleton aspect-square rounded-md" />
+            ))}
+          </div>
+          {/* Produktrader */}
+          <div className="space-y-3">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="skeleton h-[120px] w-full rounded-2xl" />
+            ))}
+          </div>
         </div>
-        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.4em] text-gold-500/60 animate-pulse">{t("menu.loadingMenu")}</p>
       </div>
     );
   }
@@ -965,7 +984,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
 
   return (
-    <div className="pb-32 md:pt-20 selection:bg-gold-500/30" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="pb-32 md:pt-20 selection:bg-gold-500/30 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
       {/* ── Hero: kompakt 32vh på mobil, 40vh på desktop ─────────────────── */}
       <div className="relative w-full h-[32vh] sm:h-[40vh] overflow-hidden">
         {heroImage ? (

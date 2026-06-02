@@ -199,6 +199,18 @@
   animation: float 6s ease-in-out infinite;
 }
 
+/* Ren fade + lätt upp-glid när en sida/vy monteras (restaurangsida m.fl.). */
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-fade-in {
+  animation: pageFadeIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-fade-in { animation: none; }
+}
+
 /* ── Utilities ────────────────────────────────────────────────────────────────── */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar {

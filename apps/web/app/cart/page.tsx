@@ -1667,8 +1667,21 @@ export default function CartPage() {
 
   if (pageLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <Loader2 className="animate-spin text-gold-500" size={40} />
+      <div className="min-h-screen pb-32 md:pt-24 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
+        <div className="max-w-2xl mx-auto px-5 sm:px-6 pt-6">
+          <div className="skeleton h-8 w-40 rounded-xl mb-2" />
+          <div className="skeleton h-10 w-3/4 rounded-xl mb-6" />
+          {/* Rader */}
+          <div className="space-y-3 mb-8">
+            {[0, 1].map((i) => (
+              <div key={i} className="skeleton h-20 w-full rounded-2xl" />
+            ))}
+          </div>
+          {/* Formulär/summering */}
+          <div className="skeleton h-14 w-full rounded-2xl mb-3" />
+          <div className="skeleton h-14 w-full rounded-2xl mb-3" />
+          <div className="skeleton h-40 w-full rounded-3xl" />
+        </div>
       </div>
     );
   }
