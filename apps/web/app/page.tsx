@@ -128,7 +128,11 @@ export default function HomePage() {
   const [activePromo, setActivePromo] = useState(0);
   // Sticky-header collapse: kompakt (bara rad 1) när man scrollar ner, expanderar
   // mjukt (adress + sök) när man scrollar upp eller är nära toppen.
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  // Drivs via ref + CSS (grid-template-rows 1fr↔0fr) istället för React-state så
+  // att scroll INTE re-renderar hela (tunga) sidan varje gång headern fälls →
+  // mjuk, jank-fri animation.
+  const collapseRef = useRef<HTMLDivElement | null>(null);
+  const collapsedRef = useRef(false);
   const lastScrollY = useRef(0);
   // Ignorera scroll-events en kort stund efter en collapse/expand så reflow:en
   // (innehållet skiftar när headern ändrar höjd) inte triggar en motsatt toggle
@@ -181,10 +185,15 @@ export default function HomePage() {
       if (Math.abs(delta) < 10) return; // dödzon — ignorera småjitter
       const next = y < 80 ? false : delta > 0;
       lastScrollY.current = y;
-      setHeaderCollapsed((prev) => {
-        if (prev !== next) ignoreScrollUntil.current = Date.now() + 380;
-        return next;
-      });
+      if (collapsedRef.current !== next) {
+        collapsedRef.current = next;
+        ignoreScrollUntil.current = Date.now() + 380;
+        const el = collapseRef.current;
+        if (el) {
+          el.style.gridTemplateRows = next ? "0fr" : "1fr";
+          el.style.opacity = next ? "0" : "1";
+        }
+      }
     };
     const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -889,14 +898,14 @@ export default function HomePage() {
           </div>
 
           {/* Rad 2 + 3 (adress + sök) — fälls ihop mjukt när man scrollar ner
-              och expanderar när man scrollar upp / är nära toppen. */}
-          <motion.div
-            initial={false}
-            animate={{ height: headerCollapsed ? 0 : "auto", opacity: headerCollapsed ? 0 : 1 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden"
+              och expanderar när man scrollar upp / är nära toppen. CSS-driven
+              grid-rows-animation (ingen React-render per scroll → jank-fritt). */}
+          <div
+            ref={collapseRef}
+            className="grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out"
+            style={{ gridTemplateRows: "1fr", opacity: 1, willChange: "grid-template-rows" }}
           >
-            <div className="space-y-1.5 pt-1.5">
+            <div className="min-h-0 overflow-hidden space-y-1.5 pt-1.5">
               <AddressPullDown
                 currentAddress={address}
                 zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
@@ -917,7 +926,7 @@ export default function HomePage() {
                 </div>
               </Link>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
       <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 pt-3 md:pt-0">

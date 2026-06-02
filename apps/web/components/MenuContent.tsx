@@ -522,10 +522,19 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
   // restaurang). Default DELIVERY bara om inget val finns. Utan detta stod
   // orderType alltid på DELIVERY vid mount → adress-grinden trodde att en
   // pickup-kund saknade adress (ingen coords) och öppnade modalen igen.
-  const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">(() => {
-    if (typeof window === "undefined") return "DELIVERY";
-    return localStorage.getItem("platform_order_type") === "PICKUP" ? "PICKUP" : "DELIVERY";
-  });
+  // SSR-säker default. Det riktiga valet läses ur localStorage EFTER mount i
+  // effekten nedan (inte i initializern) — annars skiljer sig server-render
+  // (alltid DELIVERY) från klientens första render → hydration-mismatch.
+  const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
+  // Grindarna nedan väntar på detta så pickup-kunder inte felaktigt promptas
+  // medan orderType fortfarande står på sin SSR-default.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined" && localStorage.getItem("platform_order_type") === "PICKUP") {
+      setOrderType("PICKUP");
+    }
+    setHydrated(true);
+  }, []);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<any>(null);
@@ -761,6 +770,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
   const addressPromptedRef = useRef(false);
   useEffect(() => {
     if (!isStandalone) return;
+    if (!hydrated) return; // vänta tills orderType lästs ur localStorage
     if (addressPromptedRef.current) return;
     if (loading || !restaurant?.isOpen) return;
     if (typeof window === "undefined") return;
@@ -776,7 +786,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       addressPromptedRef.current = true;
       setShowAddressModal(true);
     }
-  }, [isStandalone, loading, restaurant, orderType]);
+  }, [isStandalone, loading, restaurant, orderType, hydrated]);
 
   // Refs för pill-knapparna — används för att auto-scrolla aktiv pill in i
   // viewport horisontellt när användaren scrollar mellan kategorier vertikalt.
@@ -1266,7 +1276,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                     <button
                       key={mc.id}
                       type="button"
-                      onClick={() => { setSelectedMainCategoryId(mc.id); setSearchTerm(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                      onClick={() => { setSelectedMainCategoryId(mc.id); setSearchTerm(""); }}
                       className="shrink-0 flex flex-col items-center gap-1 w-[58px]"
                     >
                       <div className={`relative w-[52px] h-[52px] rounded-2xl overflow-hidden transition-all ${active ? "ring-2 ring-gold-500 shadow-md shadow-gold-500/25" : "ring-1 ring-[rgba(28,28,30,0.08)]"}`} style={{ backgroundColor: "var(--bg-deep)" }}>

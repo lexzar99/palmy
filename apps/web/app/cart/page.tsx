@@ -1683,7 +1683,7 @@ export default function CartPage() {
               <h1 className="text-2xl sm:text-4xl md:text-6xl font-black uppercase italic tracking-tight leading-[1.05] mb-1" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")} <span className="text-gold-500">{t("cart.heading.accent")}</span></h1>
               <p className="text-zinc-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">{t("cart.subtitle")}</p>
            </div>
-           <Link href="/menu" className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-gold-600 hover:text-gold-700 transition-colors flex items-center gap-1.5 mb-1 group shrink-0 ml-3">
+           <Link href={cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/menu"} className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-gold-600 hover:text-gold-700 transition-colors flex items-center gap-1.5 mb-1 group shrink-0 ml-3">
               {t("cart.addMore")} <Plus size={14} className="group-hover:rotate-90 transition-transform" />
            </Link>
         </div>
