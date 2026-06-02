@@ -333,24 +333,63 @@ function UniformCard({ product, isPopular, onClick, disabled }: { product: any; 
   const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
   const hasImage = Boolean(product.imageUrl) && !imgFailed;
-  const totalH = 270;
-  const imgH = 160;
+  // Avlång rad: text till vänster, bild till höger. Ren och enkel.
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-disabled={disabled}
-      className={`group relative rounded-2xl overflow-hidden text-left flex flex-col transition-transform ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:scale-[0.98] cursor-pointer"}`}
-      style={{ height: `${totalH}px`, backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 8px rgba(28,28,30,0.04), 0 1px 2px rgba(28,28,30,0.03)" }}
+      className={`group relative w-full rounded-2xl overflow-hidden text-left flex items-stretch transition-transform ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:scale-[0.99] cursor-pointer"}`}
+      style={{ height: "120px", backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 8px rgba(28,28,30,0.04), 0 1px 2px rgba(28,28,30,0.03)" }}
     >
-      {/* Bild (overlay) eller text-only platta */}
+      {/* Text till vänster */}
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5 pl-4 pr-3 py-3">
+        {isPopular && (
+          <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: "#8a6418" }}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C12 2 8 6 8 10C8 11.5 8.5 12.5 9 13C8 12 7 11 6 11C5 11 4 12 4 14C4 18 7.5 22 12 22C16.5 22 20 18.5 20 14C20 9 16 7 16 4C16 3 15 2 14 2C13 2 12.5 3 12 4C11.5 3 12 2 12 2Z"/></svg>
+            Populär
+          </span>
+        )}
+        <h3
+          className="m-0 font-black leading-tight overflow-hidden"
+          style={{ fontSize: "16px", letterSpacing: "-0.4px", color: "var(--text-primary)", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" as any }}
+        >
+          {product.name}
+        </h3>
+        {product.description && (
+          <p
+            className="m-0 leading-snug overflow-hidden"
+            style={{ fontSize: "11.5px", color: "var(--text-secondary)", fontWeight: 600, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}
+          >
+            {product.description}
+          </p>
+        )}
+        <div className="mt-auto flex items-center gap-2">
+          {original != null && original !== final && (
+            <span className="text-xs font-bold line-through" style={{ color: "var(--text-tertiary, #9a9a9a)" }}>
+              {original}
+            </span>
+          )}
+          <span style={{ fontSize: "16px", fontWeight: 900, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
+            {final}
+            <small style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-tertiary, #9a9a9a)", marginLeft: 2 }}>KR</small>
+          </span>
+          <div className="flex gap-1 ml-1">
+            {product.isVegan && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#22c55e" }} />}
+            {product.isVegetarian && !product.isVegan && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#f59e0b" }} />}
+            {product.isGlutenFree && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#38bdf8" }} />}
+          </div>
+        </div>
+      </div>
+
+      {/* Bild till höger — inskjuten, rundad, med flytande add-knapp */}
       <div
-        className="relative flex-shrink-0"
+        className="relative flex-shrink-0 my-2.5 mr-2.5 rounded-xl overflow-hidden"
         style={{
-          height: `${imgH}px`,
+          width: "95px",
           backgroundImage:
-            "radial-gradient(circle at 22% 28%, rgba(200,154,60,0.22) 0%, transparent 40%), radial-gradient(circle at 78% 76%, rgba(200,154,60,0.16) 0%, transparent 42%), linear-gradient(135deg, rgba(200,154,60,0.20) 0%, rgba(200,154,60,0.10) 100%)",
+            "radial-gradient(circle at 30% 30%, rgba(200,154,60,0.22) 0%, transparent 45%), linear-gradient(135deg, rgba(200,154,60,0.20) 0%, rgba(200,154,60,0.10) 100%)",
         }}
       >
         {hasImage && (
@@ -358,91 +397,29 @@ function UniformCard({ product, isPopular, onClick, disabled }: { product: any; 
             src={product.imageUrl}
             alt={product.name}
             fill
-            sizes="(max-width: 640px) 50vw, 220px"
+            sizes="120px"
             className="object-cover"
             onError={() => setImgFailed(true)}
           />
         )}
         {!hasImage && (
-          <div className="absolute inset-0 flex items-center justify-center px-2 pt-3 pb-5 text-center">
+          <div className="absolute inset-0 flex items-center justify-center px-1.5 text-center">
             <span
-              className="font-black leading-tight overflow-hidden line-clamp-2 max-w-full break-words hyphens-auto"
-              style={{
-                color: "#8a6418",
-                // Aggressiv skalning så även Margherita (10) får plats utan att
-                // klippas i 190px-kort. Wrap (break-words) är säkerhetsnät för
-                // ovanliga ord-längder.
-                fontSize:
-                  (product.name || "").length > 15
-                    ? "13px"
-                    : (product.name || "").length > 12
-                      ? "15px"
-                      : (product.name || "").length > 8
-                        ? "17px"
-                        : (product.name || "").length > 6
-                          ? "20px"
-                          : "23px",
-                letterSpacing: "-0.4px",
-                lineHeight: 1.1,
-              }}
+              className="font-black leading-tight overflow-hidden break-words"
+              style={{ color: "#8a6418", fontSize: "11px", letterSpacing: "-0.3px", lineHeight: 1.15, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as any }}
               lang="sv"
             >
               {product.name}
             </span>
           </div>
         )}
-        {isPopular && (
-          <span
-            className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest backdrop-blur-md"
-            style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#8a6418" }}
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C12 2 8 6 8 10C8 11.5 8.5 12.5 9 13C8 12 7 11 6 11C5 11 4 12 4 14C4 18 7.5 22 12 22C16.5 22 20 18.5 20 14C20 9 16 7 16 4C16 3 15 2 14 2C13 2 12.5 3 12 4C11.5 3 12 2 12 2Z"/></svg>
-            Populär
-          </span>
-        )}
         {/* Flytande add-knapp */}
         <span
-          className="absolute right-2.5 -bottom-4 w-9 h-9 rounded-full grid place-items-center font-black text-[18px] leading-none"
-          style={{ backgroundColor: "var(--accent, #c89a3c)", color: "#1c1c1e", border: "3px solid var(--bg-secondary)", boxShadow: "0 3px 10px rgba(200,154,60,0.35)" }}
+          className="absolute right-1.5 bottom-1.5 w-8 h-8 rounded-full grid place-items-center font-black text-[17px] leading-none"
+          style={{ backgroundColor: "var(--accent, #c89a3c)", color: "#1c1c1e", boxShadow: "0 2px 8px rgba(200,154,60,0.4)" }}
         >
           +
         </span>
-      </div>
-
-      {/* Text-stack */}
-      <div className="flex-1 flex flex-col gap-1 px-3.5 pt-[22px] pb-3.5 min-h-0">
-        <h3
-          className="m-0 font-black leading-tight overflow-hidden"
-          style={{ fontSize: "17px", letterSpacing: "-0.5px", color: "var(--text-primary)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}
-        >
-          {product.name}
-        </h3>
-        {product.description && (
-          <p
-            className="m-0 leading-snug overflow-hidden"
-            style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 600, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}
-          >
-            {product.description}
-          </p>
-        )}
-        <div className="mt-auto flex items-center justify-between gap-2">
-          <div className="flex items-baseline gap-2">
-            {original != null && original !== final && (
-              <span className="text-xs font-bold line-through" style={{ color: "var(--text-tertiary, #9a9a9a)" }}>
-                {original}
-              </span>
-            )}
-            <span style={{ fontSize: "16px", fontWeight: 900, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
-              {final}
-              <small style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-tertiary, #9a9a9a)", marginLeft: 2 }}>KR</small>
-            </span>
-          </div>
-          <div className="flex gap-1">
-            {product.isVegan && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#22c55e" }} />}
-            {product.isVegetarian && !product.isVegan && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#f59e0b" }} />}
-            {product.isGlutenFree && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#38bdf8" }} />}
-          </div>
-        </div>
       </div>
     </button>
   );
@@ -1413,7 +1390,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                        {cat.products.length} {cat.products.length === 1 ? "rätt" : "rätter"}
                      </span>
                    </div>
-                   <div className="grid grid-cols-2 gap-3">
+                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                      {cat.products.map((p: any) => (
                        <UniformCard
                          key={p.id}
