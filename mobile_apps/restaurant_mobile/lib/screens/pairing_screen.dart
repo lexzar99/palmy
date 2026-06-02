@@ -54,7 +54,7 @@ class _PairingScreenState extends State<PairingScreen> {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(26),
                             child: Image.asset(
-                              'assets/icon/levera_logo.png',
+                              'assets/icon/delivera_logo.png',
                               width: 104,
                               height: 104,
                               fit: BoxFit.cover,
