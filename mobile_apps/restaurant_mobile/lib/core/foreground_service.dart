@@ -4,7 +4,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'log_service.dart';
 
 /// Android foreground service som visar en persistent notifikation
-/// "Levera Business körs · öppen för beställningar". Detta:
+/// "Delivera Business körs · öppen för beställningar". Detta:
 ///
 ///   1. Hindrar Android från att killa appen i bakgrunden (oavsett
 ///      batterioptimeringar)
@@ -25,7 +25,7 @@ class AppForegroundService {
       FlutterForegroundTask.init(
         androidNotificationOptions: AndroidNotificationOptions(
           channelId: 'matgo_business_running',
-          channelName: 'Levera Business körs',
+          channelName: 'Delivera Business körs',
           channelDescription:
               'Visar att appen är öppen och tar emot beställningar.',
           channelImportance: NotificationChannelImportance.LOW,
@@ -64,7 +64,7 @@ class AppForegroundService {
 
       if (await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.updateService(
-          notificationTitle: 'Levera Business körs',
+          notificationTitle: 'Delivera Business körs',
           notificationText: 'Öppen för beställningar – håll appen igång',
         );
         return;
@@ -72,7 +72,7 @@ class AppForegroundService {
 
       await FlutterForegroundTask.startService(
         serviceId: 4242,
-        notificationTitle: 'Levera Business körs',
+        notificationTitle: 'Delivera Business körs',
         notificationText: 'Öppen för beställningar – håll appen igång',
         notificationIcon: null, // använder app-ikonen
       );
@@ -88,7 +88,7 @@ class AppForegroundService {
     try {
       if (!await FlutterForegroundTask.isRunningService) return;
       await FlutterForegroundTask.updateService(
-        notificationTitle: 'Levera Business körs',
+        notificationTitle: 'Delivera Business körs',
         notificationText: text,
       );
     } catch (e) {

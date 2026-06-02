@@ -336,7 +336,7 @@ class PrintService {
       printer: effectivePrinter,
       allowPdfFallback:
           effectivePrinter == null || effectivePrinter.paperWidth == 'A4',
-      printJobName: 'Levera_Testkvitto',
+      printJobName: 'Delivera_Testkvitto',
     );
   }
 
@@ -1519,7 +1519,7 @@ class PrintService {
 
     return {
       'header': {
-        'restaurantName': 'Levera Business',
+        'restaurantName': 'Delivera Business',
         'address': '',
         'city': '',
         'zip': '',
@@ -1582,7 +1582,7 @@ class PrintService {
       orderNumber: 'TEST-01',
       status: 'PENDING',
       type: 'DELIVERY',
-      customerName: 'Levera Testkvitto',
+      customerName: 'Delivera Testkvitto',
       customerPhone: '070-000 00 00',
       total: 219,
       deliveryFee: 29,

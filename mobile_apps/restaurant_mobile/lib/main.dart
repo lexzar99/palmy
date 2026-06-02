@@ -608,7 +608,7 @@ class _DisconnectOverlayState extends State<_DisconnectOverlay>
     super.initState();
     _pulse = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1600),
+      duration: const Duration(milliseconds: 2600),
     )..repeat(reverse: true);
   }
 
@@ -620,77 +620,86 @@ class _DisconnectOverlayState extends State<_DisconnectOverlay>
 
   @override
   Widget build(BuildContext context) {
-    const red = Color(0xFFB3261E);
+    // Lugn, ren röd skärm. Statisk bakgrund (ingen aggressiv blink) — bara en
+    // mjuk andning på ikon-cirkeln. Minimal, fin, inget guld.
+    const bg = Color(0xFFB22A22); // dämpad, lugn röd
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onTap,
-      child: AnimatedBuilder(
-        animation: _pulse,
-        builder: (context, _) {
-          final t = Curves.easeInOut.transform(_pulse.value);
-          return Container(
-            color: Color.lerp(red, const Color(0xFF8C1D16), t),
-            child: SafeArea(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Opacity(
-                      opacity: 0.55 + 0.45 * t,
+      child: Container(
+        color: bg,
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 36),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedBuilder(
+                    animation: _pulse,
+                    builder: (context, child) {
+                      final t = Curves.easeInOut.transform(_pulse.value);
+                      return Transform.scale(scale: 1.0 + 0.035 * t, child: child);
+                    },
+                    child: Container(
+                      width: 116,
+                      height: 116,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.12),
+                      ),
                       child: const Icon(Icons.wifi_off_rounded,
-                          size: 88, color: Colors.white),
+                          size: 52, color: Colors.white),
                     ),
-                    const SizedBox(height: 28),
-                    const Text(
-                      'Ingen anslutning',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
+                  ),
+                  const SizedBox(height: 30),
+                  const Text(
+                    'Ingen anslutning',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Plattan har tappat internet. Ordrar kan missas tills den är online igen.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.82),
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w500,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 34),
+                  AnimatedOpacity(
+                    opacity: widget.soundActive ? 1 : 0,
+                    duration: const Duration(milliseconds: 250),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(999),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 40),
-                      child: Text(
-                        'Plattan har tappat internet. Ordrar kan missas tills den är online igen.',
-                        textAlign: TextAlign.center,
+                      child: const Text(
+                        'Tryck för att tysta',
                         style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          height: 1.4,
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 32),
-                    if (widget.soundActive)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 11),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.16),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                              color: Colors.white.withOpacity(0.4), width: 1),
-                        ),
-                        child: const Text(
-                          'Tryck för att tysta',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }

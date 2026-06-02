@@ -153,7 +153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: _handleVersionTap,
                 behavior: HitTestBehavior.opaque,
                 child: Text(
-                  'Levera Business · $_version',
+                  'Delivera Business · $_version',
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,

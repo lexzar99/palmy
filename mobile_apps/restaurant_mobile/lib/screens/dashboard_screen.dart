@@ -464,11 +464,11 @@ class _EditorialHeader extends StatelessWidget {
 
     // Visa endast restaurangnamnet — kontonamnet har ofta ett " Admin"-suffix
     // (t.ex. "Palmyra Pizzeria Admin") som inte hör hemma i headern.
-    var restName = (auth.user?['name'] ?? 'Levera').toString().trim();
+    var restName = (auth.user?['name'] ?? 'Delivera').toString().trim();
     restName = restName
         .replaceAll(RegExp(r'\s+admin$', caseSensitive: false), '')
         .trim();
-    if (restName.isEmpty) restName = 'Levera';
+    if (restName.isEmpty) restName = 'Delivera';
 
     // Header-bar på en ren rad: liten klocka, restaurangnamn (krymper för att
     // passa) och öppet/stäng-knappen i nivå till höger. Inget datum.

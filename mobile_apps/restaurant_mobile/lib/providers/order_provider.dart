@@ -783,8 +783,8 @@ class OrderProvider with ChangeNotifier {
     }
     if (!_isRestaurantOpen) return; // stängt → tyst, bara röd skärm
     if (_disconnectAcknowledged) return; // användaren har tystat
-    AudioHelper.playAudio('disconnect.wav'); // lugn engångspling var 10:e sek
-    HapticFeedback.mediumImpact();
+    AudioHelper.playAudio('soft_alert.wav'); // mjuk varm pling var 10:e sek
+    HapticFeedback.selectionClick(); // mjuk haptik, inte hård vibration
   }
 
   /// Anropas när användaren trycker på den röda offline-skärmen → tystar
