@@ -4900,6 +4900,10 @@ router.delete('/devices/:id', authenticate, requireSuperAdmin, async (req, res) 
     // Bumpa tokenVersion + signalera plattan så den faller tillbaka till
     // pairing-skärmen direkt (enheten måste paras om).
     if (device) {
+      // Städa upp helt vid avparning: ta även bort ev. väntande pairing-kod.
+      await (prisma as any).devicePairingCode.deleteMany({
+        where: { restaurantId: device.restaurantId },
+      });
       const rest = await prisma.restaurant.findUnique({
         where: { id: device.restaurantId },
         select: { adminUserId: true },

@@ -151,7 +151,7 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _currentIndex = 0;
   Timer? _sleepTimer;
   bool _sleeping = false;
@@ -191,6 +191,7 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WakelockPlus.enable();
     AppForegroundService.init();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -210,9 +211,20 @@ class _MainShellState extends State<MainShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     WakelockPlus.disable();
     _sleepTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // När appen återvänder till förgrunden: om-validera device-sessionen så att
+    // en revoke/delete som skedde medan appen var i bakgrunden (då socket-
+    // eventet kan ha missats) fångas direkt → låsskärm/pairing.
+    if (state == AppLifecycleState.resumed && mounted) {
+      Provider.of<AuthProvider>(context, listen: false).revalidateSession();
+    }
   }
 
   void _resetSleepTimer() {

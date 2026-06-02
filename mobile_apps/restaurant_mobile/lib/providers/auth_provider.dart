@@ -404,4 +404,39 @@ class AuthProvider with ChangeNotifier {
       logger.log('TERMINAL session-changed-fel: $e');
     }
   }
+
+  /// Tyst om-validering (ingen booting-splash). Anropas när appen återvänder
+  /// till förgrunden — fångar revoke/delete som skett medan appen var i
+  /// bakgrunden (då socket-eventet kan ha missats). Ändrar bara status om
+  /// sessionen faktiskt blivit revoked (403) eller borttagen (404).
+  Future<void> revalidateSession() async {
+    if (_terminalStatus != TerminalStatus.paired) return;
+    try {
+      final deviceId = await _getDeviceId();
+      final refresh = await SecureTokenStore.readRefreshToken();
+      final res = await _api.post('/api/terminal/session', {
+        'deviceId': deviceId,
+        if (refresh != null) 'refreshToken': refresh,
+      });
+      if (res.statusCode == 200) {
+        await _applyTerminalTokens(res.data);
+      }
+    } on DioException catch (e) {
+      final code = e.response?.statusCode;
+      if (code == 403) {
+        _terminalStatus = TerminalStatus.revoked;
+        _user = null;
+        await _clearSession();
+        notifyListeners();
+      } else if (code == 404) {
+        _terminalStatus = TerminalStatus.needsPairing;
+        _user = null;
+        await _clearSession();
+        notifyListeners();
+      }
+      // Nätverksfel → behåll nuvarande status (offline-tolerans).
+    } catch (e) {
+      logger.log('TERMINAL revalidate-fel: $e');
+    }
+  }
 }
