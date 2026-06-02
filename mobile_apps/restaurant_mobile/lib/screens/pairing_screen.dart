@@ -117,7 +117,7 @@ class _PairingScreenState extends State<PairingScreen> {
                           ),
                         ],
                         const SizedBox(height: 22),
-                        EmberButton(
+                        _FlatPrimaryButton(
                           label: auth.isLoading ? 'Parar…' : 'Para enhet',
                           icon: Icons.link_rounded,
                           busy: auth.isLoading,
@@ -129,6 +129,64 @@ class _PairingScreenState extends State<PairingScreen> {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Flat solid-ink primärknapp (nya temat) — ersätter den gamla guld-knappen
+/// så parnings-/första-inloggningssidan matchar resten av appens flata tema.
+class _FlatPrimaryButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool busy;
+  final VoidCallback? onPressed;
+  const _FlatPrimaryButton({
+    required this.label,
+    required this.icon,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final bg = isDark ? Colors.white : AppTheme.ink;
+    final fg = isDark ? AppTheme.ink : Colors.white;
+    return SizedBox(
+      height: 56,
+      child: Material(
+        color: onPressed == null ? bg.withOpacity(0.5) : bg,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onPressed,
+          child: Center(
+            child: busy
+                ? SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.4, color: fg),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 20, color: fg),
+                      const SizedBox(width: 10),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: fg,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ),
       ),

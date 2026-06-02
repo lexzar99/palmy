@@ -81,7 +81,7 @@ class LeveraBusinessApp extends StatelessWidget {
         return Consumer<AuthProvider>(
           builder: (context, auth, _) {
             return MaterialApp(
-              title: 'Levera Business v$version',
+              title: 'Delivera Business v$version',
               debugShowCheckedModeBanner: false,
               theme: themeProvider.currentTheme,
               scrollBehavior: const MaterialScrollBehavior().copyWith(
@@ -152,10 +152,13 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
+class _MainShellState extends State<MainShell>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   int _currentIndex = 0;
   Timer? _sleepTimer;
   bool _sleeping = false;
+  // Mjuk fade + lätt upp-glid när man byter flik (IndexedStack behåller state).
+  late final AnimationController _tabAnim;
 
   static const _sleepAfter = Duration(seconds: 30);
 
@@ -193,6 +196,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _tabAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+      value: 1,
+    );
     WakelockPlus.enable();
     AppForegroundService.init();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -215,6 +223,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     WakelockPlus.disable();
     _sleepTimer?.cancel();
+    _tabAnim.dispose();
     super.dispose();
   }
 
@@ -256,6 +265,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void _selectTab(int index) {
     if (index == _currentIndex) return;
     setState(() => _currentIndex = index);
+    _tabAnim.forward(from: 0); // spela fade+glid-in för den nya fliken
   }
 
   @override
@@ -330,15 +340,37 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             Positioned.fill(
               child: SleepScreen(onWake: _wake),
             ),
+          // Connection-lost: röd skärm överst (även ovanför viloläget). Sound-
+          // logiken sköts i OrderProvider (endast under öppettider).
+          if (orderProvider.showDisconnectOverlay)
+            Positioned.fill(
+              child: _DisconnectOverlay(
+                soundActive: orderProvider.disconnectSoundActive,
+                onTap: orderProvider.acknowledgeDisconnect,
+              ),
+            ),
         ],
       ),
     );
   }
 
   Widget _buildViewport() {
-    return IndexedStack(
-      index: _currentIndex,
-      children: _pages,
+    return AnimatedBuilder(
+      animation: _tabAnim,
+      builder: (context, child) {
+        final t = Curves.easeOutCubic.transform(_tabAnim.value);
+        return Opacity(
+          opacity: 0.35 + 0.65 * t,
+          child: Transform.translate(
+            offset: Offset(0, (1 - t) * 14),
+            child: child,
+          ),
+        );
+      },
+      child: IndexedStack(
+        index: _currentIndex,
+        children: _pages,
+      ),
     );
   }
 
@@ -370,7 +402,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             ),
             child: const Center(
               child: Text(
-                'L',
+                'D',
                 style: TextStyle(
                   color: AppTheme.ink,
                   fontSize: 24,
@@ -553,4 +585,113 @@ class _ShellDestination {
     required this.icon,
     required this.activeIcon,
   });
+}
+
+/// Röd helskärm vid tappad anslutning. Lugn, pulserande wifi-ikon. När en signal
+/// är aktiv (öppettid) visas "Tryck för att tysta" — tryck → tystar signalen och
+/// döljer skärmen tills re-alert. När stängt visas den passivt utan ljud.
+class _DisconnectOverlay extends StatefulWidget {
+  final bool soundActive;
+  final VoidCallback onTap;
+  const _DisconnectOverlay({required this.soundActive, required this.onTap});
+
+  @override
+  State<_DisconnectOverlay> createState() => _DisconnectOverlayState();
+}
+
+class _DisconnectOverlayState extends State<_DisconnectOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const red = Color(0xFFB3261E);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _pulse,
+        builder: (context, _) {
+          final t = Curves.easeInOut.transform(_pulse.value);
+          return Container(
+            color: Color.lerp(red, const Color(0xFF8C1D16), t),
+            child: SafeArea(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Opacity(
+                      opacity: 0.55 + 0.45 * t,
+                      child: const Icon(Icons.wifi_off_rounded,
+                          size: 88, color: Colors.white),
+                    ),
+                    const SizedBox(height: 28),
+                    const Text(
+                      'Ingen anslutning',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 40),
+                      child: Text(
+                        'Plattan har tappat internet. Ordrar kan missas tills den är online igen.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    if (widget.soundActive)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.16),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                              color: Colors.white.withOpacity(0.4), width: 1),
+                        ),
+                        child: const Text(
+                          'Tryck för att tysta',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }

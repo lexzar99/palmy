@@ -29,6 +29,25 @@ class OrderProvider with ChangeNotifier {
   String closingTime = '21:00';
   String _lastKnownHours = '';
 
+  // ── Connection-lost-larm ──────────────────────────────────────────────────
+  // Vid tappad anslutning: röd skärm + en LUGN signal (disconnect.wav, ej samma
+  // som ny-order-ljudet) som upprepas var 10:e sek. Användaren tystar genom att
+  // trycka på skärmen; efter några minuter återupptas signalen om appen
+  // fortfarande är offline. Signalen spelas ENDAST under öppettider — utanför
+  // öppettider visas bara den röda skärmen, helt tyst.
+  Timer? _disconnectAlarmTimer;
+  Timer? _disconnectReAlertTimer;
+  bool _disconnectAcknowledged = false;
+  static const Duration _disconnectReAlertAfter = Duration(minutes: 3);
+
+  /// Röd skärm visas så länge appen är offline. När restaurangen är öppen kan
+  /// användaren trycka för att tysta (då döljs den tills re-alert), när den är
+  /// stängd ligger den kvar (passiv, tyst).
+  bool get showDisconnectOverlay =>
+      _isOffline && (!_isRestaurantOpen || !_disconnectAcknowledged);
+  bool get disconnectSoundActive =>
+      _isOffline && _isRestaurantOpen && !_disconnectAcknowledged;
+
   // Anropas när servern signalerar att den här plattans session ändrats
   // (admin revoke/delete). Wire:as i MainShell → AuthProvider.bootstrapTerminal.
   void Function(Map<String, dynamic> data)? onDeviceSessionChanged;
@@ -609,19 +628,20 @@ class OrderProvider with ChangeNotifier {
             .build());
 
     _socket!.onConnect((_) {
-      _isOffline = false;
       _socketInitializing = false;
       _socket!
           .emit('join:admin', {'restaurantId': restaurantId, 'token': token});
       logger.log('SOCKET CONNECTED: $restaurantId');
       // Sync ev. ordrar som tappats under offline-perioden
       fetchOrders(restaurantId);
-      notifyListeners();
+      _handleConnectivity(false); // tillbaka online → dölj röd skärm, tysta larm
     });
 
     _socket!.onConnectError((err) {
       _socketInitializing = false;
       logger.log('SOCKET CONNECT ERROR: $err');
+      // Når servern inte (t.ex. ingen internet vid uppstart) → offline-läge.
+      _handleConnectivity(true);
     });
 
     _socket!.onReconnectAttempt((attempt) {
@@ -643,8 +663,9 @@ class OrderProvider with ChangeNotifier {
         _orders.insert(0, newOrder);
         _saveOrdersToCache();
 
-        // Foodora-feel: Play chime AND trigger heavy vibration immediately
-        AudioHelper.playAudio(_selectedAlarm);
+        // Vibrera direkt. Ljudet startas av _evaluateAlarms() nedan som EN
+        // loopande spelare (spelas en gång, fortsätter tills ordern godkänts).
+        // Vi spelar INTE ett extra one-shot här — det orsakade dubbel-ljudet.
         HapticFeedback.vibrate();
         HapticFeedback.heavyImpact();
 
@@ -659,9 +680,8 @@ class OrderProvider with ChangeNotifier {
     });
 
     _socket!.onDisconnect((_) {
-      _isOffline = true;
       logger.log('SOCKET DISCONNECTED');
-      notifyListeners();
+      _handleConnectivity(true); // röd skärm + lugn signal (vid öppettid)
     });
 
     _socket!.on('order:updated', (data) {
@@ -735,6 +755,66 @@ class OrderProvider with ChangeNotifier {
     // Removed client side status watchdog, rely on server push.
   }
 
+  // ── Connection-lost-larm ──────────────────────────────────────────────────
+  void _handleConnectivity(bool offline) {
+    final was = _isOffline;
+    _isOffline = offline;
+    if (offline && !was) {
+      _startDisconnectAlarm();
+    } else if (!offline && was) {
+      _stopDisconnectAlarm();
+    }
+    notifyListeners();
+  }
+
+  void _startDisconnectAlarm() {
+    _disconnectAlarmTimer?.cancel();
+    _disconnectReAlertTimer?.cancel();
+    _disconnectAcknowledged = false;
+    _maybePlayDisconnect(); // direkt en gång
+    _disconnectAlarmTimer = Timer.periodic(
+        const Duration(seconds: 10), (_) => _maybePlayDisconnect());
+  }
+
+  void _maybePlayDisconnect() {
+    if (!_isOffline) {
+      _stopDisconnectAlarm();
+      return;
+    }
+    if (!_isRestaurantOpen) return; // stängt → tyst, bara röd skärm
+    if (_disconnectAcknowledged) return; // användaren har tystat
+    AudioHelper.playAudio('disconnect.wav'); // lugn engångspling var 10:e sek
+    HapticFeedback.mediumImpact();
+  }
+
+  /// Anropas när användaren trycker på den röda offline-skärmen → tystar
+  /// signalen och döljer skärmen. Efter [_disconnectReAlertAfter] återupptas
+  /// signalen + skärmen om appen fortfarande är offline (endast under öppettider
+  /// hörs något).
+  void acknowledgeDisconnect() {
+    if (!_isOffline) return;
+    _disconnectAcknowledged = true;
+    AudioHelper.stopOneShot();
+    notifyListeners();
+    _disconnectReAlertTimer?.cancel();
+    _disconnectReAlertTimer = Timer(_disconnectReAlertAfter, () {
+      if (_isOffline) {
+        _disconnectAcknowledged = false;
+        _maybePlayDisconnect();
+        notifyListeners();
+      }
+    });
+  }
+
+  void _stopDisconnectAlarm() {
+    _disconnectAlarmTimer?.cancel();
+    _disconnectAlarmTimer = null;
+    _disconnectReAlertTimer?.cancel();
+    _disconnectReAlertTimer = null;
+    _disconnectAcknowledged = false;
+    AudioHelper.stopOneShot();
+  }
+
   void _evaluateAlarms() {
     debugPrint(
         '📢 Watchdog: Evaluating alarms. Pending: ${pendingOrders.length}');
@@ -768,6 +848,14 @@ class OrderProvider with ChangeNotifier {
       final body = <String, dynamic>{'status': status};
       if (estimatedTime != null) body['estimatedTime'] = estimatedTime;
 
+      // Tidigare status (innan uppdateringen) — används för att avgöra OM detta
+      // är själva godkännandet (PENDING → ACCEPTED/PREPARING) så auto-print
+      // sker exakt EN gång och aldrig innan ordern godkänts.
+      final prevIdx = _orders.indexWhere((o) => o.id == orderId);
+      final prevStatus = prevIdx != -1 ? _orders[prevIdx].status : null;
+      final isApproval = (prevStatus == null || prevStatus == 'PENDING') &&
+          (status == 'ACCEPTED' || status == 'PREPARING');
+
       // Handle mock/test orders locally (no API needed)
       if (orderId.startsWith('mock_')) {
         _updateLocalOrderStatus(orderId, status, estimatedTime);
@@ -780,11 +868,16 @@ class OrderProvider with ChangeNotifier {
         _updateLocalOrderStatus(orderId, status, estimatedTime);
         logger.log(
             'STATUS UPDATED: Order #$orderId -> $status ($estimatedTime min)');
-        // Auto-print when the restaurant accepts/confirms the order.
-        if (status == 'PREPARING' || status == 'ACCEPTED') {
+        // Auto-print AUTOMATISKT direkt när restaurangen godkänner ordern —
+        // aldrig innan. Godkännandet kan sätta ACCEPTED (detalj-sidan) eller
+        // PREPARING (snabb-accept i order-take), därför fångar vi själva
+        // PENDING→godkänd-övergången. forceToPrinter=true → skriver alltid till
+        // konfigurerad skrivare oavsett toggle, ingen PDF-popup, tyst om ingen
+        // skrivare. Skrivs ut exakt en gång (ej vid efterföljande steg-byten).
+        if (isApproval) {
           final idx = _orders.indexWhere((o) => o.id == orderId);
           if (idx != -1) {
-            unawaited(PrintService.printReceipt(_orders[idx], respectAutoPrint: true));
+            unawaited(PrintService.printReceipt(_orders[idx], forceToPrinter: true));
           }
         }
         return true;
@@ -817,7 +910,9 @@ class OrderProvider with ChangeNotifier {
     _socket?.dispose();
     _alarmWatchdog?.cancel();
     _pauseTimer?.cancel();
-    AudioHelper.stopLooping();
+    _disconnectAlarmTimer?.cancel();
+    _disconnectReAlertTimer?.cancel();
+    AudioHelper.stopAll();
     super.dispose();
   }
 }

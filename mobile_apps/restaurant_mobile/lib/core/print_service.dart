@@ -234,7 +234,7 @@ class PrintService {
   /// Vid auto-print skickas dessutom felet till [errors]-streamen så UI:t
   /// kan visa toast.
   static Future<String?> printReceipt(OrderModel order,
-      {bool respectAutoPrint = false}) async {
+      {bool respectAutoPrint = false, bool forceToPrinter = false}) async {
     PrintingConfig? config;
     try {
       config = await _printingConfigService.fetchConfig();
@@ -244,13 +244,19 @@ class PrintService {
     final printer = config?.defaultPrinter ??
         await _printingConfigService.loadLocalPrinter();
 
-    if (respectAutoPrint && !(printer?.autoPrint ?? false)) {
+    final isAuto = respectAutoPrint || forceToPrinter;
+
+    // forceToPrinter (auto-print direkt efter att ordern godkänts): skriv ALLTID
+    // till den konfigurerade skrivaren, oavsett auto-print-toggeln, utan PDF-popup.
+    if (!forceToPrinter && respectAutoPrint && !(printer?.autoPrint ?? false)) {
       return null; // auto-print avstängd → tyst skip
     }
 
     if (printer == null) {
+      // Auto-print utan skrivare → tyst skip (ingen PDF-dialog ska poppa upp).
+      if (forceToPrinter) return null;
       const reason = 'Ingen skrivare konfigurerad';
-      _emitFailure(order, reason, isAuto: respectAutoPrint, hasPrinter: false);
+      _emitFailure(order, reason, isAuto: isAuto, hasPrinter: false);
       return reason;
     }
 
@@ -265,20 +271,20 @@ class PrintService {
         receiptData: receiptData,
         template: template,
         printer: printer,
-        allowPdfFallback: !respectAutoPrint,
+        allowPdfFallback: !respectAutoPrint && !forceToPrinter,
         printJobName: 'Order_${order.orderNumber}',
       );
 
       if (issue != null) {
         logger.log('PRINT FAIL #${order.orderNumber}: $issue');
-        _emitFailure(order, issue, isAuto: respectAutoPrint, hasPrinter: true);
+        _emitFailure(order, issue, isAuto: isAuto, hasPrinter: true);
         return issue;
       }
       return null;
     } catch (e) {
       final reason = _humanizeError(e);
       logger.log('PRINT EXCEPTION #${order.orderNumber}: $e');
-      _emitFailure(order, reason, isAuto: respectAutoPrint, hasPrinter: printer != null);
+      _emitFailure(order, reason, isAuto: isAuto, hasPrinter: printer != null);
       return reason;
     }
   }

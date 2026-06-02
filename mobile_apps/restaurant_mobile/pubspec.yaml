@@ -1,6 +1,6 @@
 name: restaurant_mobile
-description: A professional order taking app for Levera Business partners.
-version: 1.34.7+47
+description: A professional order taking app for Delivera Business partners.
+version: 26.06.03+48
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
