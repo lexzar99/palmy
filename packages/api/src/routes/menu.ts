@@ -163,21 +163,36 @@ router.get('/categories', async (req, res) => {
       });
     };
 
-    // Räknar OrderItem-rader per produkt senaste 30 dagar — bas för
-     // "Populärt"-raden. Returns Map: productId → count.
+    // Populärt-poäng per produkt senaste 30 dagar. HYBRID som mäter genuin
+    // efterfrågan utan att en enda bulk-order ("60 calzone till festen") kan
+    // kapa hela listan:
+    //   poäng = antal DISTINKTA ordrar × 5  +  cappad volym (max 10 st/orderrad)
+    // → många separata ordrar väger tyngst (riktig popularitet), men volym ger
+    //   en mild bonus. Returns Map: productId → poäng.
+    const ORDER_WEIGHT = 5;
+    const UNIT_CAP_PER_LINE = 10;
     const queryProductPopularity = async (rid: string | null): Promise<Map<string, number>> => {
       if (!rid) return new Map();
       const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const items = await prisma.orderItem.findMany({
         where: { order: { restaurantId: rid, createdAt: { gte: since } } },
-        select: { productId: true, quantity: true },
+        select: { productId: true, orderId: true, quantity: true },
       });
-      const counts = new Map<string, number>();
+      const orderSets = new Map<string, Set<string>>(); // distinkta ordrar per produkt
+      const cappedUnits = new Map<string, number>();      // cappad volym per produkt
       for (const item of items) {
         if (!item.productId) continue;
-        // Vikta efter antal sålda enheter, inte antal order-rader — en rätt som
-        // beställs 50× ska räknas som mer populär än en som beställts 1×.
-        counts.set(item.productId, (counts.get(item.productId) || 0) + (item.quantity || 1));
+        let set = orderSets.get(item.productId);
+        if (!set) { set = new Set(); orderSets.set(item.productId, set); }
+        set.add(item.orderId);
+        cappedUnits.set(
+          item.productId,
+          (cappedUnits.get(item.productId) || 0) + Math.min(item.quantity || 1, UNIT_CAP_PER_LINE),
+        );
+      }
+      const counts = new Map<string, number>();
+      for (const [pid, set] of orderSets) {
+        counts.set(pid, set.size * ORDER_WEIGHT + (cappedUnits.get(pid) || 0));
       }
       return counts;
     };
