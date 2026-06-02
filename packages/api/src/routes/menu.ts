@@ -105,8 +105,10 @@ router.get('/categories', async (req, res) => {
         // är. Bara random-fallbacken (restaurang utan order-historik) shufflas
         // om per request för discovery-känsla.
         if (m.popularFromOrders) return m;
-        const all: any[] = (m.categories || []).flatMap((c: any) => c.products || []);
-        if (all.length < 10) return { ...m, popularProductIds: [] };
+        const allProducts: any[] = (m.categories || []).flatMap((c: any) => c.products || []);
+        if (allProducts.length < 10) return { ...m, popularProductIds: [] };
+        // Samma ≥50 kr-filter som vid färsk beräkning (inga drycker/billiga sides).
+        const all = allProducts.filter((p: any) => (p.price ?? 0) >= 50);
         const scored = all.map((p) => {
           const r = Math.random();
           return { id: p.id, score: p.imageUrl ? r * 1.5 : r };
@@ -277,9 +279,15 @@ router.get('/categories', async (req, res) => {
     // styr cache-hit-pathen: order-baserad ranking ska INTE shufflas om per
     // request (den ska vara stabil = "mest beställda"); bara random-fallbacken
     // (ny restaurang utan historik) shufflas för discovery-känsla.
+    const POPULAR_MIN_PRICE_KR = 50; // inga drycker/billiga tillbehör i "Populärt"
     const popularProductIdsFor = (cats: typeof formattedCategories): { ids: string[]; fromOrders: boolean } => {
-      const all = cats.flatMap((c) => c.products);
-      if (all.length < 10) return { ids: [], fromOrders: false };
+      const allProducts = cats.flatMap((c) => c.products);
+      if (allProducts.length < 10) return { ids: [], fromOrders: false };
+
+      // Bara rätter ≥ 50 kr räknas i "Populärt" (filtrerar bort läsk, sides,
+      // plastbestick osv). price är i kronor här.
+      const all = allProducts.filter((p) => (p.price ?? 0) >= POPULAR_MIN_PRICE_KR);
+      if (all.length === 0) return { ids: [], fromOrders: false };
 
       const hasOrders = all.some((p) => (popularity.get(p.id) || 0) > 0);
       const scored = all.map((p) => {
