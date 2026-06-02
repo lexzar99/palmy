@@ -61,11 +61,6 @@ function rewardParts(d: DealForLabel): string[] {
   return parts;
 }
 
-function formatDealLabel(d: DealForLabel): string {
-  const parts = rewardParts(d);
-  return parts.length > 0 ? `${d.title} (${parts.join(" + ")})` : d.title;
-}
-
 function formatDealHint(d: DealForLabel): string {
   const parts = rewardParts(d);
   if (parts.length === 0) return "Ingen rabatt";
@@ -538,10 +533,11 @@ function UnifiedMarketingTab({
   });
   const [hydrated, setHydrated] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
-  // active = båda welcome OCH referral aktiva. Vi visar EN toggle men
-  // sätter två fält i backend.
-  const active =
-    settings != null && settings.welcomeDealActive && settings.referralEnabled;
+  // "Aktiv" speglar ENBART välkomstrabatten. Tidigare krävdes även
+  // referralEnabled — men referral-systemet är avstängt för launch, så
+  // toggeln visades alltid som "Aktivera" (av) även när välkomstrabatten
+  // faktiskt var på och syntes på webben. Nu följer den welcomeDealActive.
+  const active = settings != null && settings.welcomeDealActive;
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -579,12 +575,11 @@ function UnifiedMarketingTab({
   const selectedDeal = availableDeals.find((d) => d.id === form.dealId);
   const dealHint = selectedDeal ? formatDealHint(selectedDeal) : null;
 
-  // Toggle sparar OMEDELBART vid klick — sätter både welcome och referral.
+  // Toggle sparar OMEDELBART vid klick — styr endast välkomstrabatten.
+  // referralEnabled lämnas orört (referral är avstängt för launch och ska
+  // inte slås på/av av den här toggeln).
   const handleToggleActive = (next: boolean) => {
-    mutation.mutate({
-      welcomeDealActive: next,
-      referralEnabled: next,
-    });
+    mutation.mutate({ welcomeDealActive: next });
   };
 
   // Spara-knapp persisterar resten (dropdown + kuponger + tak). Sätter
@@ -651,35 +646,55 @@ function UnifiedMarketingTab({
           </div>
         )}
 
-        <div className="grid gap-5 md:grid-cols-2">
-          <Field label="Personlig deal-mall">
-            <select
-              value={form.dealId ?? ""}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, dealId: e.target.value || null }))
-              }
-              className="w-full rounded-lg border border-[var(--border-muted)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
-              disabled={mutation.isPending || availableDeals.length === 0}
-            >
-              <option value="">— Välj mall —</option>
-              {availableDeals.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {formatDealLabel(d)}
-                </option>
-              ))}
-            </select>
-            {dealHint && (
-              <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
-                ✓ Alla får: <strong>{dealHint}</strong>
-              </p>
-            )}
-          </Field>
-
-          {/* Referral-specifika fält (couponsPerSide, maxRewardsPerInviter)
-              dolda — referral-systemet är avstängt för launch. Form-state
-              behåller defaults (1 / 20) som ändå sparas till backend så
-              fälten inte hamnar i null-state om systemet aktiveras igen. */}
+        {/* Synlig lista med ALLA mallar + tydlig markering av vilken som är
+            aktiv just nu (live på webben) respektive vald (ej sparad än).
+            Tidigare låg mallarna gömda i en dropdown → man såg inte vilken
+            som var aktiv. Klick väljer mall; spara persisterar. */}
+        <div className="space-y-2.5">
+          {availableDeals.map((d) => {
+            const isSelected = form.dealId === d.id;
+            const isLiveActive =
+              active && (settings?.welcomeDealId === d.id || settings?.referralDealId === d.id);
+            return (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setForm((p) => ({ ...p, dealId: d.id }))}
+                disabled={mutation.isPending}
+                className="w-full flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all"
+                style={{
+                  backgroundColor: isSelected ? "var(--accent-soft)" : "var(--bg-secondary)",
+                  borderColor: isSelected ? "var(--accent)" : "var(--border-muted)",
+                }}
+              >
+                <div
+                  className="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
+                  style={{
+                    borderColor: isSelected ? "var(--accent)" : "var(--border-strong)",
+                    backgroundColor: isSelected ? "var(--accent)" : "transparent",
+                  }}
+                >
+                  {isSelected && <Check size={11} style={{ color: "var(--accent-fg)" }} />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                    {d.title}
+                  </p>
+                  <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                    {formatDealHint(d)}
+                  </p>
+                </div>
+                {isLiveActive && <Badge tone="success">Aktiv nu</Badge>}
+                {isSelected && !isLiveActive && <Badge tone="neutral">Vald</Badge>}
+              </button>
+            );
+          })}
         </div>
+        {dealHint && (
+          <p className="text-xs mt-3" style={{ color: "var(--text-secondary)" }}>
+            ✓ Nya kunder får: <strong>{dealHint}</strong>
+          </p>
+        )}
 
         <div className="mt-6">
           <Button
