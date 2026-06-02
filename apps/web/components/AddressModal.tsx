@@ -121,8 +121,8 @@ export default function AddressModal({
   const [savedAddresses, setSavedAddresses] = useState<QuickAddress[]>([]);
   const autoLocatedRef = useRef(false);
   const mapRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
   const geocoderRef = useRef<any>(null);
+  const userMovedRef = useRef(false); // true när användaren själv pannat kartan
   const selectedCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // ── Pickup state ────────────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ export default function AddressModal({
   //    race mellan effekt och ref som lämnade kartan tom). dataset-flaggan
   //    skyddar mot dubbel-init (React StrictMode kör ref-callbacken två ggr). ──
   const initMap = useCallback((node: HTMLDivElement | null) => {
-    if (!node) { mapRef.current = null; markerRef.current = null; geocoderRef.current = null; setMapReady(false); return; }
+    if (!node) { mapRef.current = null; geocoderRef.current = null; setMapReady(false); return; }
     if (node.dataset.gmInit === "1") return;
     node.dataset.gmInit = "1";
     setMapError(false);
@@ -201,25 +201,21 @@ export default function AddressModal({
           clickableIcons: false,
           styles: (typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark") ? DARK_MAP_STYLE : LIGHT_MAP_STYLE,
         });
-        const marker = new maps.Marker({
-          position: start,
-          map,
-          draggable: true,
-          animation: maps.Animation.DROP,
-        });
         mapRef.current = map;
-        markerRef.current = marker;
         geocoderRef.current = new maps.Geocoder();
         setMapReady(true);
 
-        marker.addListener("dragend", () => {
-          const p = marker.getPosition();
-          if (p) handleMapPosition(p.lat(), p.lng());
-        });
-        map.addListener("click", (e: any) => {
-          if (!e.latLng) return;
-          marker.setPosition(e.latLng);
-          handleMapPosition(e.latLng.lat(), e.latLng.lng());
+        // ── Fast nål (center-pin): nålen sitter still mitt på kartan och man
+        //    flyttar KARTAN för att välja exakt plats. När användaren själv
+        //    pannar (dragstart) reverse-geocodar vi mittpunkten på idle.
+        //    Programmatiska setCenter (sök/sparad adress/GPS) fyller redan i
+        //    adressen, så vi hoppar över dem via userMovedRef.
+        map.addListener("dragstart", () => { userMovedRef.current = true; });
+        map.addListener("idle", () => {
+          if (!userMovedRef.current) return;
+          userMovedRef.current = false;
+          const c = map.getCenter();
+          if (c) handleMapPosition(c.lat(), c.lng());
         });
       })
       .catch(() => { node.dataset.gmInit = ""; setMapError(true); });
@@ -234,13 +230,14 @@ export default function AddressModal({
     }
   }, [theme, mapReady]);
 
-  // Flytta kartan + nålen till en ny position (utan reverse-geocode).
+  // Panna kartan till en ny position (fast nål följer mitten). Programmatisk
+  // → triggar INTE reverse-geocode (userMovedRef förblir false).
   const recenterMap = useCallback((lat: number, lng: number) => {
+    userMovedRef.current = false;
     if (mapRef.current) {
       mapRef.current.setCenter({ lat, lng });
       mapRef.current.setZoom(16);
     }
-    if (markerRef.current) markerRef.current.setPosition({ lat, lng });
   }, []);
 
   // ── "Använd min plats" ───────────────────────────────────────────────────────
@@ -562,9 +559,20 @@ export default function AddressModal({
                     </div>
                   )}
 
-                  {/* Karta — dra nålen eller tryck för att välja exakt plats */}
+                  {/* Karta — flytta kartan (fast nål i mitten) för att välja exakt plats */}
                   <div className="relative rounded-2xl overflow-hidden border flex-1 min-h-[240px]" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)" }}>
                     <div key={mapKey} ref={initMap} className="absolute inset-0" />
+
+                    {/* Fast center-nål — sitter still mitt på kartan. Man flyttar
+                        KARTAN under nålen för att välja exakt plats. */}
+                    {!mapError && (
+                      <>
+                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full -mt-1">
+                          <MapPin size={40} strokeWidth={2.5} fill="#EAB545" className="text-gold-600" style={{ filter: "drop-shadow(0 5px 6px rgba(0,0,0,0.45))" }} />
+                        </div>
+                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-zinc-900/40" />
+                      </>
+                    )}
                     {mapError && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center" style={{ backgroundColor: "var(--bg-deep)" }}>
                         <AlertCircle size={22} className="text-amber-500" />
@@ -594,7 +602,7 @@ export default function AddressModal({
                     {!mapError && (
                       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 px-3 py-1.5 rounded-full bg-zinc-950/75 backdrop-blur-md pointer-events-none">
                         <span className="text-[10px] font-black uppercase tracking-wider text-white flex items-center gap-1.5">
-                          <MapPin size={11} className="text-gold-400" /> Dra nålen för exakt plats
+                          <MapPin size={11} className="text-gold-400" /> Flytta kartan för exakt plats
                         </span>
                       </div>
                     )}

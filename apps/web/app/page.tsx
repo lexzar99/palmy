@@ -29,7 +29,6 @@ import LocaleSwitcher from "@/components/LocaleSwitcher";
 import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DiscountedDishesSection from "@/components/DiscountedDishesSection";
-import RecentOrderCard from "@/components/RecentOrderCard";
 import WelcomeDealBanner from "@/components/WelcomeDealBanner";
 import InviteFriendsBanner from "@/components/InviteFriendsBanner";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
@@ -772,7 +771,7 @@ export default function HomePage() {
 
 
   return (
-    <div className="min-h-screen pb-36 md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
+    <div className="min-h-screen pb-36 md:pt-28" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
       {/* ── MOBIL STICKY HEADER ── varumärke + små knappar (rad 1), adress +
           kompakt leverans/hämtning-toggle (rad 2). Sticky så adressen alltid
           syns när man scrollar. Döljs på desktop (top-navbaren tar över). */}
@@ -952,8 +951,8 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* Senaste beställning — visas bara om kund har order-historik. */}
-        <RecentOrderCard />
+        {/* "Senaste beställning"-kortet borttaget — den live order-tracking-
+            bannern (LiveOrderBanner, fixed nederst) sköter aktiv order. */}
 
         {/* ── KATEGORIER — minimal text-chips (under What's on). ── */}
         <section className="mb-7 sm:mb-8 mt-5">
