@@ -19,7 +19,10 @@ import { JWT_SECRET } from '../lib/config';
 // enhet — appen själv har ingen utloggning.
 const router = Router();
 
-const ACCESS_TTL = '1h';
+// Längre access-token (24h) håller socket-handshaket levande utan täta
+// re-auths. Revokering är ändå omedelbar: admin-revoke bumpar kontots
+// tokenVersion → access-token avvisas direkt vid nästa API-anrop.
+const ACCESS_TTL = '24h';
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
 // Säkerställ att restaurangen har ett AdminUser-konto som terminalen agerar
@@ -153,7 +156,7 @@ router.post('/pair', async (req, res) => {
 //  - annars       → roterar refresh-token + returnerar ny access-token
 router.post('/session', async (req, res) => {
   try {
-    const { deviceId, refreshToken, pushToken } = (req.body || {}) as {
+    const { deviceId, pushToken } = (req.body || {}) as {
       deviceId?: string; refreshToken?: string; pushToken?: string;
     };
     if (!deviceId) return res.status(400).json({ error: 'deviceId krävs' });
@@ -164,13 +167,11 @@ router.post('/session', async (req, res) => {
     if (!device) return res.status(404).json({ error: 'needs_pairing' });
     if (device.revoked) return res.status(403).json({ error: 'device_revoked' });
 
-    // Om en refresh-token medskickas MÅSTE den matcha. Saknas den (t.ex. efter
-    // ominstallation då Keystore rensats) tillåts ändå ny session — det är
-    // device-id-bindningen som är den varaktiga identiteten.
-    if (refreshToken && device.refreshTokenHash && sha256(String(refreshToken)) !== device.refreshTokenHash) {
-      return res.status(401).json({ error: 'invalid_refresh' });
-    }
-
+    // Den varaktiga identiteten är device-id-bindningen (överlever
+    // ominstallation då Keystore/refresh-token rensats). Refresh-token roteras
+    // som färskhets-mekanism men är inte en hård grind — annars skulle en
+    // 401 härifrån trigga klientens refresh-interceptor som anropar /session
+    // igen (loop).
     const ensured = await ensureRestaurantAdminUser(device.restaurantId);
     if (!ensured) return res.status(404).json({ error: 'needs_pairing' });
 

@@ -4841,10 +4841,24 @@ router.get('/restaurants/:id/devices', authenticate, requireSuperAdmin, async (r
 // POST /devices/:id/revoke — logga ut en enhet.
 router.post('/devices/:id/revoke', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    await (prisma as any).restaurantDevice.update({
+    const device = await (prisma as any).restaurantDevice.update({
       where: { id: req.params.id },
       data: { revoked: true, refreshTokenHash: null },
+      select: { restaurantId: true },
     });
+    // Gör utloggningen omedelbar: bumpa restaurangkontots tokenVersion så att
+    // en redan utfärdad (24h) access-token avvisas vid nästa API-anrop → appen
+    // kör /session → 403 → "utloggad av admin".
+    const rest = await prisma.restaurant.findUnique({
+      where: { id: device.restaurantId },
+      select: { adminUserId: true },
+    });
+    if (rest?.adminUserId) {
+      await (prisma as any).adminUser.update({
+        where: { id: rest.adminUserId },
+        data: { tokenVersion: { increment: 1 } },
+      });
+    }
     await audit(req as AuthRequest, 'DEVICE_REVOKE', { resourceType: 'RestaurantDevice', resourceId: req.params.id });
     res.json({ success: true });
   } catch (error) {

@@ -12,7 +12,8 @@ import 'core/push_service.dart';
 import 'core/theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/order_provider.dart';
-import 'screens/login_screen.dart';
+import 'screens/pairing_screen.dart';
+import 'screens/locked_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/settings_screen.dart';
@@ -43,8 +44,9 @@ void main() async {
   }
 
   final authProvider = AuthProvider();
-  ApiClient.onUnauthorized = () => authProvider.logout();
-  await authProvider.tryAutoLogin();
+  // Device-session: 401 → tyst refresh via terminal-sessionen (ingen utloggning).
+  ApiClient.onRefreshToken = authProvider.refreshTerminalSession;
+  await authProvider.bootstrapTerminal();
 
   if (!kIsWeb) {
     unawaited(PushService.init().catchError((e) {
@@ -94,14 +96,43 @@ class LeveraBusinessApp extends StatelessWidget {
                 duration: const Duration(milliseconds: 360),
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
-                child: auth.isAuthenticated
-                    ? MainShell(key: mainShellKey)
-                    : const LoginScreen(key: ValueKey('login-screen')),
+                child: _rootForStatus(auth),
               ),
             );
           },
         );
       },
+    );
+  }
+
+  Widget _rootForStatus(AuthProvider auth) {
+    switch (auth.terminalStatus) {
+      case TerminalStatus.revoked:
+        return const LockedScreen(key: ValueKey('locked-screen'));
+      case TerminalStatus.booting:
+        return const _BootSplash(key: ValueKey('boot-splash'));
+      case TerminalStatus.paired:
+      case TerminalStatus.needsPairing:
+        return auth.isAuthenticated
+            ? MainShell(key: mainShellKey)
+            : const PairingScreen(key: ValueKey('pairing-screen'));
+    }
+  }
+}
+
+/// Enkel laddnings-splash medan device-sessionen återupptas vid app-start.
+class _BootSplash extends StatelessWidget {
+  const _BootSplash({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Colors.transparent,
+      body: AppBackdrop(
+        child: Center(
+          child: CircularProgressIndicator(color: AppTheme.ember),
+        ),
+      ),
     );
   }
 }

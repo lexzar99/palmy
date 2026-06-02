@@ -51,4 +51,53 @@ class SecureTokenStore {
     }
     await _storage.delete(key: AppConstants.tokenKey);
   }
+
+  // ── Terminal refresh-token (device-session) ────────────────────────────────
+  static const _refreshKey = 'terminal_refresh_token';
+  static const _deviceIdKey = 'terminal_device_id';
+
+  static Future<String?> readRefreshToken() async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_refreshKey);
+    }
+    return _storage.read(key: _refreshKey);
+  }
+
+  static Future<void> writeRefreshToken(String token) async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_refreshKey, token);
+      return;
+    }
+    await _storage.write(key: _refreshKey, value: token);
+  }
+
+  static Future<void> deleteRefreshToken() async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_refreshKey);
+      return;
+    }
+    await _storage.delete(key: _refreshKey);
+  }
+
+  // Fallback-device-id för plattformar utan ANDROID_ID (web/iOS). Överlever
+  // INTE ominstallation — på Android används det stabila ANDROID_ID istället.
+  static Future<String?> readDeviceId() async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_deviceIdKey);
+    }
+    return _storage.read(key: _deviceIdKey);
+  }
+
+  static Future<void> writeDeviceId(String id) async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_deviceIdKey, id);
+      return;
+    }
+    await _storage.write(key: _deviceIdKey, value: id);
+  }
 }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
-import '../core/log_service.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
@@ -102,67 +101,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: _handleVersionTap,
               trailing: _BetaPill(),
             ),
-            const SizedBox(height: 8),
-            _SettingRow(
-              icon: Icons.logout_rounded,
-              iconColor: AppTheme.danger,
-              title: 'Logga ut',
-              subtitle: 'Avsluta sessionen på den här enheten',
-              onTap: () => _handleLogout(context, authProvider),
-            ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _handleLogout(BuildContext context, dynamic authProvider) {
-    final logoutCode = authProvider.logoutCode as String?;
-    if (logoutCode == null || logoutCode.isEmpty) {
-      logger.log('BUTTON: Logout (no code required)');
-      authProvider.logout();
-      return;
-    }
-    _showLogoutCodeDialog(context, authProvider, logoutCode);
-  }
-
-  void _showLogoutCodeDialog(
-      BuildContext context, dynamic authProvider, String correctCode) {
-    final controller = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Ange utloggningskod'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          obscureText: true,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Kod'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Avbryt'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text == correctCode) {
-                Navigator.pop(context);
-                logger.log('BUTTON: Logout (code verified)');
-                authProvider.logout();
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Fel kod — utloggning nekad.'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            child: const Text('Logga ut'),
-          ),
-        ],
       ),
     );
   }
