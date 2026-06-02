@@ -626,9 +626,19 @@ class _DisconnectOverlayState extends State<_DisconnectOverlay>
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onTap,
-      child: Container(
+      // Material → ren typografi (annars Flutters gula debug-understräck på Text)
+      // + mjuk dynamisk entré (fade + lätt scale-in) så den glider in fint.
+      child: Material(
         color: bg,
-        child: SafeArea(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+          builder: (context, v, child) => Opacity(
+            opacity: v,
+            child: Transform.scale(scale: 0.96 + 0.04 * v, child: child),
+          ),
+          child: SafeArea(
           child: Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 36),
@@ -700,7 +710,8 @@ class _DisconnectOverlayState extends State<_DisconnectOverlay>
             ),
           ),
         ),
-      ),
+          ),
+        ),
     );
   }
 }

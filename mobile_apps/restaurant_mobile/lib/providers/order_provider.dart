@@ -37,16 +37,21 @@ class OrderProvider with ChangeNotifier {
   // öppettider visas bara den röda skärmen, helt tyst.
   Timer? _disconnectAlarmTimer;
   Timer? _disconnectReAlertTimer;
+  Timer? _offlineGraceTimer;
   bool _disconnectAcknowledged = false;
+  // Bekräftad offline FÖRST efter en grace-period — korta nät-glapp (Wi-Fi som
+  // hoppar, server-omdeploy) ska INTE ge röd skärm/larm.
+  bool _offlineConfirmed = false;
   static const Duration _disconnectReAlertAfter = Duration(minutes: 3);
+  static const Duration _offlineGrace = Duration(seconds: 30);
 
-  /// Röd skärm visas så länge appen är offline. När restaurangen är öppen kan
-  /// användaren trycka för att tysta (då döljs den tills re-alert), när den är
-  /// stängd ligger den kvar (passiv, tyst).
+  /// Röd skärm visas först när offline är BEKRÄFTAT (>30s). När restaurangen är
+  /// öppen kan användaren trycka för att tysta (döljs tills re-alert), när den
+  /// är stängd ligger den kvar (passiv, tyst).
   bool get showDisconnectOverlay =>
-      _isOffline && (!_isRestaurantOpen || !_disconnectAcknowledged);
+      _offlineConfirmed && (!_isRestaurantOpen || !_disconnectAcknowledged);
   bool get disconnectSoundActive =>
-      _isOffline && _isRestaurantOpen && !_disconnectAcknowledged;
+      _offlineConfirmed && _isRestaurantOpen && !_disconnectAcknowledged;
 
   // Anropas när servern signalerar att den här plattans session ändrats
   // (admin revoke/delete). Wire:as i MainShell → AuthProvider.bootstrapTerminal.
@@ -757,12 +762,25 @@ class OrderProvider with ChangeNotifier {
 
   // ── Connection-lost-larm ──────────────────────────────────────────────────
   void _handleConnectivity(bool offline) {
-    final was = _isOffline;
-    _isOffline = offline;
-    if (offline && !was) {
-      _startDisconnectAlarm();
-    } else if (!offline && was) {
-      _stopDisconnectAlarm();
+    if (offline) {
+      if (_isOffline) return; // redan i offline-flödet
+      _isOffline = true;
+      // Vänta ut grace-perioden innan röd skärm + larm aktiveras. Korta
+      // avbrott (<30s) avbryts av en återanslutning och syns aldrig.
+      _offlineGraceTimer?.cancel();
+      _offlineGraceTimer = Timer(_offlineGrace, () {
+        if (_isOffline) {
+          _offlineConfirmed = true;
+          _startDisconnectAlarm();
+          notifyListeners();
+        }
+      });
+    } else {
+      _offlineGraceTimer?.cancel();
+      final wasConfirmed = _offlineConfirmed;
+      _isOffline = false;
+      _offlineConfirmed = false;
+      if (wasConfirmed) _stopDisconnectAlarm();
     }
     notifyListeners();
   }
@@ -807,6 +825,9 @@ class OrderProvider with ChangeNotifier {
   }
 
   void _stopDisconnectAlarm() {
+    _offlineGraceTimer?.cancel();
+    _offlineGraceTimer = null;
+    _offlineConfirmed = false;
     _disconnectAlarmTimer?.cancel();
     _disconnectAlarmTimer = null;
     _disconnectReAlertTimer?.cancel();
@@ -912,6 +933,7 @@ class OrderProvider with ChangeNotifier {
     _pauseTimer?.cancel();
     _disconnectAlarmTimer?.cancel();
     _disconnectReAlertTimer?.cancel();
+    _offlineGraceTimer?.cancel();
     AudioHelper.stopAll();
     super.dispose();
   }
