@@ -177,7 +177,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
-  const saveMutation = useMutation({
+  const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       const payload = mapFormToPayload(form);
       if (restaurantId) return patchRestaurant(restaurantId, payload);
@@ -204,7 +204,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => { if (restaurantId) await deleteRestaurant(restaurantId); },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });

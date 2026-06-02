@@ -43,7 +43,7 @@ export function CityHierarchyManager() {
     return allRoots.filter((c) => c.children.length === 0 && c.restaurantCount < 2);
   }, [allRoots]);
 
-  const mergeMutation = useMutation({
+  const mergeMutation = useMutation({ meta: { toast: false },
     mutationFn: async ({ childId, parentCityId }: { childId: string; parentCityId: string | null }) => {
       return mergeCityUnder(childId, parentCityId);
     },
@@ -57,7 +57,7 @@ export function CityHierarchyManager() {
     },
   });
 
-  const aliasMutation = useMutation({
+  const aliasMutation = useMutation({ meta: { toast: false },
     mutationFn: async ({ cityId, aliases }: { cityId: string; aliases: string[] }) => {
       return updateCityAliases(cityId, aliases);
     },

@@ -86,7 +86,7 @@ function MainCategoryModal({
   }, [mainCategory, open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const saveMutation = useMutation({
+  const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       if (mainCategory) {
         return updateMainCategory(mainCategory.id, form);
@@ -100,7 +100,7 @@ function MainCategoryModal({
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       if (mainCategory) {
         await deleteMainCategory(mainCategory.id);
@@ -220,7 +220,7 @@ function CategoryModal({ open, restaurantId, category, mainCategories, onClose }
   }, [category, open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const saveMutation = useMutation({
+  const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       const payload = { ...form, mainCategoryId: form.mainCategoryId || null };
       if (category) {
@@ -235,7 +235,7 @@ function CategoryModal({ open, restaurantId, category, mainCategories, onClose }
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       if (category) {
         await deleteCategory(category.id);
@@ -341,7 +341,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
   }, [categories, open, product]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const saveMutation = useMutation({
+  const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       const payload = { ...form, restaurantId };
       if (product) {
@@ -355,7 +355,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       if (product) {
         await deleteProduct(product.id);
@@ -536,7 +536,7 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
   }, [group, open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const saveMutation = useMutation({
+  const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       const payload = {
         name,
@@ -560,7 +560,7 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       if (group) {
         await deleteExtraGroup(group.id);
@@ -676,7 +676,7 @@ function ImportFromOtherModal({
     enabled: open && tab === "extras" && Boolean(sourceRestaurantId),
   });
 
-  const copyMutation = useMutation({
+  const copyMutation = useMutation({ meta: { toast: false },
     mutationFn: async (sourceId: string) => {
       setError(null);
       if (tab === "categories") return copyCategory(sourceId, currentRestaurantId);
@@ -789,7 +789,7 @@ function R2MigrateButton() {
     return 'Okänt fel — kolla nätverk eller serverloggar.';
   };
 
-  const dryMutation = useMutation({
+  const dryMutation = useMutation({ meta: { toast: false },
     mutationFn: () => r2Migrate({ apply: false }),
     onSuccess: (data) => {
       setDryRun(data);
@@ -804,7 +804,7 @@ function R2MigrateButton() {
     },
   });
 
-  const applyMutation = useMutation({
+  const applyMutation = useMutation({ meta: { toast: false },
     mutationFn: () => r2Migrate({ apply: true }),
     onSuccess: async (data) => {
       setLiveResult(data);
@@ -947,7 +947,7 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
     return 'Okänt fel';
   };
 
-  const dryMutation = useMutation({
+  const dryMutation = useMutation({ meta: { toast: false },
     mutationFn: () => r2AutoMatch(restaurantId, true),
     onSuccess: (data) => { setDryRun(data); setOpen(true); },
     onError: (e) => {
@@ -955,7 +955,7 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
     },
   });
 
-  const applyMutation = useMutation({
+  const applyMutation = useMutation({ meta: { toast: false },
     mutationFn: () => r2AutoMatch(restaurantId, false),
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });

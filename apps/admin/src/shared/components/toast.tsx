@@ -26,6 +26,14 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
+// ── Module-level bro så icke-React-kod (t.ex. React Query MutationCache) kan
+// trigga toasts. ToastProvider registrerar sin showToast här vid mount. ──
+let _emitter: ToastContextValue["showToast"] | null = null;
+export function emitToast(input: { type?: ToastType; message: string }) {
+  if (_emitter) _emitter(input);
+  else if (typeof console !== "undefined") console.log("[Toast]", input.message);
+}
+
 export function useToast(): ToastContextValue {
   const ctx = useContext(ToastContext);
   if (!ctx) {
@@ -46,6 +54,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const dismiss = useCallback((id: string) => {
     setToasts((current) => current.filter((t) => t.id !== id));
   }, []);
+
+  // Registrera global emitter så MutationCache (utanför React) kan visa toasts.
+  useEffect(() => {
+    _emitter = showToast;
+    return () => {
+      if (_emitter === showToast) _emitter = null;
+    };
+  }, [showToast]);
 
   return (
     <ToastContext.Provider value={{ showToast }}>

@@ -63,7 +63,7 @@ export function RestaurantZonePage({ restaurantId }: Props) {
     setDirty(true);
   }, []);
 
-  const saveMutation = useMutation({
+  const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       return patchRestaurant(restaurantId, {
         deliveryZones: serializeZones(zones) as unknown as never,
