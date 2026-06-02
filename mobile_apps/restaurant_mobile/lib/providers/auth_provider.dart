@@ -313,6 +313,8 @@ class AuthProvider with ChangeNotifier {
         await _clearSession();
       } else if (code == 404) {
         _terminalStatus = TerminalStatus.needsPairing;
+        _user = null;
+        await _clearSession();
       } else {
         // Nätverksfel: kör offline om vi har en cachad session, annars parning.
         final token = await SecureTokenStore.readToken();

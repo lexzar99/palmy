@@ -111,8 +111,9 @@ class LeveraBusinessApp extends StatelessWidget {
         return const LockedScreen(key: ValueKey('locked-screen'));
       case TerminalStatus.booting:
         return const _BootSplash(key: ValueKey('boot-splash'));
-      case TerminalStatus.paired:
       case TerminalStatus.needsPairing:
+        return const PairingScreen(key: ValueKey('pairing-screen'));
+      case TerminalStatus.paired:
         return auth.isAuthenticated
             ? MainShell(key: mainShellKey)
             : const PairingScreen(key: ValueKey('pairing-screen'));

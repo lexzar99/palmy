@@ -238,27 +238,33 @@ export function RestaurantDevicesPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {linked ? (
+                        // Logga ut FÖRST — delete är inte tillgängligt på en
+                        // inloggad platta (annars loggas den inte ut innan den
+                        // tas bort).
                         <Button variant="danger" disabled={busy} onClick={() => revokeMutation.mutate(device.id)}>
                           <LogOut size={15} className="mr-1.5 inline" />
                           Logga ut
                         </Button>
                       ) : (
-                        <Button variant="primary" disabled={busy} onClick={() => restoreMutation.mutate(device.id)}>
-                          <LogIn size={15} className="mr-1.5 inline" />
-                          Logga in igen
-                        </Button>
+                        <>
+                          <Button variant="primary" disabled={busy} onClick={() => restoreMutation.mutate(device.id)}>
+                            <LogIn size={15} className="mr-1.5 inline" />
+                            Logga in igen
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            disabled={busy}
+                            title="Ta bort enheten — plattan kan sedan paras om till valfri restaurang"
+                            onClick={() => {
+                              if (window.confirm("Ta bort enheten helt? Plattan loggas ut och kan paras om med en ny kod (även till en annan restaurang).")) {
+                                deleteMutation.mutate(device.id);
+                              }
+                            }}
+                          >
+                            <Trash2 size={15} />
+                          </Button>
+                        </>
                       )}
-                      <Button
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => {
-                          if (window.confirm("Ta bort enheten helt? Plattan måste paras om med en ny kod.")) {
-                            deleteMutation.mutate(device.id);
-                          }
-                        }}
-                      >
-                        <Trash2 size={15} />
-                      </Button>
                     </div>
                   </div>
                 );

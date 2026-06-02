@@ -4894,8 +4894,13 @@ router.delete('/devices/:id', authenticate, requireSuperAdmin, async (req, res) 
   try {
     const device = await (prisma as any).restaurantDevice.findUnique({
       where: { id: req.params.id },
-      select: { restaurantId: true, deviceId: true },
+      select: { restaurantId: true, deviceId: true, revoked: true },
     });
+    // Måste vara utloggad (revoked) först — annars loggas plattan inte ut
+    // ordentligt innan raden försvinner.
+    if (device && !device.revoked) {
+      return res.status(400).json({ error: 'Logga ut enheten först innan du tar bort den.' });
+    }
     await (prisma as any).restaurantDevice.delete({ where: { id: req.params.id } });
     // Bumpa tokenVersion + signalera plattan så den faller tillbaka till
     // pairing-skärmen direkt (enheten måste paras om).
