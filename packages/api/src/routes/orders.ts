@@ -676,7 +676,11 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const activeDeals = await prisma.deal.findMany({
-      where: { isActive: true },
+      // Personliga mallar (welcome/referral) får ALDRIG appliceras som
+      // publika auto-deals — de delas bara ut som UserDeals till registrerade
+      // kunder. Annars läckte t.ex. "25% första beställning"-välkomstmallen in
+      // som automatisk rabatt för ALLA gäst-ordrar.
+      where: { isActive: true, isPersonalTemplate: false },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
 

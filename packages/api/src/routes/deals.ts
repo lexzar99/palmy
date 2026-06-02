@@ -187,6 +187,8 @@ router.get('/', async (req, res) => {
       where: {
         showOnSite: true,
         isActive: true,
+        // Personliga mallar (welcome/referral) ska aldrig listas publikt.
+        isPersonalTemplate: false,
         ...(targetRestaurantId
           ? {
               OR: [
@@ -277,6 +279,11 @@ router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
     const deals = await prisma.deal.findMany({
       where: {
         isActive: true,
+        // Exkludera personliga mallar (welcome/referral). De är isGlobal=true
+        // men ska INTE visas/appliceras som publik auto-deal i kassan — annars
+        // läcker välkomstmallen (t.ex. "25% första beställning") in på varje
+        // gäst-cart. De delas bara ut som UserDeals till registrerade kunder.
+        isPersonalTemplate: false,
         AND: [
           {
             OR: [
