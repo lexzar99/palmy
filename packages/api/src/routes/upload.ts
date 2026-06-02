@@ -172,6 +172,11 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
       const prod = await prisma.product.findUnique({ where: { id: productId }, select: { slug: true, name: true } });
       if (prod) productSlug = prod.slug || slugifyPathSegment(prod.name);
     }
+    // Virtuella kategorier utan DB-rad (t.ex. "Erbjudanden"-tilen) skickar en
+    // explicit categorySlug i stället för categoryId → path:en byggs på den.
+    if (!categorySlug && req.body.categorySlug) {
+      categorySlug = slugifyPathSegment(String(req.body.categorySlug));
+    }
 
     // Validera att vi har det vi behöver för den valda typen
     if (kind !== 'misc' && !citySlug) { res.status(400).json({ error: 'Saknar stad för denna restaurang' }); return; }
@@ -185,7 +190,10 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
     // Bygg kanonisk nyckel
     let key: string;
     if (kind === 'misc') {
-      const fn = String(req.body.filename || req.file.originalname || `upload-${Date.now()}.webp`);
+      // Unik webp-nyckel så plattform-bilder (t.ex. sponsorkort) inte krockar
+      // med varandra när de saknar restaurang/kategori-kontext.
+      const base = String(req.body.filename || req.file.originalname || 'upload').replace(/\.[a-z0-9]+$/i, '');
+      const fn = `${slugifyPathSegment(base) || 'upload'}-${Date.now()}.webp`;
       key = buildR2Key({ kind: 'misc', city: citySlug || undefined, restaurant: restaurantSlug || undefined, filename: fn });
     } else if (kind === 'hero') {
       key = buildR2Key({ kind: 'hero', city: citySlug!, restaurant: restaurantSlug! });

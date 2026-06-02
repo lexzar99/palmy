@@ -1443,6 +1443,7 @@ export function MenuPage() {
                       onChange={(url) => offersImageMutation.mutate(url || null)}
                       kind="main-category"
                       restaurantId={activeRestaurantId}
+                      categorySlug="erbjudanden"
                     />
                     {selectedRestaurant?.offersImageUrl ? (
                       <button

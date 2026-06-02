@@ -33,6 +33,7 @@ export function ImageUploadField({
   kind,
   restaurantId,
   categoryId,
+  categorySlug,
   productId,
 }: {
   value: string;
@@ -41,7 +42,9 @@ export function ImageUploadField({
   placeholder?: string;
   kind?: ImageUploadKind;
   restaurantId?: string | null;
+  // Explicit slug för virtuella kategorier utan DB-rad (t.ex. "Erbjudanden"-tilen).
   categoryId?: string | null;
+  categorySlug?: string | null;
   productId?: string | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -58,13 +61,16 @@ export function ImageUploadField({
     }
     setUploading(true);
     try {
-      const useR2 = Boolean(kind && restaurantId);
+      // misc-bilder (t.ex. sponsorkort) är plattform-nivå och saknar restaurang
+      // → tillåt R2 ändå. Övriga kinds kräver restaurang-kontext för path:en.
+      const useR2 = Boolean(kind) && (kind === "misc" || Boolean(restaurantId));
       if (useR2) {
         const fd = new FormData();
         fd.append("file", file);
         fd.append("kind", kind!);
         if (restaurantId) fd.append("restaurantId", restaurantId);
         if (categoryId) fd.append("categoryId", categoryId);
+        if (categorySlug) fd.append("categorySlug", categorySlug);
         if (productId) fd.append("productId", productId);
         try {
           const response = await api.post<{ url: string; key: string }>(
