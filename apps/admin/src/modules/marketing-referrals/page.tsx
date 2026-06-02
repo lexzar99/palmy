@@ -542,10 +542,15 @@ function UnifiedMarketingTab({
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (settings && !hydrated) {
-      // Använd referralDealId som primär (mest sannolikt satt eftersom
-      // det är vad referral-flödet kräver). Faller tillbaka till welcomeDealId.
+      const savedId = settings.welcomeDealId ?? settings.referralDealId ?? null;
+      // Om den sparade mallen inte längre finns bland tillgängliga mallar
+      // (borttagen/inaktiverad) → starta med tomt val. Annars skulle form:en
+      // hålla ett "spök-id" som inte syns i listan och som dessutom fick hela
+      // sparningen att 400:a (referralDealId validerades mot mallen som
+      // försvann), vilket blockerade aktivering av en NY mall.
+      const exists = savedId != null && (settings.availableDeals ?? []).some((d) => d.id === savedId);
       setForm({
-        dealId: settings.referralDealId ?? settings.welcomeDealId ?? null,
+        dealId: exists ? savedId : null,
         couponsPerSide: settings.referralCouponsPerSide ?? 1,
         maxRewardsPerInviter: settings.referralMaxRewardsPerInviter ?? 20,
       });
@@ -574,6 +579,10 @@ function UnifiedMarketingTab({
   const availableDeals = settings?.availableDeals ?? [];
   const selectedDeal = availableDeals.find((d) => d.id === form.dealId);
   const dealHint = selectedDeal ? formatDealHint(selectedDeal) : null;
+  // "Spök-referens": den sparade välkomst-mallen finns inte längre (togs bort
+  // eller inaktiverades). Då får inga nya kunder rabatt förrän en ny mall väljs.
+  const savedDealId = settings?.welcomeDealId ?? settings?.referralDealId ?? null;
+  const hasOrphanedDeal = !!(savedDealId && !availableDeals.some((d) => d.id === savedDealId));
 
   // Toggle sparar OMEDELBART vid klick — styr endast välkomstrabatten.
   // referralEnabled lämnas orört (referral är avstängt för launch och ska
@@ -582,16 +591,14 @@ function UnifiedMarketingTab({
     mutation.mutate({ welcomeDealActive: next });
   };
 
-  // Spara-knapp persisterar resten (dropdown + kuponger + tak). Sätter
-  // BÅDA welcomeDealId och referralDealId till samma värde så båda flöden
-  // använder samma mall.
+  // Spara-knapp persisterar vald välkomst-mall. Sätter ENDAST welcomeDealId
+  // (referral-systemet är avstängt för launch). Tidigare sattes även
+  // referralDealId till samma id → om mallen var ett spök-id (borttagen)
+  // 400:ade backend på referralDealId-valideringen och hela sparningen, även
+  // när man försökte byta till en ny mall. Att bara röra welcome-fältet
+  // frikopplar de två och låter en ny mall aktiveras rent.
   const handleSaveConfig = () => {
-    mutation.mutate({
-      welcomeDealId: form.dealId,
-      referralDealId: form.dealId,
-      referralCouponsPerSide: form.couponsPerSide,
-      referralMaxRewardsPerInviter: form.maxRewardsPerInviter,
-    });
+    mutation.mutate({ welcomeDealId: form.dealId });
   };
 
   return (
@@ -635,6 +642,19 @@ function UnifiedMarketingTab({
 
       <Surface className="px-6 py-6">
         <h2 className="text-base font-black uppercase tracking-tight mb-5">Vilken mall ska användas?</h2>
+
+        {hasOrphanedDeal && (
+          <div className="mb-5 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm">
+            <p className="font-bold mb-1 flex items-center gap-2">
+              <AlertTriangle size={14} className="text-red-500" /> Tidigare välkomst-mall saknas
+            </p>
+            <p style={{ color: "var(--text-secondary)" }}>
+              Mallen som var vald har tagits bort eller inaktiverats, så den syns
+              inte längre i listan. Välj en ny mall nedan och klicka Spara — annars
+              får nya kunder ingen rabatt.
+            </p>
+          </div>
+        )}
 
         {availableDeals.length === 0 && (
           <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
