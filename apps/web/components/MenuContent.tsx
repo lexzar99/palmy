@@ -990,14 +990,21 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-transparent" />
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[color:var(--bg-primary)] to-transparent" />
 
-        {/* Top-icons: Back (vänster), Favorit (höger) — share-knapp borttagen */}
-        <Link
-          href="/"
+        {/* Top-icons: Back (vänster), Favorit (höger) — share-knapp borttagen.
+            Back går ETT steg tillbaka i historiken (tillbaka till hemsidan med
+            den kategori man stod på) istället för en hård redirect till "/".
+            Fallback till "/" om sidan öppnades direkt (ingen historik). */}
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) router.back();
+            else router.push("/");
+          }}
           aria-label={t("common.back")}
-          className="absolute top-4 left-4 w-11 h-11 rounded-full backdrop-blur-xl bg-white/85 border border-white/40 flex items-center justify-center shadow-lg active:scale-95 transition-all"
+          className="absolute top-4 left-4 w-11 h-11 rounded-full backdrop-blur-xl bg-white/85 border border-white/40 flex items-center justify-center shadow-lg active:scale-90 transition-transform duration-200 ease-out"
         >
           <ChevronLeft size={20} className="text-zinc-900" />
-        </Link>
+        </button>
         {restaurant?.id && (
           <button
             type="button"

@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Levera',
-    short_name: 'Levera',
+    name: 'Delivera',
+    short_name: 'Delivera',
     description: 'Beställ mat från flera lokala restauranger i Lund. Snabb leverans, smidig betalning och ett brett utbud.',
     start_url: '/',
     display: 'standalone',

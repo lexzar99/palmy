@@ -774,9 +774,10 @@ export default function HomePage() {
         style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <div className="px-4 pt-2 pb-2.5 space-y-2">
+          {/* Rad 1: varumärke + små knappar */}
           <div className="flex items-center justify-between">
             <Link href="/" className="text-xl font-black italic tracking-tighter" style={{ color: "var(--text-primary)" }}>
-              Levera<span className="text-gold-500">.</span>
+              Deli<span className="text-gold-500">vera</span>
             </Link>
             <div className="flex items-center gap-1.5">
               <div style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }} className="rounded-lg">
@@ -800,36 +801,35 @@ export default function HomePage() {
               </Link>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <AddressPullDown
-                currentAddress={address}
-                zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
-                onOpenFull={() => setShowAddressModal(true)}
-                orderType={orderType}
-                cityName={detectedCityName}
-                onSelect={handleQuickAddressSelect}
-              />
-            </div>
-            <div className="relative p-0.5 rounded-xl flex items-center shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-              <button
-                onClick={() => toggleOrderType("DELIVERY")}
-                aria-label={t("cart.deliveryType.delivery")}
-                className="w-9 h-8 rounded-lg flex items-center justify-center transition-all"
-                style={{ backgroundColor: orderType === "DELIVERY" ? "#EAB545" : "transparent", color: orderType === "DELIVERY" ? "#000" : "var(--text-secondary)" }}
-              >
-                <Truck size={15} />
-              </button>
-              <button
-                onClick={() => toggleOrderType("PICKUP")}
-                aria-label={t("cart.deliveryType.pickup")}
-                className="w-9 h-8 rounded-lg flex items-center justify-center transition-all"
-                style={{ backgroundColor: orderType === "PICKUP" ? "#EAB545" : "transparent", color: orderType === "PICKUP" ? "#000" : "var(--text-secondary)" }}
-              >
-                <Store size={15} />
-              </button>
-            </div>
+
+          {/* Rad 2: bred leverans/hämtning-toggle med text — centrerad och tydlig
+              så man direkt ser vad man väljer. */}
+          <div className="p-1 rounded-2xl flex items-center" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+            <button
+              onClick={() => toggleOrderType("DELIVERY")}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all"
+              style={{ backgroundColor: orderType === "DELIVERY" ? "#EAB545" : "transparent", color: orderType === "DELIVERY" ? "#000" : "var(--text-secondary)", boxShadow: orderType === "DELIVERY" ? "0 4px 12px rgba(234,181,69,0.25)" : "none" }}
+            >
+              <Truck size={15} /> {t("cart.deliveryType.delivery")}
+            </button>
+            <button
+              onClick={() => toggleOrderType("PICKUP")}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all"
+              style={{ backgroundColor: orderType === "PICKUP" ? "#EAB545" : "transparent", color: orderType === "PICKUP" ? "#000" : "var(--text-secondary)", boxShadow: orderType === "PICKUP" ? "0 4px 12px rgba(234,181,69,0.25)" : "none" }}
+            >
+              <Store size={15} /> {t("cart.deliveryType.pickup")}
+            </button>
           </div>
+
+          {/* Rad 3: adressväljare (full bredd) */}
+          <AddressPullDown
+            currentAddress={address}
+            zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
+            onOpenFull={() => setShowAddressModal(true)}
+            orderType={orderType}
+            cityName={detectedCityName}
+            onSelect={handleQuickAddressSelect}
+          />
         </div>
       </div>
       <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 pt-3 md:pt-0">

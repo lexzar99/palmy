@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Menu, X, Sun, Moon, User as UserIcon, Info, Mail } from "lucide-react";
+import { ShoppingCart, Menu, X, Sun, Moon, User as UserIcon, Mail } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTheme } from "@/app/providers";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
@@ -75,7 +75,7 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-[100]" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", height: "72px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
        <div className="flex items-center gap-3">
           <span className="text-2xl font-black italic tracking-tighter" style={{ color: "var(--text-primary)" }}>
-            Levera<span className="text-gold-500">.</span>
+            Deli<span className="text-gold-500">vera</span>
           </span>
        </div>
     </nav>
@@ -92,9 +92,9 @@ const Navbar = () => {
       }}
     >
       <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-1 group" aria-label="Levera — startsidan">
+        <Link href="/" className="flex items-center gap-1 group" aria-label="Delivera — startsidan">
           <span className="text-2xl font-black italic tracking-tighter leading-[1.15] transition-transform group-hover:scale-105" style={{ color: "var(--text-primary)" }}>
-            Levera<span className="text-gold-500">.</span>
+            Deli<span className="text-gold-500">vera</span>
           </span>
         </Link>
 
@@ -116,18 +116,8 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3 relative z-[100]">
-          {/* Om oss / Kontakt som små icon-knappar — visas bara på desktop
-              eftersom mobil-menyn redan har egna länkar. Tooltipen via title
-              ger snabb identifiering. */}
-          <Link
-            href="/about"
-            className="hidden md:flex p-2 transition-colors rounded-full items-center justify-center"
-            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)", border: "1px solid var(--border-muted)" }}
-            aria-label={t("nav.about")}
-            title={t("nav.about")}
-          >
-            <Info size={18} className="text-gold-600" />
-          </Link>
+          {/* Kontakt som liten icon-knapp — visas bara på desktop. "Om oss"
+              borttagen enligt önskemål. */}
           <Link
             href="/contact"
             className="hidden md:flex p-2 transition-colors rounded-full items-center justify-center"
@@ -193,7 +183,6 @@ const Navbar = () => {
                   { name: t("nav.home"), href: "/" },
                   { name: t("nav.favorites"), href: "/discover" },
                   { name: t("nav.myOrders"), href: "/orders" },
-                  { name: t("nav.about"), href: "/about" },
                   { name: t("nav.contact"), href: "/contact" },
                   // Visa namn om inloggad, annars "Logga in"
                   { name: displayName ?? t("nav.login"), href: "/profile", isUser: true },

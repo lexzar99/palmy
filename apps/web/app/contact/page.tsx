@@ -4,8 +4,8 @@ import { Phone, MapPin, Mail } from "lucide-react";
 import { API_URL } from "@/lib/api";
 
 export const metadata: Metadata = {
-  title: "Kontakta oss | Levera",
-  description: "Kontakta Levera — telefon, e-post och adress.",
+  title: "Kontakta oss | Delivera",
+  description: "Kontakta Delivera — telefon, e-post och adress.",
 };
 
 type PlatformSettings = {

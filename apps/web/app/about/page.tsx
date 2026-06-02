@@ -3,8 +3,8 @@ import { Sparkles, Building2 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 
 export const metadata: Metadata = {
-  title: "Om oss | Levera",
-  description: "Levera är en online beställningsplattform som kopplar dig till lokala restauranger.",
+  title: "Om oss | Delivera",
+  description: "Delivera är en online beställningsplattform som kopplar dig till lokala restauranger.",
 };
 
 type PlatformSettings = {
@@ -33,7 +33,7 @@ export default async function OmOssPage() {
           <Sparkles size={12} /> Beställningsplattform
         </div>
         <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-tight" style={{ color: "var(--text-primary)" }}>
-          Om <span className="text-gold-500">Levera</span>
+          Om <span className="text-gold-500">Delivera</span>
         </h1>
         <div className="space-y-6 text-lg leading-relaxed max-w-3xl" style={{ color: "var(--text-secondary)" }}>
           {customBody ? (
@@ -44,7 +44,7 @@ export default async function OmOssPage() {
           ) : (
             <>
               <p>
-                Levera är en <span style={{ color: "var(--text-primary)" }} className="font-medium">online beställningsplattform</span> som kopplar
+                Delivera är en <span style={{ color: "var(--text-primary)" }} className="font-medium">online beställningsplattform</span> som kopplar
                 hungriga kunder till lokala restauranger. Vi är inte en restaurang själva — vi hjälper restaurangerna nå dig snabbare
                 och dig att hitta dem enklare.
               </p>
@@ -53,7 +53,7 @@ export default async function OmOssPage() {
                 och betalningen så att restaurangerna kan fokusera på maten.
               </p>
               <p>
-                Snabb leverans, säker betalning och support när du behöver det. Det är det Levera är till för.
+                Snabb leverans, säker betalning och support när du behöver det. Det är det Delivera är till för.
               </p>
             </>
           )}

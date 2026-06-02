@@ -134,6 +134,8 @@ const stripePromise = stripeKeyMissing
 export default function CartPage() {
   const { t } = useTranslation();
   const { items, removeItem, updateQuantity, getTotal, clearCart, restaurantId: cartRestaurantId, restaurantSlug: cartRestaurantSlug } = useCartStore();
+  // Namnet på restaurangen man beställer från — visas högst upp i kassan.
+  const [cartRestaurantName, setCartRestaurantName] = useState<string | null>(null);
   const router = useRouter();
   const [editingCartItem, setEditingCartItem] = useState<any>(null);
 
@@ -253,11 +255,6 @@ export default function CartPage() {
     };
   });
 
-  const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
-  const [showSchedulePicker, setShowSchedulePicker] = useState(false);
-  const [selDate, setSelDate] = useState("");
-  const [selHour, setSelHour] = useState("12");
-  const [selMin, setSelMin] = useState("00");
 
   // Dricks (paritet med RN CartScreen) — endast leverans
   const [tipAmount, setTipAmount] = useState<number>(0);
@@ -327,16 +324,6 @@ export default function CartPage() {
     window.addEventListener('matgo:menu-changed', onMenuChanged as EventListener);
     return () => window.removeEventListener('matgo:menu-changed', onMenuChanged as EventListener);
   }, [items, cartRestaurantId, removeItem]);
-
-  useEffect(() => {
-    if (showSchedulePicker) {
-      const d = scheduledFor || new Date(Date.now() + 45 * 60 * 1000);
-      setSelDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
-      setSelHour(String(d.getHours()).padStart(2, '0'));
-      const roundedMin = Math.min(Math.round(d.getMinutes() / 5) * 5, 55);
-      setSelMin(String(roundedMin).padStart(2, '0'));
-    }
-  }, [showSchedulePicker]);
 
   const fetchPredictions = useCallback(async (text: string) => {
     if (text.length < 3) { setPredictions([]); return; }
@@ -764,6 +751,7 @@ export default function CartPage() {
       // The restaurant default fee is a fallback that only applies when no zone is configured,
       // and in that case the zone check endpoint already returns the restaurant default.
       if (restaurantRes.data) {
+        if (restaurantRes.data.name) setCartRestaurantName(restaurantRes.data.name);
         setRestaurantSettings((prev) => ({
           ...prev,
           isOpen: restaurantRes.data.isOpen ?? prev.isOpen,
@@ -1251,7 +1239,6 @@ export default function CartPage() {
       restaurantSlug: useCartStore.getState().restaurantSlug || undefined,
       lat: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lat; } catch { return undefined; } })(),
       lng: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lng; } catch { return undefined; } })(),
-      scheduledFor: scheduledFor?.toISOString() || undefined,
       tip: effectiveTip > 0 ? effectiveTip : undefined,
       items: items.map((i) => ({
         productId: i.productId,
@@ -1649,6 +1636,17 @@ export default function CartPage() {
       <div className="max-w-[1400px] mx-auto">
         <div className="flex items-end justify-between mb-4 lg:mb-8 px-1 sm:px-4">
            <div className="min-w-0">
+              {/* Vilken restaurang man beställer från — visas högst upp. */}
+              {cartRestaurantName && (
+                <Link
+                  href={cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/"}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-2 transition-all hover:border-gold-500/40 active:scale-95"
+                  style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
+                >
+                  <Store size={13} className="text-gold-500 shrink-0" />
+                  <span className="text-[11px] font-black uppercase tracking-wide truncate max-w-[60vw]" style={{ color: "var(--text-primary)" }}>{cartRestaurantName}</span>
+                </Link>
+              )}
               <h1 className="text-2xl sm:text-4xl md:text-6xl font-black uppercase italic tracking-tight leading-[1.05] mb-1" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")} <span className="text-gold-500">{t("cart.heading.accent")}</span></h1>
               <p className="text-zinc-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">{t("cart.subtitle")}</p>
            </div>
@@ -2196,226 +2194,6 @@ export default function CartPage() {
                          ))}
                       </div>
 
-                      <div className="flex gap-3 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                         <button type="button" onClick={() => setScheduledFor(null)} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${!scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                            {t("cart.schedule.asap")}
-                         </button>
-                          <button type="button" onClick={() => { const min = new Date(Date.now() + 45 * 60 * 1000); setScheduledFor(min); setShowSchedulePicker(true); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                            {t("cart.schedule.schedule")}
-                         </button>
-                      </div>
-
-                       {scheduledFor && (
-                          <div className="rounded-2xl p-5 mb-8 border flex items-center justify-between cursor-pointer hover:border-gold-500/30 transition-all" style={{ backgroundColor: "rgba(231,178,75,0.05)", borderColor: "rgba(231,178,75,0.2)" }} onClick={() => setShowSchedulePicker(true)}>
-                             <div className="flex items-center gap-3">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-500"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                                <div>
-                                   <div className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
-                                      {t("cart.schedule.today")} · {scheduledFor.toLocaleDateString("sv-SE", { day: "numeric", month: "short" })}
-                                   </div>
-                                   <div className="text-2xl font-black text-gold-500 italic">
-                                      {scheduledFor.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
-                                   </div>
-                                </div>
-                             </div>
-                             <div className="flex gap-2 items-center">
-                                <button type="button" onClick={(e) => { e.stopPropagation(); setScheduledFor(null); }} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-all" style={{ backgroundColor: "rgba(255,59,48,0.12)" }}>
-                                   <X size={14} className="text-red-500" />
-                                </button>
-                             </div>
-                          </div>
-                       )}
-
-                       {/* Schedule Picker Modal — endast IDAG. Kunder är på sidan
-                           för att beställa snabbt, inte planera en vecka i förväg.
-                           Datum-picker borttagen → kunden ser direkt vad som är
-                           valbart. Timmar/minuter som är < nu+45min eller efter
-                           midnatt är disabled (gråade ut) snarare än helt dolda
-                           så kunden förstår *varför* en tid inte går att välja. */}
-                       <AnimatePresence>
-                          {showSchedulePicker && (() => {
-                             const now = new Date();
-                             const minDate = new Date(now.getTime() + 45 * 60 * 1000);
-                             // Cutoff: 23:55 idag (sista 5-min-slot innan midnatt).
-                             // Vi tillåter inte schemaläggning över midnatt — kunden
-                             // får då välja "Snarast" eller komma tillbaka imorgon.
-                             const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 55);
-
-                             const todayVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-                             // Filtrera quickTimes så vi inte erbjuder offsets
-                             // som rinner över midnatt (t.ex. "3 timmar" kl 22).
-                             const quickTimes = [
-                                { label: t("cart.schedule.quick.45min"), offset: 45 },
-                                { label: t("cart.schedule.quick.1h"), offset: 60 },
-                                { label: t("cart.schedule.quick.1_5h"), offset: 90 },
-                                { label: t("cart.schedule.quick.2h"), offset: 120 },
-                                { label: t("cart.schedule.quick.3h"), offset: 180 },
-                             ].filter((qt) => new Date(now.getTime() + qt.offset * 60 * 1000) <= endOfToday);
-
-                             const handleConfirm = () => {
-                                // selDate kan endast vara idag i denna picker, men
-                                // vi parsar ändå defensivt så framtida ändringar
-                                // inte bryter.
-                                const [y, m, day] = (selDate || todayVal).split('-').map(Number);
-                                const combined = new Date(y, m - 1, day, parseInt(selHour), parseInt(selMin));
-                                if (combined < minDate) {
-                                   setError(t("cart.schedule.errorTooEarly"));
-                                   return;
-                                }
-                                if (combined > endOfToday) {
-                                   setError(t("cart.schedule.errorTomorrow"));
-                                   return;
-                                }
-                                setScheduledFor(combined);
-                                setShowSchedulePicker(false);
-                             };
-
-                             // Helpers för att avgöra om en given timme/minut är
-                             // (a) inom valid-fönstret minDate → endOfToday, och
-                             // (b) tillsammans med vald motpart bildar en valid tid.
-                             const isHourValid = (hh: string) => {
-                                const h = parseInt(hh);
-                                // Tillgänglig om det finns *någon* minute-slot i denna timme
-                                // som är >= minDate och <= endOfToday.
-                                for (let mm = 0; mm < 60; mm += 5) {
-                                   const t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, mm);
-                                   if (t >= minDate && t <= endOfToday) return true;
-                                }
-                                return false;
-                             };
-                             const isMinValid = (mm: string) => {
-                                const t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(selHour), parseInt(mm));
-                                return t >= minDate && t <= endOfToday;
-                             };
-
-                             const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-                             const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
-
-                             return (
-                                <motion.div
-                                   key="schedule-modal"
-                                   initial={{ opacity: 0 }}
-                                   animate={{ opacity: 1 }}
-                                   exit={{ opacity: 0 }}
-                                   className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center"
-                                   onClick={() => setShowSchedulePicker(false)}
-                                >
-                                   <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-                                   <motion.div
-                                      initial={{ y: 100, opacity: 0 }}
-                                      animate={{ y: 0, opacity: 1 }}
-                                      exit={{ y: 100, opacity: 0 }}
-                                      transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                                      className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 pb-8 shadow-2xl"
-                                      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
-                                      onClick={(e) => e.stopPropagation()}
-                                   >
-                                      <div className="w-10 h-1 rounded-full mx-auto mb-6 sm:hidden" style={{ backgroundColor: "var(--border-muted)" }} />
-                                      <h3 className="text-lg font-black uppercase tracking-wider text-center mb-2" style={{ color: "var(--text-primary)" }}>
-                                         {t("cart.schedule.pickerTitle")}
-                                      </h3>
-                                      <p className="text-[10px] font-bold uppercase tracking-widest text-center mb-6" style={{ color: "var(--text-secondary)" }}>
-                                         {t("cart.schedule.pickerSub")}
-                                      </p>
-
-                                      {/* Quick times — bara de som ryms idag */}
-                                      {quickTimes.length > 0 && (
-                                         <div className="flex flex-wrap gap-2 mb-6 justify-center">
-                                            {quickTimes.map((qt) => {
-                                               const t = new Date(now.getTime() + qt.offset * 60 * 1000);
-                                               const isActive =
-                                                  selHour === String(t.getHours()).padStart(2, '0') &&
-                                                  selMin === String(t.getMinutes()).padStart(2, '0');
-                                               return (
-                                                  <button key={qt.label} type="button" onClick={() => {
-                                                     setSelDate(todayVal);
-                                                     setSelHour(String(t.getHours()).padStart(2, '0'));
-                                                     setSelMin(String(t.getMinutes()).padStart(2, '0'));
-                                                  }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${isActive ? 'bg-gold-500 text-zinc-950' : 'bg-[var(--bg-deep)] text-zinc-400 hover:text-gold-500 border border-[var(--border-muted)]'}`}>
-                                                     {qt.label}
-                                                  </button>
-                                               );
-                                            })}
-                                         </div>
-                                      )}
-
-                                       {/* Idag-badge ersätter datum-pickern */}
-                                       <div className="mb-6 flex justify-center">
-                                          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gold-500/10 border border-gold-500/20">
-                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-500"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                                             <span className="text-[11px] font-black uppercase tracking-widest text-gold-500">
-                                                {t("cart.schedule.today")} {now.toLocaleDateString("sv-SE", { day: "numeric", month: "short" })}
-                                             </span>
-                                          </div>
-                                       </div>
-
-                                       {/* Time picker — hours/minutes utanför valid-fönster
-                                           är disabled (gråade ut) istället för dolda. */}
-                                       <div className="flex gap-3 mb-6">
-                                          <div className="flex-1">
-                                             <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>{t("cart.schedule.hour")}</label>
-                                             <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                                                {hours.map(h => {
-                                                   const valid = isHourValid(h);
-                                                   return (
-                                                      <button
-                                                         key={h}
-                                                         type="button"
-                                                         disabled={!valid}
-                                                         onClick={() => setSelHour(h)}
-                                                         className={`shrink-0 w-12 py-3 rounded-xl text-xs font-bold transition-all text-center ${
-                                                            selHour === h
-                                                               ? 'bg-gold-500 text-zinc-950'
-                                                               : valid
-                                                                  ? 'bg-[var(--bg-deep)] text-zinc-400 border border-[var(--border-muted)]'
-                                                                  : 'bg-[var(--bg-deep)]/40 text-zinc-700 border border-[var(--border-muted)]/40 cursor-not-allowed opacity-40'
-                                                         }`}
-                                                      >
-                                                         {h}
-                                                      </button>
-                                                   );
-                                                })}
-                                             </div>
-                                          </div>
-                                          <div className="flex items-end pb-3 text-2xl font-black" style={{ color: "var(--text-secondary)" }}>:</div>
-                                          <div className="flex-1">
-                                             <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>{t("cart.schedule.minute")}</label>
-                                             <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                                                {minutes.map(m => {
-                                                   const valid = isMinValid(m);
-                                                   return (
-                                                      <button
-                                                         key={m}
-                                                         type="button"
-                                                         disabled={!valid}
-                                                         onClick={() => setSelMin(m)}
-                                                         className={`shrink-0 w-12 py-3 rounded-xl text-xs font-bold transition-all text-center ${
-                                                            selMin === m
-                                                               ? 'bg-gold-500 text-zinc-950'
-                                                               : valid
-                                                                  ? 'bg-[var(--bg-deep)] text-zinc-400 border border-[var(--border-muted)]'
-                                                                  : 'bg-[var(--bg-deep)]/40 text-zinc-700 border border-[var(--border-muted)]/40 cursor-not-allowed opacity-40'
-                                                         }`}
-                                                      >
-                                                         {m}
-                                                      </button>
-                                                   );
-                                                })}
-                                             </div>
-                                          </div>
-                                       </div>
-
-                                      <button type="button" onClick={handleConfirm} className="w-full rounded-2xl py-4 text-sm font-black uppercase tracking-widest bg-gold-500 text-zinc-950 hover:bg-gold-400 transition-all">
-                                         {t("cart.schedule.confirm")}
-                                      </button>
-                                   </motion.div>
-                                </motion.div>
-                             );
-                          })()}
-                       </AnimatePresence>
 
                        <div className="space-y-8">
                         {(() => {
