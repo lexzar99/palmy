@@ -26,6 +26,7 @@ import {
   Sparkles,
   Star,
   Store,
+  Tablet,
   TicketPercent,
   Users,
 } from "lucide-react";
@@ -53,6 +54,7 @@ const SECTIONS: NavSection[] = [
     label: "Katalog",
     items: [
       { href: "/restaurants", label: "Restauranger", icon: Store },
+      { href: "/restaurant-devices", label: "Enheter", icon: Tablet },
       { href: "/menu", label: "Meny", icon: MenuSquare },
       { href: "/categories", label: "Kategorier", icon: Filter },
       { href: "/zones", label: "Zoner", icon: Map },
