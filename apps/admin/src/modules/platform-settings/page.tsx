@@ -93,7 +93,7 @@ export function PlatformSettingsPage() {
 
       <Surface className="px-6 py-5">
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Här hanterar du <strong>FoodGo-företagets</strong> kontaktinfo som visas på <code>/kontakt</code> och <code>/om-oss</code> på web-sajten.
+          Här hanterar du <strong>Levera-företagets</strong> kontaktinfo som visas på <code>/kontakt</code> och <code>/om-oss</code> på web-sajten.
           Inget med enskilda restauranger att göra — det här är plattformens egna uppgifter.
         </p>
       </Surface>
@@ -121,7 +121,7 @@ export function PlatformSettingsPage() {
           <h2 className="text-base font-black uppercase tracking-tight">Företagsidentitet</h2>
         </div>
         <p className="text-xs mb-5" style={{ color: "var(--text-secondary)" }}>
-          Visas i Terms, Privacy och support-flöden i web + RN-appen. Lämna tomt för fallback-värden (<code>FoodGo AB</code>, <code>support@matgo.se</code>, osv).
+          Visas i Terms, Privacy och support-flöden i web + RN-appen. Lämna tomt för fallback-värden (<code>Levera AB</code>, <code>support@levera.se</code>, osv).
         </p>
 
         <div className="grid gap-5 md:grid-cols-2">
@@ -129,7 +129,7 @@ export function PlatformSettingsPage() {
             <Input
               value={form.companyName || ""}
               onChange={(e) => setForm((p) => ({ ...p, companyName: e.target.value }))}
-              placeholder="FoodGo AB"
+              placeholder="Levera AB"
             />
           </Field>
 
@@ -145,7 +145,7 @@ export function PlatformSettingsPage() {
             <Textarea
               value={form.companyAddress || ""}
               onChange={(e) => setForm((p) => ({ ...p, companyAddress: e.target.value }))}
-              placeholder={"FoodGo AB\nKungsgatan 1\n111 22 Stockholm"}
+              placeholder={"Levera AB\nKungsgatan 1\n111 22 Stockholm"}
               rows={3}
             />
           </Field>
@@ -155,7 +155,7 @@ export function PlatformSettingsPage() {
               type="email"
               value={form.supportEmail || ""}
               onChange={(e) => setForm((p) => ({ ...p, supportEmail: e.target.value }))}
-              placeholder="support@matgo.se"
+              placeholder="support@levera.se"
             />
           </Field>
 
@@ -164,7 +164,7 @@ export function PlatformSettingsPage() {
               type="email"
               value={form.privacyEmail || ""}
               onChange={(e) => setForm((p) => ({ ...p, privacyEmail: e.target.value }))}
-              placeholder="privacy@matgo.se"
+              placeholder="privacy@levera.se"
             />
           </Field>
 
@@ -173,7 +173,7 @@ export function PlatformSettingsPage() {
               type="email"
               value={form.noReplyEmail || ""}
               onChange={(e) => setForm((p) => ({ ...p, noReplyEmail: e.target.value }))}
-              placeholder="no-reply@matgo.se"
+              placeholder="no-reply@levera.se"
             />
           </Field>
         </div>
@@ -207,7 +207,7 @@ export function PlatformSettingsPage() {
               type="email"
               value={form.contactEmail || ""}
               onChange={(e) => setForm((p) => ({ ...p, contactEmail: e.target.value }))}
-              placeholder="info@matgo.se"
+              placeholder="info@levera.se"
             />
           </Field>
 
@@ -215,7 +215,7 @@ export function PlatformSettingsPage() {
             <Textarea
               value={form.contactAddress || ""}
               onChange={(e) => setForm((p) => ({ ...p, contactAddress: e.target.value }))}
-              placeholder={"FoodGo AB\nKungsgatan 1\n111 22 Stockholm"}
+              placeholder={"Levera AB\nKungsgatan 1\n111 22 Stockholm"}
               rows={3}
             />
           </Field>
@@ -230,7 +230,7 @@ export function PlatformSettingsPage() {
         <Textarea
           value={form.aboutBody || ""}
           onChange={(e) => setForm((p) => ({ ...p, aboutBody: e.target.value }))}
-          placeholder="FoodGo är en plattform som..."
+          placeholder="Levera är en plattform som..."
           rows={10}
         />
       </Surface>

@@ -176,7 +176,7 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
 
       {/* ── Restaurang ── */}
       <div className="mb-2">
-        {vis("restaurantName") && <p style={elStyle("restaurantName")} className="tracking-wide">{s(h.restaurantName) || "FoodGo"}</p>}
+        {vis("restaurantName") && <p style={elStyle("restaurantName")} className="tracking-wide">{s(h.restaurantName) || "Levera"}</p>}
         {vis("timestamp") && <p style={elStyle("timestamp")}>{s(o.date)} {s(o.time)}</p>}
         {vis("address") && restaurantAddr && <p style={elStyle("address")}>{restaurantAddr}</p>}
         {vis("phone") && s(h.phone) && <p style={elStyle("phone")}>Tel: {s(h.phone)}</p>}

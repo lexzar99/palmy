@@ -157,8 +157,8 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (
     <aside className="sidebar-shell">
       <Link href="/dashboard" className="sidebar-brand">
-        <div className="sidebar-brand-mark">F</div>
-        <span className="sidebar-brand-text">FoodGo</span>
+        <div className="sidebar-brand-mark">L</div>
+        <span className="sidebar-brand-text">Levera.</span>
       </Link>
 
       <nav className="flex-1 overflow-y-auto" style={{ display: "flex", flexDirection: "column", gap: 2 }}>

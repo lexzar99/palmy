@@ -15,6 +15,14 @@
       "runtimeExecutable": "node_modules/.bin/ts-node",
       "runtimeArgs": ["--transpile-only", "src/index.ts"],
       "port": 4000
+    },
+    {
+      "name": "admin",
+      "cwd": "/Users/jalle/testa/apps/admin",
+      "runtimeExecutable": "node_modules/.bin/next",
+      "runtimeArgs": ["dev", "-p", "3001"],
+      "port": 3001,
+      "autoPort": true
     }
   ]
 }

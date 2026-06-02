@@ -107,11 +107,11 @@ export default function LoginPage() {
       <Surface className="w-full max-w-md px-8 py-10">
         <div className="flex items-center justify-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-2xl font-semibold text-[var(--accent-fg)]">
-            M
+            L
           </div>
         </div>
 
-        <h1 className="mt-6 text-center text-[26px] font-semibold tracking-[-0.025em]">FoodGo Admin</h1>
+        <h1 className="mt-6 text-center text-[26px] font-semibold tracking-[-0.025em]">Levera Admin</h1>
         {needsTotp && (
           <p className="mt-2 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
             Ny enhet upptäckt — verifiera med din authenticator-app eller recovery code.

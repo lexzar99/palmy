@@ -3,7 +3,9 @@
 :root {
   color-scheme: dark;
 
-  /* ── Color system: deep neutral + electric lime accent ── */
+  /* ── Color system: deep neutral + monochrome (white) accent ──
+     Levera. — svartvitt dark-tema. Accenten är vit/near-white istället för
+     lime; bara semantiska färger (success/danger/warning/info) bär färg. */
   --bg-page: #08090b;
   --bg-primary: #0b0c0f;
   --bg-secondary: #101114;
@@ -20,10 +22,10 @@
   --text-secondary: #a1a1aa;
   --text-muted: #52525b;
 
-  --accent: #BEFF3B;
-  --accent-strong: #D4FF6E;
-  --accent-soft: rgba(190, 255, 59, 0.15);
-  --accent-fg: #0a0b0e;
+  --accent: #f4f4f5;
+  --accent-strong: #ffffff;
+  --accent-soft: rgba(255, 255, 255, 0.10);
+  --accent-fg: #08090b;
 
   --success: #4ade80;
   --danger: #fb7185;

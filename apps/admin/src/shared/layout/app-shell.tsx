@@ -15,7 +15,7 @@ function LoadingScreen() {
   return (
     <div className="auth-shell">
       <Surface className="max-w-sm px-8 py-10 text-center">
-        <p className="eyebrow">FoodGo Admin</p>
+        <p className="eyebrow">Levera Admin</p>
         <h1 className="section-title mt-4">Verifierar session</h1>
         <p className="section-subtitle">Laddar kontrollpanelen…</p>
       </Surface>
