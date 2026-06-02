@@ -199,10 +199,12 @@
   animation: float 6s ease-in-out infinite;
 }
 
-/* Ren fade + lätt upp-glid när en sida/vy monteras (restaurangsida m.fl.). */
+/* Ren fade när en sida/vy monteras (restaurangsida m.fl.). OBS: enbart opacity —
+   ingen transform. En kvarvarande transform skapar ett containing block och
+   bryter position:fixed för barn (t.ex. produktmodalen → hamnade längst ner). */
 @keyframes pageFadeIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 .page-fade-in {
   animation: pageFadeIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;

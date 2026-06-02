@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { X, Plus, Minus, Check, ShoppingBag, Sparkles } from "lucide-react";
 import { useCartStore, type BogoChoice } from "@/store/cartStore";
@@ -40,6 +41,11 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(modalRef, true);
 
+  // Portal-mount-gate (SSR-säkert) — modalen renderas i document.body så att
+  // inga transformerade förfäder (t.ex. sid-animationer) bryter position:fixed.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const [quantity, setQuantity] = useState(initialQuantity ?? 1);
   const [selectedExtras, setSelectedExtras] = useState<any[]>([]);
   const [note, setNote] = useState(initialNote ?? "");
@@ -60,9 +66,15 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
     : (product.extraGroups ?? []);
 
   useEffect(() => {
+    // Lås bakgrundsskroll medan modalen är öppen. Lås både html och body
+    // (body behövs för iOS Safari där enbart html-lås inte räcker).
+    const prevHtml = document.documentElement.style.overflowY;
+    const prevBody = document.body.style.overflow;
     document.documentElement.style.overflowY = "hidden";
+    document.body.style.overflow = "hidden";
     return () => {
-      document.documentElement.style.overflowY = "";
+      document.documentElement.style.overflowY = prevHtml;
+      document.body.style.overflow = prevBody;
     };
   }, []);
 
@@ -224,7 +236,9 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
 
   const hasImage = Boolean(product.imageUrl);
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -530,7 +544,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
           cancelText={t("product.switchRestaurant.cancel")}
         />
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 };
 
