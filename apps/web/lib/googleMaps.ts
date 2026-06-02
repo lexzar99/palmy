@@ -9,20 +9,30 @@ let mapsPromise: Promise<any> | null = null;
 export function loadGoogleMaps(): Promise<any> {
   if (typeof window === "undefined") return Promise.reject(new Error("SSR"));
   const w = window as any;
-  if (w.google?.maps) return Promise.resolve(w.google.maps);
+  if (w.google?.maps?.Map) return Promise.resolve(w.google.maps);
   if (mapsPromise) return mapsPromise;
 
   const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
   if (!key) return Promise.reject(new Error("Missing NEXT_PUBLIC_GOOGLE_MAPS_KEY"));
 
   mapsPromise = new Promise((resolve, reject) => {
+    // VIKTIGT: cacha ALDRIG ett avvisat löfte. Tidigare poisonades singleton:en
+    // av ett enda transient-fel → "Kartan kunde inte laddas" för alltid tills
+    // sid-omladdning. Nu nollas mapsPromise + det trasiga scriptet tas bort så
+    // nästa öppning av modalen kan göra ett nytt försök.
+    const fail = (err: Error) => {
+      mapsPromise = null;
+      const stale = document.getElementById("gmaps-js");
+      if (stale && !w.google?.maps?.Map) stale.remove();
+      reject(err);
+    };
     // Vänta in window.google.maps även om script-onload råkar fira innan
-    // API:t är fullt populerat (kan hända beroende på loader-läge).
-    const waitForReady = (onTimeout: () => void) => {
+    // API:t är fullt populerat.
+    const waitForReady = () => {
       const start = Date.now();
       const tick = () => {
         if (w.google?.maps?.Map) { resolve(w.google.maps); return; }
-        if (Date.now() - start > 10000) { onTimeout(); return; }
+        if (Date.now() - start > 12000) { fail(new Error("google.maps unavailable")); return; }
         setTimeout(tick, 60);
       };
       tick();
@@ -30,8 +40,8 @@ export function loadGoogleMaps(): Promise<any> {
 
     const existing = document.getElementById("gmaps-js") as HTMLScriptElement | null;
     if (existing) {
-      waitForReady(() => reject(new Error("google.maps unavailable")));
-      existing.addEventListener("error", () => reject(new Error("Failed to load Google Maps")));
+      existing.addEventListener("error", () => fail(new Error("Failed to load Google Maps")));
+      waitForReady();
       return;
     }
     const s = document.createElement("script");
@@ -39,8 +49,8 @@ export function loadGoogleMaps(): Promise<any> {
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places`;
     s.async = true;
     s.defer = true;
-    s.onload = () => waitForReady(() => reject(new Error("google.maps unavailable after load")));
-    s.onerror = () => { mapsPromise = null; reject(new Error("Failed to load Google Maps")); };
+    s.onload = () => waitForReady();
+    s.onerror = () => fail(new Error("Failed to load Google Maps"));
     document.head.appendChild(s);
   });
 

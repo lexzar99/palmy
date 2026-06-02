@@ -6,6 +6,7 @@ export interface CartItem {
   productId: string;
   restaurantId: string;
   name: string;
+  imageUrl?: string | null; // Produktbild (visas i kassan om satt)
   price: number; // Baspris i kr
   quantity: number;
   extras: {

@@ -1772,9 +1772,21 @@ export default function CartPage() {
                     className="flex items-center gap-3 text-left flex-1 min-w-0"
                     aria-label={`${t("cart.tapToEdit")}: ${item.name}`}
                   >
-                    <div className="w-11 h-11 rounded-xl flex items-center justify-center text-gold-600 font-black italic text-sm shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(231,178,75,0.18)" }}>
-                      {item.quantity}×
-                    </div>
+                    {item.imageUrl ? (
+                      <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(28,28,30,0.06)" }}>
+                        <img
+                          src={item.imageUrl.startsWith("/") ? `${API_URL}${item.imageUrl}` : item.imageUrl}
+                          alt={item.name}
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute bottom-0 right-0 px-1.5 py-0.5 text-[10px] font-black italic text-zinc-950 bg-gold-500 rounded-tl-lg leading-none">{item.quantity}×</span>
+                      </div>
+                    ) : (
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-gold-600 font-black italic text-sm shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(231,178,75,0.18)" }}>
+                        {item.quantity}×
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <h3 className="text-sm font-black uppercase italic tracking-tight truncate group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{item.name}</h3>
                       {item.extras.length > 0 && (
@@ -2231,29 +2243,8 @@ export default function CartPage() {
 
                         {orderType === 'DELIVERY' && (
                            <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                              {quickAddresses.length > 0 && (
-                                 <div className="space-y-2">
-                                   <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.savedAddresses")}</label>
-                                   <div className="flex gap-2 flex-wrap">
-                                     {quickAddresses.map(addr => (
-                                       <button
-                                         key={`${addr.street}-${addr.zip || ''}-${addr.city || ''}`}
-                                         type="button"
-                                         onClick={() => handleQuickAddressSelect(addr)}
-                                         className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                                           formatQuickAddress(addr) === addressInput
-                                             ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
-                                            : 'bg-[var(--bg-deep)] border-[var(--border-muted)] text-zinc-500 hover:text-gold-500 hover:border-gold-500/20'
-                                         }`}
-                                       >
-                                         {addr.label === 'Hem' ? <Home size={12} /> : addr.label === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
-                                         {formatQuickAddress(addr)}
-                                         {addr.isDefault && <span className="text-[8px] text-gold-500">• {t("cart.defaultBadge")}</span>}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
+                              {/* Sparade adresser visas inte här — man byter via
+                                  kart-modalen ("Ändra"). */}
                               {/* Kompakt adress — visar bara vald adress. "Ändra"
                                   öppnar kart-modalen (nål + sök). Zon-check körs efter. */}
                               <div className="space-y-1.5">

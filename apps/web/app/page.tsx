@@ -102,6 +102,10 @@ export default function HomePage() {
   const promoRailRef = useRef<HTMLDivElement | null>(null);
   const promoIndexRef = useRef(0);
   const [activePromo, setActivePromo] = useState(0);
+  // Sticky-header collapse: kompakt (bara rad 1) när man scrollar ner, expanderar
+  // mjukt (adress + sök) när man scrollar upp eller är nära toppen.
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+  const lastScrollY = useRef(0);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [address, setAddress] = useState("");
   const [query, setQuery] = useState("");
@@ -129,13 +133,6 @@ export default function HomePage() {
   // Quick-filter state
   const [quickFilter, setQuickFilter] = useState<"all" | "rated" | "fast" | "deals" | "free">("all");
   // A14 — hero override from admin CMS. null = use translations (default).
-  const [heroOverride, setHeroOverride] = useState<{
-    title?: string | null;
-    subtitle?: string | null;
-    imageUrl?: string | null;
-    ctaLabel?: string | null;
-    ctaUrl?: string | null;
-  } | null>(null);
   // Återställ senast valda kategori vid mount (t.ex. när man backar in från en
   // restaurang) så man inte alltid hamnar på "Alla".
   useEffect(() => {
@@ -144,17 +141,18 @@ export default function HomePage() {
       if (saved) setActiveCuisine(saved);
     } catch { /* noop */ }
   }, []);
+  // Scroll-riktning → collapse/expand av sticky-headern.
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await axios.get(`${API_URL}/api/settings`);
-        if (!cancelled && res.data?.hero) setHeroOverride(res.data.hero);
-      } catch {
-        /* fall back to translations */
-      }
-    })();
-    return () => { cancelled = true; };
+    const onScroll = () => {
+      const y = window.scrollY;
+      const last = lastScrollY.current;
+      if (y < 24) setHeaderCollapsed(false);
+      else if (y > last + 6) setHeaderCollapsed(true);
+      else if (y < last - 6) setHeaderCollapsed(false);
+      lastScrollY.current = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
   // Favoriter (delad localStorage-backad store — paritet med RN)
   const { favorites, toggle: toggleFavorite } = useFavorites();
@@ -782,32 +780,31 @@ export default function HomePage() {
         className="md:hidden sticky top-0 z-50"
         style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
-        <div className="px-4 pt-2 pb-2 space-y-1.5">
+        <div className="px-4 pt-2 pb-2">
           {/* Rad 1: varumärke + liten leverans/hämtning-toggle + knappar.
               Toggeln sitter mellan "Delivera" och knapparna till höger. */}
-          <div className="flex items-center justify-between gap-2">
-            <Link href="/" className="text-xl font-black italic tracking-tighter shrink-0" style={{ color: "var(--text-primary)" }}>
+          <div className="flex items-center gap-2">
+            <Link href="/" className="text-lg font-black italic tracking-tighter shrink-0" style={{ color: "var(--text-primary)" }}>
               Deli<span className="text-gold-500">vera</span>
             </Link>
-            <div className="flex items-center gap-1.5">
-              <div className="p-0.5 rounded-lg flex items-center" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                <button
-                  onClick={() => toggleOrderType("DELIVERY")}
-                  aria-label={t("cart.deliveryType.delivery")}
-                  className="w-8 h-7 rounded-md flex items-center justify-center transition-all"
-                  style={{ backgroundColor: orderType === "DELIVERY" ? "#EAB545" : "transparent", color: orderType === "DELIVERY" ? "#000" : "var(--text-secondary)" }}
-                >
-                  <Truck size={14} />
-                </button>
-                <button
-                  onClick={() => toggleOrderType("PICKUP")}
-                  aria-label={t("cart.deliveryType.pickup")}
-                  className="w-8 h-7 rounded-md flex items-center justify-center transition-all"
-                  style={{ backgroundColor: orderType === "PICKUP" ? "#EAB545" : "transparent", color: orderType === "PICKUP" ? "#000" : "var(--text-secondary)" }}
-                >
-                  <Store size={14} />
-                </button>
-              </div>
+            {/* Leverans/Hämtning-toggle — fyller mellanrummet med synlig text. */}
+            <div className="flex-1 min-w-0 p-0.5 rounded-xl flex items-center" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+              <button
+                onClick={() => toggleOrderType("DELIVERY")}
+                className="flex-1 min-w-0 flex items-center justify-center gap-1 py-2 rounded-lg text-[9.5px] font-black uppercase tracking-wide transition-all"
+                style={{ backgroundColor: orderType === "DELIVERY" ? "#EAB545" : "transparent", color: orderType === "DELIVERY" ? "#000" : "var(--text-secondary)" }}
+              >
+                <Truck size={12} className="shrink-0" /> <span className="truncate">{t("cart.deliveryType.delivery")}</span>
+              </button>
+              <button
+                onClick={() => toggleOrderType("PICKUP")}
+                className="flex-1 min-w-0 flex items-center justify-center gap-1 py-2 rounded-lg text-[9.5px] font-black uppercase tracking-wide transition-all"
+                style={{ backgroundColor: orderType === "PICKUP" ? "#EAB545" : "transparent", color: orderType === "PICKUP" ? "#000" : "var(--text-secondary)" }}
+              >
+                <Store size={12} className="shrink-0" /> <span className="truncate">{t("cart.deliveryType.pickup")}</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
               <div style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }} className="rounded-lg">
                 <LocaleSwitcher buttonClassName="w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-90" iconSize={14} />
               </div>
@@ -830,99 +827,39 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Rad 2: adressväljare */}
-          <AddressPullDown
-            currentAddress={address}
-            zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
-            onOpenFull={() => setShowAddressModal(true)}
-            orderType={orderType}
-            cityName={detectedCityName}
-            onSelect={handleQuickAddressSelect}
-          />
-
-          {/* Rad 3: sök */}
-          <Link
-            href="/search"
-            className="flex items-center gap-2 rounded-xl px-4 py-2.5 border transition-all active:scale-[0.99]"
-            style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-muted)" }}
+          {/* Rad 2 + 3 (adress + sök) — fälls ihop mjukt när man scrollar ner
+              och expanderar när man scrollar upp / är nära toppen. */}
+          <motion.div
+            initial={false}
+            animate={{ height: headerCollapsed ? 0 : "auto", opacity: headerCollapsed ? 0 : 1 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
           >
-            <Search size={14} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-            <span className="text-[12px] font-bold flex-1 truncate" style={{ color: "var(--text-secondary)" }}>{t("home.searchCta")}</span>
-            <div className="w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 shrink-0">
-              <ArrowRight size={13} />
+            <div className="space-y-1.5 pt-1.5">
+              <AddressPullDown
+                currentAddress={address}
+                zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
+                onOpenFull={() => setShowAddressModal(true)}
+                orderType={orderType}
+                cityName={detectedCityName}
+                onSelect={handleQuickAddressSelect}
+              />
+              <Link
+                href="/search"
+                className="flex items-center gap-2 rounded-xl px-4 py-2.5 border transition-all active:scale-[0.99]"
+                style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-muted)" }}
+              >
+                <Search size={14} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+                <span className="text-[12px] font-bold flex-1 truncate" style={{ color: "var(--text-secondary)" }}>{t("home.searchCta")}</span>
+                <div className="w-6 h-6 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 shrink-0">
+                  <ArrowRight size={13} />
+                </div>
+              </Link>
             </div>
-          </Link>
+          </motion.div>
         </div>
       </div>
       <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 pt-3 md:pt-0">
-        {/* DESKTOP COMPACT HERO — only md+ — bakgrund + stor titel + tagline */}
-        <section
-          className="hidden md:block relative overflow-hidden rounded-3xl mb-8 mt-2"
-          style={{
-            background: "linear-gradient(135deg, rgba(212,167,74,0.18) 0%, rgba(212,167,74,0.04) 50%, transparent 100%)",
-            border: "1px solid rgba(212,167,74,0.18)",
-          }}
-        >
-          {/* Radial glow */}
-          <div className="absolute inset-0 pointer-events-none" style={{
-            background: "radial-gradient(circle at 80% 30%, rgba(212,167,74,0.25) 0%, transparent 55%)",
-          }} />
-          {/* Grid bakgrund */}
-          <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
-            backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px)",
-            backgroundSize: "48px 48px",
-          }} />
-
-          <div className="relative grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-8 px-10 py-12 lg:py-14 items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border mb-5" style={{ borderColor: "rgba(212,167,74,0.3)", backgroundColor: "rgba(212,167,74,0.08)" }}>
-                <Sparkles size={11} className="text-gold-500" />
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500">{t("home.heroDesktop.eyebrow")}</span>
-              </div>
-              <h1 className="text-5xl lg:text-6xl xl:text-7xl font-black italic tracking-tighter leading-[0.95] mb-3" style={{ color: "var(--text-primary)" }}>
-                {heroOverride?.title || t("home.heroDesktop.titleLine1")}<br />
-                <span className="text-gold-500">{heroOverride?.subtitle || t("home.heroDesktop.titleLine2")}</span>
-              </h1>
-              <p className="text-sm lg:text-base font-bold mt-4 max-w-md" style={{ color: "var(--text-secondary)" }}>
-                {t("home.heroDesktop.subtitle")}
-              </p>
-              {heroOverride?.ctaLabel && heroOverride?.ctaUrl ? (
-                <Link
-                  href={heroOverride.ctaUrl}
-                  className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest bg-gold-500 text-black hover:opacity-90 transition-opacity"
-                >
-                  {heroOverride.ctaLabel}
-                </Link>
-              ) : null}
-              <div className="flex items-center gap-3 mt-6 flex-wrap">
-                {[t("home.heroDesktop.badge.fast"), t("home.heroDesktop.badge.secure"), t("home.heroDesktop.badge.local")].map((b) => (
-                  <div key={b} className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-gold-500" />
-                    <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{b}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="hidden lg:flex items-center justify-center relative">
-              <div className="absolute inset-0 rounded-full" style={{
-                background: "radial-gradient(circle, rgba(212,167,74,0.2) 0%, transparent 60%)",
-              }} />
-              {heroOverride?.imageUrl ? (
-                <img
-                  src={heroOverride.imageUrl}
-                  alt=""
-                  className="relative max-h-[260px] xl:max-h-[300px] w-auto object-contain drop-shadow-2xl"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                />
-              ) : (
-                <div className="relative text-[180px] xl:text-[220px] font-black italic tracking-tighter leading-[1.15] opacity-90 text-gold-500 select-none">
-                  🍕
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
         {/* DESKTOP HEADER — adress/toggle/sök. På mobil sköts detta av den
             sticky toppbaren högst upp. */}
         <header className="hidden md:block mb-6 sm:mb-8 relative">

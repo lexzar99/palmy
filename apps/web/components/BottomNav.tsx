@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Heart, ShoppingBag, User } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -25,10 +25,15 @@ const BottomNav = () => {
 
   return (
     <div
-      className="fixed left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-3 sm:px-4 md:hidden"
-      style={{ bottom: "calc(0.25rem + env(safe-area-inset-bottom, 0px))" }}
+      className="fixed bottom-0 left-0 right-0 z-[100] md:hidden"
+      style={{
+        backgroundColor: "var(--bg-primary)",
+        borderTop: "1px solid var(--border-muted)",
+        boxShadow: "0 -4px 20px rgba(17,17,19,0.06)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}
     >
-      <nav className="backdrop-blur-3xl border rounded-[2.5rem] p-1.5 flex items-center justify-between shadow-2xl" style={{ backgroundColor: "var(--glass-bg)", borderColor: "var(--glass-border)" }}>
+      <nav className="flex items-stretch justify-around px-1 pt-1.5">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -39,52 +44,36 @@ const BottomNav = () => {
               href={item.href}
               aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
-              className="relative flex-1 flex flex-col items-center justify-center py-3 px-1 sm:px-2 rounded-[2rem] transition-colors duration-300 touch-manipulation"
+              className="relative flex-1 flex items-center justify-center pb-2 touch-manipulation"
             >
-              <div className="relative z-10 flex flex-col items-center gap-1">
-                <motion.div
-                  animate={{
-                    scale: isActive ? 1.1 : 1,
-                    color: isActive ? "#000000" : "var(--text-primary)",
-                    opacity: isActive ? 1 : 0.7,
-                  }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                >
-                  <Icon 
-                    size={20} 
-                    strokeWidth={isActive ? 2.5 : 2} 
-                    fill={isActive ? "currentColor" : "none"} 
+              <div className="relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-2xl">
+                {isActive && (
+                  <motion.div
+                    layoutId="navActive"
+                    className="absolute inset-0 rounded-2xl"
+                    style={{ backgroundColor: "rgba(231,178,75,0.16)" }}
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                   />
-                </motion.div>
-                
-                <AnimatePresence>
-                  {isActive && (
-                    <motion.span 
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 5 }}
-                      className="text-[8px] font-black uppercase tracking-[0.2em]"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      {item.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-
-                {item.count !== undefined && item.count > 0 && !isActive && (
-                  <span className="absolute -top-1 -right-2 bg-gold-500 text-zinc-950 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 shadow-sm" style={{ borderColor: "var(--bg-primary)" }}>
+                )}
+                <Icon
+                  size={21}
+                  strokeWidth={isActive ? 2.6 : 2}
+                  fill={isActive ? "currentColor" : "none"}
+                  className="relative z-10"
+                  style={{ color: isActive ? "#C28E2E" : "var(--text-secondary)" }}
+                />
+                <span
+                  className="relative z-10 text-[9px] font-black uppercase tracking-wider"
+                  style={{ color: isActive ? "#C28E2E" : "var(--text-secondary)" }}
+                >
+                  {item.label}
+                </span>
+                {item.count !== undefined && item.count > 0 && (
+                  <span className="absolute top-0 right-1 z-20 bg-gold-500 text-zinc-950 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
                     {item.count}
                   </span>
                 )}
               </div>
-              
-              {isActive && (
-                <motion.div
-                  layoutId="activeTab"
-                  className="absolute inset-1 bg-gold-gradient rounded-[2.2rem] shadow-[0_8px_20px_-4px_rgba(234,179,8,0.3)]"
-                  transition={{ type: "spring", bounce: 0.25, duration: 0.5 }}
-                />
-              )}
             </Link>
           );
         })}

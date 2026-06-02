@@ -4,12 +4,26 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin, X, ArrowRight, Truck, Store, AlertCircle,
-  Loader2, CheckCircle2, Building2, ChevronRight, Search, LocateFixed,
+  Loader2, CheckCircle2, Building2, ChevronRight, Search, LocateFixed, RotateCw, Home, Briefcase,
 } from "lucide-react";
 import { loadGoogleMaps, DEFAULT_MAP_CENTER } from "@/lib/googleMaps";
 import { useTheme } from "@/app/providers";
+import { readQuickAddresses, formatQuickAddress, type QuickAddress } from "@/lib/quickAddresses";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+// Liten cookie-hjälpare — kommer ihåg om användaren nekat GPS, så vi inte
+// auto-promptar plats varje omstart.
+const getCookie = (name: string): string | null => {
+  if (typeof document === "undefined") return null;
+  const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+  return m ? decodeURIComponent(m[1]) : null;
+};
+const setCookie = (name: string, value: string, days = 365) => {
+  if (typeof document === "undefined") return;
+  const exp = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${exp}; path=/; SameSite=Lax`;
+};
 
 // Rena, moderna kart-stilar som matchar appens ljusa/mörka tema. Döljer POI:er
 // och transit för en lugn, minimalistisk look.
@@ -102,7 +116,10 @@ export default function AddressModal({
   // ── Map state ────────────────────────────────────────────────────────────────
   const [mapError, setMapError] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const [mapKey, setMapKey] = useState(0); // bumpa för att tvinga om-init (retry)
   const [locating, setLocating] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<QuickAddress[]>([]);
+  const autoLocatedRef = useRef(false);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const geocoderRef = useRef<any>(null);
@@ -121,7 +138,7 @@ export default function AddressModal({
 
   // ── On open ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) { autoLocatedRef.current = false; return; }
     sessionToken.current = crypto.randomUUID();
 
     if (orderType === "DELIVERY") {
@@ -134,11 +151,13 @@ export default function AddressModal({
           console.warn("Failed to parse stored coords:", err);
         }
       }
+      try { setSavedAddresses(readQuickAddresses()); } catch { /* noop */ }
     }
 
     setPredictions([]);
     setError(null);
     setAutocompleteError(false);
+    setMapError(false);
     setSelectedCity(null);
     setCitySearch("");
   }, [isOpen]);
@@ -225,20 +244,41 @@ export default function AddressModal({
   }, []);
 
   // ── "Använd min plats" ───────────────────────────────────────────────────────
-  const useMyLocation = () => {
+  const useMyLocation = useCallback((opts?: { silent?: boolean }) => {
     if (!navigator.geolocation) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocating(false);
+        setCookie("delivera_gps", "1"); // kom ihåg att GPS funkar → ingen onödig prompt-ångest
         const { latitude, longitude } = pos.coords;
         recenterMap(latitude, longitude);
         handleMapPosition(latitude, longitude);
       },
-      () => { setLocating(false); setError("Kunde inte hämta din plats. Tillåt platsåtkomst eller välj på kartan."); },
+      (err) => {
+        setLocating(false);
+        // Nekad → kom ihåg så vi inte auto-promptar varje omstart.
+        if (err && err.code === 1) setCookie("delivera_gps", "denied");
+        if (!opts?.silent) setError("Kunde inte hämta din plats. Tillåt platsåtkomst eller välj på kartan.");
+      },
       { enableHighAccuracy: true, timeout: 8000 },
     );
-  };
+  }, [recenterMap, handleMapPosition]);
+
+  // ── GPS auto-locate ──────────────────────────────────────────────────────────
+  // När modalen öppnas i DELIVERY utan sparad adress: använd GPS för att direkt
+  // bestämma adressen (man finjusterar sen med nålen). Hoppar över om användaren
+  // tidigare nekat (cookie) — så vi inte tjatar om plats varje omstart.
+  useEffect(() => {
+    if (!isOpen || orderType !== "DELIVERY") return;
+    if (autoLocatedRef.current) return;
+    if (!mapReady) return; // vänta tills kartan finns så recenter funkar
+    const hasStored = typeof window !== "undefined" && !!localStorage.getItem("platform_coords");
+    if (hasStored) return; // redan en vald adress → ingen GPS
+    if (getCookie("delivera_gps") === "denied") return; // användaren nekade tidigare
+    autoLocatedRef.current = true;
+    useMyLocation({ silent: true });
+  }, [isOpen, orderType, mapReady, useMyLocation]);
 
   // ── Fetch cities for pickup ──────────────────────────────────────────────────
   useEffect(() => {
@@ -493,21 +533,57 @@ export default function AddressModal({
                     </AnimatePresence>
                   </div>
 
+                  {/* Sparade adresser — snabbval (man kan också söka eller pinna). */}
+                  {savedAddresses.length > 0 && (
+                    <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar shrink-0 -mx-1 px-1">
+                      {savedAddresses.slice(0, 6).map((a) => (
+                        <button
+                          key={`${a.street}-${a.zip || ""}-${a.city || ""}`}
+                          type="button"
+                          onClick={() => {
+                            const label = formatQuickAddress(a);
+                            setInput(label);
+                            setSelectedAddress(label);
+                            setSelectedPostalCode(a.zip ?? null);
+                            setSelectedDeliveryCity(a.city ?? null);
+                            if (a.latitude != null && a.longitude != null) {
+                              setSelectedCoords({ lat: a.latitude, lng: a.longitude });
+                              recenterMap(a.latitude, a.longitude);
+                            }
+                            setPredictions([]);
+                          }}
+                          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide border transition-all active:scale-95"
+                          style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
+                        >
+                          {a.label === "Hem" ? <Home size={12} className="text-gold-500" /> : a.label === "Jobb" ? <Briefcase size={12} className="text-gold-500" /> : <MapPin size={12} className="text-gold-500" />}
+                          <span className="truncate max-w-[140px]">{formatQuickAddress(a)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Karta — dra nålen eller tryck för att välja exakt plats */}
                   <div className="relative rounded-2xl overflow-hidden border flex-1 min-h-[240px]" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)" }}>
-                    <div ref={initMap} className="absolute inset-0" />
+                    <div key={mapKey} ref={initMap} className="absolute inset-0" />
                     {mapError && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center" style={{ backgroundColor: "var(--bg-deep)" }}>
                         <AlertCircle size={22} className="text-amber-500" />
                         <p className="text-[11px] font-bold" style={{ color: "var(--text-secondary)" }}>
-                          Kartan kunde inte laddas. Sök upp din adress ovan istället.
+                          Kartan kunde inte laddas just nu.
                         </p>
+                        <button
+                          type="button"
+                          onClick={() => { setMapError(false); setMapKey((k) => k + 1); }}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest bg-gold-500 text-zinc-950 active:scale-95 transition-all"
+                        >
+                          <RotateCw size={13} /> Försök igen
+                        </button>
                       </div>
                     )}
                     {/* Use-my-location knapp */}
                     {!mapError && (
                       <button
-                        onClick={useMyLocation}
+                        onClick={() => useMyLocation()}
                         aria-label="Använd min plats"
                         className="absolute bottom-3 right-3 z-10 w-11 h-11 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all bg-white text-zinc-900"
                       >

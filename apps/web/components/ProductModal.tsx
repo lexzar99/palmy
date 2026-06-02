@@ -199,6 +199,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         restaurantId,
         restaurantSlug,
         name: product.name,
+        imageUrl: product.imageUrl ?? undefined,
         price: effectiveBasePrice,
         quantity,
         extras: selectedExtras,
