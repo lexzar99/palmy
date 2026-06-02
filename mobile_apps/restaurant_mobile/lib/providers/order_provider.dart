@@ -29,6 +29,10 @@ class OrderProvider with ChangeNotifier {
   String closingTime = '21:00';
   String _lastKnownHours = '';
 
+  // Anropas när servern signalerar att den här plattans session ändrats
+  // (admin revoke/delete). Wire:as i MainShell → AuthProvider.bootstrapTerminal.
+  void Function(Map<String, dynamic> data)? onDeviceSessionChanged;
+
   List<OrderModel> get orders => _orders;
   bool get isLoading => _isLoading;
   String get selectedAlarm => _selectedAlarm;
@@ -709,6 +713,16 @@ class OrderProvider with ChangeNotifier {
           'SOCKET: Status AUTO-UPDATED by server: ${data['isOpen'] ? "OPEN" : "CLOSED"}');
       _isRestaurantOpen = data['isOpen'];
       notifyListeners();
+    });
+
+    // Admin har loggat ut/raderat den här plattan → låt AuthProvider
+    // omvärdera sessionen direkt (→ låsskärm / pairing) utan att vänta på
+    // nästa API-anrop.
+    _socket!.on('device:session-changed', (data) {
+      logger.log('📩 SOCKET EVENT: device:session-changed: $data');
+      if (data is Map) {
+        onDeviceSessionChanged?.call(Map<String, dynamic>.from(data));
+      }
     });
 
     // Start watchdogs

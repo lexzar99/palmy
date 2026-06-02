@@ -2,11 +2,23 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Check,
+  Copy,
+  KeyRound,
+  LogIn,
+  LogOut,
+  RefreshCw,
+  Tablet,
+  Trash2,
+  WifiOff,
+} from "lucide-react";
 import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
 import {
   Badge,
   Button,
   EmptyState,
+  LoadingPanel,
   PageHeader,
   Surface,
 } from "@/shared/components/ui";
@@ -34,6 +46,7 @@ function formatWhen(value: string | null): string {
 export function RestaurantDevicesPage() {
   const queryClient = useQueryClient();
   const [restaurantId, setRestaurantId] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const queryKey = useMemo(() => ["restaurant-devices", restaurantId], [restaurantId]);
 
@@ -41,6 +54,10 @@ export function RestaurantDevicesPage() {
     queryKey,
     queryFn: () => getRestaurantDevices(restaurantId),
     enabled: Boolean(restaurantId),
+    // Poll: så en nyparad platta dyker upp automatiskt (operatören slipper
+    // refresha sidan), och status flippar till "Länkad" inom några sekunder.
+    refetchInterval: restaurantId ? 3500 : false,
+    refetchOnWindowFocus: true,
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey });
@@ -72,6 +89,27 @@ export function RestaurantDevicesPage() {
   const devices = data?.devices ?? [];
   const pendingCode = data?.pendingCode ?? null;
   const linkedDevice = devices.find((d) => d.status === "linked") ?? null;
+  const revokedDevice = devices.find((d) => d.status === "revoked") ?? null;
+
+  const copyCode = async () => {
+    if (!pendingCode) return;
+    try {
+      await navigator.clipboard.writeText(pendingCode.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Status-sammanfattning högst upp.
+  const status = linkedDevice
+    ? { tone: "success" as const, label: "Länkad", icon: Tablet, detail: `Senast aktiv ${formatWhen(linkedDevice.lastSeenAt)}` }
+    : revokedDevice
+      ? { tone: "danger" as const, label: "Utloggad", icon: WifiOff, detail: "Plattan är utloggad. Logga in igen nedan." }
+      : { tone: "neutral" as const, label: "Inte länkad", icon: KeyRound, detail: "Generera en kod och skriv in den i appen på plattan." };
+
+  const StatusIcon = status.icon;
 
   return (
     <div className="flex flex-col gap-6">
@@ -82,101 +120,131 @@ export function RestaurantDevicesPage() {
           <p className="eyebrow mb-1">Välj restaurang</p>
           <p className="section-subtitle">
             Para en platta med en restaurang via en engångskod. Plattan förblir
-            inloggad för alltid — bara du kan logga ut den här.
+            inloggad — bara du kan logga ut den här.
           </p>
         </div>
-
         <CityRestaurantPicker value={restaurantId} onChange={setRestaurantId} />
+      </Surface>
 
-        {!restaurantId ? (
-          <EmptyState
-            title="Ingen restaurang vald"
-            description="Välj stad och restaurang ovan för att se eller para en platta."
-          />
-        ) : devicesQuery.isLoading ? (
-          <p className="text-sm text-[var(--text-secondary)]">Laddar enheter…</p>
-        ) : devicesQuery.isError ? (
-          <p className="text-sm text-[var(--accent-danger,#dc2626)]">
-            Kunde inte hämta enheter. Försök igen.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-5">
-            {/* Status-rad */}
-            <div className="flex flex-wrap items-center gap-3">
-              {linkedDevice ? (
-                <Badge tone="success">Länkad till en platta</Badge>
-              ) : devices.length > 0 ? (
-                <Badge tone="danger">Utloggad</Badge>
-              ) : (
-                <Badge tone="neutral">Inte länkad till någon enhet</Badge>
-              )}
-              <Button
-                variant="primary"
-                disabled={busy}
-                onClick={() => generateMutation.mutate()}
+      {!restaurantId ? (
+        <EmptyState
+          title="Ingen restaurang vald"
+          description="Välj stad och restaurang ovan för att se eller para en platta."
+        />
+      ) : devicesQuery.isLoading ? (
+        <LoadingPanel label="Laddar enheter…" />
+      ) : (
+        <Surface className="flex flex-col gap-6 p-6">
+          {/* Status-hero */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div
+                className="flex h-14 w-14 items-center justify-center rounded-2xl"
+                style={{
+                  background:
+                    status.tone === "success"
+                      ? "color-mix(in srgb, var(--accent) 16%, transparent)"
+                      : status.tone === "danger"
+                        ? "color-mix(in srgb, #dc2626 14%, transparent)"
+                        : "var(--bg-panel-strong, rgba(120,120,120,0.10))",
+                }}
               >
-                {generateMutation.isPending ? "Genererar…" : "Generera pairing-kod"}
-              </Button>
-            </div>
-
-            {/* Aktiv pairing-kod */}
-            {pendingCode ? (
-              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-strong,transparent)] p-5">
-                <p className="eyebrow mb-2">Pairing-kod (skriv in på plattan)</p>
-                <p className="text-[40px] font-bold tracking-[0.25em] text-[var(--text-primary)]">
-                  {pendingCode.code}
-                </p>
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                  Giltig till {formatWhen(pendingCode.expiresAt)}. Koden kan bara
-                  användas en gång.
-                </p>
+                <StatusIcon
+                  size={26}
+                  color={
+                    status.tone === "success"
+                      ? "var(--accent)"
+                      : status.tone === "danger"
+                        ? "#dc2626"
+                        : "var(--text-secondary)"
+                  }
+                />
               </div>
-            ) : null}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[20px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
+                    {status.label}
+                  </span>
+                  <Badge tone={status.tone}>{linkedDevice ? "ansluten" : revokedDevice ? "avstängd" : "väntar"}</Badge>
+                </div>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">{status.detail}</p>
+              </div>
+            </div>
+            <Button variant="primary" disabled={busy} onClick={() => generateMutation.mutate()}>
+              <KeyRound size={15} className="mr-2 inline" />
+              {generateMutation.isPending ? "Genererar…" : "Generera pairing-kod"}
+            </Button>
+          </div>
 
-            {/* Enhetslista */}
-            {devices.length === 0 ? (
-              <EmptyState
-                title="Ingen platta parad ännu"
-                description="Generera en kod ovan och skriv in den i Levera Business-appen på plattan."
-              />
-            ) : (
-              <div className="flex flex-col gap-3">
-                {devices.map((device) => (
+          {/* Aktiv pairing-kod */}
+          {pendingCode ? (
+            <div className="rounded-2xl border border-dashed border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_7%,transparent)] p-5">
+              <p className="eyebrow mb-3">Pairing-kod — skriv in på plattan</p>
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="font-mono text-[44px] font-bold leading-none tracking-[0.22em] text-[var(--text-primary)]">
+                  {pendingCode.code}
+                </span>
+                <Button variant="secondary" onClick={copyCode}>
+                  {copied ? <Check size={15} className="mr-1.5 inline" /> : <Copy size={15} className="mr-1.5 inline" />}
+                  {copied ? "Kopierad" : "Kopiera"}
+                </Button>
+              </div>
+              <p className="mt-3 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                <RefreshCw size={13} className="animate-spin opacity-70" />
+                Väntar på att plattan parar… giltig till {formatWhen(pendingCode.expiresAt)} · engångskod.
+              </p>
+            </div>
+          ) : null}
+
+          {/* Enhetslista */}
+          {devices.length === 0 ? (
+            <EmptyState
+              title="Ingen platta parad ännu"
+              description="Generera en kod ovan och skriv in den i Levera Business-appen på plattan."
+            />
+          ) : (
+            <div className="flex flex-col gap-3">
+              {devices.map((device) => {
+                const linked = device.status === "linked";
+                return (
                   <div
                     key={device.id}
-                    className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[var(--border-subtle)] p-4"
+                    className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-strong,transparent)] p-4"
                   >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-[var(--text-primary)]">
-                          {device.label || "Platta"}
-                        </span>
-                        {device.status === "linked" ? (
-                          <Badge tone="success">Länkad</Badge>
-                        ) : (
-                          <Badge tone="danger">Utloggad</Badge>
-                        )}
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-11 w-11 items-center justify-center rounded-xl"
+                        style={{
+                          background: linked
+                            ? "color-mix(in srgb, var(--accent) 14%, transparent)"
+                            : "color-mix(in srgb, #dc2626 12%, transparent)",
+                        }}
+                      >
+                        <Tablet size={20} color={linked ? "var(--accent)" : "#dc2626"} />
                       </div>
-                      <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                        ID: {device.deviceId.slice(0, 12)}… · Senast sedd{" "}
-                        {formatWhen(device.lastSeenAt)}
-                      </p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-[var(--text-primary)]">
+                            {device.label || "Platta"}
+                          </span>
+                          <Badge tone={linked ? "success" : "danger"}>
+                            {linked ? "Länkad" : "Utloggad"}
+                          </Badge>
+                        </div>
+                        <p className="mt-0.5 font-mono text-xs text-[var(--text-secondary)]">
+                          {device.deviceId.slice(0, 14)}… · senast {formatWhen(device.lastSeenAt)}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {device.status === "linked" ? (
-                        <Button
-                          variant="danger"
-                          disabled={busy}
-                          onClick={() => revokeMutation.mutate(device.id)}
-                        >
+                      {linked ? (
+                        <Button variant="danger" disabled={busy} onClick={() => revokeMutation.mutate(device.id)}>
+                          <LogOut size={15} className="mr-1.5 inline" />
                           Logga ut
                         </Button>
                       ) : (
-                        <Button
-                          variant="primary"
-                          disabled={busy}
-                          onClick={() => restoreMutation.mutate(device.id)}
-                        >
+                        <Button variant="primary" disabled={busy} onClick={() => restoreMutation.mutate(device.id)}>
+                          <LogIn size={15} className="mr-1.5 inline" />
                           Logga in igen
                         </Button>
                       )}
@@ -184,25 +252,21 @@ export function RestaurantDevicesPage() {
                         variant="secondary"
                         disabled={busy}
                         onClick={() => {
-                          if (
-                            window.confirm(
-                              "Ta bort enheten helt? Plattan måste paras om med en ny kod.",
-                            )
-                          ) {
+                          if (window.confirm("Ta bort enheten helt? Plattan måste paras om med en ny kod.")) {
                             deleteMutation.mutate(device.id);
                           }
                         }}
                       >
-                        Ta bort
+                        <Trash2 size={15} />
                       </Button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </Surface>
+                );
+              })}
+            </div>
+          )}
+        </Surface>
+      )}
     </div>
   );
 }

@@ -7,13 +7,10 @@ import { ArrowLeft, Loader2, Plus, Store, Trash2, X } from "lucide-react";
 import {
   createRestaurant,
   deleteRestaurant,
-  deleteRestaurantLogin,
   getRestaurantDetail,
-  getRestaurantLogin,
   getRestaurantOrders,
   patchRestaurant,
   restaurantsQueryKey,
-  updateRestaurantLogin,
   type RestaurantDetail,
   type RestaurantFormPayload,
 } from "@/modules/restaurants/api";
@@ -23,7 +20,7 @@ import GooglePlacesInput from "@/shared/components/google-places-input";
 import { useToast } from "@/shared/components/toast";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, restaurantTierLabel } from "@/shared/utils/format";
 
-type RestaurantTab = "info" | "menu" | "orders" | "hours" | "settings" | "login";
+type RestaurantTab = "info" | "menu" | "orders" | "hours" | "settings";
 
 type DayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 type Shift = { open: string; close: string };
@@ -276,7 +273,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             { value: "orders", label: "Ordrar" },
             { value: "hours", label: "Öppettider" },
             { value: "settings", label: "Inställningar" },
-            { value: "login", label: "Inloggning" },
           ]}
         />
       </Surface>
@@ -345,7 +341,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-3">Snabbval</p>
                 <div className="grid gap-2">
                   <Button variant="secondary" onClick={() => setTab("hours")}>Öppettider →</Button>
-                  <Button variant="secondary" onClick={() => setTab("login")}>Flutter-inloggning →</Button>
                   <Button variant="secondary" onClick={() => router.push(`/menu?restaurantId=${restaurantId}`)}>Hantera meny →</Button>
                   <Button variant="secondary" onClick={() => router.push(`/deals?tab=bogo`)}>BOGO-deals →</Button>
                 </div>
@@ -522,84 +517,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       )}
 
       {/* Login tab */}
-      {tab === "login" && (
-        isCreate ? (
-          <Surface className="px-6 py-6">
-            <p className="text-sm text-[var(--text-secondary)]">Spara restaurangen först.</p>
-          </Surface>
-        ) : (
-          <Surface className="px-6 py-6">
-            <RestaurantLoginPanel restaurantId={restaurantId!} restaurantSlug={form.slug} />
-          </Surface>
-        )
-      )}
     </div>
   );
 }
 
-function RestaurantLoginPanel({ restaurantId, restaurantSlug }: { restaurantId: string; restaurantSlug?: string }) {
-  const queryClient = useQueryClient();
-  const loginQuery = useQuery({ queryKey: ["restaurants", "login", restaurantId], queryFn: () => getRestaurantLogin(restaurantId) });
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const account = loginQuery.data?.account ?? null;
-
-  useEffect(() => {
-    if (loginQuery.data) { setUsername(account?.username ?? ""); setPassword(account?.password ?? ""); setSuccess(false); setError(null); }
-  }, [loginQuery.data, account?.id, account?.username, account?.password]);
-
-  const saveMutation = useMutation({
-    mutationFn: () => updateRestaurantLogin(restaurantId, { username: username.trim() || null, password: password.trim() || null }),
-    onSuccess: async (data) => {
-      setSuccess(true); setError(null);
-      setUsername(data.account?.username ?? ""); setPassword(data.account?.password ?? "");
-      await queryClient.invalidateQueries({ queryKey: ["restaurants", "login", restaurantId] });
-    },
-    onError: (e: any) => { setSuccess(false); setError(e?.response?.data?.error || "Kunde inte spara."); },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteRestaurantLogin(restaurantId),
-    onSuccess: async () => { setUsername(""); setPassword(""); setError(null); await queryClient.invalidateQueries({ queryKey: ["restaurants", "login", restaurantId] }); },
-    onError: (e: any) => { setError(e?.response?.data?.error || "Kunde inte radera."); },
-  });
-
-  if (loginQuery.isLoading) return <p className="text-sm text-[var(--text-secondary)]">Hämtar inloggningsuppgifter...</p>;
-
-  return (
-    <div className="grid gap-5 max-w-lg">
-      {account && !account.hasPassword && (
-        <p className="text-sm text-amber-300">⚠ Lösenordet kan inte visas — skriv in nytt.</p>
-      )}
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Användarnamn">
-          <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder={restaurantSlug ? `${restaurantSlug}` : "användarnamn"} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
-        </Field>
-        <Field label="Status">
-          <Input value={account ? `${account.isActive ? "Aktivt" : "Inaktivt"} (${account.role})` : "Inget konto"} disabled />
-        </Field>
-      </div>
-      <Field label="Lösenord">
-        <div className="relative">
-          <Input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder={account?.hasPassword ? "••••••••" : "Sätt lösenord"} />
-          <button type="button" onClick={() => setShowPassword((p) => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black uppercase tracking-wider text-[var(--text-muted)]">{showPassword ? "Dölj" : "Visa"}</button>
-        </div>
-      </Field>
-      {error && <p className="text-sm text-rose-400">{error}</p>}
-      {success && <p className="text-sm text-emerald-400">Sparat.</p>}
-      <div className="flex items-center justify-between gap-2">
-        {account && (
-          <Button variant="danger" onClick={() => { if (confirm(`Radera kontot ${account.username}?`)) deleteMutation.mutate(); }} disabled={deleteMutation.isPending}>
-            <Trash2 size={14} /> Radera konto
-          </Button>
-        )}
-        <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !username.trim() || (!account && !password.trim())} className="ml-auto">
-          {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} {!account ? "Skapa konto" : "Spara"}
-        </Button>
-      </div>
-    </div>
-  );
-}

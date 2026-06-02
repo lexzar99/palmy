@@ -197,6 +197,9 @@ class _MainShellState extends State<MainShell> {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final orders = Provider.of<OrderProvider>(context, listen: false);
       orders.restorePauseState();
+      // Admin revoke/delete → lås/pairing direkt via socket-signalen.
+      orders.onDeviceSessionChanged =
+          (data) => auth.handleDeviceSessionChanged(data['deviceId'] as String?);
       if (auth.isAuthenticated && auth.user?['restaurantId'] != null) {
         orders.initSocket(auth.user!['restaurantId']);
         AppForegroundService.start();

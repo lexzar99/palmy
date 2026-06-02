@@ -391,4 +391,17 @@ class AuthProvider with ChangeNotifier {
       return false;
     }
   }
+
+  /// Anropas via socket-eventet 'device:session-changed' (admin revoke/delete).
+  /// Omvärderar sessionen direkt → låsskärm (revoked) eller pairing (deleted).
+  Future<void> handleDeviceSessionChanged(String? targetDeviceId) async {
+    try {
+      final myId = await _getDeviceId();
+      if (targetDeviceId == null || targetDeviceId == myId) {
+        await bootstrapTerminal();
+      }
+    } catch (e) {
+      logger.log('TERMINAL session-changed-fel: $e');
+    }
+  }
 }

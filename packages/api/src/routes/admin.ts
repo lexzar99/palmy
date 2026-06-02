@@ -4844,7 +4844,7 @@ router.post('/devices/:id/revoke', authenticate, requireSuperAdmin, async (req, 
     const device = await (prisma as any).restaurantDevice.update({
       where: { id: req.params.id },
       data: { revoked: true, refreshTokenHash: null },
-      select: { restaurantId: true },
+      select: { restaurantId: true, deviceId: true },
     });
     // Gör utloggningen omedelbar: bumpa restaurangkontots tokenVersion så att
     // en redan utfärdad (24h) access-token avvisas vid nästa API-anrop → appen
@@ -4859,6 +4859,13 @@ router.post('/devices/:id/revoke', authenticate, requireSuperAdmin, async (req, 
         data: { tokenVersion: { increment: 1 } },
       });
     }
+    // Realtids-signal till plattan så den låser DIREKT (utan att vänta på nästa
+    // API-anrop). Appen lyssnar på 'device:session-changed' i sitt admin-room.
+    try {
+      getIO()
+          .to(`admin-room:${device.restaurantId}`)
+          .emit('device:session-changed', { deviceId: device.deviceId, action: 'revoked' });
+    } catch (_) {}
     await audit(req as AuthRequest, 'DEVICE_REVOKE', { resourceType: 'RestaurantDevice', resourceId: req.params.id });
     res.json({ success: true });
   } catch (error) {
@@ -4885,7 +4892,30 @@ router.post('/devices/:id/restore', authenticate, requireSuperAdmin, async (req,
 // DELETE /devices/:id — ta bort länken helt (enheten måste paras om).
 router.delete('/devices/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
+    const device = await (prisma as any).restaurantDevice.findUnique({
+      where: { id: req.params.id },
+      select: { restaurantId: true, deviceId: true },
+    });
     await (prisma as any).restaurantDevice.delete({ where: { id: req.params.id } });
+    // Bumpa tokenVersion + signalera plattan så den faller tillbaka till
+    // pairing-skärmen direkt (enheten måste paras om).
+    if (device) {
+      const rest = await prisma.restaurant.findUnique({
+        where: { id: device.restaurantId },
+        select: { adminUserId: true },
+      });
+      if (rest?.adminUserId) {
+        await (prisma as any).adminUser.update({
+          where: { id: rest.adminUserId },
+          data: { tokenVersion: { increment: 1 } },
+        });
+      }
+      try {
+        getIO()
+            .to(`admin-room:${device.restaurantId}`)
+            .emit('device:session-changed', { deviceId: device.deviceId, action: 'deleted' });
+      } catch (_) {}
+    }
     await audit(req as AuthRequest, 'DEVICE_DELETE', { resourceType: 'RestaurantDevice', resourceId: req.params.id });
     res.json({ success: true });
   } catch (error) {
