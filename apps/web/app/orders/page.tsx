@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { Clock, ChevronRight, ReceiptText, ShoppingBag } from "lucide-react";
+import { Clock, ChevronRight, ShoppingBag } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { readOrderHistory, removeOrderFromHistory, type StoredOrderRef } from "@/lib/orderHistory";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
@@ -276,13 +276,6 @@ export default function OrdersPage() {
                 </Link>
               );
             })}
-          </div>
-        )}
-
-        {rows.length > 0 && (
-          <div className="mt-8 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>
-            <ReceiptText size={12} />
-            {t("orders.localNote")}
           </div>
         )}
 

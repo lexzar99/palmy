@@ -1274,6 +1274,25 @@ function ProfileContent() {
                 </div>
               </div>
 
+              {/* Mina beställningar — flyttad hit från bottom-nav. Länkar till
+                  /orders-sidan (fungerar utan login via localStorage-historik). */}
+              <Link
+                href="/orders"
+                className="rounded-[2rem] p-6 flex items-center justify-between group shadow-sm transition-all hover:border-gold-500/40"
+                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-2xl bg-gold-500/10 text-gold-600 flex items-center justify-center">
+                    <History size={20} />
+                  </div>
+                  <div>
+                    <p className="font-black uppercase italic text-sm" style={{ color: "var(--text-primary)" }}>{t("nav.myOrders")}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: "var(--text-secondary)" }}>{t("orders.subtitle")}</p>
+                  </div>
+                </div>
+                <ChevronRight size={18} className="text-zinc-400 group-hover:text-gold-500 transition-colors" />
+              </Link>
+
               {/* Referral-kort borttaget — referral-systemet avstängt för
                   launch. Komponenten finns kvar i repo men renderas inte. */}
             </motion.div>

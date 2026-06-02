@@ -36,6 +36,7 @@ export const messages: Record<Locale, Messages> = {
     // ── Navbar ────────────────────────────────────────────────────────────
     "nav.home": "Hem",
     "nav.discover": "Upptäck",
+    "nav.favorites": "Favoriter",
     "nav.about": "Om oss",
     "nav.contact": "Kontakt",
     "nav.myOrders": "Beställningar",
@@ -47,6 +48,16 @@ export const messages: Record<Locale, Messages> = {
     "nav.locale.label": "Språk",
     "nav.locale.sv": "Svenska",
     "nav.locale.en": "English",
+
+    // ── Favoriter (Upptäck-sidan) ─────────────────────────────────────────
+    "favorites.title": "Dina",
+    "favorites.titleAccent": "favoriter",
+    "favorites.subtitle": "Dina sparade restauranger",
+    "favorites.count": "{count} sparade restauranger",
+    "favorites.searchPlaceholder": "Sök bland dina favoriter…",
+    "favorites.empty.title": "Inga favoriter än",
+    "favorites.empty.sub": "Tryck på hjärtat på ett restaurangkort för att spara det här.",
+    "favorites.empty.cta": "Utforska restauranger",
 
     // ── Home ──────────────────────────────────────────────────────────────
     "home.hero.tagline": "Bästa maten i din telefon",
@@ -244,6 +255,7 @@ export const messages: Record<Locale, Messages> = {
     // ── Navbar ────────────────────────────────────────────────────────────
     "nav.home": "Home",
     "nav.discover": "Discover",
+    "nav.favorites": "Favorites",
     "nav.about": "About",
     "nav.contact": "Contact",
     "nav.myOrders": "Orders",
@@ -255,6 +267,16 @@ export const messages: Record<Locale, Messages> = {
     "nav.locale.label": "Language",
     "nav.locale.sv": "Svenska",
     "nav.locale.en": "English",
+
+    // ── Favorites (Discover page) ─────────────────────────────────────────
+    "favorites.title": "Your",
+    "favorites.titleAccent": "favorites",
+    "favorites.subtitle": "Your saved restaurants",
+    "favorites.count": "{count} saved restaurants",
+    "favorites.searchPlaceholder": "Search your favorites…",
+    "favorites.empty.title": "No favorites yet",
+    "favorites.empty.sub": "Tap the heart on a restaurant card to save it here.",
+    "favorites.empty.cta": "Explore restaurants",
 
     // ── Home ──────────────────────────────────────────────────────────────
     "home.hero.tagline": "The best food in your pocket",

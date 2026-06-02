@@ -53,9 +53,9 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
       whileTap={isInteractive ? { scale: 0.98 } : undefined}
       transition={{ type: "spring", stiffness: 320, damping: 22 }}
       onClick={handleClick}
-      // Smaller on mobile (200x115) so restaurant cards below get more
-      // visual weight; original 260x150 on >=sm so desktop layout stays.
-      className={`relative shrink-0 rounded-2xl sm:rounded-3xl overflow-hidden group w-[200px] h-[115px] sm:w-[260px] sm:h-[150px] ${
+      // Stora banner-kort (matchar referensbilden) — nästan full bredd på
+      // mobil med en liten peek av nästa kort, fast bredd på sm+.
+      className={`relative shrink-0 rounded-3xl overflow-hidden group w-[86vw] max-w-[460px] h-[200px] sm:w-[460px] sm:h-[230px] ${
         isInteractive ? "cursor-pointer" : "cursor-default"
       }`}
       style={{
@@ -87,7 +87,7 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
       {/* Bottom gradient + content */}
       {showName && (
         <div
-          className="absolute inset-0 flex flex-col justify-end p-4"
+          className="absolute inset-0 flex flex-col justify-end p-5 sm:p-6"
           style={{
             background:
               "linear-gradient(to top, rgba(15,15,15,0.92) 0%, rgba(15,15,15,0.55) 38%, rgba(15,15,15,0) 70%)",
@@ -108,7 +108,7 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
                 </span>
               </div>
               <h3
-                className="text-sm font-black uppercase tracking-tight leading-[1.15] italic truncate"
+                className="text-xl sm:text-2xl font-black uppercase tracking-tight leading-[1.1] italic truncate"
                 style={{
                   color: "white",
                   textShadow: "0 2px 8px rgba(0,0,0,0.45)",

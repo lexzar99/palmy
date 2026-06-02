@@ -12,16 +12,16 @@
    Inspiration: Uber Eats, Wolt, Apple light mode.
    ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  --bg-primary:   #FCFCF9;         /* Mjuk off-white */
+  --bg-primary:   #FFFFFF;         /* Ren vit – maximal kontrast */
   --bg-secondary: #FFFFFF;         /* Rena kortet */
-  --bg-deep:      #F5F5F2;         /* Subtila sektioner */
+  --bg-deep:      #F4F4F2;         /* Subtila sektioner */
   --bg-card:      #FFFFFF;
-  --text-primary: #1C1C1E;         /* Soft Black – WCAG-säker rubrik */
-  --text-secondary: #6E6E73;       /* Apple-grå metadata */
-  --glass-bg:     rgba(255,255,255,0.92);
-  --glass-border: rgba(28,28,30,0.07);
-  --border-muted: rgba(28,28,30,0.05);
-  --card-shadow:  0px 8px 24px rgba(28,28,30,0.04);
+  --text-primary: #111113;         /* Nästan svart – hög kontrast-rubrik */
+  --text-secondary: #5C5C61;       /* Mörkare metadata för bättre kontrast */
+  --glass-bg:     rgba(255,255,255,0.94);
+  --glass-border: rgba(17,17,19,0.10);
+  --border-muted: rgba(17,17,19,0.09);
+  --card-shadow:  0px 8px 24px rgba(17,17,19,0.06);
   --skeleton-base: #EAEAEA;
   --skeleton-highlight: #F5F5F5;
 }

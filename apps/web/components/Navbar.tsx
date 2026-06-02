@@ -103,7 +103,7 @@ const Navbar = () => {
             i höger-clustret tillsammans med theme + locale + cart. */}
         <div className="hidden md:flex items-center gap-8 text-sm font-bold uppercase tracking-widest">
           <Link href="/" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{t("nav.home")}</Link>
-          <Link href="/discover" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{t("nav.discover")}</Link>
+          <Link href="/discover" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{t("nav.favorites")}</Link>
           <Link href="/orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>{t("nav.myOrders")}</Link>
           {displayName ? (
             <Link href="/profile" className="flex items-center gap-2 text-gold-500 hover:text-gold-400 transition-colors">
@@ -191,7 +191,7 @@ const Navbar = () => {
               <div className="flex flex-col gap-8">
                 {[
                   { name: t("nav.home"), href: "/" },
-                  { name: t("nav.discover"), href: "/discover" },
+                  { name: t("nav.favorites"), href: "/discover" },
                   { name: t("nav.myOrders"), href: "/orders" },
                   { name: t("nav.about"), href: "/about" },
                   { name: t("nav.contact"), href: "/contact" },

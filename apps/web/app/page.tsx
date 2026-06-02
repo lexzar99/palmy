@@ -10,14 +10,11 @@ import {
   Search,
   Star,
   Clock,
-  Bike,
-  ChevronRight,
   Store,
   Truck,
   ArrowRight,
   X,
   Sparkles,
-  Percent,
   Info,
   Phone,
   Mail,
@@ -152,17 +149,6 @@ export default function HomePage() {
   }, []);
   // Favoriter (delad localStorage-backad store — paritet med RN)
   const { favorites, toggle: toggleFavorite } = useFavorites();
-  // Tidsbaserad greeting — beräknas BARA client-side i useEffect för att
-  // undvika hydration-mismatch (server-time ≠ client-time). Initial null →
-  // render visar inget greeting → useEffect populerar efter mount → matchar
-  // server-output.
-  const [greetingHour, setGreetingHour] = useState<number | null>(null);
-  useEffect(() => {
-    setGreetingHour(new Date().getHours());
-    // Uppdatera varje minut så det inte fastnar på "GOD MORGON" hela dagen.
-    const timer = setInterval(() => setGreetingHour(new Date().getHours()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Zone filtering – IDs of restaurants that can deliver to the user's saved coords
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
@@ -711,74 +697,40 @@ export default function HomePage() {
                     <div className="h-full w-full flex items-center justify-center text-4xl" style={{ backgroundColor: "var(--bg-deep)" }}>🍴</div>
                   )}
 
-                  <div className="absolute top-3 right-3 flex flex-col gap-2 items-end z-10">
-                    {(() => {
-                      const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
-                      const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
-                      const open = r.isOpen !== false && !isPaused;
-                      const cls = isPaused
-                        ? "bg-amber-400/30 border-amber-400/40 text-amber-100"
-                        : open
-                          ? "bg-emerald-500/30 border-emerald-500/30 text-emerald-100"
-                          : "bg-rose-500/30 border-rose-500/30 text-rose-100";
-                      const dot = isPaused ? "bg-amber-300 animate-pulse" : open ? "bg-emerald-400 animate-pulse" : "bg-rose-400";
-                      const label = isPaused
-                        ? t("home.status.pausedUntil", { time: `${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}` })
-                        : open ? t("home.restaurantOpen") : t("home.restaurantClosed");
-                      return (
-                        <div className={`px-3 py-1 rounded-full backdrop-blur-md border flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest ${cls}`}>
-                          <div className={`w-1 h-1 rounded-full ${dot}`} />
-                          {label}
-                        </div>
-                      );
-                    })()}
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
-                      aria-label={t("home.aria.infoAbout", { name: r.name })}
-                      className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-zinc-100 border border-white/10 hover:bg-gold-500 hover:text-zinc-950 transition-all shadow-xl"
-                    >
-                      <Info size={14} />
-                    </button>
-                    <div className="px-2.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1 border border-white/10">
-                      {r.rating ? (
-                        <>
-                          <Star size={11} className="fill-gold-500 text-gold-500" />
-                          <span className="text-[10px] font-black italic text-zinc-100">{r.rating.toFixed(1)}</span>
-                        </>
-                      ) : (
-                        <span className="text-[10px] font-black italic text-emerald-400">{t("home.badge.new")}</span>
-                      )}
-                    </div>
-                  </div>
+                  {/* Status-pill top-left (minimal) */}
+                  {(() => {
+                    const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
+                    const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
+                    const open = r.isOpen !== false && !isPaused;
+                    const bg = isPaused ? "bg-amber-500/95 text-zinc-950" : open ? "bg-emerald-500/95 text-white" : "bg-rose-500/95 text-white";
+                    const label = isPaused
+                      ? t("home.status.pausedUntil", { time: `${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}` })
+                      : open ? t("home.restaurantOpen") : t("home.restaurantClosed");
+                    return (
+                      <div className={`absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full backdrop-blur-md flex items-center gap-1.5 shadow-md ${bg}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full bg-white ${open ? "animate-pulse" : ""}`} />
+                        <span className="text-[10px] font-black uppercase tracking-wider">{label}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="px-1.5 pb-1.5">
-                  <h3 className="text-sm sm:text-base font-black group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-tight mb-1 truncate" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
-                  <p className="text-[9px] font-bold uppercase tracking-wider mb-2 truncate" style={{ color: "var(--text-secondary)" }}>{r.description || r.cuisine}</p>
-
-                  <div className="flex items-center justify-between border-t pt-2" style={{ borderColor: "var(--border-muted)" }}>
+                  <h3 className="text-sm sm:text-base font-black group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-tight mb-1.5 truncate" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
+                  <div className="flex items-center gap-2 text-[10px] font-bold" style={{ color: "var(--text-secondary)" }}>
+                    <span className="flex items-center gap-1">
+                      <Star size={11} className="fill-gold-500 text-gold-500" />
+                      <span className="font-black" style={{ color: "var(--text-primary)" }}>{(r.rating ?? 4.5).toFixed(1)}</span>
+                    </span>
                     {orderType === "DELIVERY" && (() => {
                       const zi = zoneDeliveryInfo[r.id];
                       const outOfZone = zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
-                      if (outOfZone || !zi) {
-                        return (
-                          <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-rose-500/80">
-                            <Bike size={11} className="text-rose-500/60" />
-                            <span>{t("home.status.outOfZone") ?? "Levererar ej"}</span>
-                          </div>
-                        );
+                      if (outOfZone) {
+                        return (<><span className="opacity-40">·</span><span className="text-rose-500/80 uppercase tracking-wider">{t("home.status.outOfZone") ?? "Levererar ej"}</span></>);
                       }
-                      const eta = zi.etaMinutes ?? r.etaMinutes ?? 30;
-                      return (
-                        <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-wider text-zinc-400">
-                          <span className="flex items-center gap-1"><Clock size={11} className="text-gold-500/50" /> {eta} {t("home.minutesShort")}</span>
-                          <span className="flex items-center gap-1"><Bike size={11} className="text-gold-500/50" /> {zi.deliveryFee === 0 ? t("home.feeFreeShort") : `${zi.deliveryFee} ${t("home.feeUnitShort")}`}</span>
-                        </div>
-                      );
+                      const eta = zi?.etaMinutes ?? r.etaMinutes ?? 30;
+                      return (<><span className="opacity-40">·</span><span className="flex items-center gap-1"><Clock size={11} /> {eta} {t("home.minutesShort")}</span></>);
                     })()}
-                    <div className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 group-hover:bg-gold-500 group-hover:text-zinc-950 transition-all">
-                      <ChevronRight size={16} />
-                    </div>
                   </div>
                 </div>
               </Link>
@@ -882,101 +834,13 @@ export default function HomePage() {
 
         {/* HEADER */}
         <header className="mb-6 sm:mb-8 relative">
-          {/* Mobil-titel — på desktop ersätts den av compact hero ovan.
-              Mobile-hero har subtle gold-gradient + tidsbaserad greeting +
-              restaurant-count så hela kortet känns "alive" istället för bara
-              en titel. Logik orörd — bara visuell wrapper. */}
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 md:hidden relative overflow-hidden rounded-3xl px-5 py-5"
-            style={{
-              // Bas-bakgrund från tema-variabel så dark/light båda får solid bg.
-              // Gold-gradient läggs ovanpå som overlay via :before-pseudo-effekt
-              // (vi använder inline-element istället eftersom inline style inte
-              // stödjer pseudo).
-              backgroundColor: "var(--bg-secondary)",
-              border: "1px solid rgba(212,167,74,0.25)",
-            }}
-          >
-            {/* Gold-gradient overlay — täcker hela kortet med låg opacitet */}
-            <div className="absolute inset-0 pointer-events-none" style={{
-              background: "linear-gradient(135deg, rgba(212,167,74,0.16) 0%, rgba(212,167,74,0.04) 65%, transparent 100%)",
-            }} />
-            {/* Subtle radial glow uppe i högra hörnet */}
-            <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full pointer-events-none" style={{
-              background: "radial-gradient(circle, rgba(212,167,74,0.22) 0%, transparent 60%)",
-            }} />
-
-            {/* Tidsbaserad greeting — använder greetingHour-state som bara
-                sätts client-side efter mount → ingen hydration-mismatch. */}
-            {greetingHour !== null && (() => {
-              const hour = greetingHour;
-              const greeting =
-                hour < 5 ? t("home.greeting.night") :
-                hour < 11 ? t("home.greeting.morning") :
-                hour < 17 ? t("home.greeting.day") :
-                hour < 22 ? t("home.greeting.evening") :
-                t("home.greeting.night");
-              // Per-city open-count instead of platform-global. If the user
-              // has picked a city, only count restaurants in that city; if
-              // no city yet, fall back to global.
-              const openCount = restaurants
-                .filter(matchesCityFamily)
-                .filter((r) => r.isOpen !== false).length;
-              return (
-                <div className="flex items-center gap-2 mb-3 relative z-10">
-                  <div className="w-1.5 h-1.5 rounded-full bg-gold-500 shadow-[0_0_8px_rgba(212,167,74,0.8)]" />
-                  <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "var(--text-secondary)" }}>
-                    {greeting}
-                    {openCount > 0 && (
-                      <span className="text-gold-500"> · {t("home.openCount", { count: openCount })}</span>
-                    )}
-                  </p>
-                </div>
-              );
-            })()}
-
-            <div className="relative z-10 flex items-start justify-between gap-2">
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-tight min-w-0 flex-1" style={{ color: "var(--text-primary)" }}>
-                {t("home.heroMobile.titleLead")} <span className="text-gold-500 italic">{t("home.heroMobile.titleAccent")}</span>
-              </h1>
-              {/* Mobil-action-cluster: språk + kontakta + theme bredvid rubriken.
-                  Knapparna är 9×9 (36×36) för att 3 st + titel ska få plats på
-                  smala telefoner (390px) utan att hamna utanför overflow:hidden. */}
-              <div className="shrink-0 flex items-center gap-1">
-                <div style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }} className="rounded-xl">
-                  <LocaleSwitcher buttonClassName="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90" iconSize={15} />
-                </div>
-                <Link
-                  href="/contact"
-                  aria-label={t("nav.contact")}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90"
-                  style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
-                >
-                  <Mail size={15} className="text-gold-600" />
-                </Link>
-                <button
-                  onClick={toggleTheme}
-                  aria-label={theme === "dark" ? t("nav.theme.toLight") : t("nav.theme.toDark")}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90"
-                  style={{
-                    backgroundColor: "var(--bg-deep)",
-                    border: "1px solid var(--border-muted)",
-                  }}
-                >
-                  {theme === "dark" ? (
-                    <Sun size={15} className="text-gold-500" />
-                  ) : (
-                    <Moon size={15} className="text-gold-600" />
-                  )}
-                </button>
-              </div>
-            </div>
-            <p className="relative z-10 text-[10px] font-bold uppercase tracking-[0.2em] mt-1.5" style={{ color: "var(--text-secondary)" }}>
-              {t("home.heroMobile.subtitle")}
-            </p>
-          </motion.div>
+          {/* Mobil: ren topprad — varumärke vänster (clean white look).
+              Språk/tema/kontakt-knapparna sitter bredvid adressväljaren nedan. */}
+          <div className="md:hidden flex items-center justify-between mb-4">
+            <Link href="/" className="text-2xl font-black italic tracking-tighter" style={{ color: "var(--text-primary)" }}>
+              Levera<span className="text-gold-500">.</span>
+            </Link>
+          </div>
 
           {/* Senaste beställning — visas bara om kund har order-historik
               (inloggad ELLER gäst). Conversion-CTA "fortsätt där du var". */}
@@ -984,6 +848,8 @@ export default function HomePage() {
 
           {/* Adress + Toggle + Sök — pancake på mobil, en rad på desktop */}
           <div className="grid gap-3 lg:grid-cols-[1.4fr_auto_1fr] lg:items-center lg:gap-4">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
             <AddressPullDown
               currentAddress={address}
               zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
@@ -1008,6 +874,31 @@ export default function HomePage() {
                 );
               }}
             />
+              </div>
+              {/* Språk + tema + kontakt — bredvid adressväljaren på mobil.
+                  Döljs på desktop (md+) där top-navbaren redan har dessa. */}
+              <div className="md:hidden flex items-center gap-1.5 shrink-0">
+                <div style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }} className="rounded-xl">
+                  <LocaleSwitcher buttonClassName="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90" iconSize={16} />
+                </div>
+                <button
+                  onClick={toggleTheme}
+                  aria-label={theme === "dark" ? t("nav.theme.toLight") : t("nav.theme.toDark")}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90"
+                  style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
+                >
+                  {theme === "dark" ? <Sun size={16} className="text-gold-500" /> : <Moon size={16} className="text-gold-600" />}
+                </button>
+                <Link
+                  href="/contact"
+                  aria-label={t("nav.contact")}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90"
+                  style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
+                >
+                  <Mail size={16} className="text-gold-600" />
+                </Link>
+              </div>
+            </div>
 
             {/* Leverans/Hämtning-toggle */}
             <div className="relative p-1 glass-panel rounded-2xl flex items-center shadow-sm lg:w-[280px]">
@@ -1108,7 +999,9 @@ export default function HomePage() {
         <div className="mb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px] lg:gap-6 xl:gap-8 lg:items-start">
           {promoCards.length > 0 ? (
             <section className="mb-6 lg:mb-0">
-              <div className="flex items-center justify-between mb-3 px-1">
+              {/* "Aktuellt / What's on"-rubriken döljs på mobil (ren look,
+                  stora banner-korten talar för sig själva). Syns på lg+. */}
+              <div className="hidden lg:flex items-center justify-between mb-3 px-1">
                 <div>
                   <h2 className="text-base sm:text-lg font-black uppercase tracking-tight flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
                     <Sparkles size={14} className="text-gold-500" /> {t("home.section.current")}
@@ -1378,22 +1271,9 @@ export default function HomePage() {
                             })()}
                           </div>
 
-                          {/* ── CARD FOOTER ────────────────────────────────── */}
+                          {/* ── CARD FOOTER (minimal: namn + rating + leveranstid) ── */}
                           <div className="px-4 py-3.5">
-                            {/* Rad 1: Namn (stort) + info-knapp till höger */}
-                            <div className="flex items-start justify-between gap-2 mb-0.5">
-                              <h3 className="text-base sm:text-lg font-black uppercase italic tracking-tight leading-tight truncate flex-1 group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
-                              <button
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
-                                className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:bg-gold-500/10 hover:text-gold-600 shrink-0 -mt-0.5"
-                                style={{ color: "var(--text-secondary)" }}
-                                aria-label={t("home.info") ?? "Info"}
-                              >
-                                <Info size={14} />
-                              </button>
-                            </div>
-                            {/* Rad 2: Kategori (subtil) */}
-                            <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--text-secondary)" }}>{r.cuisine || r.description || t("home.restaurantFallback")}</p>
+                            <h3 className="text-base sm:text-lg font-black uppercase italic tracking-tight leading-tight truncate group-hover:text-gold-600 transition-colors mb-1.5" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
                             {(() => {
                               const zi = zoneDeliveryInfo[r.id];
                               const showEta = orderType === "DELIVERY";
@@ -1412,29 +1292,15 @@ export default function HomePage() {
                                   {etaDisplay && (
                                     <>
                                       <span className="opacity-40">·</span>
-                                      <span>{etaDisplay}</span>
+                                      <span className="flex items-center gap-1"><Clock size={12} /> {etaDisplay}</span>
                                     </>
                                   )}
-                                </div>
-                              );
-                            })()}
-                            {orderType === "DELIVERY" && (() => {
-                              const zi = zoneDeliveryInfo[r.id];
-                              if (isOutOfZone || !zi) {
-                                return (
-                                  <div className="mt-2 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-rose-500/80">
-                                    <Bike size={13} className="text-rose-500/60" strokeWidth={2.2} />
-                                    <span>{t("home.status.outOfZone") ?? "Utanför leveranszon"}</span>
-                                  </div>
-                                );
-                              }
-                              const fee = zi.deliveryFee;
-                              return (
-                                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider">
-                                  <Bike size={13} className={fee === 0 ? "text-emerald-600" : "text-gold-500/70"} strokeWidth={2.2} />
-                                  {fee === 0
-                                    ? <span className="text-emerald-600">{t("home.freeDelivery")}</span>
-                                    : <span style={{ color: "var(--text-secondary)" }}>{fee} {t("common.kr")}</span>}
+                                  {isOutOfZone && (
+                                    <>
+                                      <span className="opacity-40">·</span>
+                                      <span className="text-rose-500/80 uppercase tracking-wider">{t("home.status.outOfZone") ?? "Levererar ej"}</span>
+                                    </>
+                                  )}
                                 </div>
                               );
                             })()}
