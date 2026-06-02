@@ -26,7 +26,7 @@ export default function Icon() {
           border: '12px solid #d4a74a',
         }}
       >
-        F
+        L
       </div>
     ),
     {

@@ -51,10 +51,10 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
             <div className="relative z-10">
               <div className="text-[10px] font-black uppercase tracking-[0.4em] text-gold-600 mb-2">Avtal &amp; Trygghet</div>
               <h2 className="text-3xl font-black italic mb-4 leading-[1.15]" style={{ color: "var(--text-primary)" }}>
-                FoodGo och dig.<br />Detta gäller när du beställer.
+                Levera och dig.<br />Detta gäller när du beställer.
               </h2>
               <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                Genom att använda FoodGo godkänner du dessa villkor. De är skrivna med svensk konsumentskyddslagstiftning som grund — Distansavtalslagen (2005:59), Konsumentköplagen (2022:260) och Dataskyddsförordningen (GDPR).
+                Genom att använda Levera godkänner du dessa villkor. De är skrivna med svensk konsumentskyddslagstiftning som grund — Distansavtalslagen (2005:59), Konsumentköplagen (2022:260) och Dataskyddsförordningen (GDPR).
               </p>
             </div>
           </div>
@@ -89,7 +89,7 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
                 </div>
               </div>
               <p className="text-[11px] leading-snug" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>
-                FoodGo är en plattform som förmedlar din beställning till restaurangen. Köpeavtalet för maten du beställer ingås mellan dig och respektive restaurang.
+                Levera är en plattform som förmedlar din beställning till restaurangen. Köpeavtalet för maten du beställer ingås mellan dig och respektive restaurang.
               </p>
             </section>
 
@@ -104,7 +104,7 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
                 </h3>
               </div>
               <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                När du lägger en order via FoodGo är beställningen bindande. Restaurangen påbörjar tillagningen så snart de bekräftat ordern. Priser anges inkl. moms. Eventuell leveransavgift visas tydligt innan du bekräftar köpet.
+                När du lägger en order via Levera är beställningen bindande. Restaurangen påbörjar tillagningen så snart de bekräftat ordern. Priser anges inkl. moms. Eventuell leveransavgift visas tydligt innan du bekräftar köpet.
               </p>
             </section>
 
@@ -119,7 +119,7 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
                 </h3>
               </div>
               <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                All kortbetalning hanteras av Stripe (Stripe Payments Europe Ltd., PCI-DSS-certifierad). FoodGo lagrar inga kortnummer eller CVC-koder — endast en token från Stripe används för att slutföra köpet. Vid återbetalning sker krediteringen till samma kort som användes vid köp.
+                All kortbetalning hanteras av Stripe (Stripe Payments Europe Ltd., PCI-DSS-certifierad). Levera lagrar inga kortnummer eller CVC-koder — endast en token från Stripe används för att slutföra köpet. Vid återbetalning sker krediteringen till samma kort som användes vid köp.
               </p>
             </section>
 
@@ -149,10 +149,10 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
                 </h3>
               </div>
               <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                Enligt Distansavtalslagen 2 kap. 11 § har du normalt 14 dagars ångerrätt på distansavtal. <strong>Ångerrätten gäller dock inte för leverans av livsmedel eller andra varor som tillagats eller paketerats för en enskild beställning</strong> (2 kap. 11 § p. 4) — d.v.s. den färdiglagade maten du beställer via FoodGo.
+                Enligt Distansavtalslagen 2 kap. 11 § har du normalt 14 dagars ångerrätt på distansavtal. <strong>Ångerrätten gäller dock inte för leverans av livsmedel eller andra varor som tillagats eller paketerats för en enskild beställning</strong> (2 kap. 11 § p. 4) — d.v.s. den färdiglagade maten du beställer via Levera.
               </p>
               <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                Om något är fel på din mat — felaktig leverans, kall mat, allergiavvikelser eller liknande — ska du i första hand kontakta restaurangen direkt. Får du inte gehör hjälper FoodGo gärna till via {" "}
+                Om något är fel på din mat — felaktig leverans, kall mat, allergiavvikelser eller liknande — ska du i första hand kontakta restaurangen direkt. Får du inte gehör hjälper Levera gärna till via {" "}
                 <a href={`mailto:${company.email}`} className="text-gold-500 underline">{company.email}</a>.
               </p>
             </section>

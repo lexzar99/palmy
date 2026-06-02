@@ -759,7 +759,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
     if (typeof window === "undefined") return;
     const noAddr = !localStorage.getItem("platform_address");
     const noCoords = !localStorage.getItem("platform_coords");
-    if (noAddr || (orderType === "DELIVERY" && noCoords)) {
+    const noPickupCity = !localStorage.getItem("platform_pickup_city");
+    // PICKUP: en redan vald avhämtningsstad räcker (ingen adress krävs).
+    // DELIVERY: kräver adress + koordinater för zon-koll.
+    const needsPrompt = orderType === "PICKUP"
+      ? (noAddr && noPickupCity)
+      : (noAddr || noCoords);
+    if (needsPrompt) {
       addressPromptedRef.current = true;
       setShowAddressModal(true);
     }
@@ -1624,6 +1630,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           if (typeof window !== "undefined") {
             localStorage.setItem("platform_address", newAddress);
             localStorage.setItem("platform_order_type", newOrderType);
+            // Spegla stad-nycklarna som hemsidan läser, så adress-modalen inte
+            // dyker upp igen när man redan valt här (paritet med home-flödet).
+            if (newOrderType === "PICKUP") {
+              localStorage.setItem("platform_pickup_city", city || newAddress);
+            } else if (city) {
+              localStorage.setItem("platform_city", city);
+            }
             if (coords) {
               localStorage.setItem("platform_coords", JSON.stringify(coords));
               const { rememberQuickAddress } = await import("@/lib/quickAddresses");

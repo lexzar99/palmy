@@ -19,13 +19,13 @@ export const metadata: Metadata = {
   // Basurl för OG-bilder + canonical URLs. Krävs i prod annars fallar
   // sociala medier-previews till http://localhost:3000 vid build.
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://matgo-web-pi.vercel.app"),
-  title: "FoodGo | Beställ från dina favoritrestauranger",
+  title: "Levera | Beställ från dina favoritrestauranger",
   description: "Beställ mat från flera lokala restauranger. Snabb leverans, smidig betalning och ett brett utbud.",
-  applicationName: "FoodGo",
+  applicationName: "Levera",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "FoodGo",
+    title: "Levera",
   },
   formatDetection: {
     telephone: false,
@@ -34,13 +34,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "sv_SE",
-    siteName: "FoodGo",
-    title: "FoodGo — Mat från dem bästa av dem bästa",
+    siteName: "Levera",
+    title: "Levera — Mat från dem bästa av dem bästa",
     description: "Beställningsplattform som kopplar dig till lokala restauranger. Snabb leverans, säker betalning.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FoodGo — Mat från dem bästa av dem bästa",
+    title: "Levera — Mat från dem bästa av dem bästa",
     description: "Beställ från lokala restauranger. Snabb leverans och säker betalning.",
   },
 };

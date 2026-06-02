@@ -381,6 +381,10 @@ export default function HomePage() {
     if (type === "PICKUP") {
       const pickupCity = city || addr;
       localStorage.setItem("platform_pickup_city", pickupCity);
+      // Spegla staden till platform_address också, så restaurang-sidans
+      // adress-grind (som kollar platform_address) inte öppnar modalen igen
+      // när man redan valt avhämtningsstad här. Paritet med restaurang-flödet.
+      localStorage.setItem("platform_address", pickupCity);
       setDetectedCityName(pickupCity);
       setZoneRestaurantIds(null);
       await resolveCityFamily(pickupCity);

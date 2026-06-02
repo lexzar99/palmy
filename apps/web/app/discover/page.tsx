@@ -165,7 +165,7 @@ export default function DiscoverPage() {
         <div className="max-w-2xl md:max-w-5xl 2xl:max-w-[1400px] mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-black uppercase italic tracking-tighter" style={{ color: "var(--text-primary)" }}>Upptäck <span className="text-gold-500">FoodGo</span></h1>
+              <h1 className="text-3xl font-black uppercase italic tracking-tighter" style={{ color: "var(--text-primary)" }}>Upptäck <span className="text-gold-500">Levera</span></h1>
               <p className="text-[10px] font-black uppercase tracking-widest mt-1" style={{ color: "var(--text-secondary)" }}>Hitta din nästa favoritupplevelse</p>
             </div>
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-gold-500" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>

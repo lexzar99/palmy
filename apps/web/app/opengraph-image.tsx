@@ -76,7 +76,7 @@ export default async function OGImage() {
               display: "flex",
             }}
           >
-            FOOD<span style={{ color: "#d4a74a" }}>GO</span>
+            Levera<span style={{ color: "#d4a74a" }}>.</span>
           </div>
 
           <div

@@ -156,7 +156,10 @@ export default function CartPage() {
     const stored = localStorage.getItem("cart_order_type");
     return stored === "PICKUP" ? "PICKUP" : "DELIVERY";
   });
-  const [topUpToMinimum, setTopUpToMinimum] = useState(true);
+  // Komplettering till minimum är INTE förvald — kunden ska aktivt välja att
+  // betala mellanskillnaden. Default visar i stället en uppmaning att beställa
+  // för ytterligare X kr för att nå minsta beställning (se banner.short).
+  const [topUpToMinimum, setTopUpToMinimum] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
