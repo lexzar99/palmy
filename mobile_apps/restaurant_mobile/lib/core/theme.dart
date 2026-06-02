@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 /// Levera Business — "Ember Studio" redesign.
 ///
-/// Warm amber accent (#FF9D45) på en varm ink-svart eller paper-cream
-/// bakgrund. Editorial typography med större hierarki. Behåller alla
-/// legacy const-namn (gold, brandGold, deepSea, etc.) för bakåtkomp.
+/// Guld-accent (#FF9D45) på en ren vit (light) eller varm ink-svart (dark)
+/// bakgrund. Light-temat är medvetet rent/neutralt vitt — guldet är enda
+/// värmen. Editorial typography med större hierarki. Behåller alla legacy
+/// const-namn (gold, brandGold, deepSea, etc.) för bakåtkomp.
 class AppTheme {
   // ── Dark — warm ink ────────────────────────────────────────────────────────
   static const Color midnight = Color(0xFF0B0907); // bg-page (warm near-black)
@@ -12,13 +13,14 @@ class AppTheme {
   static const Color deepSea = Color(0xFF181310); // bg-panel (warm)
   static const Color steel = Color(0xFF221A15); // bg-panel-elevated
 
-  // ── Light — paper cream ────────────────────────────────────────────────────
+  // ── Light — clean white ─────────────────────────────────────────────────────
   static const Color paper = Color(0xFFFFFFFF);
-  static const Color mist = Color(0xFFFFFCF7); // warm white
-  static const Color frost = Color(0xFFF3E7D4); // panel-muted light
-  static const Color ink = Color(0xFF1A130C); // headline text (warm near-black)
+  static const Color mist = Color(0xFFF7F8FA); // clean off-white (neutral)
+  static const Color frost = Color(0xFFEDEFF2); // panel-muted light (neutral)
+  static const Color ink =
+      Color(0xFF18191D); // headline text (neutral near-black)
   static const Color mutedInk =
-      Color(0xFF6B5C4D); // muted body text (warm gray)
+      Color(0xFF6B7280); // muted body text (neutral gray)
 
   // ── Accent — warm amber ("ember") ──────────────────────────────────────────
   // Legacy names kept (gold/lightGold/goldAccent/brandGold) – pointing at amber.
@@ -73,7 +75,7 @@ class AppTheme {
       );
     }
     return const LinearGradient(
-      colors: [Color(0xFFFFFCF7), Color(0xFFF5E8D4)],
+      colors: [Color(0xFFFFFFFF), Color(0xFFF4F5F7)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
@@ -125,7 +127,7 @@ class AppTheme {
           ? const []
           : [
               BoxShadow(
-                color: const Color(0xFF1A130C).withOpacity(0.06),
+                color: const Color(0xFF0F1115).withOpacity(0.06),
                 blurRadius: 14,
                 offset: const Offset(0, 4),
               ),
@@ -248,8 +250,8 @@ class AppTheme {
       onSurface: ink,
       tertiary: lavender,
       onTertiary: paper,
-      outline: Color(0x261A130C),
-      outlineVariant: Color(0x141A130C),
+      outline: Color(0x26181A20),
+      outlineVariant: Color(0x14181A20),
       shadow: Color(0x14000000),
       scrim: Color(0x33000000),
       inverseSurface: ink,

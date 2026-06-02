@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
-/// Bakgrund som täcker hela appen. Varm gradient (paper-cream eller ink).
+/// Bakgrund som täcker hela appen. Ren vit gradient (light) eller varm ink (dark).
 class AppBackdrop extends StatelessWidget {
   final Widget child;
 
