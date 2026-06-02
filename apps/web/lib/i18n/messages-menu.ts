@@ -29,6 +29,7 @@ export const menuPending = {
     "menu.info.title": "Restaurang info",
     "menu.info.findHere": "Hitta hit",
     "menu.info.callUs": "Ring oss",
+    "menu.info.openMaps": "Öppna i kartor →",
 
     // ── ProductModal ─────────────────────────────────────────────────────
     "product.error.pickOne": "Välj ett alternativ i {group}.",
@@ -82,6 +83,7 @@ export const menuPending = {
     "menu.info.title": "Restaurant info",
     "menu.info.findHere": "Find us",
     "menu.info.callUs": "Call us",
+    "menu.info.openMaps": "Open in maps →",
 
     // ── ProductModal ─────────────────────────────────────────────────────
     "product.error.pickOne": "Pick an option in {group}.",

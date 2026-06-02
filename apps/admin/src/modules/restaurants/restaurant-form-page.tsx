@@ -333,8 +333,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
           </Surface>
           <div className="grid gap-4 content-start">
             <Surface className="px-6 py-6 grid gap-4">
-              <ImageUploadField label="Profilbild" value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
-              <ImageUploadField label="Hero-bild" value={form.heroImageUrl} onChange={(url) => set("heroImageUrl", url)} />
+              <ImageUploadField label="Profilbild" kind="logo" restaurantId={restaurantId} value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
+              <ImageUploadField label="Hero-bild" kind="hero" restaurantId={restaurantId} value={form.heroImageUrl} onChange={(url) => set("heroImageUrl", url)} />
             </Surface>
             {!isCreate && (
               <Surface className="px-6 py-5">

@@ -9,7 +9,7 @@ import { isRestaurantOpen } from '../lib/openingHours';
 import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
 import { getEffectiveEtaMinutes, ETA_DEFAULT_MINUTES } from '../lib/restaurantEta';
 import { resolveOrCreateCity } from '../lib/cityResolver';
-import { cached, bustRestaurantCaches } from '../lib/ttlCache';
+import { cached, bustCache, bustRestaurantCaches } from '../lib/ttlCache';
 import { revalidateWebRestaurant } from '../lib/revalidate';
 
 const router = Router();
@@ -684,6 +684,13 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     // (list, detail, zone-check, cities). Open customer pages also update live
     // via the settings:updated socket above.
     bustRestaurantCaches(restaurant.slug);
+    // The detail route (GET /:slug) caches under whatever identifier the client
+    // passed — admin fetches by id, customers by slug. bustRestaurantCaches only
+    // clears the slug key, so also drop the id-keyed entries (both the canonical
+    // id and the raw param) or the admin form re-reads stale data within the 15s
+    // TTL and can silently overwrite fresh fields (e.g. legalName) back to null.
+    bustCache('rest:detail', restaurant.id);
+    bustCache('rest:detail', paramId);
 
     // Returnera via formatRestaurant — JSON-strängifierade fält (openingHours,
     // deliveryZones, tags) blir parsade objekt så admin-form kan repopulera
