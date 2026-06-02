@@ -572,6 +572,26 @@ export default function HomePage() {
     return true;
   }, [cityFamilyIds, cityFamilyNames, detectedCityName, orderType]);
 
+  // Antal restauranger i kundens stad per cuisine — visas som liten siffra i
+  // chip-raden så man ser hur många som faktiskt finns i staden av varje.
+  // Räknas mot hela stadens pool (ignorerar aktiv cuisine, annars blir alla
+  // utom den valda 0).
+  const cuisineCounts = useMemo(() => {
+    const cityPool = restaurants.filter(matchesCityFamily);
+    const counts: Record<string, number> = {};
+    for (const c of cuisineFilters) {
+      if (c.label === "Alla") counts[c.label] = cityPool.length;
+      else if (c.label === "Favoriter") counts[c.label] = cityPool.filter((r) => favorites.has(r.id)).length;
+      else
+        counts[c.label] = cityPool.filter(
+          (r) =>
+            (r.cuisine || "").toLowerCase().includes(c.label.toLowerCase()) ||
+            (r.tags || []).some((tag) => tag.toLowerCase().includes(c.label.toLowerCase())),
+        ).length;
+    }
+    return { counts, total: cityPool.length };
+  }, [restaurants, matchesCityFamily, favorites]);
+
   const filtered = useMemo(() => {
     const list = restaurants.filter((r) => {
       // "Favoriter" är en pseudo-cuisine: filtrerar mot localStorage-store i stället för cuisine-fält
@@ -769,7 +789,7 @@ export default function HomePage() {
               <Link
                 href={getRestaurantHref(r)}
                 onClick={(e) => handleRestaurantClick(e, r)}
-                className="group relative block h-full rounded-2xl flex flex-col overflow-hidden transition-all hover:shadow-lg"
+                className="group relative block h-full rounded-2xl flex flex-col overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
                 style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 12px rgba(17,17,19,0.06)" }}
               >
                 {(() => {
@@ -797,7 +817,7 @@ export default function HomePage() {
                     </div>
                   )}
                   {r.heroImageUrl || r.imageUrl ? (
-                    <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition-all duration-700 group-hover:scale-105" />
+                    <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center text-4xl">🍴</div>
                   )}
@@ -1033,6 +1053,13 @@ export default function HomePage() {
           <div className="flex gap-2 overflow-x-auto lg:flex-wrap lg:overflow-visible pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
             {cuisineFilters.map((c) => {
               const active = activeCuisine === c.label;
+              const count = cuisineCounts.counts[c.label] ?? 0;
+              const isSpecial = c.label === "Alla" || c.label === "Favoriter";
+              // Dölj cuisine-chips som inte finns i staden (när datan laddats).
+              // Alla/Favoriter visas alltid.
+              if (!isSpecial && cuisineCounts.total > 0 && count === 0) return null;
+              // Visa siffran när stadens pool är känd (men inte "Favoriter 0").
+              const showCount = cuisineCounts.total > 0 && !(c.label === "Favoriter" && count === 0);
               return (
                 <button
                   key={c.label}
@@ -1049,7 +1076,7 @@ export default function HomePage() {
                       }
                     }, 80);
                   }}
-                  className="shrink-0 px-4 py-2 rounded-full text-[12px] font-bold uppercase tracking-wide transition-all active:scale-95 touch-manipulation"
+                  className="shrink-0 px-4 py-2 rounded-full text-[12px] font-bold uppercase tracking-wide transition-all active:scale-95 touch-manipulation flex items-center gap-1.5"
                   style={{
                     backgroundColor: active ? "#EAB545" : "var(--bg-card)",
                     color: active ? "#000" : "var(--text-secondary)",
@@ -1058,6 +1085,11 @@ export default function HomePage() {
                   }}
                 >
                   {t(`home.cuisine.${c.label}`)}
+                  {showCount && (
+                    <span className="text-[10px] font-black tabular-nums" style={{ color: active ? "rgba(0,0,0,0.5)" : "var(--text-tertiary, #9a9a9a)" }}>
+                      {count}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -1243,7 +1275,7 @@ export default function HomePage() {
                         <Link
                           href={getRestaurantHref(r)}
                           onClick={(e) => handleRestaurantClick(e, r)}
-                          className="group block rounded-2xl overflow-hidden hover:shadow-[0_12px_34px_rgba(17,17,19,0.12)] transition-all relative"
+                          className="group block rounded-2xl overflow-hidden hover:shadow-[0_12px_34px_rgba(17,17,19,0.12)] transition-all duration-200 hover:-translate-y-0.5 relative"
                           style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 12px rgba(17,17,19,0.06)" }}
                         >
                           {/* ── IMAGE ──────────────────────────────────────── */}
@@ -1252,7 +1284,7 @@ export default function HomePage() {
                               now-smaller sponsor rail. Stable at sm+. */}
                           <div className="h-[210px] sm:h-56 w-full overflow-hidden relative" style={{ backgroundColor: "var(--bg-deep)" }}>
                             {r.imageUrl || r.heroImageUrl ? (
-                              <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover group-hover:scale-105 transition-all duration-700" />
+                              <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                             ) : (
                               <div className="h-full w-full flex items-center justify-center text-4xl">🍱</div>
                             )}
