@@ -518,7 +518,14 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   const [address, setAddress] = useState("");
-  const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
+  // Initiera från det plattform-val kunden redan gjort (hem/discover/annan
+  // restaurang). Default DELIVERY bara om inget val finns. Utan detta stod
+  // orderType alltid på DELIVERY vid mount → adress-grinden trodde att en
+  // pickup-kund saknade adress (ingen coords) och öppnade modalen igen.
+  const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">(() => {
+    if (typeof window === "undefined") return "DELIVERY";
+    return localStorage.getItem("platform_order_type") === "PICKUP" ? "PICKUP" : "DELIVERY";
+  });
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<any>(null);
