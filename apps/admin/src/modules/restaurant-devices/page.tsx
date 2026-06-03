@@ -200,7 +200,7 @@ export function RestaurantDevicesPage() {
           {devices.length === 0 ? (
             <EmptyState
               title="Ingen platta parad ännu"
-              description="Generera en kod ovan och skriv in den i Levera Business-appen på plattan."
+              description="Generera en kod ovan och skriv in den i Delivera Business-appen på plattan."
             />
           ) : (
             <div className="flex flex-col gap-3">

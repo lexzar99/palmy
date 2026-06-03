@@ -56,8 +56,8 @@ const EMPTY_FORM: ComposerForm = {
 };
 
 const TEMPLATES = [
-  { label: "Lunch", title: "Lunch live på Levera", body: "Öppna appen innan 13:30 för att se luncher och aktiva erbjudanden." },
-  { label: "Comeback", title: "Nya erbjudanden väntar", body: "Kom tillbaka till Levera och kolla de senaste restaurangerbjudandena." },
+  { label: "Lunch", title: "Lunch live på Delivera", body: "Öppna appen innan 13:30 för att se luncher och aktiva erbjudanden." },
+  { label: "Comeback", title: "Nya erbjudanden väntar", body: "Kom tillbaka till Delivera och kolla de senaste restaurangerbjudandena." },
   { label: "Ny restaurang", title: "En ny restaurang har öppnat", body: "En ny partner är live just nu. Öppna appen för att se menyn." },
 ];
 
@@ -83,7 +83,7 @@ function PhonePreview({ title, body, linkLabel }: { title: string; body: string;
         <div className="flex items-center gap-2">
           <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[linear-gradient(135deg,#f3bf57,#ffd77f)] text-[10px] font-black text-[#11151b]">L</div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/60">Levera</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/60">Delivera</p>
             <p className="text-[9px] text-white/30">nu</p>
           </div>
         </div>

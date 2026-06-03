@@ -166,7 +166,7 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
                     {data.orders.map((order) => (
                       <tr key={order.id}>
                         <td className="font-black">{order.orderNumber}</td>
-                        <td>{order.restaurant?.name || "Levera"}</td>
+                        <td>{order.restaurant?.name || "Delivera"}</td>
                         <td><Badge tone="info">{orderStatusLabel(order.status)}</Badge></td>
                         <td>{formatCurrency(order.total / 100)}</td>
                         <td>{formatDateTime(order.createdAt)}</td>
