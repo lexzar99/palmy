@@ -22,6 +22,16 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "pub-3aa62f4934014835956fe3777d5b3abd.r2.dev" },
     ],
   },
+  async headers() {
+    // Apple Pay-domänassociationsfilen serverades som application/octet-stream
+    // efter migrationen → vissa Apple/Stripe-verifieringar vill ha text/plain.
+    return [
+      {
+        source: "/.well-known/apple-developer-merchantid-domain-association",
+        headers: [{ key: "Content-Type", value: "text/plain" }],
+      },
+    ];
+  },
   async rewrites() {
     return {
       fallback: [
