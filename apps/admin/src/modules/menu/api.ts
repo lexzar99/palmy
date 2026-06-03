@@ -173,6 +173,22 @@ export type R2PathsTemplate = {
 export const r2PathsTemplate = (restaurantId: string) =>
   apiGet<R2PathsTemplate>(`/admin/images/paths-template?restaurantId=${encodeURIComponent(restaurantId)}`);
 
+// Bulk-import av meny (YAML/JSON) → kategorier/produkter/pålägg, idempotent upsert.
+export type MenuImportResult = {
+  ok: boolean;
+  dryRun: boolean;
+  summary: {
+    extraGroupsCreated: number; extraGroupsUpdated: number;
+    categoriesCreated: number; categoriesUpdated: number;
+    productsCreated: number; productsUpdated: number; links: number;
+  };
+  errors: string[];
+  warnings: string[];
+  examples: string[];
+};
+export const menuBulkImport = (payload: { restaurantId: string; content: string; apply: boolean }) =>
+  apiPost<MenuImportResult>("/admin/menu/bulk-import", payload, { timeout: 5 * 60 * 1000 });
+
 // Copy/import — nya id genereras, källan rörs inte.
 export const copyCategory = (sourceId: string, targetRestaurantId: string) =>
   apiPost<CategoryRecord>(`/admin/categories/${sourceId}/copy`, { targetRestaurantId });

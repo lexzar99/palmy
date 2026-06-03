@@ -18,6 +18,7 @@ import { ALLOW_WIPE_ORDERS } from '../lib/config';
 import { sanitizeError } from '../lib/errors';
 import { menuCacheBust } from './menu';
 import { bustCache } from '../lib/ttlCache';
+import { parseMenuImport, runMenuImport } from '../lib/menuImport';
 
 const router = Router();
 router.use(authenticate);
@@ -1629,6 +1630,46 @@ router.get('/products', async (req, res) => {
     })));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/admin/menu/bulk-import
+// Massimport av kategorier → produkter → pålägg från YAML eller JSON.
+// apply=false → dry-run (plan + validering, inga skrivningar). apply=true → kör.
+// Idempotent upsert (matchar på namn per restaurang). Priser i kronor → öre.
+router.post('/menu/bulk-import', async (req, res) => {
+  try {
+    const restaurantId = isSuperAdmin(req as AuthRequest)
+      ? (req.body.restaurantId ? String(req.body.restaurantId) : null)
+      : requireRestaurantScope(req as AuthRequest, res);
+    if (!isSuperAdmin(req as AuthRequest) && !restaurantId) return;
+    if (!restaurantId) { res.status(400).json({ error: 'restaurantId krävs (välj restaurang)' }); return; }
+
+    const content = String(req.body.content || '');
+    if (!content.trim()) { res.status(400).json({ error: 'Tom import — klistra in YAML eller JSON.' }); return; }
+    const apply = req.body.apply === true || req.body.apply === 'true';
+
+    let spec;
+    try {
+      spec = parseMenuImport(content);
+    } catch (e: any) {
+      res.status(400).json({ error: e?.message || 'Kunde inte tolka filen' });
+      return;
+    }
+
+    const result = await runMenuImport(prisma, restaurantId, spec, apply);
+
+    if (apply && result.ok) {
+      menuCacheBust(restaurantId);
+      broadcastMenuChange(restaurantId, { kind: 'bulk-import' });
+      await audit(req as AuthRequest, 'MENU_BULK_IMPORT', {
+        resourceType: 'Restaurant', resourceId: restaurantId, changes: result.summary,
+      });
+    }
+    res.json(result);
+  } catch (error: any) {
+    console.error('bulk-import error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Import misslyckades') });
   }
 });
 

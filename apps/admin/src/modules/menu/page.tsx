@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Search, Tags } from "lucide-react";
+import { Loader2, Plus, Search, Tags, Upload } from "lucide-react";
 import { dealsQueryKey, getAutomaticDeals, type AutomaticDealRecord, type DealProductRef, type DealRestaurantRef } from "@/modules/deals/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
 import {
@@ -30,6 +30,8 @@ import {
   menuRestaurantsQueryKey,
   r2AutoMatch,
   r2Migrate,
+  menuBulkImport,
+  type MenuImportResult,
   r2PathsTemplate,
   updateCategory,
   updateExtraGroup,
@@ -928,6 +930,166 @@ function R2MigrateButton() {
   );
 }
 
+const BULK_IMPORT_TEMPLATE = `# Pålägg (definieras EN gång, återanvänds av produkter)
+extraGroups:
+  - name: Sås
+    type: radio          # radio = max 1 | checkbox = flera
+    required: false      # true => Min 1
+    options:
+      - { name: Vitlökssås, price: 0 }   # price i KRONOR (0 = ingår)
+      - { name: Stark sås, price: 0 }
+  - name: Tillbehör
+    type: radio
+    required: true
+    options:
+      - { name: Pommes, price: 0 }
+      - { name: Ris, price: 0 }
+
+# Meny (kategorier → produkter)
+categories:
+  - name: Kyckling
+    description: "Krispig friterad kyckling"   # valfri
+    mainCategory: Kyckling                      # valfri tile-grupp
+    products:
+      - name: Crispy tallrik
+        description: "5 bitar med sås & pommes" # valfri
+        price: 139                              # KRONOR
+        extras: [Sås, Tillbehör]                # grupp-namn ovan / i DB
+`;
+
+/**
+ * Bulk-import: klistra in YAML/JSON → förhandsvisa (dry-run) → importera.
+ * Idempotent upsert per restaurang. Pålägg som redan finns globalt lämnas orörda
+ * men återanvänds för koppling. Priser i kronor → öre.
+ */
+function BulkImportButton({ restaurantId }: { restaurantId: string }) {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [content, setContent] = useState("");
+  const [result, setResult] = useState<MenuImportResult | null>(null);
+
+  const extractError = (e: any): string =>
+    e?.response?.data?.error || e?.message || "Okänt fel — kolla nätverk eller serverloggar.";
+
+  const previewMutation = useMutation({ meta: { toast: false },
+    mutationFn: () => menuBulkImport({ restaurantId, content, apply: false }),
+    onSuccess: (data) => setResult(data),
+    onError: (e) => showToast({ type: "error", message: extractError(e) }),
+  });
+
+  const applyMutation = useMutation({ meta: { toast: false },
+    mutationFn: () => menuBulkImport({ restaurantId, content, apply: true }),
+    onSuccess: async (data) => {
+      setResult(data);
+      await queryClient.invalidateQueries({ queryKey: ["menu"] });
+      const s = data.summary;
+      showToast({
+        type: "success",
+        message: `Import klar: +${s.categoriesCreated} kat, +${s.productsCreated} prod, ${s.links} kopplingar`,
+      });
+    },
+    onError: (e) => showToast({ type: "error", message: extractError(e) }),
+  });
+
+  const isBusy = previewMutation.isPending || applyMutation.isPending;
+  const s = result?.summary;
+
+  return (
+    <>
+      <Button variant="secondary" onClick={() => { setOpen(true); setResult(null); }}>
+        <Upload size={14} /> Bulk-import
+      </Button>
+
+      <Modal
+        open={open}
+        onClose={() => { if (!isBusy) { setOpen(false); } }}
+        title="Massimport av meny (YAML / JSON)"
+        description="Klistra in kategorier, produkter och pålägg. Förhandsvisa visar exakt vad som skapas/uppdateras — inget skrivs förrän du klickar Importera. Idempotent: kör om utan dubbletter."
+        footer={
+          <div className="flex justify-between gap-2">
+            <Button onClick={() => setContent(BULK_IMPORT_TEMPLATE)} disabled={isBusy}>Infoga mall</Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => previewMutation.mutate()} disabled={isBusy || !content.trim()}>
+                {previewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Förhandsvisa
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => applyMutation.mutate()}
+                disabled={isBusy || !content.trim() || !result || result.dryRun === false}
+              >
+                {applyMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+                {applyMutation.isPending ? "Importerar…" : "Importera"}
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="grid gap-4">
+          <Textarea
+            value={content}
+            onChange={(e) => { setContent(e.target.value); setResult(null); }}
+            placeholder={"Klistra in YAML eller JSON här… (klicka \"Infoga mall\" för att börja)"}
+            rows={14}
+            style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 }}
+          />
+
+          {result ? (
+            <div className="grid gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
+                {[
+                  { n: s!.categoriesCreated, l: "Nya kat." },
+                  { n: s!.categoriesUpdated, l: "Uppd. kat." },
+                  { n: s!.productsCreated, l: "Nya prod." },
+                  { n: s!.productsUpdated, l: "Uppd. prod." },
+                  { n: s!.extraGroupsCreated, l: "Nya pålägg" },
+                  { n: s!.extraGroupsUpdated, l: "Uppd. pålägg" },
+                  { n: s!.links, l: "Kopplingar" },
+                ].map((c) => (
+                  <div key={c.l} className="surface-muted px-2 py-3 text-center">
+                    <div className="text-xl font-black">{c.n}</div>
+                    <div className="mt-1 text-[9px] uppercase tracking-widest text-[var(--text-secondary)]">{c.l}</div>
+                  </div>
+                ))}
+              </div>
+
+              {result.dryRun ? (
+                <p className="text-xs text-[var(--text-secondary)]">Förhandsvisning — inget har skrivits. Klicka <b>Importera</b> för att köra.</p>
+              ) : (
+                <p className="text-xs text-emerald-400">✓ Importen är klar och menyn uppdaterad.</p>
+              )}
+
+              {result.warnings.length > 0 ? (
+                <div>
+                  <p className="mb-1 text-[11px] font-black uppercase tracking-widest text-amber-400">Varningar ({result.warnings.length})</p>
+                  <div className="surface-muted max-h-40 overflow-y-auto px-3 py-2 text-xs text-amber-300">
+                    {result.warnings.map((w, i) => <div key={i} className="border-b border-[var(--border-subtle)] py-1 last:border-0">{w}</div>)}
+                  </div>
+                </div>
+              ) : null}
+
+              {result.examples.length > 0 ? (
+                <div>
+                  <p className="mb-1 text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">Plan</p>
+                  <div className="surface-muted max-h-48 overflow-y-auto px-3 py-2 text-xs">
+                    {result.examples.map((ex, i) => <div key={i} className="py-0.5">{ex}</div>)}
+                  </div>
+                </div>
+              ) : null}
+
+              {result.errors.length > 0 ? (
+                <div className="surface-muted px-3 py-2 text-xs text-rose-400">
+                  {result.errors.map((er, i) => <div key={i}>{er}</div>)}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </Modal>
+    </>
+  );
+}
+
 /**
  * R2 Auto-match-knapp: scannar Cloudflare R2-bucketen för restaurangen och
  * binder automatiskt bilder till produkter/kategorier/main-categories baserat
@@ -1370,6 +1532,7 @@ export function MenuPage() {
             <R2MigrateButton />
             {activeRestaurantId ? (
               <>
+                <BulkImportButton restaurantId={activeRestaurantId} />
                 <R2PathsButton restaurantId={activeRestaurantId} />
                 <R2AutoMatchButton restaurantId={activeRestaurantId} />
               </>
