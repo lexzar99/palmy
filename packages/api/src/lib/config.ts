@@ -72,7 +72,13 @@ export const DEFAULT_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002',
-  // Prod (foodgo.se)
+  // Prod (delivera.se) — primär brand-domän bakom Cloudflare → Vercel.
+  // MÅSTE finnas här annars blockar CORS browser-anrop från storefront/admin
+  // ("Kan inte nå servern" trots att API:t svarar).
+  'https://delivera.se',
+  'https://www.delivera.se',
+  'https://admin.delivera.se',
+  // Prod (foodgo.se) — legacy, kvar för bakåtkompatibilitet
   'https://foodgo.se',
   'https://www.foodgo.se',
   'https://app.foodgo.se',
