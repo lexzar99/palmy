@@ -555,6 +555,13 @@ router.post('/orders/bulk-refund', async (req, res) => {
             data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
           });
         }
+        // Dpoints: återför inlösta + claw-backa intjänade poäng (idempotent).
+        try {
+          const { revertOrderPointsForRefund } = await import('../lib/dpoints');
+          await revertOrderPointsForRefund(orderId);
+        } catch (e: any) {
+          console.error('[admin/bulk-refund] dpoints-revert error:', e?.message);
+        }
         try {
           getIO().to('admin-room').emit('order:updated', { orderId });
           if (order.restaurantId) getIO().to(`admin-room:${order.restaurantId}`).emit('order:updated', { orderId });
@@ -4057,6 +4064,16 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
       });
     }
 
+    // Dpoints: återför inlösta poäng (köp-med-poäng) + claw-backa intjänade för
+    // ordern. Idempotent + server-auktoritativt.
+    let dpointsRevert = { refunded: 0, clawedBack: 0 };
+    try {
+      const { revertOrderPointsForRefund } = await import('../lib/dpoints');
+      dpointsRevert = await revertOrderPointsForRefund(order.id);
+    } catch (e: any) {
+      console.error('[admin/refund] dpoints-revert error:', e?.message);
+    }
+
     await audit(authReq, 'ORDER_REFUND', {
       resourceType: 'Order',
       resourceId: order.id,
@@ -4066,6 +4083,8 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
         reason: reason || 'Återbetalning via admin',
         refundId: refund.id,
         refundStatus: refund.status,
+        dpointsRefunded: dpointsRevert.refunded,
+        dpointsClawedBack: dpointsRevert.clawedBack,
       },
     });
     res.json({
@@ -4073,6 +4092,7 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
       refundedAmount: refundAmountOre / 100,
       refundId: refund.id,
       refundStatus: refund.status,
+      dpoints: dpointsRevert,
     });
   } catch (error: any) {
     console.error('Refund error:', error);

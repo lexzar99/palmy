@@ -51,6 +51,9 @@ export interface AdminOrder {
   scheduledFor?: string | null;
   paymentStatus?: string | null;
   customerStats?: CustomerStats | null;
+  pointsEarned?: number | null;
+  pointsSpent?: number | null;
+  pointsReverted?: boolean | null;
 }
 
 export interface BulkRefundResult {

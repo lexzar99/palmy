@@ -303,6 +303,19 @@ function OrderDetailsModal({
                   <Wallet size={16} />
                   <p className="text-[11px] font-black uppercase tracking-[0.18em]">Refund</p>
                 </div>
+                {(order.pointsEarned || order.pointsSpent) ? (
+                  <div className="mt-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[13px]">
+                    <p className="font-semibold text-[var(--text-primary)]">Dpoints på denna order</p>
+                    <div className="mt-1.5 space-y-0.5 text-[var(--text-secondary)]">
+                      {!!order.pointsEarned && (
+                        <p>Kund tjänade <strong>{order.pointsEarned} p</strong> {order.pointsReverted ? "(återtagna)" : "→ återtas vid återbetalning"}</p>
+                      )}
+                      {!!order.pointsSpent && (
+                        <p>Kund löste in <strong>{order.pointsSpent} p</strong> {order.pointsReverted ? "(återförda)" : "→ återförs vid återbetalning"}</p>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
                 {order.refundedAt ? (
                   <div className="mt-4 rounded-2xl border border-[rgba(48,199,143,0.2)] bg-[rgba(48,199,143,0.08)] px-4 py-3">
                     <div className="flex items-center gap-2 text-sm text-[#c4ffeb]">

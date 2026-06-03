@@ -165,8 +165,20 @@ function SettingsTab() {
               />
             </Field>
           </div>
+          <Field label="Tak för saldo (poäng) — 0 = inget tak">
+            <Input
+              type="number"
+              min="0"
+              defaultValue={c.dpointsMaxBalance}
+              key={`max-${c.dpointsMaxBalance}`}
+              onBlur={(e) => {
+                const v = Math.max(0, Math.round(Number(e.target.value)));
+                if (v !== c.dpointsMaxBalance) save.mutate({ dpointsMaxBalance: v });
+              }}
+            />
+          </Field>
           <p className="text-sm text-[var(--text-secondary)]">
-            Med {c.dpointsPerKr} p/kr intjänat och {c.dpointsValuePerKr} p = 1 kr värde ger 100 kr köp{" "}
+            Vid taket ({c.dpointsMaxBalance || "—"} p) pausas intjäning tills kunden löst in poäng. Med {c.dpointsPerKr} p/kr intjänat och {c.dpointsValuePerKr} p = 1 kr värde ger 100 kr köp{" "}
             {Math.round(100 * c.dpointsPerKr)} poäng, och {c.dpointsValuePerKr * 10} poäng motsvarar 10 kr.
           </p>
           {save.isPending && <p className="text-sm text-[var(--text-secondary)]">Sparar…</p>}

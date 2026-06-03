@@ -1861,7 +1861,11 @@ export default function CartPage() {
                       </button>
                     </div>
                     <div className="text-right min-w-[3.5rem]">
-                      <div className="text-sm font-black leading-none" style={{ color: "var(--text-primary)", fontFeatureSettings: "'tnum'" }}>{(item.price * item.quantity).toFixed(0)} kr</div>
+                      {item.paidWithPoints ? (
+                        <div className="inline-flex items-center gap-1 rounded-full bg-gold-500/15 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-gold-700">Med poäng</div>
+                      ) : (
+                        <div className="text-sm font-black leading-none" style={{ color: "var(--text-primary)", fontFeatureSettings: "'tnum'" }}>{(item.price * item.quantity).toFixed(0)} kr</div>
+                      )}
                     </div>
                     <button
                       onClick={() => removeItem(item.cartItemId)}

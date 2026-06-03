@@ -203,6 +203,8 @@ model Order {
   pointsEarned          Int         @default(0)
   // Dpoints som ska dras när ordern betalas (varor köpta med poäng → gratis-rad).
   pointsSpent           Int         @default(0)
+  // Idempotens-guard för poäng-återföring vid återbetalning.
+  pointsReverted        Boolean     @default(false)
 
   @@index([restaurantId, status, createdAt])
   @@index([customerPhone])
@@ -559,6 +561,9 @@ model RestaurantSettings {
   // Visa Dpoints-registreringskortet bland sponsorerna på hemsidan. Togglas
   // från admin → Sponsorer. true = synligt (för utloggade besökare).
   dpointsCardOnHome   Boolean   @default(true)
+  // Tak för saldo: intjäning (köp + kampanjer) pausas vid taket → kunden måste
+  // lösa in poäng för att tjäna mer. Begränsar utestående skuld. 0 = inget tak.
+  dpointsMaxBalance   Int       @default(2000)
 }
 
 model OrderDraft {

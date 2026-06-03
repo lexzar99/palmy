@@ -18,7 +18,7 @@ import { JWT_SECRET } from '../lib/config';
 import { cached } from '../lib/ttlCache';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
-import { getDpointsSettings } from '../lib/dpoints';
+import { getDpointsSettings, awardOrderPointsIfNotAwarded } from '../lib/dpoints';
 import supabaseAdmin from '../lib/supabase';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
@@ -1171,6 +1171,12 @@ router.post('/', async (req: Request, res: Response) => {
           data: { status: 'USED', usedAt: new Date() },
         });
       }
+
+      // Dpoints: synkron (direkt-PAID/bypass) väg → intjäning + köp-med-poäng-
+      // avdrag. Idempotent (Order.pointsAwarded race-guard) så det krockar inte
+      // med applyPaymentSuccess för async-vägen. Utan detta blev en köp-med-
+      // poäng-vara gratis UTAN att poäng drogs på sync-vägen (säkerhetshål).
+      await awardOrderPointsIfNotAwarded(order.id);
 
       // Trigger loyalty/retention rewards (async). Failar tyst i bakgrunden
       // — vi blockerar inte order-skapandet på det, men loggar med kontext

@@ -29,6 +29,7 @@ export interface DpointsSettings {
   dpointsEnabled: boolean;
   dpointsPerKr: number;
   dpointsValuePerKr: number;
+  dpointsMaxBalance: number;
 }
 
 export async function getDpointsSettings(): Promise<DpointsSettings> {
@@ -37,6 +38,7 @@ export async function getDpointsSettings(): Promise<DpointsSettings> {
     dpointsEnabled: row.dpointsEnabled ?? false,
     dpointsPerKr: row.dpointsPerKr ?? 1,
     dpointsValuePerKr: row.dpointsValuePerKr ?? 10,
+    dpointsMaxBalance: row.dpointsMaxBalance ?? 2000,
   };
 }
 
@@ -102,17 +104,30 @@ export async function recordPointsTx(opts: {
   campaignId?: string | null;
   adminId?: string | null;
   metadata?: any;
+  // Om satt (>0): clampa POSITIVA belopp så saldot inte överstiger taket.
+  // Används av intjänings-typer (kampanj/signup), INTE av admin-justeringar.
+  cap?: number;
 }): Promise<number> {
   return prisma.$transaction(async (tx) => {
+    let amount = opts.amount;
+    if (opts.cap != null && opts.cap > 0 && amount > 0) {
+      const before = await tx.user.findUnique({ where: { id: opts.userId }, select: { pointsBalance: true } });
+      const grantable = Math.max(0, opts.cap - (before?.pointsBalance ?? 0));
+      amount = Math.min(amount, grantable);
+    }
+    if (amount === 0) {
+      const cur = await tx.user.findUnique({ where: { id: opts.userId }, select: { pointsBalance: true } });
+      return cur?.pointsBalance ?? 0;
+    }
     const u = await tx.user.update({
       where: { id: opts.userId },
-      data: { pointsBalance: { increment: opts.amount } },
+      data: { pointsBalance: { increment: amount } },
       select: { pointsBalance: true },
     });
     await tx.pointsTransaction.create({
       data: {
         userId: opts.userId,
-        amount: opts.amount,
+        amount,
         type: opts.type,
         reason: opts.reason ?? null,
         orderId: opts.orderId ?? null,
@@ -188,27 +203,36 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
       // Race-guard: bara en path får sätta pointsAwarded false→true.
       const claim = await tx.order.updateMany({
         where: { id: orderId, pointsAwarded: false },
-        data: { pointsAwarded: true, pointsEarned: earned },
+        data: { pointsAwarded: true },
       });
       if (claim.count === 0) throw new Error('ALREADY_AWARDED');
+      // Intjäning clampad mot taket → saldot överstiger aldrig dpointsMaxBalance.
+      let actualEarned = 0;
       if (earned > 0) {
-        const u = await tx.user.update({
-          where: { id: userId },
-          data: { pointsBalance: { increment: earned } },
-          select: { pointsBalance: true },
-        });
-        await tx.pointsTransaction.create({
-          data: {
-            userId,
-            amount: earned,
-            type: 'EARN_ORDER',
-            orderId,
-            balanceAfter: u.pointsBalance,
-            reason: mult > 1 ? `Köp (${mult}× bonus)` : 'Köp',
-            metadata: { baseKr, multiplier: mult, perKr: settings.dpointsPerKr },
-          },
-        });
+        const before = await tx.user.findUnique({ where: { id: userId }, select: { pointsBalance: true } });
+        const cap = settings.dpointsMaxBalance;
+        const grantable = cap > 0 ? Math.max(0, cap - (before?.pointsBalance ?? 0)) : earned;
+        actualEarned = Math.min(earned, grantable);
+        if (actualEarned > 0) {
+          const u = await tx.user.update({
+            where: { id: userId },
+            data: { pointsBalance: { increment: actualEarned } },
+            select: { pointsBalance: true },
+          });
+          await tx.pointsTransaction.create({
+            data: {
+              userId,
+              amount: actualEarned,
+              type: 'EARN_ORDER',
+              orderId,
+              balanceAfter: u.pointsBalance,
+              reason: mult > 1 ? `Köp (${mult}× bonus)` : 'Köp',
+              metadata: { baseKr, multiplier: mult, perKr: settings.dpointsPerKr, capped: actualEarned < earned },
+            },
+          });
+        }
       }
+      await tx.order.update({ where: { id: orderId }, data: { pointsEarned: actualEarned } });
       // Inlösen: varor köpta med poäng → dra poängen nu när ordern är betald.
       if (spent > 0) {
         // Saldot kan ha sjunkit sedan order-skapandet (parallell inlösen). Dra
@@ -238,7 +262,7 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
     // Streak-utmaningar utvärderas bara på den vinnande path:en (loser kastade
     // ALREADY_AWARDED ovan och nådde aldrig hit).
     if (settings.dpointsEnabled) {
-      await evaluateStreakCampaigns(userId, order.createdAt, baseKr).catch((e) =>
+      await evaluateStreakCampaigns(userId, order.createdAt, baseKr, settings.dpointsMaxBalance).catch((e) =>
         console.error('[dpoints] streak-eval error:', e?.message),
       );
     }
@@ -255,7 +279,7 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
  * när målet nås. DAILY = på varandra följande dagar, WEEKLY = på varandra
  * följande veckor (en order/period räcker). En period räknas max en gång.
  */
-export async function evaluateStreakCampaigns(userId: string, orderDate: Date, baseKr: number): Promise<void> {
+export async function evaluateStreakCampaigns(userId: string, orderDate: Date, baseKr: number, cap = 0): Promise<void> {
   const camps = await prisma.pointsCampaign.findMany({
     where: {
       type: { in: ['STREAK_DAILY', 'STREAK_WEEKLY'] },
@@ -301,6 +325,7 @@ export async function evaluateStreakCampaigns(userId: string, orderDate: Date, b
         campaignId: c.id,
         reason: c.name,
         metadata: { streak, target, type: c.type },
+        cap,
       });
     }
 
@@ -377,6 +402,70 @@ export async function claimSignupBonus(userId: string): Promise<{ points: number
     metadata: { sponsorCardId: card.id },
   });
   return { points: card.bonusPoints };
+}
+
+// ── Återbetalning ─────────────────────────────────────────────────────────────
+
+/**
+ * Återför poäng vid återbetald order: re-kreditera poäng kunden SPENDERADE
+ * (köp-med-poäng) och claw-backa poäng kunden TJÄNADE på ordern. Idempotent via
+ * Order.pointsReverted. Server-auktoritativt — använder orderns lagrade värden,
+ * aldrig klient-input. Clawback clampas så saldot aldrig går negativt.
+ */
+export async function revertOrderPointsForRefund(orderId: string): Promise<{ refunded: number; clawedBack: number }> {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, userId: true, pointsEarned: true, pointsSpent: true, pointsReverted: true },
+    });
+    if (!order || !order.userId) return { refunded: 0, clawedBack: 0 };
+    const claim = await prisma.order.updateMany({
+      where: { id: orderId, pointsReverted: false },
+      data: { pointsReverted: true },
+    });
+    if (claim.count === 0) return { refunded: 0, clawedBack: 0 }; // redan återfört
+
+    const userId = order.userId;
+    const refunded = order.pointsSpent ?? 0;
+    const earned = order.pointsEarned ?? 0;
+
+    if (refunded > 0) {
+      await recordPointsTx({
+        userId,
+        amount: refunded,
+        type: 'REVERSAL',
+        reason: 'Återbetald order — inlösta poäng återförda',
+        metadata: { orderId, kind: 'refund-recredit' },
+      });
+    }
+    if (earned > 0) {
+      await prisma.$transaction(async (tx) => {
+        const cur = await tx.user.findUnique({ where: { id: userId }, select: { pointsBalance: true } });
+        const dec = Math.min(earned, cur?.pointsBalance ?? 0);
+        if (dec > 0) {
+          const u = await tx.user.update({
+            where: { id: userId },
+            data: { pointsBalance: { decrement: dec } },
+            select: { pointsBalance: true },
+          });
+          await tx.pointsTransaction.create({
+            data: {
+              userId,
+              amount: -dec,
+              type: 'REVERSAL',
+              balanceAfter: u.pointsBalance,
+              reason: 'Återbetald order — intjäning återtagen',
+              metadata: { orderId, kind: 'refund-clawback', earned },
+            },
+          });
+        }
+      });
+    }
+    return { refunded, clawedBack: earned };
+  } catch (e: any) {
+    console.error('[dpoints] revertOrderPointsForRefund error:', e?.message);
+    return { refunded: 0, clawedBack: 0 };
+  }
 }
 
 // ── Inlösen → personlig kod ───────────────────────────────────────────────────
