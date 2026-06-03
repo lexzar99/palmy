@@ -180,6 +180,29 @@ const limiter = rateLimit({
     return ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
   },
 });
+
+// Bred missbruks-broms som täcker ÄVEN GET (limitern ovan hoppar över läs-
+// trafik). Stoppar skrapning/spam av publika endpoints utan att störa normal
+// browsing — 300 req/min/IP ≈ 5/s ihållande, långt över vad en äkta användare
+// genererar men dödar en spam-loop. Cloudflare-regler framför API:t är det
+// PRIMÄRA försvaret mot riktig DDoS; detta är app-nivå-backstop.
+//
+// Nyckel: CF-Connecting-IP först (riktig klient-IP när Cloudflare proxar),
+// annars Railways forwarded IP. Så limitern fungerar både före och efter att
+// du lägger api.delivera.se bakom Cloudflare.
+const abuseLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'För många förfrågningar. Sakta ner och försök igen om en stund.' },
+  keyGenerator: (req) => {
+    const cf = req.headers['cf-connecting-ip'];
+    return (typeof cf === 'string' && cf) || req.ip || 'anon';
+  },
+});
+
+app.use('/api/', abuseLimiter);
 app.use('/api/', limiter);
 
 const orderLimiter = rateLimit({
