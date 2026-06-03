@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import { fetchDpointsMe } from "@/lib/dpoints";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
@@ -27,6 +28,7 @@ import {
   User as UserIcon,
   ParkingCircle,
   Gift,
+  Coins,
   AlertCircle,
   Check,
 } from "lucide-react";
@@ -206,6 +208,12 @@ export default function CartPage() {
   // att applicera, vi skickar userDealId i order-payload.
   const [accountDeals, setAccountDeals] = useState<UserAccountDeal[]>([]);
   const [selectedAccountDealId, setSelectedAccountDealId] = useState<string | null>(null);
+  // Dpoints-saldo (för köp-med-poäng-guard i korgen). null = ej inloggad / av.
+  const [dpointsBalance, setDpointsBalance] = useState<number | null>(null);
+  const [showInsufficientPoints, setShowInsufficientPoints] = useState(false);
+  useEffect(() => {
+    fetchDpointsMe().then((d) => setDpointsBalance(d?.enabled ? d.balance : null)).catch(() => {});
+  }, []);
   // Kund kan välja att avbryta den automatiskt applicerade dealen (t.ex.
   // "25% första beställning") för att använda en egen rabattkod istället.
   // Default false → auto-deal appliceras som vanligt. Sätts true automatiskt
@@ -270,18 +278,47 @@ export default function CartPage() {
     const savedName = typeof window !== "undefined" ? localStorage.getItem("guest_name") || "" : "";
     const savedPhone = typeof window !== "undefined" ? localStorage.getItem("guest_phone") || "" : "";
     const savedEmail = typeof window !== "undefined" ? localStorage.getItem("guest_email") || "" : "";
+    // Återställ senast valda leveransadress så den inte nollas vid navigering.
+    let d = { deliveryStreet: "", deliveryZip: "", deliveryCity: "" };
+    if (typeof window !== "undefined") {
+      try { const raw = localStorage.getItem("platform_delivery"); if (raw) d = { ...d, ...JSON.parse(raw) }; } catch { /* ignore */ }
+    }
     return {
       customerName: savedName,
       customerPhone: savedPhone,
       customerEmail: savedEmail,
-      deliveryStreet: "",
-      deliveryZip: "",
-      deliveryCity: "",
+      deliveryStreet: d.deliveryStreet || "",
+      deliveryZip: d.deliveryZip || "",
+      deliveryCity: d.deliveryCity || "",
       deliveryInstructions: "",
       note: typeof window !== "undefined" ? localStorage.getItem("cart_note") || "" : "",
     };
   });
 
+
+  // Persistera vald leveransadress → överlever navigering tills kund ändrar den.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const { deliveryStreet, deliveryZip, deliveryCity } = formData;
+    if (deliveryStreet || deliveryZip || deliveryCity) {
+      localStorage.setItem("platform_delivery", JSON.stringify({ deliveryStreet, deliveryZip, deliveryCity }));
+    } else {
+      // Kund tog bort adressen → rensa även sparad coords så den inte återställs.
+      localStorage.removeItem("platform_delivery");
+      localStorage.removeItem("platform_coords");
+    }
+  }, [formData.deliveryStreet, formData.deliveryZip, formData.deliveryCity]);
+
+  // Vid retur till kassan: kör om zon-check från sparade coords så adressen
+  // inte ser "ej validerad" ut efter navigering.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("platform_coords");
+      if (raw) { const c = JSON.parse(raw); if (c?.lat && c?.lng) checkDeliverySpecific(c.lat, c.lng); }
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Dricks (paritet med RN CartScreen) — endast leverans
   const [tipAmount, setTipAmount] = useState<number>(0);
@@ -1853,7 +1890,13 @@ export default function CartPage() {
                       </button>
                       <span className="text-xs font-black w-3 text-center" style={{ color: "var(--text-primary)" }}>{item.quantity}</span>
                       <button
-                        onClick={() => updateQuantity(item.cartItemId, 1)}
+                        onClick={() => {
+                          if (item.paidWithPoints && dpointsBalance != null && item.dpointsUnitCost) {
+                            const committed = items.reduce((s, i) => s + (i.paidWithPoints ? (i.dpointsUnitCost ?? 0) * i.quantity : 0), 0);
+                            if (committed + item.dpointsUnitCost > dpointsBalance) { setShowInsufficientPoints(true); return; }
+                          }
+                          updateQuantity(item.cartItemId, 1);
+                        }}
                         className="w-6 h-6 rounded-full flex items-center justify-center text-zinc-600 hover:bg-white hover:text-gold-600 active:scale-90 transition-all"
                         aria-label="Öka antal"
                       >
@@ -1878,6 +1921,17 @@ export default function CartPage() {
                 </motion.div>
               ))}
             </div>
+
+            {showInsufficientPoints && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-6" onClick={() => setShowInsufficientPoints(false)}>
+                <div className="w-full max-w-sm rounded-3xl p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)" }}>
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gold-500/15"><Coins size={22} className="text-gold-600" /></div>
+                  <h3 className="text-base font-black" style={{ color: "var(--text-primary)" }}>Otillräckligt med Dpoints</h3>
+                  <p className="mt-1.5 text-sm" style={{ color: "var(--text-secondary)" }}>Du har inte tillräckligt med poäng för fler varor köpta med poäng. Lös in färre — eller lägg till varan med pengar istället.</p>
+                  <button onClick={() => setShowInsufficientPoints(false)} className="mt-4 w-full rounded-full py-3 font-black" style={{ backgroundColor: "#c89a3c", color: "#1c1c1e" }}>OK</button>
+                </div>
+              </div>
+            )}
 
             {/* Desktop left column: delivery details + pricing */}
             <div className="hidden lg:block mt-6 space-y-6" id="desktop-left-extras">

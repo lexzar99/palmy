@@ -37,6 +37,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const setBogoChoice = useCartStore((state) => state.setBogoChoice);
   const currentCartRestaurantId = useCartStore((state) => state.restaurantId);
   const cartItemsCount = useCartStore((state) => state.items.length);
+  const cartItems = useCartStore((state) => state.items);
   const { toast } = useToast();
   // Focus-trap för a11y (WCAG 2.4.3) — screen reader-användare ska inte
   // kunna tabba ut ur modalen.
@@ -170,8 +171,13 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const extrasPrice = selectedExtras.reduce((sum, e) => sum + e.price, 0);
   const totalPrice = (effectiveBasePrice + extrasPrice) * quantity;
   // Dpoints: kostnad i poäng för hela raden + om kunden kan betala med poäng.
-  const dpointsCost = Math.round(totalPrice * (dpoints?.valuePerKr ?? 10));
-  const canBuyWithPoints = !!dpoints?.enabled && !editCartItemId && !bogoFreeFromDealId && dpointsCost > 0 && (dpoints?.balance ?? 0) >= dpointsCost;
+  const dpointsUnitCost = Math.round((effectiveBasePrice + extrasPrice) * (dpoints?.valuePerKr ?? 10));
+  const dpointsCost = dpointsUnitCost * quantity;
+  // Poäng redan reserverade av andra köp-med-poäng-rader i korgen → kan inte
+  // dubbel-spendera samma saldo.
+  const committedPoints = cartItems.reduce((sum, i) => sum + (i.paidWithPoints ? (i.dpointsUnitCost ?? 0) * i.quantity : 0), 0);
+  const availablePoints = (dpoints?.balance ?? 0) - committedPoints;
+  const canBuyWithPoints = !!dpoints?.enabled && !editCartItemId && !bogoFreeFromDealId && dpointsCost > 0 && availablePoints >= dpointsCost;
   const hasDiscount = effectiveBasePrice < product.price;
 
   const handleAddToCart = () => {
@@ -229,6 +235,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         extras: selectedExtras.map((e) => ({ ...e, price: 0 })),
         note: note.trim() || undefined,
         paidWithPoints: true,
+        dpointsUnitCost,
       });
       toast(t("product.toast.added", { name: product.name }), "success");
     } else {
