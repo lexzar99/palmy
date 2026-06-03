@@ -27,7 +27,6 @@ import AddressPullDown from "@/components/AddressPullDown";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
 import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
-import DiscountedDishesSection from "@/components/DiscountedDishesSection";
 import WelcomeDealBanner from "@/components/WelcomeDealBanner";
 import InviteFriendsBanner from "@/components/InviteFriendsBanner";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
@@ -1095,11 +1094,6 @@ export default function HomePage() {
             })}
           </div>
         </section>
-
-        {/* REA & RABATTER */}
-        <div className="mb-6">
-          <DiscountedDishesSection variant="responsive" />
-        </div>
 
         {resolvedHomeCategorySections.length > 0
           ? resolvedHomeCategorySections.map((section) => {
