@@ -4,7 +4,7 @@
   color-scheme: dark;
 
   /* ── Color system: deep neutral + monochrome (white) accent ──
-     Delivera. — svartvitt dark-tema. Accenten är vit/near-white istället för
+     Delívera. — svartvitt dark-tema. Accenten är vit/near-white istället för
      lime; bara semantiska färger (success/danger/warning/info) bär färg. */
   --bg-page: #08090b;
   --bg-primary: #0b0c0f;

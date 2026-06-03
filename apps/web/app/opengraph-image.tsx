@@ -76,7 +76,7 @@ export default async function OGImage() {
               display: "flex",
             }}
           >
-            Deli<span style={{ color: "#d4a74a" }}>vera</span>
+            Delí<span style={{ color: "#d4a74a" }}>vera</span>
           </div>
 
           <div

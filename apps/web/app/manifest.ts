@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Delivera',
-    short_name: 'Delivera',
+    name: 'Delívera',
+    short_name: 'Delívera',
     description: 'Beställ mat från flera lokala restauranger i Lund. Snabb leverans, smidig betalning och ett brett utbud.',
     start_url: '/',
     display: 'standalone',
@@ -12,17 +12,17 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'portrait',
     icons: [
       {
-        src: '/icon',
+        src: '/icon-192.png',
         sizes: '192x192',
         type: 'image/png',
       },
       {
-        src: '/icon',
+        src: '/icon-512.png',
         sizes: '512x512',
         type: 'image/png',
       },
       {
-        src: '/icon',
+        src: '/icon-512.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',

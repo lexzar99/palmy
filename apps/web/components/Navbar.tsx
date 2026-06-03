@@ -92,9 +92,9 @@ const Navbar = () => {
       }}
     >
       <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-1 group" aria-label="Delivera — startsidan">
+        <Link href="/" className="flex items-center gap-1 group" aria-label="Delívera — startsidan">
           <span className="text-2xl font-black italic tracking-tighter leading-[1.15] transition-transform group-hover:scale-105" style={{ color: "var(--text-primary)" }}>
-            Deli<span className="text-gold-500">vera</span>
+            Delí<span className="text-gold-500">vera</span>
           </span>
         </Link>
 

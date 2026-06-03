@@ -111,7 +111,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <h1 className="mt-6 text-center text-[26px] font-semibold tracking-[-0.025em]">Delivera Admin</h1>
+        <h1 className="mt-6 text-center text-[26px] font-semibold tracking-[-0.025em]">Delívera Admin</h1>
         {needsTotp && (
           <p className="mt-2 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
             Ny enhet upptäckt — verifiera med din authenticator-app eller recovery code.

@@ -880,10 +880,10 @@ export default function HomePage() {
       >
         <div className="px-4 pt-2 pb-2">
           {/* Rad 1: varumärke + liten leverans/hämtning-toggle + knappar.
-              Toggeln sitter mellan "Delivera" och knapparna till höger. */}
+              Toggeln sitter mellan "Delívera" och knapparna till höger. */}
           <div className="flex items-center gap-2">
             <Link href="/" className="text-lg font-black italic tracking-tighter shrink-0" style={{ color: "var(--text-primary)" }}>
-              Deli<span className="text-gold-500">vera</span>
+              Delí<span className="text-gold-500">vera</span>
             </Link>
             {/* Leverans/Hämtning-toggle — fyller mellanrummet med synlig text. */}
             <div className="flex-1 min-w-0 p-0.5 rounded-xl flex items-center" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>

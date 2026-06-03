@@ -93,14 +93,14 @@ export async function generateMetadata({
 
   if (!restaurant) {
     return {
-      title: "Restaurang | Delivera",
+      title: "Restaurang | Delívera",
       description: "Se menyn och lägg din beställning.",
     };
   }
 
   const title = restaurant.name
-    ? `${restaurant.name} | Delivera`
-    : "Restaurang | Delivera";
+    ? `${restaurant.name} | Delívera`
+    : "Restaurang | Delívera";
   const description =
     restaurant.description ||
     (restaurant.cuisine
