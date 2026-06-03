@@ -18,6 +18,7 @@ export interface CartItem {
   }[];
   note?: string;
   bogoFreeFromDealId?: string; // Satt om raden är en BOGO-gratisvara
+  paidWithPoints?: boolean; // Raden betalas med Dpoints → gratis (price 0), poäng dras vid betalning
 }
 
 export type BogoChoice = {

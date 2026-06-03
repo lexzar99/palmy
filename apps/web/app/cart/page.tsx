@@ -1313,6 +1313,7 @@ export default function CartPage() {
           priceAddon: e.price,
         })),
         note: i.note,
+        paidWithPoints: i.paidWithPoints || undefined,
       })),
       minOrderTopUp: minOrderTopUp > 0 ? minOrderTopUp : undefined,
     };

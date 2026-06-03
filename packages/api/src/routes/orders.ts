@@ -18,6 +18,7 @@ import { JWT_SECRET } from '../lib/config';
 import { cached } from '../lib/ttlCache';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
+import { getDpointsSettings } from '../lib/dpoints';
 import supabaseAdmin from '../lib/supabase';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
@@ -97,6 +98,9 @@ const OrderItemSchema = z.object({
   // att kunden inte smugglar fler gratis-varor än vad dealen tillåter.
   // Vi validerar count mot evaluateBogoCategoryDeal:s maxFreeItems.
   bogoFreeFromDealId: z.string().nullable().optional(),
+  // Dpoints: kunden betalar denna rad med poäng → backend nollar priset och
+  // drar poäng vid betalning. Kräver inloggad användare med tillräckligt saldo.
+  paidWithPoints: z.boolean().optional(),
 });
 
 const CreateOrderSchema = z.object({
@@ -492,6 +496,8 @@ router.post('/', async (req: Request, res: Response) => {
     const productMap = new Map(products.map((p) => [p.id, p]));
 
     let subtotal = 0;
+    let pointsToSpend = 0;
+    const dpSettings = await getDpointsSettings();
     const orderItems: any[] = [];
 
     for (const item of data.items) {
@@ -573,13 +579,20 @@ router.post('/', async (req: Request, res: Response) => {
       }
 
       const extrasTotal = validatedExtras.reduce((sum, e) => sum + Math.round(e.priceAddon * 100), 0);
-      const itemSubtotal = (product.price + extrasTotal) * item.quantity;
+      const fullItemOre = (product.price + extrasTotal) * item.quantity;
+      // Dpoints: betalas raden med poäng nollas priset (gratis-rad) och poängen
+      // dras vid betalning. Kräver inloggad användare + aktiverat system.
+      const payWithPoints = !!item.paidWithPoints && !!authenticatedUserId && dpSettings.dpointsEnabled;
+      const itemSubtotal = payWithPoints ? 0 : fullItemOre;
+      if (payWithPoints) {
+        pointsToSpend += Math.round((fullItemOre / 100) * dpSettings.dpointsValuePerKr);
+      }
       subtotal += itemSubtotal;
 
       orderItems.push({
         productId: product.id,
         productName: product.name,
-        basePrice: product.price,
+        basePrice: payWithPoints ? 0 : product.price,
         quantity: item.quantity,
         note: item.note,
         selectedExtras: JSON.stringify(validatedExtras), // Store as string for SQLite
@@ -1043,9 +1056,16 @@ router.post('/', async (req: Request, res: Response) => {
     for (let orderAttempt = 1; orderAttempt <= 8; orderAttempt++) {
       const nextNumber = await generateOrderNumber();
       try {
+        if (pointsToSpend > 0) {
+          if (!authenticatedUserId) throw new OrderValidationError('Logga in för att betala med Dpoints');
+          const dpUser = await prisma.user.findUnique({ where: { id: authenticatedUserId }, select: { pointsBalance: true } });
+          if (!dpUser || dpUser.pointsBalance < pointsToSpend) throw new OrderValidationError('Otillräckligt med Dpoints');
+        }
+
         order = await prisma.order.create({
       data: {
         orderNumber: nextNumber,
+        pointsSpent: pointsToSpend,
         status: isPendingPayment ? 'AWAITING_PAYMENT' : 'PENDING',
         type: data.type,
         customerName: data.customerName,

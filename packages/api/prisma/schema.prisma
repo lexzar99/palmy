@@ -201,6 +201,8 @@ model Order {
   // Dpoints — idempotent intjäning vid betald order (pointsAwarded = race-guard).
   pointsAwarded         Boolean     @default(false)
   pointsEarned          Int         @default(0)
+  // Dpoints som ska dras när ordern betalas (varor köpta med poäng → gratis-rad).
+  pointsSpent           Int         @default(0)
 
   @@index([restaurantId, status, createdAt])
   @@index([customerPhone])
