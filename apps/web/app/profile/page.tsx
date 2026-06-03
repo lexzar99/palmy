@@ -857,6 +857,29 @@ function ProfileContent() {
             </span>
             <ChevronRight size={18} className="text-gold-500" />
           </Link>
+
+          {/* Viktiga sidor — Om oss + policys, alltid nåbara (även utan konto).
+              Hämtar juridiskt namn/orgnr/e-post från admin via /api/settings. */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            {[
+              { href: "/about", label: t("nav.about") },
+              { href: "/contact", label: t("nav.contact") },
+              { href: "/privacy", label: t("profile.settings.privacy") },
+              { href: "/terms", label: t("profile.settings.termsLong") },
+            ].map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="flex items-center justify-between gap-2 px-4 py-3 rounded-2xl transition-all active:scale-[0.99]"
+                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+              >
+                <span className="text-[11px] font-black uppercase tracking-wider truncate" style={{ color: "var(--text-secondary)" }}>
+                  {l.label}
+                </span>
+                <ChevronRight size={14} className="text-zinc-500 shrink-0" />
+              </Link>
+            ))}
+          </div>
         </motion.div>
       </div>
     );

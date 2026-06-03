@@ -1690,7 +1690,7 @@ export default function CartPage() {
   // tomt-läget nedan istället för att visa en falsk "full varukorg".
   if (!mounted || (pageLoading && items.length > 0)) {
     return (
-      <div className="min-h-screen pb-32 md:pt-24 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="min-h-screen pb-32 pt-[env(safe-area-inset-top,0px)] md:pt-24 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
         <div className="max-w-2xl mx-auto px-5 sm:px-6 pt-6">
           <div className="skeleton h-8 w-40 rounded-xl mb-2" />
           <div className="skeleton h-10 w-3/4 rounded-xl mb-6" />
@@ -1723,7 +1723,7 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-dot-pattern pt-4 sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6 lg:px-10 xl:px-16" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="min-h-screen bg-dot-pattern pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6 lg:px-10 xl:px-16" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="max-w-[1400px] mx-auto">
         <div className="flex items-end justify-between mb-4 lg:mb-8 px-1 sm:px-4">
            <div className="min-w-0">

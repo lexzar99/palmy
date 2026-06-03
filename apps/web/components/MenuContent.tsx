@@ -1213,9 +1213,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           })}
         </div>}
 
-        {/* Avhämtningsläge: visa avhämtningstid + minsta order (ingen leveransavgift).
-            pickupEtaMinutes är admin-satt (default 10, clamp 5–25) och visas BARA här. */}
-        {orderType === "PICKUP" && <div className="grid grid-cols-2 mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 16px rgba(28,28,30,0.04)" }}>
+        {/* Avhämtningsläge: visa BARA avhämtningstid. Ingen leveransavgift och
+            ingen minsta-order (min-order gäller bara leverans).
+            pickupEtaMinutes är admin-satt (default 10, clamp 5–25). */}
+        {orderType === "PICKUP" && <div className="grid grid-cols-1 mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 16px rgba(28,28,30,0.04)" }}>
           {[
             {
               icon: Clock,
@@ -1224,11 +1225,6 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
               // ur den visade leverans-ETA:n (etaMinutes) så värdet stämmer även
               // om SSR-datan har ett gammalt cachat fält.
               value: `~${Math.max(5, Math.min(25, (restaurant.etaMinutes ?? 30) - 5))} ${t("menu.stats.min")}`,
-            },
-            {
-              icon: ShoppingBag,
-              label: t("menu.stats.minOrder"),
-              value: `${restaurant.minOrderAmount} kr`,
             },
           ].map((stat, i, arr) => {
             const Icon = stat.icon;

@@ -119,9 +119,36 @@ const resend = process.env.RESEND_API_KEY
 // ── Default From-adress ────────────────────────────────────────────────────────
 function defaultFrom(): string {
   if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
-  if (BREVO_SMTP_USER) return `FoodGo <${BREVO_SMTP_USER}>`;
-  if (GMAIL_USER) return `FoodGo <${GMAIL_USER}>`;
-  return 'FoodGo <onboarding@resend.dev>';
+  if (BREVO_SMTP_USER) return `Delívera <${BREVO_SMTP_USER}>`;
+  if (GMAIL_USER) return `Delívera <${GMAIL_USER}>`;
+  return 'Delívera <onboarding@resend.dev>';
+}
+
+// Avsändaren routas från admin (Plattform-inställningar): företagsnamn som
+// display-name och noReplyEmail som adress. Cachas 60s så vi inte slår mot DB
+// per mejl. Faller tillbaka på defaultFrom() (env/SMTP-user) om settings saknas
+// eller DB:t inte svarar — mejl ska aldrig blockeras av en settings-läsning.
+let _fromCache: { value: string; expiresAt: number } | null = null;
+async function resolveDefaultFrom(): Promise<string> {
+  if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
+  const now = Date.now();
+  if (_fromCache && _fromCache.expiresAt > now) return _fromCache.value;
+  let value = defaultFrom();
+  try {
+    const prisma = (await import('./prisma')).default;
+    const s: any = await prisma.restaurantSettings.findUnique({
+      where: { id: 'settings' },
+      select: { companyName: true, noReplyEmail: true },
+    });
+    const name = (s?.companyName || 'Delívera').trim();
+    const base = parseFromAddress(defaultFrom()).email;
+    const email = (s?.noReplyEmail || base).trim();
+    if (email) value = `${name} <${email}>`;
+  } catch {
+    /* behåll defaultFrom() */
+  }
+  _fromCache = { value, expiresAt: now + 60_000 };
+  return value;
 }
 
 // Parsa "Name <email@x.com>" → { name?, email } för Brevo API
@@ -132,7 +159,7 @@ function parseFromAddress(from: string): { name?: string; email: string } {
 }
 
 export async function sendEmail(msg: EmailMessage): Promise<void> {
-  const from = msg.from || defaultFrom();
+  const from = msg.from || await resolveDefaultFrom();
 
   // 1. Brevo HTTPS API — REKOMMENDERAT för Railway. Inga port-blockaden.
   if (BREVO_API_KEY) {

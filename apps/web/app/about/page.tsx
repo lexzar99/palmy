@@ -1,34 +1,20 @@
 import type { Metadata } from "next";
-import { Sparkles, Building2 } from "lucide-react";
-import { API_URL } from "@/lib/api";
+import { Sparkles, Building2, Mail } from "lucide-react";
+import { getCompanyInfo } from "@/lib/companyInfo";
 
 export const metadata: Metadata = {
   title: "Om oss | Delívera",
   description: "Delívera är en online beställningsplattform som kopplar dig till lokala restauranger.",
 };
 
-type PlatformSettings = {
-  contactAddress?: string | null;
-  aboutBody?: string | null;
-};
-
-async function getPlatformSettings(): Promise<PlatformSettings> {
-  try {
-    const res = await fetch(`${API_URL}/api/settings`, { next: { revalidate: 300 } });
-    if (!res.ok) return {};
-    return await res.json();
-  } catch {
-    return {};
-  }
-}
-
 export default async function OmOssPage() {
-  const settings = await getPlatformSettings();
-  const customBody = settings.aboutBody?.trim();
+  const company = await getCompanyInfo();
+  const customBody = company.aboutBody?.trim();
+  const address = company.address || company.contactAddress || "";
 
   return (
-    <div className="min-h-screen md:pt-20" style={{ backgroundColor: "var(--bg-primary)" }}>
-      <div className="pt-20 pb-24 px-6 max-w-5xl mx-auto">
+    <div className="min-h-screen pt-[env(safe-area-inset-top,0px)] md:pt-20" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="pt-12 md:pt-20 pb-24 px-6 max-w-5xl mx-auto">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 text-gold-600 text-xs font-bold uppercase tracking-wider mb-8 border border-gold-500/20">
           <Sparkles size={12} /> Beställningsplattform
         </div>
@@ -37,42 +23,63 @@ export default async function OmOssPage() {
         </h1>
         <div className="space-y-6 text-lg leading-relaxed max-w-3xl" style={{ color: "var(--text-secondary)" }}>
           {customBody ? (
-            // Admin-skriven text — splittra på blankrader till stycken
-            customBody.split(/\n\s*\n/).map((paragraph, i) => (
+            customBody.split(/\n\s*\n/).map((paragraph: string, i: number) => (
               <p key={i}>{paragraph}</p>
             ))
           ) : (
             <>
               <p>
-                Delívera är en <span style={{ color: "var(--text-primary)" }} className="font-medium">online beställningsplattform</span> som kopplar
-                hungriga kunder till lokala restauranger. Vi är inte en restaurang själva — vi hjälper restaurangerna nå dig snabbare
-                och dig att hitta dem enklare.
+                Delívera är en <span style={{ color: "var(--text-primary)" }} className="font-medium">beställningsplattform</span> som
+                kopplar samman dig med lokala restauranger. Vi lagar ingen mat själva — vi gör det enkelt för dig att hitta
+                restaurangerna och för dem att nå dig snabbt.
               </p>
               <p>
-                Varje restaurang du ser här har sin egen meny, sina egna deals och sina egna öppettider. Vi sköter beställningen
-                och betalningen så att restaurangerna kan fokusera på maten.
+                Varje restaurang har sin egen meny, sina egna erbjudanden och sina egna öppettider. Vi sköter beställningen,
+                betalningen och spårningen så att köken kan fokusera på det de är bäst på — maten.
               </p>
               <p>
-                Snabb leverans, säker betalning och support när du behöver det. Det är det Delívera är till för.
+                Snabb leverans, trygg betalning via Stripe och support när du behöver den. Det är vad Delívera finns till för.
               </p>
             </>
           )}
         </div>
 
-        {/* Företagsinfo om admin har lagt in adress */}
-        {settings.contactAddress && (
-          <div className="mt-20 p-10 rounded-[2rem] shadow-sm max-w-3xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center text-gold-500">
-                <Building2 size={18} />
-              </div>
-              <h2 className="text-2xl font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>Företagsadress</h2>
+        {/* Företagsuppgifter — juridiskt namn, orgnr, adress och support hämtas
+            live från admin (Plattform-inställningar → GET /api/settings). */}
+        <div className="mt-16 md:mt-20 p-8 md:p-10 rounded-[2rem] shadow-sm max-w-3xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-2xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center text-gold-500">
+              <Building2 size={18} />
             </div>
-            <div className="whitespace-pre-line text-base font-bold" style={{ color: "var(--text-primary)" }}>
-              {settings.contactAddress}
-            </div>
+            <h2 className="text-2xl font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>Företagsuppgifter</h2>
           </div>
-        )}
+          <dl className="space-y-4 text-base">
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-0.5">Juridiskt namn</dt>
+              <dd className="font-bold" style={{ color: "var(--text-primary)" }}>{company.name}</dd>
+            </div>
+            {company.organizationNumber && (
+              <div>
+                <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-0.5">Organisationsnummer</dt>
+                <dd className="font-bold" style={{ color: "var(--text-primary)" }}>{company.organizationNumber}</dd>
+              </div>
+            )}
+            {address && (
+              <div>
+                <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-0.5">Adress</dt>
+                <dd className="whitespace-pre-line font-bold" style={{ color: "var(--text-primary)" }}>{address}</dd>
+              </div>
+            )}
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-0.5">Support</dt>
+              <dd>
+                <a href={`mailto:${company.supportEmail}`} className="inline-flex items-center gap-2 font-bold text-gold-600 hover:text-gold-500 transition-colors">
+                  <Mail size={15} /> {company.supportEmail}
+                </a>
+              </dd>
+            </div>
+          </dl>
+        </div>
       </div>
     </div>
   );

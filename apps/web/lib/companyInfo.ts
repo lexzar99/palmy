@@ -20,19 +20,24 @@ export interface CompanyInfo {
   contactPhoneHours: string | null;
   contactEmail: string | null;
   contactAddress: string | null;
+  // Admin-skriven "Om oss"-text (valfri)
+  aboutBody: string | null;
 }
 
 export const DEFAULT_COMPANY_INFO: CompanyInfo = {
-  name: "FoodGo AB",
+  // Fallbacks om admin ännu inte fyllt i Plattform-inställningar. Det juridiska
+  // namnet + orgnr + e-post sätts i admin (GET /api/settings) och vinner alltid.
+  name: "Delívera",
   organizationNumber: "",
   address: "",
-  supportEmail: "support@matgo.se",
-  privacyEmail: "privacy@matgo.se",
-  noReplyEmail: "no-reply@matgo.se",
+  supportEmail: "support@delivera.se",
+  privacyEmail: "privacy@delivera.se",
+  noReplyEmail: "no-reply@delivera.se",
   contactPhone: null,
   contactPhoneHours: null,
   contactEmail: null,
   contactAddress: null,
+  aboutBody: null,
 };
 
 /**
@@ -63,6 +68,7 @@ export async function getCompanyInfo(): Promise<CompanyInfo> {
       contactPhoneHours: (data.contactPhoneHours as string) || null,
       contactEmail: (data.contactEmail as string) || null,
       contactAddress: (data.contactAddress as string) || null,
+      aboutBody: (data.aboutBody as string) || null,
     };
   } catch {
     return DEFAULT_COMPANY_INFO;

@@ -428,7 +428,12 @@ export default function AddressModal({
               {/* ── DELIVERY: address autocomplete + interaktiv karta ── */}
               {orderType === "DELIVERY" && (
                 <div className="flex flex-col flex-1 min-h-0">
-                  <div className="mb-3 relative shrink-0">
+                  {/* z-[60]: lyfter input + dess overflow:ande förslag-lista ÖVER
+                      kart-syskonet nedanför. Utan detta hamnar förslagen bakom
+                      Leaflets paneler (egna z-index upp till 1000) och går inte
+                      att klicka. Kartan får z-0 så dess interna z-index stannar
+                      i sin egen stacking-kontext. */}
+                  <div className="mb-3 relative shrink-0 z-[60]">
                     <div
                       className="flex items-center gap-3 rounded-xl border px-4 py-3.5 transition-all"
                       style={{
@@ -520,8 +525,10 @@ export default function AddressModal({
                     </div>
                   )}
 
-                  {/* Karta — flytta kartan (fast nål i mitten) för att välja exakt plats */}
-                  <div className="relative rounded-2xl overflow-hidden border flex-1 min-h-[240px]" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)" }}>
+                  {/* Karta — flytta kartan (fast nål i mitten) för att välja exakt plats.
+                      z-0 håller Leaflets interna z-index inom denna stacking-kontext
+                      så sök-förslagen (z-[60]-wrappern ovan) alltid ligger överst. */}
+                  <div className="relative z-0 rounded-2xl overflow-hidden border flex-1 min-h-[240px]" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)" }}>
                     <div key={mapKey} ref={initMap} className="absolute inset-0" />
 
                     {/* Fast center-nål — sitter still mitt på kartan. Man flyttar
