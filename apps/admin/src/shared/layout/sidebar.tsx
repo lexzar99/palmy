@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Activity,
+  Gauge,
   AlertTriangle,
   BellRing,
   Building2,
@@ -74,6 +75,7 @@ const SECTIONS: NavSection[] = [
       { href: "/users", label: "Användare", icon: Users },
       { href: "/marketing-referrals", label: "Välkomstrabatt", icon: Sparkles },
       { href: "/dpoints", label: "Dpoints", icon: Coins },
+      { href: "/api-health", label: "API-status", icon: Gauge },
       { href: "/platform-settings", label: "Inställningar", icon: Building2 },
       { href: "/crisis", label: "Krisverktyg", icon: AlertTriangle },
       { href: "/audit-log", label: "Audit-log", icon: History },

@@ -10,6 +10,7 @@
  */
 import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
+import { trackApiCall } from '../lib/apiHealth';
 
 const router = Router();
 
@@ -35,6 +36,7 @@ async function googleAutocomplete(
     url.searchParams.set('key', MAPS_KEY);
 
     const response = await fetch(url.toString());
+    trackApiCall('google_maps').catch(() => {});
     const data = (await response.json()) as any;
     const predictions = (data.predictions || []).map((p: any): Prediction => ({
       description: p.description,
@@ -61,6 +63,7 @@ async function googleGeocode(
     url.searchParams.set('key', MAPS_KEY);
 
     const response = await fetch(url.toString());
+    trackApiCall('google_maps').catch(() => {});
     const data = (await response.json()) as any;
     const loc = data.result?.geometry?.location;
     if (!loc || typeof loc.lat !== 'number' || typeof loc.lng !== 'number') return null;
@@ -90,6 +93,7 @@ async function googleReverse(lat: number, lng: number): Promise<ReverseResult | 
     url.searchParams.set('key', MAPS_KEY);
 
     const response = await fetch(url.toString());
+    trackApiCall('google_maps').catch(() => {});
     const data = (await response.json()) as any;
     const result = (data.results || [])[0];
     if (!result) return null;

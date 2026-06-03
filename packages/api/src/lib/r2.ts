@@ -18,6 +18,7 @@
  * funktionellt mot Cloudinary tills R2 är konfigurerat.
  */
 import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, CopyObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { trackApiCall } from './apiHealth';
 import { createHash } from 'crypto';
 import sharp from 'sharp';
 
@@ -245,6 +246,7 @@ export async function uploadToR2(key: string, body: Buffer, contentType = 'image
       // det via en ny path (key = {slug}.{hash}.webp t.ex.).
       CacheControl: 'public, max-age=31536000, immutable',
     }));
+    trackApiCall('r2').catch(() => {});
   } catch (e: any) {
     // S3-SDK-fel: bygg meddelande med code + bucket + key så vi ser
     // exakt vad R2 svarade. Vanliga case:

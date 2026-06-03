@@ -1,4 +1,7 @@
-export const DEFAULT_DELIVERY_FEE = 49;
+// Basefee (flat default-avgift) är BORTTAGEN som koncept — leveransavgift styrs
+// av zoner (resolveDeliveryFee). 0 så inget fantom-pris (gamla 49) läcker in via
+// default/settings; zonens fee är enda sanningen.
+export const DEFAULT_DELIVERY_FEE = 0;
 export const DEFAULT_MIN_ORDER_AMOUNT = 150;
 export const DEFAULT_ESTIMATED_PICKUP_TIME = 20;
 export const DEFAULT_ESTIMATED_DELIVERY_TIME = 35;

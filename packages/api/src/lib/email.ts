@@ -29,6 +29,7 @@
 //   - PROD med egen domän: Resend (snyggare avsändare, bättre deliverability)
 
 import { Resend } from 'resend';
+import { trackApiCall } from './apiHealth';
 import * as nodemailer from 'nodemailer';
 
 export type EmailMessage = {
@@ -241,6 +242,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
         console.error('[email] resend.emails.send error:', error);
       } else {
         console.log(`[email] Resend sent to ${msg.to}`);
+        trackApiCall('resend').catch(() => {});
       }
     } catch (err) {
       console.error('[email] resend send threw:', err);

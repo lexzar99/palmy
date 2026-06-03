@@ -1103,3 +1103,17 @@ model PointsCampaignProgress {
   @@unique([campaignId, userId])
   @@index([userId])
 }
+
+// API-användningsräknare per tjänst + månad. Driver admin "API-hälsa"-sidan
+// (hur mycket vi använt en extern API denna månad vs ev. gräns).
+model ApiUsageCounter {
+  id        String   @id @default(cuid())
+  service   String   // "google_maps" | "r2" | "resend" | ...
+  period    String   // "YYYY-MM" (UTC-månad)
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([service, period])
+  @@index([service])
+}
