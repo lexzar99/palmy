@@ -254,6 +254,9 @@ export default function CartPage() {
   const [showDealsModal, setShowDealsModal] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  // Auktoritativ summa + rabatt från servern (create-intent) → kassan visar
+  // exakt vad som dras, även vid server-applicerad rabatt.
+  const [serverCharge, setServerCharge] = useState<{ total: number; discount: number } | null>(null);
   const [deliveryCheck, setDeliveryCheck] = useState<any>(null);
   const [checkingDelivery, setCheckingDelivery] = useState(false);
 
@@ -1709,6 +1712,9 @@ export default function CartPage() {
       });
 
       setClientSecret(intentRes.data.clientSecret);
+      if (typeof intentRes.data.total === "number") {
+        setServerCharge({ total: intentRes.data.total, discount: intentRes.data.discountAmount ?? 0 });
+      }
       setShowPayment(true);
       // Scrolla till payment-sektionen (inte document.body.scrollHeight som
       // tidigare — den overshootade förbi formuläret på korta viewports och
@@ -2243,10 +2249,22 @@ export default function CartPage() {
                      <div className="flex items-center gap-3 text-gold-500 text-[10px] font-black uppercase tracking-[0.4em] mb-10">
                         <CreditCard size={18} /> {t("cart.payment.title")}
                      </div>
+                     {serverCharge && serverCharge.discount > 0 && (
+                       <div className="rounded-2xl p-4 mb-6 border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+                         <div className="flex items-center justify-between text-sm" style={{ color: "var(--text-secondary)" }}>
+                           <span>Rabatt</span>
+                           <span className="font-black text-gold-600">-{serverCharge.discount.toFixed(0)} {t("common.sek")}</span>
+                         </div>
+                         <div className="flex items-center justify-between mt-1 text-base font-black" style={{ color: "var(--text-primary)" }}>
+                           <span>Att betala</span>
+                           <span>{serverCharge.total.toFixed(0)} {t("common.sek")}</span>
+                         </div>
+                       </div>
+                     )}
                      <div className="rounded-3xl p-6 mb-10 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                         <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#e7b24b', colorBackground: '#ffffff', colorText: '#1C1C1E', colorDanger: '#ef4444' } } }}>
                            <StripeCheckout
-                            amount={total}
+                            amount={serverCharge?.total ?? total}
                             onSuccess={handlePaymentSuccess}
                             onSubmitStart={() => { paymentInFlightRef.current = true; }}
                           />

@@ -224,6 +224,10 @@ router.post('/create-intent', createIntentLimiter, async (req, res) => {
     const responseBody = {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
+      // Auktoritativ summa + rabatt (öre→kr) så kassan visar EXAKT vad som dras,
+      // även när en rabatt applicerats server-side (annars "dold kampanj").
+      total: order.total / 100,
+      discountAmount: ((order as any).discountAmount ?? 0) / 100,
     };
     if (idempotencyKey) {
       cacheResponse(scope, `create-intent:${idempotencyKey}`, 200, responseBody);
