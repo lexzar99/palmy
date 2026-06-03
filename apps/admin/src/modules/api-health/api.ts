@@ -15,10 +15,32 @@ export interface ApiServiceStatus {
   envVars: string[];
 }
 
+export type Severity = "ok" | "warning" | "critical" | "info";
+
+export interface CapacityMetric {
+  key: string;
+  label: string;
+  value: string;
+  used?: number;
+  limit?: number;
+  pct?: number | null;
+  severity: Severity;
+  hint?: string;
+}
+
+export interface Capacity {
+  supabase: { ok: boolean; metrics: CapacityMetric[]; note: string };
+  host: { metrics: CapacityMetric[]; note: string };
+  worst: Severity;
+  alerts: CapacityMetric[];
+  generatedAt: string;
+}
+
 export interface ApiHealthResponse {
   generatedAt: string;
   period: string;
   services: ApiServiceStatus[];
+  capacity?: Capacity;
 }
 
 export const apiHealthQueryKey = ["api-health"] as const;
