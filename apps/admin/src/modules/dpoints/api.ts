@@ -4,6 +4,7 @@ export interface DpointsConfig {
   dpointsEnabled: boolean;
   dpointsPerKr: number;
   dpointsValuePerKr: number;
+  dpointsCardOnHome: boolean;
 }
 
 export interface DpointsOverview {

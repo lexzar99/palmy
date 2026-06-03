@@ -554,6 +554,9 @@ model RestaurantSettings {
   dpointsEnabled      Boolean   @default(false)
   dpointsPerKr        Float     @default(1)
   dpointsValuePerKr   Int       @default(10)
+  // Visa Dpoints-registreringskortet bland sponsorerna på hemsidan. Togglas
+  // från admin → Sponsorer. true = synligt (för utloggade besökare).
+  dpointsCardOnHome   Boolean   @default(true)
 }
 
 model OrderDraft {

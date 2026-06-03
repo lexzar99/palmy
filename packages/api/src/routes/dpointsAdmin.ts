@@ -34,6 +34,7 @@ router.get('/config', async (_req, res) => {
     dpointsEnabled: row.dpointsEnabled ?? false,
     dpointsPerKr: row.dpointsPerKr ?? 1,
     dpointsValuePerKr: row.dpointsValuePerKr ?? 10,
+    dpointsCardOnHome: row.dpointsCardOnHome ?? true,
   });
 });
 
@@ -44,6 +45,7 @@ router.patch('/config', requireSuperAdmin, async (req, res) => {
     if (dpointsEnabled !== undefined) data.dpointsEnabled = !!dpointsEnabled;
     if (dpointsPerKr !== undefined) data.dpointsPerKr = Math.max(0, Number(dpointsPerKr) || 0);
     if (dpointsValuePerKr !== undefined) data.dpointsValuePerKr = Math.max(1, Math.round(Number(dpointsValuePerKr) || 10));
+    if (req.body?.dpointsCardOnHome !== undefined) data.dpointsCardOnHome = !!req.body.dpointsCardOnHome;
 
     const updated = await prisma.restaurantSettings.upsert({
       where: { id: 'settings' },
@@ -55,6 +57,7 @@ router.patch('/config', requireSuperAdmin, async (req, res) => {
       dpointsEnabled: (updated as any).dpointsEnabled,
       dpointsPerKr: (updated as any).dpointsPerKr,
       dpointsValuePerKr: (updated as any).dpointsValuePerKr,
+      dpointsCardOnHome: (updated as any).dpointsCardOnHome,
     });
   } catch (e: any) {
     console.error('[dpoints config] error:', e?.message);

@@ -17,6 +17,7 @@ import RestaurantInfoModal from '../components/RestaurantInfoModal';
 import RestaurantReviewsModal from '../components/RestaurantReviewsModal';
 import StarRating from '../components/StarRating';
 import ProductModal from '../components/ProductModal';
+import DpointsProductBadge from '../components/DpointsProductBadge';
 import PreviouslyOrderedBar from '../components/PreviouslyOrderedBar';
 import { RestaurantScreenSkeleton } from '../components/SkeletonLoader';
 import ScalePressable from '../components/ScalePressable';
@@ -744,6 +745,8 @@ export default function RestaurantScreen({
                           <Text numberOfLines={2} style={styles.restaurantMenuProductDescription}>
                             {product.description || t('restaurant.tapForExtras')}
                           </Text>
+                          <DpointsProductBadge priceKr={product.discountActive ? (product.discountPrice || Math.round(product.price - product.price * (product.discountPercent || 0) / 100)) : product.price} />
+
 
                           <View style={styles.restaurantMenuProductTags}>
                             {product.isVegan && <View style={[styles.restaurantMenuDietDot, { backgroundColor: "#22c55e" }]} />}

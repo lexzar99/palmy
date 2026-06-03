@@ -7,6 +7,35 @@ import { createSponsor, deleteSponsor, getSponsors, sponsorsQueryKey, updateSpon
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { formatDate, formatNumber } from "@/shared/utils/format";
+import { getConfig as getDpointsConfig, updateConfig as updateDpointsConfig, dpointsKeys } from "@/modules/dpoints/api";
+
+// Toggle på sponsor-sidan för att visa/dölja Dpoints-registreringskortet bland
+// sponsorerna på hemsidan. Själva kortets innehåll hanteras under Dpoints.
+function DpointsHomeToggle() {
+  const qc = useQueryClient();
+  const config = useQuery({ queryKey: dpointsKeys.config, queryFn: getDpointsConfig });
+  const save = useMutation({
+    mutationFn: (v: boolean) => updateDpointsConfig({ dpointsCardOnHome: v }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: dpointsKeys.config }),
+  });
+  const c = config.data;
+  if (!c) return null;
+  return (
+    <Surface className="px-6 py-5">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="font-semibold">Dpoints-registreringskort på hemsidan</p>
+          <p className="text-sm text-[var(--text-secondary)]">
+            Visas bland sponsorerna för utloggade besökare och leder till registrering. Innehåll/bonus hanteras under Dpoints → Sponsorkort.
+          </p>
+        </div>
+        <Button variant={c.dpointsCardOnHome ? "primary" : "secondary"} onClick={() => save.mutate(!c.dpointsCardOnHome)}>
+          {c.dpointsCardOnHome ? "Visas: PÅ" : "Visas: AV"}
+        </Button>
+      </div>
+    </Surface>
+  );
+}
 
 function SponsorModal({ open, sponsor, onClose }: { open: boolean; sponsor: SponsorRecord | null; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -97,6 +126,8 @@ export function SponsorsPage() {
         title="Sponsors"
         actions={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={13} /> New sponsor</Button>}
       />
+
+      <DpointsHomeToggle />
 
       <Surface className="px-6 py-6">
         {sponsors.data.length === 0 ? (

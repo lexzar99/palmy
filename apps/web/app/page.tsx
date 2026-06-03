@@ -27,6 +27,8 @@ import AddressPullDown from "@/components/AddressPullDown";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
 import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
+import DpointsHomeCard from "@/components/DpointsHomeCard";
+import type { SponsorCardData } from "@/lib/dpoints";
 import WelcomeDealBanner from "@/components/WelcomeDealBanner";
 import InviteFriendsBanner from "@/components/InviteFriendsBanner";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
@@ -211,6 +213,18 @@ export default function HomePage() {
   const deliveryOverrides = useCartStore((s) => s.deliveryOverrides);
   const setDeliveryOverrides = useCartStore((s) => s.setDeliveryOverrides);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [dpointsCard, setDpointsCard] = useState<SponsorCardData | null>(null);
+  // Dpoints-registreringskort i sponsor-railen — bara för utloggade besökare.
+  useEffect(() => {
+    if (isLoggedIn) { setDpointsCard(null); return; }
+    Promise.all([
+      axios.get(`${API_URL}/api/dpoints/sponsor-card`).catch(() => ({ data: { card: null } })),
+      axios.get(`${API_URL}/api/settings`).catch(() => ({ data: {} })),
+    ]).then(([cardRes, setRes]: [{ data?: { card?: SponsorCardData | null } }, { data?: { dpoints?: { cardOnHome?: boolean } } }]) => {
+      const onHome = setRes?.data?.dpoints?.cardOnHome ?? true;
+      setDpointsCard(onHome ? (cardRes?.data?.card ?? null) : null);
+    });
+  }, [isLoggedIn]);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
@@ -1004,7 +1018,7 @@ export default function HomePage() {
 
         {/* ── WHAT'S ON (Aktuellt) — först på sidan: stora banner-kort som
             auto-skiftar var 5:e sekund, med prick-indikator under. ── */}
-        {promoCards.length > 0 && (
+        {(promoCards.length > 0 || dpointsCard) && (
           <section className="mb-5">
             <div className="hidden lg:flex items-center gap-2 mb-3 px-1">
               <Sparkles size={14} className="text-gold-500" />
@@ -1016,6 +1030,11 @@ export default function HomePage() {
               className="flex gap-3 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0"
               style={{ scrollSnapType: "x mandatory" }}
             >
+              {dpointsCard && (
+                <div style={{ scrollSnapAlign: "start" }}>
+                  <DpointsHomeCard card={dpointsCard} />
+                </div>
+              )}
               {promoCards.map((item) => (
                 <div key={item.id} style={{ scrollSnapAlign: "start" }}>
                   <SponsorCard sponsor={(item as any).sponsor} />

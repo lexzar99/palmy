@@ -17,6 +17,7 @@ import {
   Tabs,
   Textarea,
 } from "@/shared/components/ui";
+import { ImageUploadField } from "@/shared/components/image-upload";
 import {
   adjustCustomer,
   createCampaign,
@@ -46,6 +47,37 @@ import {
 type TabKey = "settings" | "sponsors" | "rewards" | "campaigns" | "customers";
 
 const dtLocal = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
+
+// Snygg toggle-switch (ersätter råa checkboxar för konsekvent admin-UI).
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+        checked ? "bg-[var(--accent)]" : "bg-[var(--border-strong)]"
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+          checked ? "translate-x-[22px]" : "translate-x-0.5"
+        }`}
+      />
+    </button>
+  );
+}
+
+// Etikett + toggle på en rad — används i modalerna.
+function SwitchRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-sm">{label}</span>
+      <Toggle checked={checked} onChange={onChange} />
+    </div>
+  );
+}
 
 export function DpointsPage() {
   const [tab, setTab] = useState<TabKey>("settings");
@@ -96,19 +128,15 @@ function SettingsTab() {
 
       <Surface>
         <div className="flex flex-col gap-5 p-6">
-          <label className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <p className="font-semibold">Dpoints aktiverat</p>
               <p className="text-sm text-[var(--text-secondary)]">
                 Master-knapp. När av tjänas/visas/löses inga poäng någonstans.
               </p>
             </div>
-            <input
-              type="checkbox"
-              checked={c.dpointsEnabled}
-              onChange={(e) => save.mutate({ dpointsEnabled: e.target.checked })}
-            />
-          </label>
+            <Toggle checked={c.dpointsEnabled} onChange={(v) => save.mutate({ dpointsEnabled: v })} />
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Intjäning — poäng per spenderad kr">
@@ -232,9 +260,12 @@ function SponsorsTab() {
             <Field label="Beskrivning (valfritt)">
               <Textarea value={editing.description ?? ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
             </Field>
-            <Field label="Bild-URL (valfritt)">
-              <Input value={editing.imageUrl ?? ""} onChange={(e) => setEditing({ ...editing, imageUrl: e.target.value })} />
-            </Field>
+            <ImageUploadField
+              label="Bild (valfritt)"
+              kind="misc"
+              value={editing.imageUrl ?? ""}
+              onChange={(url) => setEditing({ ...editing, imageUrl: url })}
+            />
             <div className="grid grid-cols-2 gap-4">
               <Field label="Bonuspoäng">
                 <Input
@@ -255,10 +286,7 @@ function SponsorsTab() {
                 <Input type="date" value={dtLocal(editing.endsAt ?? null)} onChange={(e) => setEditing({ ...editing, endsAt: e.target.value || null })} />
               </Field>
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={editing.isActive ?? true} onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })} />
-              Aktiv
-            </label>
+            <SwitchRow label="Aktiv" checked={editing.isActive ?? true} onChange={(v) => setEditing({ ...editing, isActive: v })} />
           </div>
         )}
       </Modal>
@@ -271,6 +299,7 @@ type RewardForm = {
   id?: string;
   title: string;
   description: string;
+  imageUrl: string;
   pointsCost: number;
   discountType: "FIXED" | "PERCENTAGE";
   discountValue: number; // kr för FIXED, % för PERCENTAGE (UI-enhet)
@@ -283,6 +312,7 @@ const rewardToForm = (r: DpointsReward): RewardForm => ({
   id: r.id,
   title: r.title,
   description: r.description ?? "",
+  imageUrl: r.imageUrl ?? "",
   pointsCost: r.pointsCost,
   discountType: r.discountType,
   discountValue: r.discountType === "PERCENTAGE" ? r.discountValue : Math.round(r.discountValue / 100),
@@ -294,6 +324,7 @@ const rewardToForm = (r: DpointsReward): RewardForm => ({
 const emptyReward: RewardForm = {
   title: "",
   description: "",
+  imageUrl: "",
   pointsCost: 100,
   discountType: "FIXED",
   discountValue: 10,
@@ -313,6 +344,7 @@ function RewardsTab() {
       const payload = {
         title: f.title,
         description: f.description,
+        imageUrl: f.imageUrl,
         pointsCost: f.pointsCost,
         discountType: f.discountType,
         discountValue: f.discountValue, // FIXED: kr (API normaliserar), PERCENTAGE: %
@@ -392,6 +424,12 @@ function RewardsTab() {
             <Field label="Titel (t.ex. Gratis vitlökssås)">
               <Input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
             </Field>
+            <ImageUploadField
+              label="Bild (valfritt)"
+              kind="misc"
+              value={editing.imageUrl}
+              onChange={(url) => setEditing({ ...editing, imageUrl: url })}
+            />
             <Field label="Beskrivning (valfritt)">
               <Textarea value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
             </Field>
@@ -417,10 +455,7 @@ function RewardsTab() {
             <Field label="Kodens giltighet (dagar)">
               <Input type="number" value={editing.validDays} onChange={(e) => setEditing({ ...editing, validDays: Number(e.target.value) })} />
             </Field>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={editing.isActive} onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })} />
-              Aktiv
-            </label>
+            <SwitchRow label="Aktiv" checked={editing.isActive} onChange={(v) => setEditing({ ...editing, isActive: v })} />
           </div>
         )}
       </Modal>
@@ -617,15 +652,13 @@ function CampaignsTab() {
             </div>
 
             {editing.type !== "MULTIPLIER" && (
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={editing.repeatable} onChange={(e) => setEditing({ ...editing, repeatable: e.target.checked })} />
-                Kan klaras om och om (annars en gång per kund)
-              </label>
+              <SwitchRow
+                label="Kan klaras om och om (annars en gång per kund)"
+                checked={editing.repeatable}
+                onChange={(v) => setEditing({ ...editing, repeatable: v })}
+              />
             )}
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={editing.isActive} onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })} />
-              Aktiv
-            </label>
+            <SwitchRow label="Aktiv" checked={editing.isActive} onChange={(v) => setEditing({ ...editing, isActive: v })} />
           </div>
         )}
       </Modal>
