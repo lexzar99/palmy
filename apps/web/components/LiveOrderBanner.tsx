@@ -25,10 +25,10 @@ function getStatusDisplay(status: string) {
         label: "Granskas",
         subtext: "Väntar på att köket bekräftar",
         Icon: Clock,
-        color: "text-amber-300",
-        glow: "rgba(251,191,36,0.25)",
-        border: "rgba(251,191,36,0.3)",
-        bg: "from-amber-500/20 to-amber-900/10",
+        color: "text-gold-300",
+        glow: "rgba(234,181,69,0.25)",
+        border: "rgba(234,181,69,0.3)",
+        bg: "from-gold-500/20 to-gold-900/10",
         progress: 10,
         pulse: true,
       };
@@ -49,10 +49,10 @@ function getStatusDisplay(status: string) {
         label: "Tillagas",
         subtext: "Kocken är igång med din order",
         Icon: Flame,
-        color: "text-orange-300",
-        glow: "rgba(249,115,22,0.25)",
-        border: "rgba(249,115,22,0.3)",
-        bg: "from-orange-500/20 to-orange-900/10",
+        color: "text-gold-300",
+        glow: "rgba(234,181,69,0.25)",
+        border: "rgba(234,181,69,0.3)",
+        bg: "from-gold-500/20 to-gold-900/10",
         progress: 55,
         pulse: false,
       };
@@ -61,10 +61,10 @@ function getStatusDisplay(status: string) {
         label: "Redo!",
         subtext: "Hämtning pågår snart",
         Icon: ShoppingBag,
-        color: "text-sky-300",
-        glow: "rgba(56,189,248,0.25)",
-        border: "rgba(56,189,248,0.3)",
-        bg: "from-sky-500/20 to-sky-900/10",
+        color: "text-gold-300",
+        glow: "rgba(234,181,69,0.25)",
+        border: "rgba(234,181,69,0.3)",
+        bg: "from-gold-500/20 to-gold-900/10",
         progress: 85,
         pulse: false,
       };
@@ -256,6 +256,19 @@ export default function LiveOrderBanner() {
   const orderNumber = (order.orderNumber || "").toString().replace(/^PX-/, "") || order.id;
   const isTerminal = order.status === "DELIVERED" || order.status === "COMPLETED";
 
+  // Länka MED ägar-bevis (token/phone) så order-sidan inte 404:ar — samma proof
+  // som bannern själv pollar med. Utan detta gav klick "order ej hittad".
+  const trackHref = (() => {
+    const qs = new URLSearchParams();
+    try {
+      const tk = localStorage.getItem(TOKEN_KEY);
+      const ph = localStorage.getItem(PHONE_KEY);
+      if (tk) qs.set("token", tk);
+      if (ph) qs.set("phone", ph);
+    } catch { }
+    return qs.toString() ? `/order/${order.id}?${qs.toString()}` : `/order/${order.id}`;
+  })();
+
   return (
     <AnimatePresence>
       <motion.div
@@ -267,7 +280,7 @@ export default function LiveOrderBanner() {
         className="fixed left-3 right-3 z-[90]"
         style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 9rem)" }}
       >
-        <Link href={`/order/${order.id}`} className="block group">
+        <Link href={trackHref} className="block group">
           <div
             className="relative overflow-hidden rounded-[2rem]"
             style={{

@@ -1363,7 +1363,9 @@ router.get('/status-batch', async (req: Request, res: Response) => {
       id: o.id,
       orderNumber: o.orderNumber,
       status: o.status,
-      total: o.total,
+      // öre → kr INNAN respons, samma konvention som GET /api/profile/orders.
+      // Utan detta visade order-historiken en 5 kr-order som "500 kr".
+      total: (o.total ?? 0) / 100,
       restaurantName: o.restaurant?.name ?? null,
     })));
   } catch (err) {
