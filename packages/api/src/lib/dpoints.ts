@@ -211,21 +211,27 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
       }
       // Inlösen: varor köpta med poäng → dra poängen nu när ordern är betald.
       if (spent > 0) {
-        const u2 = await tx.user.update({
-          where: { id: userId },
-          data: { pointsBalance: { decrement: spent } },
-          select: { pointsBalance: true },
-        });
-        await tx.pointsTransaction.create({
-          data: {
-            userId,
-            amount: -spent,
-            type: 'REDEEM',
-            balanceAfter: u2.pointsBalance,
-            reason: 'Köpt med poäng',
-            metadata: { orderId },
-          },
-        });
+        // Saldot kan ha sjunkit sedan order-skapandet (parallell inlösen). Dra
+        // aldrig under 0 — clampa till tillgängligt saldo.
+        const cur = await tx.user.findUnique({ where: { id: userId }, select: { pointsBalance: true } });
+        const dec = Math.min(spent, cur?.pointsBalance ?? 0);
+        if (dec > 0) {
+          const u2 = await tx.user.update({
+            where: { id: userId },
+            data: { pointsBalance: { decrement: dec } },
+            select: { pointsBalance: true },
+          });
+          await tx.pointsTransaction.create({
+            data: {
+              userId,
+              amount: -dec,
+              type: 'REDEEM',
+              balanceAfter: u2.pointsBalance,
+              reason: 'Köpt med poäng',
+              metadata: { orderId, requested: spent },
+            },
+          });
+        }
       }
     });
 
