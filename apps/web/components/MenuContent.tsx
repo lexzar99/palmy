@@ -1282,9 +1282,19 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             ut ur parent-padding (-mx-5 osv) så bakgrunden täcker hela viewport-
             bredden när sticky → ingen content "syns igenom" på sidorna. */}
         {!isGridMode && <div
-          className="sticky z-40 mb-8 -mx-5 sm:-mx-6 lg:-mx-12 top-0 md:top-20"
-          style={{ backgroundColor: "var(--bg-primary)", paddingTop: "env(safe-area-inset-top, 0px)" }}
+          className="sticky z-40 mb-8 -mx-5 sm:-mx-6 lg:-mx-12 top-[env(safe-area-inset-top,0px)] md:top-20"
+          style={{ backgroundColor: "var(--bg-primary)" }}
         >
+          {/* Fade över Dynamic Island: headern fastnar NEDANFÖR islanden (top =
+              safe-area) så innehållet aldrig hamnar bakom den — och utan hård
+              padding så det blir kompakt. Denna gradient täcker safe-area-remsan
+              ovanför så det som scrollar förbi tonas ut snyggt i stället för en
+              lucka. På desktop/icke-notch är env=0 → osynlig. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-full h-[env(safe-area-inset-top,0px)]"
+            style={{ background: "linear-gradient(to bottom, var(--bg-primary) 65%, transparent)" }}
+          />
           {/* Huvudkategori-bilder — horisontell scroll så man kan byta
               huvudkategori medan man är inne i en annan. "Alla" → tillbaka
               till bild-griden. */}
