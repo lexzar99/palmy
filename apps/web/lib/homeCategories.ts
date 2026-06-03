@@ -40,6 +40,8 @@ interface RestaurantLike {
   rating?: number;
   etaMinutes?: number;
   deliveryFee?: number;
+  // Zon-avgifter lagras i ÖRE i payloaden (restaurant.deliveryFee är i kr).
+  deliveryZones?: Array<{ fee?: number; isActive?: boolean }>;
   featuredClass?: number;
   isOpen?: boolean;
   city?: string;
@@ -68,8 +70,26 @@ function uniqueRestaurants<T extends RestaurantLike>(restaurants: T[]) {
   });
 }
 
+// Lägsta avgift (kr) bland restaurangens aktiva zoner, eller undefined om inga
+// zoner finns. Zon-fee lagras i öre → /100. Ingen hårdkodning.
+function minActiveZoneFeeKr(restaurant: RestaurantLike): number | undefined {
+  const zones = Array.isArray(restaurant.deliveryZones) ? restaurant.deliveryZones : [];
+  const fees = zones
+    .filter((z) => z && z.isActive !== false && typeof z.fee === "number")
+    .map((z) => (z.fee as number) / 100);
+  return fees.length ? Math.min(...fees) : undefined;
+}
+
 function getEffectiveDeliveryFee(restaurant: RestaurantLike, deliveryOverrides: DeliveryOverrideMap) {
-  return deliveryOverrides[restaurant.id]?.deliveryFee ?? restaurant.deliveryFee ?? 0;
+  // Prioritet: live zon-override (adress-check) → restaurangens egna aktiva
+  // zoner (lägsta) → bas-deliveryFee. Så en restaurang med 0-kr-zoner visas
+  // som 0 även utan adress (inte den gamla 49-kr-defaulten).
+  return (
+    deliveryOverrides[restaurant.id]?.deliveryFee ??
+    minActiveZoneFeeKr(restaurant) ??
+    restaurant.deliveryFee ??
+    0
+  );
 }
 
 function compareRestaurants<T extends RestaurantLike>(

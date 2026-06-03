@@ -1187,7 +1187,18 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
               label: t("menu.stats.fee"),
               value: (zoneAvailable === false && restaurant?.isOpen)
                 ? "–"
-                : (restaurant.deliveryFee === 0 ? t("menu.stats.free") : `${restaurant.deliveryFee} kr`),
+                : (() => {
+                    // Avgift att visa: matchad zon om adressen löst en (zoneAvailable===true),
+                    // annars LÄGSTA aktiva zon-avgift — den riktiga fallbacken, inte bas-
+                    // defaulten (t.ex. 49). Zon-fee lagras i öre → /100. Ingen hårdkodning.
+                    const zones = Array.isArray((restaurant as any)?.deliveryZones) ? (restaurant as any).deliveryZones : [];
+                    const zoneFees = zones
+                      .filter((z: any) => z && z.isActive !== false && typeof z.fee === "number")
+                      .map((z: any) => z.fee / 100);
+                    const minZoneFee = zoneFees.length ? Math.min(...zoneFees) : undefined;
+                    const fee = zoneAvailable === true ? restaurant.deliveryFee : (minZoneFee ?? restaurant.deliveryFee);
+                    return fee === 0 ? t("menu.stats.free") : `${fee} kr`;
+                  })(),
             },
             {
               icon: Clock,
