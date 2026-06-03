@@ -319,47 +319,58 @@ export async function evaluateStreakCampaigns(userId: string, orderDate: Date, b
 
 // ── Signup-bonus via sponsor-kort ─────────────────────────────────────────────
 
+// Senast skapade aktiva sponsor-kortet inom sitt fönster (eller null).
+export async function getActiveSponsorCard() {
+  const now = new Date();
+  return prisma.sponsorCard.findFirst({
+    where: {
+      isActive: true,
+      AND: [
+        { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+        { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
 /**
- * Dela ut välkomstbonus om ett aktivt sponsor-kort finns. Anropas en gång vid
- * registrering. Idempotent: hoppar om kunden redan har en SIGNUP_BONUS-rad.
- * Returnerar antal utdelade poäng (0 om inget aktivt kort).
+ * Är kunden berättigad att HÄMTA (claima) signup-bonusen? Path-agnostiskt —
+ * funkar oavsett om kontot skapats via email eller Google/Apple. Villkor:
+ *  - Dpoints på + aktivt sponsor-kort finns
+ *  - Nytt konto (skapat senaste 30 dagarna)
+ *  - Har inte redan en SIGNUP_BONUS-rad
  */
-export async function maybeAwardSponsorBonus(userId: string): Promise<number> {
-  try {
-    const settings = await getDpointsSettings();
-    if (!settings.dpointsEnabled) return 0;
+export async function getSignupClaim(userId: string): Promise<{ claimable: boolean; bonusPoints: number }> {
+  const settings = await getDpointsSettings();
+  if (!settings.dpointsEnabled) return { claimable: false, bonusPoints: 0 };
+  const card = await getActiveSponsorCard();
+  if (!card || card.bonusPoints <= 0) return { claimable: false, bonusPoints: 0 };
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
+  if (!user) return { claimable: false, bonusPoints: card.bonusPoints };
+  const ageDays = (Date.now() - user.createdAt.getTime()) / 86_400_000;
+  if (ageDays > 30) return { claimable: false, bonusPoints: card.bonusPoints };
+  const already = await prisma.pointsTransaction.findFirst({ where: { userId, type: 'SIGNUP_BONUS' }, select: { id: true } });
+  return { claimable: !already, bonusPoints: card.bonusPoints };
+}
 
-    const now = new Date();
-    const card = await prisma.sponsorCard.findFirst({
-      where: {
-        isActive: true,
-        AND: [
-          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
-          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
-        ],
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!card || card.bonusPoints <= 0) return 0;
-
-    const already = await prisma.pointsTransaction.findFirst({
-      where: { userId, type: 'SIGNUP_BONUS' },
-      select: { id: true },
-    });
-    if (already) return 0;
-
-    await recordPointsTx({
-      userId,
-      amount: card.bonusPoints,
-      type: 'SIGNUP_BONUS',
-      reason: card.sponsorName ? `Välkomstbonus (${card.sponsorName})` : 'Välkomstbonus',
-      metadata: { sponsorCardId: card.id },
-    });
-    return card.bonusPoints;
-  } catch (e: any) {
-    console.error('[dpoints] sponsor-bonus error:', e?.message);
-    return 0;
-  }
+// Hämta välkomstbonusen. Kund-initierad (efter registrering). Idempotent guard
+// mot dubbel-bonus.
+export async function claimSignupBonus(userId: string): Promise<{ points: number } | { error: string }> {
+  const info = await getSignupClaim(userId);
+  if (!info.claimable) return { error: 'Du är inte berättigad till välkomstbonusen' };
+  const card = await getActiveSponsorCard();
+  if (!card) return { error: 'Inget aktivt erbjudande' };
+  const already = await prisma.pointsTransaction.findFirst({ where: { userId, type: 'SIGNUP_BONUS' }, select: { id: true } });
+  if (already) return { error: 'Bonusen är redan hämtad' };
+  await recordPointsTx({
+    userId,
+    amount: card.bonusPoints,
+    type: 'SIGNUP_BONUS',
+    reason: card.sponsorName ? `Välkomstbonus (${card.sponsorName})` : 'Välkomstbonus',
+    metadata: { sponsorCardId: card.id },
+  });
+  return { points: card.bonusPoints };
 }
 
 // ── Inlösen → personlig kod ───────────────────────────────────────────────────

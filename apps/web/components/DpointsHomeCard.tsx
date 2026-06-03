@@ -4,38 +4,49 @@ import { useRouter } from "next/navigation";
 import { Coins, ArrowRight } from "lucide-react";
 import type { SponsorCardData } from "@/lib/dpoints";
 
-// Dpoints-registreringskort i hemsidans sponsor-rail. Samma mått som
-// SponsorCard så det ligger snyggt bland sponsorerna. Klick → registrering.
+// Dpoints-registreringskort i hemsidans sponsor-rail. Ren, premium, enkel design.
+// Samma mått som SponsorCard så det ligger snyggt bland sponsorerna.
 export default function DpointsHomeCard({ card }: { card: SponsorCardData }) {
   const router = useRouter();
   return (
     <button
       type="button"
       onClick={() => router.push("/register")}
-      className="relative shrink-0 overflow-hidden rounded-3xl text-left w-[86vw] max-w-[460px] h-[200px] sm:w-[460px] sm:h-[230px]"
+      aria-label={card.title}
+      className="group relative shrink-0 overflow-hidden rounded-3xl text-left w-[86vw] max-w-[460px] h-[200px] sm:w-[460px] sm:h-[230px]"
     >
+      {/* Bakgrund: bild om satt, annars djup charcoal */}
       {card.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={card.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
-      ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-gold-400 via-gold-500 to-gold-600" />
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/85 via-zinc-950/35 to-transparent" />
-      <div className="absolute inset-0 flex flex-col justify-end p-5 sm:p-6">
-        <div className="mb-2 inline-flex items-center gap-1.5 self-start rounded-full bg-gold-500/90 px-2.5 py-1">
-          <Coins size={12} className="text-zinc-950" />
-          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-950">Dpoints</span>
-        </div>
-        <h3 className="text-xl font-black uppercase italic leading-[1.1] tracking-tight text-white sm:text-2xl">{card.title}</h3>
-        {!!card.description && <p className="mt-1 line-clamp-2 text-sm text-white/80">{card.description}</p>}
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-black text-zinc-950">
-            +{card.bonusPoints} poäng
+      ) : null}
+      <div className="absolute inset-0" style={{ backgroundColor: card.imageUrl ? "rgba(9,9,11,0.72)" : "#0b0b0d" }} />
+      {/* Mjuk guld-glöd uppe till höger för djup */}
+      <div className="pointer-events-none absolute -right-12 -top-16 h-52 w-52 rounded-full bg-gold-500/20 blur-3xl" />
+
+      <div className="relative flex h-full flex-col justify-between p-6">
+        <div className="flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.28em] text-gold-400">
+            <Coins size={12} strokeWidth={2.5} /> Dpoints
           </span>
-          <span className="inline-flex items-center gap-1.5 text-sm font-bold text-white">
-            {card.ctaLabel || "Skapa konto"} <ArrowRight size={16} />
-          </span>
+          <ArrowRight size={18} className="text-zinc-500 transition-colors group-hover:text-gold-400" />
         </div>
+
+        <div>
+          {card.sponsorName ? (
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-white/40">{card.sponsorName}</p>
+          ) : null}
+          <p className="text-sm font-medium text-white/70">{card.title}</p>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-[44px] font-black leading-none tracking-tight text-white sm:text-5xl">+{card.bonusPoints}</span>
+            <span className="text-lg font-bold text-gold-400">poäng</span>
+          </div>
+        </div>
+
+        <span className="inline-flex w-fit items-center gap-2 rounded-full bg-gold-500 px-4 py-2 text-sm font-black text-zinc-950 transition-transform group-hover:scale-[1.03]">
+          {card.ctaLabel || "Skapa konto"}
+          <ArrowRight size={15} strokeWidth={2.8} />
+        </span>
       </div>
     </button>
   );

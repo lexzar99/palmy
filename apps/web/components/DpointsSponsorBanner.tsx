@@ -11,6 +11,12 @@ export default function DpointsSponsorBanner({ onRegister }: { onRegister?: () =
   const [card, setCard] = useState<SponsorCardData | null>(null);
 
   useEffect(() => {
+    // Anti-farming: visa inte signup-erbjudandet om enheten redan haft ett konto.
+    try {
+      if (localStorage.getItem("dp_hadAccount")) return;
+    } catch {
+      /* noop */
+    }
     fetchSponsorCard()
       .then(setCard)
       .catch(() => {});

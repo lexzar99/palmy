@@ -6,6 +6,7 @@ import {
   fetchDpointsMe,
   fetchDpointsRewards,
   redeemDpoints,
+  claimDpointsSignup,
   txLabel,
   type DpointsMe,
   type DpointsReward,
@@ -19,12 +20,28 @@ export default function DpointsPanel() {
   const [redeeming, setRedeeming] = useState<string | null>(null);
   const [codes, setCodes] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [claiming, setClaiming] = useState(false);
+
+  async function handleClaim() {
+    setClaiming(true);
+    try {
+      await claimDpointsSignup();
+      setMe(await fetchDpointsMe());
+    } catch {
+      /* tyst */
+    } finally {
+      setClaiming(false);
+    }
+  }
 
   async function load() {
     try {
       const [meData, rewardData] = await Promise.all([fetchDpointsMe(), fetchDpointsRewards()]);
       setMe(meData);
       setRewards(rewardData.rewards || []);
+      // Anti-farming: markera att enheten haft ett konto → utloggat signup-
+      // erbjudande göms framöver.
+      try { localStorage.setItem("dp_hadAccount", "1"); } catch { /* noop */ }
     } catch {
       // tyst — panelen göms om Dpoints är av/otillgängligt
     } finally {
@@ -68,6 +85,25 @@ export default function DpointsPanel() {
 
   return (
     <div className="space-y-5">
+      {/* Claima välkomstbonus (nytt konto, ej hämtad än) */}
+      {me.signup?.claimable && (
+        <button
+          onClick={handleClaim}
+          disabled={claiming}
+          className="w-full rounded-3xl border-2 border-dashed border-gold-500 bg-gold-500/10 p-4 text-left transition hover:bg-gold-500/15"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-black text-zinc-900">Hämta din välkomstbonus</p>
+              <p className="text-sm text-zinc-600">+{me.signup.bonusPoints} Dpoints väntar på dig</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-gold-500 px-5 py-2.5 text-sm font-black text-zinc-950">
+              {claiming ? "…" : "Hämta"}
+            </span>
+          </div>
+        </button>
+      )}
+
       {/* Saldo-kort */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gold-500 to-gold-600 p-6 text-zinc-950 shadow-lg">
         <div className="flex items-center gap-2 text-sm font-semibold opacity-80">

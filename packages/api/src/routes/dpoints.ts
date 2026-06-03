@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticateUser } from './auth';
-import { getDpointsSettings, redeemReward, RedeemError } from '../lib/dpoints';
+import { getDpointsSettings, redeemReward, RedeemError, getSignupClaim, claimSignupBonus } from '../lib/dpoints';
 
 const router = Router();
 
@@ -93,10 +93,12 @@ router.get('/me', authenticateUser, async (req: any, res) => {
         take: 50,
       }),
     ]);
+    const signup = await getSignupClaim(userId);
     res.json({
       enabled: settings.dpointsEnabled,
       balance: user?.pointsBalance ?? 0,
       valuePerKr: settings.dpointsValuePerKr,
+      signup,
       transactions: txs.map((t) => ({
         id: t.id,
         amount: t.amount,
@@ -132,6 +134,22 @@ router.post('/redeem', authenticateUser, async (req: any, res) => {
   } catch (e: any) {
     if (e instanceof RedeemError) return res.status(400).json({ error: e.message, code: e.code });
     console.error('[dpoints redeem] error:', e?.message);
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// Inloggad — hämta (claima) välkomstbonusen. Funkar för alla signup-vägar
+// (email/Google/Apple). Eligibility kollas server-side.
+router.post('/claim-signup', authenticateUser, async (req: any, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Ej inloggad' });
+    const result = await claimSignupBonus(userId);
+    if ('error' in result) return res.status(400).json(result);
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { pointsBalance: true } });
+    res.json({ ok: true, points: result.points, balance: user?.pointsBalance ?? 0 });
+  } catch (e: any) {
+    console.error('[dpoints claim-signup] error:', e?.message);
     res.status(500).json({ error: 'Serverfel' });
   }
 });

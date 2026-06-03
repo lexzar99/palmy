@@ -1261,14 +1261,9 @@ router.post('/register-user', authLimiter, async (req, res) => {
       console.error('[register-user] welcome-deal-trigger error:', e?.message);
     }
 
-    // Dpoints: välkomstbonus om ett aktivt sponsor-kort finns. Idempotent.
-    let dpointsBonus = 0;
-    try {
-      const { maybeAwardSponsorBonus } = await import('../lib/dpoints');
-      dpointsBonus = await maybeAwardSponsorBonus(user.id);
-    } catch (e: any) {
-      console.error('[register-user] sponsor-bonus error:', e?.message);
-    }
+    // Dpoints-välkomstbonusen delas INTE ut automatiskt — kunden hämtar den
+    // själv efteråt (claim) via /api/dpoints/claim-signup. Path-agnostiskt så
+    // det funkar lika för email- och Google/Apple-registrering.
 
     // Auto-login: utfärda JWT direkt och returnera user-payload. Klienten
     // persistar token och navigerar vidare; verifieringsmejlet kommer som
@@ -1284,7 +1279,6 @@ router.post('/register-user', authLimiter, async (req, res) => {
       ok: true,
       token: tokenJwt,
       email: user.email,
-      dpointsBonus,
       user: {
         id: user.id,
         name: user.name,

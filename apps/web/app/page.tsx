@@ -118,7 +118,8 @@ const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
 
 type PromoCardItem =
   | { id: string; kind: "deal"; deal: DealCardData }
-  | { id: string; kind: "sponsor"; sponsor: SponsorData };
+  | { id: string; kind: "sponsor"; sponsor: SponsorData }
+  | { id: string; kind: "dpoints"; card: SponsorCardData };
 
 export default function HomePage() {
   const router = useRouter();
@@ -216,7 +217,13 @@ export default function HomePage() {
   const [dpointsCard, setDpointsCard] = useState<SponsorCardData | null>(null);
   // Dpoints-registreringskort i sponsor-railen — bara för utloggade besökare.
   useEffect(() => {
-    if (isLoggedIn) { setDpointsCard(null); return; }
+    if (isLoggedIn) {
+      try { localStorage.setItem("dp_hadAccount", "1"); } catch { /* noop */ }
+      setDpointsCard(null);
+      return;
+    }
+    // Anti-farming: visa inte signup-erbjudandet om enheten redan haft ett konto.
+    try { if (localStorage.getItem("dp_hadAccount")) { setDpointsCard(null); return; } } catch { /* noop */ }
     Promise.all([
       axios.get(`${API_URL}/api/dpoints/sponsor-card`).catch(() => ({ data: { card: null } })),
       axios.get(`${API_URL}/api/settings`).catch(() => ({ data: {} })),
@@ -686,8 +693,12 @@ export default function HomePage() {
   }, [homeCategorySections, restaurants, deals, deliveryOverrides, orderType, detectedCityName, cityFamilyIds, cityFamilyNames, zoneRestaurantIds]);
 
   const promoCards = useMemo<PromoCardItem[]>(() => {
-    return sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
-  }, [sponsors]);
+    const base = sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
+    // Dpoints-kortet ligger FÖRST i samma array → räknas av karusellen + prickarna.
+    return dpointsCard
+      ? [{ id: "dpoints-signup", kind: "dpoints" as const, card: dpointsCard }, ...base]
+      : base;
+  }, [sponsors, dpointsCard]);
 
   const getDealForRestaurant = useCallback((restaurantId: string) => {
     return allDealCards.find(d => d.relatedRestaurantIds?.includes(restaurantId) || d.isGlobal);
@@ -707,9 +718,13 @@ export default function HomePage() {
   const handlePromoScroll = useCallback(() => {
     const rail = promoRailRef.current;
     if (!rail) return;
+    // Mät faktisk kortbredd (korten är 460px/86vw, inte den gamla 260-konstanten)
+    // så index landar rätt och ALLA kort cyklas.
+    const first = rail.children[0] as HTMLElement | undefined;
+    const snap = first ? first.offsetWidth + PROMO_CARD_GAP : PROMO_SNAP;
     const idx = Math.max(
       0,
-      Math.min(Math.round(rail.scrollLeft / PROMO_SNAP), Math.max(promoCards.length - 1, 0))
+      Math.min(Math.round(rail.scrollLeft / snap), Math.max(promoCards.length - 1, 0))
     );
     promoIndexRef.current = idx;
     setActivePromo(idx);
@@ -728,7 +743,9 @@ export default function HomePage() {
       const nextIndex = (promoIndexRef.current + 1) % promoCards.length;
       promoIndexRef.current = nextIndex;
       setActivePromo(nextIndex);
-      rail.scrollTo({ left: nextIndex * PROMO_SNAP, behavior: "smooth" });
+      const first = rail.children[0] as HTMLElement | undefined;
+      const snap = first ? first.offsetWidth + PROMO_CARD_GAP : PROMO_SNAP;
+      rail.scrollTo({ left: nextIndex * snap, behavior: "smooth" });
     }, 5000);
 
     return () => window.clearInterval(interval);
@@ -1018,7 +1035,7 @@ export default function HomePage() {
 
         {/* ── WHAT'S ON (Aktuellt) — först på sidan: stora banner-kort som
             auto-skiftar var 5:e sekund, med prick-indikator under. ── */}
-        {(promoCards.length > 0 || dpointsCard) && (
+        {promoCards.length > 0 && (
           <section className="mb-5">
             <div className="hidden lg:flex items-center gap-2 mb-3 px-1">
               <Sparkles size={14} className="text-gold-500" />
@@ -1030,14 +1047,11 @@ export default function HomePage() {
               className="flex gap-3 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0"
               style={{ scrollSnapType: "x mandatory" }}
             >
-              {dpointsCard && (
-                <div style={{ scrollSnapAlign: "start" }}>
-                  <DpointsHomeCard card={dpointsCard} />
-                </div>
-              )}
               {promoCards.map((item) => (
                 <div key={item.id} style={{ scrollSnapAlign: "start" }}>
-                  <SponsorCard sponsor={(item as any).sponsor} />
+                  {item.kind === "dpoints"
+                    ? <DpointsHomeCard card={item.card} />
+                    : <SponsorCard sponsor={(item as any).sponsor} />}
                 </div>
               ))}
             </div>

@@ -16,6 +16,7 @@ export interface DpointsMe {
   enabled: boolean;
   balance: number;
   valuePerKr: number;
+  signup?: { claimable: boolean; bonusPoints: number };
   transactions: DpointsTx[];
 }
 
@@ -49,6 +50,9 @@ export const fetchDpointsRewards = () =>
 
 export const fetchSponsorCard = () =>
   axios.get<{ card: SponsorCardData | null }>("/api/platform/dpoints/sponsor-card").then((r) => r.data.card);
+
+export const claimDpointsSignup = () =>
+  axios.post<{ ok: boolean; points: number; balance: number }>("/api/platform/dpoints/claim-signup").then((r) => r.data);
 
 export const redeemDpoints = (rewardId: string) =>
   axios
