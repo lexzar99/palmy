@@ -186,6 +186,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
         console.error(`[email] Brevo API ${response.status}:`, body);
       } else {
         console.log(`[email] Brevo API sent to ${msg.to}`);
+        trackApiCall('brevo').catch(() => {});
       }
     } catch (err) {
       console.error('[email] Brevo API threw:', err);
@@ -204,6 +205,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
         html: msg.html,
       });
       console.log(`[email] Brevo SMTP sent to ${msg.to}`);
+      trackApiCall('brevo').catch(() => {});
     } catch (err) {
       console.error('[email] Brevo SMTP send failed:', err);
     }
