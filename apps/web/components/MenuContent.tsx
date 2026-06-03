@@ -630,18 +630,16 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
   const ssrSeededRef = useRef(!!initialData);
   const fetchData = useCallback(async () => {
-    // First mount with SSR-seeded data: the menu is already rendered from the
-    // server, so skip the redundant client refetch and only run the client-only
-    // zone check. Later calls (socket "menu:changed") refetch normally.
-    if (ssrSeededRef.current) {
-      ssrSeededRef.current = false;
-      if (initialData?.restaurant) {
-        try { await checkZone(initialData.restaurant); } catch {}
-      }
-      return;
-    }
+    // First mount with SSR-seeded data: rendera direkt från servern (ingen
+    // spinner) MEN kör ändå en TYST bakgrunds-refetch. SSR-datan kan vara
+    // stale i upp till 5 min (Next Data Cache) om on-demand-revalidate inte är
+    // konfigurerad — då skulle t.ex. en nyligen uppladdad Erbjudande-bild
+    // (offersImageUrl) eller kategori-bild aldrig synas. Den tysta refetchen
+    // hämtar färsk meny utan flicker. Senare anrop (socket) kör normalt.
+    const ssrSeed = ssrSeededRef.current;
+    ssrSeededRef.current = false;
     try {
-      setLoading(true);
+      if (!ssrSeed) setLoading(true);
       setError(null);
 
       const params: any = {};
@@ -681,9 +679,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       if (nextCategories.length > 0) setActiveCategory(nextCategories[0].id);
     } catch (err) {
       console.error("Error fetching menu data:", err);
-      setError(t("menu.loadError"));
+      // På en tyst SSR-seed-refresh: visa INTE fel-overlay över redan renderad
+      // SSR-data — behåll det servern gav oss.
+      if (!ssrSeed) setError(t("menu.loadError"));
     } finally {
-      setLoading(false);
+      if (!ssrSeed) setLoading(false);
     }
   }, [restaurantId, restaurantSlug, checkZone, initialData]);
 

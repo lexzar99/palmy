@@ -11,6 +11,7 @@ import { getEffectiveEtaMinutes, ETA_DEFAULT_MINUTES } from '../lib/restaurantEt
 import { resolveOrCreateCity } from '../lib/cityResolver';
 import { cached, bustCache, bustRestaurantCaches } from '../lib/ttlCache';
 import { revalidateWebRestaurant } from '../lib/revalidate';
+import { menuCacheBust } from './menu';
 
 const router = Router();
 
@@ -691,6 +692,10 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     // TTL and can silently overwrite fresh fields (e.g. legalName) back to null.
     bustCache('rest:detail', restaurant.id);
     bustCache('rest:detail', paramId);
+    // Meny-cachen (in-memory, /menu/categories) bakar in restaurangens
+    // offersImageUrl i den virtuella "Erbjudanden"-tilen → busta den så en ny
+    // erbjudande-bild syns direkt i stället för efter TTL:en.
+    try { menuCacheBust(restaurant.id); } catch { /* noop */ }
 
     // Returnera via formatRestaurant — JSON-strängifierade fält (openingHours,
     // deliveryZones, tags) blir parsade objekt så admin-form kan repopulera
