@@ -1012,22 +1012,46 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         >
           <ChevronLeft size={20} className="text-zinc-900" />
         </button>
-        {restaurant?.id && (
+        {/* Top-höger kluster: Info + Kontakt (telefon) + Favorit — kompakta
+            ikon-knappar uppe i hero:n istället för stora pill-knappar nedanför.
+            Gör headern smalare och simplare. */}
+        <div
+          className="absolute right-4 flex items-center gap-2"
+          style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
+        >
           <button
             type="button"
-            aria-label="Spara favorit"
-            aria-pressed={isFavorite(restaurant.id)}
-            onClick={() => toggleFavorite(restaurant.id)}
-            className="absolute right-4 w-11 h-11 rounded-full backdrop-blur-xl bg-white/85 border border-white/40 flex items-center justify-center shadow-lg active:scale-95 transition-all"
-            style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
+            onClick={() => setShowInfoModal(true)}
+            aria-label={t("menu.info")}
+            className="w-10 h-10 rounded-full backdrop-blur-xl bg-white/85 border border-white/40 flex items-center justify-center shadow-lg active:scale-90 transition-transform"
           >
-            <Heart
-              size={19}
-              className={isFavorite(restaurant.id) ? "text-rose-500" : "text-zinc-700"}
-              fill={isFavorite(restaurant.id) ? "currentColor" : "none"}
-            />
+            <Info size={18} className="text-zinc-800" />
           </button>
-        )}
+          {restaurant?.phone && (
+            <a
+              href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`}
+              aria-label={t("menu.contact")}
+              className="w-10 h-10 rounded-full backdrop-blur-xl bg-gold-500 border border-white/30 flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+            >
+              <Phone size={17} className="text-zinc-950" />
+            </a>
+          )}
+          {restaurant?.id && (
+            <button
+              type="button"
+              aria-label="Spara favorit"
+              aria-pressed={isFavorite(restaurant.id)}
+              onClick={() => toggleFavorite(restaurant.id)}
+              className="w-10 h-10 rounded-full backdrop-blur-xl bg-white/85 border border-white/40 flex items-center justify-center shadow-lg active:scale-95 transition-all"
+            >
+              <Heart
+                size={18}
+                className={isFavorite(restaurant.id) ? "text-rose-500" : "text-zinc-700"}
+                fill={isFavorite(restaurant.id) ? "currentColor" : "none"}
+              />
+            </button>
+          )}
+        </div>
 
       </div>
 
@@ -1075,30 +1099,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           </Link>
         </div>
 
-        {/* Action-knappar: INFO (outline) + KONTAKTA OSS (solid gold) */}
-        <div className="mt-4 flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => setShowInfoModal(true)}
-            className="px-5 py-3 rounded-full flex items-center gap-2 text-xs font-black uppercase tracking-wider transition-all hover:bg-zinc-50 active:scale-95"
-            style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid var(--border-muted)", color: "var(--text-primary)" }}
-          >
-            <Info size={15} className="text-zinc-600" />
-            {t("menu.info")}
-          </button>
-          {restaurant?.phone && (
-            <a
-              href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`}
-              className="px-5 py-3 rounded-full flex items-center gap-2 text-xs font-black uppercase tracking-wider bg-gold-500 text-zinc-950 hover:bg-gold-400 transition-all shadow-md shadow-gold-500/20 active:scale-95"
-            >
-              <Phone size={15} />
-              {t("menu.contact")}
-            </a>
-          )}
-        </div>
       </div>
 
-      <div className="mx-auto max-w-5xl px-5 sm:px-6 lg:px-12 pt-6 sm:pt-8 relative">
+      <div className="mx-auto max-w-5xl px-5 sm:px-6 lg:px-12 pt-4 sm:pt-6 relative">
 
         {/* Out-of-zone banner — only shown for OPEN restaurants; closed ones are handled by the closed state */}
         <AnimatePresence>
