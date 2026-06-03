@@ -14,6 +14,7 @@
  */
 import prisma from './prisma';
 import os from 'os';
+import fs from 'fs';
 
 export type Severity = 'ok' | 'warning' | 'critical' | 'info';
 
@@ -147,37 +148,71 @@ export async function getSupabaseMetrics(): Promise<{ ok: boolean; metrics: Capa
   };
 }
 
+// Läs en cgroup-fil (containerns RAM-tak/användning). "max" eller orimligt
+// stort tal (cgroup v1 "ingen gräns"-sentinel) → null.
+function readCgroupBytes(path: string): number | null {
+  try {
+    const v = fs.readFileSync(path, 'utf8').trim();
+    if (v === 'max') return null;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0 || n > 1e15) return null;
+    return n;
+  } catch {
+    return null;
+  }
+}
+
 export function getHostMetrics(): { metrics: CapacityMetric[]; note: string } {
   const metrics: CapacityMetric[] = [];
+  const rss = process.memoryUsage().rss;
+  const hostTotal = os.totalmem();
 
-  const total = os.totalmem();
-  const free = os.freemem();
-  const usedSys = total - free;
-  const memPct = total ? Math.round((usedSys / total) * 100) : null;
-  metrics.push({
-    key: 'host_mem',
-    label: 'Serverminne',
-    value: `${fmtBytes(usedSys)} / ${fmtBytes(total)}`,
-    used: usedSys,
-    limit: total,
-    pct: memPct,
-    severity: sev(memPct, 80, 92),
-    hint: memPct != null && memPct >= 80 ? 'Minnet tar slut → risk för OOM-omstart. Uppgradera Railway-planen.' : undefined,
-  });
+  // VIKTIGT: os.totalmem() på Railway = hela DELADE värd-maskinen (t.ex. 400 GB),
+  // inte vår container. Vi läser containerns RAM-tak via cgroup (v2 → v1) istället.
+  const cgLimit =
+    readCgroupBytes('/sys/fs/cgroup/memory.max') ?? readCgroupBytes('/sys/fs/cgroup/memory/memory.limit_in_bytes');
+  const cgUsage =
+    readCgroupBytes('/sys/fs/cgroup/memory.current') ?? readCgroupBytes('/sys/fs/cgroup/memory/memory.usage_in_bytes');
+  const limit = cgLimit && cgLimit < hostTotal ? cgLimit : null;
+  const used = cgUsage && limit ? cgUsage : rss;
 
-  const mem = process.memoryUsage();
-  metrics.push({ key: 'host_rss', label: 'API-process (RSS)', value: fmtBytes(mem.rss), severity: 'info' });
+  if (limit) {
+    const pct = Math.round((used / limit) * 100);
+    metrics.push({
+      key: 'host_mem',
+      label: 'API-minne (container)',
+      value: `${fmtBytes(used)} / ${fmtBytes(limit)}`,
+      used,
+      limit,
+      pct,
+      severity: sev(pct, 80, 92),
+      hint: pct >= 80 ? 'Containerns minne tar slut → OOM-risk. Uppgradera Railway-planen.' : undefined,
+    });
+  } else {
+    // Ingen container-gräns läsbar → visa processens RSS (host-total vore missvisande).
+    const severity: Severity = rss > 700e6 ? 'critical' : rss > 480e6 ? 'warning' : 'ok';
+    metrics.push({
+      key: 'host_mem',
+      label: 'API-minne (RSS)',
+      value: fmtBytes(rss),
+      used: rss,
+      severity,
+      hint:
+        severity !== 'ok'
+          ? 'API-processen använder mycket minne — kolla minnesläckor eller uppgradera plan.'
+          : 'Containerns minnestak kunde inte läsas — visar processens egna RSS (normalt < 300 MB).',
+    });
+  }
 
+  // Host-CPU är DELAD mellan containrar → bara info, aldrig larm.
   const load = os.loadavg()[0] ?? 0;
   const cpus = os.cpus().length || 1;
-  const loadPct = Math.round((load / cpus) * 100);
   metrics.push({
     key: 'host_cpu',
-    label: `CPU-last 1m (${cpus} kärnor)`,
+    label: `Host CPU-last 1m (delad, ${cpus} kärnor)`,
     value: load.toFixed(2),
-    pct: loadPct,
-    severity: sev(loadPct, 80, 100),
-    hint: loadPct >= 80 ? 'Hög CPU-last → API:t börjar strypa. Uppgradera plan eller optimera.' : undefined,
+    severity: 'info',
+    hint: 'Hela värd-maskinens last (delad mellan containrar) — inte enbart vårt API.',
   });
 
   const up = process.uptime();
@@ -185,13 +220,13 @@ export function getHostMetrics(): { metrics: CapacityMetric[]; note: string } {
     key: 'host_uptime',
     label: 'Drifttid',
     value: up > 3600 ? `${Math.floor(up / 3600)}h ${Math.floor((up % 3600) / 60)}m` : `${Math.floor(up / 60)}m`,
-    severity: up < 300 ? 'warning' : 'info',
-    hint: up < 300 ? 'Nyligen omstartad — om det sker ofta kan det vara krascher/OOM.' : undefined,
+    severity: 'info',
+    hint: up < 600 ? 'Nyligen omstartad — normalt direkt efter en deploy. Problem bara om det sker ofta.' : undefined,
   });
 
   return {
     metrics,
-    note: 'API-processens egna resurser (Railway-container). Billing/usage i $ kräver Railway-API-token (visas ej).',
+    note: 'API-processens/containerns egna resurser. Host-CPU är delad. Billing i $ kräver Railway-API-token (visas ej).',
   };
 }
 
