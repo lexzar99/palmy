@@ -439,6 +439,10 @@ const PORT = Number(process.env.PORT || 4000);
     void expireAbandoned();
     setInterval(() => { void expireAbandoned(); }, 5 * 60 * 1000);
 
+    // Kapacitets-bevakning — mejlar admin + socket-alert när Supabase/host
+    // närmar sig en gräns (var 30:e min, throttlat). Proaktiva notifikationer.
+    void import('./lib/capacityMonitor').then(({ startCapacityMonitor }) => startCapacityMonitor());
+
     // P1 — pre-warm the menu cache for every restaurant on boot so the
     // first customer who hits a restaurant page doesn't pay the deep-include
     // cold-start cost. Fire-and-forget — failures are logged but not fatal.
