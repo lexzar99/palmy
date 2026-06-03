@@ -25,7 +25,7 @@ function getStatusDisplay(status: string) {
         label: "Granskas",
         subtext: "Väntar på att köket bekräftar",
         Icon: Clock,
-        color: "text-gold-300",
+        color: "text-gold-500",
         glow: "rgba(234,181,69,0.25)",
         border: "rgba(234,181,69,0.3)",
         bg: "from-gold-500/20 to-gold-900/10",
@@ -37,7 +37,7 @@ function getStatusDisplay(status: string) {
         label: "Bekräftad",
         subtext: "Restaurangen har sagt ja!",
         Icon: CheckCircle2,
-        color: "text-gold-300",
+        color: "text-gold-500",
         glow: "rgba(234,181,69,0.25)",
         border: "rgba(234,181,69,0.3)",
         bg: "from-gold-500/20 to-gold-900/10",
@@ -49,7 +49,7 @@ function getStatusDisplay(status: string) {
         label: "Tillagas",
         subtext: "Kocken är igång med din order",
         Icon: Flame,
-        color: "text-gold-300",
+        color: "text-gold-500",
         glow: "rgba(234,181,69,0.25)",
         border: "rgba(234,181,69,0.3)",
         bg: "from-gold-500/20 to-gold-900/10",
@@ -61,7 +61,7 @@ function getStatusDisplay(status: string) {
         label: "Redo!",
         subtext: "Hämtning pågår snart",
         Icon: ShoppingBag,
-        color: "text-gold-300",
+        color: "text-gold-500",
         glow: "rgba(234,181,69,0.25)",
         border: "rgba(234,181,69,0.3)",
         bg: "from-gold-500/20 to-gold-900/10",
@@ -74,7 +74,7 @@ function getStatusDisplay(status: string) {
         label: "På väg!",
         subtext: "Bud är ute med din mat",
         Icon: Bike,
-        color: "text-emerald-300",
+        color: "text-emerald-500",
         glow: "rgba(52,211,153,0.25)",
         border: "rgba(52,211,153,0.3)",
         bg: "from-emerald-500/20 to-emerald-900/10",
@@ -87,7 +87,7 @@ function getStatusDisplay(status: string) {
         label: "Levererad!",
         subtext: "Hoppas det smakar",
         Icon: CheckCircle2,
-        color: "text-emerald-300",
+        color: "text-emerald-500",
         glow: "rgba(52,211,153,0.25)",
         border: "rgba(52,211,153,0.3)",
         bg: "from-emerald-500/20 to-emerald-900/10",
@@ -99,7 +99,7 @@ function getStatusDisplay(status: string) {
         label: "Aktiv",
         subtext: "Din order behandlas",
         Icon: Package,
-        color: "text-gold-300",
+        color: "text-gold-500",
         glow: "rgba(234,181,69,0.25)",
         border: "rgba(234,181,69,0.3)",
         bg: "from-gold-500/20 to-gold-900/10",
@@ -284,40 +284,42 @@ export default function LiveOrderBanner() {
           <div
             className="relative overflow-hidden rounded-[2rem]"
             style={{
-              backgroundColor: "rgba(10,10,10,0.92)",
+              // Tema-yta (ljus #FFF / mörk #18181b) istället för hårdkodad svärta
+              // → matchar resten av appen och ger riktig kontrast i båda lägen.
+              backgroundColor: "var(--bg-secondary)",
               border: `1px solid ${display.border}`,
-              boxShadow: `0 0 0 1px rgba(255,255,255,0.04), 0 8px 40px -8px ${display.glow}, 0 32px 60px -16px rgba(0,0,0,0.7)`,
-              backdropFilter: "blur(24px)",
+              boxShadow: `0 8px 30px -10px ${display.glow}, 0 20px 48px -22px rgba(0,0,0,0.30)`,
+              backdropFilter: "blur(20px)",
             }}
           >
-            {/* Ambient gradient background */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${display.bg} pointer-events-none`} />
+            {/* Subtil accent-wash i statusfärgen — på-tema utan att dränka ytan. */}
+            <div className={`absolute inset-0 bg-gradient-to-br ${display.bg} pointer-events-none opacity-50`} />
 
-            {/* Animated progress bar at bottom */}
-            <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/5">
+            {/* Progress-bar längst ner */}
+            <div className="absolute bottom-0 left-0 right-0 h-[3px]" style={{ backgroundColor: "var(--border-muted)" }}>
               <motion.div
-                className="h-full bg-gradient-to-r from-transparent via-white/40 to-transparent"
+                className="h-full"
                 initial={{ width: "0%" }}
                 animate={{ width: `${display.progress}%` }}
                 transition={{ duration: 1.2, ease: "easeOut" }}
                 style={{
-                  background: `linear-gradient(to right, transparent, ${display.glow.replace("0.25", "0.9")}, ${display.glow.replace("0.25", "0.6")})`,
+                  background: `linear-gradient(to right, transparent, ${display.glow.replace("0.25", "0.95")}, ${display.glow.replace("0.25", "0.7")})`,
                 }}
               />
             </div>
 
             <div className="relative flex items-center gap-4 px-4 py-4">
-              {/* Status icon */}
+              {/* Status-ikon i accent-tonad bricka */}
               <div className="relative shrink-0">
                 <div
                   className={`w-14 h-14 rounded-[1.2rem] flex items-center justify-center ${display.color} relative`}
-                  style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+                  style={{ backgroundColor: display.glow.replace("0.25", "0.16") }}
                 >
                   <display.Icon size={26} strokeWidth={2} className={display.pulse ? "animate-pulse" : ""} />
                 </div>
                 <span
-                  className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full ring-2 ring-zinc-900 animate-pulse"
-                  style={{ backgroundColor: isTerminal ? "#34d399" : "#4ade80" }}
+                  className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full animate-pulse"
+                  style={{ backgroundColor: isTerminal ? "#10b981" : "#22c55e", boxShadow: "0 0 0 2px var(--bg-secondary)" }}
                 />
               </div>
 
@@ -328,14 +330,14 @@ export default function LiveOrderBanner() {
                   <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${display.color}`}>
                     {display.label}
                   </span>
-                  <span className="text-[9px] font-bold text-zinc-600 tracking-widest">
+                  <span className="text-[9px] font-bold tracking-widest" style={{ color: "var(--text-secondary)" }}>
                     #{orderNumber}
                   </span>
                 </div>
-                <div className="text-white font-black text-[15px] leading-tight truncate">
+                <div className="font-black text-[15px] leading-tight truncate" style={{ color: "var(--text-primary)" }}>
                   {order.restaurantName || "Din beställning"}
                 </div>
-                <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest truncate mt-0.5">
+                <div className="text-[10px] font-bold uppercase tracking-widest truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
                   {isTerminal ? "Tack för din beställning!" : display.subtext}
                 </div>
               </div>
@@ -343,7 +345,7 @@ export default function LiveOrderBanner() {
               {/* ETA + actions */}
               <div className="flex items-center gap-2 shrink-0">
                 <div className="text-right">
-                  <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600 mb-0.5">ETA</div>
+                  <div className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--text-secondary)" }}>ETA</div>
                   <div className={`text-xl font-black tabular-nums leading-none ${display.color}`}>
                     {isTerminal
                       ? "🎉"
@@ -356,11 +358,13 @@ export default function LiveOrderBanner() {
                 </div>
                 <ChevronRight
                   size={18}
-                  className="text-zinc-700 group-hover:text-white group-hover:translate-x-0.5 transition-all"
+                  className="group-hover:translate-x-0.5 transition-all"
+                  style={{ color: "var(--text-secondary)" }}
                 />
                 <button
                   onClick={(e) => { e.preventDefault(); setDismissed(true); try { localStorage.setItem(DISMISS_KEY, order.id); } catch { } }}
-                  className="p-2 rounded-xl text-zinc-700 hover:text-white hover:bg-white/8 transition-colors"
+                  className="p-2 rounded-xl transition-colors hover:opacity-70"
+                  style={{ color: "var(--text-secondary)" }}
                   aria-label="Dölj"
                 >
                   <X size={14} />

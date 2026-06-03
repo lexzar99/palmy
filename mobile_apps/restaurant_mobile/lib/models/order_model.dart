@@ -93,11 +93,11 @@ class OrderModel {
       paymentMethod: json['paymentMethod'],
       discountCode: json['discountCode'],
       allergens: json['allergens'],
-      // Backend skickar refundAmount i ÖRE → konvertera till kr för UI-paritet
-      // med total. Saknas helt → null (= ingen refund).
-      refundAmount: json['refundAmount'] != null
-          ? ((json['refundAmount'] as num).toDouble() / 100)
-          : null,
+      // Backend (GET /api/admin/orders) skickar refundAmount REDAN i kr —
+      // samma som total/deliveryFee/discountAmount ovan (alla /100 server-side).
+      // Dela INTE igen: tidigare dubbel-konvertering visade en 5 kr-refund som
+      // "0,05 kr". Saknas helt → null (= ingen refund).
+      refundAmount: (json['refundAmount'] as num?)?.toDouble(),
       refundReason: json['refundReason'],
       refundedAt: json['refundedAt'] != null &&
               json['refundedAt'].toString().isNotEmpty
@@ -172,9 +172,9 @@ class OrderModel {
       'paymentMethod': paymentMethod,
       'discountCode': discountCode,
       'allergens': allergens,
-      // Spara tillbaka i ÖRE för konsistens med backend (toJson används främst
-      // för disk-cache → vi vill att samma fromJson kan plocka upp värdet igen)
-      'refundAmount': refundAmount != null ? (refundAmount! * 100).round() : null,
+      // Lagras i kr (samma enhet som fromJson läser) så disk-cachen round-trippar
+      // utan att skala. (total/deliveryFee nedan lagras också i kr.)
+      'refundAmount': refundAmount,
       'refundReason': refundReason,
       'refundedAt': refundedAt?.toIso8601String(),
       'items': items.map((i) => i.toJson()).toList(),

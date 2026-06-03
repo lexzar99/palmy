@@ -100,13 +100,9 @@ function OrderDetailsModal({
     return extra ? `${cannedLabel} — ${extra}` : cannedLabel;
   }, [refundReasonKey, refundReasonExtra]);
 
-  // When order loads (or changes), default the refund amount to the full
-  // order total. Saves a redundant typed field on the most common case.
-  useEffect(() => {
-    if (orderQuery.data && !orderQuery.data.refundedAt && refundAmount === "") {
-      setRefundAmount(orderQuery.data.total);
-    }
-  }, [orderQuery.data, refundAmount]);
+  // Fältet lämnas TOMT som default — "Återbetala hela beloppet"-knappen gör
+  // en full refund med ett klick utan att admin behöver skriva en siffra.
+  // Fyll bara i fältet för en DELVIS återbetalning.
 
   const statusMutation = useMutation({
     mutationFn: ({ status, nextEstimatedTime }: { status: string; nextEstimatedTime?: number | null }) =>
@@ -141,7 +137,8 @@ function OrderDetailsModal({
   }, [orderId]);
 
   const refundMutation = useMutation({
-    mutationFn: () => refundOrder(orderId!, refundAmount === "" ? null : Number(refundAmount), refundReason),
+    // amountKr = null → full återbetalning (backend använder order.total).
+    mutationFn: (amountKr: number | null) => refundOrder(orderId!, amountKr, refundReason),
     onSuccess: async (data: any) => {
       setRefundSuccess(true);
       setRefundError(null);
@@ -314,15 +311,15 @@ function OrderDetailsModal({
                   </div>
                 ) : (
                   <div className="mt-4 grid gap-4">
-                    <Field label="Refund amount (kr)">
+                    <Field label="Belopp för DELVIS återbetalning (kr)">
                       <Input
                         type="number"
                         value={refundAmount}
                         onChange={(event) => setRefundAmount(event.target.value ? Number(event.target.value) : "")}
-                        placeholder={String(order.total)}
+                        placeholder={`Hela: ${order.total} kr`}
                       />
                       <p className="mt-1.5 text-[10px] text-[var(--text-muted)]">
-                        Förifyllt med ordertotalen — ändra för delvis refund.
+                        Lämna tomt för full återbetalning — fyll bara i för delvis refund.
                       </p>
                     </Field>
                     <Field label="Reason">
@@ -371,21 +368,41 @@ function OrderDetailsModal({
                         <AlertCircle size={14} /> {refundError}
                       </div>
                     )}
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        const amount = refundAmount ? Number(refundAmount) : order.total;
-                        const msg = `Återbetala ${amount} kr för order ${order.orderNumber}?\n\nPengarna går tillbaka till kundens Stripe-betalning. Detta kan inte ångras direkt — manuell justering krävs annars.`;
-                        if (!window.confirm(msg)) return;
-                        setRefundSuccess(false);
-                        setRefundError(null);
-                        refundMutation.mutate();
-                      }}
-                      disabled={refundMutation.isPending}
-                    >
-                      {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
-                      {refundMutation.isPending ? "Återbetalar…" : "Genomför återbetalning"}
-                    </Button>
+                    <div className="grid gap-2.5">
+                      {/* Full återbetalning — ett klick, inget belopp behöver anges. */}
+                      <Button
+                        variant="primary"
+                        onClick={() => {
+                          const msg = `Återbetala HELA beloppet ${order.total} kr för order ${order.orderNumber}?\n\nPengarna går tillbaka till kundens Stripe-betalning. Detta kan inte ångras direkt — manuell justering krävs annars.`;
+                          if (!window.confirm(msg)) return;
+                          setRefundSuccess(false);
+                          setRefundError(null);
+                          refundMutation.mutate(null);
+                        }}
+                        disabled={refundMutation.isPending}
+                      >
+                        {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
+                        {refundMutation.isPending ? "Återbetalar…" : `Återbetala hela beloppet (${order.total} kr)`}
+                      </Button>
+                      {/* Delvis återbetalning — bara när ett belopp angetts ovan. */}
+                      {refundAmount !== "" && Number(refundAmount) > 0 && Number(refundAmount) < order.total && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            const amount = Number(refundAmount);
+                            const msg = `Återbetala ${amount} kr (delvis) för order ${order.orderNumber}?\n\nPengarna går tillbaka till kundens Stripe-betalning. Detta kan inte ångras direkt — manuell justering krävs annars.`;
+                            if (!window.confirm(msg)) return;
+                            setRefundSuccess(false);
+                            setRefundError(null);
+                            refundMutation.mutate(amount);
+                          }}
+                          disabled={refundMutation.isPending}
+                        >
+                          {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
+                          {refundMutation.isPending ? "Återbetalar…" : `Återbetala ${Number(refundAmount)} kr (delvis)`}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
