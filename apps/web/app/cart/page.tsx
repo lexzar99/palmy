@@ -184,6 +184,13 @@ export default function CartPage() {
   const [topUpToMinimum, setTopUpToMinimum] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
+  // Hydrerings-grind: cart-store rehydreras synkront från localStorage på
+  // klienten, men på servern är den tom. Vi får inte branch:a på items innan
+  // mount (→ hydration-mismatch). Före mount visas alltid samma skeleton som
+  // SSR; efter mount vet vi om varukorgen FAKTISKT är tom och kan visa rätt
+  // tomt-läge istället för en falsk "full varukorg"-skeleton.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [error, setError] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const idempotencyKey = useRef<string>(
@@ -1678,7 +1685,10 @@ export default function CartPage() {
     }
   };
 
-  if (pageLoading) {
+  // Full-varukorg-skeleton: visas bara FÖRE mount (matchar SSR) eller när en
+  // icke-tom varukorg fortfarande laddar. En TOM varukorg hoppar direkt till
+  // tomt-läget nedan istället för att visa en falsk "full varukorg".
+  if (!mounted || (pageLoading && items.length > 0)) {
     return (
       <div className="min-h-screen pb-32 md:pt-24 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
         <div className="max-w-2xl mx-auto px-5 sm:px-6 pt-6">

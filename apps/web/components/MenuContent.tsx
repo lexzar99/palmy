@@ -1287,7 +1287,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             bredden när sticky → ingen content "syns igenom" på sidorna. */}
         {!isGridMode && <div
           className="sticky z-40 mb-8 -mx-5 sm:-mx-6 lg:-mx-12 top-0 md:top-20"
-          style={{ backgroundColor: "var(--bg-primary)" }}
+          style={{ backgroundColor: "var(--bg-primary)", paddingTop: "env(safe-area-inset-top, 0px)" }}
         >
           {/* Huvudkategori-bilder — horisontell scroll så man kan byta
               huvudkategori medan man är inne i en annan. "Alla" → tillbaka

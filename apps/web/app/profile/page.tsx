@@ -714,7 +714,7 @@ function ProfileContent() {
   // ─── Not logged in ────────────────────────────────────────────────────────
   if (!hasPlatformSession || !user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-start px-6 pt-10 md:pt-20 pb-28" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="min-h-screen flex flex-col items-center justify-start px-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] md:pt-20 pb-28" style={{ backgroundColor: "var(--bg-primary)" }}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-3.5">
 
           {/* Header — kompakt */}
@@ -727,25 +727,6 @@ function ProfileContent() {
               <span className="text-gold-500">{hasVisited ? t("auth.welcomeBack.title.welcomeAccent") : t("auth.welcomeBack.title.createAccent")}</span>
             </h1>
           </div>
-
-          {/* Beställningar & support — överst så man ser sina ordrar direkt utan
-              att logga in eller scrolla. Order-historik ligger lokalt; support
-              sker via en lagd order → restaurangen. */}
-          <Link
-            href="/orders"
-            className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl transition-all active:scale-[0.99]"
-            style={{ backgroundColor: "rgba(231,178,75,0.08)", border: "1px solid rgba(231,178,75,0.28)" }}
-          >
-            <span className="flex items-center gap-3">
-              <span className="w-9 h-9 rounded-xl bg-gold-500/15 text-gold-600 flex items-center justify-center shrink-0">
-                <History size={18} />
-              </span>
-              <span className="text-sm font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
-                {t("profile.ordersSupport")}
-              </span>
-            </span>
-            <ChevronRight size={18} className="text-gold-500" />
-          </Link>
 
           {/* Email + Password login form */}
           <form onSubmit={handleEmailLogin} className="space-y-3">
@@ -857,6 +838,25 @@ function ProfileContent() {
               {t("auth.createFree")}
             </Link>
           </p>
+
+          {/* Beställningar & support — flyttad NER hit (i tomma utrymmet) så
+              login-formuläret syns direkt. Order-historik ligger lokalt; man
+              ser sina ordrar utan att logga in. Support sker via lagd order. */}
+          <Link
+            href="/orders"
+            className="mt-2 w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl transition-all active:scale-[0.99]"
+            style={{ backgroundColor: "rgba(231,178,75,0.08)", border: "1px solid rgba(231,178,75,0.28)" }}
+          >
+            <span className="flex items-center gap-3">
+              <span className="w-9 h-9 rounded-xl bg-gold-500/15 text-gold-600 flex items-center justify-center shrink-0">
+                <History size={18} />
+              </span>
+              <span className="text-sm font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
+                {t("profile.ordersSupport")}
+              </span>
+            </span>
+            <ChevronRight size={18} className="text-gold-500" />
+          </Link>
         </motion.div>
       </div>
     );
@@ -905,7 +905,7 @@ function ProfileContent() {
   // ─── Logged in ────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="min-h-screen pt-20 pb-32 px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="min-h-screen pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] md:pt-20 pb-32 px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="max-w-xl mx-auto space-y-8">
 
         {/* Header */}

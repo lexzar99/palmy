@@ -59,6 +59,10 @@
     overflow-x: clip;
     max-width: 100vw;
     scroll-behavior: smooth;
+    /* PWA-lås: ingen rubber-band / overscroll-bounce, ingen horisontell
+       swipe-navigering. Gör att appen känns native (inget "drar hela sidan
+       höger/vänster/upp/ner") på alla sidor — även efter back-navigering. */
+    overscroll-behavior: none;
   }
 
   body {
@@ -73,6 +77,9 @@
     /* Förhindra oavsiktlig zoom vid input-fokus på iOS */
     text-size-adjust: 100%;
     -webkit-text-size-adjust: 100%;
+    /* Samma PWA-lås på body — iOS respekterar overscroll-behavior på den
+       scrollande noden, som ofta är body snarare än html. */
+    overscroll-behavior: none;
   }
 
   /* Alla interaktiva element: snabbare touch-respons */

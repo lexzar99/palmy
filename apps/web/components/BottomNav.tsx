@@ -46,33 +46,39 @@ const BottomNav = () => {
               aria-current={isActive ? "page" : undefined}
               className="relative flex-1 flex items-center justify-center pb-2 touch-manipulation"
             >
-              <div className="relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-2xl">
-                {isActive && (
-                  <motion.div
-                    layoutId="navActive"
-                    className="absolute inset-0 rounded-2xl"
-                    style={{ backgroundColor: "rgba(231,178,75,0.16)" }}
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+              <div className="relative flex flex-col items-center gap-1 px-3 py-1.5">
+                {/* Guld-indikatorn ligger bakom IKONEN med FAST storlek (samma
+                    för alla flikar) så väljaren inte växer/krymper beroende på
+                    etikettens längd ("HEM" vs "FAVORITER"). Etiketten under är
+                    alltid utan bakgrund. */}
+                <div className="relative flex items-center justify-center w-12 h-7 rounded-full">
+                  {isActive && (
+                    <motion.div
+                      layoutId="navActive"
+                      className="absolute inset-0 rounded-full"
+                      style={{ backgroundColor: "rgba(231,178,75,0.16)" }}
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                    />
+                  )}
+                  <Icon
+                    size={21}
+                    strokeWidth={isActive ? 2.6 : 2}
+                    fill={isActive ? "currentColor" : "none"}
+                    className="relative z-10"
+                    style={{ color: isActive ? "#C28E2E" : "var(--text-secondary)" }}
                   />
-                )}
-                <Icon
-                  size={21}
-                  strokeWidth={isActive ? 2.6 : 2}
-                  fill={isActive ? "currentColor" : "none"}
-                  className="relative z-10"
-                  style={{ color: isActive ? "#C28E2E" : "var(--text-secondary)" }}
-                />
+                  {item.count !== undefined && item.count > 0 && (
+                    <span className="absolute -top-1 -right-1 z-20 bg-gold-500 text-zinc-950 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
+                      {item.count}
+                    </span>
+                  )}
+                </div>
                 <span
                   className="relative z-10 text-[9px] font-black uppercase tracking-wider"
                   style={{ color: isActive ? "#C28E2E" : "var(--text-secondary)" }}
                 >
                   {item.label}
                 </span>
-                {item.count !== undefined && item.count > 0 && (
-                  <span className="absolute top-0 right-1 z-20 bg-gold-500 text-zinc-950 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
-                    {item.count}
-                  </span>
-                )}
               </div>
             </Link>
           );
