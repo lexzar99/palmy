@@ -933,8 +933,8 @@ function ProfileContent() {
   // ─── Logged in ────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="min-h-screen pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] md:pt-20 pb-32 px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
-      <div className="max-w-xl mx-auto space-y-8">
+    <div className="min-h-screen pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] md:pt-16 pb-32 px-5 sm:px-6 lg:px-8" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="max-w-2xl mx-auto space-y-8">
 
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1389,30 +1389,6 @@ function ProfileContent() {
                     med när en framtida i18n-lösning aktiveras.
                   */}
                   <LanguagePickerRow />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">{t("profile.settings.section.legal")}</div>
-                <div className="bg-white/5 border border-white/5 rounded-[2.5rem] divide-y divide-white/5">
-                  <Link href="/privacy" className="p-6 flex items-center justify-between group hover:bg-white/5 transition-all first:rounded-t-[2.5rem]">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-                        <ShieldCheck size={18} />
-                      </div>
-                      <p className="font-bold text-sm text-white">{t("profile.settings.privacy")}</p>
-                    </div>
-                    <ChevronRight size={18} className="text-zinc-600 group-hover:text-white transition-all" />
-                  </Link>
-                  <Link href="/terms" className="p-6 flex items-center justify-between group hover:bg-white/5 transition-all">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-                        <Scale size={18} />
-                      </div>
-                      <p className="font-bold text-sm text-white">{t("profile.settings.terms")}</p>
-                    </div>
-                    <ChevronRight size={18} className="text-zinc-600 group-hover:text-white transition-all" />
-                  </Link>
                 </div>
               </div>
 
