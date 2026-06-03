@@ -94,6 +94,16 @@ export async function applyPaymentSuccess(orderId: string, paymentIntent: Stripe
     console.error('[stripeReconcile] referral-reward-trigger error:', e?.message);
   }
 
+  // Dpoints — intjäning + streak-utmaningar. Idempotent (Order.pointsAwarded
+  // race-guard), fail-safe (kastar aldrig). Enda intjäningspunkten i systemet →
+  // confirm/webhook/reconcile landar alla här.
+  try {
+    const { awardOrderPointsIfNotAwarded } = await import('./dpoints');
+    await awardOrderPointsIfNotAwarded(order.id);
+  } catch (e: any) {
+    console.error('[stripeReconcile] dpoints-earn error:', e?.message);
+  }
+
   // UserDeal: markera reserverad welcome/referral-kupong som USED.
   // Race-guard på status='RESERVED' → idempotent med webhook-pathen.
   if ((order as any).userDealId) {

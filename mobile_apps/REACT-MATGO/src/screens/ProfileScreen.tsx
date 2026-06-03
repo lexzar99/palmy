@@ -28,6 +28,8 @@ import { getScreenCache, setScreenCache } from "../lib/screenCache";
 import { supabase } from "../lib/supabase";
 import { useSharedStyles, useTheme } from "../theme";
 import { ScreenWrap, PrimaryButton } from "../components/ui";
+import DpointsSection from "../components/DpointsSection";
+import DpointsSponsorBanner from "../components/DpointsSponsorBanner";
 import { ProfileScreenSkeleton } from "../components/SkeletonLoader";
 
 import type { Order, Profile, SavedAddress } from "../types";
@@ -808,6 +810,9 @@ export default function ProfileScreen({
             <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>{t(`language.languages.${currentLanguage}`)}</Text>
           </Pressable>
 
+          {/* Dpoints sponsor-banner (göms om inget aktivt kort) */}
+          <DpointsSponsorBanner />
+
           {/* Hero icon with animated ring + breath */}
           <View style={{ alignItems: "center", marginBottom: 20 }}>
             <Animated.View
@@ -1153,6 +1158,7 @@ export default function ProfileScreen({
       {/* Overview tab */}
       {activeTab === "overview" && (
         <>
+          <DpointsSection />
           <View style={[styles.formCard, { borderRadius: 30, padding: 22, gap: 18 }]}>
             {[
               { icon: "call-outline", label: t('profile.overview.phone').toUpperCase(), value: profile.phone || t('profile.overviewLabels.notProvided'), onPress: undefined },

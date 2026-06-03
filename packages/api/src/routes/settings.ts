@@ -77,6 +77,12 @@ router.get('/', async (_req, res) => {
       noReplyEmail: (settings as any).noReplyEmail || null,
       // UI-toggles
       showDiscountedRail: (settings as any).showDiscountedRail ?? true,
+      // Dpoints — publika fält: badge nära produkter + gating i klienterna.
+      dpoints: {
+        enabled: (settings as any).dpointsEnabled ?? false,
+        perKr: (settings as any).dpointsPerKr ?? 1,
+        valuePerKr: (settings as any).dpointsValuePerKr ?? 10,
+      },
       // Plattform-banner (visas i web när satt och inte expirerad)
       banner: (() => {
         const s = settings as any;

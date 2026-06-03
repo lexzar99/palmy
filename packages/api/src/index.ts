@@ -54,6 +54,8 @@ import payoutsRoutes from './routes/payouts';
 import reviewsAdminRoutes from './routes/reviewsAdmin';
 import printingRoutes from './routes/printing';
 import referralsRoutes, { publicRouter as referralsPublic, adminRouter as referralsAdmin } from './routes/referrals';
+import dpointsRoutes from './routes/dpoints';
+import dpointsAdminRoutes from './routes/dpointsAdmin';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
@@ -257,6 +259,7 @@ app.use('/api/admin/payouts', payoutsRoutes);
 app.use('/api/admin/reviews', reviewsAdminRoutes);
 app.use('/api/admin/printing', printingRoutes);
 app.use('/api/admin', referralsAdmin);
+app.use('/api/admin/dpoints', dpointsAdminRoutes);
 app.use('/api/account', authRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/terminal/pair', adminLoginLimiter);
@@ -282,6 +285,7 @@ app.use('/api/maps-stats', mapsStatsRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/sponsors', sponsorsRoutes);
+app.use('/api/dpoints', dpointsRoutes);
 app.use('/api/home-categories', homeCategoriesRoutes);
 
 // Serve uploaded images

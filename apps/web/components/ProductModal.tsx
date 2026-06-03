@@ -9,6 +9,7 @@ import ConfirmModal from "./ConfirmModal";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useToast } from "./Toast";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import DpointsBadge from "./DpointsBadge";
 
 interface ProductModalProps {
   product: any;
@@ -345,6 +346,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                   {product.price}
                 </span>
               )}
+              {/* Dpoints — "kostar X poäng" (göms om Dpoints är av) */}
+              <DpointsBadge priceKr={effectiveBasePrice} />
             </div>
 
             {/* Dietary-pills */}

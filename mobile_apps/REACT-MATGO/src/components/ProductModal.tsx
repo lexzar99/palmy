@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { api, getImageUrl } from '../lib/api';
 import { useSharedStyles, useTheme } from '../theme';
 import { Header, PrimaryButton } from '../components/ui';
+import DpointsProductBadge from './DpointsProductBadge';
 import type { MenuProduct, OrderType, CartItem, MenuExtra, MenuExtraGroup } from '../types';
 
 export default function ProductModal({
@@ -477,6 +478,7 @@ export default function ProductModal({
                 <View>
                   <Text style={styles.productFooterLabel}>{t('product.total')}</Text>
                   <Text style={styles.productFooterValue}>{totalPrice} kr</Text>
+                  <DpointsProductBadge priceKr={totalPrice} />
                 </View>
                 <View style={styles.productQuantityCard}>
                   <Pressable onPress={() => setQuantity((current) => Math.max(1, current - 1))} style={styles.productQuantityButton}>

@@ -2,16 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import axios from "axios";
 import { Home, Heart, ShoppingBag, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+
+// Dpoints-saldo för nav-badgen under Profil. Tyst om utloggad/av (401 → null).
+async function fetchNavBalance(): Promise<{ enabled: boolean; balance: number } | null> {
+  try {
+    const r = await axios.get("/api/platform/dpoints/me");
+    return { enabled: !!r.data?.enabled, balance: Number(r.data?.balance ?? 0) };
+  } catch {
+    return null;
+  }
+}
 
 const BottomNav = () => {
   const pathname = usePathname();
   const { t } = useTranslation();
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const [dpoints, setDpoints] = useState<{ enabled: boolean; balance: number } | null>(null);
+
+  // Uppdatera saldot vid navigering (efter köp/inlösen syns nya saldot direkt).
+  useEffect(() => {
+    fetchNavBalance().then(setDpoints);
+  }, [pathname]);
 
   // Hide bottom nav inside restaurant detail pages — the FloatingCartButton handles navigation there
   if (pathname?.startsWith("/restaurants/")) return null;
@@ -79,6 +97,11 @@ const BottomNav = () => {
                 >
                   {item.label}
                 </span>
+                {item.href === "/profile" && dpoints?.enabled && (
+                  <span className="relative z-10 -mt-0.5 text-[8px] font-black leading-none text-gold-500">
+                    {dpoints.balance} p
+                  </span>
+                )}
               </div>
             </Link>
           );

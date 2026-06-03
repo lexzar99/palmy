@@ -1261,6 +1261,15 @@ router.post('/register-user', authLimiter, async (req, res) => {
       console.error('[register-user] welcome-deal-trigger error:', e?.message);
     }
 
+    // Dpoints: välkomstbonus om ett aktivt sponsor-kort finns. Idempotent.
+    let dpointsBonus = 0;
+    try {
+      const { maybeAwardSponsorBonus } = await import('../lib/dpoints');
+      dpointsBonus = await maybeAwardSponsorBonus(user.id);
+    } catch (e: any) {
+      console.error('[register-user] sponsor-bonus error:', e?.message);
+    }
+
     // Auto-login: utfärda JWT direkt och returnera user-payload. Klienten
     // persistar token och navigerar vidare; verifieringsmejlet kommer som
     // notifikation och kan användas senare för att markera kontot som
@@ -1275,6 +1284,7 @@ router.post('/register-user', authLimiter, async (req, res) => {
       ok: true,
       token: tokenJwt,
       email: user.email,
+      dpointsBonus,
       user: {
         id: user.id,
         name: user.name,

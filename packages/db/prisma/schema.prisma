@@ -198,6 +198,10 @@ model Order {
   userId                String?
   user                  User?       @relation(fields: [userId], references: [id])
 
+  // Dpoints — idempotent intjäning vid betald order (pointsAwarded = race-guard).
+  pointsAwarded         Boolean     @default(false)
+  pointsEarned          Int         @default(0)
+
   @@index([restaurantId, status, createdAt])
   @@index([customerPhone])
   @@index([stripePaymentIntentId])
@@ -542,6 +546,14 @@ model RestaurantSettings {
   referralRewardPercent        Int       @default(20)   // legacy
   referralMinOrderKr           Int       @default(150)  // legacy
   referralMaxRewardsPerInviter Int       @default(20)
+
+  // ── Dpoints lojalitetssystem ──────────────────────────────────────────────
+  // Master-toggle + takter. Allt av tills admin aktiverar. dpointsPerKr = poäng
+  // per spenderad kr (intjäning). dpointsValuePerKr = poäng per 1 kr produkt-
+  // värde ("kostar X poäng"-etiketten nära produkter + standard i inlösen).
+  dpointsEnabled      Boolean   @default(false)
+  dpointsPerKr        Float     @default(1)
+  dpointsValuePerKr   Int       @default(10)
 }
 
 model OrderDraft {
@@ -709,6 +721,11 @@ model User {
   deals_v2       UserDeal[]
   referralsSent     Referral[]   @relation("ReferralInviter")
   referralReceived  Referral?    @relation("ReferralInvitee")
+
+  // Dpoints — cachat saldo (uppdateras atomiskt med PointsTransaction-ledgern).
+  pointsBalance      Int                      @default(0)
+  pointsTransactions PointsTransaction[]
+  campaignProgress   PointsCampaignProgress[]
 }
 
 // UserDeal — en personlig rabattkupong som tillhör EN användare. Skapas av:
@@ -972,4 +989,103 @@ model ScheduledPush {
   createdBy    String?   // adminUserId
 
   @@index([sentAt, scheduledFor])
+}
+
+// ─── Dpoints lojalitetssystem ───────────────────────────────────────────────
+// Append-only liggare. En rad per händelse. Saldot cachas på User.pointsBalance
+// och uppdateras i SAMMA transaktion som raden skapas → en källa till sanning.
+model PointsTransaction {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount       Int      // signerat: + intjäning/bonus, - inlösen/återtag
+  type         String   // EARN_ORDER | SIGNUP_BONUS | CAMPAIGN | REDEEM | ADMIN_ADJUST | REVERSAL
+  reason       String?  // fritext — visas för kund + admin
+  balanceAfter Int      // saldo direkt efter posten (snapshot för historik)
+  orderId      String?  @unique // idempotens: en order ger poäng max en gång
+  campaignId   String?
+  adminId      String?  // admin som utfärdade (ADMIN_ADJUST/REVERSAL)
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type])
+}
+
+// Temporär signup-banner. Visas för utloggade besökare; vid registrering får
+// kunden bonusPoints. Vi visar den senast skapade aktiva inom sitt fönster.
+model SponsorCard {
+  id          String    @id @default(cuid())
+  title       String
+  sponsorName String?
+  description String?
+  imageUrl    String?
+  bonusPoints Int       @default(100)
+  ctaLabel    String?
+  isActive    Boolean   @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive])
+}
+
+// Inlösenskatalog. Admin definierar "X poäng → denna deal". Vid inlösen skapas
+// en PERSONLIG kod (Campaign + CustomerDeal) låst till kontot; poängen dras
+// direkt. Koden funkar bara på kundens konto och syns i admin.
+model DpointsReward {
+  id            String   @id @default(cuid())
+  title         String
+  description   String?
+  pointsCost    Int
+  discountType  String   @default("FIXED") // FIXED | PERCENTAGE | FREE_DELIVERY
+  discountValue Int      @default(0)        // FIXED: öre, PERCENTAGE: %
+  minOrderKr    Int      @default(0)
+  freeDelivery  Boolean  @default(false)
+  validDays     Int      @default(30)
+  isActive      Boolean  @default(true)
+  imageUrl      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+// Kampanj/utmaning. MULTIPLIER ändrar intjäningstakt vid köp;
+// STREAK_DAILY/STREAK_WEEKLY ger fast bonus när målet nås.
+model PointsCampaign {
+  id           String                   @id @default(cuid())
+  name         String
+  description  String?
+  type         String                   // MULTIPLIER | STREAK_DAILY | STREAK_WEEKLY
+  isActive     Boolean                  @default(true)
+  startsAt     DateTime?
+  endsAt       DateTime?
+  minOrderKr   Int                      @default(0)
+  multiplier   Float?                   // MULTIPLIER (2 = dubbelt)
+  rewardPoints Int?                     // STREAK (fast bonus)
+  targetCount  Int?                     // STREAK (antal dagar/veckor)
+  repeatable   Boolean                  @default(false)
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  progress     PointsCampaignProgress[]
+
+  @@index([isActive, type])
+}
+
+model PointsCampaignProgress {
+  id             String         @id @default(cuid())
+  campaignId     String
+  campaign       PointsCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  streakCount    Int            @default(0)
+  lastCountedDay String?        // "YYYY-MM-DD" i Europe/Stockholm
+  periodsJson    Json?          // STREAK_WEEKLY: räknade ISO-veckor
+  timesRewarded  Int            @default(0)
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([campaignId, userId])
+  @@index([userId])
 }

@@ -12,6 +12,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import DpointsPanel from "@/components/DpointsPanel";
+import DpointsSponsorBanner from "@/components/DpointsSponsorBanner";
 import { API_URL } from "@/lib/api";
 import {
   clearPlatformSession,
@@ -728,6 +730,9 @@ function ProfileContent() {
             </h1>
           </div>
 
+          {/* Dpoints sponsor-banner — driver registrering (göms om inget aktivt kort) */}
+          <DpointsSponsorBanner onRegister={() => router.push("/register")} />
+
           {/* Email + Password login form */}
           <form onSubmit={handleEmailLogin} className="space-y-3">
             <div>
@@ -1268,6 +1273,7 @@ function ProfileContent() {
           {/* Overview */}
           {activeTab === "overview" && (
             <motion.div key="ov" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+              <DpointsPanel />
               <div className="rounded-[2.5rem] p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                 <div className="flex items-center gap-4">
                   <Phone size={16} className="text-zinc-400 shrink-0" />

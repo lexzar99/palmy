@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useArabic } from '../hooks/useArabic';
 import { getBottomTabsBottomOffset } from '../constants/layout';
 import { useAppStore } from '../store/useAppStore';
+import { api } from '../lib/api';
 import { useSharedStyles, useTheme } from '../theme';
 
 export default function BottomTabs({
@@ -22,14 +23,24 @@ export default function BottomTabs({
   const { palette, mode } = useTheme();
   const styles = useSharedStyles();
   const itemCount = useAppStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
+  const token = useAppStore((state) => state.token);
+  // Dpoints-saldo under Profil-fliken. Tyst om utloggad/av.
+  const [dpoints, setDpoints] = useState<number | null>(null);
+  useEffect(() => {
+    if (!token) { setDpoints(null); return; }
+    api
+      .get("/api/dpoints/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => setDpoints(r.data?.enabled ? Number(r.data.balance ?? 0) : null))
+      .catch(() => setDpoints(null));
+  }, [token, active]);
   // Tab order matches the web's BottomNav: home, discover, cart, orders, profile.
   // "Orders" uses a receipt-style icon (Ionicons receipt-outline ~ lucide ReceiptText).
-  const tabs: { key: "home" | "discover" | "cart" | "orders" | "profile"; label: string; icon: keyof typeof Ionicons.glyphMap; count?: number }[] = [
+  const tabs: { key: "home" | "discover" | "cart" | "orders" | "profile"; label: string; icon: keyof typeof Ionicons.glyphMap; count?: number; dpoints?: number | null }[] = [
     { key: "home", label: t('tabs.home'), icon: "home-outline" },
     { key: "discover", label: t('tabs.discover'), icon: "compass-outline" },
     { key: "cart", label: t('tabs.cart'), icon: "bag-handle-outline", count: itemCount },
     { key: "orders", label: t('tabs.orders', { defaultValue: 'ORDER' }), icon: "receipt-outline" },
-    { key: "profile", label: t('tabs.profile'), icon: "person-outline" },
+    { key: "profile", label: t('tabs.profile'), icon: "person-outline", dpoints },
   ];
 
   const translateX = useRef(new Animated.Value(0)).current;
@@ -221,9 +232,9 @@ function TabItem({
         </View>
         
         {isFocused && (
-          <Text 
-            numberOfLines={1} 
-            style={{ 
+          <Text
+            numberOfLines={1}
+            style={{
               color: "#000",
               fontSize: 8,
               fontWeight: "900",
@@ -232,6 +243,19 @@ function TabItem({
             }}
           >
             {tab.label}
+          </Text>
+        )}
+        {tab.dpoints != null && (
+          <Text
+            numberOfLines={1}
+            style={{
+              color: isFocused ? "#000" : palette.goldDark,
+              fontSize: 8,
+              fontWeight: "900",
+              marginTop: 1,
+            }}
+          >
+            {tab.dpoints} p
           </Text>
         )}
       </Animated.View>
