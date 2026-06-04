@@ -19,7 +19,7 @@ interface ServiceDef {
   key: string;
   name: string;
   category: string;
-  envVars: string[];
+  envVars: (string | string[])[]; // sträng = krävs; array = "någon-av" (t.ex. olika nyckel-namn)
   freeTierLimit?: number;
   limitNote?: string;
   healthCheck?: () => Promise<{ ok: boolean; detail?: string }>;
@@ -50,7 +50,8 @@ const SERVICES: ServiceDef[] = [
     key: 'google_maps',
     name: 'Google Maps / Places',
     category: 'Kartor',
-    envVars: ['GOOGLE_MAPS_API_KEY'],
+    // Koden använder GOOGLE_MAPS_API_KEY ELLER GOOGLE_MAPS_KEY (legacy) → någon-av.
+    envVars: [['GOOGLE_MAPS_API_KEY', 'GOOGLE_MAPS_KEY', 'NEXT_PUBLIC_GOOGLE_MAPS_KEY']],
     freeTierLimit: 40000,
     limitNote: 'Free: ~$200 kredit/mån (≈ 40 000 geocodes). Vi räknar våra anrop.',
     healthCheck: async () => {
@@ -63,10 +64,23 @@ const SERVICES: ServiceDef[] = [
     },
   },
   {
+    key: 'carto_tiles',
+    name: 'CARTO kartrutor (tiles)',
+    category: 'Kartor',
+    envVars: [], // keyless basemaps
+    limitNote:
+      'CARTO basemaps — fair-use: gratis för måttlig trafik. Vid hög/kommersiell volym: skaffa CARTO-plan eller självhosta tiles. Laddas direkt i klienten → vi kan ej räkna anrop.',
+    healthCheck: async () => {
+      const res = await fetch('https://a.basemaps.cartocdn.com/light_all/0/0/0.png', { method: 'HEAD' });
+      return { ok: res.ok, detail: `HTTP ${res.status}` };
+    },
+  },
+  {
     key: 'r2',
     name: 'Cloudflare R2 (bilder)',
     category: 'Lagring',
-    envVars: ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_ENDPOINT'],
+    // Måste matcha r2.ts loadConfig() — R2_ENDPOINT är VALFRI (byggs från account-id).
+    envVars: ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_BASE_URL'],
     limitNote: 'Free: 10 GB lagring · 10M läs · 1M skriv/mån. Vi räknar våra uppladdningar.',
     healthCheck: async () => {
       const base = process.env.R2_PUBLIC_BASE_URL || process.env.R2_ENDPOINT;
@@ -104,39 +118,11 @@ const SERVICES: ServiceDef[] = [
     },
   },
   {
-    key: 'resend',
-    name: 'Resend (e-post)',
-    category: 'E-post',
-    envVars: ['RESEND_API_KEY'],
-    freeTierLimit: 3000,
-    limitNote: 'Free: 100 mejl/dag · 3 000/mån. Vi räknar våra utskick.',
-    healthCheck: async () => {
-      const k = process.env.RESEND_API_KEY;
-      if (!k) return { ok: false, detail: 'nyckel saknas' };
-      const res = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${k}` } });
-      return { ok: res.ok, detail: `HTTP ${res.status}` };
-    },
-  },
-  {
     key: 'sentry',
     name: 'Sentry (felövervakning)',
     category: 'Övervakning',
     envVars: ['SENTRY_DSN'],
     limitNote: 'Free: ~5 000 errors/mån. Status = konfig-koll (Sentry räknar errors åt oss).',
-  },
-  {
-    key: 'brevo',
-    name: 'Brevo (e-post)',
-    category: 'E-post',
-    freeTierLimit: 9000,
-    limitNote: 'Free: 300 mejl/dag (~9 000/mån). Vi räknar våra utskick.',
-    envVars: ['BREVO_API_KEY'],
-    healthCheck: async () => {
-      const k = process.env.BREVO_API_KEY;
-      if (!k) return { ok: false, detail: 'nyckel saknas' };
-      const res = await fetch('https://api.brevo.com/v3/account', { headers: { 'api-key': k, accept: 'application/json' } });
-      return { ok: res.ok, detail: `HTTP ${res.status}` };
-    },
   },
   {
     key: 'cloudinary',
@@ -160,22 +146,6 @@ const SERVICES: ServiceDef[] = [
     category: 'Push',
     envVars: ['APNS_KEY_P8', 'APNS_KEY_ID', 'APNS_TEAM_ID', 'APNS_BUNDLE_ID'],
     limitNote: 'Gratis — ingen gräns. (Status = endast konfig-koll.)',
-  },
-  {
-    key: 'twilio',
-    name: 'Twilio (SMS)',
-    category: 'SMS',
-    envVars: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
-    limitNote: 'Per SMS — ingen månadsgräns.',
-    healthCheck: async () => {
-      const sid = process.env.TWILIO_ACCOUNT_SID;
-      const tok = process.env.TWILIO_AUTH_TOKEN;
-      if (!sid || !tok) return { ok: false, detail: 'ej konfigurerad' };
-      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}.json`, {
-        headers: { Authorization: 'Basic ' + Buffer.from(`${sid}:${tok}`).toString('base64') },
-      });
-      return { ok: res.ok, detail: `HTTP ${res.status}` };
-    },
   },
 ];
 
@@ -201,7 +171,9 @@ export async function getApiHealth() {
 
   const services = await Promise.all(
     SERVICES.map(async (svc) => {
-      const configured = svc.envVars.every((v) => isReal(process.env[v]));
+      const configured = svc.envVars.every((g) =>
+        Array.isArray(g) ? g.some((v) => isReal(process.env[v])) : isReal(process.env[g]),
+      );
       const health = configured && svc.healthCheck ? await timed(svc.healthCheck) : null;
       const used = (usageMap.get(svc.key) as number) ?? 0;
       const limit = svc.freeTierLimit ?? null;
@@ -215,7 +187,7 @@ export async function getApiHealth() {
         detail: health?.detail ?? null,
         usage: { used, limit, remaining: limit != null ? Math.max(0, limit - used) : null, period },
         limitNote: svc.limitNote ?? null,
-        envVars: svc.envVars, // bara NAMNEN, aldrig värden
+        envVars: svc.envVars.flat(), // bara NAMNEN, aldrig värden
       };
     }),
   );

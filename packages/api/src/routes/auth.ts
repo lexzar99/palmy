@@ -3,7 +3,6 @@ import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import twilio from 'twilio';
 import prisma from '../lib/prisma';
 import { JWT_SECRET } from '../lib/config';
 import { cached } from '../lib/ttlCache';
@@ -46,11 +45,6 @@ const authLimiter = rateLimit({
     retryAfter: 300, // klient kan visa nedräkning (5 min)
   },
 });
-const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
-  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-  : null;
-const TWILIO_PHONE = process.env.TWILIO_PHONE_NUMBER;
-const TWILIO_MESSAGING_SID = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
 // Always store/compare phone in E.164 format (+46...). Handles legacy records without +.
 function normalizePhone(phone: string): string {

@@ -1,35 +1,16 @@
-// Email-transport för FoodGo.
+// Email-transport för Delívera.
 //
-// Stöder 3 transports — priority-ordning:
+// Användarvänd transaktionsmejl (verifiering, lösenordsåterställning) hanteras
+// av SUPABASE auth. sendEmail() här används för interna utskick (t.ex.
+// kapacitets-varningar). Transports — priority-ordning:
 //
 //   1. **Gmail SMTP** (om GMAIL_USER + GMAIL_APP_PASSWORD är satta)
-//      — Skickar via Gmails SMTP-server. Funkar UTAN egen domän, fungerar
-//      direkt till ANY mottagare. Avsändare blir den Gmail-adress du
-//      konfigurerat. Limit: ~500 mejl/dag per Gmail-konto.
-//      Setup: aktivera 2FA på Google-kontot, skapa "App password" på
-//      https://myaccount.google.com/apppasswords, sätt env-vars i Railway.
+//      — Funkar lokalt; från Railway kan port 587 vara blockerad.
+//   2. **Console-log** (fallback) — loggar mejlet till stdout.
 //
-//   2. **Resend** (om RESEND_API_KEY är satt)
-//      — Modern email-API. KRÄVER verifierad domän för att skicka till
-//      andra än kontoägarens egen email. Utan verifierad domän:
-//      `onboarding@resend.dev` används men endast kontoägarens email
-//      tar emot. Bäst för PRODUKTION med egen domän.
-//
-//   3. **Console-log** (fallback om varken Gmail eller Resend är konfade)
-//      — Loggar email-innehåll till stdout. Bra för dev så flöden kan
-//      testas end-to-end utan extern beroende.
-//
-// Anrop misslyckas aldrig hårt — vi fail-open, dvs. loggar och returnerar
-// utan att kasta. Anroparna (auth-routes) har egen `try/catch` runt
-// `sendEmail()` men returnerar 200 även vid mejl-fel, så vi avslöjar
-// inte om en adress finns eller ej.
-//
-// Switch-rekommendation:
-//   - DEV/TEST utan domän: Gmail SMTP (kan skicka till alla)
-//   - PROD med egen domän: Resend (snyggare avsändare, bättre deliverability)
+// Anrop misslyckas aldrig hårt — fail-open (loggar, kastar ej).
+// (Brevo/Resend/Twilio borttagna — Supabase + Gmail/console räcker.)
 
-import { Resend } from 'resend';
-import { trackApiCall } from './apiHealth';
 import * as nodemailer from 'nodemailer';
 
 export type EmailMessage = {
@@ -60,37 +41,6 @@ export type EmailMessage = {
 // Brevo HTTPS API. För lokal dev: Gmail SMTP funkar.
 const SMTP_TIMEOUT_MS = 10_000; // Fail-fast istället för att hänga 60s+
 
-// ── Brevo HTTPS API (REKOMMENDERAT för Railway) ──────────────────────────────
-// Brevo's REST API på api.brevo.com — använder port 443 (HTTPS) som ALDRIG
-// blockeras av Railway. Tillåter sender-verifiering utan domän via klick-länk.
-// 300 gratis-mejl/dag.
-//
-// Setup:
-//   1. Skapa konto på brevo.com
-//   2. Senders → "Add a sender" → verifiera din email via klick-länk
-//   3. SMTP & API → "API Keys"-fliken → "Generate a new API key"
-//      (OBS: API key är ANNAN sak än SMTP key. Behöver API-fliken, inte
-//      SMTP-fliken.)
-//   4. Sätt BREVO_API_KEY i Railway (det börjar med "xkeysib-...")
-const BREVO_API_KEY = process.env.BREVO_API_KEY;
-
-// ── Brevo SMTP transport (LOKAL dev) ──────────────────────────────────────────
-// Behåll som fallback för lokal utveckling där SMTP funkar.
-const BREVO_SMTP_USER = process.env.BREVO_SMTP_USER;
-const BREVO_SMTP_PASS = process.env.BREVO_SMTP_PASS;
-const brevoTransporter =
-  BREVO_SMTP_USER && BREVO_SMTP_PASS
-    ? nodemailer.createTransport({
-        host: 'smtp-relay.brevo.com',
-        port: 587,
-        secure: false,
-        auth: { user: BREVO_SMTP_USER, pass: BREVO_SMTP_PASS },
-        connectionTimeout: SMTP_TIMEOUT_MS,
-        greetingTimeout: SMTP_TIMEOUT_MS,
-        socketTimeout: SMTP_TIMEOUT_MS,
-      })
-    : null;
-
 // ── Gmail SMTP transport (om konfigurerad) ────────────────────────────────────
 // VARNING: Cloud-hostar blockerar ofta SMTP-port 587 → timeout. Gmail funkar
 // pålitligt LOKALT men inte alltid från Railway. Använd Brevo eller Resend
@@ -110,19 +60,11 @@ const gmailTransporter =
       })
     : null;
 
-// ── Resend transport (om konfigurerad) ────────────────────────────────────────
-// HTTPS-baserad — inga port-blockaden. Bäst för PRODUKTION med egen domän.
-// Utan domän: kan bara skicka till kontoägarens email.
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
-
 // ── Default From-adress ────────────────────────────────────────────────────────
 function defaultFrom(): string {
   if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
-  if (BREVO_SMTP_USER) return `Delívera <${BREVO_SMTP_USER}>`;
   if (GMAIL_USER) return `Delívera <${GMAIL_USER}>`;
-  return 'Delívera <onboarding@resend.dev>';
+  return 'Delívera <noreply@delivera.se>';
 }
 
 // Avsändaren routas från admin (Plattform-inställningar): företagsnamn som
@@ -162,57 +104,8 @@ function parseFromAddress(from: string): { name?: string; email: string } {
 export async function sendEmail(msg: EmailMessage): Promise<void> {
   const from = msg.from || await resolveDefaultFrom();
 
-  // 1. Brevo HTTPS API — REKOMMENDERAT för Railway. Inga port-blockaden.
-  if (BREVO_API_KEY) {
-    try {
-      const sender = parseFromAddress(from);
-      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: {
-          'api-key': BREVO_API_KEY,
-          'Content-Type': 'application/json',
-          accept: 'application/json',
-        },
-        body: JSON.stringify({
-          sender,
-          to: [{ email: msg.to }],
-          subject: msg.subject,
-          textContent: msg.text,
-          htmlContent: msg.html,
-        }),
-      });
-      if (!response.ok) {
-        const body = await response.text();
-        console.error(`[email] Brevo API ${response.status}:`, body);
-      } else {
-        console.log(`[email] Brevo API sent to ${msg.to}`);
-        trackApiCall('brevo').catch(() => {});
-      }
-    } catch (err) {
-      console.error('[email] Brevo API threw:', err);
-    }
-    return;
-  }
-
-  // 2. Brevo SMTP — funkar lokalt om port 587 inte är blockerad.
-  if (brevoTransporter) {
-    try {
-      await brevoTransporter.sendMail({
-        from,
-        to: msg.to,
-        subject: msg.subject,
-        text: msg.text,
-        html: msg.html,
-      });
-      console.log(`[email] Brevo SMTP sent to ${msg.to}`);
-      trackApiCall('brevo').catch(() => {});
-    } catch (err) {
-      console.error('[email] Brevo SMTP send failed:', err);
-    }
-    return;
-  }
-
-  // 2. Gmail SMTP — funkar lokalt, ofta timeout från Railway pga port-block.
+  // Gmail SMTP (om konfigurerad). Funkar lokalt; från Railway kan port 587 vara
+  // blockerad → faller då igenom till console-loggen nedan.
   if (gmailTransporter) {
     try {
       await gmailTransporter.sendMail({
@@ -229,30 +122,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
     return;
   }
 
-  // 3. Resend — HTTPS-baserad. Inga port-blockaden. Kräver verifierad domän
-  // för att skicka till andra än kontoägaren.
-  if (resend) {
-    try {
-      const { error } = await resend.emails.send({
-        from,
-        to: msg.to,
-        subject: msg.subject,
-        text: msg.text,
-        html: msg.html,
-      });
-      if (error) {
-        console.error('[email] resend.emails.send error:', error);
-      } else {
-        console.log(`[email] Resend sent to ${msg.to}`);
-        trackApiCall('resend').catch(() => {});
-      }
-    } catch (err) {
-      console.error('[email] resend send threw:', err);
-    }
-    return;
-  }
-
-  // 3. Console-log fallback.
+  // Console-log fallback (ingen e-post-transport konfigurerad).
   console.log('────────────────────────────────────────────────────');
   console.log('[email] (no transport configured — logging only)');
   console.log(`  From:    ${from}`);
