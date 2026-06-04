@@ -394,12 +394,14 @@ export async function claimSignupBonus(userId: string): Promise<{ points: number
   if (!card) return { error: 'Inget aktivt erbjudande' };
   const already = await prisma.pointsTransaction.findFirst({ where: { userId, type: 'SIGNUP_BONUS' }, select: { id: true } });
   if (already) return { error: 'Bonusen är redan hämtad' };
+  const settings = await getDpointsSettings();
   await recordPointsTx({
     userId,
     amount: card.bonusPoints,
     type: 'SIGNUP_BONUS',
     reason: card.sponsorName ? `Välkomstbonus (${card.sponsorName})` : 'Välkomstbonus',
     metadata: { sponsorCardId: card.id },
+    cap: settings.dpointsMaxBalance,
   });
   return { points: card.bonusPoints };
 }
@@ -540,7 +542,12 @@ export async function redeemReward(
             title: reward.title,
             description: `Dpoints-inlösen: ${reward.title}`,
             discountType: reward.discountType === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED',
-            discountValue: reward.discountValue, // FIXED: öre, PERCENTAGE: %
+            // Checkout läser via normalizeMoneyToOre() → FIXED måste lagras i KR
+            // (annars dubbel-multipliceras belopp < 10 kr: 5 kr → 500 kr). % = heltal.
+            discountValue:
+              reward.discountType === 'PERCENTAGE'
+                ? reward.discountValue
+                : Math.round((reward.discountValue ?? 0) / 100),
             minOrder: reward.minOrderKr,
             maxUsagesPerCustomer: 1,
             validUntil,

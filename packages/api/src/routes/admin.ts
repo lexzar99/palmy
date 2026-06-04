@@ -4452,6 +4452,11 @@ router.post('/restaurants/:id/bulk-refund', authenticate, requireSuperAdmin, asy
             data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
           });
         }
+        // Dpoints: återför inlösta + claw-backa intjänade poäng (idempotent).
+        try {
+          const { revertOrderPointsForRefund } = await import('../lib/dpoints');
+          await revertOrderPointsForRefund(o.id);
+        } catch { /* ignore */ }
         return { id: o.id, status: 'refunded', amount: o.total / 100 };
       }),
     );
