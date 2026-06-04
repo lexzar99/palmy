@@ -169,6 +169,15 @@ export async function applyPaymentFailed(orderId: string, paymentIntent: Stripe.
     }).catch((e: any) => console.error('[stripe-reconcile] userDeal revert failed:', e?.message));
   }
 
+  // Dpoints: ge tillbaka poäng som reserverades vid order-skapande (köp-med-poäng).
+  // Idempotent (Order.pointsReverted); earn=0 på obetald order så bara inlöst återförs.
+  try {
+    const { revertOrderPointsForRefund } = await import('./dpoints');
+    await revertOrderPointsForRefund(orderId);
+  } catch (e: any) {
+    console.error('[stripe-reconcile] dpoints revert failed:', e?.message);
+  }
+
   console.log(`[stripe-reconcile] ❌ Markerade order ${orderId} som FAILED (intent ${paymentIntent.id}, reason: ${paymentIntent.last_payment_error?.message || 'unknown'})`);
 }
 

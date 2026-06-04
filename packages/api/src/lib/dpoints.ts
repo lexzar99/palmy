@@ -190,13 +190,13 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
     if (!order || order.pointsAwarded || !order.userId) return;
 
     const settings = await getDpointsSettings();
-    const spent = order.pointsSpent ?? 0;
+    // Inlösen (köp-med-poäng) DRAS redan vid order-skapande (atomisk reservation).
+    // Här gör vi BARA intjäning + streak, och bara när systemet är aktiverat.
+    if (!settings.dpointsEnabled) return;
     const baseOre = Math.max(0, order.total - order.deliveryFee - (order.tipAmount ?? 0));
     const baseKr = baseOre / 100;
-    const mult = settings.dpointsEnabled ? await bestActiveMultiplier(baseKr, order.createdAt) : 1;
-    const earned = settings.dpointsEnabled ? Math.round(baseKr * settings.dpointsPerKr * mult) : 0;
-    // Inget att göra (varken intjäning eller inlösen) → hoppa.
-    if (earned === 0 && spent === 0) return;
+    const mult = await bestActiveMultiplier(baseKr, order.createdAt);
+    const earned = Math.round(baseKr * settings.dpointsPerKr * mult);
     const userId = order.userId;
 
     await prisma.$transaction(async (tx) => {
@@ -233,39 +233,13 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
         }
       }
       await tx.order.update({ where: { id: orderId }, data: { pointsEarned: actualEarned } });
-      // Inlösen: varor köpta med poäng → dra poängen nu när ordern är betald.
-      if (spent > 0) {
-        // Saldot kan ha sjunkit sedan order-skapandet (parallell inlösen). Dra
-        // aldrig under 0 — clampa till tillgängligt saldo.
-        const cur = await tx.user.findUnique({ where: { id: userId }, select: { pointsBalance: true } });
-        const dec = Math.min(spent, cur?.pointsBalance ?? 0);
-        if (dec > 0) {
-          const u2 = await tx.user.update({
-            where: { id: userId },
-            data: { pointsBalance: { decrement: dec } },
-            select: { pointsBalance: true },
-          });
-          await tx.pointsTransaction.create({
-            data: {
-              userId,
-              amount: -dec,
-              type: 'REDEEM',
-              balanceAfter: u2.pointsBalance,
-              reason: 'Köpt med poäng',
-              metadata: { orderId, requested: spent },
-            },
-          });
-        }
-      }
     });
 
     // Streak-utmaningar utvärderas bara på den vinnande path:en (loser kastade
     // ALREADY_AWARDED ovan och nådde aldrig hit).
-    if (settings.dpointsEnabled) {
-      await evaluateStreakCampaigns(userId, order.createdAt, baseKr, settings.dpointsMaxBalance).catch((e) =>
-        console.error('[dpoints] streak-eval error:', e?.message),
-      );
-    }
+    await evaluateStreakCampaigns(userId, order.createdAt, baseKr, settings.dpointsMaxBalance).catch((e) =>
+      console.error('[dpoints] streak-eval error:', e?.message),
+    );
   } catch (e: any) {
     if (e?.message === 'ALREADY_AWARDED' || e?.code === 'P2002') return; // idempotent
     console.error('[dpoints] awardOrderPoints error:', e?.message);

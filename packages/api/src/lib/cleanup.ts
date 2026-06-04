@@ -86,6 +86,14 @@ export async function expireAbandonedAwaitingPayment(): Promise<void> {
           })
           .catch(() => {});
       }
+      // Dpoints: ge tillbaka poäng som reserverades vid order-skapande (köp-med-
+      // poäng) innan ordern raderas. Idempotent.
+      try {
+        const { revertOrderPointsForRefund } = await import('./dpoints');
+        await revertOrderPointsForRefund(o.id);
+      } catch {
+        /* ignore */
+      }
     }
 
     const deleted = await prisma.order.deleteMany({

@@ -829,7 +829,15 @@ export default function CartPage() {
   // som "154.28999999999996 kr" på Stripe-knappen. Ceil betyder kunden
   // betalar maximalt 1 kr mer än exakt — vi förlorar inte pengar, och
   // siffror blir rena. Backend matchar via samma Math.ceil i orders.ts.
-  const total = isTestFlow ? 0 : Math.ceil(Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount));
+  // Dpoints: kortet debiterar alltid minst 5 kr (Stripe-minimum) när varor köps
+  // med poäng — speglar serverns golv (orders.ts CARD_FLOOR_ORE) så klient-total
+  // === server-total (annars Stripe-beloppsmismatch). Resten täcks av poäng.
+  const total = isTestFlow
+    ? 0
+    : (() => {
+        const t = Math.ceil(Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount));
+        return items.some((i) => i.paidWithPoints) && t < 5 ? 5 : t;
+      })();
 
   const fetchContext = useCallback(async () => {
     try {

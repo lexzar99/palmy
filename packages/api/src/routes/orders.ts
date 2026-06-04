@@ -497,6 +497,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     let subtotal = 0;
     let pointsToSpend = 0;
+    let pointsPaidValueOre = 0; // brutto-värde (öre) av varor betalda med poäng — för min-order
     const dpSettings = await getDpointsSettings();
     const orderItems: any[] = [];
 
@@ -586,6 +587,7 @@ router.post('/', async (req: Request, res: Response) => {
       const itemSubtotal = payWithPoints ? 0 : fullItemOre;
       if (payWithPoints) {
         pointsToSpend += Math.round((fullItemOre / 100) * dpSettings.dpointsValuePerKr);
+        pointsPaidValueOre += fullItemOre;
       }
       subtotal += itemSubtotal;
 
@@ -944,7 +946,9 @@ router.post('/', async (req: Request, res: Response) => {
       const effectiveMinOrderAmount = hasActiveDiscount
         ? Math.max(0, minOrderAmount - MIN_ORDER_TOLERANCE_ORE)
         : minOrderAmount;
-      const afterDiscountValue = Math.max(0, subtotal - discountAmount);
+      // Dpoints: poäng-betalda varors värde räknas med i min-order (samma tröskel
+      // för pengar och poäng — de "matchar"), annars exkluderas gratis-raderna.
+      const afterDiscountValue = Math.max(0, subtotal + pointsPaidValueOre - discountAmount);
 
       if (afterDiscountValue < effectiveMinOrderAmount) {
         const shortfall = effectiveMinOrderAmount - afterDiscountValue;
@@ -978,7 +982,16 @@ router.post('/', async (req: Request, res: Response) => {
     // rabatt-procent). Ceil betyder kunden betalar max 99 öre mer än
     // exakt-beloppet — försumbart, men håller siffrorna rena.
     const rawTotal = subtotal - discountAmount + deliveryFee + tipOre;
-    const total = Math.max(0, Math.ceil(rawTotal / 100) * 100);
+    let total = Math.max(0, Math.ceil(rawTotal / 100) * 100);
+    // Dpoints: Stripe kan inte debitera under 5 kr. Om poäng dragit ner kr-totalen
+    // under 5 kr → golva kortbeloppet till 5 kr och låt poängen täcka 5 kr mindre.
+    // Kunden betalar alltid minst 5 kr med kort, resten med poäng (inget kortfritt 0-kr).
+    const CARD_FLOOR_ORE = 500;
+    if (pointsToSpend > 0 && total < CARD_FLOOR_ORE) {
+      const bumpOre = CARD_FLOOR_ORE - total;
+      total = CARD_FLOOR_ORE;
+      pointsToSpend = Math.max(0, pointsToSpend - Math.round((bumpOre / 100) * dpSettings.dpointsValuePerKr));
+    }
 
     // Verifiera Stripe-beloppet matchar det vi räknat fram. Tidigare auto-justerade
     // koden order-total NEDÅT om Stripe visade lägre belopp — det betydde att en
@@ -1052,16 +1065,23 @@ router.post('/', async (req: Request, res: Response) => {
     // concurrent duplicate the DB throws P2002 — we catch ONLY that, regenerate
     // (generateOrderNumber re-reads the latest number so it advances), and retry,
     // instead of 500-ing an order whose payment may already have gone through.
+    // Dpoints: ATOMISK reservation av poäng — EN gång, FÖRE retry-loopen (annars
+    // dubbel-dras vid orderNumber-kollision). gte-CAS stänger race/dubbel-spend:
+    // räcker inte saldot (eller hann ta slut i en parallell order) → avbryt ordern.
+    // Poängen är nu dragna; revertas vid betalnings-fail/expiry/refund.
+    if (pointsToSpend > 0) {
+      if (!authenticatedUserId) throw new OrderValidationError('Logga in för att betala med Dpoints');
+      const dec = await prisma.user.updateMany({
+        where: { id: authenticatedUserId, pointsBalance: { gte: pointsToSpend } },
+        data: { pointsBalance: { decrement: pointsToSpend } },
+      });
+      if (dec.count === 0) throw new OrderValidationError('Otillräckligt med Dpoints');
+    }
+
     let order: any = null;
     for (let orderAttempt = 1; orderAttempt <= 8; orderAttempt++) {
       const nextNumber = await generateOrderNumber();
       try {
-        if (pointsToSpend > 0) {
-          if (!authenticatedUserId) throw new OrderValidationError('Logga in för att betala med Dpoints');
-          const dpUser = await prisma.user.findUnique({ where: { id: authenticatedUserId }, select: { pointsBalance: true } });
-          if (!dpUser || dpUser.pointsBalance < pointsToSpend) throw new OrderValidationError('Otillräckligt med Dpoints');
-        }
-
         order = await prisma.order.create({
       data: {
         orderNumber: nextNumber,
@@ -1131,11 +1151,38 @@ router.post('/', async (req: Request, res: Response) => {
           console.warn(`[order] orderNumber collision (attempt ${orderAttempt}) — regenerating`);
           continue;
         }
+        // Dpoints reserverades före loopen men ordern misslyckades → ge tillbaka.
+        if (pointsToSpend > 0 && authenticatedUserId) {
+          await prisma.user.updateMany({ where: { id: authenticatedUserId }, data: { pointsBalance: { increment: pointsToSpend } } }).catch(() => {});
+        }
         throw err; // non-collision error, or out of attempts → bubble up as before
       }
     }
     if (!order) {
+      if (pointsToSpend > 0 && authenticatedUserId) {
+        await prisma.user.updateMany({ where: { id: authenticatedUserId }, data: { pointsBalance: { increment: pointsToSpend } } }).catch(() => {});
+      }
       throw new OrderValidationError('Kunde inte skapa order just nu, försök igen.');
+    }
+
+    // Dpoints: ledger-rad för poängen som reserverats/dragits vid order-skapande
+    // (saldot är redan atomiskt draget ovan; detta är historik + balanceAfter).
+    if (pointsToSpend > 0 && authenticatedUserId) {
+      try {
+        const u = await prisma.user.findUnique({ where: { id: authenticatedUserId }, select: { pointsBalance: true } });
+        await prisma.pointsTransaction.create({
+          data: {
+            userId: authenticatedUserId,
+            amount: -pointsToSpend,
+            type: 'REDEEM',
+            balanceAfter: u?.pointsBalance ?? 0,
+            reason: 'Köpt med poäng',
+            metadata: { orderId: order.id },
+          },
+        });
+      } catch (e: any) {
+        console.error('[order] dpoints redeem-ledger failed:', e?.message);
+      }
     }
 
     // ── UserDeal-reservation ────────────────────────────────────────────
