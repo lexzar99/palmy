@@ -6,6 +6,7 @@ export interface DpointsConfig {
   dpointsValuePerKr: number;
   dpointsCardOnHome: boolean;
   dpointsMaxBalance: number;
+  dpointsCourierCost: number; // öre — budkostnad på poäng-enbart order vid leverans
 }
 
 export interface DpointsOverview {

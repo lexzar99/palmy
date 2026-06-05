@@ -72,6 +72,10 @@ model Product {
   discountImageUrl    String?             // Optional alt image shown in discount rail
   discountLabel       String?             // e.g. "Dagens deal", "-20%"
   discountActive      Boolean             @default(false)
+  // Dpoints: när true kan varan köpas direkt med poäng (rewardable). Endast
+  // rewardable-varor visar poäng-pris + "köp med poäng" i klienterna. Togglas
+  // i admin (produkt-edit) och i Flutter (Meny → Rewards).
+  rewardable          Boolean             @default(false)
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   orderItems          OrderItem[]
@@ -564,6 +568,10 @@ model RestaurantSettings {
   // Tak för saldo: intjäning (köp + kampanjer) pausas vid taket → kunden måste
   // lösa in poäng för att tjäna mer. Begränsar utestående skuld. 0 = inget tak.
   dpointsMaxBalance   Int       @default(2000)
+  // Budkostnad (öre) som läggs på en order som betalas ENBART med poäng vid
+  // leverans (poängen täcker maten men inte kuriren). Vid hämtning = gratis.
+  // Global, sätts i admin → Dpoints. 0 = ingen budkostnad.
+  dpointsCourierCost  Int       @default(0)
 }
 
 model OrderDraft {

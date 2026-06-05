@@ -6,7 +6,7 @@ import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
 
-enum _MenuView { products, extras }
+enum _MenuView { products, extras, rewards }
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -44,6 +44,24 @@ class _MenuScreenState extends State<MenuScreen> {
         if (product is! Map) continue;
         if (product['id'] == productId) {
           product['isActive'] = isActive;
+          updated = true;
+          break;
+        }
+      }
+    }
+    return updated;
+  }
+
+  bool _setProductRewardableLocal(String productId, bool rewardable) {
+    var updated = false;
+    for (final category in _categories) {
+      if (category is! Map) continue;
+      final products = category['products'];
+      if (products is! List) continue;
+      for (final product in products) {
+        if (product is! Map) continue;
+        if (product['id'] == productId) {
+          product['rewardable'] = rewardable;
           updated = true;
           break;
         }
@@ -110,6 +128,22 @@ class _MenuScreenState extends State<MenuScreen> {
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Kunde inte uppdatera artikeln.')),
+    );
+  }
+
+  Future<void> _toggleRewardable(String productId, bool rewardable) async {
+    logger.log('BUTTON: Toggle Rewardable $productId -> $rewardable');
+    final provider = Provider.of<OrderProvider>(context, listen: false);
+    final updated = _setProductRewardableLocal(productId, rewardable);
+    if (updated && mounted) setState(() {});
+
+    final ok = await provider.updateProductRewardable(productId, rewardable);
+    if (!mounted || ok) return;
+
+    _setProductRewardableLocal(productId, !rewardable);
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Kunde inte uppdatera belöningsstatus.')),
     );
   }
 
@@ -268,11 +302,18 @@ class _MenuScreenState extends State<MenuScreen> {
                               isDark: isDark,
                               onToggle: _toggleProduct,
                             )
-                          : _ExtrasList(
-                              sections: extraSections,
-                              isDark: isDark,
-                              onToggle: _toggleExtra,
-                            ),
+                          : _view == _MenuView.extras
+                              ? _ExtrasList(
+                                  sections: extraSections,
+                                  isDark: isDark,
+                                  onToggle: _toggleExtra,
+                                )
+                              : _ProductsList(
+                                  sections: productSections,
+                                  isDark: isDark,
+                                  onToggle: _toggleRewardable,
+                                  rewardMode: true,
+                                ),
                     ),
                   ),
                 ],
@@ -470,6 +511,7 @@ class _ViewToggle extends StatelessWidget {
         children: [
           seg('Artiklar', _MenuView.products),
           seg('Tillbehör', _MenuView.extras),
+          seg('Rewards', _MenuView.rewards),
         ],
       ),
     );
@@ -480,10 +522,14 @@ class _ProductsList extends StatelessWidget {
   final List<Map<String, dynamic>> sections;
   final bool isDark;
   final Function(String, bool) onToggle;
+  // När true: switchen styr `rewardable` (köpbar med poäng) istället för
+  // `isActive`. Används av Rewards-vyn.
+  final bool rewardMode;
   const _ProductsList({
     required this.sections,
     required this.isDark,
     required this.onToggle,
+    this.rewardMode = false,
   });
 
   @override
@@ -523,19 +569,21 @@ class _ProductsList extends StatelessWidget {
               _CategoryHeader(name: (s['name'] ?? '').toString(), count: items.length),
               const SizedBox(height: 10),
               ...items.map(
-                (p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _MenuItemTile(
-                    title: (p['name'] ?? '').toString(),
-                    price:
-                        '${((p['price'] ?? 0) as num).toStringAsFixed(0)} kr',
-                    active: p['isActive'] != false,
-                    onTap: () => onToggle(
-                      p['id'].toString(),
-                      !(p['isActive'] != false),
+                (p) {
+                  final on = rewardMode
+                      ? (p['rewardable'] == true)
+                      : (p['isActive'] != false);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _MenuItemTile(
+                      title: (p['name'] ?? '').toString(),
+                      price:
+                          '${((p['price'] ?? 0) as num).toStringAsFixed(0)} kr',
+                      active: on,
+                      onTap: () => onToggle(p['id'].toString(), !on),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ],
           ),

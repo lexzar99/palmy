@@ -249,6 +249,9 @@ router.get('/categories', async (req, res) => {
         // Visningsläge för menykortet (FULL = 1-per-rad, COMPACT = 2-per-rad)
         displayMode: prod.displayMode || "FULL",
         hideDescription: prod.hideDescription || false,
+        // Dpoints: rewardable = köpbar med poäng. Klienten visar då poäng-pris
+        // (price × valuePerKr) + "köp med poäng". Default false.
+        rewardable: !!prod.rewardable,
         extraGroups: prod.extraGroups.map((peg: any) => ({
           id: peg.extraGroup.id,
           name: peg.extraGroup.name,

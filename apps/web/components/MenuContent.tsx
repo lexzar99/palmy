@@ -164,7 +164,7 @@ function FullProductCard({ product, cartQty, onClick, disabled }: { product: any
                 {original} kr
               </span>
             )}
-            <DpointsBadge priceKr={final} />
+            <DpointsBadge priceKr={final} rewardable={!!product.rewardable} />
             {cartQty > 0 && (
               <span className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gold-500/15 text-gold-700 text-[10px] font-black uppercase tracking-wider">
                 <ShoppingBag size={11} strokeWidth={2.6} />
@@ -467,7 +467,7 @@ function CompactProductCard({ product, cartQty, onClick, disabled }: { product: 
               <span className="text-[10px] font-medium text-zinc-400 line-through leading-none">{original} kr</span>
             )}
             <span className={`text-sm font-black leading-tight ${original != null ? "text-gold-600" : ""}`} style={original == null ? { color: "var(--text-primary)" } : undefined}>{final} kr</span>
-            <DpointsBadge priceKr={final} className="mt-0.5" />
+            <DpointsBadge priceKr={final} rewardable={!!product.rewardable} className="mt-0.5" />
           </div>
           <div className="w-9 h-9 rounded-full bg-gold-500 flex items-center justify-center shadow-md shadow-gold-500/25 group-hover:bg-gold-400 transition-colors relative">
             <Plus size={18} className="text-zinc-950" strokeWidth={2.8} />

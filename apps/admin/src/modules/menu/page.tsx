@@ -302,7 +302,7 @@ function CategoryModal({ open, restaurantId, category, mainCategories, onClose }
 
 function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, restaurants, products, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; restaurants: DealRestaurantRef[]; products: DealProductRef[]; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, extraGroupIds: [] as string[] });
+  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, rewardable: false, extraGroupIds: [] as string[] });
   const [promotionModalOpen, setPromotionModalOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -323,6 +323,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             position: product.position,
             displayMode: product.displayMode ?? "FULL",
             hideDescription: product.hideDescription ?? false,
+            rewardable: product.rewardable ?? false,
             extraGroupIds: product.extraGroups.map((group) => group.id),
           }
         : {
@@ -338,6 +339,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             position: 0,
             displayMode: "FULL",
             hideDescription: false,
+            rewardable: false,
             extraGroupIds: [],
           },
     );
@@ -460,6 +462,14 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
               className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.hideDescription ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
             >
               Dölj beskrivning i menyn
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm((current) => ({ ...current, rewardable: !current.rewardable }))}
+              title="När på kan varan köpas med Dpoints. Kunden ser pris i både kr och poäng."
+              className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.rewardable ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
+            >
+              ★ Köpbar med poäng (Dpoints)
             </button>
           </div>
         </div>

@@ -165,6 +165,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
           isVegan: prod.isVegan,
           isVegetarian: prod.isVegetarian,
           isGlutenFree: prod.isGlutenFree,
+          rewardable: !!prod.rewardable,
           extraGroups: (prod.extraGroups || []).map((peg: any) => ({
             id: peg.extraGroup.id,
             name: peg.extraGroup.name,

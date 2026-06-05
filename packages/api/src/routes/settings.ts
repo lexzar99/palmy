@@ -83,6 +83,9 @@ router.get('/', async (_req, res) => {
         perKr: (settings as any).dpointsPerKr ?? 1,
         valuePerKr: (settings as any).dpointsValuePerKr ?? 10,
         cardOnHome: (settings as any).dpointsCardOnHome ?? true,
+        // Budkostnad (öre) på poäng-ENBART order vid leverans. Web visar den som
+        // egen kassa-rad och inkluderar i totalen (vid hämtning = 0).
+        courierCost: (settings as any).dpointsCourierCost ?? 0,
       },
       // Plattform-banner (visas i web när satt och inte expirerad)
       banner: (() => {

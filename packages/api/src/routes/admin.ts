@@ -1580,6 +1580,8 @@ const ProductSchema = z.object({
   discountImageUrl: z.string().nullable().optional(),
   discountLabel: z.string().nullable().optional(),
   discountActive: z.boolean().optional(),
+  // Dpoints: markera varan som köpbar med poäng (rewardable).
+  rewardable: z.boolean().optional(),
 });
 
 // PATCH-schema: alla fält frivilliga. Vi använder `.partial()` så zod släpper
@@ -1728,6 +1730,7 @@ router.post('/products', async (req, res) => {
         discountImageUrl: data.discountImageUrl ?? null,
         discountLabel: data.discountLabel ?? null,
         discountActive: data.discountActive ?? false,
+        rewardable: data.rewardable ?? false,
         ...(data.extraGroupIds && data.extraGroupIds.length > 0 ? {
           extraGroups: {
             create: data.extraGroupIds.map((groupId, i) => ({

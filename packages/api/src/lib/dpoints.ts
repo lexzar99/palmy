@@ -30,6 +30,7 @@ export interface DpointsSettings {
   dpointsPerKr: number;
   dpointsValuePerKr: number;
   dpointsMaxBalance: number;
+  dpointsCourierCost: number; // öre — budkostnad på poäng-ENBART order vid leverans
 }
 
 export async function getDpointsSettings(): Promise<DpointsSettings> {
@@ -39,6 +40,7 @@ export async function getDpointsSettings(): Promise<DpointsSettings> {
     dpointsPerKr: row.dpointsPerKr ?? 1,
     dpointsValuePerKr: row.dpointsValuePerKr ?? 10,
     dpointsMaxBalance: row.dpointsMaxBalance ?? 2000,
+    dpointsCourierCost: row.dpointsCourierCost ?? 0,
   };
 }
 

@@ -36,6 +36,7 @@ router.get('/config', async (_req, res) => {
     dpointsValuePerKr: row.dpointsValuePerKr ?? 10,
     dpointsCardOnHome: row.dpointsCardOnHome ?? true,
     dpointsMaxBalance: row.dpointsMaxBalance ?? 2000,
+    dpointsCourierCost: row.dpointsCourierCost ?? 0,
   });
 });
 
@@ -48,6 +49,7 @@ router.patch('/config', requireSuperAdmin, async (req, res) => {
     if (dpointsValuePerKr !== undefined) data.dpointsValuePerKr = Math.max(1, Math.round(Number(dpointsValuePerKr) || 10));
     if (req.body?.dpointsCardOnHome !== undefined) data.dpointsCardOnHome = !!req.body.dpointsCardOnHome;
     if (req.body?.dpointsMaxBalance !== undefined) data.dpointsMaxBalance = Math.max(0, Math.round(Number(req.body.dpointsMaxBalance) || 0));
+    if (req.body?.dpointsCourierCost !== undefined) data.dpointsCourierCost = Math.max(0, Math.round(Number(req.body.dpointsCourierCost) || 0));
 
     const updated = await prisma.restaurantSettings.upsert({
       where: { id: 'settings' },
@@ -61,6 +63,7 @@ router.patch('/config', requireSuperAdmin, async (req, res) => {
       dpointsValuePerKr: (updated as any).dpointsValuePerKr,
       dpointsCardOnHome: (updated as any).dpointsCardOnHome,
       dpointsMaxBalance: (updated as any).dpointsMaxBalance,
+      dpointsCourierCost: (updated as any).dpointsCourierCost,
     });
   } catch (e: any) {
     console.error('[dpoints config] error:', e?.message);

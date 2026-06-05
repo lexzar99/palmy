@@ -593,6 +593,18 @@ class OrderProvider with ChangeNotifier {
     }
   }
 
+  /// Dpoints: markera/avmarkera en vara som köpbar med poäng (rewardable).
+  Future<bool> updateProductRewardable(String productId, bool rewardable) async {
+    try {
+      final res = await _api
+          .patch('/api/admin/products/$productId', {'rewardable': rewardable});
+      return res.statusCode == 200;
+    } catch (e) {
+      debugPrint('Error updating product rewardable: $e');
+      return false;
+    }
+  }
+
   Future<bool> updateExtraStatus(String extraId, bool isActive) async {
     try {
       final res = await _api

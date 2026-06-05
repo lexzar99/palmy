@@ -68,6 +68,8 @@ export interface ProductRecord {
   // Visningsläge i menyn — "FULL" eller "COMPACT".
   displayMode?: "FULL" | "COMPACT";
   hideDescription?: boolean;
+  // Dpoints: köpbar med poäng.
+  rewardable?: boolean;
   category: { name: string; restaurantId?: string | null };
   extraGroups: Array<{
     id: string;

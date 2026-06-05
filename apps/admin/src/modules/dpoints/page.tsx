@@ -165,18 +165,36 @@ function SettingsTab() {
               />
             </Field>
           </div>
-          <Field label="Tak för saldo (poäng) — 0 = inget tak">
-            <Input
-              type="number"
-              min="0"
-              defaultValue={c.dpointsMaxBalance}
-              key={`max-${c.dpointsMaxBalance}`}
-              onBlur={(e) => {
-                const v = Math.max(0, Math.round(Number(e.target.value)));
-                if (v !== c.dpointsMaxBalance) save.mutate({ dpointsMaxBalance: v });
-              }}
-            />
-          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Tak för saldo (poäng) — 0 = inget tak">
+              <Input
+                type="number"
+                min="0"
+                defaultValue={c.dpointsMaxBalance}
+                key={`max-${c.dpointsMaxBalance}`}
+                onBlur={(e) => {
+                  const v = Math.max(0, Math.round(Number(e.target.value)));
+                  if (v !== c.dpointsMaxBalance) save.mutate({ dpointsMaxBalance: v });
+                }}
+              />
+            </Field>
+            <Field label="Budkostnad vid poäng-köp (kr) — endast leverans">
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                defaultValue={(c.dpointsCourierCost ?? 0) / 100}
+                key={`courier-${c.dpointsCourierCost}`}
+                onBlur={(e) => {
+                  const ore = Math.max(0, Math.round(Number(e.target.value) * 100));
+                  if (ore !== (c.dpointsCourierCost ?? 0)) save.mutate({ dpointsCourierCost: ore });
+                }}
+              />
+            </Field>
+          </div>
+          <p className="text-sm text-[var(--text-secondary)]">
+            Budkostnaden ({((c.dpointsCourierCost ?? 0) / 100).toFixed(0)} kr) läggs på i kassan när en order betalas <strong>enbart</strong> med poäng och levereras — poängen täcker maten men inte kuriren. Vid hämtning är den gratis. 0 = ingen budkostnad.
+          </p>
           <p className="text-sm text-[var(--text-secondary)]">
             Vid taket ({c.dpointsMaxBalance || "—"} p) pausas intjäning tills kunden löst in poäng. Med {c.dpointsPerKr} p/kr intjänat och {c.dpointsValuePerKr} p = 1 kr värde ger 100 kr köp{" "}
             {Math.round(100 * c.dpointsPerKr)} poäng, och {c.dpointsValuePerKr * 10} poäng motsvarar 10 kr.

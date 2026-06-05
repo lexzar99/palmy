@@ -21,7 +21,7 @@ function getDpointsRate() {
   return cached;
 }
 
-export default function DpointsBadge({ priceKr, className }: { priceKr: number; className?: string }) {
+export default function DpointsBadge({ priceKr, className, rewardable }: { priceKr: number; className?: string; rewardable?: boolean }) {
   const [rate, setRate] = useState<{ enabled: boolean; valuePerKr: number } | null>(null);
   useEffect(() => {
     getDpointsRate().then(setRate);
@@ -29,6 +29,15 @@ export default function DpointsBadge({ priceKr, className }: { priceKr: number; 
 
   if (!rate || !rate.enabled || !priceKr || priceKr <= 0) return null;
   const points = Math.round(priceKr * rate.valuePerKr);
+  // Rewardable-varor kan köpas med poäng → visa pris i både kr och poäng med en
+  // tydligare ("köpbar") stil. Övriga varor får den diskreta informativa etiketten.
+  if (rewardable) {
+    return (
+      <span className={`inline-flex items-center gap-1 rounded-full bg-gold-500/20 px-2 py-0.5 text-[10px] font-black text-gold-700 ring-1 ring-gold-500/30 ${className || ""}`}>
+        <Coins className="h-3 w-3" /> eller {points} p
+      </span>
+    );
+  }
   return (
     <span className={`inline-flex items-center gap-1 rounded-full bg-gold-500/10 px-2 py-0.5 text-[10px] font-bold text-gold-600 ${className || ""}`}>
       <Coins className="h-3 w-3" /> {points} p

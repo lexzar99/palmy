@@ -177,7 +177,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   // dubbel-spendera samma saldo.
   const committedPoints = cartItems.reduce((sum, i) => sum + (i.paidWithPoints ? (i.dpointsUnitCost ?? 0) * i.quantity : 0), 0);
   const availablePoints = (dpoints?.balance ?? 0) - committedPoints;
-  const canBuyWithPoints = !!dpoints?.enabled && !editCartItemId && !bogoFreeFromDealId && dpointsCost > 0 && availablePoints >= dpointsCost;
+  // Endast varor markerade som rewardable kan köpas med poäng (admin/Flutter-styrt).
+  const canBuyWithPoints = !!dpoints?.enabled && !!product.rewardable && !editCartItemId && !bogoFreeFromDealId && dpointsCost > 0 && availablePoints >= dpointsCost;
   const hasDiscount = effectiveBasePrice < product.price;
 
   const handleAddToCart = () => {

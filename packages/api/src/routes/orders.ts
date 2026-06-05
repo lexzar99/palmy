@@ -582,8 +582,13 @@ router.post('/', async (req: Request, res: Response) => {
       const extrasTotal = validatedExtras.reduce((sum, e) => sum + Math.round(e.priceAddon * 100), 0);
       const fullItemOre = (product.price + extrasTotal) * item.quantity;
       // Dpoints: betalas raden med poäng nollas priset (gratis-rad) och poängen
-      // dras vid betalning. Kräver inloggad användare + aktiverat system.
-      const payWithPoints = !!item.paidWithPoints && !!authenticatedUserId && dpSettings.dpointsEnabled;
+      // dras vid betalning. Kräver inloggad användare + aktiverat system + att
+      // varan är markerad rewardable. Klienten erbjuder bara poäng-köp på
+      // rewardable-varor, men vi litar inte på klienten — server-side gate.
+      if (item.paidWithPoints && dpSettings.dpointsEnabled && !product.rewardable) {
+        throw new OrderValidationError(`${product.name} kan inte köpas med Dpoints`);
+      }
+      const payWithPoints = !!item.paidWithPoints && !!authenticatedUserId && dpSettings.dpointsEnabled && !!product.rewardable;
       const itemSubtotal = payWithPoints ? 0 : fullItemOre;
       if (payWithPoints) {
         pointsToSpend += Math.round((fullItemOre / 100) * dpSettings.dpointsValuePerKr);
@@ -600,6 +605,16 @@ router.post('/', async (req: Request, res: Response) => {
         selectedExtras: JSON.stringify(validatedExtras), // Store as string for SQLite
         subtotal: itemSubtotal,
       });
+    }
+
+    // Dpoints budkostnad: en order som betalas ENBART med poäng (subtotal 0 kr,
+    // all mat täckt av poäng) bär ingen kontant som kan finansiera kuriren.
+    // Vid LEVERANS lägger vi därför på den globala budkostnaden — den ersätter
+    // ev. zon-avgift (även restauranger med "fri leverans") så budet alltid får
+    // betalt. Vid HÄMTNING finns ingen kurir → ingen budkostnad (gratis).
+    const isPointsOnlyOrder = pointsToSpend > 0 && subtotal === 0;
+    if (isPointsOnlyOrder && data.type === 'DELIVERY') {
+      deliveryFee = dpSettings.dpointsCourierCost ?? 0;
     }
 
     // Min-order-validering flyttad nedåt — den behöver veta om en rabatt

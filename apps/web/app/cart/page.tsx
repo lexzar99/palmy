@@ -269,6 +269,7 @@ export default function CartPage() {
     pausedUntil?: string | null;
     isPaused?: boolean;
     vatPercent?: number | null;
+    dpoints?: { enabled?: boolean; valuePerKr?: number; courierCost?: number } | null;
   }>({
     isOpen: true,
     deliveryFee: 0,
@@ -832,10 +833,20 @@ export default function CartPage() {
   // Dpoints: kortet debiterar alltid minst 5 kr (Stripe-minimum) när varor köps
   // med poäng — speglar serverns golv (orders.ts CARD_FLOOR_ORE) så klient-total
   // === server-total (annars Stripe-beloppsmismatch). Resten täcks av poäng.
+  // Dpoints budkostnad: en order som betalas ENBART med poäng (alla rader
+  // paidWithPoints → subtotal 0 kr) bär ingen kontant som täcker kuriren.
+  // Vid LEVERANS läggs den globala budkostnaden på (ersätter zon-avgiften);
+  // vid HÄMTNING är den gratis. Speglar orders.ts så klient-total === server-total.
+  const isPointsOnlyOrder = items.length > 0 && items.every((i) => i.paidWithPoints);
+  const courierCostKr = isPointsOnlyOrder && orderType === "DELIVERY"
+    ? Math.max(0, Math.round((restaurantSettings.dpoints?.courierCost ?? 0) / 100))
+    : 0;
+  // För poäng-enbart leverans ersätter budkostnaden zon-leveransavgiften.
+  const effectiveDeliveryFee = isPointsOnlyOrder && orderType === "DELIVERY" ? courierCostKr : deliveryFee;
   const total = isTestFlow
     ? 0
     : (() => {
-        const t = Math.ceil(Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount));
+        const t = Math.ceil(Math.max(0, subtotal + effectiveDeliveryFee + minOrderTopUp + effectiveTip - finalDiscount));
         return items.some((i) => i.paidWithPoints) && t < 5 ? 5 : t;
       })();
 
@@ -2156,10 +2167,16 @@ export default function CartPage() {
                 {/* Totals */}
                 <div className="pt-6 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
                   <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{subtotal.toFixed(0)} {t("common.sek")}</span></div>
-                  {orderType === 'DELIVERY' && (
+                  {orderType === 'DELIVERY' && !isPointsOnlyOrder && (
                     <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
                       <span>{t("cart.summary.deliveryFee")}</span>
                       <span className="text-gold-500">{addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${deliveryFee.toFixed(0)} ${t("common.sek")}`}</span>
+                    </div>
+                  )}
+                  {orderType === 'DELIVERY' && isPointsOnlyOrder && (
+                    <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                      <span>{t("cart.summary.courierCost")}</span>
+                      <span className="text-gold-500">{courierCostKr.toFixed(0)} {t("common.sek")}</span>
                     </div>
                   )}
                   {effectiveTip > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-gold-500"><span>{t("cart.summary.tip")}</span><span>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
@@ -2761,12 +2778,18 @@ export default function CartPage() {
 
                      <div className="mt-10 pt-10 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
                         <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{subtotal.toFixed(0)} {t("common.sek")}</span></div>
-                        {orderType === 'DELIVERY' && (
+                        {orderType === 'DELIVERY' && !isPointsOnlyOrder && (
                           <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
                             <span>{t("cart.summary.deliveryFee")}</span>
                             <span className="text-gold-500">
                               {addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${deliveryFee.toFixed(0)} ${t("common.sek")}`}
                             </span>
+                          </div>
+                        )}
+                        {orderType === 'DELIVERY' && isPointsOnlyOrder && (
+                          <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                            <span>{t("cart.summary.courierCost")}</span>
+                            <span className="text-gold-500">{courierCostKr.toFixed(0)} {t("common.sek")}</span>
                           </div>
                         )}
                         {effectiveTip > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-gold-500"><span>{t("cart.summary.tip")}</span><span>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
