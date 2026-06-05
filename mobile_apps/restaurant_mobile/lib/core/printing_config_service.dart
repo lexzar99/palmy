@@ -208,8 +208,24 @@ class PrintingConfigService {
   static const String _autoPrintKey = 'auto_print';
   static const String _copiesKey = 'print_copies';
   static const String _templateCacheKey = 'receipt_template_cache';
+  // Inbyggd skrivare: när true skickas kvitton till enhetens egen/system-
+  // skrivare (Android-utskriftsramverket) istället för nätverks-/Bluetooth-
+  // skrivare. Default PÅ så terminaler med inbyggd skrivare funkar direkt.
+  static const String _useBuiltInPrinterKey = 'use_builtin_printer';
 
   final ApiClient _api = ApiClient();
+
+  /// Läser om enhetens inbyggda skrivare ska användas. Default true (på).
+  Future<bool> getUseBuiltInPrinter() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_useBuiltInPrinterKey) ?? true;
+  }
+
+  /// Sparar valet för inbyggd skrivare.
+  Future<void> setUseBuiltInPrinter(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_useBuiltInPrinterKey, value);
+  }
 
   Future<PrintingConfig?> fetchConfig() async {
     try {

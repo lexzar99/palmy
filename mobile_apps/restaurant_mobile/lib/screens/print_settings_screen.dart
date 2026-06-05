@@ -26,6 +26,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
   bool _isScanningNetwork = false;
   bool _isScanningBluetooth = false;
   bool _autoPrint = false;
+  bool _useBuiltInPrinter = true;
   int _copies = 1;
   String _paperWidth = '80mm';
   String _selectedPrinterId = '';
@@ -48,10 +49,12 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
       final config = await _printingConfigService.fetchConfig();
       final fallbackPrinter = await _printingConfigService.loadLocalPrinter();
       final printer = config?.defaultPrinter ?? fallbackPrinter;
+      final useBuiltIn = await _printingConfigService.getUseBuiltInPrinter();
 
       if (!mounted) return;
 
       setState(() {
+        _useBuiltInPrinter = useBuiltIn;
         _configuredPrinters = config?.printers ??
             (fallbackPrinter == null ? [] : [fallbackPrinter]);
         _autoPrint = printer?.autoPrint ?? false;
@@ -185,7 +188,10 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
 
   Future<void> _testPrint() async {
     final draft = _buildDraftPrinter();
-    if (draft.address.isEmpty && draft.paperWidth != 'A4') {
+    // Inbyggd skrivare behöver ingen IP/adress — hoppa över adress-kravet.
+    if (!_useBuiltInPrinter &&
+        draft.address.isEmpty &&
+        draft.paperWidth != 'A4') {
       _showMessage('Välj en skrivare innan du testar.', isError: true);
       return;
     }
@@ -258,6 +264,72 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
       notes: null,
       status: 'DISCOVERED',
       lastSeenAt: null,
+    );
+  }
+
+  Future<void> _toggleBuiltInPrinter(bool value) async {
+    setState(() => _useBuiltInPrinter = value);
+    await _printingConfigService.setUseBuiltInPrinter(value);
+    if (!mounted) return;
+    _showMessage(value
+        ? 'Använder enhetens inbyggda skrivare.'
+        : 'Använder nätverks-/Bluetooth-skrivare.');
+  }
+
+  Widget _buildBuiltInPrinterToggle() {
+    final isDark = AppTheme.isDark(context);
+    final ink = isDark ? Colors.white : AppTheme.ink;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.panelColor(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderColor(context)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AppTheme.faintColor(context),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(Icons.print_rounded, color: ink, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Inbyggd skrivare',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: ink,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Skriv ut på enhetens egen skrivare. Stäng av för att använda nätverks- eller Bluetooth-skrivare.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    height: 1.3,
+                    color: AppTheme.mutedColor(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Switch.adaptive(
+            value: _useBuiltInPrinter,
+            onChanged: _toggleBuiltInPrinter,
+          ),
+        ],
+      ),
     );
   }
 
@@ -747,6 +819,8 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                       child: ListView(
                         padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
                         children: [
+                          _buildBuiltInPrinterToggle(),
+                          const SizedBox(height: 20),
                           if (hasActivePrinter) ...[
                             _buildActivePrinterIndicator(),
                             const SizedBox(height: 28),

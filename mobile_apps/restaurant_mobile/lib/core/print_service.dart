@@ -246,6 +246,24 @@ class PrintService {
 
     final isAuto = respectAutoPrint || forceToPrinter;
 
+    // Inbyggd skrivare (default PÅ): skicka kvittot till enhetens egen/system-
+    // skrivare via Android-utskriftsramverket. Kräver ingen nätverks-/Bluetooth-
+    // konfiguration och hoppar därför över printer==null-kontrollen nedan.
+    if (await _printingConfigService.getUseBuiltInPrinter()) {
+      try {
+        return await _printViaBuiltInPrinter(
+          order: order,
+          printer: printer,
+          printJobName: 'Order_${order.orderNumber}',
+        );
+      } catch (e) {
+        final reason = _humanizeError(e);
+        logger.log('PRINT (inbyggd) #${order.orderNumber}: $e');
+        _emitFailure(order, reason, isAuto: isAuto, hasPrinter: true);
+        return reason;
+      }
+    }
+
     // forceToPrinter (auto-print direkt efter att ordern godkänts): skriv ALLTID
     // till den konfigurerade skrivaren, oavsett auto-print-toggeln, utan PDF-popup.
     if (!forceToPrinter && respectAutoPrint && !(printer?.autoPrint ?? false)) {
@@ -329,6 +347,18 @@ class PrintService {
         config?.template ?? await _printingConfigService.fetchTemplate();
     final sampleOrder = _buildTestOrder();
 
+    // Inbyggd skrivare på → testa via enhetens egen skrivare istället för
+    // nätverks-/Bluetooth-skrivaren.
+    if (await _printingConfigService.getUseBuiltInPrinter()) {
+      return _printViaBuiltInPrinter(
+        order: sampleOrder,
+        printer: effectivePrinter,
+        printJobName: 'Delivera_Testkvitto',
+        receiptData: _fallbackReceiptData(sampleOrder, template),
+        template: template,
+      );
+    }
+
     return _dispatchPrint(
       order: sampleOrder,
       receiptData: _fallbackReceiptData(sampleOrder, template),
@@ -338,6 +368,35 @@ class PrintService {
           effectivePrinter == null || effectivePrinter.paperWidth == 'A4',
       printJobName: 'Delivera_Testkvitto',
     );
+  }
+
+  /// Skriver kvittot via enhetens inbyggda/system-skrivare (Android-
+  /// utskriftsramverket → PDF-baserad utskrift). Returnerar null vid succé;
+  /// exceptions bubblar upp till anroparen som loggar + emit:ar fel.
+  static Future<String?> _printViaBuiltInPrinter({
+    required OrderModel order,
+    required PrinterProfile? printer,
+    required String printJobName,
+    Map<String, dynamic>? receiptData,
+    ReceiptTemplateSettings? template,
+  }) async {
+    final data = receiptData ?? await _fetchReceiptData(order.id);
+    final tmpl = template ??
+        (data != null && data['template'] is Map<String, dynamic>
+            ? ReceiptTemplateSettings.fromJson(data['template'])
+            : await _printingConfigService.fetchTemplate());
+    final paperWidth = printer?.paperWidth ?? tmpl.paperWidth;
+    final pdfBytes = await _buildPdfReceipt(
+      receiptData: data,
+      template: tmpl,
+      paperWidth: paperWidth,
+      order: order,
+    );
+    await Printing.layoutPdf(
+      onLayout: (_) async => Uint8List.fromList(pdfBytes),
+      name: printJobName,
+    );
+    return null;
   }
 
   static Future<String?> _dispatchPrint({
