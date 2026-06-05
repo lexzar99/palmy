@@ -227,6 +227,20 @@ class PrintingConfigService {
     await prefs.setBool(_useBuiltInPrinterKey, value);
   }
 
+  // Pappersbredd för den inbyggda skrivaren ('58mm' | '80mm'). iMin Swift 2 Pro
+  // är 58mm → default. Större iMin-modeller (Falcon m.fl.) kan välja 80mm.
+  static const String _builtInPaperWidthKey = 'builtin_paper_width';
+
+  Future<String> getBuiltInPaperWidth() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_builtInPaperWidthKey) ?? '58mm';
+  }
+
+  Future<void> setBuiltInPaperWidth(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_builtInPaperWidthKey, value);
+  }
+
   Future<PrintingConfig?> fetchConfig() async {
     try {
       final response = await _api.get('/api/admin/printing/config');

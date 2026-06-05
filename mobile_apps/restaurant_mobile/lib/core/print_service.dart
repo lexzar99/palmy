@@ -13,6 +13,7 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import '../models/order_model.dart';
 import 'api_client.dart';
 import 'bluetooth_printer_service.dart';
+import 'imin_printer_service.dart';
 import 'log_service.dart';
 import 'network_print_client.dart';
 import 'printing_config_service.dart';
@@ -385,6 +386,23 @@ class PrintService {
         (data != null && data['template'] is Map<String, dynamic>
             ? ReceiptTemplateSettings.fromJson(data['template'])
             : await _printingConfigService.fetchTemplate());
+
+    // iMin-enheter (Swift 2 Pro m.fl.): TYST direktutskrift på den inbyggda
+    // termoskrivaren via iMin-SDK:t — ingen Android-utskriftsdialog.
+    if (await IminPrinterService.isAvailable()) {
+      // Inbyggd skrivare har egen pappersbredd (Swift 2 Pro = 58mm). A4 är inte
+      // relevant för termoskrivare → tolka som 80mm.
+      var builtInWidth = await _printingConfigService.getBuiltInPaperWidth();
+      if (builtInWidth == 'A4') builtInWidth = '80mm';
+      final pngBytes = await _buildReceiptPng(data, tmpl, builtInWidth);
+      final issue = await IminPrinterService.printReceiptImage(pngBytes);
+      if (issue == null) return null;
+      // iMin-utskrift misslyckades → falla tillbaka på Android-print nedan.
+      logger.log('PRINT iMin misslyckades, fallback Android-print: $issue');
+    }
+
+    // Fallback (icke-iMin-enhet eller iMin-fel): enhetens system-skrivare via
+    // Android-utskriftsramverket. Kan visa systemets utskrifts-ark.
     final paperWidth = printer?.paperWidth ?? tmpl.paperWidth;
     final pdfBytes = await _buildPdfReceipt(
       receiptData: data,
@@ -961,10 +979,10 @@ class PrintService {
 
   // ── Bitmap rendering ────────────────────────────────────────────────────────
 
-  /// Renders the receipt to a bitmap and wraps it in ESC/POS image commands.
-  /// This produces a WYSIWYG printout matching the admin preview exactly.
-  static Future<List<int>> _buildBitmapBytes(
-    Generator generator,
+  /// Renderar kvittot till en bitmap (img.Image) i rätt pixelbredd för
+  /// pappersbredden. Delas av ESC/POS-vägen (nätverk/Bluetooth) och iMin-vägen
+  /// (inbyggd skrivare) så utskriften ser exakt likadan ut oavsett kanal.
+  static Future<img.Image> _renderReceiptImage(
     Map<String, dynamic>? receiptData,
     ReceiptTemplateSettings template,
     String paperWidth,
@@ -1000,14 +1018,35 @@ class PrintService {
     final byteData = await uiImg.toByteData(format: ui.ImageByteFormat.rawRgba);
     if (byteData == null) throw Exception('Bitmap render: toByteData returned null');
 
-    final bitmapImg = img.Image.fromBytes(
+    return img.Image.fromBytes(
       width: widthPx,
       height: heightPx,
       bytes: byteData.buffer,
       numChannels: 4,
       order: img.ChannelOrder.rgba,
     );
+  }
 
+  /// PNG-kodad kvitto-bild för iMin:s printSingleBitmap (inbyggd skrivare).
+  static Future<Uint8List> _buildReceiptPng(
+    Map<String, dynamic>? receiptData,
+    ReceiptTemplateSettings template,
+    String paperWidth,
+  ) async {
+    final image = await _renderReceiptImage(receiptData, template, paperWidth);
+    return Uint8List.fromList(img.encodePng(image));
+  }
+
+  /// Renders the receipt to a bitmap and wraps it in ESC/POS image commands.
+  /// This produces a WYSIWYG printout matching the admin preview exactly.
+  static Future<List<int>> _buildBitmapBytes(
+    Generator generator,
+    Map<String, dynamic>? receiptData,
+    ReceiptTemplateSettings template,
+    String paperWidth,
+  ) async {
+    final bitmapImg =
+        await _renderReceiptImage(receiptData, template, paperWidth);
     return <int>[
       // Left-align so the printer doesn't try to center a potentially wider image
       // on a narrower physical paper, which would shift content off the right edge.

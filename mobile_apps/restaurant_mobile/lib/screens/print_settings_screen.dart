@@ -27,6 +27,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
   bool _isScanningBluetooth = false;
   bool _autoPrint = false;
   bool _useBuiltInPrinter = true;
+  String _builtInPaperWidth = '58mm';
   int _copies = 1;
   String _paperWidth = '80mm';
   String _selectedPrinterId = '';
@@ -50,11 +51,13 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
       final fallbackPrinter = await _printingConfigService.loadLocalPrinter();
       final printer = config?.defaultPrinter ?? fallbackPrinter;
       final useBuiltIn = await _printingConfigService.getUseBuiltInPrinter();
+      final builtInWidth = await _printingConfigService.getBuiltInPaperWidth();
 
       if (!mounted) return;
 
       setState(() {
         _useBuiltInPrinter = useBuiltIn;
+        _builtInPaperWidth = builtInWidth;
         _configuredPrinters = config?.printers ??
             (fallbackPrinter == null ? [] : [fallbackPrinter]);
         _autoPrint = printer?.autoPrint ?? false;
@@ -327,6 +330,82 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
           Switch.adaptive(
             value: _useBuiltInPrinter,
             onChanged: _toggleBuiltInPrinter,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setBuiltInPaperWidth(String value) async {
+    setState(() => _builtInPaperWidth = value);
+    await _printingConfigService.setBuiltInPaperWidth(value);
+  }
+
+  Widget _buildBuiltInPaperWidthSelector() {
+    final isDark = AppTheme.isDark(context);
+    final ink = isDark ? Colors.white : AppTheme.ink;
+    final fg = isDark ? AppTheme.ink : Colors.white;
+    final muted = AppTheme.mutedColor(context);
+
+    Widget chip(String label, String value) {
+      final selected = _builtInPaperWidth == value;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => _setBuiltInPaperWidth(value),
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: selected ? ink : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? fg : muted,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+      decoration: BoxDecoration(
+        color: AppTheme.panelColor(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderColor(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Pappersbredd (inbyggd skrivare)',
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: ink,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.borderColor(context)),
+            ),
+            child: Row(
+              children: [
+                chip('58 mm', '58mm'),
+                chip('80 mm', '80mm'),
+              ],
+            ),
           ),
         ],
       ),
@@ -820,6 +899,10 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                         padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
                         children: [
                           _buildBuiltInPrinterToggle(),
+                          if (_useBuiltInPrinter) ...[
+                            const SizedBox(height: 12),
+                            _buildBuiltInPaperWidthSelector(),
+                          ],
                           const SizedBox(height: 20),
                           if (hasActivePrinter) ...[
                             _buildActivePrinterIndicator(),
