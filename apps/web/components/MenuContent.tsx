@@ -1215,33 +1215,46 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           })}
         </div>}
 
-        {/* ── Sök (inline, scrollar med sidan) — ärver containerns marginal ── */}
-        <div className="mb-3">
-          <div className="rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
-            <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-            <input
-              type="text"
-              placeholder={t("menu.searchPlaceholder")}
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-transparent border-none text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-zinc-400"
-              style={{ color: "var(--text-primary)" }}
-            />
-          </div>
-        </div>
-
-        {/* ── Kategori-pills — STICKY header som följer med vid scroll ──
-            Ärver containerns marginal (ingen -mx) → ingen horisontell overflow,
-            samma kant som sök + artiklar. Bakgrunden täcker content-bredden;
-            container-padding-gutters är tomma (sidans bg) → inget syns igenom.
+        {/* ── STICKY header: tillbaka + sök (restaurangnamn) + kategori-pills ──
+            Allt i EN sticky-bar som följer med vid scroll → back-knappen och
+            sökrutan (placeholder = restaurangens namn) förblir alltid synliga.
+            Ärver containerns marginal (ingen -mx) → ingen horisontell overflow.
             top: mobil = safe-area (ingen navbar), desktop = 80px (fast navbar). */}
-        {scopedCategories.length > 0 && (
-          <div
-            className="sticky z-30 mb-8 py-2.5 top-[env(safe-area-inset-top,0px)] md:top-20"
-            style={{ backgroundColor: "var(--bg-primary)" }}
-          >
+        <div
+          className="sticky z-30 mb-8 pt-2 pb-2.5 top-[env(safe-area-inset-top,0px)] md:top-20"
+          style={{ backgroundColor: "var(--bg-primary)" }}
+        >
+          {/* Rad 1: tillbaka-knapp + sökruta (visar restaurangens namn) */}
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined" && window.history.length > 1) router.back();
+                else router.push("/");
+              }}
+              aria-label={t("common.back")}
+              className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+              style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)", color: "var(--text-primary)" }}
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <div className="flex-1 min-w-0 rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
+              <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+              <input
+                type="text"
+                placeholder={restaurant?.name || t("menu.searchPlaceholder")}
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full min-w-0 bg-transparent border-none text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-zinc-400 truncate"
+                style={{ color: "var(--text-primary)" }}
+              />
+            </div>
+          </div>
+
+          {/* Rad 2: kategori-pills */}
+          {scopedCategories.length > 0 && (
             <div
-              className="flex gap-2 no-scrollbar"
+              className="flex gap-2 no-scrollbar pt-2.5"
               style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
             >
               {scopedCategories.map((cat: any) => {
@@ -1277,8 +1290,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                 );
               })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* ── Menyn: kategorier med produkter (FULL eller COMPACT per produkt) ── */}
         <div className="space-y-12">
