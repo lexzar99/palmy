@@ -21,6 +21,9 @@ model Category {
   restaurantId    String?
   restaurant      Restaurant?    @relation(fields: [restaurantId], references: [id])
   products        Product[]
+
+  // Meny-queryn hämtar kategorier per restaurang, ordnade på position.
+  @@index([restaurantId, position])
 }
 
 model Product {
@@ -60,7 +63,9 @@ model Product {
   category            Category            @relation(fields: [categoryId], references: [id])
   extraGroups         ProductExtraGroup[]
 
-  @@index([categoryId])
+  // Meny-queryn filtrerar isActive + ordnar position inom categoryId. Det
+  // sammansatta indexet täcker både det och rena categoryId-uppslag.
+  @@index([categoryId, isActive, position])
 }
 
 model ExtraGroup {
@@ -628,6 +633,13 @@ model Restaurant {
   groupOrders    GroupOrder[]
   payouts        RestaurantPayout[]
   printers       RestaurantPrinter[]
+
+  // Publika listan sorterar på featuredClass, filtrerar på city och joinar
+  // city_relation (cityId). Indexen håller cold-queryn snabb när antalet
+  // restauranger växer.
+  @@index([featuredClass])
+  @@index([city])
+  @@index([cityId])
 }
 
 model City {
