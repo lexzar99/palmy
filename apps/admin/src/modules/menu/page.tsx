@@ -12,20 +12,16 @@ import {
   copyProduct,
   createCategory,
   createExtraGroup,
-  createMainCategory,
   createProduct,
   deleteCategory,
   deleteExtraGroup,
-  deleteMainCategory,
   deleteProduct,
   getCategories,
   getExtraGroups,
-  getMainCategories,
   getMenuRestaurants,
   getProducts,
   menuCategoriesQueryKey,
   menuGroupsQueryKey,
-  menuMainCategoriesQueryKey,
   menuProductsQueryKey,
   menuRestaurantsQueryKey,
   r2AutoMatch,
@@ -35,12 +31,9 @@ import {
   r2PathsTemplate,
   updateCategory,
   updateExtraGroup,
-  updateMainCategory,
   updateProduct,
-  updateRestaurant,
   type CategoryRecord,
   type ExtraGroupRecord,
-  type MainCategoryRecord,
   type ProductRecord,
   type R2AutoMatchResult,
   type R2MigrateResult,
@@ -54,186 +47,28 @@ import { useToast } from "@/shared/components/toast";
 import { Copy } from "lucide-react";
 import { formatCurrency } from "@/shared/utils/format";
 
-type MenuTab = "main-categories" | "categories" | "products" | "extras";
+type MenuTab = "categories" | "products" | "extras";
 
-function MainCategoryModal({
-  open,
-  restaurantId,
-  mainCategory,
-  categories,
-  onClose,
-}: {
-  open: boolean;
-  restaurantId: string;
-  mainCategory: MainCategoryRecord | null;
-  categories: CategoryRecord[];
-  onClose: () => void;
-}) {
+function CategoryModal({ open, restaurantId, category, onClose }: { open: boolean; restaurantId: string; category: CategoryRecord | null; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", imageUrl: "", position: 0, isActive: true, categoryIds: [] as string[] });
+  const [form, setForm] = useState({ name: "", description: "", imageUrl: "", position: 0, isActive: true });
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open) return;
-    if (mainCategory) {
-      setForm({
-        name: mainCategory.name,
-        imageUrl: mainCategory.imageUrl || "",
-        position: mainCategory.position,
-        isActive: mainCategory.isActive ?? true,
-        categoryIds: (mainCategory.categories || []).map((c) => c.id),
-      });
-    } else {
-      setForm({ name: "", imageUrl: "", position: 0, isActive: true, categoryIds: [] });
-    }
-  }, [mainCategory, open]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  const saveMutation = useMutation({ meta: { toast: false },
-    mutationFn: async () => {
-      if (mainCategory) {
-        return updateMainCategory(mainCategory.id, form);
-      }
-      return createMainCategory({ ...form, restaurantId });
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: menuMainCategoriesQueryKey(restaurantId) });
-      await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(restaurantId) });
-      onClose();
-    },
-  });
-
-  const deleteMutation = useMutation({ meta: { toast: false },
-    mutationFn: async () => {
-      if (mainCategory) {
-        await deleteMainCategory(mainCategory.id);
-      }
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: menuMainCategoriesQueryKey(restaurantId) });
-      await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(restaurantId) });
-      onClose();
-    },
-  });
-
-  const toggleCategory = (categoryId: string) =>
-    setForm((current) => ({
-      ...current,
-      categoryIds: current.categoryIds.includes(categoryId)
-        ? current.categoryIds.filter((id) => id !== categoryId)
-        : [...current.categoryIds, categoryId],
-    }));
-
-  // Kategorier som redan är knutna till en ANNAN huvudkategori — vi varnar admin
-  // så bytet inte sker oavsiktligt. (Vi tillåter det fortfarande — formuläret
-  // skriver över relationen.)
-  const ownerOfCategory = (categoryId: string) => {
-    const cat = categories.find((c) => c.id === categoryId);
-    return cat?.mainCategoryId && cat.mainCategoryId !== mainCategory?.id ? cat.mainCategory?.name || "annan" : null;
-  };
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={mainCategory ? "Edit main category" : "New main category"}
-      description="Topplagret som kunden ser i menyn. Bilden visas direkt; namnet är bara för dig (sök, debug)."
-      footer={
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            {mainCategory ? (
-              <Button
-                variant="danger"
-                onClick={() => {
-                  if (window.confirm(`Radera huvudkategorin "${mainCategory.name}"?\n\nUnderkategorierna behålls men kopplas loss från denna huvudkategori.`)) {
-                    deleteMutation.mutate();
-                  }
-                }}
-              >Delete</Button>
-            ) : null}
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={onClose}>Close</Button>
-            <Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button>
-          </div>
-        </div>
-      }
-    >
-      <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Name (intern — visas inte i appen)">
-          <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
-        </Field>
-        <Field label="Position">
-          <Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} />
-        </Field>
-        <div className="md:col-span-2">
-          <ImageUploadField
-            label="Tile-bild (16:9 eller 1:1 rekommenderas, designad bild med inbakad text)"
-            value={form.imageUrl}
-            onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))}
-            kind="main-category"
-            restaurantId={restaurantId}
-            categoryId={mainCategory?.id || null}
-          />
-        </div>
-        <Field label="Status">
-          <Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </Select>
-        </Field>
-        <div className="md:col-span-2 surface-muted px-4 py-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Underkategorier i denna huvudkategori</p>
-          <p className="mt-1 text-xs text-[var(--text-secondary)]">Klicka för att lägga till/ta bort. En kategori kan bara tillhöra en huvudkategori i taget.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {categories.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">Inga kategorier finns för denna restaurang än.</p>
-            ) : (
-              categories.map((category) => {
-                const otherOwner = ownerOfCategory(category.id);
-                const selected = form.categoryIds.includes(category.id);
-                return (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => toggleCategory(category.id)}
-                    className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] transition-colors ${selected ? "border-[rgba(94,166,255,0.24)] bg-[rgba(94,166,255,0.1)] text-[#d4e7ff]" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}
-                    title={otherOwner ? `Är i "${otherOwner}" — sparar du flyttar den hit` : undefined}
-                  >
-                    {category.name}{otherOwner ? " ↩" : ""}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function CategoryModal({ open, restaurantId, category, mainCategories, onClose }: { open: boolean; restaurantId: string; category: CategoryRecord | null; mainCategories: MainCategoryRecord[]; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", imageUrl: "", position: 0, isActive: true, mainCategoryId: "" });
-
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!open) return;
-    setForm(category ? { name: category.name, description: category.description || "", imageUrl: category.imageUrl || "", position: category.position, isActive: category.isActive ?? true, mainCategoryId: category.mainCategoryId || "" } : { name: "", description: "", imageUrl: "", position: 0, isActive: true, mainCategoryId: "" });
+    setForm(category ? { name: category.name, description: category.description || "", imageUrl: category.imageUrl || "", position: category.position, isActive: category.isActive ?? true } : { name: "", description: "", imageUrl: "", position: 0, isActive: true });
   }, [category, open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
-      const payload = { ...form, mainCategoryId: form.mainCategoryId || null };
       if (category) {
-        return updateCategory(category.id, payload);
+        return updateCategory(category.id, form);
       }
-      return createCategory({ ...payload, restaurantId });
+      return createCategory({ ...form, restaurantId });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(restaurantId) });
-      await queryClient.invalidateQueries({ queryKey: menuMainCategoriesQueryKey(restaurantId) });
       onClose();
     },
   });
@@ -246,7 +81,6 @@ function CategoryModal({ open, restaurantId, category, mainCategories, onClose }
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(restaurantId) });
-      await queryClient.invalidateQueries({ queryKey: menuMainCategoriesQueryKey(restaurantId) });
       onClose();
     },
   });
@@ -279,21 +113,11 @@ function CategoryModal({ open, restaurantId, category, mainCategories, onClose }
           label="Bild"
           value={form.imageUrl}
           onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))}
-          kind="main-category"
+          kind="category"
           restaurantId={restaurantId}
           categoryId={category?.id || null}
         />
         <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
-        <div className="md:col-span-2">
-          <Field label="Huvudkategori (topplager i kund-appen)">
-            <Select value={form.mainCategoryId} onChange={(event) => setForm((current) => ({ ...current, mainCategoryId: event.target.value }))}>
-              <option value="">— Ingen (hamnar i &ldquo;Övrigt&rdquo; tills tilldelad) —</option>
-              {mainCategories.map((mc) => (
-                <option key={mc.id} value={mc.id}>{mc.name}</option>
-              ))}
-            </Select>
-          </Field>
-        </div>
         <div className="md:col-span-2"><Field label="Description"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
       </div>
     </Modal>
@@ -959,7 +783,6 @@ extraGroups:
 categories:
   - name: Kyckling
     description: "Krispig friterad kyckling"   # valfri
-    mainCategory: Kyckling                      # valfri tile-grupp
     products:
       - name: Crispy tallrik
         description: "5 bitar med sås & pommes" # valfri
@@ -1102,7 +925,7 @@ function BulkImportButton({ restaurantId }: { restaurantId: string }) {
 
 /**
  * R2 Auto-match-knapp: scannar Cloudflare R2-bucketen för restaurangen och
- * binder automatiskt bilder till produkter/kategorier/main-categories baserat
+ * binder automatiskt bilder till produkter/kategorier baserat
  * på slug-konventionen. Visar alltid dry-run-resultat först så admin kan se
  * vad som kommer hända innan något skrivs till DB.
  */
@@ -1132,11 +955,10 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
     mutationFn: () => r2AutoMatch(restaurantId, false),
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });
-      await queryClient.invalidateQueries({ queryKey: menuMainCategoriesQueryKey(restaurantId) });
       await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(restaurantId) });
       setOpen(false);
       setDryRun(null);
-      const total = (data.matched.hero ? 1 : 0) + (data.matched.logo ? 1 : 0) + data.matched.mainCategories + data.matched.products;
+      const total = (data.matched.hero ? 1 : 0) + (data.matched.logo ? 1 : 0) + data.matched.categories + data.matched.products;
       showToast({ type: 'success', message: `Auto-match klar: ${total} bilder kopplade` });
     },
     onError: (e) => {
@@ -1157,7 +979,7 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
         open={open && !!dryRun}
         onClose={() => { setOpen(false); setDryRun(null); }}
         title="R2 auto-match"
-        description="Scannar bucket-prefixet och föreslår vilka bilder som ska kopplas till produkter, kategorier och main-categories baserat på slug-konventionen."
+        description="Scannar bucket-prefixet och föreslår vilka bilder som ska kopplas till produkter och kategorier baserat på slug-konventionen."
         footer={
           <div className="flex justify-end gap-2">
             <Button onClick={() => { setOpen(false); setDryRun(null); }}>Avbryt</Button>
@@ -1185,8 +1007,8 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
                 <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Logo</div>
               </div>
               <div className="surface-muted px-3 py-3 text-center">
-                <div className="text-2xl font-black">{dryRun.matched.mainCategories}</div>
-                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Main cats</div>
+                <div className="text-2xl font-black">{dryRun.matched.categories}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Kategorier</div>
               </div>
               <div className="surface-muted px-3 py-3 text-center">
                 <div className="text-2xl font-black">{dryRun.matched.products}</div>
@@ -1279,7 +1101,7 @@ function R2PathsButton({ restaurantId }: { restaurantId: string }) {
                 <span className="font-bold text-[var(--text-primary)]">{query.data.restaurant.name}</span>
                 <span className="text-[var(--text-secondary)]">·</span>
                 <span className="text-[var(--text-secondary)]">
-                  {query.data.mainCategories.length} main · {query.data.categories.length} kategorier · {totalProducts} produkter
+                  {query.data.categories.length} kategorier · {totalProducts} produkter
                 </span>
               </div>
               <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
@@ -1296,15 +1118,6 @@ function R2PathsButton({ restaurantId }: { restaurantId: string }) {
               ]}
               onCopy={copyToClipboard}
             />
-
-            {query.data.mainCategories.length ? (
-              <_R2Section
-                title={`Main-kategorier (${query.data.mainCategories.length})`}
-                folder={`${query.data.prefix}main/`}
-                rows={query.data.mainCategories.map((mc) => ({ filename: basenameOf(mc.key), label: mc.name }))}
-                onCopy={copyToClipboard}
-              />
-            ) : null}
 
             {query.data.categories.length ? (
               <div>
@@ -1413,17 +1226,15 @@ export function MenuPage() {
   const searchParams = useSearchParams();
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
   const [pendingRouteProductId, setPendingRouteProductId] = useState<string | null>(null);
-  const [tab, setTab] = useState<MenuTab>("main-categories");
+  const [tab, setTab] = useState<MenuTab>("categories");
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<CategoryRecord | null>(null);
   const [activeProduct, setActiveProduct] = useState<ProductRecord | null>(null);
   const [activeGroup, setActiveGroup] = useState<ExtraGroupRecord | null>(null);
-  const [activeMainCategory, setActiveMainCategory] = useState<MainCategoryRecord | null>(null);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
-  const [mainCategoryModalOpen, setMainCategoryModalOpen] = useState(false);
 
   const restaurants = useQuery({ queryKey: menuRestaurantsQueryKey, queryFn: getMenuRestaurants });
   const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
@@ -1468,29 +1279,6 @@ export function MenuPage() {
   const categories = useQuery({ queryKey: menuCategoriesQueryKey(activeRestaurantId), queryFn: () => getCategories(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
   const products = useQuery({ queryKey: menuProductsQueryKey(activeRestaurantId), queryFn: () => getProducts(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
   const groups = useQuery({ queryKey: menuGroupsQueryKey(activeRestaurantId), queryFn: () => getExtraGroups(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
-  const mainCategories = useQuery({ queryKey: menuMainCategoriesQueryKey(activeRestaurantId), queryFn: () => getMainCategories(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
-
-  const selectedRestaurant = restaurants.data?.find((restaurant) => restaurant.id === activeRestaurantId) || null;
-
-  // Erbjudande-tilens bild lagras på restaurangen (offersImageUrl). Tilen i
-  // kund-menyn genereras automatiskt från rabatterade produkter; här väljer
-  // admin dess bild precis som för vanliga huvudkategorier.
-  const menuQueryClient = useQueryClient();
-  const { showToast: showMenuToast } = useToast();
-  const offersImageMutation = useMutation({
-    mutationFn: (offersImageUrl: string | null) => updateRestaurant(activeRestaurantId!, { offersImageUrl }),
-    onMutate: (offersImageUrl: string | null) => {
-      // Optimistisk uppdatering så bilden syns direkt i fältet.
-      menuQueryClient.setQueryData<RestaurantRef[]>(menuRestaurantsQueryKey, (prev) =>
-        (prev || []).map((r) => (r.id === activeRestaurantId ? { ...r, offersImageUrl } : r)),
-      );
-    },
-    onSuccess: async () => {
-      await menuQueryClient.invalidateQueries({ queryKey: menuRestaurantsQueryKey });
-      showMenuToast({ type: "success", message: "Erbjudande-bild sparad" });
-    },
-    onError: () => showMenuToast({ type: "error", message: "Kunde inte spara erbjudande-bilden" }),
-  });
 
   const filteredCategories = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
@@ -1506,11 +1294,6 @@ export function MenuPage() {
     const lowerQuery = query.trim().toLowerCase();
     return (groups.data || []).filter((group) => !lowerQuery || group.name.toLowerCase().includes(lowerQuery));
   }, [groups.data, query]);
-
-  const filteredMainCategories = useMemo(() => {
-    const lowerQuery = query.trim().toLowerCase();
-    return (mainCategories.data || []).filter((mc) => !lowerQuery || mc.name.toLowerCase().includes(lowerQuery));
-  }, [mainCategories.data, query]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -1547,14 +1330,9 @@ export function MenuPage() {
                 <R2AutoMatchButton restaurantId={activeRestaurantId} />
               </>
             ) : null}
-            {activeRestaurantId && tab !== "main-categories" ? (
+            {activeRestaurantId ? (
               <Button variant="secondary" onClick={() => setImportModalOpen(true)}>
                 <Copy size={14} /> Importera från annan
-              </Button>
-            ) : null}
-            {tab === "main-categories" && activeRestaurantId ? (
-              <Button variant="primary" onClick={() => { setActiveMainCategory(null); setMainCategoryModalOpen(true); }}>
-                <Plus size={14} /> Main category
               </Button>
             ) : null}
             {tab === "categories" && activeRestaurantId ? (
@@ -1586,89 +1364,8 @@ export function MenuPage() {
             <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter..." />
           </div>
-          <Tabs value={tab} onChange={setTab} options={[{ value: "main-categories", label: "Main categories" }, { value: "categories", label: "Categories" }, { value: "products", label: "Products" }, { value: "extras", label: "Extras" }]} />
+          <Tabs value={tab} onChange={setTab} options={[{ value: "categories", label: "Categories" }, { value: "products", label: "Products" }, { value: "extras", label: "Extras" }]} />
         </div>
-
-        {tab === "main-categories" ? (
-          <div className="mt-5 grid gap-2">
-            {activeRestaurantId ? (
-              <Surface className="px-5 py-5">
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-black uppercase tracking-[-0.01em]">Erbjudande-tile</p>
-                  <p className="text-xs text-[var(--text-secondary)]">
-                    Bild för den automatiska &quot;Erbjudanden&quot;-rutan i kund-menyns kategori-väljare.
-                    Rutan visas när restaurangen har rabatterade produkter — välj dess bild här,
-                    precis som för en vanlig huvudkategori.
-                  </p>
-                </div>
-                <div className="mt-3 flex items-start gap-4">
-                  {selectedRestaurant?.offersImageUrl ? (
-                    <img src={selectedRestaurant.offersImageUrl} alt="" className="h-20 w-32 flex-shrink-0 rounded-lg object-cover" />
-                  ) : (
-                    <div className="flex h-20 w-32 flex-shrink-0 items-center justify-center rounded-lg bg-[rgba(255,255,255,0.05)] text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
-                      Ingen bild
-                    </div>
-                  )}
-                  <div className="max-w-xs flex-1">
-                    <ImageUploadField
-                      label="Erbjudande-bild (16:9 eller 1:1, designad bild med inbakad text)"
-                      value={selectedRestaurant?.offersImageUrl || ""}
-                      onChange={(url) => offersImageMutation.mutate(url || null)}
-                      // Erbjudande-tilen är virtuell (ingen kategori-rad) → använd
-                      // "misc" som inte kräver kategori-slug. Bilden lagras per
-                      // restaurang via restaurantId och URL:en sparas i offersImageUrl.
-                      kind="misc"
-                      restaurantId={activeRestaurantId}
-                    />
-                    {selectedRestaurant?.offersImageUrl ? (
-                      <button
-                        type="button"
-                        onClick={() => offersImageMutation.mutate(null)}
-                        className="mt-2 text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)] hover:text-[#f87171]"
-                      >
-                        Ta bort bild
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </Surface>
-            ) : null}
-            {filteredMainCategories.length === 0 ? (
-              <EmptyState title="No main categories yet" />
-            ) : filteredMainCategories.map((mc) => {
-              const catCount = mc._count?.categories ?? (mc.categories?.length || 0);
-              const productCount = (mc.categories || []).reduce((sum, c) => sum + (c._count?.products || 0), 0);
-              return (
-                <button key={mc.id} type="button" onClick={() => { setActiveMainCategory(mc); setMainCategoryModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
-                  <div className="flex items-start gap-4">
-                    {mc.imageUrl ? (
-                      <img src={mc.imageUrl} alt="" className="h-20 w-32 flex-shrink-0 rounded-lg object-cover" />
-                    ) : (
-                      <div className="flex h-20 w-32 flex-shrink-0 items-center justify-center rounded-lg bg-[rgba(255,255,255,0.05)] text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
-                        Ingen bild
-                      </div>
-                    )}
-                    <div className="flex flex-1 items-start justify-between gap-4">
-                      <div>
-                        <p className="text-lg font-black tracking-[-0.02em]">{mc.name}</p>
-                        <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                          {(mc.categories || []).slice(0, 4).map((c) => c.name).join(" • ") || "Inga kategorier kopplade än"}
-                          {(mc.categories?.length || 0) > 4 ? ` + ${(mc.categories?.length || 0) - 4} till` : ""}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge tone={mc.isActive === false ? "danger" : "success"}>{mc.isActive === false ? "Inactive" : "Active"}</Badge>
-                        <Badge tone="neutral">{catCount} kategorier</Badge>
-                        <Badge tone="info">{productCount} produkter</Badge>
-                        <Badge tone="neutral">Pos {mc.position}</Badge>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
 
         {tab === "categories" ? (
           <div className="mt-5 grid gap-2">
@@ -1743,10 +1440,9 @@ export function MenuPage() {
 
       {activeRestaurantId ? (
         <>
-          <CategoryModal open={categoryModalOpen} restaurantId={activeRestaurantId} category={activeCategory} mainCategories={mainCategories.data || []} onClose={() => setCategoryModalOpen(false)} />
+          <CategoryModal open={categoryModalOpen} restaurantId={activeRestaurantId} category={activeCategory} onClose={() => setCategoryModalOpen(false)} />
           <ProductModal open={productModalOpen} restaurantId={activeRestaurantId} product={activeProduct} categories={categories.data || []} extraGroups={groups.data || []} onClose={() => setProductModalOpen(false)} existingDeals={(automaticDeals.data || []).filter((deal) => deal.restaurantId === activeRestaurantId || deal.applicableRestaurantIds?.includes(activeRestaurantId) || deal.isGlobal)} restaurants={(restaurants.data || []).map((restaurant) => ({ id: restaurant.id, name: restaurant.name, slug: restaurant.slug, city: restaurant.city || null })) as DealRestaurantRef[]} products={products.data || []} />
           <ExtraGroupModal open={groupModalOpen} restaurantId={activeRestaurantId} group={activeGroup} categories={categories.data || []} onClose={() => setGroupModalOpen(false)} />
-          <MainCategoryModal open={mainCategoryModalOpen} restaurantId={activeRestaurantId} mainCategory={activeMainCategory} categories={categories.data || []} onClose={() => setMainCategoryModalOpen(false)} />
           <ImportFromOtherModal
             open={importModalOpen}
             onClose={() => setImportModalOpen(false)}

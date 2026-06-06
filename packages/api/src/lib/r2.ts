@@ -129,7 +129,7 @@ export function slugifyPathSegment(input: string): string {
 export type R2PathArgs =
   | { kind: 'hero'; city: string; restaurant: string; ext?: string }
   | { kind: 'logo'; city: string; restaurant: string; ext?: string }
-  | { kind: 'main-category'; city: string; restaurant: string; category: string; ext?: string }
+  | { kind: 'category'; city: string; restaurant: string; category: string; ext?: string }
   | { kind: 'product'; city: string; restaurant: string; category: string; product: string; ext?: string }
   | { kind: 'misc'; city?: string; restaurant?: string; filename: string };
 
@@ -142,8 +142,8 @@ export function buildR2Key(args: R2PathArgs): string {
       return `${city}/${rest}/hero.${ext}`;
     case 'logo':
       return `${city}/${rest}/logo.${ext}`;
-    case 'main-category':
-      return `${city}/${rest}/main/${slugifyPathSegment(args.category)}.${ext}`;
+    case 'category':
+      return `${city}/${rest}/category/${slugifyPathSegment(args.category)}.${ext}`;
     case 'product':
       return `${city}/${rest}/menu/${slugifyPathSegment(args.category)}/${slugifyPathSegment(args.product)}.${ext}`;
     case 'misc':
@@ -193,12 +193,6 @@ export function predictedProductUrl(args: { city: string; restaurant: string; ca
   if (!r2Enabled()) return null;
   if (!args.city || !args.restaurant || !args.category || !args.product) return null;
   return r2KeyToPublicUrl(buildR2Key({ kind: 'product', ...args }));
-}
-
-export function predictedMainCategoryUrl(args: { city: string; restaurant: string; category: string }): string | null {
-  if (!r2Enabled()) return null;
-  if (!args.city || !args.restaurant || !args.category) return null;
-  return r2KeyToPublicUrl(buildR2Key({ kind: 'main-category', ...args }));
 }
 
 export function predictedHeroUrl(args: { city: string; restaurant: string }): string | null {

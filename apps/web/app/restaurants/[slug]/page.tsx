@@ -159,9 +159,6 @@ export default async function RestaurantPage({
           categories: Array.isArray(menuData)
             ? menuData
             : menuData?.categories || [],
-          mainCategories: Array.isArray(menuData)
-            ? []
-            : menuData?.mainCategories || [],
           deals,
           restaurant,
         }

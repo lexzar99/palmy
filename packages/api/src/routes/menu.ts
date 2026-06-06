@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { getDealScopeType, isDealAvailableNow, parseApplicableRestaurantIds, parseDealTargetIds, resolveDisplayPromotionForProduct } from '../lib/deals';
-import { predictedProductUrl, predictedMainCategoryUrl, predictedHeroUrl, slugifyPathSegment } from '../lib/r2';
+import { predictedProductUrl, predictedHeroUrl, slugifyPathSegment } from '../lib/r2';
 
 const router = Router();
 
@@ -154,15 +154,6 @@ router.get('/categories', async (req, res) => {
       });
     };
 
-    const queryMainCategories = async (rid: string | null) => {
-      if (!rid) return [];
-      return prisma.mainCategory.findMany({
-        where: { restaurantId: rid, isActive: true },
-        orderBy: { position: 'asc' },
-        select: { id: true, name: true, imageUrl: true, position: true },
-      });
-    };
-
     // Populärt-poäng per produkt senaste 30 dagar. HYBRID som mäter genuin
     // efterfrågan utan att en enda bulk-order ("60 calzone till festen") kan
     // kapa hela listan:
@@ -198,10 +189,8 @@ router.get('/categories', async (req, res) => {
     };
 
     const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
-    const [categories, mainCategories, popularity] = await Promise.all([
+    const [categories] = await Promise.all([
       queryActiveMenuByRestaurantId(primaryRestaurantId),
-      queryMainCategories(primaryRestaurantId),
-      queryProductPopularity(primaryRestaurantId),
     ]);
     const activeDeals = primaryRestaurantId
       ? await prisma.deal.findMany({
@@ -222,7 +211,6 @@ router.get('/categories', async (req, res) => {
       slug: cat.slug,
       description: cat.description,
       imageUrl: cat.imageUrl,
-      mainCategoryId: cat.mainCategoryId || null,
       products: cat.products.map((prod: any) => {
         // Predicted R2 URL — om DB.imageUrl är null testar klienten denna.
         // Om filen finns i R2 (på kanonisk slug-path) visas den direkt.
@@ -272,117 +260,12 @@ router.get('/categories', async (req, res) => {
       }),
     }));
 
-    // Bygg topplagret. Huvudkategorier som har minst en kategori dyker upp som
-    // tiles i kund-UI:t. Kategorier som ännu inte tilldelats samlas i en virtuell
-    // "Övrigt"-tile så ingen meny går sönder under övergångsfasen.
-    const categoriesByMain = new Map<string, typeof formattedCategories>();
-    const orphanCategories: typeof formattedCategories = [];
-    for (const cat of formattedCategories) {
-      if (cat.mainCategoryId) {
-        const arr = categoriesByMain.get(cat.mainCategoryId) || [];
-        arr.push(cat);
-        categoriesByMain.set(cat.mainCategoryId, arr);
-      } else {
-        orphanCategories.push(cat);
-      }
-    }
-
-    // Plockar 6 produkter per huvudkategori för "Populärt"-raden.
-     // - Kategorier med <10 totala produkter: tom lista (sektionen göms på
-     //   klienten) — annars blir raden redundant.
-     // - Med order-historik senaste 30d: rangordna efter OrderItem-counts +
-     //   1.2x bild-boost.
-     // - Utan historik (ny restaurang): random per request med 1.5x bild-vikt.
-    // Returnerar både id-listan OCH om rankingen är order-baserad. fromOrders
-    // styr cache-hit-pathen: order-baserad ranking ska INTE shufflas om per
-    // request (den ska vara stabil = "mest beställda"); bara random-fallbacken
-    // (ny restaurang utan historik) shufflas för discovery-känsla.
-    const POPULAR_MIN_PRICE_KR = 50; // inga drycker/billiga tillbehör i "Populärt"
-    const popularProductIdsFor = (cats: typeof formattedCategories): { ids: string[]; fromOrders: boolean } => {
-      const allProducts = cats.flatMap((c) => c.products);
-      if (allProducts.length < 10) return { ids: [], fromOrders: false };
-
-      // Bara rätter ≥ 50 kr räknas i "Populärt" (filtrerar bort läsk, sides,
-      // plastbestick osv). price är i kronor här.
-      const all = allProducts.filter((p) => (p.price ?? 0) >= POPULAR_MIN_PRICE_KR);
-      if (all.length === 0) return { ids: [], fromOrders: false };
-
-      const hasOrders = all.some((p) => (popularity.get(p.id) || 0) > 0);
-      const scored = all.map((p) => {
-        if (hasOrders) {
-          const base = popularity.get(p.id) || 0;
-          return { id: p.id, score: p.imageUrl ? base * 1.2 + 0.001 : base };
-        }
-        const r = Math.random();
-        return { id: p.id, score: p.imageUrl ? r * 1.5 : r };
-      });
-      return { ids: scored.sort((a, b) => b.score - a.score).slice(0, 6).map((p) => p.id), fromOrders: hasOrders };
-    };
-
-    const mainCategoriesPayload = mainCategories
-      .map((mc) => {
-        const cats = categoriesByMain.get(mc.id) || [];
-        const mcPredicted = predictedMainCategoryUrl({
-          city: citySlugForR2,
-          restaurant: restSlugForR2,
-          category: slugifyPathSegment(mc.name),
-        });
-        const popular = popularProductIdsFor(cats);
-        return {
-          id: mc.id,
-          name: mc.name,
-          imageUrl: mc.imageUrl || mcPredicted,
-          position: mc.position,
-          isVirtual: false,
-          categories: cats,
-          popularProductIds: popular.ids,
-          popularFromOrders: popular.fromOrders,
-        };
-      })
-      .filter((mc) => mc.categories.length > 0);
-
-    if (orphanCategories.length > 0) {
-      mainCategoriesPayload.push({
-        id: '__uncategorized__',
-        name: 'Övrigt',
-        imageUrl: null,
-        position: 9999,
-        isVirtual: true,
-        categories: orphanCategories,
-        popularProductIds: popularProductIdsFor(orphanCategories).ids,
-        popularFromOrders: false,
-      });
-    }
-
-    // Virtuell "Erbjudanden"-tile — samlar produkter med aktiv display-rabatt
-    // i en egen sektion istället för att lyfta dem till toppen av menyn.
-    const discountedProducts = formattedCategories.flatMap((cat) =>
-      cat.products.filter((p) => p.discountActive).map((p) => ({ cat, product: p })),
-    );
-    if (discountedProducts.length > 0) {
-      const offerCategory = {
-        id: '__offers__',
-        name: 'Erbjudanden',
-        slug: '__offers__',
-        description: null,
-        imageUrl: null,
-        mainCategoryId: '__offers_main__',
-        products: discountedProducts.map(({ product }) => product),
-      };
-      mainCategoriesPayload.unshift({
-        id: '__offers_main__',
-        name: 'Erbjudanden',
-        imageUrl: resolvedRestaurant?.offersImageUrl || null,
-        position: -1,
-        isVirtual: true,
-        categories: [offerCategory as any],
-        popularProductIds: [],
-        popularFromOrders: false,
-      });
-    }
-
+    // Platt meny: hela restaurangens kategorier (med produkter) returneras
+    // direkt — inget MainCategory-topplager längre. `mainCategories: []` behålls
+    // i svaret för bakåtkompatibilitet (klienter faller tillbaka på platt lista
+    // när den är tom).
     const payload = {
-      mainCategories: mainCategoriesPayload,
+      mainCategories: [] as any[],
       categories: formattedCategories,
     };
 

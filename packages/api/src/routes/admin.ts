@@ -1188,7 +1188,6 @@ router.get('/categories', async (req, res) => {
 
     const baseInclude = {
       _count: { select: { products: true } },
-      mainCategory: { select: { id: true, name: true } },
       ...productInclude,
     };
 
@@ -1217,7 +1216,7 @@ router.get('/categories', async (req, res) => {
 // POST /api/admin/categories
 router.post('/categories', async (req, res) => {
   try {
-    const { name, description, imageUrl, position, restaurantId, mainCategoryId } = req.body;
+    const { name, description, imageUrl, position, restaurantId } = req.body;
     const slug = name.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
     const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
       ? (restaurantId ? String(restaurantId) : null)
@@ -1232,7 +1231,6 @@ router.post('/categories', async (req, res) => {
         imageUrl,
         position: position || 0,
         restaurantId: scopedRestaurantId,
-        mainCategoryId: mainCategoryId || null,
       },
     });
     await audit(req as AuthRequest, 'CATEGORY_CREATE', {
@@ -1301,7 +1299,7 @@ router.patch('/categories/:id', async (req, res) => {
       }
     }
 
-    const { name, description, imageUrl, position, isActive, mainCategoryId } = req.body;
+    const { name, description, imageUrl, position, isActive } = req.body;
     const data: Record<string, unknown> = {};
     if (name !== undefined) {
       data.name = name;
@@ -1310,7 +1308,6 @@ router.patch('/categories/:id', async (req, res) => {
     if (imageUrl !== undefined) data.imageUrl = imageUrl;
     if (position !== undefined) data.position = position;
     if (isActive !== undefined) data.isActive = isActive;
-    if (mainCategoryId !== undefined) data.mainCategoryId = mainCategoryId || null;
 
     const category = await prisma.category.update({
       where: { id: req.params.id },
@@ -1366,187 +1363,6 @@ router.delete('/categories/:id', async (req, res) => {
   }
 });
 
-// =====================
-// HUVUDKATEGORIER
-// Topplagret i restaurangens meny — bild-tiles som kunden klickar för att
-// borra ner till underkategorier. Modellen ägs alltid av en restaurang
-// (ingen global fallback som Category har).
-// =====================
-
-// GET /api/admin/main-categories?restaurantId=...
-router.get('/main-categories', async (req, res) => {
-  try {
-    const { restaurantId } = req.query;
-    const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
-      ? (restaurantId ? (restaurantId as string) : null)
-      : requireRestaurantScope(req as AuthRequest, res);
-    if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
-    if (!scopedRestaurantId) {
-      res.json([]);
-      return;
-    }
-
-    const mainCategories = await prisma.mainCategory.findMany({
-      where: { restaurantId: scopedRestaurantId },
-      orderBy: { position: 'asc' },
-      include: {
-        categories: {
-          orderBy: { position: 'asc' },
-          select: { id: true, name: true, position: true, isActive: true, _count: { select: { products: true } } },
-        },
-        _count: { select: { categories: true } },
-      },
-    });
-    res.json(mainCategories);
-  } catch (error) {
-    console.error('Error listing main categories:', error);
-    res.status(500).json({ error: 'Serverfel' });
-  }
-});
-
-// POST /api/admin/main-categories
-router.post('/main-categories', async (req, res) => {
-  try {
-    const { name, imageUrl, position, isActive, restaurantId, categoryIds } = req.body;
-    const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
-      ? (restaurantId ? String(restaurantId) : null)
-      : requireRestaurantScope(req as AuthRequest, res);
-    if (!scopedRestaurantId) {
-      res.status(400).json({ error: 'restaurantId krävs' });
-      return;
-    }
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      res.status(400).json({ error: 'name krävs' });
-      return;
-    }
-
-    const created = await prisma.$transaction(async (tx) => {
-      const mc = await tx.mainCategory.create({
-        data: {
-          name: name.trim(),
-          imageUrl: imageUrl || null,
-          position: typeof position === 'number' ? position : 0,
-          isActive: isActive ?? true,
-          restaurantId: scopedRestaurantId,
-        },
-      });
-      if (Array.isArray(categoryIds) && categoryIds.length > 0) {
-        await tx.category.updateMany({
-          where: { id: { in: categoryIds }, restaurantId: scopedRestaurantId },
-          data: { mainCategoryId: mc.id },
-        });
-      }
-      return mc;
-    });
-
-    await audit(req as AuthRequest, 'MAIN_CATEGORY_CREATE', {
-      resourceType: 'MainCategory',
-      resourceId: created.id,
-      changes: { name: created.name, restaurantId: scopedRestaurantId },
-    });
-    broadcastMenuChange(scopedRestaurantId, { kind: 'main-category', mainCategoryId: created.id });
-    res.status(201).json(created);
-  } catch (error: any) {
-    console.error('Error creating main category:', error);
-    res.status(500).json({ error: sanitizeError(error, 'Serverfel') });
-  }
-});
-
-// PATCH /api/admin/main-categories/:id
-router.patch('/main-categories/:id', async (req, res) => {
-  try {
-    const existing = await prisma.mainCategory.findUnique({
-      where: { id: req.params.id },
-      select: { id: true, restaurantId: true },
-    });
-    if (!existing) {
-      res.status(404).json({ error: 'Huvudkategori hittades inte' });
-      return;
-    }
-    if (!isSuperAdmin(req as AuthRequest)) {
-      const rid = requireRestaurantScope(req as AuthRequest, res);
-      if (!rid) return;
-      if (existing.restaurantId !== rid) {
-        res.status(403).json({ error: 'Du kan bara uppdatera huvudkategorier för din restaurang' });
-        return;
-      }
-    }
-
-    const { name, imageUrl, position, isActive, categoryIds } = req.body;
-    const data: Record<string, unknown> = {};
-    if (name !== undefined) data.name = String(name).trim();
-    if (imageUrl !== undefined) data.imageUrl = imageUrl || null;
-    if (position !== undefined) data.position = Number(position);
-    if (isActive !== undefined) data.isActive = Boolean(isActive);
-
-    await prisma.$transaction(async (tx) => {
-      if (Object.keys(data).length > 0) {
-        await tx.mainCategory.update({ where: { id: req.params.id }, data });
-      }
-      if (Array.isArray(categoryIds)) {
-        // Koppla loss alla nuvarande, koppla på de som angetts. Begränsat till
-        // restaurangens egna kategorier för säkerhets skull.
-        await tx.category.updateMany({
-          where: { mainCategoryId: req.params.id },
-          data: { mainCategoryId: null },
-        });
-        if (categoryIds.length > 0) {
-          await tx.category.updateMany({
-            where: { id: { in: categoryIds }, restaurantId: existing.restaurantId },
-            data: { mainCategoryId: req.params.id },
-          });
-        }
-      }
-    });
-
-    const updated = await prisma.mainCategory.findUnique({ where: { id: req.params.id } });
-    await audit(req as AuthRequest, 'MAIN_CATEGORY_UPDATE', {
-      resourceType: 'MainCategory',
-      resourceId: req.params.id,
-      changes: { ...data, categoryIdsCount: Array.isArray(categoryIds) ? categoryIds.length : undefined },
-    });
-    broadcastMenuChange(existing.restaurantId, { kind: 'main-category', mainCategoryId: req.params.id });
-    res.json(updated);
-  } catch (error: any) {
-    console.error('Error updating main category:', error);
-    res.status(500).json({ error: sanitizeError(error, 'Serverfel') });
-  }
-});
-
-// DELETE /api/admin/main-categories/:id
-// Tar bara bort huvudkategorin. Underkategorierna behålls (mainCategoryId → null
-// via onDelete: SetNull i schemat) så ingen produktdata påverkas.
-router.delete('/main-categories/:id', async (req, res) => {
-  try {
-    const existing = await prisma.mainCategory.findUnique({
-      where: { id: req.params.id },
-      select: { id: true, restaurantId: true },
-    });
-    if (!existing) {
-      res.status(404).json({ error: 'Huvudkategori hittades inte' });
-      return;
-    }
-    if (!isSuperAdmin(req as AuthRequest)) {
-      const rid = requireRestaurantScope(req as AuthRequest, res);
-      if (!rid) return;
-      if (existing.restaurantId !== rid) {
-        res.status(403).json({ error: 'Du kan bara radera huvudkategorier för din restaurang' });
-        return;
-      }
-    }
-
-    await prisma.mainCategory.delete({ where: { id: req.params.id } });
-    await audit(req as AuthRequest, 'MAIN_CATEGORY_DELETE', {
-      resourceType: 'MainCategory',
-      resourceId: req.params.id,
-    });
-    broadcastMenuChange(existing.restaurantId, { kind: 'main-category', mainCategoryId: req.params.id, deleted: true });
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error('Error deleting main category:', error);
-    res.status(500).json({ error: sanitizeError(error, 'Serverfel') });
-  }
-});
 
 // =====================
 // PRODUKTER

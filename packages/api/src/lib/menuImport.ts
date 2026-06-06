@@ -13,7 +13,6 @@
  *   categories:
  *     - name: Kyckling
  *       description: "…"        # valfri
- *       mainCategory: Kyckling  # valfri tile-grupp
  *       products:
  *         - name: Crispy tallrik
  *           description: "…"     # valfri
@@ -63,7 +62,6 @@ const ProductSchema = z.object({
 const CategorySchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  mainCategory: z.string().optional(),
   products: z.array(ProductSchema).default([]),
 });
 
@@ -214,24 +212,16 @@ export async function runMenuImport(
     if (catExists) summary.categoriesUpdated++; else summary.categoriesCreated++;
     examples.push(`Kategori ${catExists ? '↻' : '＋'} ${cat.name} (${cat.products.length} produkter)`);
 
-    // Valfri huvudkategori (tile-grupp) — find-or-create per restaurang.
-    let mainCategoryId: string | null = null;
-    if (apply && cat.mainCategory) {
-      const mc = await prisma.mainCategory.findFirst({ where: { restaurantId, name: cat.mainCategory }, select: { id: true } });
-      mainCategoryId = mc?.id
-        ?? (await prisma.mainCategory.create({ data: { restaurantId, name: cat.mainCategory }, select: { id: true } })).id;
-    }
-
     let catId = catIdByName.get(catKey) || '';
     if (apply) {
       if (catExists) {
         await prisma.category.update({
           where: { id: catId },
-          data: { description: cat.description ?? null, ...(mainCategoryId ? { mainCategoryId } : {}) },
+          data: { description: cat.description ?? null },
         });
       } else {
         const created = await prisma.category.create({
-          data: { restaurantId, name: cat.name, slug: uniqueSlug(cat.name), description: cat.description ?? null, mainCategoryId },
+          data: { restaurantId, name: cat.name, slug: uniqueSlug(cat.name), description: cat.description ?? null },
           select: { id: true },
         });
         catId = created.id;

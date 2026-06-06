@@ -131,7 +131,7 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
       res.status(400).json({ error: 'Ingen fil uppladdad' });
       return;
     }
-    const kind = String(req.body.kind || 'misc') as 'hero' | 'logo' | 'main-category' | 'product' | 'misc';
+    const kind = String(req.body.kind || 'misc') as 'hero' | 'logo' | 'category' | 'product' | 'misc';
     const restaurantId = req.body.restaurantId ? String(req.body.restaurantId) : null;
     const categoryId = req.body.categoryId ? String(req.body.categoryId) : null;
     const productId = req.body.productId ? String(req.body.productId) : null;
@@ -158,15 +158,9 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
       }
     }
     if (categoryId) {
-      // För main-category är ID:t i MainCategory-tabellen (saknar slug-kolumn).
-      // För product är ID:t i Category-tabellen (har slug). Lookup-tabell avgörs av kind.
-      if (kind === 'main-category') {
-        const mc = await prisma.mainCategory.findUnique({ where: { id: categoryId }, select: { name: true } });
-        if (mc) categorySlug = slugifyPathSegment(mc.name);
-      } else {
-        const cat = await prisma.category.findUnique({ where: { id: categoryId }, select: { slug: true, name: true } });
-        if (cat) categorySlug = cat.slug || slugifyPathSegment(cat.name);
-      }
+      // categoryId pekar alltid på en Category-rad (har slug).
+      const cat = await prisma.category.findUnique({ where: { id: categoryId }, select: { slug: true, name: true } });
+      if (cat) categorySlug = cat.slug || slugifyPathSegment(cat.name);
     }
     if (productId) {
       const prod = await prisma.product.findUnique({ where: { id: productId }, select: { slug: true, name: true } });
@@ -181,7 +175,7 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
     // Validera att vi har det vi behöver för den valda typen
     if (kind !== 'misc' && !citySlug) { res.status(400).json({ error: 'Saknar stad för denna restaurang' }); return; }
     if (kind !== 'misc' && !restaurantSlug) { res.status(400).json({ error: 'Saknar restaurang-slug' }); return; }
-    if ((kind === 'main-category' || kind === 'product') && !categorySlug) { res.status(400).json({ error: 'Saknar kategori-slug' }); return; }
+    if ((kind === 'category' || kind === 'product') && !categorySlug) { res.status(400).json({ error: 'Saknar kategori-slug' }); return; }
     if (kind === 'product' && !productSlug) { res.status(400).json({ error: 'Saknar produkt-slug' }); return; }
 
     // Konvertera till WebP
@@ -199,8 +193,8 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
       key = buildR2Key({ kind: 'hero', city: citySlug!, restaurant: restaurantSlug! });
     } else if (kind === 'logo') {
       key = buildR2Key({ kind: 'logo', city: citySlug!, restaurant: restaurantSlug! });
-    } else if (kind === 'main-category') {
-      key = buildR2Key({ kind: 'main-category', city: citySlug!, restaurant: restaurantSlug!, category: categorySlug! });
+    } else if (kind === 'category') {
+      key = buildR2Key({ kind: 'category', city: citySlug!, restaurant: restaurantSlug!, category: categorySlug! });
     } else {
       key = buildR2Key({ kind: 'product', city: citySlug!, restaurant: restaurantSlug!, category: categorySlug!, product: productSlug! });
     }
@@ -296,7 +290,7 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
 
     let matchedHero = false;
     let matchedLogo = false;
-    let matchedMain = 0;
+    let matchedCategories = 0;
     let matchedProducts = 0;
     let actualWrites = 0;
     const updates: Array<{ kind: string; id: string; url: string; key: string; changed: boolean }> = [];
@@ -326,21 +320,21 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
       }
     }
 
-    // main-categories
-    const mainCats = await prisma.mainCategory.findMany({
+    // categories — bild på category/{slug}.webp → Category.imageUrl
+    const catRows = await prisma.category.findMany({
       where: { restaurantId },
-      select: { id: true, name: true, imageUrl: true },
+      select: { id: true, slug: true, name: true, imageUrl: true },
     });
-    for (const mc of mainCats) {
-      const slug = slugifyPathSegment(mc.name);
-      const key = `${prefix}main/${slug}.webp`;
+    for (const c of catRows) {
+      const slug = c.slug || slugifyPathSegment(c.name);
+      const key = `${prefix}category/${slug}.webp`;
       if (keyByKey.has(key)) {
-        matchedMain++;
+        matchedCategories++;
         const url = urlFor(key);
-        const changed = mc.imageUrl !== url;
-        updates.push({ kind: 'main-category', id: mc.id, url, key, changed });
+        const changed = c.imageUrl !== url;
+        updates.push({ kind: 'category', id: c.id, url, key, changed });
         if (!dryRun && changed) {
-          await prisma.mainCategory.update({ where: { id: mc.id }, data: { imageUrl: url } });
+          await prisma.category.update({ where: { id: c.id }, data: { imageUrl: url } });
           actualWrites++;
         }
       }
@@ -381,7 +375,7 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
       city: citySlug,
       prefix,
       totalObjectsInPrefix: items.length,
-      matched: { hero: matchedHero, logo: matchedLogo, mainCategories: matchedMain, products: matchedProducts },
+      matched: { hero: matchedHero, logo: matchedLogo, categories: matchedCategories, products: matchedProducts },
       writes: actualWrites,
       updates: updates.slice(0, 20),
       dryRun,
@@ -424,12 +418,6 @@ router.get('/images/paths-template', async (req: Request, res: Response) => {
     const citySlug = rest.city_relation?.slug || slugifyPathSegment(rest.city_relation?.name || rest.city || 'global');
     const prefix = `${citySlug}/${rest.slug}/`;
 
-    const mainCats = await prisma.mainCategory.findMany({
-      where: { restaurantId },
-      select: { id: true, name: true },
-      orderBy: { position: 'asc' },
-    });
-
     const categories = await prisma.category.findMany({
       where: { restaurantId },
       select: {
@@ -450,16 +438,11 @@ router.get('/images/paths-template', async (req: Request, res: Response) => {
       prefix,
       hero: { key: `${prefix}hero.webp`, label: 'Hero (top banner)' },
       logo: { key: `${prefix}logo.webp`, label: 'Logo' },
-      mainCategories: mainCats.map((mc) => ({
-        id: mc.id,
-        name: mc.name,
-        slug: slugifyPathSegment(mc.name),
-        key: `${prefix}main/${slugifyPathSegment(mc.name)}.webp`,
-      })),
       categories: categories.map((c) => ({
         id: c.id,
         name: c.name,
         slug: c.slug || slugifyPathSegment(c.name),
+        key: `${prefix}category/${c.slug || slugifyPathSegment(c.name)}.webp`,
         folder: `${prefix}menu/${c.slug || slugifyPathSegment(c.name)}/`,
         products: c.products.map((p) => ({
           id: p.id,

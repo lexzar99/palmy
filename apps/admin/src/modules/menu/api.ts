@@ -17,20 +17,7 @@ export interface CategoryRecord {
   position: number;
   isActive?: boolean;
   restaurantId?: string | null;
-  mainCategoryId?: string | null;
-  mainCategory?: { id: string; name: string } | null;
   _count?: { products: number };
-}
-
-export interface MainCategoryRecord {
-  id: string;
-  name: string;
-  imageUrl?: string | null;
-  position: number;
-  isActive: boolean;
-  restaurantId: string;
-  categories?: Array<{ id: string; name: string; position: number; isActive: boolean; _count?: { products: number } }>;
-  _count?: { categories: number };
 }
 
 export interface ExtraRecord {
@@ -84,7 +71,6 @@ export const menuRestaurantsQueryKey = ["menu", "restaurants"] as const;
 export const menuCategoriesQueryKey = (restaurantId: string | null) => ["menu", "categories", restaurantId] as const;
 export const menuProductsQueryKey = (restaurantId: string | null) => ["menu", "products", restaurantId] as const;
 export const menuGroupsQueryKey = (restaurantId: string | null) => ["menu", "extra-groups", restaurantId] as const;
-export const menuMainCategoriesQueryKey = (restaurantId: string | null) => ["menu", "main-categories", restaurantId] as const;
 
 export const getMenuRestaurants = () => apiGet<RestaurantRef[]>("/restaurants");
 
@@ -112,21 +98,13 @@ export const createExtraGroup = (payload: Record<string, unknown>) => apiPost<Ex
 export const updateExtraGroup = (groupId: string, payload: Record<string, unknown>) => apiPatch<ExtraGroupRecord>(`/admin/extra-groups/${groupId}`, payload);
 export const deleteExtraGroup = (groupId: string) => apiDelete<{ success: boolean }>(`/admin/extra-groups/${groupId}`);
 
-export const getMainCategories = (restaurantId: string) =>
-  apiGet<MainCategoryRecord[]>(`/admin/main-categories?restaurantId=${restaurantId}`);
-export const createMainCategory = (payload: Partial<MainCategoryRecord> & { restaurantId: string; categoryIds?: string[] }) =>
-  apiPost<MainCategoryRecord>("/admin/main-categories", payload);
-export const updateMainCategory = (id: string, payload: Partial<MainCategoryRecord> & { categoryIds?: string[] }) =>
-  apiPatch<MainCategoryRecord>(`/admin/main-categories/${id}`, payload);
-export const deleteMainCategory = (id: string) => apiDelete<{ success: boolean }>(`/admin/main-categories/${id}`);
-
 // R2 image operations
 export type R2AutoMatchResult = {
   restaurant: string;
   city: string;
   prefix: string;
   totalObjectsInPrefix: number;
-  matched: { hero: boolean; logo: boolean; mainCategories: number; products: number };
+  matched: { hero: boolean; logo: boolean; categories: number; products: number };
   /** Antal DB-skrivningar som faktiskt gjordes (skip:s om värdet redan var samma). */
   writes?: number;
   updates: Array<{ kind: string; id: string; url: string; key: string; changed?: boolean }>;
@@ -151,7 +129,7 @@ export type R2MigrateResult = {
   configured: boolean;
 };
 
-export const r2Migrate = (payload: { apply: boolean; only?: 'restaurants' | 'main-categories' | 'categories' | 'products'; restaurantSlug?: string; maxItems?: number }) =>
+export const r2Migrate = (payload: { apply: boolean; only?: 'restaurants' | 'categories' | 'products'; restaurantSlug?: string; maxItems?: number }) =>
   // Migration kan ta minuter när det är på riktigt — bumpa timeout till 10 min.
   // Default axios = ingen timeout, men proxy-layers kan dö mycket tidigare.
   apiPost<R2MigrateResult>("/admin/images/migrate", payload, { timeout: 10 * 60 * 1000 });
@@ -162,11 +140,11 @@ export type R2PathsTemplate = {
   prefix: string;
   hero: { key: string; label: string };
   logo: { key: string; label: string };
-  mainCategories: Array<{ id: string; name: string; slug: string; key: string }>;
   categories: Array<{
     id: string;
     name: string;
     slug: string;
+    key: string;
     folder: string;
     products: Array<{ id: string; name: string; slug: string; key: string }>;
   }>;

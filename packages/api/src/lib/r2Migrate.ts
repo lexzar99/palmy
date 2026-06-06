@@ -8,7 +8,7 @@ import { r2Enabled, r2PublicBase, uploadToR2, toWebp, buildR2Key, slugifyPathSeg
 
 export type MigrateOptions = {
   apply: boolean;
-  only?: 'restaurants' | 'main-categories' | 'categories' | 'products';
+  only?: 'restaurants' | 'categories' | 'products';
   restaurantSlug?: string;
   /** Stoppa när detta antal bilder migrerats. För säkerhet i admin-UI. */
   maxItems?: number;
@@ -146,34 +146,6 @@ export async function runR2Migration(opts: MigrateOptions): Promise<MigrateResul
     }
   }
 
-  if (want('main-categories')) {
-    const mcs = await prisma.mainCategory.findMany({
-      where: opts.restaurantSlug ? { restaurant: slugFilter } : {},
-      select: {
-        id: true,
-        name: true,
-        imageUrl: true,
-        restaurant: { select: { slug: true, city: true, city_relation: { select: { slug: true, name: true } } } },
-      },
-    });
-    for (const mc of mcs) {
-      if (!mc.imageUrl || !mc.restaurant) continue;
-      const citySlug = mc.restaurant.city_relation?.slug || slugifyPathSegment(mc.restaurant.city_relation?.name || mc.restaurant.city || 'global');
-      const key = buildR2Key({
-        kind: 'main-category',
-        city: citySlug,
-        restaurant: mc.restaurant.slug,
-        category: slugifyPathSegment(mc.name),
-      });
-      await migrateOne({
-        label: `MainCategory • ${mc.restaurant.slug} / ${mc.name}`,
-        currentUrl: mc.imageUrl,
-        targetKey: key,
-        apply: async (url) => { await prisma.mainCategory.update({ where: { id: mc.id }, data: { imageUrl: url } }); },
-      });
-    }
-  }
-
   if (want('categories')) {
     const cats = await prisma.category.findMany({
       where: opts.restaurantSlug ? { restaurant: slugFilter } : {},
@@ -189,7 +161,7 @@ export async function runR2Migration(opts: MigrateOptions): Promise<MigrateResul
       if (!c.imageUrl || !c.restaurant) continue;
       const citySlug = c.restaurant.city_relation?.slug || slugifyPathSegment(c.restaurant.city_relation?.name || c.restaurant.city || 'global');
       const key = buildR2Key({
-        kind: 'main-category',
+        kind: 'category',
         city: citySlug,
         restaurant: c.restaurant.slug,
         category: c.slug || slugifyPathSegment(c.name),

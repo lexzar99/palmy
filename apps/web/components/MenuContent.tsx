@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Loader2, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, LayoutGrid } from "lucide-react";
+import { Search, Loader2, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import ProductModal from "@/components/ProductModal";
 import DpointsBadge from "@/components/DpointsBadge";
@@ -24,7 +24,6 @@ import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 interface MenuContentInitialData {
   categories?: any[];
-  mainCategories?: any[];
   deals?: PublicDeal[];
   restaurant?: any;
 }
@@ -79,34 +78,6 @@ function getDisplayPrice(p: any): { final: number; original: number | null } {
 // (useImageReachable-proben borttagen — korten använder nu next/image med
 //  onError-fallback, vilket tar bort den dubbla bild-laddningen per kort.)
 
-/**
- * Tile-bild för main-kategori. Visar bilden om den går att hämta, annars
- * faller tillbaka till stort centerat namn på neutral bakgrund (samma
- * design som UniformCard:s text-only-platta).
- */
-function MainCatImage({ url, name }: { url: string | null | undefined; name: string }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => { setFailed(false); }, [url]);
-  return (
-    <>
-      {url && !failed && (
-        <Image
-          src={url}
-          alt={name}
-          fill
-          sizes="(max-width: 640px) 50vw, 220px"
-          className="object-cover"
-          onError={() => setFailed(true)}
-        />
-      )}
-      {(!url || failed) && (
-        <div className="absolute inset-0 flex items-center justify-center p-4">
-          <span className="text-2xl md:text-3xl font-black text-center" style={{ color: "var(--text-primary)" }}>{name}</span>
-        </div>
-      )}
-    </>
-  );
-}
 
 /**
  * FullProductCard — produktrad för 1-per-rad-mode.
@@ -486,8 +457,6 @@ function CompactProductCard({ product, cartQty, onClick, disabled }: { product: 
 const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initialData = null }: MenuContentProps) => {
   const { t } = useTranslation();
   const [categories, setCategories] = useState<any[]>(initialData?.categories ?? []);
-  const [mainCategories, setMainCategories] = useState<any[]>(initialData?.mainCategories ?? []);
-  const [selectedMainCategoryId, setSelectedMainCategoryId] = useState<string | null>(null);
   const [deals, setDeals] = useState<PublicDeal[]>(initialData?.deals ?? []);
   const [restaurant, setRestaurant] = useState<any>(initialData?.restaurant ?? null);
   // SSR seeded the menu → start without the blocking spinner / client fetch.
@@ -656,13 +625,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         axios.get(`${API_URL}/api/deals`, { params: restaurantId ? { restaurantId } : restaurantSlug ? { slug: restaurantSlug } : {} }),
       ]);
 
-      // Endpoint returnerar nu { mainCategories, categories }. Gammalt format
-      // (platt array) stöds som fallback.
+      // Endpoint returnerar { categories } (platt). Gammalt platt-array-format
+      // stöds som fallback.
       const menuData = menuRes.data;
       const nextCategories = Array.isArray(menuData) ? menuData : (menuData?.categories || []);
-      const nextMainCategories = Array.isArray(menuData) ? [] : (menuData?.mainCategories || []);
       setCategories(nextCategories);
-      setMainCategories(nextMainCategories);
       setDeals(dealsRes.data);
       if (restaurantRes.data) {
         setRestaurant(restaurantRes.data);
@@ -903,15 +870,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
     }
   }, [restaurant?.isOpen, zoneAvailable, address, orderType]);
 
-  // Skopa till vald huvudkategori. Virtuella huvudkategorier (Erbjudanden,
-  // Övrigt) bär sina egna kategorier direkt — alla andra matchar på
-  // mainCategoryId.
-  const activeMainCategory = mainCategories.find((mc) => mc.id === selectedMainCategoryId) || null;
-  const scopedCategories = !selectedMainCategoryId
-    ? categories
-    : activeMainCategory?.isVirtual
-      ? activeMainCategory.categories
-      : categories.filter((c: any) => c.mainCategoryId === selectedMainCategoryId);
+  // Platt meny: hela restaurangens kategorier visas direkt. Produkter filtreras
+  // på sökterm. Inga huvudkategorier längre.
+  const scopedCategories = categories;
 
   const filteredCategories = scopedCategories
     .map((cat: any) => ({
@@ -924,17 +885,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
     }))
     .filter((cat: any) => cat.products.length > 0);
 
-  // Populära produkter för aktiv huvudkategori. Backend bygger ranking
-  // (orderitem-count + bild-boost). Klienten visar dem i en topp-sektion
-  // dubblerade — produkten visas både här OCH i sin riktiga kategori.
-  const popularProductIds: string[] = activeMainCategory?.popularProductIds || [];
-  const popularSet = new Set(popularProductIds);
-  const allScopedProducts: any[] = filteredCategories.flatMap((c: any) => c.products);
-  const popularProducts: any[] = popularProductIds
-    .map((id) => allScopedProducts.find((p) => p.id === id))
-    .filter(Boolean);
-
-  const isGridMode = mainCategories.length > 0 && !selectedMainCategoryId && !searchTerm.trim();
+  const popularSet = new Set<string>();
+  const popularProducts: any[] = [];
 
   if (loading) {
     return (
@@ -1263,112 +1215,27 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           })}
         </div>}
 
-        {/* ── Huvudkategori-grid: visas tills användaren väljer en kategori ── */}
-        {isGridMode && (
-          <div className="mb-10">
-            <div className="mb-3 rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
-              <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-              <input
-                type="text"
-                placeholder={t("menu.searchPlaceholder")}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-transparent border-none text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-zinc-400"
-                style={{ color: "var(--text-primary)" }}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1">
-              {mainCategories.map((mc: any) => (
-                <button
-                  key={mc.id}
-                  type="button"
-                  onClick={() => setSelectedMainCategoryId(mc.id)}
-                  className="group relative aspect-square rounded-md overflow-hidden cursor-pointer transition-transform hover:scale-[1.01]"
-                  style={{ backgroundColor: "var(--bg-secondary)" }}
-                >
-                  <MainCatImage url={mc.imageUrl} name={mc.name} />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Sticky header: SÖK + KATEGORI-PILLS följer med när man scrollar ──
-            Båda i samma wrapper så de sticky-positioneras tillsammans. Bryter
-            ut ur parent-padding (-mx-5 osv) så bakgrunden täcker hela viewport-
-            bredden när sticky → ingen content "syns igenom" på sidorna. */}
-        {/* Headern fastnar NEDANFÖR Dynamic Island (top = safe-area) så
-            kategori-raden aldrig hamnar bakom islanden när man scrollar — utan
-            extra padding, så den sitter kompakt direkt under statsen i vilo-
-            läget (ingen lucka, ingen overlay som täcker statsen ovanför).
-            Desktop/icke-notch: env=0 → top:0, oförändrat. */}
-        {!isGridMode && <div
-          className="sticky z-40 mb-8 -mx-5 sm:-mx-6 lg:-mx-12 top-[env(safe-area-inset-top,0px)] md:top-20"
-          style={{ backgroundColor: "var(--bg-primary)" }}
-        >
-          {/* Huvudkategori-bilder — horisontell scroll så man kan byta
-              huvudkategori medan man är inne i en annan. "Alla" → tillbaka
-              till bild-griden. */}
-          {mainCategories.length > 0 && (
-            <div className="pt-2">
-              <div className="flex gap-2.5 no-scrollbar px-5 sm:px-6 lg:px-12" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}>
-                <button
-                  type="button"
-                  onClick={() => { setSelectedMainCategoryId(null); setSearchTerm(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  className="shrink-0 flex flex-col items-center gap-1 w-[58px]"
-                >
-                  <div className="w-[52px] h-[52px] rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
-                    <LayoutGrid size={20} className="text-gold-500" />
-                  </div>
-                  <span className="text-[8.5px] font-bold uppercase tracking-wide text-center truncate w-full" style={{ color: "var(--text-secondary)" }}>Alla</span>
-                </button>
-                {mainCategories.map((mc: any) => {
-                  const active = selectedMainCategoryId === mc.id;
-                  return (
-                    <button
-                      key={mc.id}
-                      type="button"
-                      onClick={() => { setSelectedMainCategoryId(mc.id); setSearchTerm(""); }}
-                      className="shrink-0 flex flex-col items-center gap-1 w-[58px]"
-                    >
-                      <div className={`relative w-[52px] h-[52px] rounded-2xl overflow-hidden transition-all ${active ? "ring-2 ring-gold-500 shadow-md shadow-gold-500/25" : "ring-1 ring-[rgba(28,28,30,0.08)]"}`} style={{ backgroundColor: "var(--bg-deep)" }}>
-                        {mc.imageUrl
-                          ? <img src={mc.imageUrl} alt={mc.name} loading="lazy" className="w-full h-full object-cover" />
-                          : <div className="absolute inset-0 flex items-center justify-center text-base font-black" style={{ color: "var(--text-primary)" }}>{(mc.name || "?").charAt(0)}</div>}
-                      </div>
-                      <span className={`text-[8.5px] font-bold uppercase tracking-wide text-center truncate w-full ${active ? "text-gold-600" : ""}`} style={{ color: active ? undefined : "var(--text-secondary)" }}>{mc.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Sök — egen horisontell padding så den inte ligger edge-to-edge */}
-          <div className="px-5 sm:px-6 lg:px-12 pt-2">
-            <div className="rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
-              <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-              <input
-                type="text"
-                placeholder={t("menu.searchPlaceholder")}
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full bg-transparent border-none text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-zinc-400"
-                style={{ color: "var(--text-primary)" }}
-              />
-            </div>
+        {/* ── Sök + kategori-pills (icke-sticky inline-header) ──
+            Platt meny utan huvudkategori-lager och utan sticky header (togs bort
+            för att undvika scroll-glitchen). Pills hoppar till kategori-sektionen. */}
+        <div className="mb-8 px-5 sm:px-6 lg:px-12">
+          <div className="rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
+            <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+            <input
+              type="text"
+              placeholder={t("menu.searchPlaceholder")}
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-transparent border-none text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-zinc-400"
+              style={{ color: "var(--text-primary)" }}
+            />
           </div>
 
-          {/* Kategori-pills — egen horisontell scroll edge-to-edge med inner padding.
-              touch-action: pan-x → tillåter swipe-att-scrolla horisontellt utan
-              att kollidera med sidans vertikala scroll. */}
           {scopedCategories.length > 0 && (
-            <div className="py-2.5">
-              <div
-                className="flex gap-2 no-scrollbar px-5 sm:px-6 lg:px-12"
-                style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
-              >
+            <div
+              className="flex gap-2 no-scrollbar pt-3"
+              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
+            >
               {scopedCategories.map((cat: any) => {
                 const isActive = activeCategory === cat.id;
                 return (
@@ -1386,7 +1253,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                       manualScrollUntilRef.current = Date.now() + 700;
                       const element = document.getElementById(cat.id);
                       if (element) {
-                        const offset = 160;
+                        const offset = 100;
                         window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
                       }
                     }}
@@ -1401,14 +1268,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                   </motion.button>
                 );
               })}
-              </div>
             </div>
           )}
-        </div>}
+        </div>
 
-        {/* ── Menyn: kategorier med produkter (FULL eller COMPACT per produkt) ──
-            Döljs i grid-läget — kunden borrar först ner via en huvudkategori. */}
-        {!isGridMode && <div className="space-y-12">
+        {/* ── Menyn: kategorier med produkter (FULL eller COMPACT per produkt) ── */}
+        <div className="space-y-12">
            {filteredCategories.length === 0 ? (
              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 flex flex-col items-center justify-center text-center">
                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5" style={{ backgroundColor: "var(--bg-deep)" }}>
@@ -1481,7 +1346,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                ))}
              </>
            )}
-        </div>}
+        </div>
       </div>
 
       {/* Overlays / Modals */}

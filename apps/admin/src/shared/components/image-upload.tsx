@@ -22,7 +22,7 @@ const MAX_BYTES = 15 * 1024 * 1024;
  * Backend: packages/api/src/routes/upload.ts. Max raw-storlek 15 MB,
  * komprimeras till ~250 KB WebP.
  */
-export type ImageUploadKind = 'hero' | 'logo' | 'main-category' | 'product' | 'misc';
+export type ImageUploadKind = 'hero' | 'logo' | 'category' | 'product' | 'misc';
 
 export function ImageUploadField({
   value,
