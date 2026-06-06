@@ -49,7 +49,8 @@ const defaultElements: ReceiptElement[] = [
   { key: "allergens",            label: "Allergener",            visible: true,  size: 9,  weight: "bold",   align: "left"                     },
   { key: "divider4",             label: "Avdelare 4",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
   // ── Artiklar (vänster+höger) ───────────────────────────────────────────────
-  { key: "items",                label: "Artiklar",              visible: true,  size: 10, weight: "bold",   align: "left"                     },
+  { key: "items",                label: "Artiklar (namn)",       visible: true,  size: 10, weight: "bold",   align: "left"                     },
+  { key: "itemPrice",            label: "Artikelpris",           visible: true,  size: 8,  weight: "bold",   align: "right"                    },
   { key: "extras",               label: "Tillval",               visible: true,  size: 8,  weight: "normal", align: "left"                     },
   { key: "divider5",             label: "Avdelare 5",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
   // ── Totaler (vänster+höger) ───────────────────────────────────────────────
@@ -233,8 +234,8 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
           {items.map((item, i) => (
             <div key={i}>
               <div className="flex justify-between items-baseline gap-1">
-                <span style={elStyle("items")} className="flex-1">{s(item.qty)} x {s(item.name)}</span>
-                <span style={elStyle("items")} className="whitespace-nowrap shrink-0">{s(item.subtotal)} kr</span>
+                <span style={elStyle("items")} className="flex-1 break-words">{s(item.qty)} x {s(item.name)}</span>
+                <span style={elStyle("itemPrice")} className="whitespace-nowrap shrink-0 pl-2">{s(item.subtotal)} kr</span>
               </div>
               {vis("extras") && (item.extras as Array<unknown> ?? []).map((extra, ei) => (
                 <p key={ei} style={elStyle("extras")} className="text-[#555] pl-3">
@@ -438,7 +439,7 @@ export function ReceiptsPage() {
                 { key: "direction", label: "Leveransadress", elements: ["customerAddress", "deliveryInstructions"] },
                 { key: "orderDetails", label: "Orderdetaljer", elements: ["orderNumber", "timestamp"] },
                 { key: "clientInfo", label: "Kundinformation", elements: ["customerName", "customerPhone"] },
-                { key: "items", label: "Artiklar", elements: ["items", "extras"] },
+                { key: "items", label: "Artiklar", elements: ["items", "itemPrice", "extras"] },
                 { key: "notes", label: "Notering / Allergener", elements: ["note", "allergens"] },
                 { key: "totals", label: "Totaler", elements: ["deliveryFee", "discount", "total"] },
                 { key: "footer", label: "Sidfot", elements: ["thankYou", "footerMsg"] },
@@ -501,8 +502,8 @@ export function ReceiptsPage() {
                               if (!el) return null;
                               return (
                                 <div key={key} className="space-y-2">
-                                  <div className="flex items-center gap-3">
-                                    <span className="flex-1 text-xs font-medium text-[var(--text-secondary)]">{el.label}</span>
+                                  <span className="block text-xs font-medium text-[var(--text-secondary)]">{el.label}</span>
+                                  <div className="flex items-center gap-2">
                                     <Select
                                       value={el.size}
                                       onChange={(e) => updateElement(key, { size: Number(e.target.value) })}
@@ -510,6 +511,14 @@ export function ReceiptsPage() {
                                       {[7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 30].map((sz) => (
                                         <option key={sz} value={sz}>{sz} px</option>
                                       ))}
+                                    </Select>
+                                    <Select
+                                      value={el.weight}
+                                      onChange={(e) => updateElement(key, { weight: e.target.value as ReceiptElement["weight"] })}
+                                    >
+                                      <option value="normal">Normal</option>
+                                      <option value="bold">Fet</option>
+                                      <option value="black">Extra fet</option>
                                     </Select>
                                     <Select
                                       value={el.align}

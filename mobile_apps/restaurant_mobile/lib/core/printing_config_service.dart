@@ -574,6 +574,15 @@ class PrintingConfigService {
               align: 'left',
               uppercase: false),
           ReceiptTemplateElement(
+              key: 'itemPrice',
+              label: 'Artikelpris',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'bold',
+              align: 'right',
+              uppercase: false),
+          ReceiptTemplateElement(
               key: 'extras',
               label: 'Tillbehör',
               content: null,

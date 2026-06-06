@@ -96,13 +96,20 @@ class _RP {
     String right, {
     required double size,
     FontWeight w = FontWeight.bold,
+    double? rightSize,
+    FontWeight? rightW,
   }) {
+    // Höger-kolumnen (t.ex. artikelpriset) kan ha egen storlek/vikt så långa
+    // namn till vänster får mer plats. Smalare pris → bredare namn-kolumn.
+    final rs = rightSize ?? size;
+    final rw = rightW ?? w;
+    final leftMax = rightSize != null ? cw * 0.74 : cw * 0.65;
     final ltp = TextPainter(
       text: TextSpan(text: left, style: TextStyle(fontSize: size, fontWeight: w, color: const Color(0xFF000000), height: 1.3)),
       textDirection: TextDirection.ltr,
-    )..layout(maxWidth: cw * 0.65);
+    )..layout(maxWidth: leftMax);
     final rtp = TextPainter(
-      text: TextSpan(text: right, style: TextStyle(fontSize: size, fontWeight: w, color: const Color(0xFF000000), height: 1.3)),
+      text: TextSpan(text: right, style: TextStyle(fontSize: rs, fontWeight: rw, color: const Color(0xFF000000), height: 1.3)),
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: cw * 0.35);
     if (_c != null) {
@@ -855,6 +862,13 @@ class PrintService {
                 element.uppercase);
           break;
         case 'items':
+          final ipEl = visibleKeys['itemPrice'];
+          final priceStyle = ipEl == null
+              ? style
+              : pw.TextStyle(
+                  font: ipEl.weight == 'normal' ? regularFont : boldFont,
+                  fontSize: ipEl.size.toDouble(),
+                );
           widget = pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: items.expand((item) {
@@ -862,6 +876,7 @@ class PrintService {
               localWidgets.add(
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Expanded(
                         child: _pdfText(
@@ -869,7 +884,11 @@ class PrintService {
                             style,
                             pw.TextAlign.left,
                             element.uppercase)),
-                    pw.Text('${_safeValue(item['subtotal'])} kr', style: style),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(left: 6),
+                      child: pw.Text('${_safeValue(item['subtotal'])} kr',
+                          style: priceStyle),
+                    ),
                   ],
                 ),
               );
@@ -1223,6 +1242,8 @@ class PrintService {
           '${item['qty']} x ${_normalizeText(_safeValue(item['name']), uppercase: false)}',
           '${_safeValue(item['subtotal'])} kr',
           size: es('items', 28),
+          rightSize: es('itemPrice', 22),
+          rightW: ew('itemPrice', 'bold'),
         );
         if (ev('extras')) {
           final extras = item['extras'];
@@ -1454,7 +1475,8 @@ class PrintService {
               PosColumn(
                   text: '${_safeValue(item['subtotal'])} kr',
                   width: 3,
-                  styles: _posStyles(element, align: PosAlign.right)),
+                  styles: _posStyles(visibleKeys['itemPrice'] ?? element,
+                      align: PosAlign.right)),
             ]));
             if (extrasVisible) {
               for (final extra

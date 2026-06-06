@@ -581,6 +581,22 @@ router.post('/', async (req: Request, res: Response) => {
 
       const extrasTotal = validatedExtras.reduce((sum, e) => sum + Math.round(e.priceAddon * 100), 0);
       const fullItemOre = (product.price + extrasTotal) * item.quantity;
+      // Rabattpris (öre) för POÄNG-kostnaden så den matchar vad kunden ser i
+      // appen (rabattpris i poäng). Kontant-subtotalen använder fortsatt
+      // normalpriset (fullItemOre) — kr-rabatten appliceras separat via
+      // discountAmount, så vi får ingen dubbel-rabatt på kontantvaror.
+      const discountedBaseOre = (() => {
+        if (product.discountActive) {
+          if (typeof product.discountPrice === 'number' && product.discountPrice > 0) {
+            return Math.max(0, product.discountPrice);
+          }
+          if (typeof product.discountPercent === 'number' && product.discountPercent > 0) {
+            return Math.max(0, Math.round(product.price - product.price * (product.discountPercent / 100)));
+          }
+        }
+        return product.price;
+      })();
+      const pointsBaseOre = (discountedBaseOre + extrasTotal) * item.quantity;
       // Dpoints: betalas raden med poäng nollas priset (gratis-rad) och poängen
       // dras vid betalning. Kräver inloggad användare + aktiverat system + att
       // varan är markerad rewardable. Klienten erbjuder bara poäng-köp på
@@ -591,8 +607,8 @@ router.post('/', async (req: Request, res: Response) => {
       const payWithPoints = !!item.paidWithPoints && !!authenticatedUserId && dpSettings.dpointsEnabled && !!product.rewardable;
       const itemSubtotal = payWithPoints ? 0 : fullItemOre;
       if (payWithPoints) {
-        pointsToSpend += Math.round((fullItemOre / 100) * dpSettings.dpointsValuePerKr);
-        pointsPaidValueOre += fullItemOre;
+        pointsToSpend += Math.round((pointsBaseOre / 100) * dpSettings.dpointsValuePerKr);
+        pointsPaidValueOre += pointsBaseOre;
       }
       subtotal += itemSubtotal;
 
