@@ -207,6 +207,38 @@ function LanguagePickerRow() {
   );
 }
 
+// ─── Skeleton (visas under laddning — paritet med övriga sidor) ──────────────
+function ProfileSkeleton() {
+  return (
+    <div
+      className="min-h-screen pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] md:pt-16 pb-32 px-5 sm:px-6 lg:px-8"
+      style={{ backgroundColor: "var(--bg-primary)" }}
+    >
+      <div className="max-w-2xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="skeleton w-14 h-14 rounded-[1.5rem]" />
+            <div className="space-y-2">
+              <div className="skeleton h-5 w-40 rounded-lg" />
+              <div className="skeleton h-3 w-24 rounded" />
+            </div>
+          </div>
+          <div className="skeleton w-12 h-12 rounded-2xl" />
+        </div>
+        {/* Tabs */}
+        <div className="skeleton h-16 rounded-[2rem]" />
+        {/* Innehållskort */}
+        <div className="space-y-4">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="skeleton h-24 rounded-[2rem]" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ─────────────────────────────────────────────────────────
 function ProfileContent() {
   const router = useRouter();
@@ -613,13 +645,9 @@ function ProfileContent() {
     }
   };
 
-  // ─── Loading ──────────────────────────────────────────────────────────────
+  // ─── Loading (skeleton — paritet med övriga sidor) ──────────────────────────
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <Loader2 className="animate-spin text-gold-500" size={40} />
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   // ─── Not logged in ────────────────────────────────────────────────────────
@@ -1531,11 +1559,7 @@ function ProfileContent() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <Loader2 className="animate-spin text-gold-500" size={40} />
-      </div>
-    }>
+    <Suspense fallback={<ProfileSkeleton />}>
       <ProfileContent />
     </Suspense>
   );

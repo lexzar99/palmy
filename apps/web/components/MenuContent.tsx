@@ -6,7 +6,7 @@ import axios from "axios";
 import { io, Socket } from "socket.io-client";
 import { Search, Loader2, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
-import ProductModal from "@/components/ProductModal";
+import dynamic from "next/dynamic";
 import DpointsBadge from "@/components/DpointsBadge";
 import FloatingCartButton from "@/components/FloatingCartButton";
 import DealSpotlight from "@/components/DealSpotlight";
@@ -14,13 +14,18 @@ import { PublicDeal, formatDealReward } from "@/lib/deals";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import AddressModal from "@/components/AddressModal";
 import PreviouslyOrderedBar from "@/components/PreviouslyOrderedBar";
 import DealBannerStrip from "@/components/DealBannerStrip";
 import { useCartStore } from "@/store/cartStore";
 import { useFavorites } from "@/lib/favoritesStore";
-import BogoPickerModal, { type BogoPickerProduct } from "@/components/BogoPickerModal";
+import { type BogoPickerProduct } from "@/components/BogoPickerModal";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+
+// Tunga modaler laddas först vid interaktion (köp/adress/BOGO) → mindre initial
+// JS för restaurang-sidan = snabbare första rendering/hydration.
+const ProductModal = dynamic(() => import("@/components/ProductModal"), { ssr: false });
+const AddressModal = dynamic(() => import("@/components/AddressModal"), { ssr: false });
+const BogoPickerModal = dynamic(() => import("@/components/BogoPickerModal"), { ssr: false });
 
 interface MenuContentInitialData {
   categories?: any[];

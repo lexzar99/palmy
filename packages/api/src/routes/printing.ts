@@ -151,6 +151,36 @@ const formatPrinter = (printer: any) => ({
   updatedAt: printer.updatedAt,
 });
 
+// Välj den "bästa" av två rader för samma skrivare: default vinner, annars den
+// senast sedda (lastSeenAt, fallback createdAt).
+const pickBetterPrinter = (a: any, b: any) => {
+  if (!!a.isDefault !== !!b.isDefault) return a.isDefault ? a : b;
+  const aSeen = a.lastSeenAt ? new Date(a.lastSeenAt).getTime() : new Date(a.createdAt).getTime();
+  const bSeen = b.lastSeenAt ? new Date(b.lastSeenAt).getTime() : new Date(b.createdAt).getTime();
+  return bSeen > aSeen ? b : a;
+};
+
+// Visa bara EN skrivare per (restaurang + adress) — konsoliderar ev. gamla
+// dubbletter direkt i admin-listan även innan DB hunnit städas av POST-dedupen.
+// Bevarar ordningen (första förekomst), ersätter med den bästa raden.
+const dedupePrintersByAddress = <T extends { restaurantId?: string; address?: string | null }>(printers: T[]): T[] => {
+  const indexByKey = new Map<string, number>();
+  const result: T[] = [];
+  for (const p of printers) {
+    const addr = (p.address || '').trim().toLowerCase();
+    if (!addr) { result.push(p); continue; }
+    const key = `${p.restaurantId || ''}::${addr}`;
+    const idx = indexByKey.get(key);
+    if (idx === undefined) {
+      indexByKey.set(key, result.length);
+      result.push(p);
+    } else {
+      result[idx] = pickBetterPrinter(result[idx], p);
+    }
+  }
+  return result;
+};
+
 const ensurePrinterAccess = async (req: AuthRequest, res: any, printerId: string) => {
   const printer = await prisma.restaurantPrinter.findUnique({
     where: { id: printerId },
@@ -232,7 +262,7 @@ router.get('/printers', async (req: AuthRequest, res) => {
       orderBy: [{ restaurantId: 'asc' }, { isDefault: 'desc' }, { createdAt: 'asc' }],
     });
 
-    res.json(printers.map(formatPrinter));
+    res.json(dedupePrintersByAddress(printers).map(formatPrinter));
   } catch (error) {
     console.error('Printer list error:', error);
     res.status(500).json({ error: 'Kunde inte hämta skrivare' });
@@ -259,7 +289,7 @@ router.get('/config', async (req: AuthRequest, res) => {
     // restauranger renderar exakt det superadmin satt centralt. Skrivarens
     // fysiska konfiguration (NETWORK/BLUETOOTH-adress, kopior, autoPrint)
     // är fortfarande per restaurang.
-    const printersWithEnforcedWidth = printers
+    const printersWithEnforcedWidth = dedupePrintersByAddress(printers)
       .map(formatPrinter)
       .map((printer) => ({ ...printer, paperWidth: template.paperWidth }));
 
@@ -286,7 +316,7 @@ router.post('/printers', async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'restaurantId krävs' });
     }
 
-    const created = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const existingDefault = await tx.restaurantPrinter.findFirst({ where: { restaurantId, isDefault: true } });
       const shouldBeDefault = body.isDefault || !existingDefault;
 
@@ -297,26 +327,47 @@ router.post('/printers', async (req: AuthRequest, res) => {
         });
       }
 
-      return tx.restaurantPrinter.create({
-        data: {
-          restaurantId,
-          name: body.name,
-          connectionType: body.connectionType,
-          address: body.address,
-          paperWidth: body.paperWidth,
-          copies: body.copies,
-          autoPrint: body.autoPrint,
-          isDefault: shouldBeDefault,
-          isActive: body.isActive,
-          receiptMode: body.receiptMode,
-          notes: body.notes || null,
-          lastSeenAt: body.markSeen ? new Date() : null,
-        },
-        include: { restaurant: { select: { id: true, name: true } } },
-      });
+      const data = {
+        restaurantId,
+        name: body.name,
+        connectionType: body.connectionType,
+        address: body.address,
+        paperWidth: body.paperWidth,
+        copies: body.copies,
+        autoPrint: body.autoPrint,
+        isDefault: shouldBeDefault,
+        isActive: body.isActive,
+        receiptMode: body.receiptMode,
+        notes: body.notes || null,
+        lastSeenAt: body.markSeen ? new Date() : null,
+      };
+      const include = { restaurant: { select: { id: true, name: true } } } as const;
+
+      // Dedupe: samma fysiska skrivare (restaurang + adress) ska bara ha EN rad.
+      // Utan detta skapade VARJE (åter)anslutning från Flutter en ny rad → admin
+      // fylldes med 100 dubbletter för samma skrivare. Finns redan rader med
+      // samma adress: uppdatera den äldsta och radera resten (självläker gamla
+      // dubbletter vid nästa anslutning).
+      const dupes = (body.address || '').trim()
+        ? await tx.restaurantPrinter.findMany({
+            where: { restaurantId, address: body.address },
+            orderBy: { createdAt: 'asc' },
+          })
+        : [];
+
+      if (dupes.length > 0) {
+        if (dupes.length > 1) {
+          await tx.restaurantPrinter.deleteMany({ where: { id: { in: dupes.slice(1).map((d) => d.id) } } });
+        }
+        const updated = await tx.restaurantPrinter.update({ where: { id: dupes[0].id }, data, include });
+        return { printer: updated, created: false };
+      }
+
+      const createdRow = await tx.restaurantPrinter.create({ data, include });
+      return { printer: createdRow, created: true };
     });
 
-    res.status(201).json(formatPrinter(created));
+    res.status(result.created ? 201 : 200).json(formatPrinter(result.printer));
   } catch (error: any) {
     console.error('Create printer error:', error);
     res.status(400).json({ error: error?.message || 'Kunde inte skapa skrivaren' });

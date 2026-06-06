@@ -124,8 +124,18 @@ export default function LoginPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <Loader2 className="animate-spin text-gold-500" size={40} />
+      <div
+        className="min-h-screen flex flex-col items-center justify-start px-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] md:pt-20"
+        style={{ backgroundColor: "var(--bg-primary)" }}
+      >
+        <div className="w-full max-w-sm space-y-4">
+          <div className="skeleton h-4 w-20 rounded" />
+          <div className="skeleton h-12 w-12 rounded-2xl mx-auto" />
+          <div className="skeleton h-7 w-48 rounded-lg mx-auto" />
+          <div className="skeleton h-14 rounded-2xl" />
+          <div className="skeleton h-14 rounded-2xl" />
+          <div className="skeleton h-14 rounded-3xl" />
+        </div>
       </div>
     );
   }
