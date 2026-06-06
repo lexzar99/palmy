@@ -1056,7 +1056,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
       </div>
 
-      <div className="mx-auto max-w-5xl px-5 sm:px-6 lg:px-12 pt-4 sm:pt-6 relative">
+      <div className="mx-auto max-w-5xl px-6 sm:px-8 lg:px-12 pt-4 sm:pt-6 relative">
 
         {/* Out-of-zone banner — only shown for OPEN restaurants; closed ones are handled by the closed state */}
         <AnimatePresence>
@@ -1115,7 +1115,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
         {/* Aktuella deal-banners för den här restaurangen */}
         {(restaurantSlug || restaurant?.slug) ? (
-          <div className="mb-5 -mx-4 sm:-mx-6">
+          <div className="mb-5 -mx-6 sm:-mx-8 lg:-mx-12">
             <DealBannerStrip slug={restaurantSlug || restaurant?.slug} />
           </div>
         ) : null}
@@ -1215,8 +1215,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           })}
         </div>}
 
-        {/* ── Sök (inline, scrollar med sidan) ── */}
-        <div className="mb-3 px-5 sm:px-6 lg:px-12">
+        {/* ── Sök (inline, scrollar med sidan) — ärver containerns marginal ── */}
+        <div className="mb-3">
           <div className="rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
             <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
             <input
@@ -1231,11 +1231,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         </div>
 
         {/* ── Kategori-pills — STICKY header som följer med vid scroll ──
-            -mx + px ger full-bredd bakgrund (inget content syns igenom på sidorna).
+            Ärver containerns marginal (ingen -mx) → ingen horisontell overflow,
+            samma kant som sök + artiklar. Bakgrunden täcker content-bredden;
+            container-padding-gutters är tomma (sidans bg) → inget syns igenom.
             top: mobil = safe-area (ingen navbar), desktop = 80px (fast navbar). */}
         {scopedCategories.length > 0 && (
           <div
-            className="sticky z-30 mb-8 -mx-5 sm:-mx-6 lg:-mx-12 px-5 sm:px-6 lg:px-12 py-2.5 top-[env(safe-area-inset-top,0px)] md:top-20"
+            className="sticky z-30 mb-8 py-2.5 top-[env(safe-area-inset-top,0px)] md:top-20"
             style={{ backgroundColor: "var(--bg-primary)" }}
           >
             <div

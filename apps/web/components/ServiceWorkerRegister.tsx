@@ -2,30 +2,30 @@
 
 import { useEffect } from "react";
 
+/**
+ * Registrerar service workern (/sw.js) så appen blir en fullvärdig, installbar
+ * PWA (manifest + SW + fetch-handler = Chrome install-prompt + offline-skal).
+ * Registreringen fördröjs till `load` så main-thread prioriteras i Safari.
+ */
 export default function ServiceWorkerRegister() {
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
-    
-    const unregisterAll = async () => {
+
+    const register = async () => {
       try {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const registration of registrations) {
-          await registration.unregister();
-        }
+        await navigator.serviceWorker.register("/sw.js", { scope: "/" });
       } catch (err) {
-        console.error("SW Unregister Error:", err);
+        console.error("SW registration failed:", err);
       }
     };
 
-    // Delay registration/unregistration to prioritize main thread in Safari
     if (document.readyState === "complete") {
-      unregisterAll();
+      register();
     } else {
-      window.addEventListener("load", unregisterAll);
-      return () => window.removeEventListener("load", unregisterAll);
+      window.addEventListener("load", register);
+      return () => window.removeEventListener("load", register);
     }
   }, []);
 
   return null;
 }
-
