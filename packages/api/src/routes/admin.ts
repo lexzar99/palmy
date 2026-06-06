@@ -3951,6 +3951,18 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
       templateElements = [];
     }
 
+    // Utlovad tid (klar-klockslag): accept-tid + utlovad tid. Accept-tid =
+    // preparingAt (sätts när admin godkänner ordern); fallback createdAt om
+    // ordern inte hunnit godkännas. Förbeställningar visar scheduledFor i stället
+    // → ingen ETA-nedräkning. Ex: godkänd 01:02 + 45 min → "01:47".
+    const etaAnchor = order.preparingAt ? new Date(order.preparingAt) : new Date(order.createdAt);
+    const readyAt = (!order.scheduledFor && order.estimatedTime)
+      ? new Date(etaAnchor.getTime() + order.estimatedTime * 60_000)
+      : null;
+    const readyTime = readyAt
+      ? readyAt.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })
+      : null;
+
     res.json({
       header: {
         restaurantName: order.restaurant?.name || 'FoodGo',
@@ -3966,6 +3978,8 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
         time: new Date(order.createdAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }),
         date: new Date(order.createdAt).toLocaleDateString('sv-SE'),
         estimatedTime: order.estimatedTime,
+        // Klar-klockslag (HH:MM) = accept-tid + utlovad tid. Visas på kvittot.
+        readyTime,
         isPreorder: Boolean(order.scheduledFor),
         scheduledFor: order.scheduledFor,
         scheduledDate: order.scheduledFor ? new Date(order.scheduledFor).toLocaleDateString('sv-SE') : null,

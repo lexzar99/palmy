@@ -215,11 +215,11 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
         {vis("paymentMethod") && s(o.paymentMethod) && <BoxBadge style={elStyle("paymentMethod")}>{s(o.paymentMethod)}</BoxBadge>}
       </div>
 
-      {/* ── Leveranstid (jättestor) + artikelräknare ── */}
-      {vis("estimatedTime") && !o.isPreorder && n(o.estimatedTime) > 0 && (
+      {/* ── Utlovad tid: klar-klockslag (accept-tid + utlovad tid) ── */}
+      {vis("estimatedTime") && !o.isPreorder && s(o.readyTime) && (
         <div className="mb-1.5" style={{ textAlign: elMap.get("estimatedTime")?.align ?? "center" }}>
-          <p className="text-[12px] font-bold">Leveranstid</p>
-          <p style={elStyle("estimatedTime")} className="leading-tight">{s(o.estimatedTime)} min</p>
+          <p className="text-[12px] font-bold">Utlovad tid</p>
+          <p style={elStyle("estimatedTime")} className="leading-tight">Klar {s(o.readyTime)}</p>
         </div>
       )}
 
@@ -431,6 +431,7 @@ export function ReceiptsPage() {
 
             {(() => {
               const sections = [
+                { key: "restaurant", label: "Restaurang (namn / adress / telefon)", elements: ["restaurantName", "platformName", "address", "phone"] },
                 { key: "paymentMethod", label: "Betalmetod", elements: ["paymentMethod"] },
                 { key: "estimatedTime", label: "Beräknad tid (leverans)", elements: ["estimatedTime"] },
                 { key: "orderType", label: "Ordertyp", elements: ["orderType", "scheduledFor"] },

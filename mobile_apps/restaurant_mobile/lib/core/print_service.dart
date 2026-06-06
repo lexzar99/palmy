@@ -800,13 +800,16 @@ class PrintService {
           }
           break;
         case 'estimatedTime':
-          // Utlovad ETA i minuter (kommer från order.estimatedTime, dynamiskt
-          // räknat från restaurangens senaste 20 ordrarnas snitt). Visas inte
-          // för förbeställningar — de har redan scheduledFor som tydlig tid.
+          // Utlovad tid = klar-klockslag (accept-tid + utlovad tid), kommer som
+          // readyTime från backend. Fallback: minuter. Visas inte för
+          // förbeställningar — de har scheduledFor som tydlig tid.
           if (orderInfo['isPreorder'] != true &&
               orderInfo['estimatedTime'] != null) {
+            final ready = _safeValue(orderInfo['readyTime']);
             widget = _pdfText(
-                'Utlovad tid: ${orderInfo['estimatedTime']} min',
+                ready.isNotEmpty
+                    ? 'Utlovad tid: Klar $ready'
+                    : 'Utlovad tid: ${orderInfo['estimatedTime']} min',
                 style,
                 align,
                 element.uppercase);
@@ -1197,11 +1200,12 @@ class PrintService {
       p.badge(_safeValue(o['paymentMethod']));
     }
 
-    // Estimated delivery time
+    // Utlovad tid = klar-klockslag (accept-tid + utlovad tid). Fallback: minuter.
     if (ev('estimatedTime') && o['isPreorder'] != true && o['estimatedTime'] != null) {
       p.space(8);
-      p.text('Leveranstid', size: es('estimatedTime', 24), align: ea('estimatedTime', 'center'));
-      p.text('${o['estimatedTime']} min',
+      final ready = _safeValue(o['readyTime']);
+      p.text('Utlovad tid', size: es('estimatedTime', 24), align: ea('estimatedTime', 'center'));
+      p.text(ready.isNotEmpty ? 'Klar $ready' : '${o['estimatedTime']} min',
           size: es('estimatedTime', 64), w: FontWeight.w900, align: ea('estimatedTime', 'center'));
     }
 
@@ -1377,11 +1381,12 @@ class PrintService {
         case 'estimatedTime':
           if (orderInfo['isPreorder'] != true &&
               orderInfo['estimatedTime'] != null) {
-            bytes.addAll(generator.text('Leveranstid',
+            final ready = _safeValue(orderInfo['readyTime']);
+            bytes.addAll(generator.text('Utlovad tid',
                 styles: const PosStyles(align: PosAlign.center)));
             bytes.addAll(_posText(
                 generator,
-                '${orderInfo['estimatedTime']} min',
+                ready.isNotEmpty ? 'Klar $ready' : '${orderInfo['estimatedTime']} min',
                 element)); // size2 via element.size >= 12
           }
           break;
