@@ -1,5 +1,8 @@
+import 'dart:io' show Platform;
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 
 /// Ljudhantering med STRIKT separerade spelare så att ett one-shot-ljud aldrig
@@ -18,6 +21,22 @@ class AudioHelper {
   static bool _isLooping = false;
 
   static bool get isLooping => _isLooping;
+
+  // Samma native-kanal som device-info (MainActivity.kt). Används för att maxa
+  // enhetens LARM-volym så signalen alltid hörs i en stökig restaurang.
+  static const MethodChannel _deviceChannel =
+      MethodChannel('com.matgo.restaurant/device');
+
+  /// Höjer enhetens larm-ström (STREAM_ALARM) till max så larmet spelas så
+  /// högt hårdvaran tillåter. Endast Android; tyst no-op annars.
+  static Future<void> maxAlarmVolume() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await _deviceChannel.invokeMethod('setAlarmVolumeMax');
+    } catch (e) {
+      debugPrint('⚠️ setAlarmVolumeMax failed: $e');
+    }
+  }
 
   static Future<void> initConfigs() async {
     try {
@@ -38,6 +57,11 @@ class AudioHelper {
         ),
       );
       await AudioPlayer.global.setAudioContext(audioContext);
+      // Spelarna alltid på full appvolym; verklig "höjd" kommer från att vi
+      // maxar enhetens larm-ström.
+      await _loopPlayer.setVolume(1.0);
+      await _oneShotPlayer.setVolume(1.0);
+      await maxAlarmVolume();
     } catch (e) {
       debugPrint('AudioContext init error: $e');
     }
@@ -51,7 +75,9 @@ class AudioHelper {
     _isLooping = true; // Sätt guarden OMEDELBART (före await) → inga race/dubletter
     try {
       debugPrint('🔊 AudioHelper: Starting loop for audio/$assetName');
+      await maxAlarmVolume(); // maxa larm-strömmen precis innan larmet hörs
       await _loopPlayer.setReleaseMode(ReleaseMode.loop);
+      await _loopPlayer.setVolume(1.0);
       await _loopPlayer.stop(); // rensa ev. tidigare state innan ny loop
       try {
         await _loopPlayer.play(AssetSource('audio/$assetName'));
@@ -106,7 +132,9 @@ class AudioHelper {
   /// aldrig kan fastna i loop. Stoppar ev. pågående one-shot först.
   static Future<void> playAudio(String assetName) async {
     try {
+      await maxAlarmVolume(); // maxa larm-strömmen precis innan signalen hörs
       await _oneShotPlayer.setReleaseMode(ReleaseMode.release);
+      await _oneShotPlayer.setVolume(1.0);
       await _oneShotPlayer.stop();
       await _oneShotPlayer.play(AssetSource('audio/$assetName'));
     } catch (e) {

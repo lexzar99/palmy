@@ -654,6 +654,14 @@ class OrderProvider with ChangeNotifier {
       _handleConnectivity(false); // tillbaka online → dölj röd skärm, tysta larm
     });
 
+    // Socket.IO kan signalera lyckad återanslutning via `reconnect` (manager)
+    // i stället för ett nytt `connect`-event. Utan denna handler fastnade den
+    // röda offline-bannern kvar tills appen startades om.
+    _socket!.onReconnect((_) {
+      logger.log('SOCKET RECONNECTED: $restaurantId');
+      _handleConnectivity(false);
+    });
+
     _socket!.onConnectError((err) {
       _socketInitializing = false;
       logger.log('SOCKET CONNECT ERROR: $err');
@@ -766,8 +774,10 @@ class OrderProvider with ChangeNotifier {
 
     // Start watchdogs
     _alarmWatchdog?.cancel();
-    _alarmWatchdog =
-        Timer.periodic(const Duration(seconds: 10), (_) => _evaluateAlarms());
+    _alarmWatchdog = Timer.periodic(const Duration(seconds: 10), (_) {
+      _evaluateAlarms();
+      _reconcileConnectivity();
+    });
 
     // Removed client side status watchdog, rely on server push.
   }
@@ -788,13 +798,29 @@ class OrderProvider with ChangeNotifier {
         }
       });
     } else {
+      // Redan helt online → inget att göra. Viktigt eftersom
+      // _reconcileConnectivity() anropar denna var 10:e sek; utan guarden
+      // skulle vi trigga onödiga rebuilds hela tiden.
+      if (!_isOffline && !_offlineConfirmed) return;
       _offlineGraceTimer?.cancel();
+      _offlineGraceTimer = null;
       final wasConfirmed = _offlineConfirmed;
       _isOffline = false;
       _offlineConfirmed = false;
       if (wasConfirmed) _stopDisconnectAlarm();
     }
     notifyListeners();
+  }
+
+  /// Säkerhetsnät mot tappade socket-events. Socket.IO:s `connect`/`reconnect`
+  /// kan missas vid vissa nät-övergångar, och då blev den röda offline-bannern
+  /// hängande kvar trots att appen var online igen (krävde omstart). Var 10:e
+  /// sek (alarm-watchdogen) stämmer vi av mot socketens FAKTISKA status och
+  /// släcker offline-läget om vi i själva verket är anslutna.
+  void _reconcileConnectivity() {
+    if ((_socket?.connected ?? false) && _isOffline) {
+      _handleConnectivity(false); // online igen → dölj röd banner/skärm + tysta
+    }
   }
 
   void _startDisconnectAlarm() {

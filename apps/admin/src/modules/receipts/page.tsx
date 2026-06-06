@@ -2,26 +2,21 @@
 
 import React, { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Loader2, Plus, Printer, Save } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Printer, Save } from "lucide-react";
 import {
-  createPrinter,
-  deletePrinter,
   getPreviewOrders,
   getPrintingConfig,
   getReceiptPreview,
   printingConfigQueryKey,
   receiptPreviewDataQueryKey,
   receiptPreviewOrdersQueryKey,
-  updatePrinter,
   updateReceiptTemplate,
-  type PrinterRecord,
   type ReceiptElement,
   type ReceiptPreviewData,
   type ReceiptTemplate,
 } from "@/modules/receipts/api";
 import { getRestaurantOverview } from "@/modules/restaurants/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
-import { formatDateTime, formatNumber } from "@/shared/utils/format";
+import { Button, ErrorPanel, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 
 const defaultElements: ReceiptElement[] = [
   // ── Header (all centered) ──────────────────────────────────────────────────
@@ -74,55 +69,6 @@ const mergeTemplateElements = (template: ReceiptTemplate): ReceiptTemplate => {
     }),
   };
 };
-
-function PrinterModal({ open, printer, restaurants, onClose }: { open: boolean; printer: PrinterRecord | null; restaurants: Array<{ id: string; name: string }>; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState({ restaurantId: "", name: "", connectionType: "NETWORK", address: "", paperWidth: "80mm", copies: 1, autoPrint: false, isDefault: true, isActive: true, receiptMode: "STANDARD", notes: "" });
-
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!open) return;
-    setForm(printer ? { restaurantId: printer.restaurantId, name: printer.name, connectionType: printer.connectionType, address: printer.address, paperWidth: printer.paperWidth, copies: printer.copies, autoPrint: printer.autoPrint, isDefault: printer.isDefault, isActive: printer.isActive, receiptMode: printer.receiptMode, notes: printer.notes || "" } : { restaurantId: restaurants[0]?.id || "", name: "", connectionType: "NETWORK", address: "", paperWidth: "80mm", copies: 1, autoPrint: false, isDefault: true, isActive: true, receiptMode: "STANDARD", notes: "" });
-  }, [open, printer, restaurants]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  const saveMutation = useMutation({
-    mutationFn: () => printer ? updatePrinter(printer.id, form) : createPrinter(form),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: printingConfigQueryKey });
-      onClose();
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      if (!printer) return { success: true };
-      return deletePrinter(printer.id);
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: printingConfigQueryKey });
-      onClose();
-    },
-  });
-
-  return (
-    <Modal open={open} onClose={onClose} title={printer ? printer.name : "New printer"} footer={<div className="flex items-center justify-between gap-2"><div>{printer ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>Save</Button></div></div>}>
-      <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Restaurant"><Select value={form.restaurantId} onChange={(event) => setForm((current) => ({ ...current, restaurantId: event.target.value }))}>{restaurants.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}</Select></Field>
-        <Field label="Name"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
-        <Field label="Connection"><Select value={form.connectionType} onChange={(event) => setForm((current) => ({ ...current, connectionType: event.target.value }))}><option value="NETWORK">NETWORK</option><option value="BLUETOOTH">BLUETOOTH</option></Select></Field>
-        <Field label="Address"><Input value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} /></Field>
-        <Field label="Paper width (sätts globalt i template)"><Input value={form.paperWidth} disabled /></Field>
-        <Field label="Copies"><Input type="number" value={form.copies} onChange={(event) => setForm((current) => ({ ...current, copies: Number(event.target.value) }))} /></Field>
-        <Field label="Auto print"><Select value={form.autoPrint ? "yes" : "no"} onChange={(event) => setForm((current) => ({ ...current, autoPrint: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
-        <Field label="Default"><Select value={form.isDefault ? "yes" : "no"} onChange={(event) => setForm((current) => ({ ...current, isDefault: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
-        <Field label="Active"><Select value={form.isActive ? "yes" : "no"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
-        <Field label="Receipt mode"><Select value={form.receiptMode} onChange={(event) => setForm((current) => ({ ...current, receiptMode: event.target.value }))}><option value="STANDARD">STANDARD</option><option value="COMPACT">COMPACT</option><option value="DETAILED">DETAILED</option></Select></Field>
-        <div className="md:col-span-2"><Field label="Notes"><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} /></Field></div>
-      </div>
-    </Modal>
-  );
-}
 
 function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; template: ReceiptTemplate }) {
   const h = (data.header ?? {}) as Record<string, unknown>;
@@ -283,8 +229,6 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
 }
 
 export function ReceiptsPage() {
-  const [printerOpen, setPrinterOpen] = useState(false);
-  const [activePrinter, setActivePrinter] = useState<PrinterRecord | null>(null);
   const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ReceiptTemplate | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -341,49 +285,7 @@ export function ReceiptsPage() {
     <div className="page-stack">
       <PageHeader
         title="Receipts"
-        actions={<Button variant="primary" onClick={() => { setActivePrinter(null); setPrinterOpen(true); }}><Plus size={13} /> New printer</Button>}
       />
-
-      {/* Printer registry */}
-      <Surface className="px-6 py-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Printer registry</p>
-            <h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">Central printer profiles</h2>
-          </div>
-          <Badge tone="info">{config.data.template.paperWidth}</Badge>
-        </div>
-
-        {config.data.printers.length === 0 ? (
-          <div className="mt-6"><EmptyState title="No printers configured" /></div>
-        ) : (
-          <div className="mt-6 grid gap-3">
-            {config.data.printers.map((printer) => (
-              <button key={printer.id} type="button" onClick={() => { setActivePrinter(printer); setPrinterOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-lg font-black tracking-[-0.02em]">{printer.name}</p>
-                      <Badge tone={printer.isActive ? "success" : "danger"}>{printer.isActive ? "Active" : "Inactive"}</Badge>
-                      {printer.isDefault ? <Badge tone="info">Default</Badge> : null}
-                      <Badge tone={printer.status === "ONLINE" ? "success" : printer.status === "STALE" ? "warning" : "neutral"}>{printer.status}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{printer.restaurantName || "No restaurant"} • {printer.address}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Badge tone="neutral">{printer.paperWidth}</Badge>
-                      <Badge tone="neutral">{printer.copies} copies</Badge>
-                      <Badge tone="neutral">{printer.receiptMode}</Badge>
-                      <Badge tone="neutral">Auto print {printer.autoPrint ? "on" : "off"}</Badge>
-                    </div>
-                    {printer.notes ? <p className="mt-3 text-sm text-[var(--text-secondary)]">{printer.notes}</p> : null}
-                  </div>
-                  <div className="text-sm text-[var(--text-secondary)]">{printer.lastSeenAt ? `Seen ${formatDateTime(printer.lastSeenAt)}` : "Never seen"}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </Surface>
 
       {/* Template editor + live preview */}
       <Surface className="px-6 py-6">
@@ -585,8 +487,6 @@ export function ReceiptsPage() {
           </div>
         </div>
       </Surface>
-
-      <PrinterModal open={printerOpen} printer={activePrinter} restaurants={restaurants.data.map((restaurant) => ({ id: restaurant.id, name: restaurant.name }))} onClose={() => { setPrinterOpen(false); setActivePrinter(null); }} />
     </div>
   );
 }
