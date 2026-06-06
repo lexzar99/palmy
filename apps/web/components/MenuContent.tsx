@@ -1215,10 +1215,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           })}
         </div>}
 
-        {/* ── Sök + kategori-pills (icke-sticky inline-header) ──
-            Platt meny utan huvudkategori-lager och utan sticky header (togs bort
-            för att undvika scroll-glitchen). Pills hoppar till kategori-sektionen. */}
-        <div className="mb-8 px-5 sm:px-6 lg:px-12">
+        {/* ── Sök (inline, scrollar med sidan) ── */}
+        <div className="mb-3 px-5 sm:px-6 lg:px-12">
           <div className="rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
             <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
             <input
@@ -1230,10 +1228,18 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
               style={{ color: "var(--text-primary)" }}
             />
           </div>
+        </div>
 
-          {scopedCategories.length > 0 && (
+        {/* ── Kategori-pills — STICKY header som följer med vid scroll ──
+            -mx + px ger full-bredd bakgrund (inget content syns igenom på sidorna).
+            top: mobil = safe-area (ingen navbar), desktop = 80px (fast navbar). */}
+        {scopedCategories.length > 0 && (
+          <div
+            className="sticky z-30 mb-8 -mx-5 sm:-mx-6 lg:-mx-12 px-5 sm:px-6 lg:px-12 py-2.5 top-[env(safe-area-inset-top,0px)] md:top-20"
+            style={{ backgroundColor: "var(--bg-primary)" }}
+          >
             <div
-              className="flex gap-2 no-scrollbar pt-3"
+              className="flex gap-2 no-scrollbar"
               style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
             >
               {scopedCategories.map((cat: any) => {
@@ -1269,8 +1275,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                 );
               })}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* ── Menyn: kategorier med produkter (FULL eller COMPACT per produkt) ── */}
         <div className="space-y-12">
@@ -1432,7 +1438,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                 </button>
               </div>
 
-              <div className="overflow-y-auto px-6 py-5 space-y-5">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-5 space-y-5">
                 {restaurant?.description && (
                   <div>
                     <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1.5">{t("product.description")}</div>
