@@ -29,7 +29,8 @@ export interface FinanceRow {
   commission: number;
   subscription: number;
   feeVat: number;
-  payout: number; // netto
+  payout: number; // netto att betala ut (≥ 0)
+  owed: number; // restaurangen är skyldig oss (faktureras) — > 0 ersätter payout
   status: string | null;
   payoutReference: string | null;
 }
@@ -43,6 +44,7 @@ export interface FinanceSummary {
     subscription: number;
     feeVat: number;
     payout: number;
+    owed: number;
     orderCount: number;
   };
   rows: FinanceRow[];
@@ -86,6 +88,7 @@ export interface PayoutSpec {
     feeVat: number;
     restaurantGross: number;
     payout: number;
+    owed: number;
     foodVatPct: number;
     foodVat: number;
   };
@@ -135,6 +138,9 @@ export const upsertPayout = (payload: {
   notes?: string | null;
   payoutReference?: string | null;
 }) => apiPost<PayoutRecord>("/admin/payouts", payload);
+
+export const economyQueryKey = ["finance", "economy"] as const;
+export const getEconomy = () => apiGet<EconomyRates>("/admin/finance/economy");
 
 export const updateEconomyRates = (payload: Partial<EconomyRates>) =>
   apiPatch<unknown>("/settings", payload);

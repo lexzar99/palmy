@@ -97,7 +97,8 @@ export interface PayoutBreakdown {
   feeVatOre: number; // moms på (provision + abonnemang)
   feeVatPct: number;
   restaurantGrossOre: number; // restaurangens intäkt före avdrag
-  payoutOre: number; // netto att betala ut
+  payoutOre: number; // netto att betala ut (golvat vid 0 — aldrig negativt)
+  owedOre: number; // om avdragen > intäkten: vad restaurangen är skyldig oss (fakturera)
   foodVatOre: number; // informativ: moms i restaurangens matförsäljning
   foodVatPct: number;
   tierLabel: string;
@@ -123,7 +124,12 @@ export function computePayout(
   // self: behåller leveransavgift + dricks → gross = total
   // platform: leveransavgift → plattform, dricks → bud → gross = foodBase
   const restaurantGrossOre = r.selfDelivery ? grossTotal : foodBase;
-  const payoutOre = restaurantGrossOre - commissionOre - subscriptionOre - feeVatOre;
+  // Avdragen kan överstiga intäkten (t.ex. abonnemang vid få ordrar). Då betalar
+  // vi INTE ut ett negativt belopp — utbetalningen golvas vid 0 och mellanskillnaden
+  // blir istället ett belopp restaurangen är skyldig oss (faktureras).
+  const rawNetOre = restaurantGrossOre - commissionOre - subscriptionOre - feeVatOre;
+  const payoutOre = Math.max(0, rawNetOre);
+  const owedOre = Math.max(0, -rawNetOre);
 
   // Matmoms (inkl-moms i foodBase) — informativ rad för restaurangens egen redovisning.
   const v = s.vatCustomerPct / 100;
@@ -142,6 +148,7 @@ export function computePayout(
     feeVatPct: s.vatPlatformFeePct,
     restaurantGrossOre,
     payoutOre,
+    owedOre,
     foodVatOre,
     foodVatPct: s.vatCustomerPct,
     tierLabel: tier.label,

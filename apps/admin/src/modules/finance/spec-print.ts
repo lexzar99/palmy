@@ -12,7 +12,10 @@ const esc = (s: unknown) =>
  */
 export function printPayoutSpec(spec: PayoutSpec, adjustment = 0) {
   const b = spec.breakdown;
-  const net = b.payout - (Number(adjustment) || 0);
+  const owed = (b as { owed?: number }).owed || 0;
+  const isOwed = owed > 0;
+  const net = isOwed ? owed : Math.max(0, b.payout - (Number(adjustment) || 0));
+  const totalLabel = isOwed ? "Att fakturera restaurangen" : "Netto att betala ut";
   const win = window.open("", "_blank", "width=820,height=1040");
   if (!win) {
     alert("Tillåt popup-fönster för att skriva ut specen.");
@@ -100,7 +103,7 @@ export function printPayoutSpec(spec: PayoutSpec, adjustment = 0) {
     ${Math.abs(Number(adjustment) || 0) > 0 ? line("Justering", kr(-(Number(adjustment) || 0)), { minus: false }) : ""}
   </table>
 
-  <div class="total"><span>Netto att betala ut</span><span class="v">${kr(net)}</span></div>
+  <div class="total"><span>${esc(totalLabel)}</span><span class="v">${kr(net)}</span></div>
 
   <div class="orders">
     <h2>Ordrar i perioden</h2>

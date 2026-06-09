@@ -98,6 +98,7 @@ router.get('/summary', async (req, res) => {
           subscription: fromOre(b.subscriptionOre),
           feeVat: fromOre(b.feeVatOre),
           payout: fromOre(b.payoutOre),
+          owed: fromOre(b.owedOre),
           status: p?.status ?? null,
           payoutReference: p?.payoutReference ?? null,
         };
@@ -112,10 +113,11 @@ router.get('/summary', async (req, res) => {
         acc.subscription += r.subscription;
         acc.feeVat += r.feeVat;
         acc.payout += r.payout;
+        acc.owed += r.owed;
         acc.orderCount += r.orderCount;
         return acc;
       },
-      { grossSales: 0, commission: 0, subscription: 0, feeVat: 0, payout: 0, orderCount: 0 },
+      { grossSales: 0, commission: 0, subscription: 0, feeVat: 0, payout: 0, owed: 0, orderCount: 0 },
     );
 
     res.json({
@@ -230,6 +232,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
         feeVat: fromOre(b.feeVatOre),
         restaurantGross: fromOre(b.restaurantGrossOre),
         payout: fromOre(b.payoutOre),
+        owed: fromOre(b.owedOre),
         foodVatPct: b.foodVatPct,
         foodVat: fromOre(b.foodVatOre),
       },
@@ -257,6 +260,25 @@ router.get('/payout/:restaurantId', async (req, res) => {
   } catch (error) {
     console.error('Finance payout detail error:', error);
     res.status(500).json({ error: 'Kunde inte hämta utbetalningsspecen' });
+  }
+});
+
+// GET /api/admin/finance/economy — globala satser för inställningssidan
+router.get('/economy', async (_req, res) => {
+  try {
+    const e = economyFromSettings(await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }));
+    res.json({
+      commissionSelfPct: e.commissionSelfPct,
+      commissionPlatformPct: e.commissionPlatformPct,
+      vatCustomerPct: e.vatCustomerPct,
+      vatPlatformFeePct: e.vatPlatformFeePct,
+      tierGoldFee: fromOre(e.tierGoldFee),
+      tierSilverFee: fromOre(e.tierSilverFee),
+      tierStandardFee: fromOre(e.tierStandardFee),
+    });
+  } catch (error) {
+    console.error('Finance economy error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta satserna' });
   }
 });
 
