@@ -146,6 +146,8 @@ router.patch('/', authenticate, async (req, res) => {
       companyName, organizationNumber, companyAddress,
       supportEmail, privacyEmail, noReplyEmail,
       heroTitle, heroSubtitle, heroImageUrl, heroCtaLabel, heroCtaUrl,
+      commissionSelfPct, commissionPlatformPct, vatCustomerPct, vatPlatformFeePct,
+      tierGoldFee, tierSilverFee, tierStandardFee,
     } = req.body;
 
     // Lättviktig email-validering — bara om värdet är icke-tomt. Inte
@@ -221,6 +223,17 @@ router.patch('/', authenticate, async (req, res) => {
     if (heroImageUrl !== undefined) data.heroImageUrl = validateString(heroImageUrl, 1000, 'Hero-bild-URL');
     if (heroCtaLabel !== undefined) data.heroCtaLabel = validateString(heroCtaLabel, 80, 'Hero-CTA-etikett');
     if (heroCtaUrl !== undefined) data.heroCtaUrl = validateString(heroCtaUrl, 1000, 'Hero-CTA-URL');
+
+    // --- Plattform-ekonomi. Procent clampas 0–100, abonnemang kr → öre. ---
+    const pct = (v: unknown) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+    const krToOre = (v: unknown) => Math.max(0, Math.round((Number(v) || 0) * 100));
+    if (commissionSelfPct !== undefined) data.commissionSelfPct = pct(commissionSelfPct);
+    if (commissionPlatformPct !== undefined) data.commissionPlatformPct = pct(commissionPlatformPct);
+    if (vatCustomerPct !== undefined) data.vatCustomerPct = pct(vatCustomerPct);
+    if (vatPlatformFeePct !== undefined) data.vatPlatformFeePct = pct(vatPlatformFeePct);
+    if (tierGoldFee !== undefined) data.tierGoldFee = krToOre(tierGoldFee);
+    if (tierSilverFee !== undefined) data.tierSilverFee = krToOre(tierSilverFee);
+    if (tierStandardFee !== undefined) data.tierStandardFee = krToOre(tierStandardFee);
 
     const settings = await prisma.restaurantSettings.upsert({
       where: { id: 'settings' },

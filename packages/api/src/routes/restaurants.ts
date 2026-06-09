@@ -75,6 +75,10 @@ const restaurantSchema = z.object({
   logoutCode: z.string().nullable().optional(),
   announcementText: z.string().nullable().optional(),
   vatPercent: z.number().nullable().optional(),
+  // Leveransansvar: true = restaurangen levererar själv (10% default), false = plattformen (20%).
+  selfDelivery: z.boolean().optional(),
+  // Provisions-override i %. null = använd global self/platform-sats.
+  commissionPctOverride: z.number().nullable().optional(),
   // ISO datetime sträng – när restaurangen ska öppna igen efter en paus.
   // null = ingen pause aktiv. Sätt till null för att avbryta pause.
   pausedUntil: z.string().datetime().nullable().optional(),
@@ -138,6 +142,8 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
   internalInfo: restaurant.internalInfo,
   announcementText: restaurant.announcementText ?? null,
   vatPercent: restaurant.vatPercent ?? null,
+  selfDelivery: restaurant.selfDelivery ?? false,
+  commissionPctOverride: restaurant.commissionPctOverride ?? null,
   createdAt: restaurant.createdAt,
   updatedAt: restaurant.updatedAt,
   // Geo-data — används av admin-form (lat/lng/placeId visas read-only efter
@@ -526,6 +532,11 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.logoutCode !== undefined) data.logoutCode = payload.logoutCode || null;
     if (payload.announcementText !== undefined) data.announcementText = payload.announcementText || null;
     if (payload.vatPercent !== undefined) data.vatPercent = payload.vatPercent ?? null;
+    if ((payload as any).selfDelivery !== undefined) data.selfDelivery = Boolean((payload as any).selfDelivery);
+    if ((payload as any).commissionPctOverride !== undefined) {
+      const v = (payload as any).commissionPctOverride;
+      data.commissionPctOverride = v === null || v === '' ? null : Math.max(0, Math.min(100, Math.round(Number(v))));
+    }
 
     // Pause: pausedUntil = ISO datum eller null. Avbruten pause = null.
     if (payload.pausedUntil !== undefined) {

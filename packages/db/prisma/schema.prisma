@@ -485,6 +485,19 @@ model RestaurantSettings {
   // Platform-wide UI-toggles
   showDiscountedRail    Boolean  @default(true)  // Rea & Rabatter-sektion på hem-sidan
 
+  // --- Plattform-ekonomi (singleton). Admin-styrt, aldrig hårdkodat. ---
+  // Provisionssatser i procent, väljs av restaurangens selfDelivery-flagga.
+  commissionSelfPct     Int      @default(10)    // restaurangen levererar själv
+  commissionPlatformPct Int      @default(20)    // plattformen levererar
+  // Moms i procent. Kund/mat (6 nu → 12 senare) vs plattformens avgifter till
+  // partnern (provision + abonnemang som B2B-tjänst = 25%).
+  vatCustomerPct        Int      @default(6)
+  vatPlatformFeePct     Int      @default(25)
+  // Tier-abonnemang i ÖRE/månad (oberoende av provision). Standard = alla andra.
+  tierGoldFee           Int      @default(100000) // 1000 kr
+  tierSilverFee         Int      @default(70000)  // 700 kr
+  tierStandardFee       Int      @default(0)
+
   // Plattform-banner: visas högst upp i web när satt. Används för
   // "Underhåll pågår 13-14", "Vi har problem med betalningar just nu", etc.
   bannerMessage         String?
@@ -620,6 +633,13 @@ model Restaurant {
   adminUserId    String?            @unique
   announcementText String?          // Info-banner på restaurangsidan (t.ex. adressändring, stängt idag)
   vatPercent     Int?               // Moms i % som visas i kassan (6 eller 12). null = visas inte
+  // Leveransansvar. false = plattformen levererar (vi matchar bud, 20% provision-default).
+  // true = restaurangen levererar själv (10% provision-default, ingen budmatchning).
+  // Styr provisionssats, dispatch-grind och färg-separation i admin.
+  selfDelivery          Boolean  @default(false)
+  // Manuell provisions-override i procent (t.ex. ny restaurang 5% första månaden).
+  // null = använd den globala self/platform-satsen från RestaurantSettings.
+  commissionPctOverride Int?
   devices        RestaurantDevice[]
   pairingCodes   DevicePairingCode[]
   categories     Category[]
