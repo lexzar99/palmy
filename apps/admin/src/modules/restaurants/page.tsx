@@ -6,12 +6,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw, Search } from "lucide-react";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
 import { Badge, Button, EmptyState, ErrorPanel, PageHeader, Surface } from "@/shared/components/ui";
+import { DeliveryModeBadge, deliveryModeMeta } from "@/shared/components/delivery-mode";
 import { formatCurrency, formatNumber, restaurantTierLabel } from "@/shared/utils/format";
 
 export function RestaurantsPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "open" | "attention">("all");
+  const [filter, setFilter] = useState<"all" | "open" | "attention" | "platform" | "self">("all");
 
   const overview = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
 
@@ -20,7 +21,12 @@ export function RestaurantsPage() {
     const q = search.trim().toLowerCase();
     return items.filter((r) => {
       const matchQ = !q || r.name.toLowerCase().includes(q) || r.slug.toLowerCase().includes(q) || (r.city || "").toLowerCase().includes(q);
-      const matchF = filter === "all" ? true : filter === "open" ? r.isOpen : (r.pendingOrders > 0 || !r.hasHours || r.reviewScore < 4.2);
+      const matchF =
+        filter === "all" ? true
+        : filter === "open" ? r.isOpen
+        : filter === "platform" ? !r.selfDelivery
+        : filter === "self" ? r.selfDelivery
+        : (r.pendingOrders > 0 || !r.hasHours || r.reviewScore < 4.2);
       return matchQ && matchF;
     });
   }, [filter, overview.data, search]);
@@ -31,6 +37,8 @@ export function RestaurantsPage() {
   const FILTER_TABS: { value: typeof filter; label: string }[] = [
     { value: "all", label: "Alla" },
     { value: "open", label: "Öppna" },
+    { value: "platform", label: "Vi kör" },
+    { value: "self", label: "Själv" },
     { value: "attention", label: "Kräver åtgärd" },
   ];
 
@@ -92,7 +100,7 @@ function RestaurantCard({ restaurant: r, onClick }: { restaurant: ControlCenterR
   // /api/admin/control-center so this isn't an any-cast anymore.
   const avatar = r.imageUrl || r.heroImageUrl;
   return (
-    <button type="button" onClick={onClick} className="surface-muted px-5 py-5 text-left hover:brightness-110 transition-all">
+    <button type="button" onClick={onClick} className="surface-muted px-5 py-5 text-left hover:brightness-110 transition-all" style={{ borderLeft: `3px solid ${deliveryModeMeta(r.selfDelivery).color}` }}>
       <div className="flex items-start gap-3">
         {avatar ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -106,6 +114,7 @@ function RestaurantCard({ restaurant: r, onClick }: { restaurant: ControlCenterR
             <Badge tone={r.isOpen ? "success" : "neutral"}>{r.isOpen ? "Öppen" : "Stängd"}</Badge>
           </div>
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">{r.city || ""}{r.city && r.slug ? " · " : ""}{r.slug}</p>
+          <div className="mt-1.5"><DeliveryModeBadge selfDelivery={r.selfDelivery} /></div>
         </div>
       </div>
 

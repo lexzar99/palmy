@@ -20,6 +20,8 @@ export interface ControlCenterRestaurantSnapshot {
   city?: string | null;
   featuredClass: number;
   featuredLabel: string;
+  selfDelivery: boolean;
+  commissionPct: number;
   isOpen: boolean;
   manualIsOpen: boolean;
   adminEmail: string | null;

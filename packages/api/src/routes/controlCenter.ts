@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { isRestaurantOpen, hasOpeningHours } from '../lib/openingHours';
+import { computePayout, economyFromSettings } from '../lib/financeCalc';
 
 const router = Router();
 router.use(authenticate);
@@ -9,12 +10,9 @@ router.use(authenticate);
 const LIVE_STATUSES = ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'DELIVERING'] as const;
 const CLOSED_STATUSES = ['CANCELLED', 'REJECTED'] as const;
 
-const TIER_CONFIG: Record<number, { label: string; commissionPct: number; subscriptionFee: number }> = {
-  1: { label: 'Guld', commissionPct: 8, subscriptionFee: 1990 },
-  2: { label: 'Silver', commissionPct: 10, subscriptionFee: 990 },
-  3: { label: 'Standard', commissionPct: 12, subscriptionFee: 490 },
-  0: { label: 'Dold', commissionPct: 12, subscriptionFee: 0 },
-};
+// Provision (10/20 efter leveransansvar) + tier-abonnemang bor nu i
+// RestaurantSettings och beräknas via lib/financeCalc — samma sanning som
+// Ekonomi-sidan. Tier styr BARA abonnemang + ranking, inte provision.
 
 const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
   try {
@@ -73,6 +71,8 @@ router.get('/control-center', async (req, res) => {
         city: true,
         isOpen: true,
         featuredClass: true,
+        selfDelivery: true,
+        commissionPctOverride: true,
         rating: true,
         ratingCount: true,
         openingHours: true,
@@ -146,6 +146,8 @@ router.get('/control-center', async (req, res) => {
           id: true,
           orderNumber: true,
           total: true,
+          deliveryFee: true,
+          tipAmount: true,
           status: true,
           type: true,
           createdAt: true,
@@ -297,6 +299,10 @@ router.get('/control-center', async (req, res) => {
       monthByRestaurant.set(order.restaurantId || 'unknown', existing);
     }
 
+    const economy = economyFromSettings(
+      await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
+    );
+
     const restaurantSnapshots = restaurants.map((restaurant) => {
       const orders = groupedByRestaurant.get(restaurant.id) || [];
       const currentLiveOrders = liveByRestaurant.get(restaurant.id) || [];
@@ -311,14 +317,17 @@ router.get('/control-center', async (req, res) => {
       }
       const todayRestaurantOrders = orders.filter((order) => new Date(order.createdAt) >= today);
       const reviewOrders = orders.filter((order) => typeof order.rating === 'number' && order.rating > 0);
-      const monthSales = currentMonthOrders.reduce((sum, order) => sum + order.total, 0) / 100;
-      const tier = TIER_CONFIG[restaurant.featuredClass ?? 3] || TIER_CONFIG[3];
-      const commissionEstimate = (monthSales * tier.commissionPct) / 100;
-      // Payout = what we owe the restaurant. Floored at 0 — subscription is billed separately,
-      // not subtracted from a payout the restaurant didn't earn (was the source of the
-      // bogus negative "Utbetalning (mån)" on the dashboard).
-      const payoutEstimate = Math.max(0, monthSales - commissionEstimate - tier.subscriptionFee);
-      const subscriptionLiability = monthSales > 0 ? 0 : tier.subscriptionFee;
+      const econ = computePayout(
+        currentMonthOrders.map((o) => ({ total: o.total, deliveryFee: o.deliveryFee, tipAmount: o.tipAmount })),
+        restaurant,
+        economy,
+      );
+      const monthSales = econ.grossTotal / 100; // total försäljning (visning)
+      const tierLabel = econ.tierLabel;
+      const commissionEstimate = econ.commissionOre / 100;
+      const subscriptionEstimate = econ.subscriptionOre / 100;
+      // Netto vi är skyldiga restaurangen — provision + abonnemang + moms på avgifter avdraget.
+      const payoutEstimate = Math.max(0, econ.payoutOre / 100);
       const pendingOrders = currentLiveOrders.filter((order) => order.status === 'PENDING').length;
       const reviewScore = reviewOrders.length
         ? reviewOrders.reduce((sum, order) => sum + (order.rating || 0), 0) / reviewOrders.length
@@ -336,7 +345,9 @@ router.get('/control-center', async (req, res) => {
         slug: restaurant.slug,
         city: restaurant.city,
         featuredClass: restaurant.featuredClass ?? 3,
-        featuredLabel: tier.label,
+        featuredLabel: tierLabel,
+        selfDelivery: restaurant.selfDelivery ?? false,
+        commissionPct: econ.commissionPct,
         isOpen: effectiveIsOpen,
         manualIsOpen: restaurant.isOpen,
         adminEmail: restaurant.adminEmail ?? null,
@@ -360,7 +371,7 @@ router.get('/control-center', async (req, res) => {
         reviewCount: reviewOrders.length,
         payoutEstimate,
         commissionEstimate,
-        subscriptionEstimate: tier.subscriptionFee,
+        subscriptionEstimate,
         refundsLast30d: orders.filter((order) => (order.refundAmount || 0) > 0).length,
         focus,
         updatedAt: restaurant.updatedAt.toISOString(),

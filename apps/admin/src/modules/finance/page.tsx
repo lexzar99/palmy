@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Printer, RefreshCw, Search, Settings2, Store, Truck } from "lucide-react";
+import { Loader2, Printer, RefreshCw, Search, Settings2 } from "lucide-react";
 import {
   financeSummaryQueryKey,
   getFinanceSummary,
@@ -15,6 +15,7 @@ import {
   type FinanceRow,
 } from "@/modules/finance/api";
 import { printPayoutSpec } from "@/modules/finance/spec-print";
+import { DeliveryModeBadge, deliveryModeMeta } from "@/shared/components/delivery-mode";
 import {
   Badge,
   Button,
@@ -47,13 +48,6 @@ function presetRange(kind: "month" | "lastMonth" | "7" | "30"): { from: string; 
   const s = new Date(now);
   s.setDate(s.getDate() - (kind === "7" ? 6 : 29));
   return { from: isoDate(s), to: isoDate(now) };
-}
-
-/** Färg + etikett för leveransmodell — kärnan i self/platform-separationen. */
-function modeMeta(selfDelivery: boolean) {
-  return selfDelivery
-    ? { label: "Levererar själv", tone: "success" as const, color: "#16A34A", Icon: Store }
-    : { label: "Vi levererar", tone: "info" as const, color: "#2563EB", Icon: Truck };
 }
 
 // ---------------------------------------------------------------- Rates modal
@@ -462,18 +456,18 @@ export function FinancePage() {
                   </thead>
                   <tbody>
                     {rows.map((r) => {
-                      const m = modeMeta(r.selfDelivery);
+                      const accent = deliveryModeMeta(r.selfDelivery).color;
                       return (
                         <tr key={r.restaurantId}>
                           <td>
-                            <div className="flex items-center gap-3" style={{ borderLeft: `3px solid ${m.color}`, paddingLeft: 10 }}>
+                            <div className="flex items-center gap-3" style={{ borderLeft: `3px solid ${accent}`, paddingLeft: 10 }}>
                               <div>
                                 <p className="font-black">{r.name}</p>
                                 <p className="mt-0.5 text-sm text-[var(--text-secondary)]">{r.city || "Ingen stad"} • {r.tierLabel}</p>
                               </div>
                             </div>
                           </td>
-                          <td><Badge tone={m.tone}><m.Icon size={12} style={{ marginRight: 4, display: "inline" }} />{m.label}</Badge></td>
+                          <td><DeliveryModeBadge selfDelivery={r.selfDelivery} /></td>
                           <td className="tabular-nums">{formatNumber(r.orderCount)}</td>
                           <td className="tabular-nums">{formatCurrency(r.grossSales)}</td>
                           <td className="tabular-nums">{formatCurrency(r.commission)} <span className="text-[var(--text-muted)]">({r.commissionPct}%)</span></td>

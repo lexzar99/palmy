@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Plus, Store, Trash2, X } from "lucide-react";
@@ -81,6 +82,7 @@ type FormState = {
   placeId: string;
   openingHours: HoursForm; logoutCode: string;
   announcementText: string; vatPercent: string;
+  selfDelivery: boolean; commissionPctOverride: string;
 };
 
 const emptyForm: FormState = {
@@ -94,6 +96,7 @@ const emptyForm: FormState = {
   placeId: "",
   openingHours: buildDefaultHours(), logoutCode: "",
   announcementText: "", vatPercent: "",
+  selfDelivery: false, commissionPctOverride: "",
 };
 
 const mapDetailToForm = (d: RestaurantDetail): FormState => ({
@@ -117,6 +120,8 @@ const mapDetailToForm = (d: RestaurantDetail): FormState => ({
   logoutCode: (d as any).logoutCode || "",
   announcementText: (d as any).announcementText || "",
   vatPercent: (d as any).vatPercent != null ? String((d as any).vatPercent) : "",
+  selfDelivery: (d as any).selfDelivery ?? false,
+  commissionPctOverride: (d as any).commissionPctOverride != null ? String((d as any).commissionPctOverride) : "",
 });
 
 const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
@@ -140,6 +145,8 @@ const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
   logoutCode: f.logoutCode.trim() || null,
   announcementText: f.announcementText.trim() || null,
   vatPercent: f.vatPercent ? Number(f.vatPercent) : null,
+  selfDelivery: f.selfDelivery,
+  commissionPctOverride: f.commissionPctOverride.trim() === "" ? null : Number(f.commissionPctOverride),
 });
 
 const detailQueryKey = (id: string | null) => ["restaurants", "detail", id] as const;
@@ -167,12 +174,14 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
     enabled: Boolean(restaurantId) && tab === "orders",
   });
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (detail.data && !initialized) {
       setForm(mapDetailToForm(detail.data));
       setInitialized(true);
     }
   }, [detail.data, initialized]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -471,7 +480,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <option value="closed">Stängd</option>
               </Select>
             </Field>
-            <Field label="Tier">
+            <Field label="Tier (abonnemang + ranking)">
               <Select value={String(form.featuredClass)} onChange={(e) => set("featuredClass", Number(e.target.value))}>
                 <option value="1">Gold</option>
                 <option value="2">Silver</option>
@@ -479,6 +488,23 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <option value="0">Dold</option>
               </Select>
             </Field>
+            <div className="surface-muted px-4 py-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Leveransmodell (styr provision)</p>
+                <DeliveryModeBadge selfDelivery={form.selfDelivery} />
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <Field label="Modell">
+                  <Select value={form.selfDelivery ? "self" : "platform"} onChange={(e) => set("selfDelivery", e.target.value === "self")}>
+                    <option value="platform">Vi levererar (20%)</option>
+                    <option value="self">Levererar själv (10%)</option>
+                  </Select>
+                </Field>
+                <Field label="Provisions-override (%)">
+                  <Input type="number" min={0} max={100} placeholder="global sats" value={form.commissionPctOverride} onChange={(e) => set("commissionPctOverride", e.target.value)} />
+                </Field>
+              </div>
+            </div>
             <div className="surface-muted px-4 py-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">ETA (leveranstid)</p>

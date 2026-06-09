@@ -45,6 +45,8 @@ export interface RestaurantDetail {
   isOpen: boolean;
   manualIsOpen: boolean;
   featuredClass: number;
+  selfDelivery?: boolean;
+  commissionPctOverride?: number | null;
   tags: string[];
   openingHours: Record<string, unknown>;
   internalInfo?: string | null;
@@ -104,6 +106,8 @@ export interface RestaurantFormPayload {
   logoutCode?: string | null;
   announcementText?: string | null;
   vatPercent?: number | null;
+  selfDelivery?: boolean;
+  commissionPctOverride?: number | null;
 }
 
 export const restaurantsQueryKey = ["restaurants", "overview"] as const;
