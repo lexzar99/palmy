@@ -110,7 +110,7 @@ export function OrderDetail() {
           </p>
           <AddressRow address={active.pickupAddress} />
           <div className="mt-3">
-            <MapsButton to={active.pickup} label={active.restaurantName} />
+            <MapsButton address={active.pickupAddress} />
           </div>
         </Card>
 
@@ -156,7 +156,7 @@ export function OrderDetail() {
         <AddressRow address={active.dropoffAddress} />
         <p className="mt-1 text-xs font-semibold text-gold-deep">{km(active.distanceKm)} kvar</p>
         <div className="mt-3">
-          <MapsButton to={active.dropoff} label={active.dropoffName} />
+          <MapsButton address={active.dropoffAddress} />
         </div>
       </Card>
 

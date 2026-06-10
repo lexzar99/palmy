@@ -1,6 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, Copy, MapPin, Navigation } from "lucide-react";
-import type { LatLng } from "./lib/types";
 
 /** Ren topp-bar: håller sig kvar i toppen, respekterar notch (safe-area). */
 export function AppBar({ title, right, onBack }: { title: string; right?: ReactNode; onBack?: () => void }) {
@@ -69,9 +68,9 @@ export function Splash() {
 }
 
 /** Premium men flat: solid ink-knapp för Google Maps-navigering. */
-export function MapsButton({ to, label }: { to: LatLng; label?: string }) {
+export function MapsButton({ address }: { address: string }) {
   return (
-    <a href={gmapsLink(to, label)} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-2xl bg-ink py-3.5 text-[14px] font-bold text-white transition active:scale-[0.99]">
+    <a href={gmapsLink(address)} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 rounded-2xl bg-ink py-3.5 text-[14px] font-bold text-white transition active:scale-[0.99]">
       <Navigation size={16} strokeWidth={2.4} />
       Öppna i Google Maps
     </a>
@@ -162,7 +161,8 @@ export function SwipeButton({ label, onConfirm, disabled }: { label: string; onC
   );
 }
 
-export function gmapsLink(to: LatLng, label?: string) {
-  const q = label ? encodeURIComponent(label) : `${to.lat},${to.lng}`;
-  return `https://www.google.com/maps/dir/?api=1&destination=${to.lat},${to.lng}&travelmode=driving&query=${q}`;
+/** Navigera till en ADRESS (string) — Google geokodar till rätt gata.
+ * Bättre än råa koordinater (som kan vara approximativa och hamna fel). */
+export function gmapsLink(destination: string) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`;
 }
