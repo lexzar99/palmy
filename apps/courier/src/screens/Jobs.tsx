@@ -57,7 +57,6 @@ export function Jobs() {
   const [activeCount, setActiveCount] = useState(0);
   const [todayKr, setTodayKr] = useState(0);
   const [accepting, setAccepting] = useState<string | null>(null);
-  const [, tick] = useState(0);
 
   const load = useCallback(async () => {
     const [j, a, h] = await Promise.all([api.listJobs(), api.getActiveList(), api.getHistory()]);
@@ -71,13 +70,13 @@ export function Jobs() {
     void load();
   }, [load]);
 
+  // Auto-uppdatera uppdragslistan (stopgap tills realtids-dispatch i Fas 4).
   useEffect(() => {
     const t = setInterval(() => {
-      tick((n) => n + 1);
-      setJobs((cur) => (cur ? cur.filter((j) => secondsLeft(j.expiresAt) > 0) : cur));
-    }, 1000);
+      void load();
+    }, 15000);
     return () => clearInterval(t);
-  }, []);
+  }, [load]);
 
   const accept = async (id: string) => {
     setAccepting(id);

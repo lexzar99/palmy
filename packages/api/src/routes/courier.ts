@@ -168,6 +168,18 @@ router.get('/jobs', requireCourier, async (req: CourierRequest, res) => {
   }
 });
 
+// Förhandsvy av en enskild (ej tagen) order — för "klicka på uppdrag → se på karta".
+router.get('/jobs/:orderId', requireCourier, async (req: CourierRequest, res) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.orderId },
+    include: { restaurant: true, items: true, delivery: true },
+  });
+  if (!order || order.delivery || !AVAILABLE_ORDER_STATUSES.includes(order.status) || order.restaurant?.selfDelivery) {
+    return res.status(404).json({ error: 'Ordern är inte längre tillgänglig' });
+  }
+  res.json(jobFromOrder(order, req.courier.ratePerKm));
+});
+
 router.get('/active', requireCourier, async (req: CourierRequest, res) => {
   const deliveries = await prisma.delivery.findMany({
     where: { courierId: req.courier.id, status: { in: ACTIVE_STATUSES } },

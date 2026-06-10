@@ -16,7 +16,7 @@ export function JobPreview() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.getJobById(id).then(setJob);
+    api.getJobById(id).then(setJob).catch(() => setJob(null));
   }, [id]);
 
   if (job === undefined) {
