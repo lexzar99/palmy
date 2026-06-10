@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { Bike, MapPin, Package, User, type LucideIcon } from "lucide-react";
 import { api } from "./lib/api";
@@ -71,6 +71,20 @@ export function App() {
   useEffect(() => {
     if (courier && geo.status === "granted") api.getSession().then((s) => setOnline(s.online));
   }, [courier, geo.status]);
+
+  // Skicka kurirens position till backend var 12:e s när online → kunden kan
+  // följa budet live i sin order-tracking (broadcastas till order-rummet).
+  const coordsRef = useRef(geo.coords);
+  coordsRef.current = geo.coords;
+  useEffect(() => {
+    if (!online) return;
+    const send = () => {
+      if (coordsRef.current) void api.sendLocation(coordsRef.current);
+    };
+    send();
+    const t = setInterval(send, 12000);
+    return () => clearInterval(t);
+  }, [online]);
 
   const start = async () => {
     await api.startSession();

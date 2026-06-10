@@ -11,6 +11,10 @@ import ShareInviteCard from "@/components/ShareInviteCard";
 import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import dynamic from "next/dynamic";
+
+// Live-karta laddas bara på klienten (Leaflet behöver window).
+const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
 
 const FlameIcon = ({ size = 24, className = "" }: { size?: number; className?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -110,6 +114,8 @@ const OrderStatusPage = () => {
   const [fetchError, setFetchError] = useState<"not-found" | "network" | null>(null);
   const socketRef = useRef<any>(null);
   const [etaLeft, setEtaLeft] = useState<number | null>(null);
+  // Budets live-position (endast vi-levererar; broadcastas via socket vid hämtad).
+  const [courierPos, setCourierPos] = useState<{ lat: number; lng: number } | null>(null);
   const [showReview, setShowReview] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
@@ -166,6 +172,10 @@ const OrderStatusPage = () => {
           deliveringAt: data.deliveringAt ?? prev?.deliveringAt,
         } : prev);
       }
+    });
+    // Budets live-position (vi-levererar) → visa live-kartan i tracking.
+    socket.on("courier:location", (d: any) => {
+      if (typeof d?.lat === "number" && typeof d?.lng === "number") setCourierPos({ lat: d.lat, lng: d.lng });
     });
 
     const interval = setInterval(() => fetchOrder({ silent: true }), 15000);
@@ -387,6 +397,16 @@ const OrderStatusPage = () => {
               <div className="w-16 h-16 rounded-full border-4 border-amber-500/20 border-t-amber-500 animate-spin shrink-0 hidden md:block" />
            )}
         </motion.div>
+
+        {/* Live-karta — endast vi-levererar (courier:location mottagen) + under leverans. Försvinner vid DELIVERED. */}
+        {currentStatus === "DELIVERING" && courierPos && (
+          <div className="mb-12 overflow-hidden rounded-[2rem] border shadow-2xl" style={{ borderColor: "var(--border-muted)" }}>
+            <CourierTrackingMap
+              courier={courierPos}
+              dropoff={typeof order.deliveryLatitude === "number" && typeof order.deliveryLongitude === "number" ? { lat: order.deliveryLatitude, lng: order.deliveryLongitude } : null}
+            />
+          </div>
+        )}
 
         {/* Progress Bar */}
         {!isRejected && (
