@@ -182,6 +182,7 @@ model Order {
   restaurantId          String?
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
   items                 OrderItem[]
+  delivery              Delivery?
   userId                String?
   user                  User?       @relation(fields: [userId], references: [id])
 
@@ -198,6 +199,56 @@ model Order {
   @@index([stripePaymentIntentId])
   @@index([userId])
   @@index([appliedDealId])
+}
+
+// --- Kurir-domän (Fas 3) ---
+model Courier {
+  id               String     @id @default(cuid())
+  name             String
+  email            String     @unique
+  passwordHash     String
+  phone            String?
+  personalNumber   String?    // PII — super-admin-only, exponeras aldrig i kurir-API
+  address          String?
+  profileImageUrl  String?
+  city             String     @default("Lund") // stad-koppling: får bara ordrar i sin stad
+  vehicle          String     @default("BIKE") // BIKE | CAR
+  payoutAccount    String?    // PII — bank/IBAN/Swish
+  ratePerKm        Int        @default(1500)    // öre/km
+  online           Boolean    @default(false)   // session aktiv = tar emot ordrar
+  sessionStartedAt DateTime?
+  isActive         Boolean    @default(true)
+  currentLat       Float?
+  currentLng       Float?
+  lastSeenAt       DateTime?
+  tokenVersion     Int        @default(0)       // bump = återkalla session
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deliveries       Delivery[]
+
+  @@index([online, city, isActive])
+}
+
+model Delivery {
+  id            String    @id @default(cuid())
+  orderId       String    @unique
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courierId     String?
+  courier       Courier?  @relation(fields: [courierId], references: [id])
+  status        String    @default("EN_ROUTE_PICKUP") // EN_ROUTE_PICKUP | PICKED_UP | DELIVERED | FAILED
+  distanceKm    Float     @default(0)
+  ratePerKmOre  Int       @default(0)
+  payOre        Int       @default(0)            // fryst ersättning = distanceKm * ratePerKmOre
+  tipOre        Int       @default(0)
+  proofMethod   String?                          // HANDED | LEFT_AT_DOOR
+  proofPhotoUrl String?
+  acceptedAt    DateTime  @default(now())
+  pickedUpAt    DateTime?
+  deliveredAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([courierId, status])
 }
 
 model OrderItem {

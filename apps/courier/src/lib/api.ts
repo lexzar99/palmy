@@ -5,8 +5,8 @@ import { MAX_ACTIVE, type ActiveDelivery, type CourierProfile, type DropoffProof
  * är klickbar utan backend. Sätt VITE_API_URL för att slå på riktiga anrop —
  * endpoint-formerna nedan matchar den planerade kurir-backenden (Fas 3c).
  */
-const API_URL = import.meta.env.VITE_API_URL ?? "";
-const USE_MOCK = API_URL === "";
+const API_URL = import.meta.env.VITE_API_URL || "https://palmy-production-2021.up.railway.app";
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "1";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

@@ -17,9 +17,7 @@ function JobCard({ job, atMax, accepting, onAccept, onOpen }: { job: Job; atMax:
             <Store size={16} className="text-gold-deep" />
             {job.restaurantName}
           </span>
-          <span className="flex items-center gap-1 text-xs font-semibold text-muted">
-            {left}s <ChevronRight size={16} />
-          </span>
+          <ChevronRight size={16} className="text-muted" />
         </div>
 
         <div className="mt-3 rounded-2xl bg-canvas p-3">

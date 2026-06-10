@@ -78,6 +78,7 @@ export const DEFAULT_ORIGINS = [
   'https://delivera.se',
   'https://www.delivera.se',
   'https://admin.delivera.se',
+  'https://courier.delivera.se',
   // Prod (foodgo.se) — legacy, kvar för bakåtkompatibilitet
   'https://foodgo.se',
   'https://www.foodgo.se',
