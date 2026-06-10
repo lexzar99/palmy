@@ -197,20 +197,22 @@ const OrderStatusPage = () => {
       .catch((e) => console.warn("[order] snabb betalnings-bekräftelse misslyckades", e));
   }, [orderId, order?.status, fetchOrder]);
 
-  // Auto-transition from DELIVERING to DELIVERED after 12 minutes
+  // Auto-levererad efter 15 min är en MOCK — ENDAST för self-leverans (ingen
+  // kurir finns att markera klart). Vi-levererar får DELIVERED på riktigt av
+  // budet via socket/poll → ingen tidsmock där.
   useEffect(() => {
-    if (!order?.deliveringAt || order.status !== "DELIVERING") return;
+    if (!order?.selfDelivery || !order?.deliveringAt || order.status !== "DELIVERING") return;
+    const markDelivered = () => {
+      setOrder((prev: any) => prev ? { ...prev, status: "DELIVERED" } : prev);
+      // Gör den durabel (best-effort; kräver inloggad ägare, gäster får bara display-flip).
+      axios.patch(`${API_URL}/api/orders/${orderId}/status`, { status: "DELIVERED" }).catch(() => {});
+    };
     const deliveringTime = new Date(order.deliveringAt).getTime();
-    const msRemaining = (deliveringTime + 12 * 60 * 1000) - Date.now();
-    if (msRemaining <= 0) {
-      setOrder((prev: any) => prev ? { ...prev, status: "DELIVERED" } : prev);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setOrder((prev: any) => prev ? { ...prev, status: "DELIVERED" } : prev);
-    }, msRemaining);
+    const msRemaining = (deliveringTime + 15 * 60 * 1000) - Date.now();
+    if (msRemaining <= 0) { markDelivered(); return; }
+    const timer = setTimeout(markDelivered, msRemaining);
     return () => clearTimeout(timer);
-  }, [order?.deliveringAt, order?.status]);
+  }, [order?.selfDelivery, order?.deliveringAt, order?.status, orderId]);
 
   // ETA Countdown — in seconds for real-time display
   useEffect(() => {

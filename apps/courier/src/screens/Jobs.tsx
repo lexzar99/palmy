@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bike, Car, ChevronRight, Clock, MapPin, Store, Wallet } from "lucide-react";
 import { api } from "../lib/api";
 import { MAX_ACTIVE, type Job } from "../lib/types";
 import { kr, secondsLeft } from "../lib/format";
+import { alertNewOrder, ensureNotifyPermission } from "../lib/notify";
 import { AppBar, Card, GoldButton, Pill, Spinner } from "../ui";
 
 function JobCard({ job, atMax, accepting, onAccept, onOpen }: { job: Job; atMax: boolean; accepting: boolean; onAccept: () => void; onOpen: () => void }) {
@@ -57,9 +58,18 @@ export function Jobs() {
   const [activeCount, setActiveCount] = useState(0);
   const [todayKr, setTodayKr] = useState(0);
   const [accepting, setAccepting] = useState<string | null>(null);
+  const seenRef = useRef<Set<string>>(new Set());
+  const firstLoadRef = useRef(true);
 
   const load = useCallback(async () => {
     const [j, a, h] = await Promise.all([api.listJobs(), api.getActiveList(), api.getHistory()]);
+    // Ny order sedan förra hämtningen? → signal (ljud/vibration/notis). Ej vid första.
+    if (!firstLoadRef.current) {
+      const fresh = j.filter((x) => !seenRef.current.has(x.id));
+      if (fresh.length > 0) alertNewOrder(fresh.length, fresh[0].restaurantName);
+    }
+    seenRef.current = new Set(j.map((x) => x.id));
+    firstLoadRef.current = false;
     setJobs(j);
     setActiveCount(a.length);
     const today = new Date().toDateString();
@@ -67,6 +77,7 @@ export function Jobs() {
   }, []);
 
   useEffect(() => {
+    ensureNotifyPermission();
     void load();
   }, [load]);
 

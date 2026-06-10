@@ -44,7 +44,16 @@ export function useGeolocation(): GeoState {
         if (watchId.current == null) {
           watchId.current = navigator.geolocation.watchPosition(
             (p) => setCoords({ lat: p.coords.latitude, lng: p.coords.longitude }),
-            () => {},
+            (e) => {
+              // GPS krävs ALLTID. Tappas tillståndet mitt i passet → rensa flaggan
+              // och gå tillbaka till plats-gaten så kuriren tvingas slå på GPS igen.
+              if (e.code === e.PERMISSION_DENIED) {
+                try { localStorage.removeItem(GRANTED_FLAG); } catch { /* ignore */ }
+                if (watchId.current != null) { navigator.geolocation.clearWatch(watchId.current); watchId.current = null; }
+                setCoords(null);
+                setStatus("denied");
+              }
+            },
             { enableHighAccuracy: true, maximumAge: 10_000 },
           );
         }

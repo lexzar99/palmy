@@ -1938,11 +1938,16 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, userId: true, status: true },
+      select: { id: true, userId: true, status: true, restaurant: { select: { selfDelivery: true } } },
     });
     if (!order) return res.status(404).json({ error: 'Ordern hittades inte' });
     if (order.userId !== callerUserId) {
       return res.status(403).json({ error: 'Du äger inte denna order' });
+    }
+    // Kund-mocken (auto-levererad efter X min) gäller ENDAST self-leverans.
+    // Vi-levererar markeras DELIVERED på riktigt av budet — aldrig av kunden.
+    if (!order.restaurant?.selfDelivery) {
+      return res.json({ changed: false, status: order.status });
     }
     if (order.status === 'DELIVERED' || order.status === 'COMPLETED') {
       return res.json({ changed: false, status: order.status });

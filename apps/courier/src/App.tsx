@@ -77,14 +77,14 @@ export function App() {
   const coordsRef = useRef(geo.coords);
   coordsRef.current = geo.coords;
   useEffect(() => {
-    if (!online) return;
+    if (!online || geo.status !== "granted") return;
     const send = () => {
       if (coordsRef.current) void api.sendLocation(coordsRef.current);
     };
     send();
     const t = setInterval(send, 12000);
     return () => clearInterval(t);
-  }, [online]);
+  }, [online, geo.status]);
 
   const start = async () => {
     await api.startSession();
