@@ -22,12 +22,6 @@ export function OrderDetail() {
     api.getActiveById(id).then(setActive);
   }, [id]);
 
-  useEffect(() => {
-    if (!done) return;
-    const t = setTimeout(() => nav("/aktiv", { replace: true }), 2000);
-    return () => clearTimeout(t);
-  }, [done, nav]);
-
   if (active === undefined) {
     return (
       <div className="flex justify-center pt-24">
@@ -38,13 +32,18 @@ export function OrderDetail() {
 
   if (done && active) {
     return (
-      <div className="flex min-h-[80vh] flex-col items-center justify-center px-6 text-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg">
-          <Check size={40} strokeWidth={2.5} />
+      <div className="flex min-h-[88vh] flex-col items-center justify-center px-6 text-center">
+        <div className="animate-pop flex h-24 w-24 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-200">
+          <Check size={48} strokeWidth={2.5} />
         </div>
-        <h1 className="mt-5 text-2xl font-black tracking-tight">Levererad</h1>
-        <p className="mt-1 text-sm text-muted">Tack för din leverans.</p>
-        <p className="mt-5 text-4xl font-black text-gold-deep">+{kr(active.payout)}</p>
+        <h1 className="mt-6 text-2xl font-black tracking-tight">Levererad!</h1>
+        <p className="mt-1 text-sm text-muted">Bra jobbat — leveransen är klar.</p>
+        <div className="mt-6 rounded-2xl bg-emerald-50 px-7 py-3">
+          <p className="text-3xl font-black text-emerald-600">+{kr(active.payout)}</p>
+        </div>
+        <div className="mt-8 w-full max-w-xs">
+          <GoldButton onClick={() => nav("/aktiv", { replace: true })}>Klar</GoldButton>
+        </div>
       </div>
     );
   }
@@ -145,23 +144,25 @@ export function OrderDetail() {
   // ------------------------------------------------------------ ON THE WAY
   return (
     <div className="px-5 pb-28">
-      <AppBar title={active.dropoffName} onBack={() => nav("/aktiv")} right={<Pill>{kr(active.payout)}</Pill>} />
+      <AppBar title={active.dropoffName} onBack={() => nav("/aktiv")} right={<Pill tone="green">{kr(active.payout)}</Pill>} />
       <div className="mt-4">
-        <LiveMap me={me} dropoff={active.dropoff} height={210} />
+        <LiveMap me={me} dropoff={active.dropoff} height={260} />
       </div>
 
       <Card className="mt-3 p-4">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Leverera till</p>
-        <p className="text-[15px] font-black">{active.dropoffName}</p>
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Leverera till</p>
+          <Pill tone="green">{km(active.distanceKm)} kvar</Pill>
+        </div>
+        <p className="mt-1 text-[16px] font-black">{active.dropoffName}</p>
         <AddressRow address={active.dropoffAddress} />
-        <p className="mt-1 text-xs font-semibold text-gold-deep">{km(active.distanceKm)} kvar</p>
         <div className="mt-3">
           <MapsButton address={active.dropoffAddress} />
         </div>
       </Card>
 
-      <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--color-line)] bg-white py-3 text-sm font-bold text-muted">
-        {photo ? <img src={photo} alt="" className="h-7 w-7 rounded-md object-cover" /> : <Camera size={17} />}
+      <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--color-line)] bg-white py-3 text-[13px] font-bold text-muted">
+        {photo ? <img src={photo} alt="" className="h-6 w-6 rounded-md object-cover" /> : <Camera size={16} />}
         {photo ? "Foto tillagt — byt" : "Lägg till leveransfoto (valfritt)"}
         <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhoto} />
       </label>
@@ -172,7 +173,7 @@ export function OrderDetail() {
             <Spinner />
           </GoldButton>
         ) : (
-          <SwipeButton label="Swipe för att slutföra leverans" onConfirm={deliver} />
+          <SwipeButton tone="green" label="Swipe för att slutföra leverans" onConfirm={deliver} />
         )}
       </div>
     </div>

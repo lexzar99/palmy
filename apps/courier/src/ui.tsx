@@ -109,7 +109,7 @@ export function AddressRow({ address }: { address: string }) {
 }
 
 /** Dra knappen till slutet för att bekräfta. */
-export function SwipeButton({ label, onConfirm, disabled }: { label: string; onConfirm: () => void; disabled?: boolean }) {
+export function SwipeButton({ label, onConfirm, disabled, tone = "gold" }: { label: string; onConfirm: () => void; disabled?: boolean; tone?: "gold" | "green" }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [x, setX] = useState(0);
   const [done, setDone] = useState(false);
@@ -142,9 +142,13 @@ export function SwipeButton({ label, onConfirm, disabled }: { label: string; onC
     });
   };
 
+  const trackBg = disabled ? "bg-zinc-100" : tone === "green" ? "bg-emerald-50" : "bg-gold-soft";
+  const labelColor = disabled ? "text-zinc-400" : tone === "green" ? "text-emerald-700" : "text-gold-deep";
+  const knobBg = disabled ? "bg-zinc-300 text-zinc-500" : tone === "green" ? "bg-emerald-500 text-white" : "bg-gold text-ink";
+
   return (
-    <div ref={trackRef} className={`relative h-[60px] w-full select-none overflow-hidden rounded-2xl ${disabled ? "bg-zinc-100" : "bg-gold-soft"}`}>
-      <div className={`absolute inset-0 flex items-center justify-center text-[14px] font-bold ${disabled ? "text-zinc-400" : "text-gold-deep"}`}>
+    <div ref={trackRef} className={`relative h-[60px] w-full select-none overflow-hidden rounded-2xl ${trackBg}`}>
+      <div className={`absolute inset-0 flex items-center justify-center text-[14px] font-bold ${labelColor}`}>
         {done ? "Klart" : label}
       </div>
       <div
@@ -152,7 +156,7 @@ export function SwipeButton({ label, onConfirm, disabled }: { label: string; onC
         onPointerMove={(e) => move(e.clientX)}
         onPointerUp={end}
         onPointerCancel={end}
-        className={`absolute top-1 left-1 flex h-[52px] w-[52px] touch-none items-center justify-center rounded-xl shadow ${disabled ? "bg-zinc-300 text-zinc-500" : "bg-gold text-ink"}`}
+        className={`absolute top-1 left-1 flex h-[52px] w-[52px] touch-none items-center justify-center rounded-xl shadow ${knobBg}`}
         style={{ transform: `translateX(${x}px)`, transition: dragging.current ? "none" : "transform 0.2s" }}
       >
         {done ? <Check size={22} strokeWidth={2.5} /> : <ArrowRight size={22} strokeWidth={2.5} />}
