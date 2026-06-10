@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, Hash, AlertCircle, Zap, ShieldCheck, ShoppingBag, Sparkles, MapPin, ArrowRight, Star, X, MessageSquare } from "lucide-react";
+import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, Hash, AlertCircle, ShieldCheck, ShoppingBag, Sparkles, MapPin, ArrowRight, Star, X, MessageSquare } from "lucide-react";
 import { openSupportChatWithOrder } from "@/components/SupportChat";
 import ShareInviteCard from "@/components/ShareInviteCard";
 import { io as socketIO } from "socket.io-client";
@@ -367,97 +367,84 @@ const OrderStatusPage = () => {
     : stepDefs.reduce((acc, d, i) => (d.reached(currentStatus) ? i : acc), 0);
 
   return (
-    <div className="min-h-screen bg-dot-pattern pb-48 px-6" style={{ backgroundColor: "var(--bg-primary)", paddingTop: "max(6rem, calc(env(safe-area-inset-top, 0px) + 1.5rem))" }}>
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen pb-28" style={{ backgroundColor: "var(--bg-primary)", paddingTop: "max(4.5rem, calc(env(safe-area-inset-top, 0px) + 1rem))" }}>
+      <div className="mx-auto max-w-2xl px-4">
 
-        {/* Dynamic Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 mb-16 px-4">
-           <div>
-              <div className="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-600 text-[10px] font-black uppercase tracking-[0.3em] mb-4">
-                 <Zap size={12} className="animate-pulse" /> {t("order.liveTracking")}
-              </div>
-               <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tight leading-snug mb-2 overflow-visible" style={{ color: "var(--text-primary)" }}>{t("order.title")} <span className="text-gold-gradient">#{order.orderNumber}</span></h1>
-               <p className="text-[10px] font-black uppercase tracking-[0.4em]" style={{ color: "var(--text-secondary)" }}>{t("order.subtitle")}</p>
-           </div>
-           
-           {order.estimatedTime && !isRejected && !isCompleted && (
-              <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="glass-panel p-6 rounded-[2.5rem] flex items-center gap-5 shadow-2xl relative group overflow-hidden">
-                 <div className="absolute inset-0 bg-gold-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                 <div className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center text-zinc-950 shadow-xl ${etaLeft !== null && etaLeft <= 300 ? 'bg-emerald-500 shadow-emerald-500/20 animate-pulse' : 'bg-gold-500 shadow-gold-500/20'}`}>
-                    <Clock size={28} />
-                 </div>
-                 <div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">
-                      {etaLeft !== null && etaLeft <= 0 ? t("order.eta.ready") : t("order.eta.short")}
-                    </div>
-                    <div className="text-2xl font-black italic tabular-nums" style={{ color: "var(--text-primary)" }}>
-                      {etaLeft === null
-                        ? `${order.estimatedTime} MIN`
-                        : etaLeft <= 0
-                          ? t("order.eta.soon")
-                          : `${Math.floor(etaLeft / 60)}:${(etaLeft % 60).toString().padStart(2, '0')}`}
-                    </div>
-                 </div>
-              </motion.div>
-           )}
+        {/* Top bar */}
+        <div className="flex items-center justify-between gap-3 py-3">
+          <Link href="/orders" className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-bold transition-colors hover:border-gold-500/40" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
+            <ArrowRight size={13} className="rotate-180" /> {t("order.subtitle")}
+          </Link>
+          <div className="inline-flex items-center gap-2 rounded-full border border-gold-500/20 bg-gold-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-gold-600">
+            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-500 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-gold-500" /></span>
+            {t("order.liveTracking")}
+          </div>
         </div>
+        <h1 className="mb-5 px-1 text-2xl font-black tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.title")} <span className="text-gold-gradient">#{order.orderNumber}</span></h1>
 
-        {/* Live Status Banner */}
-        <motion.div key={currentStatus} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`p-10 rounded-[3rem] border transition-all shadow-2xl mb-12 flex flex-col md:flex-row items-center gap-10 text-center md:text-left ${statusInfo.colorClass}`} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-           <div className={`w-20 h-20 rounded-[2.5rem] flex items-center justify-center shrink-0 border-[1px] shadow-inner ${statusInfo.textClass} bg-[rgba(252,252,249,0.4)] border-zinc-100`}>
-              <StatusIcon size={40} className={currentStatus === 'PENDING' ? 'animate-pulse' : ''} />
-           </div>
-           <div className="flex-1">
-              <h2 className={`text-3xl font-black uppercase italic tracking-tight mb-2 ${statusInfo.textClass}`}>{statusLabel(currentStatus)}</h2>
-              <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest leading-relaxed opacity-80">{statusDesc(currentStatus)}</p>
-           </div>
-           {currentStatus === 'PENDING' && (
-              <div className="w-16 h-16 rounded-full border-4 border-amber-500/20 border-t-amber-500 animate-spin shrink-0 hidden md:block" />
-           )}
-        </motion.div>
+        {/* Hero: karta (vi-levererar) + status + ETA + steg */}
+        <motion.div key={currentStatus} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-[2rem] border shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
 
-        {/* Live-karta — endast vi-levererar (ej self) + under leverans. Visas direkt vid hämtad;
-            budets prick fylls i när dess position kommit in. Försvinner vid DELIVERED. */}
-        {currentStatus === "DELIVERING" && order.type === "DELIVERY" && !order.selfDelivery && (
-          <div className="mb-12 overflow-hidden rounded-[2rem] border shadow-2xl" style={{ borderColor: "var(--border-muted)" }}>
+          {/* Live-karta — endast vi-levererar (ej self) + under leverans. Visas direkt vid hämtad;
+              budets prick fylls i när dess position kommit in. Försvinner vid DELIVERED. */}
+          {currentStatus === "DELIVERING" && order.type === "DELIVERY" && !order.selfDelivery && (
             <CourierTrackingMap
               pickup={typeof order.restaurantLat === "number" && typeof order.restaurantLng === "number" ? { lat: order.restaurantLat, lng: order.restaurantLng } : null}
               dropoff={typeof order.deliveryLatitude === "number" && typeof order.deliveryLongitude === "number" ? { lat: order.deliveryLatitude, lng: order.deliveryLongitude } : null}
               courier={courierPos}
             />
-          </div>
-        )}
+          )}
 
-        {/* Progress Bar */}
-        {!isRejected && (
-           <div className="mb-20 px-4">
-              <div className="flex justify-between items-center mb-8">
-                 {stepDefs.map((step, idx) => {
-                    const isDone = currentIdx >= idx;
-                    const isActive = currentIdx === idx && !isCompleted;
-                    return (
-                       <div key={step.label} className="flex flex-col items-center gap-4 relative z-10">
-                          <div className={`w-8 h-8 rounded-full border-2 transition-all duration-700 flex items-center justify-center ${isActive ? "bg-gold-500 border-gold-500 shadow-lg shadow-gold-500/30 scale-110" : isDone ? "bg-gold-500 border-gold-500 shadow-lg shadow-gold-500/20" : "bg-zinc-50 border-zinc-100 text-zinc-300"}`}>
-                             {isDone && !isActive ? <Check size={14} className="text-zinc-950" strokeWidth={4} /> : isActive ? <div className="w-2 h-2 rounded-full bg-zinc-950 animate-pulse" /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
-                          </div>
-                          <span className={`text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${isActive ? "text-gold-600" : isDone ? "text-zinc-400" : "text-zinc-300"}`}>{step.label}</span>
-                       </div>
-                    );
-                 })}
-
-                 {/* Progress line background */}
-                 <div className="absolute left-6 right-6 h-px bg-zinc-100 z-0 mt-[-24px]" />
-                 {/* Active progress line */}
-                 <motion.div initial={{ width: 0 }} animate={{ width: `${(currentIdx / (stepDefs.length - 1)) * 100}%` }} transition={{ duration: 1, ease: "circOut" }} className="absolute left-6 h-1 bg-gold-400 z-0 mt-[-24px] rounded-full shadow-[0_0_15px_rgba(231,178,75,0.2)]" style={{ width: `calc(${ (currentIdx / (stepDefs.length - 1)) * 100 }% - 12px)` }} />
+          {/* Status + ETA */}
+          <div className="flex items-center gap-4 p-5">
+            <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border ${statusInfo.colorClass} ${statusInfo.textClass}`}>
+              <StatusIcon size={28} className={currentStatus === "PENDING" ? "animate-pulse" : ""} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-black leading-tight" style={{ color: "var(--text-primary)" }}>{statusLabel(currentStatus)}</h2>
+              <p className="mt-0.5 text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>{statusDesc(currentStatus)}</p>
+            </div>
+            {order.estimatedTime && !isRejected && !isCompleted && (
+              <div className="shrink-0 rounded-2xl px-3.5 py-2 text-center" style={{ backgroundColor: "var(--bg-deep)" }}>
+                <div className="text-[8px] font-black uppercase tracking-widest text-zinc-400">{etaLeft !== null && etaLeft <= 0 ? t("order.eta.ready") : t("order.eta.short")}</div>
+                <div className={`text-lg font-black tabular-nums ${etaLeft !== null && etaLeft <= 300 ? "text-emerald-500" : "text-gold-600"}`}>
+                  {etaLeft === null ? `${order.estimatedTime} min` : etaLeft <= 0 ? t("order.eta.soon") : `${Math.floor(etaLeft / 60)}:${(etaLeft % 60).toString().padStart(2, "0")}`}
+                </div>
               </div>
-           </div>
-        )}
+            )}
+          </div>
+
+          {/* Steg — robust tracker: nod + halv-connectors per steg */}
+          {!isRejected && (
+            <div className="border-t px-4 pb-6 pt-6" style={{ borderColor: "var(--border-muted)" }}>
+              <div className="flex items-start">
+                {stepDefs.map((step, idx) => {
+                  const isDone = currentIdx >= idx;
+                  const isActive = currentIdx === idx && !isCompleted;
+                  const last = idx === stepDefs.length - 1;
+                  return (
+                    <div key={step.label} className="flex flex-1 flex-col items-center">
+                      <div className="flex w-full items-center">
+                        <div className={`h-0.5 flex-1 rounded-full ${idx === 0 ? "opacity-0" : isDone ? "bg-gold-500" : "bg-zinc-100"}`} />
+                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-500 ${isActive ? "scale-110 border-gold-500 bg-gold-500 shadow-lg shadow-gold-500/30" : isDone ? "border-gold-500 bg-gold-500" : "border-zinc-200 bg-white text-zinc-300"}`}>
+                          {isDone && !isActive ? <Check size={14} className="text-zinc-950" strokeWidth={4} /> : isActive ? <span className="h-2 w-2 animate-pulse rounded-full bg-zinc-950" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+                        </div>
+                        <div className={`h-0.5 flex-1 rounded-full ${last ? "opacity-0" : currentIdx > idx ? "bg-gold-500" : "bg-zinc-100"}`} />
+                      </div>
+                      <span className={`mt-2.5 text-center text-[10px] font-black uppercase tracking-wide ${isActive ? "text-gold-600" : isDone ? "text-zinc-500" : "text-zinc-300"}`}>{step.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </motion.div>
 
         {/* ShareInviteCard borttagen — referral-systemet avstängt för launch */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+        <div className="mt-4 grid grid-cols-1 gap-4 items-start">
            {/* Detailed Receipt */}
-            <div className="lg:col-span-7 p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+            <div className="relative overflow-hidden rounded-[2rem] p-6 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                <div className="absolute top-[-100px] left-[-100px] w-[300px] h-[300px] rounded-full blur-[100px]" style={{ backgroundColor: "rgba(231,178,75,0.03)" }} />
               <div className="flex items-center justify-between mb-12 relative z-10">
                   <h2 className="text-2xl font-black uppercase italic tracking-tight leading-[1.15]" style={{ color: "var(--text-primary)" }}>{t("order.detailsTitle")}</h2>
@@ -497,8 +484,8 @@ const OrderStatusPage = () => {
            </div>
 
            {/* Info sidebar */}
-           <div className="lg:col-span-5 space-y-6">
-               <div className="p-10 rounded-[3rem] shadow-2xl relative overflow-hidden group border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+           <div className="space-y-4">
+               <div className="group relative overflow-hidden rounded-[2rem] border p-6 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                   <div className="absolute inset-0 bg-gradient-to-br from-gold-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <h2 className="text-xl font-black uppercase italic tracking-tight mb-10 flex items-center justify-between" style={{ color: "var(--text-primary)" }}>
                     {t("order.handling")}
@@ -624,7 +611,7 @@ const OrderStatusPage = () => {
 
               {/* Review Card or Thank You */}
               {order.rating || reviewDone ? (
-                  <div className="p-10 rounded-[3rem] shadow-2xl text-center border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+                  <div className="rounded-[2rem] border p-6 text-center shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                     <div className="flex items-center justify-center gap-1 mb-4">
                       {[1,2,3,4,5].map(s => <Star key={s} size={24} className={s <= (order.rating || reviewRating) ? 'text-gold-500 fill-gold-500' : 'text-zinc-100'} />)}
                     </div>
@@ -632,7 +619,7 @@ const OrderStatusPage = () => {
                     <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">{t("order.review.thanksSub")}</p>
                  </div>
               ) : (
-                 <div className="p-10 rounded-[3rem] shadow-2xl text-center group active:scale-95 transition-all cursor-default" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                 <div className="group cursor-default rounded-[2rem] p-6 text-center shadow-xl transition-all active:scale-95" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                    <div className="w-16 h-16 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20 flex items-center justify-center mx-auto mb-6 text-emerald-600 shadow-xl shadow-emerald-500/5 group-hover:scale-110 transition-transform">
                       <ShieldCheck size={32} />
                    </div>
@@ -657,7 +644,7 @@ const OrderStatusPage = () => {
         <AnimatePresence>
           {showReview && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center px-6 pb-8 sm:pb-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.7)" }}>
-               <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm p-10 rounded-[3rem] shadow-2xl space-y-8 border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+               <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm space-y-6 rounded-[2rem] border p-8 shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>{t("order.review.title")}</h2>
                   <button onClick={dismissReview} className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors" aria-label={t("order.review.dismissAria")}><X size={20} /></button>
