@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { HistoryOrder } from "../lib/types";
-import { Bike, Car } from "lucide-react";
+import { Bike, Car, PowerOff } from "lucide-react";
 import { dayLabel, km, kr, timeOfDay } from "../lib/format";
+import { useSession } from "../lib/sessionctx";
 import { AppBar, Card, GhostButton, Spinner } from "../ui";
 
 type Preset = "today" | "yesterday" | "7d" | "30d" | "custom";
@@ -44,6 +45,8 @@ function range(preset: Preset, from: string, to: string): [Date, Date] {
 
 export function Account() {
   const { courier, logout } = useAuth();
+  const { end } = useSession();
+  const [ending, setEnding] = useState(false);
   const [history, setHistory] = useState<HistoryOrder[] | null>(null);
   const [preset, setPreset] = useState<Preset>("today");
   const [from, setFrom] = useState(() => isoDate(new Date(Date.now() - 6 * 864e5)));
@@ -144,8 +147,11 @@ export function Account() {
         </div>
       )}
 
-      <div className="mt-6">
-        <GhostButton onClick={logout}>Logga ut</GhostButton>
+      <div className="mt-6 space-y-3">
+        <GhostButton onClick={async () => { setEnding(true); try { await end(); } finally { setEnding(false); } }}>
+          {ending ? <Spinner /> : <span className="flex items-center justify-center gap-2"><PowerOff size={16} /> Avsluta session</span>}
+        </GhostButton>
+        <button onClick={logout} className="w-full py-1 text-sm font-bold text-muted">Logga ut</button>
       </div>
     </div>
   );

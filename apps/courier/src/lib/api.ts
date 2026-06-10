@@ -213,6 +213,31 @@ export const api = {
     return http("/api/courier/history");
   },
 
+  // --- Session: budet styr själv när det tar emot ordrar ---
+  async getSession(): Promise<{ online: boolean }> {
+    if (USE_MOCK) {
+      await wait(120);
+      return { online: localStorage.getItem("delivera_courier_online") === "1" };
+    }
+    return http("/api/courier/session");
+  },
+
+  async startSession(): Promise<void> {
+    if (USE_MOCK) {
+      localStorage.setItem("delivera_courier_online", "1");
+      return;
+    }
+    await http("/api/courier/session/start", { method: "POST" });
+  },
+
+  async endSession(): Promise<void> {
+    if (USE_MOCK) {
+      localStorage.removeItem("delivera_courier_online");
+      return;
+    }
+    await http("/api/courier/session/stop", { method: "POST" });
+  },
+
   async sendLocation(coords: LatLng): Promise<void> {
     if (USE_MOCK) return;
     await http("/api/courier/location", { method: "POST", body: JSON.stringify(coords) });

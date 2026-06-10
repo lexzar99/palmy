@@ -1,9 +1,13 @@
+import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { Bike, MapPin, Package, User, type LucideIcon } from "lucide-react";
+import { api } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { useGeolocation, type GeoStatus } from "./lib/geo";
 import { GeoContext } from "./lib/geoctx";
+import { SessionContext } from "./lib/sessionctx";
 import { Login } from "./screens/Login";
+import { SessionStart } from "./screens/SessionStart";
 import { Jobs } from "./screens/Jobs";
 import { JobPreview } from "./screens/JobPreview";
 import { ActiveList } from "./screens/ActiveList";
@@ -62,14 +66,31 @@ function BottomNav() {
 export function App() {
   const { ready, courier } = useAuth();
   const geo = useGeolocation();
+  const [online, setOnline] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (courier && geo.status === "granted") api.getSession().then((s) => setOnline(s.online));
+  }, [courier, geo.status]);
+
+  const start = async () => {
+    await api.startSession();
+    setOnline(true);
+  };
+  const end = async () => {
+    await api.endSession();
+    setOnline(false);
+  };
 
   if (!ready) return <Splash />;
   if (!courier) return <div className="min-h-screen bg-canvas"><Login /></div>;
   if (geo.resuming) return <Splash />;
   if (geo.status !== "granted") return <LocationGate status={geo.status} request={geo.request} />;
+  if (online === null) return <Splash />;
+  if (!online) return <div className="min-h-screen bg-canvas"><SessionStart onStart={start} /></div>;
 
   return (
-    <GeoContext.Provider value={geo.coords}>
+    <SessionContext.Provider value={{ end }}>
+      <GeoContext.Provider value={geo.coords}>
       <div className="mx-auto min-h-screen max-w-md bg-canvas">
         <Routes>
           <Route path="/" element={<Jobs />} />
@@ -81,6 +102,7 @@ export function App() {
         </Routes>
         <BottomNav />
       </div>
-    </GeoContext.Provider>
+      </GeoContext.Provider>
+    </SessionContext.Provider>
   );
 }
