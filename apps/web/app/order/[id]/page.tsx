@@ -398,12 +398,14 @@ const OrderStatusPage = () => {
            )}
         </motion.div>
 
-        {/* Live-karta — endast vi-levererar (courier:location mottagen) + under leverans. Försvinner vid DELIVERED. */}
-        {currentStatus === "DELIVERING" && courierPos && (
+        {/* Live-karta — endast vi-levererar (ej self) + under leverans. Visas direkt vid hämtad;
+            budets prick fylls i när dess position kommit in. Försvinner vid DELIVERED. */}
+        {currentStatus === "DELIVERING" && order.type === "DELIVERY" && !order.selfDelivery && (
           <div className="mb-12 overflow-hidden rounded-[2rem] border shadow-2xl" style={{ borderColor: "var(--border-muted)" }}>
             <CourierTrackingMap
-              courier={courierPos}
+              pickup={typeof order.restaurantLat === "number" && typeof order.restaurantLng === "number" ? { lat: order.restaurantLat, lng: order.restaurantLng } : null}
               dropoff={typeof order.deliveryLatitude === "number" && typeof order.deliveryLongitude === "number" ? { lat: order.deliveryLatitude, lng: order.deliveryLongitude } : null}
+              courier={courierPos}
             />
           </div>
         )}

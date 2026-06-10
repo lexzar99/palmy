@@ -7,14 +7,21 @@ type LL = { lat: number; lng: number };
 
 /**
  * Live-karta för kund-tracking (endast vi-levererar-ordrar, visas vid DELIVERING).
- * Visar budets position + rutt till kunden. Modern CARTO-stil. SSR-säker:
- * Leaflet importeras dynamiskt i useEffect så den aldrig körs på servern.
+ * Visar restaurang→kund-rutten direkt, och budets prick fylls i + flyttas när
+ * positionen kommer in via socket. Modern CARTO-stil. SSR-säker: Leaflet
+ * importeras dynamiskt i useEffect så den aldrig körs på servern.
  */
-export default function CourierTrackingMap({ courier, dropoff }: { courier: LL; dropoff?: LL | null }) {
+export default function CourierTrackingMap({ pickup, dropoff, courier }: { pickup?: LL | null; dropoff?: LL | null; courier?: LL | null }) {
   const ref = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<unknown>(null);
-  const markerRef = useRef<unknown>(null);
-  const LRef = useRef<unknown>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const LRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const courierMarkerRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const routeRef = useRef<any>(null);
+  const routeDrawnRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -22,66 +29,89 @@ export default function CourierTrackingMap({ courier, dropoff }: { courier: LL; 
       const L = (await import("leaflet")).default;
       if (cancelled || !ref.current || mapRef.current) return;
       LRef.current = L;
-      const map = L.map(ref.current, { zoomControl: false, attributionControl: false }).setView([courier.lat, courier.lng], 14);
+      const center = courier ?? pickup ?? dropoff ?? { lat: 55.7047, lng: 13.191 };
+      const map = L.map(ref.current, { zoomControl: false, attributionControl: false }).setView([center.lat, center.lng], 14);
       L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", { maxZoom: 20, subdomains: "abcd" }).addTo(map);
       mapRef.current = map;
 
-      const courierIcon = L.divIcon({
-        className: "",
-        html: `<span style="position:relative;display:block;width:20px;height:20px"><span style="position:absolute;inset:-8px;border-radius:50%;background:rgba(231,178,75,.3)"></span><span style="position:relative;display:block;width:20px;height:20px;border-radius:50%;background:#e7b24b;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)"></span></span>`,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-      });
-      markerRef.current = L.marker([courier.lat, courier.lng], { icon: courierIcon, zIndexOffset: 1000 }).addTo(map);
-
-      const pts: [number, number][] = [[courier.lat, courier.lng]];
-      if (dropoff) {
-        const homeIcon = L.divIcon({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pinIcon = (bg: string, glyph = "") =>
+        L.divIcon({
           className: "",
-          html: `<div style="width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#0C0B0C;box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center"><span style="width:9px;height:9px;border-radius:50%;background:#fff;transform:rotate(45deg)"></span></div>`,
-          iconSize: [26, 26],
-          iconAnchor: [13, 26],
+          html: `<div style="width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${bg};box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center"><span style="transform:rotate(45deg);font-size:12px;line-height:1">${glyph}</span></div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 28],
         });
-        L.marker([dropoff.lat, dropoff.lng], { icon: homeIcon }).addTo(map);
-        pts.push([dropoff.lat, dropoff.lng]);
-        const straight = () => L.polyline(pts, { color: "#e7b24b", weight: 4, opacity: 0.5, dashArray: "6 8" }).addTo(map);
-        fetch(`https://router.project-osrm.org/route/v1/driving/${courier.lng},${courier.lat};${dropoff.lng},${dropoff.lat}?overview=full&geometries=geojson`)
-          .then((r) => r.json())
-          .then((d) => {
-            if (cancelled || mapRef.current !== map) return;
-            const c = d?.routes?.[0]?.geometry?.coordinates as [number, number][] | undefined;
-            if (c && c.length > 1) {
-              const ll = c.map((x) => [x[1], x[0]] as [number, number]);
-              L.polyline(ll, { color: "#e7b24b", weight: 5, opacity: 0.95 }).addTo(map);
-              map.fitBounds(L.latLngBounds(ll).pad(0.2));
-            } else {
-              straight();
-            }
-          })
-          .catch(() => {
-            if (mapRef.current === map) straight();
-          });
+
+      const bounds: [number, number][] = [];
+      if (pickup) {
+        L.marker([pickup.lat, pickup.lng], { icon: pinIcon("#e7b24b", "🍽️") }).addTo(map);
+        bounds.push([pickup.lat, pickup.lng]);
       }
-      if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.3));
+      if (dropoff) {
+        L.marker([dropoff.lat, dropoff.lng], { icon: pinIcon("#0C0B0C", "🏠") }).addTo(map);
+        bounds.push([dropoff.lat, dropoff.lng]);
+      }
+      const from = courier ?? pickup;
+      if (from && dropoff) drawRoute(L, mapRef, routeRef, from, dropoff, routeDrawnRef);
+      if (bounds.length > 1) map.fitBounds(L.latLngBounds(bounds).pad(0.3));
       setTimeout(() => {
         if (mapRef.current === map) map.invalidateSize();
       }, 200);
     })();
     return () => {
       cancelled = true;
-      const map = mapRef.current as { remove?: () => void } | null;
-      if (map?.remove) map.remove();
+      if (mapRef.current?.remove) mapRef.current.remove();
       mapRef.current = null;
-      markerRef.current = null;
+      courierMarkerRef.current = null;
+      routeRef.current = null;
+      routeDrawnRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Uppdatera budets markör när ny position kommer in.
+  // Budets prick: skapas vid första positionen, flyttas sen.
   useEffect(() => {
-    const marker = markerRef.current as { setLatLng?: (ll: [number, number]) => void } | null;
-    if (marker?.setLatLng) marker.setLatLng([courier.lat, courier.lng]);
-  }, [courier.lat, courier.lng]);
+    const L = LRef.current;
+    const map = mapRef.current;
+    if (!L || !map || !courier) return;
+    if (!courierMarkerRef.current) {
+      const icon = L.divIcon({
+        className: "",
+        html: `<span style="position:relative;display:block;width:22px;height:22px"><span style="position:absolute;inset:-9px;border-radius:50%;background:rgba(231,178,75,.3)"></span><span style="position:relative;display:block;width:22px;height:22px;border-radius:50%;background:#e7b24b;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4)"></span></span>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      });
+      courierMarkerRef.current = L.marker([courier.lat, courier.lng], { icon, zIndexOffset: 1000 }).addTo(map);
+      if (!routeDrawnRef.current && dropoff) drawRoute(L, mapRef, routeRef, courier, dropoff, routeDrawnRef);
+    } else {
+      courierMarkerRef.current.setLatLng([courier.lat, courier.lng]);
+    }
+  }, [courier?.lat, courier?.lng, dropoff]);
 
-  return <div ref={ref} style={{ height: 280, width: "100%", borderRadius: 24, overflow: "hidden" }} />;
+  return <div ref={ref} style={{ height: 300, width: "100%" }} />;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function drawRoute(L: any, mapRef: { current: any }, routeRef: { current: any }, from: LL, to: LL, drawnRef: { current: boolean }) {
+  const add = (latlngs: [number, number][], dashed: boolean) => {
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      if (routeRef.current) map.removeLayer(routeRef.current);
+      routeRef.current = L.polyline(latlngs, dashed ? { color: "#e7b24b", weight: 4, opacity: 0.55, dashArray: "6 8" } : { color: "#e7b24b", weight: 5, opacity: 0.95 }).addTo(map);
+      drawnRef.current = true;
+    } catch {
+      /* karta borttagen */
+    }
+  };
+  const straight = () => add([[from.lat, from.lng], [to.lat, to.lng]], true);
+  fetch(`https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`)
+    .then((r) => r.json())
+    .then((d) => {
+      const c = d?.routes?.[0]?.geometry?.coordinates as [number, number][] | undefined;
+      if (c && c.length > 1) add(c.map((x) => [x[1], x[0]] as [number, number]), false);
+      else straight();
+    })
+    .catch(straight);
 }
