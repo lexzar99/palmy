@@ -251,7 +251,7 @@ export function DashboardPage() {
                       onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                     />
                   ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[rgba(99,102,241,0.1)] text-xl shrink-0">🍽️</div>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-xl shrink-0">🍽️</div>
                   )}
                   <span
                     className={`h-2 w-2 rounded-full shrink-0 ${

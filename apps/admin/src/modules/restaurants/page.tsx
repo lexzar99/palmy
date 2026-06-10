@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw, Search } from "lucide-react";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
-import { Badge, Button, EmptyState, ErrorPanel, PageHeader, Surface } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Input, LoadingPanel, PageHeader, Surface, Tabs } from "@/shared/components/ui";
 import { DeliveryModeBadge, deliveryModeMeta } from "@/shared/components/delivery-mode";
 import { formatCurrency, formatNumber, restaurantTierLabel } from "@/shared/utils/format";
 
@@ -31,7 +31,7 @@ export function RestaurantsPage() {
     });
   }, [filter, overview.data, search]);
 
-  if (overview.isLoading) return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar restauranger...</Surface>;
+  if (overview.isLoading) return <LoadingPanel label="Laddar restauranger…" />;
   if (overview.isError || !overview.data) return <ErrorPanel title="Kunde inte ladda restauranger" action={<Button onClick={() => void overview.refetch()}><RefreshCw size={16} /> Försök igen</Button>} />;
 
   const FILTER_TABS: { value: typeof filter; label: string }[] = [
@@ -58,27 +58,11 @@ export function RestaurantsPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           {/* Search */}
           <div className="relative w-full max-w-sm">
-            <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Sök namn, stad eller slug..."
-              className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-secondary)] py-2.5 pl-9 pr-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none"
-            />
+            <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <Input className="pl-11" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök namn, stad eller slug…" />
           </div>
           {/* Filter tabs */}
-          <div className="flex gap-2">
-            {FILTER_TABS.map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setFilter(value)}
-                className={`rounded-lg border px-4 py-2 text-xs font-semibold transition-all ${filter === value ? "border-[var(--accent)] bg-[rgba(99,102,241,0.12)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-default)]"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <Tabs value={filter} options={FILTER_TABS} onChange={setFilter} />
         </div>
 
         {filtered.length === 0 ? (
@@ -106,7 +90,7 @@ function RestaurantCard({ restaurant: r, onClick }: { restaurant: ControlCenterR
           // eslint-disable-next-line @next/next/no-img-element
           <img src={avatar} alt="" className="h-12 w-12 rounded-xl object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         ) : (
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(99,102,241,0.1)] text-2xl shrink-0">🍽️</div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-2xl shrink-0">🍽️</div>
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">

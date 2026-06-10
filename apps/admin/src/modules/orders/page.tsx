@@ -192,7 +192,7 @@ function OrderDetailsModal({
       }
     >
       {orderQuery.isLoading || !order ? (
-        <div className="surface-muted px-5 py-5 text-sm text-[var(--text-secondary)]">Loading order details...</div>
+        <div className="surface-muted px-5 py-5 text-sm text-[var(--text-secondary)]">Laddar orderdetaljer…</div>
       ) : (
         <div className="space-y-6">
           <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
@@ -263,7 +263,7 @@ function OrderDetailsModal({
 
             <div className="space-y-4">
               <div className="surface-muted px-5 py-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Status actions</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Statusåtgärder</p>
                 <Field label="Estimated time minutes">
                   <Input type="number" value={estimatedTime} onChange={(event) => setEstimatedTime(event.target.value ? Number(event.target.value) : "")} placeholder={order.estimatedTime ? String(order.estimatedTime) : "Optional"} />
                 </Field>
@@ -289,7 +289,7 @@ function OrderDetailsModal({
               </div>
 
               <div className="surface-muted px-5 py-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Financial summary</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Ekonomisk översikt</p>
                 <div className="mt-4 space-y-3 text-sm text-[var(--text-secondary)]">
                   <div className="flex items-center justify-between"><span>Total</span><span className="font-black text-[var(--text-primary)]">{formatCurrency(order.total)}</span></div>
                   <div className="flex items-center justify-between"><span>Delivery fee</span><span>{formatCurrency(order.deliveryFee || 0)}</span></div>
@@ -304,7 +304,7 @@ function OrderDetailsModal({
                   <p className="text-[11px] font-black uppercase tracking-[0.18em]">Refund</p>
                 </div>
                 {(order.pointsEarned || order.pointsSpent) ? (
-                  <div className="mt-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-[13px]">
+                  <div className="mt-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-4 py-3 text-[13px]">
                     <p className="font-semibold text-[var(--text-primary)]">Dpoints på denna order</p>
                     <div className="mt-1.5 space-y-0.5 text-[var(--text-secondary)]">
                       {!!order.pointsEarned && (
@@ -339,7 +339,7 @@ function OrderDetailsModal({
                       <select
                         value={refundReasonKey}
                         onChange={(event) => setRefundReasonKey(event.target.value)}
-                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-strong)]"
+                        className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-strong)]"
                       >
                         <option value="">Välj orsak…</option>
                         {REFUND_REASONS.map((r) => (
@@ -422,7 +422,7 @@ function OrderDetailsModal({
 
               {order.note ? (
                 <div className="surface-muted px-5 py-5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Customer note</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Kundnotering</p>
                   <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">{order.note}</p>
                 </div>
               ) : null}
@@ -498,11 +498,11 @@ export function OrdersPage() {
   }, [orders.data?.orders, search]);
 
   if (orders.isLoading) {
-    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading live order stream...</Surface>;
+    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar live-orderflöde…</Surface>;
   }
 
   if (orders.isError || !orders.data) {
-    return <ErrorPanel title="Orders could not be loaded" description="The order stream endpoint did not return valid data." action={<Button onClick={() => void orders.refetch()}>Retry</Button>} />;
+    return <ErrorPanel title="Kunde inte ladda ordrar" description="Order-flödet returnerade ingen giltig data." action={<Button onClick={() => void orders.refetch()}><RefreshCw size={14} /> Försök igen</Button>} />;
   }
 
   const liveCount = orders.data.orders.filter((order) => ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(order.status)).length;
@@ -510,12 +510,12 @@ export function OrdersPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        title="Orders"
+        title="Ordrar"
         actions={
           <>
             <Badge tone="success">{formatNumber(liveCount)} live</Badge>
             <Button variant="secondary" onClick={() => void orders.refetch()}>
-              <RefreshCw size={14} /> Refresh
+              <RefreshCw size={14} /> Uppdatera
             </Button>
           </>
         }
@@ -525,9 +525,9 @@ export function OrdersPage() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full max-w-xl">
             <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <Input className="pl-11" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by order, customer, phone or restaurant" />
+            <Input className="pl-11" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sök på order, kund, telefon eller restaurang" />
           </div>
-          <Tabs value={status} onChange={(value) => setStatus(value)} options={statusOptions.map((item) => ({ value: item, label: item }))} />
+          <Tabs value={status} onChange={(value) => setStatus(value)} options={statusOptions.map((item) => ({ value: item, label: item === "ALL" ? "Alla" : orderStatusLabel(item) }))} />
         </div>
 
         {/* Bulk action bar — only refundable orders are eligible; the API
@@ -562,14 +562,14 @@ export function OrdersPage() {
           </div>
         )}
         {bulkResult && (
-          <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-xs flex items-start justify-between gap-3">
+          <div className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-4 py-2.5 text-xs flex items-start justify-between gap-3">
             <span>{bulkResult}</span>
             <button onClick={() => setBulkResult(null)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">×</button>
           </div>
         )}
 
         {filteredOrders.length === 0 ? (
-          <div className="mt-6"><EmptyState title="No orders in this view" /></div>
+          <div className="mt-6"><EmptyState title="Inga ordrar i den här vyn" /></div>
         ) : (
           <>
           <div className="mt-6 grid gap-3">
@@ -631,7 +631,7 @@ export function OrdersPage() {
                             <span>{order.customerName}</span>
                           )}
                           <span>{order.customerPhone}</span>
-                          <span>{order.items.length} items</span>
+                          <span>{order.items.length} artiklar</span>
                         </div>
                       </div>
                     </div>
