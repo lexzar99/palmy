@@ -4,7 +4,7 @@ import { Bike, Car, ChevronRight, Clock, MapPin, Store, Wallet } from "lucide-re
 import { api } from "../lib/api";
 import { MAX_ACTIVE, type Job } from "../lib/types";
 import { kr, secondsLeft } from "../lib/format";
-import { Card, GoldButton, Pill, Spinner } from "../ui";
+import { AppBar, Card, GoldButton, Pill, Spinner } from "../ui";
 
 function JobCard({ job, atMax, accepting, onAccept, onOpen }: { job: Job; atMax: boolean; accepting: boolean; onAccept: () => void; onOpen: () => void }) {
   const left = secondsLeft(job.expiresAt);
@@ -44,11 +44,7 @@ function JobCard({ job, atMax, accepting, onAccept, onOpen }: { job: Job; atMax:
         </div>
       </button>
 
-      <p className="mt-2 flex items-center gap-1 text-[11px] font-semibold text-muted">
-        <MapPin size={12} /> Tryck för karta & detaljer
-      </p>
-
-      <div className="mt-2">
+      <div className="mt-3">
         <GoldButton onClick={onAccept} disabled={atMax || accepting || left <= 0}>
           {accepting ? <Spinner /> : atMax ? `Max ${MAX_ACTIVE} ordrar` : "Acceptera order"}
         </GoldButton>
@@ -101,15 +97,17 @@ export function Jobs() {
   const atMax = activeCount >= MAX_ACTIVE;
 
   return (
-    <div className="px-5 pt-3 pb-28">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-black tracking-tight">Tillgängliga uppdrag</h1>
-        <Pill tone="green">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Online
-        </Pill>
-      </div>
+    <div className="px-5 pb-28">
+      <AppBar
+        title="Tillgängliga uppdrag"
+        right={
+          <Pill tone="green">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Online
+          </Pill>
+        }
+      />
 
-      <Card className="mb-4 flex items-center justify-between p-4">
+      <Card className="mt-4 mb-4 flex items-center justify-between p-4">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Intjänat idag</p>
           <p className="text-2xl font-black">{kr(todayKr)}</p>

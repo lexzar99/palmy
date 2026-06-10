@@ -4,7 +4,7 @@ import { useAuth } from "../lib/auth";
 import type { HistoryOrder } from "../lib/types";
 import { Bike, Car } from "lucide-react";
 import { dayLabel, km, kr, timeOfDay } from "../lib/format";
-import { Card, GhostButton, Spinner } from "../ui";
+import { AppBar, Card, GhostButton, Spinner } from "../ui";
 
 type Preset = "today" | "yesterday" | "7d" | "30d" | "custom";
 
@@ -73,8 +73,10 @@ export function Account() {
   ];
 
   return (
-    <div className="px-5 pt-3 pb-28">
-      <div className="mb-5 flex items-center gap-3">
+    <div className="px-5 pb-28">
+      <AppBar title="Konto" />
+
+      <div className="mt-4 mb-5 flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ink text-xl font-black text-gold">
           {(courier?.name || "K").slice(0, 1)}
         </div>

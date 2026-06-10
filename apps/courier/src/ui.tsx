@@ -1,6 +1,24 @@
 import { useRef, useState, type ReactNode } from "react";
-import { ArrowRight, Check, Copy, MapPin, Navigation } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Copy, MapPin, Navigation } from "lucide-react";
 import type { LatLng } from "./lib/types";
+
+/** Ren topp-bar: håller sig kvar i toppen, respekterar notch (safe-area). */
+export function AppBar({ title, right, onBack }: { title: string; right?: ReactNode; onBack?: () => void }) {
+  return (
+    <header
+      className="sticky top-0 z-10 -mx-5 flex items-center gap-3 border-b border-[var(--color-line)] bg-canvas/85 px-5 pb-3 backdrop-blur-md"
+      style={{ paddingTop: "max(0.85rem, env(safe-area-inset-top))" }}
+    >
+      {onBack && (
+        <button onClick={onBack} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--color-line)] bg-white active:scale-95">
+          <ArrowLeft size={18} />
+        </button>
+      )}
+      <h1 className="min-w-0 flex-1 truncate text-[19px] font-black tracking-tight">{title}</h1>
+      {right}
+    </header>
+  );
+}
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (

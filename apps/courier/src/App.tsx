@@ -70,7 +70,7 @@ export function App() {
 
   return (
     <GeoContext.Provider value={geo.coords}>
-      <div className="mx-auto min-h-screen max-w-md bg-canvas" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+      <div className="mx-auto min-h-screen max-w-md bg-canvas">
         <Routes>
           <Route path="/" element={<Jobs />} />
           <Route path="/uppdrag/:id" element={<JobPreview />} />

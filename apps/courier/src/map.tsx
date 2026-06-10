@@ -75,8 +75,9 @@ export function LiveMap({ me, pickup, dropoff, height = 220 }: { me?: LatLng | n
     }
     if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.35));
 
-    // Säkerställ korrekt storlek efter layout
-    setTimeout(() => map.invalidateSize(), 60);
+    // Säkerställ korrekt storlek + att tiles fyller hela ytan efter layout
+    setTimeout(() => mapRef.current === map && map.invalidateSize(), 60);
+    setTimeout(() => mapRef.current === map && map.invalidateSize(), 350);
 
     return () => {
       map.remove();

@@ -4,7 +4,7 @@ import { ChevronRight, MapPin, Package, Store } from "lucide-react";
 import { api } from "../lib/api";
 import { MAX_ACTIVE, type ActiveDelivery } from "../lib/types";
 import { kr } from "../lib/format";
-import { Card, Pill, Spinner } from "../ui";
+import { AppBar, Card, Pill, Spinner } from "../ui";
 
 export function ActiveList() {
   const nav = useNavigate();
@@ -15,12 +15,10 @@ export function ActiveList() {
   }, []);
 
   return (
-    <div className="px-5 pt-3 pb-28">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-black tracking-tight">Pågående</h1>
-        {list && <Pill tone="muted">{list.length}/{MAX_ACTIVE}</Pill>}
-      </div>
+    <div className="px-5 pb-28">
+      <AppBar title="Pågående" right={list ? <Pill tone="muted">{list.length}/{MAX_ACTIVE}</Pill> : undefined} />
 
+      <div className="pt-4">
       {list === null ? (
         <div className="flex justify-center py-12">
           <Spinner className="h-6 w-6" />
@@ -60,6 +58,7 @@ export function ActiveList() {
           })}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -1,23 +1,12 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Camera, Check, Info, Store } from "lucide-react";
+import { Camera, Check, Info, Store } from "lucide-react";
 import { api } from "../lib/api";
 import { useGeo } from "../lib/geoctx";
 import type { ActiveDelivery } from "../lib/types";
 import { km, kr } from "../lib/format";
 import { LiveMap } from "../map";
-import { AddressRow, Card, GoldButton, MapsButton, Pill, Spinner, SwipeButton } from "../ui";
-
-function Header({ title, onBack }: { title: string; onBack: () => void }) {
-  return (
-    <div className="mb-3 flex items-center gap-3">
-      <button onClick={onBack} className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-line)] bg-white active:scale-95">
-        <ArrowLeft size={18} />
-      </button>
-      <h1 className="truncate text-lg font-black tracking-tight">{title}</h1>
-    </div>
-  );
-}
+import { AddressRow, AppBar, Card, GoldButton, MapsButton, Pill, Spinner, SwipeButton } from "../ui";
 
 export function OrderDetail() {
   const { id = "" } = useParams();
@@ -62,9 +51,9 @@ export function OrderDetail() {
 
   if (active === null) {
     return (
-      <div className="px-5 pt-3">
-        <Header title="Order" onBack={() => nav("/aktiv")} />
-        <Card className="p-8 text-center text-sm text-muted">Ordern hittades inte.</Card>
+      <div className="px-5 pb-28">
+        <AppBar title="Order" onBack={() => nav("/aktiv")} />
+        <Card className="mt-4 p-8 text-center text-sm text-muted">Ordern hittades inte.</Card>
       </div>
     );
   }
@@ -100,9 +89,11 @@ export function OrderDetail() {
   if (active.status === "EN_ROUTE_PICKUP") {
     const allChecked = active.items.every((_, i) => checked[i]);
     return (
-      <div className="px-5 pt-3 pb-28">
-        <Header title={active.restaurantName} onBack={() => nav("/aktiv")} />
-        <LiveMap me={me} pickup={active.pickup} height={200} />
+      <div className="px-5 pb-28">
+        <AppBar title={active.restaurantName} onBack={() => nav("/aktiv")} />
+        <div className="mt-4">
+          <LiveMap me={me} pickup={active.pickup} height={200} />
+        </div>
 
         <Card className="mt-3 flex items-center gap-3 bg-gold-soft p-4">
           <Info size={20} className="shrink-0 text-gold-deep" />
@@ -153,12 +144,11 @@ export function OrderDetail() {
 
   // ------------------------------------------------------------ ON THE WAY
   return (
-    <div className="px-5 pt-3 pb-28">
-      <div className="mb-3 flex items-center justify-between">
-        <Header title={active.dropoffName} onBack={() => nav("/aktiv")} />
-        <Pill>{kr(active.payout)}</Pill>
+    <div className="px-5 pb-28">
+      <AppBar title={active.dropoffName} onBack={() => nav("/aktiv")} right={<Pill>{kr(active.payout)}</Pill>} />
+      <div className="mt-4">
+        <LiveMap me={me} dropoff={active.dropoff} height={210} />
       </div>
-      <LiveMap me={me} dropoff={active.dropoff} height={210} />
 
       <Card className="mt-3 p-4">
         <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Leverera till</p>
