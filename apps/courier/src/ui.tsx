@@ -109,7 +109,7 @@ export function AddressRow({ address }: { address: string }) {
 }
 
 /** Dra knappen till slutet för att bekräfta. */
-export function SwipeButton({ label, onConfirm, disabled, tone = "gold" }: { label: string; onConfirm: () => void; disabled?: boolean; tone?: "gold" | "green" }) {
+export function SwipeButton({ label, onConfirm, disabled, tone = "gold" }: { label: string; onConfirm: () => void; disabled?: boolean; tone?: "gold" | "green" | "blue" }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [x, setX] = useState(0);
   const [done, setDone] = useState(false);
@@ -142,9 +142,9 @@ export function SwipeButton({ label, onConfirm, disabled, tone = "gold" }: { lab
     });
   };
 
-  const trackBg = disabled ? "bg-zinc-100" : tone === "green" ? "bg-emerald-50" : "bg-gold-soft";
-  const labelColor = disabled ? "text-zinc-400" : tone === "green" ? "text-emerald-700" : "text-gold-deep";
-  const knobBg = disabled ? "bg-zinc-300 text-zinc-500" : tone === "green" ? "bg-emerald-500 text-white" : "bg-gold text-ink";
+  const trackBg = disabled ? "bg-zinc-100" : tone === "green" ? "bg-emerald-50" : tone === "blue" ? "bg-blue-50" : "bg-gold-soft";
+  const labelColor = disabled ? "text-zinc-400" : tone === "green" ? "text-emerald-700" : tone === "blue" ? "text-blue-700" : "text-gold-deep";
+  const knobBg = disabled ? "bg-zinc-300 text-zinc-500" : tone === "green" ? "bg-emerald-500 text-white" : tone === "blue" ? "bg-blue-500 text-white" : "bg-gold text-ink";
 
   return (
     <div ref={trackRef} className={`relative h-[60px] w-full select-none overflow-hidden rounded-2xl ${trackBg}`}>

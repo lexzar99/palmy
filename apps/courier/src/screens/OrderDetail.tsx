@@ -89,16 +89,16 @@ export function OrderDetail() {
     const allChecked = active.items.every((_, i) => checked[i]);
     return (
       <div className="px-5 pb-28">
-        <AppBar title={active.restaurantName} onBack={() => nav("/aktiv")} />
+        <AppBar title={active.restaurantName} onBack={() => nav("/aktiv")} right={<Pill tone="blue">Hämtning</Pill>} />
         <div className="mt-4">
-          <LiveMap me={me} pickup={active.pickup} height={200} />
+          <LiveMap me={me} pickup={active.pickup} height={200} accent="blue" />
         </div>
 
-        <Card className="mt-3 flex items-center gap-3 bg-gold-soft p-4">
-          <Info size={20} className="shrink-0 text-gold-deep" />
+        <Card className="mt-3 flex items-center gap-3 bg-blue-50 p-4">
+          <Info size={20} className="shrink-0 text-blue-600" />
           <div>
             <p className="text-sm font-black">Hämta från restaurangen</p>
-            <p className="text-xs text-gold-deep">Visa denna skärm för personalen.</p>
+            <p className="text-xs text-blue-600">Visa denna skärm för personalen.</p>
           </div>
         </Card>
 
@@ -134,7 +134,7 @@ export function OrderDetail() {
               <Spinner />
             </GoldButton>
           ) : (
-            <SwipeButton label={allChecked ? "Swipe för att markera som hämtad" : "Bocka av alla artiklar först"} onConfirm={pickedUp} disabled={!allChecked} />
+            <SwipeButton tone="blue" label={allChecked ? "Swipe för att markera som hämtad" : "Bocka av alla artiklar först"} onConfirm={pickedUp} disabled={!allChecked} />
           )}
         </div>
       </div>
@@ -146,12 +146,12 @@ export function OrderDetail() {
     <div className="px-5 pb-28">
       <AppBar title={active.dropoffName} onBack={() => nav("/aktiv")} right={<Pill tone="green">{kr(active.payout)}</Pill>} />
       <div className="mt-4">
-        <LiveMap me={me} dropoff={active.dropoff} height={260} />
+        <LiveMap me={me} dropoff={active.dropoff} height={260} accent="green" />
       </div>
 
-      <Card className="mt-3 p-4">
+      <Card className="mt-3 border-emerald-200 bg-emerald-50/40 p-4">
         <div className="flex items-center justify-between">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Leverera till</p>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700">Leverera till</p>
           <Pill tone="green">{km(active.distanceKm)} kvar</Pill>
         </div>
         <p className="mt-1 text-[16px] font-black">{active.dropoffName}</p>

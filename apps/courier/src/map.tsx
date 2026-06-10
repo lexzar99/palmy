@@ -25,7 +25,7 @@ const pin = (bg: string) =>
   });
 
 /** Äkta karta med OSM-tiles, kurirens position och pickup/dropoff-pins. */
-export function LiveMap({ me, pickup, dropoff, height = 220 }: { me?: LatLng | null; pickup?: LatLng; dropoff?: LatLng; height?: number }) {
+export function LiveMap({ me, pickup, dropoff, height = 220, accent }: { me?: LatLng | null; pickup?: LatLng; dropoff?: LatLng; height?: number; accent?: "blue" | "green" }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const meMarker = useRef<L.Marker | null>(null);
@@ -93,7 +93,8 @@ export function LiveMap({ me, pickup, dropoff, height = 220 }: { me?: LatLng | n
     else meMarker.current = L.marker([me.lat, me.lng], { icon: meIcon(), zIndexOffset: 1000 }).addTo(mapRef.current);
   }, [me?.lat, me?.lng]);
 
-  return <div ref={ref} className="overflow-hidden rounded-3xl border border-[var(--color-line)]" style={{ height }} />;
+  const ring = accent === "blue" ? "border-2 border-blue-400" : accent === "green" ? "border-2 border-emerald-400" : "border border-[var(--color-line)]";
+  return <div ref={ref} className={`overflow-hidden rounded-3xl ${ring}`} style={{ height }} />;
 }
 
 export function MapSkeleton({ height = 200 }: { height?: number }) {
