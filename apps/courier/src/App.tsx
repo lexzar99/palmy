@@ -65,6 +65,7 @@ export function App() {
 
   if (!ready) return <Splash />;
   if (!courier) return <div className="min-h-screen bg-canvas"><Login /></div>;
+  if (geo.resuming) return <Splash />;
   if (geo.status !== "granted") return <LocationGate status={geo.status} request={geo.request} />;
 
   return (

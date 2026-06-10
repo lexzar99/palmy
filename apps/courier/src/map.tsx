@@ -47,7 +47,27 @@ export function LiveMap({ me, pickup, dropoff, height = 220 }: { me?: LatLng | n
       pts.push([dropoff.lat, dropoff.lng]);
     }
     if (pickup && dropoff) {
-      L.polyline([[pickup.lat, pickup.lng], [dropoff.lat, dropoff.lng]], { color: "#e7b24b", weight: 4, opacity: 0.9 }).addTo(map);
+      // Riktig vägrutt via OSRM (gratis OSM-routing). Faller tillbaka till
+      // streckad fågelväg om routern inte svarar.
+      const straight = () =>
+        L.polyline([[pickup.lat, pickup.lng], [dropoff.lat, dropoff.lng]], { color: "#e7b24b", weight: 4, opacity: 0.5, dashArray: "6 8" }).addTo(map);
+      const url = `https://router.project-osrm.org/route/v1/driving/${pickup.lng},${pickup.lat};${dropoff.lng},${dropoff.lat}?overview=full&geometries=geojson`;
+      fetch(url)
+        .then((r) => r.json())
+        .then((data) => {
+          if (mapRef.current !== map) return;
+          const coords = data?.routes?.[0]?.geometry?.coordinates as [number, number][] | undefined;
+          if (coords && coords.length > 1) {
+            const latlngs = coords.map((c) => [c[1], c[0]] as [number, number]);
+            L.polyline(latlngs, { color: "#e7b24b", weight: 5, opacity: 0.95 }).addTo(map);
+            map.fitBounds(L.latLngBounds(latlngs).pad(0.18));
+          } else {
+            straight();
+          }
+        })
+        .catch(() => {
+          if (mapRef.current === map) straight();
+        });
     }
     if (me) {
       meMarker.current = L.marker([me.lat, me.lng], { icon: meIcon(), zIndexOffset: 1000 }).addTo(map);
