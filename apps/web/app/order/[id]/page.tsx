@@ -88,8 +88,22 @@ const STATUS_CONFIG: Record<string, { icon: any; colorClass: string; textClass: 
   },
 };
 
-const PICKUP_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "READY"];
-const DELIVERY_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "DELIVERING"];
+// Stegen i kund-trackingen. Vi-levererar OCH levererar-själva visar samma
+// fyra steg; skillnaden är att vi-levererar går via budet (på väg = hämtad)
+// medan self auto-markeras levererad efter mock-tiden.
+type StepDef = { label: string; reached: (s: string) => boolean };
+const DELIVERY_STEP_DEFS: StepDef[] = [
+  { label: "Granskas", reached: () => true },
+  { label: "Lagar maten", reached: (s) => ["PREPARING", "READY", "DELIVERING", "DELIVERED", "COMPLETED"].includes(s) },
+  { label: "På väg", reached: (s) => ["DELIVERING", "DELIVERED", "COMPLETED"].includes(s) },
+  { label: "Levererad", reached: (s) => ["DELIVERED", "COMPLETED"].includes(s) },
+];
+const PICKUP_STEP_DEFS: StepDef[] = [
+  { label: "Granskas", reached: () => true },
+  { label: "Lagar maten", reached: (s) => ["PREPARING", "READY", "DELIVERED", "COMPLETED"].includes(s) },
+  { label: "Redo", reached: (s) => ["READY", "DELIVERED", "COMPLETED"].includes(s) },
+  { label: "Hämtad", reached: (s) => ["DELIVERED", "COMPLETED"].includes(s) },
+];
 
 const OrderStatusPage = () => {
   const { t } = useTranslation();
@@ -346,9 +360,11 @@ const OrderStatusPage = () => {
   const statusInfo = STATUS_CONFIG[currentStatus] ?? STATUS_CONFIG.PENDING;
   const StatusIcon = statusInfo.icon;
   const isRejected = currentStatus === "REJECTED" || currentStatus === "CANCELLED" || currentStatus === "DELIVERY_FAILED";
-  const steps = order.type === "DELIVERY" ? DELIVERY_STEPS : PICKUP_STEPS;
-  // If completed, show all steps as done (currentIdx = last step)
-  const currentIdx = isCompleted ? steps.length - 1 : steps.indexOf(currentStatus);
+  const stepDefs = order.type === "DELIVERY" ? DELIVERY_STEP_DEFS : PICKUP_STEP_DEFS;
+  // Aktuellt steg = sista steget vars villkor uppnåtts av nuvarande status.
+  const currentIdx = isCompleted
+    ? stepDefs.length - 1
+    : stepDefs.reduce((acc, d, i) => (d.reached(currentStatus) ? i : acc), 0);
 
   return (
     <div className="min-h-screen bg-dot-pattern pb-48 px-6" style={{ backgroundColor: "var(--bg-primary)", paddingTop: "max(6rem, calc(env(safe-area-inset-top, 0px) + 1.5rem))" }}>
@@ -416,23 +432,23 @@ const OrderStatusPage = () => {
         {!isRejected && (
            <div className="mb-20 px-4">
               <div className="flex justify-between items-center mb-8">
-                 {steps.map((step, idx) => {
+                 {stepDefs.map((step, idx) => {
                     const isDone = currentIdx >= idx;
-                    const isActive = currentIdx === idx;
+                    const isActive = currentIdx === idx && !isCompleted;
                     return (
-                       <div key={step} className="flex flex-col items-center gap-4 relative z-10">
-                          <div className={`w-8 h-8 rounded-full border-2 transition-all duration-700 flex items-center justify-center ${isDone ? "bg-gold-500 border-gold-500 shadow-lg shadow-gold-500/20" : "bg-zinc-50 border-zinc-100 text-zinc-300"}`}>
-                             {isDone ? <Check size={14} className="text-zinc-950" strokeWidth={4} /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
+                       <div key={step.label} className="flex flex-col items-center gap-4 relative z-10">
+                          <div className={`w-8 h-8 rounded-full border-2 transition-all duration-700 flex items-center justify-center ${isActive ? "bg-gold-500 border-gold-500 shadow-lg shadow-gold-500/30 scale-110" : isDone ? "bg-gold-500 border-gold-500 shadow-lg shadow-gold-500/20" : "bg-zinc-50 border-zinc-100 text-zinc-300"}`}>
+                             {isDone && !isActive ? <Check size={14} className="text-zinc-950" strokeWidth={4} /> : isActive ? <div className="w-2 h-2 rounded-full bg-zinc-950 animate-pulse" /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
                           </div>
-                          <span className={`text-[8px] font-black uppercase tracking-widest whitespace-nowrap ${isActive ? "text-gold-600" : isDone ? "text-zinc-400" : "text-zinc-300"}`}>{statusLabel(step).split(" ")[0]}</span>
+                          <span className={`text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${isActive ? "text-gold-600" : isDone ? "text-zinc-400" : "text-zinc-300"}`}>{step.label}</span>
                        </div>
                     );
                  })}
-                 
+
                  {/* Progress line background */}
                  <div className="absolute left-6 right-6 h-px bg-zinc-100 z-0 mt-[-24px]" />
                  {/* Active progress line */}
-                 <motion.div initial={{ width: 0 }} animate={{ width: `${(currentIdx / (steps.length - 1)) * 100}%` }} transition={{ duration: 1, ease: "circOut" }} className="absolute left-6 h-1 bg-gold-400 z-0 mt-[-24px] rounded-full shadow-[0_0_15px_rgba(231,178,75,0.2)]" style={{ width: `calc(${ (currentIdx / (steps.length - 1)) * 100 }% - 12px)` }} />
+                 <motion.div initial={{ width: 0 }} animate={{ width: `${(currentIdx / (stepDefs.length - 1)) * 100}%` }} transition={{ duration: 1, ease: "circOut" }} className="absolute left-6 h-1 bg-gold-400 z-0 mt-[-24px] rounded-full shadow-[0_0_15px_rgba(231,178,75,0.2)]" style={{ width: `calc(${ (currentIdx / (stepDefs.length - 1)) * 100 }% - 12px)` }} />
               </div>
            </div>
         )}
