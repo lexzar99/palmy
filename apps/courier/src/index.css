@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --color-gold: #e7b24b;
+  --color-gold-deep: #c28e2e;
+  --color-gold-soft: #faf4e6;
+  --color-ink: #18181b;
+  --color-muted: #6b7280;
+  --color-line: #ececec;
+  --color-canvas: #f6f6f4;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Dölj scrollbar men behåll scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
