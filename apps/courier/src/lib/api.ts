@@ -148,6 +148,15 @@ export const api = {
     return http("/api/courier/jobs");
   },
 
+  async getJobById(id: string): Promise<Job | null> {
+    if (USE_MOCK) {
+      await wait(150);
+      const j = mockJobs.find((x) => x.id === id && !mockActiveList.some((a) => a.id === id));
+      return j ? { ...j, expiresAt: Date.now() + 45_000 } : null;
+    }
+    return http(`/api/courier/jobs/${id}`);
+  },
+
   async getActiveList(): Promise<ActiveDelivery[]> {
     if (USE_MOCK) return mockActiveList;
     return http("/api/courier/active");

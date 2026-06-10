@@ -6,41 +6,49 @@ import { MAX_ACTIVE, type Job } from "../lib/types";
 import { kr, secondsLeft } from "../lib/format";
 import { Card, GoldButton, Pill, Spinner } from "../ui";
 
-function JobCard({ job, atMax, accepting, onAccept }: { job: Job; atMax: boolean; accepting: boolean; onAccept: () => void }) {
+function JobCard({ job, atMax, accepting, onAccept, onOpen }: { job: Job; atMax: boolean; accepting: boolean; onAccept: () => void; onOpen: () => void }) {
   const left = secondsLeft(job.expiresAt);
   const Vehicle = job.vehicle === "CAR" ? Car : Bike;
   return (
     <Card className="p-4">
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[15px] font-black leading-tight">
-          <Store size={16} className="text-gold-deep" />
-          {job.restaurantName}
-        </span>
-        <span className="text-xs font-semibold text-muted">{left}s</span>
-      </div>
-
-      <div className="mt-3 rounded-2xl bg-canvas p-3">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Leverans till</p>
-        <p className="text-[14px] font-bold leading-tight">{job.dropoffName}</p>
-        <p className="mt-0.5 flex items-start gap-1.5 text-[13px] leading-snug text-muted">
-          <MapPin size={14} className="mt-0.5 shrink-0" />
-          {job.dropoffAddress}
-        </p>
-      </div>
-
-      <div className="mt-3 flex items-center justify-between">
-        <div className="flex items-center gap-3 text-[13px] font-bold text-ink">
-          <span className="flex items-center gap-1.5">
-            <Vehicle size={16} className="text-gold-deep" /> {job.distanceKm.toFixed(1).replace(".", ",")} km
+      <button onClick={onOpen} className="block w-full text-left">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-[15px] font-black leading-tight">
+            <Store size={16} className="text-gold-deep" />
+            {job.restaurantName}
           </span>
-          <span className="flex items-center gap-1.5 text-muted">
-            <Clock size={15} /> {job.etaMin} min
+          <span className="flex items-center gap-1 text-xs font-semibold text-muted">
+            {left}s <ChevronRight size={16} />
           </span>
         </div>
-        <span className="text-lg font-black">{kr(job.payout)}</span>
-      </div>
 
-      <div className="mt-3">
+        <div className="mt-3 rounded-2xl bg-canvas p-3">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Leverans till</p>
+          <p className="text-[14px] font-bold leading-tight">{job.dropoffName}</p>
+          <p className="mt-0.5 flex items-start gap-1.5 text-[13px] leading-snug text-muted">
+            <MapPin size={14} className="mt-0.5 shrink-0" />
+            {job.dropoffAddress}
+          </p>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-[13px] font-bold text-ink">
+            <span className="flex items-center gap-1.5">
+              <Vehicle size={16} className="text-gold-deep" /> {job.distanceKm.toFixed(1).replace(".", ",")} km
+            </span>
+            <span className="flex items-center gap-1.5 text-muted">
+              <Clock size={15} /> {job.etaMin} min
+            </span>
+          </div>
+          <span className="text-lg font-black">{kr(job.payout)}</span>
+        </div>
+      </button>
+
+      <p className="mt-2 flex items-center gap-1 text-[11px] font-semibold text-muted">
+        <MapPin size={12} /> Tryck för karta & detaljer
+      </p>
+
+      <div className="mt-2">
         <GoldButton onClick={onAccept} disabled={atMax || accepting || left <= 0}>
           {accepting ? <Spinner /> : atMax ? `Max ${MAX_ACTIVE} ordrar` : "Acceptera order"}
         </GoldButton>
@@ -137,7 +145,7 @@ export function Jobs() {
             <p className="px-1 text-xs font-semibold text-muted">Du har {MAX_ACTIVE} aktiva ordrar — slutför en innan du tar en ny.</p>
           )}
           {jobs.map((job) => (
-            <JobCard key={job.id} job={job} atMax={atMax} accepting={accepting === job.id} onAccept={() => accept(job.id)} />
+            <JobCard key={job.id} job={job} atMax={atMax} accepting={accepting === job.id} onAccept={() => accept(job.id)} onOpen={() => nav(`/uppdrag/${job.id}`)} />
           ))}
         </div>
       )}

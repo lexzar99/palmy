@@ -5,6 +5,7 @@ import { useGeolocation, type GeoStatus } from "./lib/geo";
 import { GeoContext } from "./lib/geoctx";
 import { Login } from "./screens/Login";
 import { Jobs } from "./screens/Jobs";
+import { JobPreview } from "./screens/JobPreview";
 import { ActiveList } from "./screens/ActiveList";
 import { OrderDetail } from "./screens/OrderDetail";
 import { Account } from "./screens/Account";
@@ -71,6 +72,7 @@ export function App() {
       <div className="mx-auto min-h-screen max-w-md bg-canvas" style={{ paddingTop: "env(safe-area-inset-top)" }}>
         <Routes>
           <Route path="/" element={<Jobs />} />
+          <Route path="/uppdrag/:id" element={<JobPreview />} />
           <Route path="/aktiv" element={<ActiveList />} />
           <Route path="/order/:id" element={<OrderDetail />} />
           <Route path="/konto" element={<Account />} />
