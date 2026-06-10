@@ -39,11 +39,23 @@ export function Pill({ children, tone = "gold" }: { children: ReactNode; tone?: 
   return <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${cls}`}>{children}</span>;
 }
 
-export function GoldButton({ children, onClick, disabled, type = "button" }: { children: ReactNode; onClick?: () => void; disabled?: boolean; type?: "button" | "submit" }) {
+export function GoldButton({ children, onClick, disabled, type = "button", tone = "gold" }: { children: ReactNode; onClick?: () => void; disabled?: boolean; type?: "button" | "submit"; tone?: "gold" | "blue" | "green" }) {
+  const toneCls = tone === "blue" ? "bg-blue-500 text-white" : tone === "green" ? "bg-emerald-500 text-white" : "bg-gold text-ink";
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gold py-3.5 text-[15px] font-extrabold text-ink transition active:scale-[0.99] disabled:opacity-40">
+    <button type={type} onClick={onClick} disabled={disabled} className={`flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[15px] font-extrabold transition active:scale-[0.99] disabled:opacity-40 ${toneCls}`}>
       {children}
     </button>
+  );
+}
+
+/** Flat, fas-färgad kryssruta (blå = hämtning, grön = leverans). */
+export function Checkbox({ checked, tone = "blue" }: { checked: boolean; tone?: "blue" | "green" }) {
+  const on = tone === "green" ? "border-emerald-500 bg-emerald-500" : "border-blue-500 bg-blue-500";
+  const off = tone === "green" ? "border-emerald-200 bg-white" : "border-blue-200 bg-white";
+  return (
+    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-white transition ${checked ? on : off}`}>
+      {checked && <Check size={15} strokeWidth={3} />}
+    </span>
   );
 }
 

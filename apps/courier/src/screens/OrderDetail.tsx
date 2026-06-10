@@ -6,7 +6,7 @@ import { useGeo } from "../lib/geoctx";
 import type { ActiveDelivery } from "../lib/types";
 import { km, kr } from "../lib/format";
 import { LiveMap } from "../map";
-import { AddressRow, AppBar, Card, GoldButton, MapsButton, Pill, Spinner, SwipeButton } from "../ui";
+import { AddressRow, AppBar, Card, Checkbox, GoldButton, MapsButton, Pill, Spinner, SwipeButton } from "../ui";
 
 export function OrderDetail() {
   const { id = "" } = useParams();
@@ -87,6 +87,7 @@ export function OrderDetail() {
   // --------------------------------------------------------------- PICKUP
   if (active.status === "EN_ROUTE_PICKUP") {
     const allChecked = active.items.every((_, i) => checked[i]);
+    const checkedCount = active.items.filter((_, i) => checked[i]).length;
     return (
       <div className="px-5 pb-28">
         <AppBar title={active.restaurantName} onBack={() => nav("/aktiv")} right={<Pill tone="blue">Hämtning</Pill>} />
@@ -114,15 +115,15 @@ export function OrderDetail() {
         </Card>
 
         <Card className="mt-3 p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">{active.items.length} artiklar</p>
-          <p className="mb-2 text-xs text-muted">Bocka av alla innan du hämtar</p>
-          <div className="space-y-1">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Bocka av alla artiklar</p>
+            <span className={`text-[11px] font-black ${allChecked ? "text-emerald-600" : "text-blue-600"}`}>{checkedCount}/{active.items.length}</span>
+          </div>
+          <div className="space-y-0.5">
             {active.items.map((it, i) => (
-              <button key={i} onClick={() => setChecked((c) => ({ ...c, [i]: !c[i] }))} className="flex w-full items-center gap-3 rounded-xl py-1.5 text-left">
-                <span className={`flex h-6 w-6 items-center justify-center rounded-md transition ${checked[i] ? "bg-gold text-ink" : "border border-[var(--color-line)]"}`}>
-                  {checked[i] && <Check size={15} strokeWidth={3} />}
-                </span>
-                <span className="text-[14px] font-semibold">{it.qty}× {it.name}</span>
+              <button key={i} onClick={() => setChecked((c) => ({ ...c, [i]: !c[i] }))} className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition active:bg-blue-50">
+                <Checkbox checked={!!checked[i]} tone="blue" />
+                <span className={`text-[14px] font-semibold transition ${checked[i] ? "text-muted line-through decoration-blue-300" : "text-ink"}`}>{it.qty}× {it.name}</span>
               </button>
             ))}
           </div>
@@ -130,7 +131,7 @@ export function OrderDetail() {
 
         <div className="mt-4">
           {busy ? (
-            <GoldButton disabled>
+            <GoldButton disabled tone="blue">
               <Spinner />
             </GoldButton>
           ) : (
@@ -169,7 +170,7 @@ export function OrderDetail() {
 
       <div className="mt-4">
         {busy ? (
-          <GoldButton disabled>
+          <GoldButton disabled tone="green">
             <Spinner />
           </GoldButton>
         ) : (

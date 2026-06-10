@@ -224,9 +224,27 @@ model Courier {
   tokenVersion     Int        @default(0)       // bump = återkalla session
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
-  deliveries       Delivery[]
+  deliveries        Delivery[]
+  pushSubscriptions CourierPushSubscription[]
 
   @@index([online, city, isActive])
+}
+
+// Web Push-prenumerationer per kurir-enhet (telefon hemskärm m.fl.). En kurir
+// kan ha flera enheter; endpoint är unik per enhet/webbläsare. 404/410 vid
+// push = avregistrerad enhet → dispatch-loopen raderar den.
+model CourierPushSubscription {
+  id        String   @id @default(cuid())
+  courier   Courier  @relation(fields: [courierId], references: [id], onDelete: Cascade)
+  courierId String
+  endpoint  String   @unique
+  p256dh    String // klientens publika nyckel (base64url)
+  auth      String // auth-secret (base64url)
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courierId])
 }
 
 model Delivery {

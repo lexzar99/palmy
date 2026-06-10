@@ -8,8 +8,16 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
+      injectManifest: {
+        // App-shellen är liten; precachea statiska assets.
+        globPatterns: ["**/*.{js,css,html,svg,woff2}"],
+      },
+      devOptions: { enabled: false, type: "module" },
       manifest: {
         name: "Delivera Kurir",
         short_name: "Delivera",

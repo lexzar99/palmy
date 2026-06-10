@@ -242,6 +242,22 @@ export const api = {
     if (USE_MOCK) return;
     await http("/api/courier/location", { method: "POST", body: JSON.stringify(coords) });
   },
+
+  // --- Web Push: notiser även när appen är helt stängd ---
+  async getPushPublicKey(): Promise<{ key: string | null }> {
+    if (USE_MOCK) return { key: null };
+    return http("/api/courier/push/public-key");
+  },
+
+  async savePushSubscription(subscription: unknown): Promise<void> {
+    if (USE_MOCK) return;
+    await http("/api/courier/push/subscribe", { method: "POST", body: JSON.stringify({ subscription }) });
+  },
+
+  async removePushSubscription(endpoint: string): Promise<void> {
+    if (USE_MOCK) return;
+    await http("/api/courier/push/unsubscribe", { method: "POST", body: JSON.stringify({ endpoint }) });
+  },
 };
 
 export const isMockMode = USE_MOCK;

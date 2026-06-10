@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { Bike, MapPin, Package, User, type LucideIcon } from "lucide-react";
 import { api } from "./lib/api";
@@ -6,6 +6,7 @@ import { useAuth } from "./lib/auth";
 import { useGeolocation, type GeoStatus } from "./lib/geo";
 import { GeoContext } from "./lib/geoctx";
 import { SessionContext } from "./lib/sessionctx";
+import { requestPushPermission, syncPushSubscription } from "./lib/push";
 import { Login } from "./screens/Login";
 import { SessionStart } from "./screens/SessionStart";
 import { Jobs } from "./screens/Jobs";
@@ -72,24 +73,49 @@ export function App() {
     if (courier && geo.status === "granted") api.getSession().then((s) => setOnline(s.online));
   }, [courier, geo.status]);
 
-  // Skicka kurirens position till backend var 12:e s när online → kunden kan
-  // följa budet live i sin order-tracking (broadcastas till order-rummet).
+  // Skicka kurirens position KONTINUERLIGT medan online → kunden kan följa
+  // budet live i sin order-tracking (broadcastas till order-rummet) och admin
+  // ser positionen färsk. Två drivers: en heartbeat (även stillastående) och
+  // direkt-sändning vid varje ny GPS-position (throttlad).
   const coordsRef = useRef(geo.coords);
   coordsRef.current = geo.coords;
+  const lastSentRef = useRef(0);
+
+  const pushLocation = useCallback(() => {
+    if (!online || geo.status !== "granted" || !coordsRef.current) return;
+    lastSentRef.current = Date.now();
+    void api.sendLocation(coordsRef.current);
+  }, [online, geo.status]);
+
+  // Heartbeat var 10:e s så positionen aldrig blir stale medan budet står still.
   useEffect(() => {
     if (!online || geo.status !== "granted") return;
-    const send = () => {
-      if (coordsRef.current) void api.sendLocation(coordsRef.current);
-    };
-    send();
-    const t = setInterval(send, 12000);
+    pushLocation();
+    const t = setInterval(pushLocation, 10000);
     return () => clearInterval(t);
-  }, [online, geo.status]);
+  }, [online, geo.status, pushLocation]);
+
+  // Rörelse: skicka direkt vid ny GPS-position (throttlad till ≥4s) så budet
+  // rör sig mjukt på kartan utan att spamma backend.
+  useEffect(() => {
+    if (!online || geo.status !== "granted" || !geo.coords) return;
+    if (Date.now() - lastSentRef.current >= 4000) pushLocation();
+  }, [geo.coords, online, geo.status, pushLocation]);
 
   const start = async () => {
     await api.startSession();
     setOnline(true);
+    // Notis-tillstånd måste komma från denna gest (Starta pass-klicket) — be om
+    // det och registrera Web Push så kuriren notifieras även med appen stängd.
+    await requestPushPermission();
+    void syncPushSubscription();
   };
+
+  // Åter-synka push-subscription när kuriren är online (täcker reload där
+  // tillstånd redan getts men subscriptionen roterats av webbläsaren).
+  useEffect(() => {
+    if (online) void syncPushSubscription();
+  }, [online]);
   const end = async () => {
     await api.endSession();
     setOnline(false);

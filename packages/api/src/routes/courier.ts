@@ -6,6 +6,7 @@ import { JWT_SECRET } from '../lib/config';
 import { getIO } from '../lib/socket';
 import { haversineKm } from '../utils/geo';
 import { authenticate, requireSuperAdmin, type AuthRequest } from '../middleware/auth';
+import { saveSubscription, removeSubscription, getVapidPublicKey } from '../lib/courierPush';
 
 const ACTIVE_STATUSES = ['EN_ROUTE_PICKUP', 'PICKED_UP'];
 const AVAILABLE_ORDER_STATUSES = ['ACCEPTED', 'PREPARING', 'READY'];
@@ -270,6 +271,29 @@ router.post('/location', requireCourier, async (req: CourierRequest, res) => {
   } catch {
     /* ignorera */
   }
+  res.json({ ok: true });
+});
+
+// ---- Web Push: notiser även när appen är helt stängd --------------------
+// Publika VAPID-nyckeln behövs av service workern för att prenumerera. Null =
+// push ej konfigurerad på servern (appen hoppar då tyst över push).
+router.get('/push/public-key', requireCourier, async (_req: CourierRequest, res) => {
+  res.json({ key: getVapidPublicKey() });
+});
+
+router.post('/push/subscribe', requireCourier, async (req: CourierRequest, res) => {
+  try {
+    const { subscription } = req.body || {};
+    await saveSubscription(req.courier.id, subscription, req.headers['user-agent'] || null);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: (e as Error)?.message || 'Ogiltig subscription' });
+  }
+});
+
+router.post('/push/unsubscribe', requireCourier, async (req: CourierRequest, res) => {
+  const { endpoint } = req.body || {};
+  await removeSubscription(String(endpoint || ''));
   res.json({ ok: true });
 });
 

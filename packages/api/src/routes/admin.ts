@@ -12,6 +12,7 @@ import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTa
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
+import { notifyCouriersOfNewJob } from '../lib/courierPush';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
 import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
 import { ALLOW_WIPE_ORDERS } from '../lib/config';
@@ -728,6 +729,18 @@ router.patch('/orders/:id/status', async (req, res) => {
       etaEndsAt: emitEtaEndsAt,
       deliveringAt: isDeliveringTransition ? new Date().toISOString() : undefined,
     });
+
+    // Ny tillgänglig order → web-push till online-kurirer i restaurangens stad
+    // så de notifieras ÄVEN med appen helt stängd. Endast vi-levererar (self-
+    // leverans gate:as bort inne i helpern). Fire-and-forget — får aldrig
+    // blocka admin-svaret.
+    if (status === 'ACCEPTED') {
+      void notifyCouriersOfNewJob({
+        restaurantId: existing.restaurantId,
+        orderType: existing.type,
+        orderNumber: order.orderNumber,
+      });
+    }
 
     // Push the new state into the customer's iOS Live Activity. Routed
     // through the centralised dispatcher so every status-mutating path
