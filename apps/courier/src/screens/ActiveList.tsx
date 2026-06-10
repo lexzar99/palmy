@@ -44,7 +44,7 @@ export function ActiveList() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate font-black">{d.restaurantName}</p>
-                      <Pill tone={pickup ? "blue" : "gold"}>{pickup ? "Hämta" : "Leverera"}</Pill>
+                      <Pill tone={pickup ? "blue" : "green"}>{pickup ? "Hämta" : "Leverera"}</Pill>
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted">
                       {pickup ? d.pickupAddress : `${d.dropoffName} · ${d.dropoffAddress}`}

@@ -251,6 +251,21 @@ model Delivery {
   @@index([courierId, status])
 }
 
+model CourierApplication {
+  id         String    @id @default(cuid())
+  name       String
+  email      String
+  phone      String?
+  city       String    @default("Lund")
+  vehicle    String    @default("BIKE")
+  message    String?
+  status     String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt  DateTime  @default(now())
+  reviewedAt DateTime?
+
+  @@index([status, createdAt])
+}
+
 model OrderItem {
   id             String   @id @default(cuid())
   orderId        String

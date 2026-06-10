@@ -67,6 +67,7 @@ function jobFromOrder(order: any, ratePerKm: number) {
 function activeFromDelivery(d: any) {
   return {
     ...jobFromOrder(d.order, d.ratePerKmOre || 0),
+    id: d.id, // VIKTIGT: leverans-id (inte order-id) — detalj/picked-up/complete använder detta
     payout: d.payOre / 100,
     distanceKm: d.distanceKm,
     status: d.status,
@@ -365,5 +366,74 @@ adminCourierRouter.patch('/:id', async (req: AuthRequest, res) => {
   if (vehicle !== undefined) data.vehicle = vehicle === 'CAR' ? 'CAR' : 'BIKE';
   if (phone !== undefined) data.phone = phone || null;
   await prisma.courier.update({ where: { id: req.params.id }, data });
+  res.json({ ok: true });
+});
+
+// ====================================================================
+//  KURIR-ANSÖKNINGAR
+// ====================================================================
+// Publik "Bli kurir"-ansökan (från kund-webben). Bara lätt info — känslig KYC
+// fylls av admin vid godkännande.
+export const courierApplicationPublicRouter = Router();
+courierApplicationPublicRouter.post('/', async (req, res) => {
+  try {
+    const { name, email, phone, city, vehicle, message } = req.body || {};
+    if (!name || !email) return res.status(400).json({ error: 'Namn och e-post krävs' });
+    await prisma.courierApplication.create({
+      data: {
+        name: String(name).trim().slice(0, 120),
+        email: String(email).trim().toLowerCase().slice(0, 200),
+        phone: phone ? String(phone).slice(0, 40) : null,
+        city: city ? String(city).slice(0, 80) : 'Lund',
+        vehicle: vehicle === 'CAR' ? 'CAR' : 'BIKE',
+        message: message ? String(message).slice(0, 1000) : null,
+      },
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Courier application error:', e);
+    res.status(500).json({ error: 'Kunde inte skicka ansökan' });
+  }
+});
+
+// Admin: hantera ansökningar (godkänn → skapa konto, eller avslå).
+export const adminCourierApplicationRouter = Router();
+adminCourierApplicationRouter.use(authenticate, requireSuperAdmin);
+
+adminCourierApplicationRouter.get('/', async (_req: AuthRequest, res) => {
+  const apps = await prisma.courierApplication.findMany({ orderBy: [{ status: 'asc' }, { createdAt: 'desc' }], take: 200 });
+  res.json(apps);
+});
+
+adminCourierApplicationRouter.post('/:id/approve', async (req: AuthRequest, res) => {
+  try {
+    const { password } = req.body || {};
+    if (!password || String(password).length < 6) return res.status(400).json({ error: 'Lösenord (minst 6 tecken) krävs' });
+    const app = await prisma.courierApplication.findUnique({ where: { id: req.params.id } });
+    if (!app) return res.status(404).json({ error: 'Ansökan hittades inte' });
+    const email = app.email.trim().toLowerCase();
+    if (await prisma.courier.findUnique({ where: { email } })) {
+      return res.status(409).json({ error: 'E-post används redan av en kurir' });
+    }
+    const courier = await prisma.courier.create({
+      data: {
+        name: app.name,
+        email,
+        passwordHash: await bcrypt.hash(String(password), 12),
+        phone: app.phone,
+        city: app.city,
+        vehicle: app.vehicle,
+      },
+    });
+    await prisma.courierApplication.update({ where: { id: app.id }, data: { status: 'APPROVED', reviewedAt: new Date() } });
+    res.json({ courierId: courier.id });
+  } catch (e) {
+    console.error('Approve application error:', e);
+    res.status(500).json({ error: 'Kunde inte godkänna ansökan' });
+  }
+});
+
+adminCourierApplicationRouter.post('/:id/reject', async (req: AuthRequest, res) => {
+  await prisma.courierApplication.update({ where: { id: req.params.id }, data: { status: 'REJECTED', reviewedAt: new Date() } });
   res.json({ ok: true });
 });
