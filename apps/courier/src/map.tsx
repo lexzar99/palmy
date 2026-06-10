@@ -34,7 +34,8 @@ export function LiveMap({ me, pickup, dropoff, height = 220, accent }: { me?: La
     if (!ref.current || mapRef.current) return;
     const center: L.LatLngExpression = me ? [me.lat, me.lng] : pickup ? [pickup.lat, pickup.lng] : [55.7047, 13.191];
     const map = L.map(ref.current, { zoomControl: false, attributionControl: false, dragging: true }).setView(center, 14);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
+    // Modern, ljus kartstil (CARTO Voyager) — gratis, ingen nyckel, retina-stöd.
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", { maxZoom: 20, subdomains: "abcd" }).addTo(map);
     mapRef.current = map;
 
     const pts: L.LatLngExpression[] = [];

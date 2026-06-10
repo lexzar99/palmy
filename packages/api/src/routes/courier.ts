@@ -307,16 +307,20 @@ const startOfToday = () => {
 };
 
 adminCourierRouter.get('/', async (_req: AuthRequest, res) => {
-  const couriers = await prisma.courier.findMany({ orderBy: { createdAt: 'desc' } });
   const today = startOfToday();
   const since30 = new Date(Date.now() - 30 * 864e5);
-  const rows = await Promise.all(
-    couriers.map(async (c) => {
-      const [todayAgg, agg30, count30] = await Promise.all([
-        prisma.delivery.aggregate({ where: { courierId: c.id, status: 'DELIVERED', deliveredAt: { gte: today } }, _sum: { payOre: true }, _count: true }),
-        prisma.delivery.aggregate({ where: { courierId: c.id, status: 'DELIVERED', deliveredAt: { gte: since30 } }, _sum: { payOre: true } }),
-        prisma.delivery.count({ where: { courierId: c.id, status: 'DELIVERED', deliveredAt: { gte: since30 } } }),
-      ]);
+  // Optimerat: 1 findMany + 2 groupBy istället för 3 queries per kurir (N+1).
+  const [couriers, todayGroups, groups30] = await Promise.all([
+    prisma.courier.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.delivery.groupBy({ by: ['courierId'], where: { status: 'DELIVERED', deliveredAt: { gte: today } }, _sum: { payOre: true }, _count: { _all: true } }),
+    prisma.delivery.groupBy({ by: ['courierId'], where: { status: 'DELIVERED', deliveredAt: { gte: since30 } }, _sum: { payOre: true }, _count: { _all: true } }),
+  ]);
+  const todayMap = new Map(todayGroups.map((g) => [g.courierId, g]));
+  const map30 = new Map(groups30.map((g) => [g.courierId, g]));
+  res.json(
+    couriers.map((c) => {
+      const t = todayMap.get(c.id);
+      const m = map30.get(c.id);
       return {
         id: c.id,
         name: c.name,
@@ -327,14 +331,13 @@ adminCourierRouter.get('/', async (_req: AuthRequest, res) => {
         online: c.online,
         isActive: c.isActive,
         ratePerKm: c.ratePerKm / 100,
-        todayEarnings: (todayAgg._sum.payOre ?? 0) / 100,
-        todayDeliveries: todayAgg._count,
-        last30Earnings: (agg30._sum.payOre ?? 0) / 100,
-        last30Deliveries: count30,
+        todayEarnings: (t?._sum.payOre ?? 0) / 100,
+        todayDeliveries: t?._count._all ?? 0,
+        last30Earnings: (m?._sum.payOre ?? 0) / 100,
+        last30Deliveries: m?._count._all ?? 0,
       };
     }),
   );
-  res.json(rows);
 });
 
 adminCourierRouter.post('/', async (req: AuthRequest, res) => {
