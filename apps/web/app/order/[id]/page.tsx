@@ -105,6 +105,13 @@ const PICKUP_STEP_DEFS: StepDef[] = [
   { label: "Hämtad", reached: (s) => ["DELIVERED", "COMPLETED"].includes(s) },
 ];
 
+// Avslutade lägen är "sticky": en redan levererad/avbruten order får ALDRIG
+// dras tillbaka till ett aktivt läge av en stale poll, en cachad GET (backend
+// cachar order-detaljen 4s) eller en omordnad socket-event. Utan detta hoppade
+// kund-trackingen bakåt (DELIVERED → DELIVERING) och live-kartan kom tillbaka.
+const TERMINAL_STATUSES = ["DELIVERED", "COMPLETED", "CANCELLED", "REJECTED"];
+const isTerminal = (s?: string | null) => !!s && TERMINAL_STATUSES.includes(s);
+
 const OrderStatusPage = () => {
   const { t } = useTranslation();
   const statusLabel = (s: string) => t(`order.status.${s}.label`);
@@ -150,7 +157,13 @@ const OrderStatusPage = () => {
         ? `${API_URL}/api/orders/${orderId}?${qs.toString()}`
         : `${API_URL}/api/orders/${orderId}`;
       const res = await axios.get(url, { withCredentials: true });
-      setOrder(res.data);
+      // Låt aldrig en (ev. cachad/stale) poll dra tillbaka en redan avslutad
+      // order — behåll terminal-status men ta in övriga färska fält.
+      setOrder((prev: any) =>
+        prev && isTerminal(prev.status) && !isTerminal(res.data?.status)
+          ? { ...res.data, status: prev.status }
+          : res.data
+      );
       setFetchError(null);
     } catch (err: any) {
       console.error(err);
@@ -178,13 +191,18 @@ const OrderStatusPage = () => {
     socket.on("connect", () => { socket.emit("join:order", orderId); fetchOrder({ silent: true }); });
     socket.on("order:status", (data: any) => {
       if (data.orderId === orderId) {
-        setOrder((prev: any) => prev ? {
-          ...prev,
-          status: data.status,
-          estimatedTime: data.estimatedTime ?? prev.estimatedTime,
-          etaEndsAt: data.etaEndsAt ?? prev?.etaEndsAt,
-          deliveringAt: data.deliveringAt ?? prev?.deliveringAt,
-        } : prev);
+        setOrder((prev: any) => {
+          if (!prev) return prev;
+          // Sen/omordnad event får inte återuppliva en avslutad order.
+          if (isTerminal(prev.status) && !isTerminal(data.status)) return prev;
+          return {
+            ...prev,
+            status: data.status,
+            estimatedTime: data.estimatedTime ?? prev.estimatedTime,
+            etaEndsAt: data.etaEndsAt ?? prev?.etaEndsAt,
+            deliveringAt: data.deliveringAt ?? prev?.deliveringAt,
+          };
+        });
       }
     });
     // Budets live-position (vi-levererar) → visa live-kartan i tracking.

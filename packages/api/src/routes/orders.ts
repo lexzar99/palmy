@@ -1563,7 +1563,18 @@ router.get('/:id', async (req: Request, res: Response) => {
     // the customer banner, the LA finaliser, and the LA dispatcher all
     // agree on the same window.
     let customerStatus = order.status;
-    if (order.status === 'DELIVERED' && order.deliveringAt) {
+    // Det artificiella DELIVERING-fönstret är en MOCK och gäller ENDAST
+    // self-leverans (ingen kurir finns som markerar klart — vi simulerar
+    // transit-tiden). För vi-levererar har budet redan markerat DELIVERED
+    // PÅ RIKTIGT (courier `complete`); då måste vi respektera det direkt.
+    // Annars drog denna override tillbaka status till DELIVERING på nästa
+    // poll efter att budet levererat → kund-trackingen hoppade bakåt och
+    // live-kartan kom tillbaka. Samma selfDelivery-gate som PATCH /status.
+    if (
+      order.status === 'DELIVERED' &&
+      order.deliveringAt &&
+      (order.restaurant as any)?.selfDelivery
+    ) {
       const deliveringAtDate = new Date(order.deliveringAt);
       const windowMs = computeDeliveryWindowMs(deliveringAtDate, order.id);
       const elapsed = Date.now() - deliveringAtDate.getTime();
