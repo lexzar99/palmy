@@ -14,6 +14,7 @@ export interface OrderItem {
 export interface Job {
   id: string;
   orderNumber: string;
+  city: string; // stad-koppling: order skickas bara till bud i samma stad
   restaurantName: string;
   pickupAddress: string;
   pickup: LatLng;
@@ -21,6 +22,7 @@ export interface Job {
   dropoffAddress: string;
   dropoff: LatLng;
   distanceKm: number;
+  etaMin: number; // uppskattad körtid i minuter
   vehicle: VehicleType;
   payout: number; // kr (inkl. ev. dricks)
   tip: number; // kr
@@ -46,9 +48,12 @@ export interface CourierProfile {
   id: string;
   name: string;
   email: string;
+  city: string;
   vehicle: VehicleType;
   phone?: string;
 }
+
+export const MAX_ACTIVE = 3;
 
 export interface DropoffProof {
   method: "HANDED" | "LEFT_AT_DOOR";

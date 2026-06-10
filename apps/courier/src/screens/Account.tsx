@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { HistoryOrder } from "../lib/types";
+import { Bike, Car } from "lucide-react";
 import { dayLabel, km, kr, timeOfDay } from "../lib/format";
 import { Card, GhostButton, Spinner } from "../ui";
 
@@ -79,8 +80,9 @@ export function Account() {
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-black leading-tight">{courier?.name}</p>
-          <p className="truncate text-sm text-muted">
-            {courier?.vehicle === "CAR" ? "🚗 Bil" : "🚲 Cykel"} · {courier?.email}
+          <p className="flex items-center gap-1.5 truncate text-sm text-muted">
+            {courier?.vehicle === "CAR" ? <Car size={15} /> : <Bike size={15} />}
+            {courier?.vehicle === "CAR" ? "Bil" : "Cykel"} · {courier?.email}
           </p>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import type { ActiveDelivery, CourierProfile, DropoffProof, HistoryOrder, Job, LatLng } from "./types";
+import { MAX_ACTIVE, type ActiveDelivery, type CourierProfile, type DropoffProof, type HistoryOrder, type Job, type LatLng } from "./types";
 
 /**
  * API-lager. Kör mot mock-data när VITE_API_URL saknas (default) så hela appen
@@ -11,12 +11,11 @@ const USE_MOCK = API_URL === "";
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // ----------------------------------------------------------------- mock store
-const LUND: LatLng = { lat: 55.7047, lng: 13.191 };
-
 let mockCourier: CourierProfile = {
   id: "cour_demo",
   name: "Test Kurir",
   email: "kurir@delivera.se",
+  city: "Lund",
   vehicle: "BIKE",
   phone: "070-000 00 00",
 };
@@ -25,6 +24,7 @@ let mockJobs: Job[] = [
   {
     id: "job_1",
     orderNumber: "1234",
+    city: "Lund",
     restaurantName: "Sushi Yama",
     pickupAddress: "Vikingavägen 2B, 224 71 Lund",
     pickup: { lat: 55.7126, lng: 13.1972 },
@@ -32,10 +32,11 @@ let mockJobs: Job[] = [
     dropoffAddress: "Trollebergsvägen 5, 222 29 Lund",
     dropoff: { lat: 55.7008, lng: 13.18 },
     distanceKm: 2.4,
+    etaMin: 11,
     vehicle: "BIKE",
     payout: 120,
     tip: 15,
-    expiresAt: Date.now() + 32_000,
+    expiresAt: 0,
     items: [
       { qty: 1, name: "Lax Sushi" },
       { qty: 1, name: "Spicy Tuna Roll" },
@@ -45,6 +46,7 @@ let mockJobs: Job[] = [
   {
     id: "job_2",
     orderNumber: "1235",
+    city: "Lund",
     restaurantName: "Burger House",
     pickupAddress: "Stora Gråbrödersgatan 22, 222 22 Lund",
     pickup: { lat: 55.7038, lng: 13.1925 },
@@ -52,18 +54,40 @@ let mockJobs: Job[] = [
     dropoffAddress: "Långgatan 8, 222 21 Lund",
     dropoff: { lat: 55.6985, lng: 13.196 },
     distanceKm: 3.1,
+    etaMin: 13,
     vehicle: "CAR",
     payout: 98,
     tip: 0,
-    expiresAt: Date.now() + 25_000,
+    expiresAt: 0,
     items: [
       { qty: 2, name: "Cheeseburgare" },
       { qty: 1, name: "Pommes" },
     ],
   },
+  {
+    id: "job_3",
+    orderNumber: "1236",
+    city: "Lund",
+    restaurantName: "Napoli Pizza",
+    pickupAddress: "Bredgatan 10, 222 21 Lund",
+    pickup: { lat: 55.7059, lng: 13.1936 },
+    dropoffName: "Sofia Berg",
+    dropoffAddress: "Kävlingevägen 14, 222 40 Lund",
+    dropoff: { lat: 55.7102, lng: 13.1825 },
+    distanceKm: 1.6,
+    etaMin: 8,
+    vehicle: "BIKE",
+    payout: 85,
+    tip: 10,
+    expiresAt: 0,
+    items: [
+      { qty: 1, name: "Margherita" },
+      { qty: 1, name: "Vitlöksbröd" },
+    ],
+  },
 ];
 
-let mockActive: ActiveDelivery | null = null;
+let mockActiveList: ActiveDelivery[] = [];
 
 const isoToday = (h: number, m: number) => {
   const d = new Date();
@@ -115,25 +139,34 @@ export const api = {
   async listJobs(): Promise<Job[]> {
     if (USE_MOCK) {
       await wait(250);
+      // Stad-koppling: bara ordrar i kurirens stad, och inte de man redan tagit.
       // Färsk nedräkning vid varje hämtning (annars hinner mock-ordrarna gå ut).
-      return mockJobs.map((j, i) => ({ ...j, expiresAt: Date.now() + (45 - i * 8) * 1000 }));
+      return mockJobs
+        .filter((j) => j.city === mockCourier.city && !mockActiveList.some((a) => a.id === j.id))
+        .map((j, i) => ({ ...j, expiresAt: Date.now() + (50 - i * 7) * 1000 }));
     }
     return http("/api/courier/jobs");
   },
 
-  async getActive(): Promise<ActiveDelivery | null> {
-    if (USE_MOCK) return mockActive;
+  async getActiveList(): Promise<ActiveDelivery[]> {
+    if (USE_MOCK) return mockActiveList;
     return http("/api/courier/active");
+  },
+
+  async getActiveById(id: string): Promise<ActiveDelivery | null> {
+    if (USE_MOCK) return mockActiveList.find((a) => a.id === id) ?? null;
+    return http(`/api/courier/deliveries/${id}`);
   },
 
   async acceptJob(id: string): Promise<ActiveDelivery> {
     if (USE_MOCK) {
       await wait(300);
+      if (mockActiveList.length >= MAX_ACTIVE) throw new Error(`Du kan ha max ${MAX_ACTIVE} ordrar samtidigt`);
       const job = mockJobs.find((j) => j.id === id);
       if (!job) throw new Error("Ordern är inte längre tillgänglig");
-      mockJobs = mockJobs.filter((j) => j.id !== id);
-      mockActive = { ...job, status: "EN_ROUTE_PICKUP", acceptedAt: Date.now() };
-      return mockActive;
+      const active: ActiveDelivery = { ...job, status: "EN_ROUTE_PICKUP", acceptedAt: Date.now() };
+      mockActiveList = [...mockActiveList, active];
+      return active;
     }
     return http(`/api/courier/jobs/${id}/accept`, { method: "POST" });
   },
@@ -141,8 +174,8 @@ export const api = {
   async markPickedUp(id: string): Promise<ActiveDelivery> {
     if (USE_MOCK) {
       await wait(250);
-      if (mockActive && mockActive.id === id) mockActive = { ...mockActive, status: "PICKED_UP" };
-      return mockActive!;
+      mockActiveList = mockActiveList.map((a) => (a.id === id ? { ...a, status: "PICKED_UP" } : a));
+      return mockActiveList.find((a) => a.id === id)!;
     }
     return http(`/api/courier/deliveries/${id}/picked-up`, { method: "POST" });
   },
@@ -150,19 +183,13 @@ export const api = {
   async completeDelivery(id: string, proof: DropoffProof): Promise<void> {
     if (USE_MOCK) {
       await wait(300);
-      if (mockActive && mockActive.id === id) {
+      const a = mockActiveList.find((x) => x.id === id);
+      if (a) {
         mockHistory = [
-          {
-            id: `h_${id}`,
-            orderNumber: mockActive.orderNumber,
-            restaurantName: mockActive.restaurantName,
-            deliveredAt: new Date().toISOString(),
-            distanceKm: mockActive.distanceKm,
-            payout: mockActive.payout,
-          },
+          { id: `h_${id}`, orderNumber: a.orderNumber, restaurantName: a.restaurantName, deliveredAt: new Date().toISOString(), distanceKm: a.distanceKm, payout: a.payout },
           ...mockHistory,
         ];
-        mockActive = null;
+        mockActiveList = mockActiveList.filter((x) => x.id !== id);
       }
       return;
     }
@@ -175,11 +202,6 @@ export const api = {
       return mockHistory;
     }
     return http("/api/courier/history");
-  },
-
-  async setOnline(online: boolean): Promise<void> {
-    if (USE_MOCK) return;
-    await http("/api/courier/status", { method: "POST", body: JSON.stringify({ online }) });
   },
 
   async sendLocation(coords: LatLng): Promise<void> {

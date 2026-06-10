@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Camera, Check, Info, Store } from "lucide-react";
 import { api } from "../lib/api";
 import { useGeo } from "../lib/geoctx";
 import type { ActiveDelivery } from "../lib/types";
@@ -7,7 +8,19 @@ import { km, kr } from "../lib/format";
 import { LiveMap } from "../map";
 import { AddressRow, Card, GoldButton, MapsButton, Pill, Spinner, SwipeButton } from "../ui";
 
-export function Active() {
+function Header({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <div className="mb-3 flex items-center gap-3">
+      <button onClick={onBack} className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-line)] bg-white active:scale-95">
+        <ArrowLeft size={18} />
+      </button>
+      <h1 className="truncate text-lg font-black tracking-tight">{title}</h1>
+    </div>
+  );
+}
+
+export function OrderDetail() {
+  const { id = "" } = useParams();
   const nav = useNavigate();
   const me = useGeo();
   const [active, setActive] = useState<ActiveDelivery | null | undefined>(undefined);
@@ -17,13 +30,12 @@ export function Active() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    api.getActive().then(setActive);
-  }, []);
+    api.getActiveById(id).then(setActive);
+  }, [id]);
 
-  // Tillbaka till uppdrag efter lyckad leverans
   useEffect(() => {
     if (!done) return;
-    const t = setTimeout(() => nav("/", { replace: true }), 2200);
+    const t = setTimeout(() => nav("/aktiv", { replace: true }), 2000);
     return () => clearTimeout(t);
   }, [done, nav]);
 
@@ -35,32 +47,24 @@ export function Active() {
     );
   }
 
-  // ---------------------------------------------------------------- SUCCESS
   if (done && active) {
     return (
       <div className="flex min-h-[80vh] flex-col items-center justify-center px-6 text-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500 text-4xl text-white shadow-lg">✓</div>
-        <h1 className="mt-5 text-2xl font-black tracking-tight">Levererad!</h1>
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg">
+          <Check size={40} strokeWidth={2.5} />
+        </div>
+        <h1 className="mt-5 text-2xl font-black tracking-tight">Levererad</h1>
         <p className="mt-1 text-sm text-muted">Tack för din leverans.</p>
         <p className="mt-5 text-4xl font-black text-gold-deep">+{kr(active.payout)}</p>
-        <button onClick={() => nav("/", { replace: true })} className="mt-8 text-sm font-bold text-muted">
-          Till uppdrag →
-        </button>
       </div>
     );
   }
 
   if (active === null) {
     return (
-      <div className="px-5 pt-3 pb-28">
-        <h1 className="mb-4 text-xl font-black tracking-tight">Pågående</h1>
-        <Card className="p-8 text-center">
-          <p className="text-sm font-semibold">Inga pågående uppdrag</p>
-          <p className="mt-1 text-xs text-muted">Acceptera ett uppdrag för att börja.</p>
-          <button onClick={() => nav("/")} className="mt-4 text-sm font-bold text-gold-deep">
-            Till uppdrag →
-          </button>
-        </Card>
+      <div className="px-5 pt-3">
+        <Header title="Order" onBack={() => nav("/aktiv")} />
+        <Card className="p-8 text-center text-sm text-muted">Ordern hittades inte.</Card>
       </div>
     );
   }
@@ -76,8 +80,7 @@ export function Active() {
   const pickedUp = async () => {
     setBusy(true);
     try {
-      const next = await api.markPickedUp(active.id);
-      setActive(next);
+      setActive(await api.markPickedUp(active.id));
     } finally {
       setBusy(false);
     }
@@ -93,25 +96,27 @@ export function Active() {
     }
   };
 
-  // ----------------------------------------------------------------- PICKUP
+  // --------------------------------------------------------------- PICKUP
   if (active.status === "EN_ROUTE_PICKUP") {
     const allChecked = active.items.every((_, i) => checked[i]);
     return (
       <div className="px-5 pt-3 pb-28">
-        <h1 className="mb-3 text-xl font-black tracking-tight">Hämta order</h1>
+        <Header title={active.restaurantName} onBack={() => nav("/aktiv")} />
         <LiveMap me={me} pickup={active.pickup} height={200} />
 
         <Card className="mt-3 flex items-center gap-3 bg-gold-soft p-4">
-          <span className="text-lg">ℹ️</span>
+          <Info size={20} className="shrink-0 text-gold-deep" />
           <div>
-            <p className="text-sm font-black">Ordern är redo att hämtas</p>
+            <p className="text-sm font-black">Hämta från restaurangen</p>
             <p className="text-xs text-gold-deep">Visa denna skärm för personalen.</p>
           </div>
         </Card>
 
         <Card className="mt-3 p-4">
           <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Order #{active.orderNumber}</p>
-          <p className="text-[15px] font-black">{active.restaurantName}</p>
+          <p className="flex items-center gap-1.5 text-[15px] font-black">
+            <Store size={16} className="text-gold-deep" /> {active.restaurantName}
+          </p>
           <AddressRow address={active.pickupAddress} />
           <div className="mt-3">
             <MapsButton to={active.pickup} label={active.restaurantName} />
@@ -123,15 +128,11 @@ export function Active() {
           <p className="mb-2 text-xs text-muted">Bocka av alla innan du hämtar</p>
           <div className="space-y-1">
             {active.items.map((it, i) => (
-              <button
-                key={i}
-                onClick={() => setChecked((c) => ({ ...c, [i]: !c[i] }))}
-                className="flex w-full items-center gap-3 rounded-xl py-1.5 text-left"
-              >
-                <span className={`flex h-6 w-6 items-center justify-center rounded-md text-sm transition ${checked[i] ? "bg-gold text-ink" : "border border-[var(--color-line)] text-transparent"}`}>✓</span>
-                <span className={`text-[14px] font-semibold ${checked[i] ? "text-ink" : ""}`}>
-                  {it.qty}× {it.name}
+              <button key={i} onClick={() => setChecked((c) => ({ ...c, [i]: !c[i] }))} className="flex w-full items-center gap-3 rounded-xl py-1.5 text-left">
+                <span className={`flex h-6 w-6 items-center justify-center rounded-md transition ${checked[i] ? "bg-gold text-ink" : "border border-[var(--color-line)]"}`}>
+                  {checked[i] && <Check size={15} strokeWidth={3} />}
                 </span>
+                <span className="text-[14px] font-semibold">{it.qty}× {it.name}</span>
               </button>
             ))}
           </div>
@@ -154,12 +155,13 @@ export function Active() {
   return (
     <div className="px-5 pt-3 pb-28">
       <div className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-black tracking-tight">På väg till kund</h1>
+        <Header title={active.dropoffName} onBack={() => nav("/aktiv")} />
         <Pill>{kr(active.payout)}</Pill>
       </div>
-      <LiveMap me={me} dropoff={active.dropoff} height={220} />
+      <LiveMap me={me} dropoff={active.dropoff} height={210} />
 
       <Card className="mt-3 p-4">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Leverera till</p>
         <p className="text-[15px] font-black">{active.dropoffName}</p>
         <AddressRow address={active.dropoffAddress} />
         <p className="mt-1 text-xs font-semibold text-gold-deep">{km(active.distanceKm)} kvar</p>
@@ -169,7 +171,7 @@ export function Active() {
       </Card>
 
       <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--color-line)] bg-white py-3 text-sm font-bold text-muted">
-        {photo ? <img src={photo} alt="" className="h-7 w-7 rounded-md object-cover" /> : <span>📷</span>}
+        {photo ? <img src={photo} alt="" className="h-7 w-7 rounded-md object-cover" /> : <Camera size={17} />}
         {photo ? "Foto tillagt — byt" : "Lägg till leveransfoto (valfritt)"}
         <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhoto} />
       </label>
