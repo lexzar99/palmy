@@ -7,8 +7,10 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Beställ mat från flera lokala restauranger i Lund. Snabb leverans, smidig betalning och ett brett utbud.',
     start_url: '/',
     display: 'standalone',
-    background_color: '#090f21',
-    theme_color: '#e7b24b',
+    // Vit splash/statusyta — matchar appens ljusa default-tema. Mörka färger
+    // här gav svart band vid dynamic island och mörk splash mot vit app.
+    background_color: '#ffffff',
+    theme_color: '#ffffff',
     orientation: 'portrait',
     icons: [
       {

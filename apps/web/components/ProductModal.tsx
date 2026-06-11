@@ -441,7 +441,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  {/* En kolumn — full bredd per tillval så långa namn aldrig trunkeras */}
+                  <div className="grid grid-cols-1 gap-2">
                     {group.extras.map((extra: any) => {
                       const isSelected = selectedExtras.some((e) => e.extraId === extra.id);
                       return (

@@ -24,7 +24,10 @@ export const metadata: Metadata = {
   applicationName: "Delívera",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    // "default" = vit statusbar med mörk text i installerad PWA. Tidigare
+    // "black-translucent" gav svart band/synlig cutoff vid dynamic island
+    // mot appens vita bakgrund.
+    statusBarStyle: "default",
     title: "Delívera",
   },
   formatDetection: {

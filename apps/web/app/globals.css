@@ -51,6 +51,10 @@
   }
 
   html {
+    /* Fyll safe-area/overscroll-ytorna (dynamic island, rubber-band) med
+       sidans bakgrund — annars syns en svart cutoff ovanför innehållet i
+       installerad PWA. Följer temat via variabeln. */
+    background-color: var(--bg-primary);
     /* Säkerställ att inget överskrider viewport-bredden på smala telefoner
        (iPhone SE = 375px, äldre Androids ner till 320px).
        OBS: använd `clip` istället för `hidden` — `overflow:hidden` på html/body

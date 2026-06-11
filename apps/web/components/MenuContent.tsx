@@ -98,9 +98,10 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
         </div>
       </div>
 
-      {/* Bild till höger — inskjuten, rundad, med flytande guld-plus */}
-      <div className="relative shrink-0 w-[88px] h-[88px] my-3 mr-3 rounded-xl overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
-        {hasImage ? (
+      {/* Med bild: 88px ruta med flytande guld-plus. Utan bild: ingen ruta
+          alls — bara en ren textrad med plus-knappen till höger. */}
+      {hasImage ? (
+        <div className="relative shrink-0 w-[88px] h-[88px] my-3 mr-3 rounded-xl overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
           <Image
             src={product.imageUrl}
             alt={product.name}
@@ -109,21 +110,23 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
             className="object-cover"
             onError={() => setImgFailed(true)}
           />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center px-1.5 text-center">
-            <span className="text-[11px] font-bold leading-tight line-clamp-3 break-words" style={{ color: "var(--text-secondary)" }} lang="sv">
-              {product.name}
-            </span>
-          </div>
-        )}
+          <span
+            aria-hidden="true"
+            className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full grid place-items-center"
+            style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.18)" }}
+          >
+            <Plus size={15} strokeWidth={3} />
+          </span>
+        </div>
+      ) : (
         <span
           aria-hidden="true"
-          className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full grid place-items-center"
-          style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.18)" }}
+          className="shrink-0 mr-4 w-8 h-8 rounded-full grid place-items-center"
+          style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.15)" }}
         >
-          <Plus size={15} strokeWidth={3} />
+          <Plus size={16} strokeWidth={3} />
         </span>
-      </div>
+      )}
     </button>
   );
 }

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { Home, Heart, ShoppingBag, User } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -19,6 +19,12 @@ async function fetchNavBalance(): Promise<{ enabled: boolean; balance: number } 
   }
 }
 
+/**
+ * BottomNav — flytande glas-bar med morfande guld-pill.
+ * Aktiv flik: guld-pill (delad layoutId → glider mjukt mellan flikar) med
+ * ikon + etikett. Inaktiva flikar: bara ikon. Etiketten animeras in/ut i
+ * bredd så pillen växer organiskt. Cart-antal + Dpoints som mini-badges.
+ */
 const BottomNav = () => {
   const pathname = usePathname();
   const { t } = useTranslation();
@@ -43,15 +49,17 @@ const BottomNav = () => {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-[100] md:hidden"
-      style={{
-        backgroundColor: "var(--bg-primary)",
-        borderTop: "1px solid var(--border-muted)",
-        boxShadow: "0 -4px 20px rgba(17,17,19,0.06)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-      }}
+      className="fixed left-4 right-4 z-[100] md:hidden flex justify-center pointer-events-none"
+      style={{ bottom: "max(env(safe-area-inset-bottom, 0px), 14px)" }}
     >
-      <nav className="flex items-stretch justify-around px-1 pt-1.5">
+      <nav
+        className="pointer-events-auto flex items-center gap-1 p-1.5 rounded-full backdrop-blur-xl"
+        style={{
+          backgroundColor: "var(--glass-bg)",
+          border: "1px solid var(--glass-border)",
+          boxShadow: "0 8px 32px rgba(17,17,19,0.14), 0 2px 8px rgba(17,17,19,0.08)",
+        }}
+      >
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -62,47 +70,58 @@ const BottomNav = () => {
               href={item.href}
               aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
-              className="relative flex-1 flex items-center justify-center pb-2 touch-manipulation"
+              className="relative touch-manipulation"
             >
-              <div className="relative flex flex-col items-center gap-1 px-3 py-1.5">
-                {/* Guld-indikatorn ligger bakom IKONEN med FAST storlek (samma
-                    för alla flikar) så väljaren inte växer/krymper beroende på
-                    etikettens längd ("HEM" vs "FAVORITER"). Etiketten under är
-                    alltid utan bakgrund. */}
-                <div className="relative flex items-center justify-center w-12 h-7 rounded-full">
-                  {isActive && (
-                    <motion.div
-                      layoutId="navActive"
-                      className="absolute inset-0 rounded-full"
-                      style={{ backgroundColor: "rgba(231,178,75,0.16)" }}
-                      transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
-                    />
-                  )}
-                  <Icon
-                    size={21}
-                    strokeWidth={isActive ? 2.6 : 2}
-                    fill={isActive ? "currentColor" : "none"}
-                    className="relative z-10"
-                    style={{ color: isActive ? "#C28E2E" : "var(--text-secondary)" }}
+              <motion.div
+                layout
+                transition={{ type: "spring", bounce: 0.18, duration: 0.45 }}
+                className="relative flex items-center justify-center gap-1.5 h-11 rounded-full"
+                style={{ paddingLeft: isActive ? 16 : 12, paddingRight: isActive ? 16 : 12 }}
+              >
+                {/* Delad guld-pill — glider mellan flikarna via layoutId */}
+                {isActive && (
+                  <motion.div
+                    layoutId="navActivePill"
+                    className="absolute inset-0 rounded-full"
+                    style={{ backgroundColor: "var(--color-gold-500, #E7B24B)" }}
+                    transition={{ type: "spring", bounce: 0.18, duration: 0.45 }}
                   />
-                  {item.count !== undefined && item.count > 0 && (
-                    <span className="absolute -top-1 -right-1 z-20 bg-gold-500 text-zinc-950 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
-                      {item.count}
-                    </span>
+                )}
+                <Icon
+                  size={20}
+                  strokeWidth={isActive ? 2.4 : 2}
+                  className="relative z-10 shrink-0"
+                  style={{ color: isActive ? "#1c1c1e" : "var(--text-secondary)" }}
+                />
+                {/* Etiketten finns bara på aktiv flik — animeras in i bredd */}
+                <AnimatePresence initial={false}>
+                  {isActive && (
+                    <motion.span
+                      key="label"
+                      initial={{ width: 0, opacity: 0 }}
+                      animate={{ width: "auto", opacity: 1 }}
+                      exit={{ width: 0, opacity: 0 }}
+                      transition={{ type: "spring", bounce: 0, duration: 0.35 }}
+                      className="relative z-10 overflow-hidden whitespace-nowrap text-[12px] font-bold"
+                      style={{ color: "#1c1c1e" }}
+                    >
+                      {item.label}
+                    </motion.span>
                   )}
-                </div>
-                <span
-                  className="relative z-10 text-[9px] font-black uppercase tracking-wider"
-                  style={{ color: isActive ? "#C28E2E" : "var(--text-secondary)" }}
-                >
-                  {item.label}
-                </span>
-                {item.href === "/profile" && dpoints?.enabled && (
-                  <span className="relative z-10 -mt-0.5 text-[8px] font-black leading-none text-gold-500">
-                    {dpoints.balance} p
+                </AnimatePresence>
+                {/* Cart-antal */}
+                {item.count !== undefined && item.count > 0 && (
+                  <span className="absolute top-0.5 right-1 z-20 min-w-[16px] h-4 px-1 rounded-full bg-zinc-900 text-gold-400 text-[9px] font-black flex items-center justify-center">
+                    {item.count}
                   </span>
                 )}
-              </div>
+                {/* Dpoints-saldo på Profil */}
+                {item.href === "/profile" && dpoints?.enabled && dpoints.balance > 0 && (
+                  <span className="absolute top-0.5 right-0 z-20 px-1 h-4 rounded-full bg-zinc-900 text-gold-400 text-[8px] font-black flex items-center justify-center leading-none">
+                    {dpoints.balance}p
+                  </span>
+                )}
+              </motion.div>
             </Link>
           );
         })}
