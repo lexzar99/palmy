@@ -5,9 +5,8 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, Hash, AlertCircle, ShieldCheck, ShoppingBag, Sparkles, MapPin, ArrowRight, Star, X, MessageSquare } from "lucide-react";
+import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, AlertCircle, ShieldCheck, ShoppingBag, MapPin, ArrowRight, Star, X, MessageSquare } from "lucide-react";
 import { openSupportChatWithOrder } from "@/components/SupportChat";
-import ShareInviteCard from "@/components/ShareInviteCard";
 import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
@@ -83,7 +82,7 @@ const STATUS_CONFIG: Record<string, { icon: any; colorClass: string; textClass: 
   },
   CANCELLED: {
     icon: AlertCircle,
-    colorClass: "bg-zinc-50 border-zinc-100",
+    colorClass: "bg-zinc-500/10 border-zinc-500/20",
     textClass: "text-zinc-400",
   },
 };
@@ -321,9 +320,20 @@ const OrderStatusPage = () => {
   }, [showReview]);
 
   if (loading) {
+    // Skeleton som matchar sidans faktiska layout (paritet med övriga sidor —
+    // ingen blockerande spinner). Status-kort → kvitto → info-kort.
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <Loader2 className="animate-spin text-gold-500" size={40} />
+      <div className="min-h-screen pb-28 pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
+        <div className="mx-auto max-w-2xl px-4">
+          <div className="flex items-center justify-between py-3">
+            <div className="skeleton h-9 w-28 rounded-full" />
+            <div className="skeleton h-7 w-32 rounded-full" />
+          </div>
+          <div className="skeleton h-8 w-48 rounded-xl mb-5" />
+          <div className="skeleton h-44 w-full rounded-3xl mb-4" />
+          <div className="skeleton h-64 w-full rounded-3xl mb-4" />
+          <div className="skeleton h-48 w-full rounded-3xl" />
+        </div>
       </div>
     );
   }
@@ -334,21 +344,21 @@ const OrderStatusPage = () => {
   if (!order && fetchError === "network") {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <AlertCircle size={48} className="text-amber-500 mb-6" />
-        <h1 className="text-3xl font-black uppercase italic mb-3" style={{ color: "var(--text-primary)" }}>{t("order.error.networkTitle")}</h1>
+        <AlertCircle size={44} className="text-amber-500 mb-6" />
+        <h1 className="text-2xl font-bold tracking-tight mb-3" style={{ color: "var(--text-primary)" }}>{t("order.error.networkTitle")}</h1>
         <p className="text-sm max-w-md mb-8" style={{ color: "var(--text-secondary)" }}>
           {t("order.error.networkSub")}
         </p>
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={() => { setLoading(true); setFetchError(null); fetchOrder(); }}
-            className="px-10 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px]"
+            className="px-8 py-4 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm"
           >
             {t("order.error.retry")}
           </button>
           <Link
             href="/orders"
-            className="px-10 py-5 border rounded-[2rem] font-black uppercase tracking-widest text-[10px]"
+            className="px-8 py-4 border rounded-full font-bold text-sm text-center"
             style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
           >
             {t("order.error.myOrders")}
@@ -363,12 +373,12 @@ const OrderStatusPage = () => {
   if (!order) {
     return (
        <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
-          <AlertCircle size={48} className="text-rose-500 mb-6" />
-          <h1 className="text-4xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>{t("order.error.notFoundTitle")}</h1>
-          <p className="text-sm max-w-md mt-4" style={{ color: "var(--text-secondary)" }}>
+          <AlertCircle size={44} className="text-rose-500 mb-6" />
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.error.notFoundTitle")}</h1>
+          <p className="text-sm max-w-md mt-3" style={{ color: "var(--text-secondary)" }}>
             {t("order.error.notFoundSub")}
           </p>
-          <Link href="/" className="mt-10 px-10 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px]">{t("order.error.notFoundCta")}</Link>
+          <Link href="/" className="mt-8 px-8 py-4 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm">{t("order.error.notFoundCta")}</Link>
        </div>
     );
   }
@@ -385,23 +395,25 @@ const OrderStatusPage = () => {
     : stepDefs.reduce((acc, d, i) => (d.reached(currentStatus) ? i : acc), 0);
 
   return (
-    <div className="min-h-screen pb-28" style={{ backgroundColor: "var(--bg-primary)", paddingTop: "max(4.5rem, calc(env(safe-area-inset-top, 0px) + 1rem))" }}>
+    <div className="min-h-screen pb-28 pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="mx-auto max-w-2xl px-4">
 
         {/* Top bar */}
         <div className="flex items-center justify-between gap-3 py-3">
-          <Link href="/orders" className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-bold transition-colors hover:border-gold-500/40" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
+          <Link href="/orders" className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-bold transition-colors" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
             <ArrowRight size={13} className="rotate-180" /> {t("order.subtitle")}
           </Link>
-          <div className="inline-flex items-center gap-2 rounded-full border border-gold-500/20 bg-gold-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-gold-600">
-            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-500 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-gold-500" /></span>
-            {t("order.liveTracking")}
-          </div>
+          {!isRejected && !isCompleted && (
+            <div className="inline-flex items-center gap-2 rounded-full border border-gold-500/20 bg-gold-500/10 px-3 py-1.5 text-[11px] font-bold text-gold-600">
+              <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-500 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-gold-500" /></span>
+              {t("order.liveTracking")}
+            </div>
+          )}
         </div>
-        <h1 className="mb-5 px-1 text-2xl font-black tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.title")} <span className="text-gold-gradient">#{order.orderNumber}</span></h1>
+        <h1 className="mb-4 px-1 text-[1.45rem] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.title")} <span className="text-gold-600">#{order.orderNumber}</span></h1>
 
         {/* Hero: karta (vi-levererar) + status + ETA + steg */}
-        <motion.div key={currentStatus} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-[2rem] border shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+        <motion.div key={currentStatus} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-3xl border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
 
           {/* Live-karta — endast vi-levererar (ej self) + under leverans. Visas direkt vid hämtad;
               budets prick fylls i när dess position kommit in. Försvinner vid DELIVERED. */}
@@ -424,7 +436,7 @@ const OrderStatusPage = () => {
             </div>
             {order.estimatedTime && !isRejected && !isCompleted && (
               <div className="shrink-0 rounded-2xl px-3.5 py-2 text-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-                <div className="text-[8px] font-black uppercase tracking-widest text-zinc-400">{etaLeft !== null && etaLeft <= 0 ? t("order.eta.ready") : t("order.eta.short")}</div>
+                <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{etaLeft !== null && etaLeft <= 0 ? t("order.eta.ready") : t("order.eta.short")}</div>
                 <div className={`text-lg font-black tabular-nums ${etaLeft !== null && etaLeft <= 300 ? "text-emerald-500" : "text-gold-600"}`}>
                   {etaLeft === null ? `${order.estimatedTime} min` : etaLeft <= 0 ? t("order.eta.soon") : `${Math.floor(etaLeft / 60)}:${(etaLeft % 60).toString().padStart(2, "0")}`}
                 </div>
@@ -443,13 +455,16 @@ const OrderStatusPage = () => {
                   return (
                     <div key={step.label} className="flex flex-1 flex-col items-center">
                       <div className="flex w-full items-center">
-                        <div className={`h-0.5 flex-1 rounded-full ${idx === 0 ? "opacity-0" : isDone ? "bg-gold-500" : "bg-zinc-100"}`} />
-                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-500 ${isActive ? "scale-110 border-gold-500 bg-gold-500 shadow-lg shadow-gold-500/30" : isDone ? "border-gold-500 bg-gold-500" : "border-zinc-200 bg-white text-zinc-300"}`}>
-                          {isDone && !isActive ? <Check size={14} className="text-zinc-950" strokeWidth={4} /> : isActive ? <span className="h-2 w-2 animate-pulse rounded-full bg-zinc-950" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+                        <div className={`h-0.5 flex-1 rounded-full ${idx === 0 ? "opacity-0" : isDone ? "bg-gold-500" : ""}`} style={idx !== 0 && !isDone ? { backgroundColor: "var(--border-muted)" } : undefined} />
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-500 ${isActive ? "scale-110 border-gold-500 bg-gold-500 shadow-lg shadow-gold-500/30" : isDone ? "border-gold-500 bg-gold-500" : ""}`}
+                          style={!isDone && !isActive ? { borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" } : undefined}
+                        >
+                          {isDone && !isActive ? <Check size={14} className="text-zinc-950" strokeWidth={4} /> : isActive ? <span className="h-2 w-2 animate-pulse rounded-full bg-zinc-950" /> : <span className="h-1.5 w-1.5 rounded-full bg-current opacity-50" />}
                         </div>
-                        <div className={`h-0.5 flex-1 rounded-full ${last ? "opacity-0" : currentIdx > idx ? "bg-gold-500" : "bg-zinc-100"}`} />
+                        <div className={`h-0.5 flex-1 rounded-full ${last ? "opacity-0" : currentIdx > idx ? "bg-gold-500" : ""}`} style={!last && currentIdx <= idx ? { backgroundColor: "var(--border-muted)" } : undefined} />
                       </div>
-                      <span className={`mt-2.5 text-center text-[10px] font-black uppercase tracking-wide ${isActive ? "text-gold-600" : isDone ? "text-zinc-500" : "text-zinc-300"}`}>{step.label}</span>
+                      <span className={`mt-2.5 text-center text-[11px] font-bold ${isActive ? "text-gold-600" : ""}`} style={!isActive ? { color: "var(--text-secondary)", opacity: isDone ? 1 : 0.55 } : undefined}>{step.label}</span>
                     </div>
                   );
                 })}
@@ -461,76 +476,74 @@ const OrderStatusPage = () => {
         {/* ShareInviteCard borttagen — referral-systemet avstängt för launch */}
 
         <div className="mt-4 grid grid-cols-1 gap-4 items-start">
-           {/* Detailed Receipt */}
-            <div className="relative overflow-hidden rounded-[2rem] p-6 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-               <div className="absolute top-[-100px] left-[-100px] w-[300px] h-[300px] rounded-full blur-[100px]" style={{ backgroundColor: "rgba(231,178,75,0.03)" }} />
-              <div className="flex items-center justify-between mb-12 relative z-10">
-                  <h2 className="text-2xl font-black uppercase italic tracking-tight leading-[1.15]" style={{ color: "var(--text-primary)" }}>{t("order.detailsTitle")}</h2>
-                 <ShoppingBag size={24} className="text-gold-500/30" />
+           {/* Kvitto — rena rader, tunna avdelare, guld bara på totalen */}
+            <div className="rounded-3xl p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+              <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.detailsTitle")}</h2>
+                 <ShoppingBag size={19} className="text-gold-500" />
               </div>
-              
-              <div className="space-y-6 mb-12 relative z-10">
+
+              <div className="space-y-4 mb-6">
                  {order.items.map((item: any) => (
-                    <div key={item.id} className="flex justify-between items-start gap-10 group">
-                       <div className="flex-1">
-                          <div className="flex items-center gap-4 mb-1">
-                             <span className="text-xs font-black text-gold-500 bg-gold-500/5 px-2 py-0.5 rounded-md border border-gold-500/10">{item.quantity}x</span>
-                             <h3 className="font-black uppercase italic text-sm tracking-tight" style={{ color: "var(--text-primary)" }}>{item.productName}</h3>
+                    <div key={item.id} className="flex justify-between items-start gap-6">
+                       <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-2.5">
+                             <span className="text-xs font-bold text-gold-600 tabular-nums shrink-0">{item.quantity}×</span>
+                             <h3 className="text-sm font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>{item.productName}</h3>
                           </div>
                           {item.selectedExtras && Array.isArray(item.selectedExtras) && item.selectedExtras.length > 0 && (
-                             <div className="flex flex-col gap-1 mt-2 pl-12 group-hover:pl-14 transition-all">
+                             <div className="flex flex-col gap-0.5 mt-1 pl-7">
                                 {item.selectedExtras.map((e: any, idx: number) => (
-                                   <span key={idx} className="text-[11px] font-bold uppercase text-zinc-500">{e.extraName || e.name}</span>
+                                   <span key={idx} className="text-xs" style={{ color: "var(--text-secondary)" }}>{e.extraName || e.name}</span>
                                 ))}
                              </div>
                           )}
-                          {item.note && <p className="text-[10px] text-amber-500/60 font-black uppercase tracking-widest mt-2 italic px-3 border-l-[1px] border-amber-500/30">{t("order.itemNote")}: {item.note}</p>}
+                          {item.note && <p className="text-xs mt-1.5 pl-7 italic" style={{ color: "var(--text-secondary)" }}>{t("order.itemNote")}: {item.note}</p>}
                        </div>
-                       <div className="text-sm font-black italic text-zinc-600 group-hover:text-gold-500 transition-colors">{item.subtotal} KR</div>
+                       <div className="text-sm font-semibold tabular-nums shrink-0" style={{ color: "var(--text-primary)" }}>{item.subtotal} kr</div>
                     </div>
                  ))}
               </div>
 
-              <div className="border-t border-zinc-100 pt-10 space-y-4 relative z-10">
-                 <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>{t("order.summary.subtotal")}</span><span>{(order.total - order.deliveryFee).toFixed(0)} KR</span></div>
-                 {order.deliveryFee > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>{t("order.summary.deliveryFee")}</span><span className="text-gold-500">+{order.deliveryFee.toFixed(0)} KR</span></div>}
-                  <div className="flex justify-between items-end mt-10 pt-4 border-t border-zinc-100">
-                     <span className="text-2xl font-black italic uppercase tracking-tighter leading-[1.15]" style={{ color: "var(--text-primary)" }}>{t("order.summary.total")}</span>
-                     <span className="text-4xl font-black italic tracking-tighter text-gold-500">{order.total.toFixed(0)} <span className="text-[10px] opacity-40 not-italic uppercase tracking-widest">{t("common.sek")}</span></span>
+              <div className="pt-4 space-y-2" style={{ borderTop: "1px solid var(--border-muted)" }}>
+                 <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.subtotal")}</span><span className="tabular-nums">{(order.total - order.deliveryFee).toFixed(0)} kr</span></div>
+                 {order.deliveryFee > 0 && <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.deliveryFee")}</span><span className="tabular-nums">+{order.deliveryFee.toFixed(0)} kr</span></div>}
+                  <div className="flex justify-between items-baseline pt-3 mt-1" style={{ borderTop: "1px solid var(--border-muted)" }}>
+                     <span className="text-base font-bold" style={{ color: "var(--text-primary)" }}>{t("order.summary.total")}</span>
+                     <span className="text-2xl font-bold tracking-tight text-gold-600 tabular-nums">{order.total.toFixed(0)} kr</span>
                   </div>
               </div>
            </div>
 
            {/* Info sidebar */}
            <div className="space-y-4">
-               <div className="group relative overflow-hidden rounded-[2rem] border p-6 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-                  <div className="absolute inset-0 bg-gradient-to-br from-gold-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <h2 className="text-xl font-black uppercase italic tracking-tight mb-10 flex items-center justify-between" style={{ color: "var(--text-primary)" }}>
+               <div className="rounded-3xl border p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+                  <h2 className="text-lg font-bold tracking-tight mb-5 flex items-center justify-between" style={{ color: "var(--text-primary)" }}>
                     {t("order.handling")}
-                    {order.type === "DELIVERY" ? <Truck size={22} className="text-gold-500" /> : <Store size={22} className="text-gold-500" />}
+                    {order.type === "DELIVERY" ? <Truck size={19} className="text-gold-500" /> : <Store size={19} className="text-gold-500" />}
                   </h2>
-                 
-                 <div className="space-y-8">
-                    <div className="flex items-start gap-5">
-                       <Phone className="text-gold-500/30 mt-1" size={20} />
+
+                 <div className="space-y-5">
+                    <div className="flex items-start gap-3.5">
+                       <Phone className="text-gold-500 mt-0.5 shrink-0" size={16} />
                         <div>
-                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("order.yourNumber")}</div>
-                           <div className="text-base font-black tracking-widest italic" style={{ color: "var(--text-primary)" }}>{order.customerPhone}</div>
+                           <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.yourNumber")}</div>
+                           <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{order.customerPhone}</div>
                         </div>
                     </div>
-                    
-                    <div className="flex items-start gap-5">
-                       <Store className="text-gold-500/30 mt-1" size={20} />
+
+                    <div className="flex items-start gap-3.5">
+                       <Store className="text-gold-500 mt-0.5 shrink-0" size={16} />
                         <div className="min-w-0 flex-1">
-                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("order.restaurant")}</div>
-                           <div className="text-base font-black italic uppercase" style={{ color: "var(--text-primary)" }}>{order.restaurantName}</div>
+                           <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.restaurant")}</div>
+                           <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{order.restaurantName}</div>
                            {/* Contact restaurant — phone (tel:) and email
                                (mailto:) shown as pill links when present. */}
                            <div className="mt-2 flex flex-wrap gap-2">
                              {order.restaurantPhone && (
                                <a
                                  href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`}
-                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gold-500/10 text-gold-600 text-[10px] font-black uppercase tracking-wider hover:bg-gold-500/20 transition-colors"
+                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gold-500/10 text-gold-600 text-xs font-bold hover:bg-gold-500/20 transition-colors"
                                >
                                  <Phone size={11} /> {order.restaurantPhone}
                                </a>
@@ -538,7 +551,7 @@ const OrderStatusPage = () => {
                              {(order as any).restaurantEmail && (
                                <a
                                  href={`mailto:${(order as any).restaurantEmail}`}
-                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-500/10 text-sky-600 text-[10px] font-black uppercase tracking-wider hover:bg-sky-500/20 transition-colors break-all"
+                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-500/10 text-sky-600 text-xs font-bold hover:bg-sky-500/20 transition-colors break-all"
                                >
                                  <Mail size={11} /> {(order as any).restaurantEmail}
                                </a>
@@ -549,10 +562,10 @@ const OrderStatusPage = () => {
 
                     {order.type === 'DELIVERY' ? (
                        order.deliveryStreet && (
-                          <div className="flex items-start gap-5">
-                             <MapPin className="text-sky-500/30 mt-1" size={20} />
+                          <div className="flex items-start gap-3.5">
+                             <MapPin className="text-gold-500 mt-0.5 shrink-0" size={16} />
                               <div className="min-w-0 flex-1">
-                                 <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("order.deliveryAddress")}</div>
+                                 <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.deliveryAddress")}</div>
                                  {/* Tappable delivery address — opens in maps */}
                                  <a
                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([order.deliveryStreet, order.restaurantCity].filter(Boolean).join(", "))}`}
@@ -560,18 +573,18 @@ const OrderStatusPage = () => {
                                    rel="noreferrer"
                                    className="group block"
                                  >
-                                   <div className="text-sm font-black uppercase italic leading-tight group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{order.deliveryStreet}</div>
-                                   <div className="text-[11px] font-black text-zinc-400 uppercase tracking-widest mt-1">{order.restaurantCity || "LUND"}</div>
+                                   <div className="text-sm font-semibold leading-snug group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{order.deliveryStreet}</div>
+                                   <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{order.restaurantCity || "Lund"}</div>
                                  </a>
                               </div>
                           </div>
                        )
                     ) : (
                        order.restaurantAddress && (
-                          <div className="flex items-start gap-5">
-                             <MapPin className="text-emerald-500/30 mt-1" size={20} />
+                          <div className="flex items-start gap-3.5">
+                             <MapPin className="text-emerald-500 mt-0.5 shrink-0" size={16} />
                               <div className="min-w-0 flex-1">
-                                 <div className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-600 mb-1">{t("order.pickupAt")}</div>
+                                 <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5 text-emerald-600">{t("order.pickupAt")}</div>
                                  {/* Tappable pickup address — opens in maps */}
                                  <a
                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([order.restaurantAddress, order.restaurantZip, order.restaurantCity].filter(Boolean).join(", "))}`}
@@ -579,19 +592,19 @@ const OrderStatusPage = () => {
                                    rel="noreferrer"
                                    className="group block"
                                  >
-                                   <div className="text-sm font-black uppercase italic leading-tight group-hover:text-emerald-600 transition-colors" style={{ color: "var(--text-primary)" }}>{order.restaurantAddress}</div>
-                                   <div className="text-[11px] font-black text-zinc-400 uppercase tracking-widest mt-1">{order.restaurantZip} {order.restaurantCity}</div>
+                                   <div className="text-sm font-semibold leading-snug group-hover:text-emerald-600 transition-colors" style={{ color: "var(--text-primary)" }}>{order.restaurantAddress}</div>
+                                   <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{order.restaurantZip} {order.restaurantCity}</div>
                                  </a>
                               </div>
                           </div>
                        )
                     )}
 
-                    <div className="flex items-start gap-5">
-                       <Calendar className="text-zinc-800 mt-1" size={20} />
+                    <div className="flex items-start gap-3.5">
+                       <Calendar className="text-gold-500 mt-0.5 shrink-0" size={16} />
                         <div>
-                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("order.placed")}</div>
-                           <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>{t("order.scheduledToday", { time: new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) })}</div>
+                           <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.placed")}</div>
+                           <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{t("order.scheduledToday", { time: new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) })}</div>
                         </div>
                     </div>
 
@@ -611,13 +624,13 @@ const OrderStatusPage = () => {
                        const timeStr = scheduled.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
                        const dateStr = scheduled.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" });
                        return (
-                          <div className="flex items-start gap-5">
-                             <Clock className="text-gold-500 mt-1" size={20} />
+                          <div className="flex items-start gap-3.5">
+                             <Clock className="text-gold-500 mt-0.5 shrink-0" size={16} />
                               <div>
-                                 <div className="text-[9px] font-black uppercase tracking-[0.3em] text-gold-600 mb-1">
+                                 <div className="text-[10px] font-bold uppercase tracking-wider text-gold-600 mb-0.5">
                                     {order.type === "DELIVERY" ? t("order.scheduledFor.delivery") : t("order.scheduledFor.pickup")}
                                  </div>
-                                 <div className="text-base font-black italic" style={{ color: "var(--text-primary)" }}>
+                                 <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                                     {isToday ? t("order.scheduledToday", { time: timeStr }) : t("order.review.scheduledDate", { date: dateStr, time: timeStr })}
                                  </div>
                               </div>
@@ -629,31 +642,31 @@ const OrderStatusPage = () => {
 
               {/* Review Card or Thank You */}
               {order.rating || reviewDone ? (
-                  <div className="rounded-[2rem] border p-6 text-center shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-                    <div className="flex items-center justify-center gap-1 mb-4">
-                      {[1,2,3,4,5].map(s => <Star key={s} size={24} className={s <= (order.rating || reviewRating) ? 'text-gold-500 fill-gold-500' : 'text-zinc-100'} />)}
+                  <div className="rounded-3xl border p-5 text-center" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+                    <div className="flex items-center justify-center gap-1 mb-3">
+                      {[1,2,3,4,5].map(s => <Star key={s} size={22} className={s <= (order.rating || reviewRating) ? 'text-gold-500 fill-gold-500' : ''} style={s <= (order.rating || reviewRating) ? undefined : { color: "var(--border-muted)" }} />)}
                     </div>
-                    <h3 className="text-sm font-black uppercase tracking-[0.2em] italic mb-2" style={{ color: "var(--text-primary)" }}>{t("order.review.thanksTitle")}</h3>
-                    <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">{t("order.review.thanksSub")}</p>
+                    <h3 className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>{t("order.review.thanksTitle")}</h3>
+                    <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{t("order.review.thanksSub")}</p>
                  </div>
               ) : (
-                 <div className="group cursor-default rounded-[2rem] p-6 text-center shadow-xl transition-all active:scale-95" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                   <div className="w-16 h-16 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20 flex items-center justify-center mx-auto mb-6 text-emerald-600 shadow-xl shadow-emerald-500/5 group-hover:scale-110 transition-transform">
-                      <ShieldCheck size={32} />
+                 <div className="rounded-3xl p-5 text-center" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                   <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-3 text-emerald-600">
+                      <ShieldCheck size={24} />
                    </div>
-                   <h3 className="text-sm font-black uppercase tracking-[0.2em] italic mb-2" style={{ color: "var(--text-primary)" }}>{t("order.thanksTitle")}</h3>
-                   <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">{t("order.thanksSub", { number: order.orderNumber })}</p>
+                   <h3 className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>{t("order.thanksTitle")}</h3>
+                   <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{t("order.thanksSub", { number: order.orderNumber })}</p>
                 </div>
               )}
 
               {/* Kontakta support — finns oavsett status, pre-fyllt med order-info */}
               <button
                 onClick={() => openSupportChatWithOrder(order.orderNumber, order.id)}
-                className="w-full mt-4 p-6 rounded-[2rem] flex items-center justify-center gap-3 transition-all hover:border-gold-500/40 active:scale-95"
+                className="w-full mt-4 py-4 rounded-full flex items-center justify-center gap-2.5 transition-all active:scale-[0.98]"
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
               >
-                <MessageSquare size={18} className="text-gold-500" />
-                <span className="text-[11px] font-black uppercase tracking-widest">{t("order.support")}</span>
+                <MessageSquare size={16} className="text-gold-500" />
+                <span className="text-sm font-bold">{t("order.support")}</span>
               </button>
            </div>
         </div>
@@ -662,16 +675,16 @@ const OrderStatusPage = () => {
         <AnimatePresence>
           {showReview && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center px-6 pb-8 sm:pb-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.7)" }}>
-               <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm space-y-6 rounded-[2rem] border p-8 shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+               <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm space-y-5 rounded-3xl border p-6 sm:p-7 shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>{t("order.review.title")}</h2>
-                  <button onClick={dismissReview} className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors" aria-label={t("order.review.dismissAria")}><X size={20} /></button>
+                  <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.review.title")}</h2>
+                  <button onClick={dismissReview} className="p-2 transition-colors" style={{ color: "var(--text-secondary)" }} aria-label={t("order.review.dismissAria")}><X size={20} /></button>
                 </div>
-                <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">{t("order.review.prompt", { restaurant: order.restaurantName })}</p>
+                <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>{t("order.review.prompt", { restaurant: order.restaurantName })}</p>
                 <div className="flex items-center justify-center gap-3">
                   {[1,2,3,4,5].map(s => (
                     <button key={s} onClick={() => setReviewRating(s)} className="transition-all active:scale-90 hover:scale-110">
-                      <Star size={36} className={s <= reviewRating ? 'text-gold-500 fill-gold-500 drop-shadow-[0_0_8px_rgba(231,178,75,0.5)]' : 'text-zinc-800 hover:text-zinc-600'} />
+                      <Star size={34} className={s <= reviewRating ? 'text-gold-500 fill-gold-500' : ''} style={s <= reviewRating ? undefined : { color: "var(--text-secondary)", opacity: 0.35 }} />
                     </button>
                   ))}
                 </div>
@@ -680,7 +693,7 @@ const OrderStatusPage = () => {
                   onChange={e => setReviewText(e.target.value)}
                   placeholder={t("order.review.placeholder")}
                   rows={3}
-                   className="w-full rounded-2xl py-4 px-5 text-sm outline-none focus:ring-2 focus:ring-gold-500/40 resize-none placeholder:text-zinc-600"
+                   className="w-full rounded-2xl py-4 px-5 text-sm outline-none focus:ring-2 focus:ring-gold-500/40 resize-none placeholder:text-zinc-400"
                    style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
                 />
                 {/* Lika rätter — visa beställda items som väljbara taggar.
@@ -688,7 +701,7 @@ const OrderStatusPage = () => {
                     "Gillade: {namn}, {namn}". */}
                 {(order.items || []).length > 0 ? (
                   <div className="grid gap-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{t("order.review.likedTitle")}</p>
+                    <p className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>{t("order.review.likedTitle")}</p>
                     <div className="flex flex-wrap gap-2">
                       {order.items.map((item: any) => {
                         const id = item.productId || item.id;
@@ -715,7 +728,7 @@ const OrderStatusPage = () => {
                 <button
                   onClick={submitReview}
                   disabled={!reviewRating || reviewSubmitting}
-                  className="w-full py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[11px] shadow-xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-3"
+                  className="w-full py-4 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-2.5"
                 >
                   {reviewSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Star size={16} /> {t("order.review.submit")}</>}
                 </button>

@@ -4,13 +4,11 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Loader2, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus } from "lucide-react";
+import { Search, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import dynamic from "next/dynamic";
-import DpointsBadge from "@/components/DpointsBadge";
 import FloatingCartButton from "@/components/FloatingCartButton";
-import DealSpotlight from "@/components/DealSpotlight";
-import { PublicDeal, formatDealReward } from "@/lib/deals";
+import { PublicDeal } from "@/lib/deals";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -43,35 +41,6 @@ interface MenuContentProps {
 }
 
 // ─── Produktkort-helpers ─────────────────────────────────────────────────
-// Visningsläget styrs från admin per produkt (Product.displayMode).
-// "FULL"    → en per rad, stor bild + beskrivning + stor VARUKORG-knapp
-// "COMPACT" → 2 per rad i grid, för drycker, sidor, chili cheese etc.
-//
-// Consecutiva COMPACT-produkter slås ihop till en 2-grid-rad. Om en kategori
-// blandar FULL och COMPACT renderas de i den ordning admin satt position.
-
-type ProductRow =
-  | { type: "FULL"; product: any }
-  | { type: "COMPACT"; products: any[] };
-
-function groupProductsByDisplay(products: any[]): ProductRow[] {
-  const rows: ProductRow[] = [];
-  for (const p of products) {
-    const mode = (p.displayMode === "COMPACT" ? "COMPACT" : "FULL") as "FULL" | "COMPACT";
-    if (mode === "FULL") {
-      rows.push({ type: "FULL", product: p });
-    } else {
-      const last = rows[rows.length - 1];
-      if (last && last.type === "COMPACT" && last.products.length < 2) {
-        last.products.push(p);
-      } else {
-        rows.push({ type: "COMPACT", products: [p] });
-      }
-    }
-  }
-  return rows;
-}
-
 function getDisplayPrice(p: any): { final: number; original: number | null } {
   if (p.discountActive) {
     const final = p.discountPrice ?? Math.round(p.price - (p.price * (p.discountPercent || 0) / 100));
@@ -80,382 +49,82 @@ function getDisplayPrice(p: any): { final: number; original: number | null } {
   return { final: p.price, original: null };
 }
 
-// (useImageReachable-proben borttagen — korten använder nu next/image med
-//  onError-fallback, vilket tar bort den dubbla bild-laddningen per kort.)
-
-
 /**
- * FullProductCard — produktrad för 1-per-rad-mode.
- *
- * Layout:
- *  • Namn (display italic)
- *  • Pris STORT direkt under namnet — premium-känsla. Originalpris (om rabatt)
- *    som litet överstruket bredvid det rabatterade priset.
- *  • Beskrivning (om hideDescription=false och description finns)
- *  • Dietary pills
- *  • Bild (om finns) till höger — square, ren utan inre padding
- *
- * Kortet är helt klickbart → öppnar ProductModal. Ingen separat
- * "Lägg i varukorg"-knapp (kvantitet/extras väljs i modalen).
+ * UniformCard — menyns enda produktkort. Platt lista-rad: text till vänster
+ * (namn 1 rad, beskrivning 1 rad, pris), bild 88px till höger med flytande
+ * guld-plus. Alla färger via tema-variabler → fungerar i light OCH dark.
+ * Guld används bara på plus-knappen och rabatterat pris.
  */
-function FullProductCard({ product, cartQty, onClick, disabled }: { product: any; cartQty: number; onClick: () => void; disabled: boolean }) {
-  const { final, original } = getDisplayPrice(product);
-  // imageUrl finns OCH laddar OK. onError (404/raderad i R2) → text-only istället
-  // för broken-img-ikon. Ingen separat probe-laddning längre.
-  const [imgFailed, setImgFailed] = useState(false);
-  useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
-  const hasImage = Boolean(product.imageUrl) && !imgFailed;
-  const showDescription = !product.hideDescription && Boolean(product.description);
-
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      whileTap={disabled ? undefined : { scale: 0.995 }}
-      disabled={disabled}
-      aria-disabled={disabled}
-      className={`group relative w-full text-left rounded-2xl overflow-hidden transition-all ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer hover:shadow-[0_8px_24px_rgba(28,28,30,0.07)]"}`}
-      style={{
-        backgroundColor: "var(--bg-secondary)",
-        border: "1.5px solid rgba(28,28,30,0.08)",
-        boxShadow: "0 3px 12px rgba(28,28,30,0.04)",
-      }}
-    >
-      <div className="flex items-start gap-3 p-3 sm:p-4">
-        {/* Text-block — fyller all bredd om ingen bild, annars 1fr */}
-        <div className="flex-1 min-w-0">
-          <h3 className="text-base sm:text-lg font-black uppercase italic leading-tight" style={{ color: "var(--text-primary)" }}>{product.name}</h3>
-
-          {/* Pris — stort & premium, direkt under namnet */}
-          <div className="mt-1.5 flex items-baseline gap-2.5">
-            <span
-              className="text-2xl sm:text-[1.7rem] font-black leading-none tracking-tight"
-              style={{ color: original != null ? "var(--color-gold-600, #C28E2E)" : "var(--text-primary)", fontFeatureSettings: "'tnum'" }}
-            >
-              {final}
-              <span className="text-base sm:text-lg font-bold ml-1 opacity-70">kr</span>
-            </span>
-            {original != null && (
-              <span className="text-sm font-semibold text-zinc-400 line-through" style={{ fontFeatureSettings: "'tnum'" }}>
-                {original} kr
-              </span>
-            )}
-            <DpointsBadge priceKr={final} rewardable={!!product.rewardable} />
-            {cartQty > 0 && (
-              <span className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gold-500/15 text-gold-700 text-[10px] font-black uppercase tracking-wider">
-                <ShoppingBag size={11} strokeWidth={2.6} />
-                {cartQty} i korg
-              </span>
-            )}
-          </div>
-
-          {showDescription && (
-            <p className="mt-2.5 text-[13px] leading-relaxed line-clamp-2" style={{ color: "var(--text-secondary)" }}>{product.description}</p>
-          )}
-
-          {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
-            <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
-              {product.isVegan && <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-700 uppercase tracking-wider">Vegan</span>}
-              {product.isVegetarian && <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-700 uppercase tracking-wider">Veg</span>}
-              {product.isGlutenFree && <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/10 text-blue-700 uppercase tracking-wider">GF</span>}
-            </div>
-          )}
-        </div>
-
-        {/* Bild som square — INNE i kortet med padding, INTE edge-to-edge */}
-        {hasImage && (
-          <div className="relative shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
-            <Image
-              src={product.imageUrl}
-              alt={product.name}
-              fill
-              sizes="(max-width: 640px) 96px, 112px"
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
-              onError={() => setImgFailed(true)}
-            />
-          </div>
-        )}
-      </div>
-    </motion.button>
-  );
-}
-
-/**
- * SquareRailCard — kompakt kvadratiskt kort för horisontella rails
- * ("Populärt"). Hela kortet är aspect-square. Bilden fyller övre 62%,
- * text-stack med namn + pris i undre 38%. Mycket tightare än grid-kortet
- * och fungerar både med och utan bild (gold-fallback med stort namn).
- */
-function SquareRailCard({ product, onClick, disabled }: { product: any; onClick: () => void; disabled: boolean }) {
+function UniformCard({ product, onClick, disabled }: { product: any; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
   const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
   const hasImage = Boolean(product.imageUrl) && !imgFailed;
+  const showDescription = Boolean(product.description) && !product.hideDescription;
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-disabled={disabled}
-      className={`group relative snap-start shrink-0 rounded-2xl overflow-hidden text-left flex flex-col ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:scale-[0.97] cursor-pointer"}`}
-      style={{
-        width: "42vw",
-        maxWidth: "170px",
-        minWidth: "138px",
-        aspectRatio: "1 / 1",
-        backgroundColor: "var(--bg-secondary)",
-        boxShadow: "0 2px 10px rgba(28,28,30,0.06), 0 1px 2px rgba(28,28,30,0.03)",
-      }}
+      className={`group relative w-full rounded-2xl overflow-hidden text-left flex items-center transition-transform ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:scale-[0.99] cursor-pointer"}`}
+      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
     >
-      {/* Övre 62% — bild (overlay) eller gold-fallback */}
-      <div
-        className="relative w-full flex-shrink-0"
-        style={{
-          height: "62%",
-          backgroundImage:
-            "radial-gradient(circle at 22% 28%, rgba(200,154,60,0.26) 0%, transparent 50%), radial-gradient(circle at 78% 76%, rgba(200,154,60,0.18) 0%, transparent 50%), linear-gradient(135deg, rgba(200,154,60,0.22) 0%, rgba(200,154,60,0.10) 100%)",
-        }}
-      >
-        {hasImage && (
-          <Image
-            src={product.imageUrl}
-            alt={product.name}
-            fill
-            sizes="170px"
-            className="object-cover"
-            onError={() => setImgFailed(true)}
-          />
-        )}
-        {!hasImage && (
-          <div className="absolute inset-0 flex items-center justify-center px-2 text-center">
-            <span
-              className="font-black leading-tight line-clamp-2 break-words"
-              style={{
-                color: "#8a6418",
-                fontSize:
-                  (product.name || "").length > 14 ? "12px"
-                    : (product.name || "").length > 10 ? "14px"
-                      : (product.name || "").length > 7 ? "16px"
-                        : "19px",
-                letterSpacing: "-0.3px",
-                lineHeight: 1.05,
-              }}
-              lang="sv"
-            >
-              {product.name}
-            </span>
-          </div>
-        )}
-        {/* Flytande "+"-bubbla i nedre högra hörnet på bilden, krymper
-            mot textraden så den syns över skarven utan att täcka pris. */}
-        <span
-          className="absolute right-1.5 -bottom-3 w-7 h-7 rounded-full grid place-items-center font-black text-[14px] leading-none"
-          style={{
-            backgroundColor: "var(--accent, #c89a3c)",
-            color: "#1c1c1e",
-            border: "2.5px solid var(--bg-secondary)",
-            boxShadow: "0 2px 6px rgba(200,154,60,0.35)",
-          }}
-        >+</span>
-      </div>
-
-      {/* Undre 38% — namn (1 rad) + pris */}
-      <div className="flex-1 flex flex-col justify-between px-2.5 pt-2.5 pb-2 min-h-0">
-        <h3
-          className="m-0 font-black leading-tight line-clamp-1 overflow-hidden"
-          style={{
-            fontSize: "12.5px",
-            letterSpacing: "-0.3px",
-            color: "var(--text-primary)",
-          }}
-        >
+      <div className="flex-1 min-w-0 flex flex-col gap-1 pl-4 pr-3 py-3.5">
+        <h3 className="m-0 text-[15px] font-bold leading-tight line-clamp-1" style={{ color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
           {product.name}
         </h3>
-        <div className="flex items-baseline gap-1.5">
-          {original != null && original !== final && (
-            <span
-              className="text-[9px] font-bold line-through"
-              style={{ color: "var(--text-tertiary, #9a9a9a)" }}
-            >
-              {original}
-            </span>
-          )}
-          <span style={{
-            fontSize: "13px",
-            fontWeight: 900,
-            color: "var(--text-primary)",
-            letterSpacing: "-0.2px",
-          }}>
-            {final}
-            <small style={{
-              fontSize: "9px",
-              fontWeight: 700,
-              color: "var(--text-tertiary, #9a9a9a)",
-              marginLeft: 1,
-            }}>KR</small>
-          </span>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-/**
- * UniformCard — den nya menyns produktkort (uniform6-design).
- * Samma höjd för alla, bild eller text-only-platta upptill, namn + kort
- * beskrivning + pris under. Flytande "+"-knapp som overlay på bilden, och en
- * "🔥 Populär"-flagga i högra hörnet om kortet också finns i Mest Populära.
- */
-function UniformCard({ product, isPopular, onClick, disabled }: { product: any; isPopular?: boolean; onClick: () => void; disabled: boolean }) {
-  const { final, original } = getDisplayPrice(product);
-  const [imgFailed, setImgFailed] = useState(false);
-  useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
-  const hasImage = Boolean(product.imageUrl) && !imgFailed;
-  // Avlång rad: text till vänster, bild till höger. Ren och enkel.
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-disabled={disabled}
-      className={`group relative w-full rounded-2xl overflow-hidden text-left flex items-stretch transition-transform ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:scale-[0.99] cursor-pointer"}`}
-      style={{ height: "120px", backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 8px rgba(28,28,30,0.04), 0 1px 2px rgba(28,28,30,0.03)" }}
-    >
-      {/* Text till vänster */}
-      <div className="flex-1 min-w-0 flex flex-col gap-0.5 pl-4 pr-3 py-3">
-        {isPopular && (
-          <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: "#8a6418" }}>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C12 2 8 6 8 10C8 11.5 8.5 12.5 9 13C8 12 7 11 6 11C5 11 4 12 4 14C4 18 7.5 22 12 22C16.5 22 20 18.5 20 14C20 9 16 7 16 4C16 3 15 2 14 2C13 2 12.5 3 12 4C11.5 3 12 2 12 2Z"/></svg>
-            Populär
-          </span>
-        )}
-        <h3
-          className="m-0 font-black leading-tight overflow-hidden"
-          style={{ fontSize: "16px", letterSpacing: "-0.4px", color: "var(--text-primary)", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" as any }}
-        >
-          {product.name}
-        </h3>
-        {product.description && (
-          <p
-            className="m-0 leading-snug overflow-hidden"
-            style={{ fontSize: "11.5px", color: "var(--text-secondary)", fontWeight: 600, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as any }}
-          >
+        {showDescription && (
+          <p className="m-0 text-[12.5px] leading-snug line-clamp-1" style={{ color: "var(--text-secondary)" }}>
             {product.description}
           </p>
         )}
-        <div className="mt-auto flex items-center gap-2">
+        <div className="mt-1 flex items-center gap-2">
+          <span className="text-[15px] font-bold" style={{ color: original != null ? "var(--color-gold-600, #C28E2E)" : "var(--text-primary)", fontFeatureSettings: "'tnum'" }}>
+            {final} kr
+          </span>
           {original != null && original !== final && (
-            <span className="text-xs font-bold line-through" style={{ color: "var(--text-tertiary, #9a9a9a)" }}>
-              {original}
+            <span className="text-[12px] font-medium line-through" style={{ color: "var(--text-secondary)", opacity: 0.75 }}>
+              {original} kr
             </span>
           )}
-          <span style={{ fontSize: "16px", fontWeight: 900, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
-            {final}
-            <small style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-tertiary, #9a9a9a)", marginLeft: 2 }}>KR</small>
-          </span>
-          <div className="flex gap-1 ml-1">
-            {product.isVegan && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#22c55e" }} />}
-            {product.isVegetarian && !product.isVegan && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#f59e0b" }} />}
-            {product.isGlutenFree && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#38bdf8" }} />}
-          </div>
+          {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
+            <span className="flex items-center gap-1 ml-0.5">
+              {product.isVegan && <span title="Vegan" className="w-2 h-2 rounded-full bg-emerald-500" />}
+              {product.isVegetarian && !product.isVegan && <span title="Vegetariskt" className="w-2 h-2 rounded-full bg-amber-500" />}
+              {product.isGlutenFree && <span title="Glutenfritt" className="w-2 h-2 rounded-full bg-sky-400" />}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Bild till höger — inskjuten, rundad, med flytande add-knapp */}
-      <div
-        className="relative flex-shrink-0 my-2.5 mr-2.5 rounded-xl overflow-hidden"
-        style={{
-          width: "95px",
-          backgroundImage:
-            "radial-gradient(circle at 30% 30%, rgba(200,154,60,0.22) 0%, transparent 45%), linear-gradient(135deg, rgba(200,154,60,0.20) 0%, rgba(200,154,60,0.10) 100%)",
-        }}
-      >
-        {hasImage && (
+      {/* Bild till höger — inskjuten, rundad, med flytande guld-plus */}
+      <div className="relative shrink-0 w-[88px] h-[88px] my-3 mr-3 rounded-xl overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+        {hasImage ? (
           <Image
             src={product.imageUrl}
             alt={product.name}
             fill
-            sizes="120px"
+            sizes="96px"
             className="object-cover"
             onError={() => setImgFailed(true)}
           />
-        )}
-        {!hasImage && (
+        ) : (
           <div className="absolute inset-0 flex items-center justify-center px-1.5 text-center">
-            <span
-              className="font-black leading-tight overflow-hidden break-words"
-              style={{ color: "#8a6418", fontSize: "11px", letterSpacing: "-0.3px", lineHeight: 1.15, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as any }}
-              lang="sv"
-            >
+            <span className="text-[11px] font-bold leading-tight line-clamp-3 break-words" style={{ color: "var(--text-secondary)" }} lang="sv">
               {product.name}
             </span>
           </div>
         )}
-        {/* Flytande add-knapp */}
         <span
-          className="absolute right-1.5 bottom-1.5 w-8 h-8 rounded-full grid place-items-center font-black text-[17px] leading-none"
-          style={{ backgroundColor: "var(--accent, #c89a3c)", color: "#1c1c1e", boxShadow: "0 2px 8px rgba(200,154,60,0.4)" }}
+          aria-hidden="true"
+          className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full grid place-items-center"
+          style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.18)" }}
         >
-          +
+          <Plus size={15} strokeWidth={3} />
         </span>
       </div>
     </button>
-  );
-}
-
-/**
- * CompactProductCard — för 2-grid-vyn (drycker, sidor, chili cheese etc).
- * Square-bild ovan, namn + pris + plus-knapp under. Ingen beskrivning visas.
- */
-function CompactProductCard({ product, cartQty, onClick, disabled }: { product: any; cartQty: number; onClick: () => void; disabled: boolean }) {
-  const { final, original } = getDisplayPrice(product);
-  const [imgFailed, setImgFailed] = useState(false);
-  useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
-  const hasImage = Boolean(product.imageUrl) && !imgFailed;
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      whileTap={disabled ? undefined : { scale: 0.97 }}
-      disabled={disabled}
-      aria-disabled={disabled}
-      className={`group w-full text-left rounded-2xl overflow-hidden transition-all flex flex-col ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer"}`}
-      style={{
-        backgroundColor: "var(--bg-secondary)",
-        border: "1.5px solid rgba(28,28,30,0.08)",
-        boxShadow: "0 4px 14px rgba(28,28,30,0.04)",
-      }}
-    >
-      {hasImage ? (
-        <div className="relative w-full aspect-square overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
-          <Image src={product.imageUrl} alt={product.name} fill sizes="(max-width: 640px) 50vw, 220px" className="object-cover transition-transform duration-500 group-hover:scale-105" onError={() => setImgFailed(true)} />
-        </div>
-      ) : (
-        <div className="w-full aspect-square flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-          <ShoppingBag size={28} className="text-zinc-300" />
-        </div>
-      )}
-      <div className="p-2.5 flex flex-col gap-1">
-        <h4 className="text-sm font-bold leading-tight line-clamp-2 min-h-[2.4em]" style={{ color: "var(--text-primary)" }}>{product.name}</h4>
-        <div className="flex items-center justify-between mt-1">
-          <div className="flex flex-col">
-            {original != null && (
-              <span className="text-[10px] font-medium text-zinc-400 line-through leading-none">{original} kr</span>
-            )}
-            <span className={`text-sm font-black leading-tight ${original != null ? "text-gold-600" : ""}`} style={original == null ? { color: "var(--text-primary)" } : undefined}>{final} kr</span>
-            <DpointsBadge priceKr={final} rewardable={!!product.rewardable} className="mt-0.5" />
-          </div>
-          <div className="w-9 h-9 rounded-full bg-gold-500 flex items-center justify-center shadow-md shadow-gold-500/25 group-hover:bg-gold-400 transition-colors relative">
-            <Plus size={18} className="text-zinc-950" strokeWidth={2.8} />
-            {cartQty > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-zinc-950 text-gold-400 text-[10px] font-black flex items-center justify-center border-2 border-white">
-                {cartQty}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    </motion.button>
   );
 }
 
@@ -890,32 +559,28 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
     }))
     .filter((cat: any) => cat.products.length > 0);
 
-  const popularSet = new Set<string>();
-  const popularProducts: any[] = [];
 
   if (loading) {
     return (
       <div className="pb-32 md:pt-20 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
-        {/* Hero */}
-        <div className="skeleton w-full h-[32vh] sm:h-[40vh]" />
-        <div className="px-5 sm:px-6 lg:px-12 -mt-8 relative">
-          {/* Namn + cuisine */}
-          <div className="skeleton h-9 w-2/3 rounded-xl mb-3" />
-          <div className="skeleton h-4 w-1/3 rounded-lg mb-6" />
-          {/* Info/stat-rad */}
-          <div className="skeleton h-16 w-full rounded-2xl mb-6" />
-          {/* Sök */}
-          <div className="skeleton h-12 w-full rounded-full mb-6" />
-          {/* Kategori-grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 mb-8">
+        {/* Hero — matchar nya kompakta hero-höjden */}
+        <div className="skeleton w-full h-40 sm:h-56 !rounded-none" />
+        <div className="px-5 sm:px-6 lg:px-12 pt-5 relative max-w-5xl mx-auto">
+          {/* Namn + meta + inforad */}
+          <div className="skeleton h-8 w-2/3 rounded-xl mb-3" />
+          <div className="skeleton h-4 w-1/3 rounded-lg mb-2.5" />
+          <div className="skeleton h-4 w-2/4 rounded-lg mb-6" />
+          {/* Sök + kategori-pills */}
+          <div className="skeleton h-11 w-full rounded-full mb-3" />
+          <div className="flex gap-2 mb-8">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="skeleton aspect-square rounded-md" />
+              <div key={i} className="skeleton h-9 w-24 rounded-full" />
             ))}
           </div>
           {/* Produktrader */}
-          <div className="space-y-3">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="skeleton h-[120px] w-full rounded-2xl" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="skeleton h-[112px] w-full rounded-2xl" />
             ))}
           </div>
         </div>
@@ -929,24 +594,21 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         <div className="w-20 h-20 bg-rose-500/10 rounded-[2.5rem] border border-rose-500/20 flex items-center justify-center mb-8">
           <X size={40} className="text-rose-500" />
         </div>
-        <h2 className="text-2xl font-black uppercase italic tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{t("menu.errorTitle")}</h2>
-        <p className="text-xs font-bold uppercase tracking-widest mb-10 max-w-sm" style={{ color: "var(--text-secondary)" }}>{error || t("menu.restaurantNotFound")}</p>
-        <Link href="/" className="px-10 py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">{t("menu.goHome")}</Link>
+        <h2 className="text-2xl font-bold tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{t("menu.errorTitle")}</h2>
+        <p className="text-sm mb-10 max-w-sm" style={{ color: "var(--text-secondary)" }}>{error || t("menu.restaurantNotFound")}</p>
+        <Link href="/" className="px-8 py-4 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm active:scale-95 transition-all">{t("menu.goHome")}</Link>
       </div>
     );
   }
 
   const restaurantDisplayTitle = restaurant?.name || t("common.loading");
-  const titleParts = restaurantDisplayTitle.split(" ");
-  const firstWord = titleParts[0];
-  const restOfTitle = titleParts.slice(1).join(" ");
 
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
 
   return (
     <div className="pb-32 md:pt-20 selection:bg-gold-500/30 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
-      {/* ── Hero: kompakt 32vh på mobil, 40vh på desktop ─────────────────── */}
-      <div className="relative w-full h-[32vh] sm:h-[40vh] overflow-hidden">
+      {/* ── Hero: kompakt — bilden är kontext, inte huvudinnehåll ────────── */}
+      <div className="relative w-full h-40 sm:h-56 overflow-hidden">
         {heroImage ? (
           <img src={heroImage} alt={restaurant?.name} loading="eager" decoding="async" className="w-full h-full object-cover" />
         ) : (
@@ -1017,46 +679,34 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
       {/* ── Restaurang-info DIREKT under hero (titel, rating, knappar) ──── */}
       <div className="px-5 sm:px-6 lg:px-12 pt-4 sm:pt-6 max-w-5xl mx-auto">
-        <div className="flex items-start gap-3 flex-wrap">
-          <h1 className="font-black italic uppercase tracking-tight leading-[0.95] text-[2.4rem] sm:text-5xl">
-            <span style={{ color: "var(--text-primary)" }}>{firstWord}</span>
-            {restOfTitle && (
-              <>
-                {" "}
-                <span className="text-gold-500">{restOfTitle}</span>
-              </>
-            )}
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="m-0 font-bold tracking-tight leading-tight text-[1.65rem] sm:text-4xl" style={{ color: "var(--text-primary)" }}>
+            {restaurantDisplayTitle}
           </h1>
-          {/* Open/closed status now sits next to the title instead of being
-              stuck to the hero — easier to spot above the fold on mobile and
-              doesn't overlap the back button on small screens. */}
-          <div
-            className={`mt-2 sm:mt-3 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm ${
-              restaurant?.isOpen
-                ? "bg-emerald-500/95 text-white"
-                : "bg-rose-500/95 text-white"
-            }`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full bg-white ${restaurant?.isOpen ? "animate-pulse" : ""}`} />
-            <span className="text-[10px] font-black uppercase tracking-[0.15em]">
+          {/* Öppet/stängt — lugn badge bredvid titeln */}
+          <div className={`px-2.5 py-1 rounded-full flex items-center gap-1.5 ${restaurant?.isOpen ? "bg-emerald-500/10" : "bg-rose-500/10"}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${restaurant?.isOpen ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+            <span className={`text-[11px] font-bold ${restaurant?.isOpen ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"}`}>
               {restaurant?.isOpen ? t("menu.statusOpen") : t("menu.statusClosed")}
             </span>
           </div>
         </div>
-        {/* Inline metadata: cuisine · ★rating (votes) */}
-        <div className="mt-2.5 flex items-center gap-2 text-sm">
-          {restaurant?.cuisine && (
-            <span className="font-bold uppercase tracking-wider text-xs" style={{ color: "var(--text-secondary)" }}>{restaurant.cuisine}</span>
-          )}
-          {restaurant?.cuisine && <span className="text-zinc-300">·</span>}
+        {/* Metarad: ★ rating (antal) · cuisine */}
+        <div className="mt-2 flex items-center gap-2 text-sm">
           <Link
             href={`/r/${restaurantSlug || restaurant.slug}/reviews`}
             className="flex items-center gap-1.5 hover:opacity-75 transition-opacity"
           >
             <Star size={14} className="text-gold-500 fill-gold-500" />
             <span className="font-bold" style={{ color: "var(--text-primary)" }}>{(restaurant?.rating || 5.0).toFixed(1)}</span>
-            <span className="font-medium text-xs" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>({restaurant?.ratingCount || 1})</span>
+            <span className="font-medium text-xs" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>({restaurant?.ratingCount || 1})</span>
           </Link>
+          {restaurant?.cuisine && (
+            <>
+              <span style={{ color: "var(--text-secondary)", opacity: 0.5 }}>·</span>
+              <span className="font-medium text-[13px]" style={{ color: "var(--text-secondary)" }}>{restaurant.cuisine}</span>
+            </>
+          )}
         </div>
 
       </div>
@@ -1130,95 +780,54 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           <PreviouslyOrderedBar restaurantId={restaurant.id} restaurantSlug={restaurantSlug || restaurant.slug} />
         )}
 
-        {/* ── Stats-kort: 3 kolumner på desktop, kompakta på mobil ──
-            Tidigare hade kortet `grid-cols-3` även på 320px-skärmar →
-            "MINSTA ORDER" / "VÄNTETID" truncatedes till "MINSTA OR..." /
-            "VÄNTETI...". Nu: värdet är största elementet och får aldrig
-            wrappa, labels får wrappa till 2 rader, ikonen krymper på
-            extra-små viewports och horisontell padding minskas så all
-            text alltid syns. */}
-        {orderType === "DELIVERY" && <div className="grid grid-cols-3 mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 16px rgba(28,28,30,0.04)" }}>
-          {[
-            {
-              icon: Bike,
-              label: t("menu.stats.fee"),
-              value: (zoneAvailable === false && restaurant?.isOpen)
-                ? "–"
-                : (() => {
-                    // Avgift att visa: matchad zon om adressen löst en (zoneAvailable===true),
-                    // annars LÄGSTA aktiva zon-avgift — den riktiga fallbacken, inte bas-
-                    // defaulten (t.ex. 49). Zon-fee lagras i öre → /100. Ingen hårdkodning.
-                    const zones = Array.isArray((restaurant as any)?.deliveryZones) ? (restaurant as any).deliveryZones : [];
-                    const zoneFees = zones
-                      .filter((z: any) => z && z.isActive !== false && typeof z.fee === "number")
-                      .map((z: any) => z.fee / 100);
-                    const minZoneFee = zoneFees.length ? Math.min(...zoneFees) : undefined;
-                    const fee = zoneAvailable === true ? restaurant.deliveryFee : (minZoneFee ?? restaurant.deliveryFee);
-                    return fee === 0 ? t("menu.stats.free") : `${fee} kr`;
-                  })(),
-            },
-            {
-              icon: Clock,
-              label: t("menu.stats.eta"),
-              value: `~${restaurant.etaMinutes} ${t("menu.stats.min")}`,
-            },
-            {
-              icon: ShoppingBag,
-              label: t("menu.stats.minOrder"),
-              value: `${restaurant.minOrderAmount} kr`,
-            },
-          ].map((stat, i, arr) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={stat.label}
-                className={`flex items-center gap-2 px-2 py-3 sm:gap-2.5 sm:px-4 sm:py-4 ${i < arr.length - 1 ? "border-r" : ""}`}
-                style={{ borderColor: "rgba(28,28,30,0.06)" }}
-              >
-                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gold-500/10 flex items-center justify-center shrink-0">
-                  <Icon size={14} className="sm:[&]:size-4 text-gold-500" strokeWidth={2.2} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider leading-tight break-words" style={{ color: "var(--text-secondary)" }}>{stat.label}</div>
-                  <div className="text-xs sm:text-sm font-black leading-tight mt-0.5 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{stat.value}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>}
+        {/* ── Inforad: leveransfakta i EN tunn rad (ersätter stats-kortet).
+            Samma värden som förut — avgift (zon-logik intakt), väntetid och
+            minsta order — men utan kort-i-kort. Wrappar snyggt på 320px. */}
+        {orderType === "DELIVERY" && (
+          <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px]">
+            <span className="inline-flex items-center gap-1.5">
+              <Bike size={15} className="text-gold-500 shrink-0" strokeWidth={2.2} />
+              <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
+                {(zoneAvailable === false && restaurant?.isOpen)
+                  ? "–"
+                  : (() => {
+                      // Avgift att visa: matchad zon om adressen löst en (zoneAvailable===true),
+                      // annars LÄGSTA aktiva zon-avgift — den riktiga fallbacken, inte bas-
+                      // defaulten (t.ex. 49). Zon-fee lagras i öre → /100. Ingen hårdkodning.
+                      const zones = Array.isArray((restaurant as any)?.deliveryZones) ? (restaurant as any).deliveryZones : [];
+                      const zoneFees = zones
+                        .filter((z: any) => z && z.isActive !== false && typeof z.fee === "number")
+                        .map((z: any) => z.fee / 100);
+                      const minZoneFee = zoneFees.length ? Math.min(...zoneFees) : undefined;
+                      const fee = zoneAvailable === true ? restaurant.deliveryFee : (minZoneFee ?? restaurant.deliveryFee);
+                      return fee === 0 ? t("menu.stats.free") : `${fee} kr`;
+                    })()}
+              </span>
+              <span className="lowercase" style={{ color: "var(--text-secondary)" }}>{t("menu.stats.fee")}</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Clock size={15} className="text-gold-500 shrink-0" strokeWidth={2.2} />
+              <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{`~${restaurant.etaMinutes} ${t("menu.stats.min")}`}</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <ShoppingBag size={15} className="text-gold-500 shrink-0" strokeWidth={2.2} />
+              <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{restaurant.minOrderAmount} kr</span>
+              <span className="lowercase" style={{ color: "var(--text-secondary)" }}>{t("menu.stats.minOrder")}</span>
+            </span>
+          </div>
+        )}
 
-        {/* Avhämtningsläge: visa BARA avhämtningstid. Ingen leveransavgift och
-            ingen minsta-order (min-order gäller bara leverans).
-            pickupEtaMinutes är admin-satt (default 10, clamp 5–25). */}
-        {orderType === "PICKUP" && <div className="grid grid-cols-1 mb-6 rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 4px 16px rgba(28,28,30,0.04)" }}>
-          {[
-            {
-              icon: Clock,
-              label: t("cart.deliveryType.pickup"),
-              // Avhämtningstid = leveranstid − 5 min, clampad 5–25. Räknas alltid
-              // ur den visade leverans-ETA:n (etaMinutes) så värdet stämmer även
-              // om SSR-datan har ett gammalt cachat fält.
-              value: `~${Math.max(5, Math.min(25, (restaurant.etaMinutes ?? 30) - 5))} ${t("menu.stats.min")}`,
-            },
-          ].map((stat, i, arr) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={stat.label}
-                className={`flex items-center gap-2 px-2 py-3 sm:gap-2.5 sm:px-4 sm:py-4 ${i < arr.length - 1 ? "border-r" : ""}`}
-                style={{ borderColor: "rgba(28,28,30,0.06)" }}
-              >
-                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-gold-500/10 flex items-center justify-center shrink-0">
-                  <Icon size={14} className="sm:[&]:size-4 text-gold-500" strokeWidth={2.2} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider leading-tight break-words" style={{ color: "var(--text-secondary)" }}>{stat.label}</div>
-                  <div className="text-xs sm:text-sm font-black leading-tight mt-0.5 whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{stat.value}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>}
+        {/* Avhämtningsläge: visa BARA avhämtningstid (min-order gäller bara
+            leverans). Tid = leverans-ETA − 5 min, clampad 5–25. */}
+        {orderType === "PICKUP" && (
+          <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px]">
+            <span className="inline-flex items-center gap-1.5">
+              <Clock size={15} className="text-gold-500 shrink-0" strokeWidth={2.2} />
+              <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{`~${Math.max(5, Math.min(25, (restaurant.etaMinutes ?? 30) - 5))} ${t("menu.stats.min")}`}</span>
+              <span className="lowercase" style={{ color: "var(--text-secondary)" }}>{t("cart.deliveryType.pickup")}</span>
+            </span>
+          </div>
+        )}
 
         {/* ── STICKY header: tillbaka + sök (restaurangnamn) + kategori-pills ──
             Allt i EN sticky-bar som följer med vid scroll → back-knappen och
@@ -1239,11 +848,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
               }}
               aria-label={t("common.back")}
               className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-              style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)", color: "var(--text-primary)" }}
+              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
             >
               <ChevronLeft size={20} />
             </button>
-            <div className="flex-1 min-w-0 rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)" }}>
+            <div className="flex-1 min-w-0 rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
               <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
               <input
                 type="text"
@@ -1286,9 +895,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                     className={`px-4 py-2.5 rounded-full text-xs font-bold transition-all shrink-0 whitespace-nowrap ${
                       isActive
                         ? "bg-gold-500 text-zinc-950 shadow-md shadow-gold-500/25"
-                        : "hover:bg-zinc-50"
+                        : ""
                     }`}
-                    style={isActive ? {} : { backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.08)", color: "var(--text-primary)" }}
+                    style={isActive ? {} : { backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
                   >
                     {cat.name}
                   </motion.button>
@@ -1312,57 +921,21 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
              </motion.div>
            ) : (
              <>
-               {/* POPULÄRT — horisontell scroll-rail med slumpade rätter från
-                   huvudkategorin (bild-rätter får högre vikt). Produkten dubbleras
-                   nedan i sin riktiga kategori-sektion med en "Populär"-flagga. */}
-               {popularProducts.length > 0 && !searchTerm.trim() && (
-                 <section className="mb-2 -mx-5 sm:-mx-6 lg:-mx-12">
-                   <div className="flex items-center gap-2.5 mb-3 px-5 sm:px-6 lg:px-12">
-                     <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--accent, #c89a3c)" }}>
-                       <path d="M12 2C12 2 8 6 8 10C8 11.5 8.5 12.5 9 13C8 12 7 11 6 11C5 11 4 12 4 14C4 18 7.5 22 12 22C16.5 22 20 18.5 20 14C20 9 16 7 16 4C16 3 15 2 14 2C13 2 12.5 3 12 4C11.5 3 12 2 12 2Z"/>
-                     </svg>
-                     <h2 className="font-black leading-none m-0" style={{ fontSize: "26px", letterSpacing: "-0.7px", color: "var(--text-primary)" }}>
-                       Populärt
-                     </h2>
-                     <span className="ml-auto text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
-                       {popularProducts.length} val
-                     </span>
-                   </div>
-                   {/* gap-2 = tight spacing mellan kvadratiska kort.
-                       scroll-pl-* gör att `snap-start` respekterar left-padding
-                       så första kortet inte snäpper flush mot viewport-kanten. */}
-                   <div
-                     className="flex gap-2 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2 px-5 sm:px-6 lg:px-12 scroll-pl-5 sm:scroll-pl-6 lg:scroll-pl-12"
-                     style={{ WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
-                   >
-                     {popularProducts.map((p) => (
-                       <SquareRailCard
-                         key={`pop-${p.id}`}
-                         product={p}
-                         onClick={() => handleOpenProduct(p)}
-                         disabled={!restaurant?.isOpen || zoneAvailable === false}
-                       />
-                     ))}
-                   </div>
-                 </section>
-               )}
-
                {filteredCategories.map((cat: any) => (
                  <section key={cat.id} id={cat.id}>
-                   <div className="flex items-center gap-3 pt-5 pb-4 px-1">
-                     <h2 className="font-black leading-none m-0" style={{ fontSize: "26px", letterSpacing: "-0.7px", color: "var(--text-primary)" }}>
+                   <div className="flex items-baseline gap-3 pt-4 pb-3 px-1">
+                     <h2 className="m-0 text-lg sm:text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
                        {cat.name}
                      </h2>
-                     <span className="ml-auto text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                     <span className="ml-auto text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
                        {cat.products.length} {cat.products.length === 1 ? "rätt" : "rätter"}
                      </span>
                    </div>
-                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
                      {cat.products.map((p: any) => (
                        <UniformCard
                          key={p.id}
                          product={p}
-                         isPopular={popularSet.has(p.id)}
                          onClick={() => handleOpenProduct(p)}
                          disabled={!restaurant?.isOpen || zoneAvailable === false}
                        />

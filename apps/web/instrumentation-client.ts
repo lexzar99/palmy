@@ -26,13 +26,19 @@ function initSentryClient() {
     // Session replay endast vid error (privacy-first, kund-app)
     replaysSessionSampleRate: 0.0,
     replaysOnErrorSampleRate: 1.0,
-    integrations: [
-      Sentry.replayIntegration({
-        maskAllText: true,
-        blockAllMedia: true,
-      }),
-    ],
+    integrations: [],
   });
+  // Replay LAZY-laddas efter init (Sentry CDN) istället för statisk import —
+  // den statiska referensen drog in ~50 kB gzip replay-kod i VARJE sidladdning.
+  // Error-tracking funkar direkt; replay kopplas på när modulen kommit in.
+  // Misslyckas CDN-hämtningen (offline/adblock) förblir error-tracking intakt.
+  Sentry.lazyLoadIntegration("replayIntegration")
+    .then((replayIntegration) => {
+      Sentry.getClient()?.addIntegration(
+        replayIntegration({ maskAllText: true, blockAllMedia: true }),
+      );
+    })
+    .catch(() => {});
 }
 
 function hasFullConsent(): boolean {

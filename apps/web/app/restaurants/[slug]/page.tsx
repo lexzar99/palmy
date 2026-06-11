@@ -1,6 +1,5 @@
 import { Metadata } from "next";
 import MenuContent from "@/components/MenuContent";
-import FadeInWrapper from "@/components/FadeInWrapper";
 
 // ISR: cache the rendered page per slug for 5 min so 1000 same-restaurant loads
 // hit a cached shell instead of 1000 live SSR renders (each re-parsing ~1.5MB).
@@ -164,13 +163,15 @@ export default async function RestaurantPage({
         }
       : null;
 
+  // OBS: ingen FadeInWrapper här — den (framer-motion) väntade på hydrering
+  // innan innehållet blev synligt OCH dubblerade MenuContents egna CSS-fade
+  // (page-fade-in) → sidan låg halvtransparent i ~0.8s. CSS-faden räcker och
+  // startar direkt med SSR-paint, utan JS.
   return (
-    <FadeInWrapper>
-      <MenuContent
-        restaurantSlug={slug}
-        isStandalone={true}
-        initialData={initialData}
-      />
-    </FadeInWrapper>
+    <MenuContent
+      restaurantSlug={slug}
+      isStandalone={true}
+      initialData={initialData}
+    />
   );
 }
