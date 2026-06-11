@@ -6,30 +6,38 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw, Search } from "lucide-react";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
 import { Badge, Button, EmptyState, ErrorPanel, Input, LoadingPanel, PageHeader, Surface, Tabs } from "@/shared/components/ui";
-import { DeliveryModeBadge, deliveryModeMeta } from "@/shared/components/delivery-mode";
-import { formatCurrency, formatNumber, restaurantTierLabel } from "@/shared/utils/format";
+import { deliveryModeMeta } from "@/shared/components/delivery-mode";
 
 export function RestaurantsPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "open" | "attention" | "platform" | "self">("all");
+  const [cityFilter, setCityFilter] = useState<string>("all");
 
   const overview = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
+
+  // Unika städer → stad-växlare (chips) så man enkelt skiftar mellan städer.
+  const cities = useMemo(() => {
+    const set = new Set<string>();
+    (overview.data || []).forEach((r) => { if (r.city) set.add(r.city); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "sv"));
+  }, [overview.data]);
 
   const filtered = useMemo(() => {
     const items = overview.data || [];
     const q = search.trim().toLowerCase();
     return items.filter((r) => {
       const matchQ = !q || r.name.toLowerCase().includes(q) || r.slug.toLowerCase().includes(q) || (r.city || "").toLowerCase().includes(q);
+      const matchCity = cityFilter === "all" || r.city === cityFilter;
       const matchF =
         filter === "all" ? true
         : filter === "open" ? r.isOpen
         : filter === "platform" ? !r.selfDelivery
         : filter === "self" ? r.selfDelivery
         : (r.pendingOrders > 0 || !r.hasHours || r.reviewScore < 4.2);
-      return matchQ && matchF;
+      return matchQ && matchCity && matchF;
     });
-  }, [filter, overview.data, search]);
+  }, [filter, cityFilter, overview.data, search]);
 
   if (overview.isLoading) return <LoadingPanel label="Laddar restauranger…" />;
   if (overview.isError || !overview.data) return <ErrorPanel title="Kunde inte ladda restauranger" action={<Button onClick={() => void overview.refetch()}><RefreshCw size={16} /> Försök igen</Button>} />;
@@ -55,6 +63,16 @@ export function RestaurantsPage() {
       />
 
       <Surface className="px-6 py-5">
+        {/* Stad-växlare — primär kontroll för att skifta mellan städer */}
+        {cities.length > 1 && (
+          <div className="mb-4 overflow-x-auto pb-1">
+            <Tabs
+              value={cityFilter}
+              options={[{ value: "all", label: "Alla städer" }, ...cities.map((c) => ({ value: c, label: c }))]}
+              onChange={setCityFilter}
+            />
+          </div>
+        )}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           {/* Search */}
           <div className="relative w-full max-w-sm">
@@ -78,57 +96,39 @@ export function RestaurantsPage() {
 }
 
 function RestaurantCard({ restaurant: r, onClick }: { restaurant: ControlCenterRestaurantSnapshot; onClick: () => void }) {
-  const needsAttention = r.pendingOrders > 0 || !r.hasHours || r.reviewScore < 4.2;
-  // Prefer the profile pic (imageUrl), fall back to heroImageUrl, then to
-  // the food emoji. Image fields are now part of the snapshot from
-  // /api/admin/control-center so this isn't an any-cast anymore.
   const avatar = r.imageUrl || r.heroImageUrl;
+  // Vänster-kanten kodar leveransläge (vi kör / själv); detaljerad statistik
+  // bor på restaurang-detaljsidan — kortet håller bara namn, status, ort och
+  // ev. åtgärds-signal.
+  const hasSignal = r.pendingOrders > 0 || r.liveOrders > 0 || !r.hasHours;
   return (
-    <button type="button" onClick={onClick} className="surface-muted px-5 py-5 text-left hover:brightness-110 transition-all" style={{ borderLeft: `3px solid ${deliveryModeMeta(r.selfDelivery).color}` }}>
-      <div className="flex items-start gap-3">
+    <button
+      type="button"
+      onClick={onClick}
+      className="surface-muted flex flex-col gap-3 px-4 py-4 text-left transition-colors hover:bg-[var(--bg-hover)]"
+      style={{ borderLeft: `3px solid ${deliveryModeMeta(r.selfDelivery).color}` }}
+    >
+      <div className="flex items-center gap-3">
         {avatar ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatar} alt="" className="h-12 w-12 rounded-xl object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          <img src={avatar} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         ) : (
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-2xl shrink-0">🍽️</div>
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-xl">🍽️</div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <p className="font-black tracking-[-0.02em] leading-tight">{r.name}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate font-bold tracking-[-0.01em]">{r.name}</p>
             <Badge tone={r.isOpen ? "success" : "neutral"}>{r.isOpen ? "Öppen" : "Stängd"}</Badge>
           </div>
-          <p className="mt-0.5 text-xs text-[var(--text-muted)]">{r.city || ""}{r.city && r.slug ? " · " : ""}{r.slug}</p>
-          <div className="mt-1.5"><DeliveryModeBadge selfDelivery={r.selfDelivery} /></div>
+          <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{r.city || ""}{r.city && r.slug ? " · " : ""}{r.slug}</p>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
-          <p className="text-base font-black">{formatNumber(r.liveOrders)}</p>
-          <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Live</p>
-        </div>
-        <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
-          <p className="text-base font-black">{formatNumber(r.todayOrders)}</p>
-          <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Idag</p>
-        </div>
-        <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
-          <p className="text-base font-black">{formatCurrency(r.todayRevenue)}</p>
-          <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Intäkt</p>
-        </div>
-      </div>
-
-      {(needsAttention || r.pendingOrders > 0) && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {r.pendingOrders > 0 && <Badge tone="warning">{r.pendingOrders} väntande</Badge>}
+      {hasSignal && (
+        <div className="flex flex-wrap gap-1.5">
+          {r.pendingOrders > 0 && <Badge tone="warning">{r.pendingOrders} väntar</Badge>}
+          {r.liveOrders > 0 && <Badge tone="info">{r.liveOrders} live</Badge>}
           {!r.hasHours && <Badge tone="danger">Inga öppettider</Badge>}
-          {r.reviewScore < 4.2 && <Badge tone="neutral">{r.reviewScore.toFixed(1)} ★</Badge>}
-          <Badge tone="neutral">{restaurantTierLabel((r as any).featuredClass)}</Badge>
-        </div>
-      )}
-      {!needsAttention && r.pendingOrders === 0 && (
-        <div className="mt-3 flex gap-1.5">
-          <Badge tone="neutral">{restaurantTierLabel((r as any).featuredClass)}</Badge>
-          {r.reviewScore > 0 && <Badge tone="neutral">{r.reviewScore.toFixed(1)} ★</Badge>}
         </div>
       )}
     </button>
