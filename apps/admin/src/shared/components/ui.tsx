@@ -193,20 +193,22 @@ export function Tabs<T extends string>({
   value,
   options,
   onChange,
+  scroll,
 }: {
   value: T;
   options: Array<{ value: T; label: string }>;
   onChange: (value: T) => void;
+  scroll?: boolean;
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={cn("flex gap-2", scroll ? "flex-nowrap overflow-x-auto pb-1" : "flex-wrap")}>
       {options.map((option) => (
         <button
           key={option.value}
           type="button"
           onClick={() => onChange(option.value)}
           className={cn(
-            "rounded-lg border px-4 py-2.5 text-[13px] font-semibold tracking-[-0.005em] transition-colors",
+            "shrink-0 whitespace-nowrap rounded-lg border px-4 py-2.5 text-[13px] font-semibold tracking-[-0.005em] transition-colors",
             value === option.value
               ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]"
               : "border-[var(--border-subtle)] bg-transparent text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]",

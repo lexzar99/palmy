@@ -6,22 +6,22 @@ import { Badge, Button, ErrorPanel, PageHeader, Surface } from "@/shared/compone
 import { apiHealthQueryKey, getApiHealth, type ApiServiceStatus, type CapacityMetric } from "./api";
 
 const SEV_COLOR: Record<string, string> = {
-  ok: "#16a34a",
-  warning: "#f59e0b",
-  critical: "#f43f5e",
+  ok: "var(--success)",
+  warning: "var(--warning)",
+  critical: "var(--danger)",
   info: "var(--text-secondary)",
 };
 
 function MetricRow({ m }: { m: CapacityMetric }) {
   const color = SEV_COLOR[m.severity] ?? "var(--text-secondary)";
   return (
-    <div className="py-2 border-b last:border-0" style={{ borderColor: "var(--border-muted)" }}>
+    <div className="py-2 border-b last:border-0" style={{ borderColor: "var(--border-subtle)" }}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{m.label}</span>
         <span className="text-sm font-bold" style={{ color }}>{m.value}</span>
       </div>
       {m.pct != null && (
-        <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--border-muted)" }}>
+        <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--border-subtle)" }}>
           <div className="h-full" style={{ width: `${Math.min(100, m.pct)}%`, backgroundColor: color }} />
         </div>
       )}
@@ -51,7 +51,7 @@ export function ApiHealthPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="page-stack">
       <PageHeader
         title="API-status"
         actions={
@@ -60,17 +60,12 @@ export function ApiHealthPage() {
           </Button>
         }
       />
-      <p className="text-sm text-[var(--text-secondary)]">
-        Live-status, konfiguration och vår användning per extern tjänst. Är något trasigt ser du direkt om
-        det är ett API-/kvotfel (status &quot;Fel&quot; med detalj) eller om tjänsten svarar OK (då ligger felet i koden).
-        Inga nyckel- eller secret-värden visas — bara namnen.
-      </p>
 
       {data?.capacity && (
         <div className="space-y-4">
           {data.capacity.alerts.length > 0 && (
             <Surface className="p-4">
-              <p className="text-sm font-black" style={{ color: data.capacity.worst === "critical" ? "#f43f5e" : "#f59e0b" }}>
+              <p className="text-sm font-black" style={{ color: data.capacity.worst === "critical" ? "var(--danger)" : "var(--warning)" }}>
                 ⚠ {data.capacity.alerts.length} sak(er) att hålla koll på
               </p>
               <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-xs" style={{ color: "var(--text-secondary)" }}>
@@ -137,12 +132,12 @@ export function ApiHealthPage() {
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs">
                       <span className="text-[var(--text-secondary)]">Användning ({s.usage.period})</span>
-                      <span className="font-bold" style={{ color: near ? "#f43f5e" : "var(--text-primary)" }}>
+                      <span className="font-bold" style={{ color: near ? "var(--danger)" : "var(--text-primary)" }}>
                         {s.usage.used.toLocaleString("sv-SE")} / {s.usage.limit.toLocaleString("sv-SE")}
                       </span>
                     </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--border-muted)" }}>
-                      <div className="h-full" style={{ width: `${pct}%`, backgroundColor: near ? "#f43f5e" : "var(--accent-strong)" }} />
+                    <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: "var(--border-subtle)" }}>
+                      <div className="h-full" style={{ width: `${pct}%`, backgroundColor: near ? "var(--danger)" : "var(--accent-strong)" }} />
                     </div>
                     <p className="text-[11px] text-[var(--text-secondary)]">
                       {s.usage.remaining?.toLocaleString("sv-SE")} kvar tills gräns

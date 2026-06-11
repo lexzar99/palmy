@@ -65,11 +65,12 @@ export function RestaurantsPage() {
       <Surface className="px-6 py-5">
         {/* Stad-växlare — primär kontroll för att skifta mellan städer */}
         {cities.length > 1 && (
-          <div className="mb-4 overflow-x-auto pb-1">
+          <div className="mb-4">
             <Tabs
               value={cityFilter}
               options={[{ value: "all", label: "Alla städer" }, ...cities.map((c) => ({ value: c, label: c }))]}
               onChange={setCityFilter}
+              scroll
             />
           </div>
         )}
