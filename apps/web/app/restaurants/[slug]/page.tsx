@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import MenuContent from "@/components/MenuContent";
+import { rehydrateMenuCategories } from "@/lib/menu";
 
 // ISR: cache the rendered page per slug for 5 min so 1000 same-restaurant loads
 // hit a cached shell instead of 1000 live SSR renders (each re-parsing ~1.5MB).
@@ -57,8 +58,11 @@ async function getMenu(
   slug: string,
 ): Promise<{ data: any; bytes: number } | null> {
   try {
+    // Begär normalized-formatet: tillvalsgrupper skickas en gång → mycket
+    // mindre payload för stora menyer (håller SSR-datan under cache-taket).
+    // `bytes` mäts på det FAKTISKA (mindre) svaret → fler menyer ryms i SSR.
     const res = await fetch(
-      `${API_URL}/api/menu/categories?slug=${encodeURIComponent(slug)}&v=20260428`,
+      `${API_URL}/api/menu/categories?slug=${encodeURIComponent(slug)}&format=normalized&v=20260428`,
       { next: { revalidate: 300, tags: [`menu:${slug}`] } },
     );
     if (!res.ok) return null;
@@ -152,12 +156,11 @@ export default async function RestaurantPage({
 
   // Seed initial data only when the menu is small enough AND the restaurant
   // resolved. Otherwise MenuContent falls back to its client fetch.
+  // Rehydrera normalized → inbäddade extraGroups så MenuContent får samma form.
   const initialData =
     menuFitsSSR && restaurant
       ? {
-          categories: Array.isArray(menuData)
-            ? menuData
-            : menuData?.categories || [],
+          categories: rehydrateMenuCategories(menuData),
           deals,
           restaurant,
         }

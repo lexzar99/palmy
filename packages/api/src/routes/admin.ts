@@ -7,7 +7,7 @@ import { authenticate, requireSuperAdmin, autoRoleGate, AuthRequest } from '../m
 import { audit } from '../lib/auditLog';
 import { getIO } from '../lib/socket';
 import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
-import { slugify } from '../lib/slug';
+import { slugify, uniqueMenuSlug } from '../lib/slug';
 import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
@@ -1252,16 +1252,26 @@ router.get('/categories', async (req, res) => {
 router.post('/categories', async (req, res) => {
   try {
     const { name, description, imageUrl, position, restaurantId } = req.body;
-    const slug = name.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
     const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
       ? (restaurantId ? String(restaurantId) : null)
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
+    // Restaurang-slug för scopad slug. Globala kategorier (scopedRestaurantId
+    // = null, super-admin utan vald restaurang) faller tillbaka på "global".
+    const restSlug = scopedRestaurantId
+      ? (await prisma.restaurant.findUnique({ where: { id: scopedRestaurantId }, select: { slug: true } }))?.slug ?? scopedRestaurantId
+      : 'global';
+    const slug = await uniqueMenuSlug(
+      name,
+      restSlug,
+      async (s) => !(await prisma.category.findUnique({ where: { slug: s }, select: { id: true } })),
+    );
+
     const category = await prisma.category.create({
       data: {
         name,
-        slug: `${slug}-${Date.now()}`,
+        slug,
         description,
         imageUrl,
         position: position || 0,
@@ -1542,29 +1552,39 @@ router.post('/products', async (req, res) => {
       return;
     }
     const data = parsed.data;
-    const slug = data.name.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
+
+    // Resolva kategorin EN gång → restaurang-id (auth) + restaurang-slug
+    // (slug-scope) + broadcast-target. Tidigare slogs den upp två gånger.
+    const category = await prisma.category.findUnique({
+      where: { id: data.categoryId },
+      select: { id: true, restaurantId: true, restaurant: { select: { slug: true } } },
+    });
+    if (!category) {
+      res.status(400).json({ error: 'Ogiltig kategori' });
+      return;
+    }
 
     if (!isSuperAdmin(req as AuthRequest)) {
       const rid = requireRestaurantScope(req as AuthRequest, res);
       if (!rid) return;
-      const category = await prisma.category.findUnique({
-        where: { id: data.categoryId },
-        select: { id: true, restaurantId: true },
-      });
-      if (!category) {
-        res.status(400).json({ error: 'Ogiltig kategori' });
-        return;
-      }
       if (category.restaurantId !== rid) {
         res.status(403).json({ error: 'Du kan bara skapa produkter i din restaurangs kategorier' });
         return;
       }
     }
 
+    // Deterministisk, restaurang-scopad slug — kedjeplatser kan ha samma
+    // produktnamn utan global slug-krock (se lib/slug.ts).
+    const slug = await uniqueMenuSlug(
+      data.name,
+      category.restaurant?.slug ?? category.restaurantId ?? 'r',
+      async (s) => !(await prisma.product.findUnique({ where: { slug: s }, select: { id: true } })),
+    );
+
     const product = await prisma.product.create({
       data: {
         name: data.name,
-        slug: `${slug}-${Date.now()}`,
+        slug,
         description: data.description ?? null,
         price: Math.round(data.price * 100),
         categoryId: data.categoryId,
@@ -1598,12 +1618,7 @@ router.post('/products', async (req, res) => {
       resourceId: product.id,
       changes: { name: data.name, price: data.price, categoryId: data.categoryId },
     });
-    // Resolve restaurantId via category for the broadcast
-    const cat = await prisma.category.findUnique({
-      where: { id: data.categoryId },
-      select: { restaurantId: true },
-    });
-    broadcastMenuChange(cat?.restaurantId ?? null, { kind: 'product', productId: product.id, created: true });
+    broadcastMenuChange(category.restaurantId ?? null, { kind: 'product', productId: product.id, created: true });
     res.status(201).json({ ...product, price: product.price / 100 });
   } catch (error: any) {
     console.error('Error creating product:', error);
@@ -1928,10 +1943,6 @@ router.delete('/extra-groups/:id', async (req, res) => {
 // Nya id genereras, originalet rörs inte.
 // =====================
 
-const copySlug = (base: string) => {
-  const random = Math.random().toString(36).slice(2, 6);
-  return `${base.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}-${random}`;
-};
 
 // POST /api/admin/extra-groups/:id/copy
 router.post('/extra-groups/:id/copy', async (req, res) => {
@@ -2007,10 +2018,14 @@ router.post('/categories/:id/copy', async (req, res) => {
       res.status(404).json({ error: 'Källan hittades inte' });
       return;
     }
+    const targetSlug = (await prisma.restaurant.findUnique({ where: { id: String(targetRestaurantId) }, select: { slug: true } }))?.slug ?? String(targetRestaurantId);
     const copy = await prisma.category.create({
       data: {
         name: source.name,
-        slug: copySlug(source.slug || source.name),
+        // Deterministisk scopad slug mot målrestaurangen (kollisionssäker,
+        // ersätter random copySlug). Re-kopiering ger samma slug → grund för
+        // master→plats-synk.
+        slug: await uniqueMenuSlug(source.name, targetSlug, async (s) => !(await prisma.category.findUnique({ where: { slug: s }, select: { id: true } }))),
         description: source.description,
         position: source.position,
         isActive: source.isActive,
@@ -2044,7 +2059,10 @@ router.post('/products/:id/copy', async (req, res) => {
       res.status(400).json({ error: 'targetRestaurantId + targetCategoryId krävs' });
       return;
     }
-    const targetCategory = await prisma.category.findUnique({ where: { id: String(targetCategoryId) } });
+    const targetCategory = await prisma.category.findUnique({
+      where: { id: String(targetCategoryId) },
+      select: { id: true, restaurantId: true, restaurant: { select: { slug: true } } },
+    });
     if (!targetCategory || targetCategory.restaurantId !== String(targetRestaurantId)) {
       res.status(400).json({ error: 'Målkategorin tillhör inte målrestaurangen' });
       return;
@@ -2057,7 +2075,9 @@ router.post('/products/:id/copy', async (req, res) => {
     const copy = await prisma.product.create({
       data: {
         name: source.name,
-        slug: copySlug(source.slug || source.name),
+        // Deterministisk scopad slug mot målrestaurangen (ersätter random
+        // copySlug → kollisionssäker även vid hela kedjemenyer).
+        slug: await uniqueMenuSlug(source.name, targetCategory.restaurant?.slug ?? String(targetRestaurantId), async (s) => !(await prisma.product.findUnique({ where: { slug: s }, select: { id: true } }))),
         description: source.description,
         price: source.price,
         categoryId: String(targetCategoryId),

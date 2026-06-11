@@ -19,6 +19,7 @@ import { useFavorites } from "@/lib/favoritesStore";
 import { type BogoPickerProduct } from "@/components/BogoPickerModal";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import EmptyState from "@/components/EmptyState";
+import { rehydrateMenuCategories, MENU_FORMAT_PARAM } from "@/lib/menu";
 
 // Tunga modaler laddas först vid interaktion (köp/adress/BOGO) → mindre initial
 // JS för restaurang-sidan = snabbare första rendering/hydration.
@@ -295,7 +296,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       const params: any = {};
       if (restaurantId) params.restaurantId = restaurantId;
       if (restaurantSlug) params.slug = restaurantSlug;
-      const menuParams = { ...params, v: "20260428" };
+      // format=normalized → mindre payload; rehydreras nedan till samma form.
+      const menuParams = { ...params, format: MENU_FORMAT_PARAM, v: "20260428" };
 
       const [menuRes, restaurantRes, dealsRes] = await Promise.all([
         axios.get(`${API_URL}/api/menu/categories`, { params: menuParams }),
@@ -303,10 +305,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         axios.get(`${API_URL}/api/deals`, { params: restaurantId ? { restaurantId } : restaurantSlug ? { slug: restaurantSlug } : {} }),
       ]);
 
-      // Endpoint returnerar { categories } (platt). Gammalt platt-array-format
-      // stöds som fallback.
-      const menuData = menuRes.data;
-      const nextCategories = Array.isArray(menuData) ? menuData : (menuData?.categories || []);
+      // Rehydrera (normalized → inbäddade extraGroups). Tål även default/array.
+      const nextCategories = rehydrateMenuCategories(menuRes.data);
       setCategories(nextCategories);
       setDeals(dealsRes.data);
       if (restaurantRes.data) {

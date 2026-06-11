@@ -15,14 +15,19 @@ const router = Router();
 const MENU_CACHE_TTL_MS = 8_000;
 type MenuCacheEntry = { payload: unknown; expiresAt: number };
 const menuCache = new Map<string, MenuCacheEntry>();
-const cacheKey = (rid: string | null) => `r:${rid ?? '_global'}`;
+// Format ingår i nyckeln: default- och normalized-svaren har olika form och
+// får aldrig dela cache-rad.
+const cacheKey = (rid: string | null, format: string = 'default') => `r:${rid ?? '_global'}:${format}`;
+const MENU_FORMATS = ['default', 'normalized'] as const;
 export function menuCacheBust(restaurantId: string | null = null) {
   if (restaurantId === null) {
     menuCache.clear();
     return;
   }
-  menuCache.delete(cacheKey(restaurantId));
-  menuCache.delete(cacheKey(null));
+  for (const fmt of MENU_FORMATS) {
+    menuCache.delete(cacheKey(restaurantId, fmt));
+    menuCache.delete(cacheKey(null, fmt));
+  }
 }
 
 const dealMatchesRestaurant = (deal: {
@@ -64,6 +69,11 @@ router.get('/categories', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     const { restaurantId, slug } = req.query;
     const hasRestaurantScope = Boolean(restaurantId || slug);
+    // ?format=normalized → tillvalsgrupper skickas EN gång i en top-level
+    // `extraGroups`-map och produkter bär bara `extraGroupIds`. Krymper en
+    // kedjemeny 5–10× (en dryckesgrupp med 30 val dupliceras annars i varje
+    // produkt). Default-formatet är oförändrat → Flutter/RN/äldre web opåverkade.
+    const normalized = req.query.format === 'normalized';
 
     // Hämta restaurang inkl. slug + city så vi kan bygga R2 predicted URLs
     // för bilder som saknas i databasen (Auto-discovery vid manuell R2-upload).
@@ -94,7 +104,7 @@ router.get('/categories', async (req, res) => {
 
     // Cache hit? Vi shufflar populär-raden per request även vid HIT så
     // discovery-känslan inte tappas på cached svar.
-    const ck = cacheKey(hasRestaurantScope ? (resolvedRestaurantId ?? null) : null);
+    const ck = cacheKey(hasRestaurantScope ? (resolvedRestaurantId ?? null) : null, normalized ? 'normalized' : 'default');
     const cached = menuCache.get(ck);
     if (cached && cached.expiresAt > Date.now()) {
       const payload: any = cached.payload;
@@ -204,6 +214,26 @@ router.get('/categories', async (req, res) => {
       console.info(`[menu] No active menu found for restaurant: ${slug || restaurantId}`);
     }
 
+    // Normalized-läge: dedupe-map för tillvalsgrupper (id → grupp en gång).
+    // Bygg ETT gruppobjekt per peg och återanvänd det — samma form oavsett läge.
+    const sharedGroups = new Map<string, any>();
+    const buildGroup = (peg: any) => ({
+      id: peg.extraGroup.id,
+      name: peg.extraGroup.name,
+      description: peg.extraGroup.description,
+      type: peg.extraGroup.type,
+      required: peg.extraGroup.required,
+      minSelections: peg.extraGroup.minSelections,
+      maxSelections: peg.extraGroup.maxSelections,
+      extras: peg.extraGroup.extras.map((e: any) => ({
+        id: e.id,
+        name: e.name,
+        priceAddon: e.priceAddon / 100,
+        isDefault: e.isDefault,
+      })),
+      position: peg.extraGroup.position || 0,
+    });
+
     // Formatera kategorier
     const formattedCategories = categories.map((cat: any) => ({
       id: cat.id,
@@ -223,6 +253,22 @@ router.get('/categories', async (req, res) => {
           category: catSlug,
           product: prodSlug,
         });
+        // Sortera grupperna på position (peg.extraGroup.position) — samma
+        // ordning som det inbäddade läget hade.
+        const sortedPegs = [...prod.extraGroups].sort(
+          (a: any, b: any) => (a.extraGroup.position || 0) - (b.extraGroup.position || 0),
+        );
+        // I normalized-läget bär produkten bara id:n och grupperna läggs i
+        // den delade mappen; i default-läget bäddas hela grupperna in (oförändrat).
+        let extraGroupsField: Record<string, any>;
+        if (normalized) {
+          for (const peg of sortedPegs) {
+            if (!sharedGroups.has(peg.extraGroup.id)) sharedGroups.set(peg.extraGroup.id, buildGroup(peg));
+          }
+          extraGroupsField = { extraGroupIds: sortedPegs.map((peg: any) => peg.extraGroup.id) };
+        } else {
+          extraGroupsField = { extraGroups: prod.extraGroups.map(buildGroup) };
+        }
         return ({
         ...toDisplayDiscount(prod, cat.id, primaryRestaurantId, activeDeals),
         id: prod.id,
@@ -240,22 +286,7 @@ router.get('/categories', async (req, res) => {
         // Dpoints: rewardable = köpbar med poäng. Klienten visar då poäng-pris
         // (price × valuePerKr) + "köp med poäng". Default false.
         rewardable: !!prod.rewardable,
-        extraGroups: prod.extraGroups.map((peg: any) => ({
-          id: peg.extraGroup.id,
-          name: peg.extraGroup.name,
-          description: peg.extraGroup.description,
-          type: peg.extraGroup.type,
-          required: peg.extraGroup.required,
-          minSelections: peg.extraGroup.minSelections,
-          maxSelections: peg.extraGroup.maxSelections,
-          extras: peg.extraGroup.extras.map((e: any) => ({
-            id: e.id,
-            name: e.name,
-            priceAddon: e.priceAddon / 100,
-            isDefault: e.isDefault,
-          })),
-          position: peg.extraGroup.position || 0,
-        })),
+        ...extraGroupsField,
         });
       }),
     }));
@@ -267,6 +298,8 @@ router.get('/categories', async (req, res) => {
     const payload = {
       mainCategories: [] as any[],
       categories: formattedCategories,
+      // Normalized: delad ordbok id → tillvalsgrupp (skickas EN gång).
+      ...(normalized ? { extraGroups: Object.fromEntries(sharedGroups) } : {}),
     };
 
     menuCache.set(ck, { payload, expiresAt: Date.now() + MENU_CACHE_TTL_MS });
