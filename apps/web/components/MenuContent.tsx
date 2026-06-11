@@ -52,10 +52,10 @@ function getDisplayPrice(p: any): { final: number; original: number | null } {
 }
 
 /**
- * UniformCard — menyns enda produktkort. Platt lista-rad: text till vänster
- * (namn 1 rad, beskrivning 1 rad, pris), bild 88px till höger med flytande
- * guld-plus. Alla färger via tema-variabler → fungerar i light OCH dark.
- * Guld används bara på plus-knappen och rabatterat pris.
+ * UniformCard — menyns produktrad (Foodora-stil): full-bredd, INGEN kort-box
+ * eller ram, bara en hårfin avdelare nedtill. Text vänster (namn, beskrivning,
+ * pris), bild 92px höger med flytande guld-plus. Utan bild: ren textrad med
+ * plus-knapp. Tema-variabler → light + dark. Guld bara på plus + rabattpris.
  */
 function UniformCard({ product, onClick, disabled }: { product: any; onClick: () => void; disabled: boolean }) {
   const { final, original } = getDisplayPrice(product);
@@ -63,31 +63,37 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
   useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
   const hasImage = Boolean(product.imageUrl) && !imgFailed;
   const showDescription = Boolean(product.description) && !product.hideDescription;
+  const discountPct = original != null && original > final ? Math.round((1 - final / original) * 100) : 0;
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       aria-disabled={disabled}
-      className={`group relative w-full rounded-2xl overflow-hidden text-left flex items-center transition-transform ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:scale-[0.99] cursor-pointer"}`}
-      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+      className={`group relative w-full text-left flex items-center gap-3 py-4 transition-opacity ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:opacity-70 cursor-pointer"}`}
+      style={{ borderBottom: "1px solid var(--border-muted)" }}
     >
-      <div className="flex-1 min-w-0 flex flex-col gap-1 pl-4 pr-3 py-3.5">
-        <h3 className="m-0 text-[15px] font-bold leading-tight line-clamp-1" style={{ color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
+      <div className="flex-1 min-w-0 flex flex-col gap-1">
+        <h3 className="m-0 text-[15px] font-bold leading-snug line-clamp-2" style={{ color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
           {product.name}
         </h3>
         {showDescription && (
-          <p className="m-0 text-[12.5px] leading-snug line-clamp-1" style={{ color: "var(--text-secondary)" }}>
+          <p className="m-0 text-[13px] leading-snug line-clamp-2" style={{ color: "var(--text-secondary)" }}>
             {product.description}
           </p>
         )}
-        <div className="mt-1 flex items-center gap-2">
+        <div className="mt-0.5 flex items-center gap-2 flex-wrap">
           <span className="text-[15px] font-bold" style={{ color: original != null ? "var(--color-gold-600, #C28E2E)" : "var(--text-primary)", fontFeatureSettings: "'tnum'" }}>
             {final} kr
           </span>
           {original != null && original !== final && (
             <span className="text-[12px] font-medium line-through" style={{ color: "var(--text-secondary)", opacity: 0.75 }}>
               {original} kr
+            </span>
+          )}
+          {discountPct > 0 && (
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e" }}>
+              −{discountPct}%
             </span>
           )}
           {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
@@ -100,10 +106,10 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
         </div>
       </div>
 
-      {/* Med bild: 88px ruta med flytande guld-plus. Utan bild: ingen ruta
-          alls — bara en ren textrad med plus-knappen till höger. */}
+      {/* Med bild: 92px ruta med flytande guld-plus. Utan bild: ren textrad
+          med plus-knappen till höger. */}
       {hasImage ? (
-        <div className="relative shrink-0 w-[88px] h-[88px] my-3 mr-3 rounded-xl overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+        <div className="relative shrink-0 w-[92px] h-[92px] rounded-xl overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
           <Image
             src={product.imageUrl}
             alt={product.name}
@@ -115,7 +121,7 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
           <span
             aria-hidden="true"
             className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full grid place-items-center"
-            style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.18)" }}
+            style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.22)" }}
           >
             <Plus size={15} strokeWidth={3} />
           </span>
@@ -123,7 +129,7 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
       ) : (
         <span
           aria-hidden="true"
-          className="shrink-0 mr-4 w-8 h-8 rounded-full grid place-items-center"
+          className="shrink-0 w-8 h-8 rounded-full grid place-items-center"
           style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.15)" }}
         >
           <Plus size={16} strokeWidth={3} />
@@ -569,7 +575,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       <div className="pb-32 md:pt-20" style={{ backgroundColor: "var(--bg-primary)" }}>
         {/* Hero — matchar nya kompakta hero-höjden */}
         <div className="skeleton w-full h-40 sm:h-56 !rounded-none" />
-        <div className="px-5 sm:px-6 lg:px-12 pt-5 relative max-w-5xl mx-auto">
+        <div className="px-4 sm:px-6 pt-5 relative max-w-2xl mx-auto">
           {/* Namn + meta + inforad */}
           <div className="skeleton h-8 w-2/3 rounded-xl mb-3" />
           <div className="skeleton h-4 w-1/3 rounded-lg mb-2.5" />
@@ -581,10 +587,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
               <div key={i} className="skeleton h-9 w-24 rounded-full" />
             ))}
           </div>
-          {/* Produktrader */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+          {/* Produktrader (full-bredd lista) */}
+          <div>
             {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="skeleton h-[112px] w-full rounded-2xl" />
+              <div key={i} className="skeleton h-[92px] w-full rounded-xl mb-2.5" />
             ))}
           </div>
         </div>
@@ -682,7 +688,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       </div>
 
       {/* ── Restaurang-info DIREKT under hero (titel, rating, knappar) ──── */}
-      <div className="px-5 sm:px-6 lg:px-12 pt-4 sm:pt-6 max-w-5xl mx-auto">
+      <div className="px-4 sm:px-6 pt-4 sm:pt-5 max-w-2xl mx-auto">
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="m-0 font-bold tracking-tight leading-tight text-[1.65rem] sm:text-4xl" style={{ color: "var(--text-primary)" }}>
             {restaurantDisplayTitle}
@@ -715,7 +721,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
       </div>
 
-      <div className="mx-auto max-w-5xl px-6 sm:px-8 lg:px-12 pt-4 sm:pt-6 relative">
+      <div className="mx-auto max-w-2xl px-4 sm:px-6 pt-4 relative">
 
         {/* Out-of-zone banner — only shown for OPEN restaurants; closed ones are handled by the closed state */}
         <AnimatePresence>
@@ -774,7 +780,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
         {/* Aktuella deal-banners för den här restaurangen */}
         {(restaurantSlug || restaurant?.slug) ? (
-          <div className="mb-5 -mx-6 sm:-mx-8 lg:-mx-12">
+          <div className="mb-5 -mx-4 sm:-mx-6">
             <DealBannerStrip slug={restaurantSlug || restaurant?.slug} />
           </div>
         ) : null}
@@ -925,7 +931,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
              <>
                {filteredCategories.map((cat: any) => (
                  <section key={cat.id} id={cat.id}>
-                   <div className="flex items-baseline gap-3 pt-4 pb-3 px-1">
+                   <div className="flex items-baseline gap-3 pt-4 pb-2">
                      <h2 className="m-0 text-lg sm:text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
                        {cat.name}
                      </h2>
@@ -933,7 +939,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                        {cat.products.length} {cat.products.length === 1 ? "rätt" : "rätter"}
                      </span>
                    </div>
-                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+                   {/* Full-width lista med hårfina avdelare (Foodora-stil) — inga
+                       kort-i-kort, ren bakgrund hela vägen ut till kanten. */}
+                   <div style={{ borderTop: "1px solid var(--border-muted)" }}>
                      {cat.products.map((p: any) => (
                        <UniformCard
                          key={p.id}
