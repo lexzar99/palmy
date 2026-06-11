@@ -7,10 +7,13 @@ import { AlertCircle, ChevronDown, ChevronUp, Loader2, RefreshCw } from "lucide-
 import {
   dashboardQueryKey,
   getControlCenter,
+  getRestaurantRefs,
   getSystemHealth,
   healthQueryKey,
+  restaurantRefsQueryKey,
   updateRestaurantLiveState,
 } from "@/modules/dashboard/api";
+import { TrendChart } from "@/modules/dashboard/TrendChart";
 import { Badge, Button, ErrorPanel, MetricCard, PageHeader, Surface } from "@/shared/components/ui";
 import {
   formatCurrency,
@@ -43,8 +46,17 @@ export function DashboardPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [showMore, toggleMore] = useLocalBool("dashboard:show-more", false);
+  // Scope: hela dashboarden kan filtreras per restaurang (backend stödjer det
+  // redan via ?restaurantId). Trendfönstret styr bara grafen.
+  const [restaurantScope, setRestaurantScope] = useState<string | null>(null);
+  const [trendDays, setTrendDays] = useState<7 | 30 | 90>(7);
 
-  const controlCenter = useQuery({ queryKey: dashboardQueryKey, queryFn: getControlCenter });
+  const controlCenter = useQuery({
+    queryKey: dashboardQueryKey({ restaurantId: restaurantScope, trendDays }),
+    queryFn: () => getControlCenter({ restaurantId: restaurantScope, trendDays }),
+    placeholderData: (prev) => prev,
+  });
+  const restaurantRefs = useQuery({ queryKey: restaurantRefsQueryKey, queryFn: getRestaurantRefs });
   const health = useQuery({
     queryKey: healthQueryKey,
     queryFn: getSystemHealth,
@@ -109,20 +121,39 @@ export function DashboardPage() {
       <PageHeader
         title="Översikt"
         actions={
-          <Button
-            variant="secondary"
-            onClick={() => {
-              void controlCenter.refetch();
-              void health.refetch();
-            }}
-          >
-            <RefreshCw size={13} /> Uppdatera
-          </Button>
+          <>
+            {/* Per-restaurang-vy: scopear ALLA siffror på sidan */}
+            <select
+              value={restaurantScope ?? ""}
+              onChange={(e) => setRestaurantScope(e.target.value || null)}
+              className="h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-colors hover:border-[var(--border-strong)]"
+              aria-label="Filtrera på restaurang"
+            >
+              <option value="">Alla restauranger</option>
+              {(restaurantRefs.data || []).map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                void controlCenter.refetch();
+                void health.refetch();
+              }}
+            >
+              <RefreshCw size={13} /> Uppdatera
+            </Button>
+          </>
         }
       />
 
-      {/* ── Three hero metrics ─────────────────────────── */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      {/* ── Hero: går det bra (intäkt + live), brinner något (åtgärd) ── */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Intäkt idag"
+          value={formatCurrency(data.summary.todayRevenue)}
+          detail={`${formatNumber(data.summary.todayOrders)} ordrar · snitt ${formatCurrency(data.summary.avgTicket)}`}
+        />
         <MetricCard
           label="Live ordrar"
           value={formatNumber(data.summary.liveOrders)}
@@ -152,6 +183,43 @@ export function DashboardPage() {
           }
         />
       </div>
+
+      {/* ── Trend: omsättning/ordrar per dag — alltid synlig ── */}
+      <Surface className="px-7 py-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="section-title">Försäljningstrend</h2>
+          <div className="flex gap-1">
+            {([7, 30, 90] as const).map((days) => (
+              <button
+                key={days}
+                type="button"
+                onClick={() => setTrendDays(days)}
+                className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                  trendDays === days
+                    ? "bg-[var(--accent)] text-[var(--accent-fg)]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
+                }`}
+              >
+                {days} dgr
+              </button>
+            ))}
+          </div>
+        </div>
+        <TrendChart points={data.trend} />
+        <div className="mt-3 flex flex-wrap gap-5 text-[12px] text-[var(--text-secondary)]">
+          <span>
+            Period: <span className="font-semibold text-[var(--text-primary)]">{formatCurrency(data.trend.reduce((s, p) => s + p.revenue, 0))}</span>
+          </span>
+          <span>
+            <span className="font-semibold text-[var(--text-primary)]">{formatNumber(data.trend.reduce((s, p) => s + p.orders, 0))}</span> ordrar
+          </span>
+          {restaurantScope && (
+            <span className="text-[var(--text-muted)]">
+              Visar: {(restaurantRefs.data || []).find((r) => r.id === restaurantScope)?.name ?? "vald restaurang"}
+            </span>
+          )}
+        </div>
+      </Surface>
 
       {/* ── Attention list — only if something needs action ── */}
       {totalAttention > 0 && (
@@ -207,18 +275,12 @@ export function DashboardPage() {
 
       {showMore && (
         <>
-          {/* Secondary metrics */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              label="Intäkt idag"
-              value={formatCurrency(data.summary.todayRevenue)}
-              detail={`${formatNumber(data.summary.todayOrders)} ordrar`}
-            />
+          {/* Secondary metrics — intäkt/snittorder bor numera i hero-raden */}
+          <div className="grid gap-4 sm:grid-cols-2">
             <MetricCard
               label="Utbetalning (mån)"
               value={formatCurrency(data.summary.monthlyPayoutExposure)}
             />
-            <MetricCard label="Snittorder" value={formatCurrency(data.summary.avgTicket)} />
             <MetricCard
               label="DB-latens"
               value={`${healthData.dbPingMs} ms`}

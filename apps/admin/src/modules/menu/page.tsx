@@ -89,7 +89,7 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
     <Modal
       open={open}
       onClose={onClose}
-      title={category ? "Edit category" : "New category"}
+      title={category ? "Redigera kategori" : "Ny kategori"}
       footer={
         <div className="flex items-center justify-between gap-3">
           <div>{category ? (
@@ -100,14 +100,14 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
                   deleteMutation.mutate();
                 }
               }}
-            >Delete</Button>
+            >Radera</Button>
           ) : null}</div>
-          <div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div>
+          <div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara"}</Button></div>
         </div>
       }
     >
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Name"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
+        <Field label="Namn"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
         <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
         <ImageUploadField
           label="Bild"
@@ -118,7 +118,7 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
           categoryId={category?.id || null}
         />
         <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
-        <div className="md:col-span-2"><Field label="Description"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
+        <div className="md:col-span-2"><Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
       </div>
     </Modal>
   );
@@ -221,7 +221,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
     <Modal
       open={open}
       onClose={onClose}
-      title={product ? "Edit product" : "New product"}
+      title={product ? "Redigera produkt" : "Ny produkt"}
       footer={<div className="flex items-center justify-between gap-3"><div>{product ? (
         <Button
           variant="danger"
@@ -230,13 +230,13 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
               deleteMutation.mutate();
             }
           }}
-        >Delete</Button>
-      ) : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div></div>}
+        >Radera</Button>
+      ) : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara"}</Button></div></div>}
     >
         <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Name"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
-        <Field label="Price"><Input type="number" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: Number(event.target.value) }))} /></Field>
-        <Field label="Category"><Select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select></Field>
+        <Field label="Namn"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
+        <Field label="Pris"><Input type="number" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: Number(event.target.value) }))} /></Field>
+        <Field label="Kategori"><Select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select></Field>
         <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
         <ImageUploadField
           label="Bild"
@@ -248,17 +248,17 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
           productId={product?.id || null}
         />
         <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
-        <div className="md:col-span-2"><Field label="Description"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
+        <div className="md:col-span-2"><Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Promotion shortcut</p>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">Products no longer own discount logic. Use Deals as the source of truth and open a product-specific deal from here when needed.</p>
             </div>
-            <Button variant="secondary" onClick={() => setPromotionModalOpen(true)} disabled={!product}>{productDeal ? "Edit product deal" : "Create product deal"}</Button>
+            <Button variant="secondary" onClick={() => setPromotionModalOpen(true)} disabled={!product}>{productDeal ? "Redigera produktdeal" : "Skapa produktdeal"}</Button>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            {product ? (productDeal ? <Badge tone="warning">Direct product deal</Badge> : <Badge tone="neutral">No direct product deal</Badge>) : <Badge tone="neutral">Save the product first</Badge>}
+            {product ? (productDeal ? <Badge tone="warning">Direkt produktdeal</Badge> : <Badge tone="neutral">Ingen produktdeal</Badge>) : <Badge tone="neutral">Spara produkten först</Badge>}
             {relatedCategoryDeals.length > 0 ? <Badge tone="info">{relatedCategoryDeals.length} category deal(s) apply</Badge> : null}
             {restaurantWideDeals.length > 0 ? <Badge tone="neutral">{restaurantWideDeals.length} restaurant-wide deal(s)</Badge> : null}
           </div>
@@ -420,7 +420,7 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
     <Modal
       open={open}
       onClose={onClose}
-      title={group ? "Edit extra group" : "New extra group"}
+      title={group ? "Redigera tillvalsgrupp" : "Ny tillvalsgrupp"}
       footer={<div className="flex items-center justify-between gap-3"><div>{group ? (
         <Button
           variant="danger"
@@ -429,13 +429,13 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
               deleteMutation.mutate();
             }
           }}
-        >Delete</Button>
-      ) : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div></div>}
+        >Radera</Button>
+      ) : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara"}</Button></div></div>}
     >
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
+        <Field label="Namn"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
         <Field label="Type"><Select value={type} onChange={(event) => setType(event.target.value)}><option value="CHECKBOX">Checkbox</option><option value="RADIO">Radio</option></Select></Field>
-        <Field label="Required"><Select value={required ? "yes" : "no"} onChange={(event) => setRequired(event.target.value === "yes")}><option value="no">No</option><option value="yes">Yes</option></Select></Field>
+        <Field label="Obligatorisk"><Select value={required ? "yes" : "no"} onChange={(event) => setRequired(event.target.value === "yes")}><option value="no">Nej</option><option value="yes">Ja</option></Select></Field>
         <Field label="Min selections"><Input type="number" value={minSelections} onChange={(event) => setMinSelections(Number(event.target.value))} /></Field>
         <Field label="Max selections"><Input type="number" value={maxSelections} onChange={(event) => setMaxSelections(Number(event.target.value))} /></Field>
         <div className="md:col-span-2 surface-muted px-4 py-4">
@@ -449,7 +449,7 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Extras</p>
-            <Button variant="secondary" onClick={() => setExtras((current) => [...current, { name: "", priceAddon: 0, isDefault: false }])}>Add row</Button>
+            <Button variant="secondary" onClick={() => setExtras((current) => [...current, { name: "", priceAddon: 0, isDefault: false }])}>Lägg till rad</Button>
           </div>
           <div className="mt-4 grid gap-3">
             {extras.map((extra, index) => (
@@ -1236,6 +1236,23 @@ export function MenuPage() {
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
 
+  // ── Bulk-redigering (Produkter-fliken) ───────────────────────────────
+  // Multi-select + åtgärdsrad: höj/sänk pris i %, byt kategori, visa/dölj.
+  const bulkQueryClient = useQueryClient();
+  const { showToast: showBulkToast } = useToast();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkPct, setBulkPct] = useState("");
+  const [bulkCategoryId, setBulkCategoryId] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const toggleSelected = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   const restaurants = useQuery({ queryKey: menuRestaurantsQueryKey, queryFn: getMenuRestaurants });
   const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
 
@@ -1295,6 +1312,52 @@ export function MenuPage() {
     return (groups.data || []).filter((group) => !lowerQuery || group.name.toLowerCase().includes(lowerQuery));
   }, [groups.data, query]);
 
+  // Rensa bulk-urvalet när man byter restaurang eller flik — annars kan ett
+  // gammalt urval råka träffa fel produkter.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setBulkPct("");
+    setBulkCategoryId("");
+  }, [activeRestaurantId, tab]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const allFilteredSelected = filteredProducts.length > 0 && filteredProducts.every((p) => selectedIds.has(p.id));
+
+  // Kör en bulk-uppdatering över markerade produkter. payloadFor returnerar
+  // PATCH-kroppen per produkt (null = hoppa över). Parallella anrop mot
+  // befintliga per-produkt-endpointen — atomicitet behövs inte här, och vid
+  // delfel visas hur många som lyckades.
+  const runBulk = async (payloadFor: (p: ProductRecord) => Record<string, unknown> | null, doneLabel: string) => {
+    const targets = (products.data || []).filter((p) => selectedIds.has(p.id));
+    if (targets.length === 0 || bulkBusy) return;
+    setBulkBusy(true);
+    let ok = 0;
+    let failed = 0;
+    await Promise.all(
+      targets.map(async (p) => {
+        const body = payloadFor(p);
+        if (!body) return;
+        try {
+          await updateProduct(p.id, body);
+          ok += 1;
+        } catch {
+          failed += 1;
+        }
+      }),
+    );
+    setBulkBusy(false);
+    await bulkQueryClient.invalidateQueries({ queryKey: menuProductsQueryKey(activeRestaurantId) });
+    if (failed > 0) {
+      showBulkToast({ type: "error", message: `${ok} ${doneLabel}, ${failed} misslyckades` });
+    } else {
+      showBulkToast({ type: "success", message: `${ok} ${doneLabel}` });
+      setSelectedIds(new Set());
+      setBulkPct("");
+      setBulkCategoryId("");
+    }
+  };
+
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!pendingRouteProductId || !products.data?.length) return;
@@ -1309,17 +1372,17 @@ export function MenuPage() {
 
 
   if (restaurants.isLoading) {
-    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading menu module...</Surface>;
+    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar menymodulen...</Surface>;
   }
 
   if (restaurants.isError || !restaurants.data) {
-    return <ErrorPanel title="Menu module could not be loaded" description="The restaurant list for menu operations is unavailable." action={<Button onClick={() => void restaurants.refetch()}>Retry</Button>} />;
+    return <ErrorPanel title="Menymodulen kunde inte laddas" description="Restauranglistan för menyhantering är inte tillgänglig." action={<Button onClick={() => void restaurants.refetch()}>Försök igen</Button>} />;
   }
 
   return (
     <div className="page-stack">
       <PageHeader
-        title="Menu"
+        title="Meny"
         actions={
           <>
             <R2MigrateButton />
@@ -1337,17 +1400,17 @@ export function MenuPage() {
             ) : null}
             {tab === "categories" && activeRestaurantId ? (
               <Button variant="primary" onClick={() => { setActiveCategory(null); setCategoryModalOpen(true); }}>
-                <Plus size={14} /> Category
+                <Plus size={14} /> Kategori
               </Button>
             ) : null}
             {tab === "products" && activeRestaurantId ? (
               <Button variant="primary" onClick={() => { setActiveProduct(null); setProductModalOpen(true); }}>
-                <Plus size={14} /> Product
+                <Plus size={14} /> Produkt
               </Button>
             ) : null}
             {tab === "extras" && activeRestaurantId ? (
               <Button variant="primary" onClick={() => { setActiveGroup(null); setGroupModalOpen(true); }}>
-                <Tags size={14} /> Extra group
+                <Tags size={14} /> Tillvalsgrupp
               </Button>
             ) : null}
           </>
@@ -1362,23 +1425,23 @@ export function MenuPage() {
         <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative flex-1">
             <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter..." />
+            <Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Sök i menyn..." />
           </div>
-          <Tabs value={tab} onChange={setTab} options={[{ value: "categories", label: "Categories" }, { value: "products", label: "Products" }, { value: "extras", label: "Extras" }]} />
+          <Tabs value={tab} onChange={setTab} options={[{ value: "categories", label: "Kategorier" }, { value: "products", label: "Produkter" }, { value: "extras", label: "Tillval" }]} />
         </div>
 
         {tab === "categories" ? (
           <div className="mt-5 grid gap-2">
-            {filteredCategories.length === 0 ? <EmptyState title="No categories found" /> : filteredCategories.map((category) => (
+            {filteredCategories.length === 0 ? <EmptyState title="Inga kategorier hittades" /> : filteredCategories.map((category) => (
               <button key={category.id} type="button" onClick={() => { setActiveCategory(category); setCategoryModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-lg font-black tracking-[-0.02em]">{category.name}</p>
-                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{category.description || "No description"}</p>
+                    <p className="text-base font-semibold tracking-[-0.01em]">{category.name}</p>
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{category.description || "Ingen beskrivning"}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge tone={category.isActive === false ? "danger" : "success"}>{category.isActive === false ? "Inactive" : "Active"}</Badge>
-                    <Badge tone="neutral">{category._count?.products || 0} products</Badge>
+                    <Badge tone={category.isActive === false ? "danger" : "success"}>{category.isActive === false ? "Dold" : "Aktiv"}</Badge>
+                    <Badge tone="neutral">{category._count?.products || 0} produkter</Badge>
                   </div>
                 </div>
               </button>
@@ -1388,39 +1451,120 @@ export function MenuPage() {
 
         {tab === "products" ? (
           <div className="mt-5 grid gap-2">
-            {filteredProducts.length === 0 ? <EmptyState title="No products found" /> : filteredProducts.map((product) => (
-              <button key={product.id} type="button" onClick={() => { setActiveProduct(product); setProductModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-lg font-black tracking-[-0.02em]">{product.name}</p>
-                      <Badge tone={product.isActive === false ? "danger" : "success"}>{product.isActive === false ? "Inactive" : "Active"}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{product.category.name} • {product.description || "No description"}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {product.extraGroups.map((group) => <Badge key={group.id} tone="info">{group.name}</Badge>)}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-black">{formatCurrency(product.price)}</p>
-                    <p className="mt-2 text-sm text-[var(--text-secondary)]">Position {product.position}</p>
-                  </div>
+            {/* Markera alla + bulk-åtgärdsrad */}
+            {filteredProducts.length > 0 && (
+              <div className="flex flex-wrap items-center gap-3 px-1 pb-1">
+                <label className="flex cursor-pointer select-none items-center gap-2 text-[13px] text-[var(--text-secondary)]">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={() =>
+                      setSelectedIds(allFilteredSelected ? new Set() : new Set(filteredProducts.map((p) => p.id)))
+                    }
+                    className="h-4 w-4 accent-[var(--accent)]"
+                  />
+                  {selectedIds.size > 0 ? `${selectedIds.size} markerade` : "Markera alla"}
+                </label>
+              </div>
+            )}
+            {selectedIds.size > 0 && (
+              <div className="surface-muted sticky top-2 z-10 flex flex-wrap items-center gap-2 px-4 py-3">
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    value={bulkPct}
+                    onChange={(e) => setBulkPct(e.target.value)}
+                    placeholder="±%"
+                    className="w-20"
+                  />
+                  <Button
+                    variant="secondary"
+                    disabled={bulkBusy || !bulkPct || Number.isNaN(Number(bulkPct)) || Number(bulkPct) === 0}
+                    onClick={() => {
+                      const pct = Number(bulkPct);
+                      void runBulk(
+                        (p) => ({ price: Math.max(0, Math.round(p.price * (1 + pct / 100))) }),
+                        `produkter prisjusterade ${pct > 0 ? "+" : ""}${pct} %`,
+                      );
+                    }}
+                  >
+                    Justera pris
+                  </Button>
                 </div>
-              </button>
+                <div className="flex items-center gap-1.5">
+                  <Select value={bulkCategoryId} onChange={(e) => setBulkCategoryId(e.target.value)} className="min-w-[160px]">
+                    <option value="">Flytta till kategori…</option>
+                    {(categories.data || []).map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </Select>
+                  <Button
+                    variant="secondary"
+                    disabled={bulkBusy || !bulkCategoryId}
+                    onClick={() => void runBulk(() => ({ categoryId: bulkCategoryId }), "produkter flyttade")}
+                  >
+                    Flytta
+                  </Button>
+                </div>
+                <div className="ml-auto flex items-center gap-1.5">
+                  {bulkBusy && <Loader2 size={14} className="animate-spin text-[var(--text-muted)]" />}
+                  <Button variant="secondary" disabled={bulkBusy} onClick={() => void runBulk(() => ({ isActive: true }), "produkter visade")}>
+                    Visa
+                  </Button>
+                  <Button variant="secondary" disabled={bulkBusy} onClick={() => void runBulk(() => ({ isActive: false }), "produkter dolda")}>
+                    Dölj
+                  </Button>
+                  <Button variant="secondary" disabled={bulkBusy} onClick={() => setSelectedIds(new Set())}>
+                    Avmarkera
+                  </Button>
+                </div>
+              </div>
+            )}
+            {filteredProducts.length === 0 ? <EmptyState title="Inga produkter hittades" /> : filteredProducts.map((product) => (
+              <div key={product.id} className="surface-muted flex w-full items-start gap-3 px-4 py-4">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(product.id)}
+                  onChange={() => toggleSelected(product.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={`Markera ${product.name}`}
+                  className="mt-1.5 h-4 w-4 shrink-0 accent-[var(--accent)]"
+                />
+                <button type="button" onClick={() => { setActiveProduct(product); setProductModalOpen(true); }} className="min-w-0 flex-1 text-left">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-base font-semibold tracking-[-0.01em]">{product.name}</p>
+                        <Badge tone={product.isActive === false ? "danger" : "success"}>{product.isActive === false ? "Dold" : "Aktiv"}</Badge>
+                      </div>
+                      <p className="mt-1.5 text-sm text-[var(--text-secondary)]">{product.category.name} • {product.description || "Ingen beskrivning"}</p>
+                      {product.extraGroups.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {product.extraGroups.map((group) => <Badge key={group.id} tone="info">{group.name}</Badge>)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-base font-semibold">{formatCurrency(product.price)}</p>
+                      <p className="mt-1 text-[12px] text-[var(--text-muted)]">Position {product.position}</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
             ))}
           </div>
         ) : null}
 
         {tab === "extras" ? (
           <div className="mt-5 grid gap-2">
-            {filteredGroups.length === 0 ? <EmptyState title="No extra groups found" /> : filteredGroups.map((group) => (
+            {filteredGroups.length === 0 ? <EmptyState title="Inga tillvalsgrupper hittades" /> : filteredGroups.map((group) => (
               <button key={group.id} type="button" onClick={() => { setActiveGroup(group); setGroupModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-lg font-black tracking-[-0.02em]">{group.name}</p>
+                      <p className="text-base font-semibold tracking-[-0.01em]">{group.name}</p>
                       <Badge tone="neutral">{group.type}</Badge>
-                      {group.required ? <Badge tone="warning">Required</Badge> : null}
+                      {group.required ? <Badge tone="warning">Obligatorisk</Badge> : null}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {group.extras.map((extra, index) => <Badge key={`${group.id}-${index}`} tone="info">{extra.name} {extra.priceAddon ? `+ ${formatCurrency(extra.priceAddon)}` : ""}</Badge>)}
@@ -1429,7 +1573,7 @@ export function MenuPage() {
                   <div className="text-right text-sm text-[var(--text-secondary)]">
                     <div>Min {group.minSelections}</div>
                     <div>Max {group.maxSelections}</div>
-                    <div>{group._count?.productGroups || 0} linked products</div>
+                    <div>{group._count?.productGroups || 0} kopplade produkter</div>
                   </div>
                 </div>
               </button>

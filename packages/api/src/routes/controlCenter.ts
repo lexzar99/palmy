@@ -242,20 +242,27 @@ router.get('/control-center', async (req, res) => {
       return acc;
     }, {});
 
+    // Trend-fönster väljs av klienten: 7 (default), 30 eller 90 dagar.
+    // 7/30 byggs ur recentOrders (30d-fetchen), 90 ur customerOrders (90d).
+    // Etikett: veckodag för 7d, "d/M" för längre fönster.
+    const trendDays = [7, 30, 90].includes(Number(req.query.trendDays)) ? Number(req.query.trendDays) : 7;
+    const trendSource = trendDays > 30 ? customerOrders : recentOrders;
     const trendMap = new Map<string, { label: string; revenue: number; orders: number }>();
-    for (let offset = 6; offset >= 0; offset -= 1) {
+    for (let offset = trendDays - 1; offset >= 0; offset -= 1) {
       const day = startOfToday();
       day.setDate(day.getDate() - offset);
       const key = day.toISOString().slice(0, 10);
       trendMap.set(key, {
-        label: day.toLocaleDateString('sv-SE', { weekday: 'short' }),
+        label: trendDays === 7
+          ? day.toLocaleDateString('sv-SE', { weekday: 'short' })
+          : day.toLocaleDateString('sv-SE', { day: 'numeric', month: 'numeric' }),
         revenue: 0,
         orders: 0,
       });
     }
 
     const todayOrders = recentOrders.filter((order) => new Date(order.createdAt) >= today);
-    for (const order of recentOrders) {
+    for (const order of trendSource) {
       const key = new Date(order.createdAt).toISOString().slice(0, 10);
       const entry = trendMap.get(key);
       if (entry) {

@@ -125,10 +125,27 @@ export interface SystemHealth {
   alerts: Array<{ level: "info" | "warning"; message: string }>;
 }
 
-export const dashboardQueryKey = ["dashboard", "control-center"] as const;
+export interface ControlCenterParams {
+  restaurantId?: string | null;
+  trendDays?: 7 | 30 | 90;
+}
+
+export const dashboardQueryKey = (params: ControlCenterParams = {}) =>
+  ["dashboard", "control-center", params.restaurantId ?? null, params.trendDays ?? 7] as const;
 export const healthQueryKey = ["dashboard", "health"] as const;
 
-export const getControlCenter = () => apiGet<ControlCenterData>("/admin/control-center");
+// Lättviktig restauranglista för scope-väljaren (samma endpoint som menyn).
+export interface RestaurantRef { id: string; name: string }
+export const restaurantRefsQueryKey = ["dashboard", "restaurant-refs"] as const;
+export const getRestaurantRefs = () => apiGet<RestaurantRef[]>("/restaurants");
+
+export const getControlCenter = (params: ControlCenterParams = {}) => {
+  const search = new URLSearchParams();
+  if (params.restaurantId) search.set("restaurantId", params.restaurantId);
+  if (params.trendDays && params.trendDays !== 7) search.set("trendDays", String(params.trendDays));
+  const qs = search.toString();
+  return apiGet<ControlCenterData>(`/admin/control-center${qs ? `?${qs}` : ""}`);
+};
 
 export const getSystemHealth = () => apiGet<SystemHealth>("/admin/system/health");
 
