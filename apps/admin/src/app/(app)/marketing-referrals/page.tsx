@@ -1,5 +1,5 @@
-import { MarketingReferralsPage } from "@/modules/marketing-referrals/page";
+import { WelcomeCampaignPage } from "@/modules/marketing-referrals/welcome-page";
 
 export default function RouteMarketingReferralsPage() {
-  return <MarketingReferralsPage />;
+  return <WelcomeCampaignPage />;
 }

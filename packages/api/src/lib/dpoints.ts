@@ -348,38 +348,55 @@ export async function getActiveSponsorCard() {
  *  - Nytt konto (skapat senaste 30 dagarna)
  *  - Har inte redan en SIGNUP_BONUS-rad
  */
-export async function getSignupClaim(userId: string): Promise<{ claimable: boolean; bonusPoints: number }> {
+// Poäng-belöningens config (styrs från Välkomstkampanj-panelen). Sponsor-valfri:
+// sponsorCardId satt = sponsor-brandad bonus, null = ren plattform-bonus.
+async function getWelcomePointsConfig(): Promise<{ active: boolean; amount: number; sponsorCardId: string | null }> {
+  const s = (await prisma.restaurantSettings.findUnique({
+    where: { id: 'settings' },
+    select: { welcomePointsActive: true, welcomePointsAmount: true, welcomePointsSponsorCardId: true } as any,
+  })) as any;
+  return {
+    active: !!s?.welcomePointsActive,
+    amount: s?.welcomePointsAmount ?? 0,
+    sponsorCardId: s?.welcomePointsSponsorCardId ?? null,
+  };
+}
+
+export async function getSignupClaim(userId: string): Promise<{ claimable: boolean; bonusPoints: number; sponsorName?: string | null }> {
   const settings = await getDpointsSettings();
   if (!settings.dpointsEnabled) return { claimable: false, bonusPoints: 0 };
-  const card = await getActiveSponsorCard();
-  if (!card || card.bonusPoints <= 0) return { claimable: false, bonusPoints: 0 };
+  const wp = await getWelcomePointsConfig();
+  if (!wp.active || wp.amount <= 0) return { claimable: false, bonusPoints: 0 };
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
-  if (!user) return { claimable: false, bonusPoints: card.bonusPoints };
+  if (!user) return { claimable: false, bonusPoints: wp.amount };
   const ageDays = (Date.now() - user.createdAt.getTime()) / 86_400_000;
-  if (ageDays > 30) return { claimable: false, bonusPoints: card.bonusPoints };
+  if (ageDays > 30) return { claimable: false, bonusPoints: wp.amount };
   const already = await prisma.pointsTransaction.findFirst({ where: { userId, type: 'SIGNUP_BONUS' }, select: { id: true } });
-  return { claimable: !already, bonusPoints: card.bonusPoints };
+  let sponsorName: string | null = null;
+  if (wp.sponsorCardId) {
+    const card = await prisma.sponsorCard.findUnique({ where: { id: wp.sponsorCardId }, select: { sponsorName: true } });
+    sponsorName = card?.sponsorName ?? null;
+  }
+  return { claimable: !already, bonusPoints: wp.amount, sponsorName };
 }
 
 // Hämta välkomstbonusen. Kund-initierad (efter registrering). Idempotent guard
 // mot dubbel-bonus.
 export async function claimSignupBonus(userId: string): Promise<{ points: number } | { error: string }> {
   const info = await getSignupClaim(userId);
-  if (!info.claimable) return { error: 'Du är inte berättigad till välkomstbonusen' };
-  const card = await getActiveSponsorCard();
-  if (!card) return { error: 'Inget aktivt erbjudande' };
+  if (!info.claimable || info.bonusPoints <= 0) return { error: 'Du är inte berättigad till välkomstbonusen' };
   const already = await prisma.pointsTransaction.findFirst({ where: { userId, type: 'SIGNUP_BONUS' }, select: { id: true } });
   if (already) return { error: 'Bonusen är redan hämtad' };
   const settings = await getDpointsSettings();
   await recordPointsTx({
     userId,
-    amount: card.bonusPoints,
+    amount: info.bonusPoints,
     type: 'SIGNUP_BONUS',
-    reason: card.sponsorName ? `Välkomstbonus (${card.sponsorName})` : 'Välkomstbonus',
-    metadata: { sponsorCardId: card.id },
+    reason: info.sponsorName ? `Välkomstbonus (${info.sponsorName})` : 'Välkomstbonus',
+    metadata: info.sponsorName ? { sponsor: info.sponsorName } : {},
     cap: settings.dpointsMaxBalance,
   });
-  return { points: card.bonusPoints };
+  return { points: info.bonusPoints };
 }
 
 // ── Återbetalning ─────────────────────────────────────────────────────────────

@@ -759,16 +759,26 @@ adminRouter.get('/welcome-deal', authenticate, requireSuperAdmin, async (_req, r
       },
       orderBy: { createdAt: 'desc' },
     });
+    // Aktiva sponsor-kort för poäng-belöningens sponsor-väljare (valfri).
+    const sponsorCards = await (prisma as any).sponsorCard.findMany({
+      where: { isActive: true },
+      select: { id: true, sponsorName: true, title: true, bonusPoints: true },
+      orderBy: { createdAt: 'desc' },
+    });
     res.json({
       welcomeDealActive: !!settings.welcomeDealActive,
       welcomeDealId: settings.welcomeDealId ?? null,
       welcomeAudience: settings.welcomeAudience ?? 'FIRST_ORDER',
       welcomeMaxOrders: settings.welcomeMaxOrders ?? 1,
+      welcomePointsActive: !!(settings as any).welcomePointsActive,
+      welcomePointsAmount: (settings as any).welcomePointsAmount ?? 100,
+      welcomePointsSponsorCardId: (settings as any).welcomePointsSponsorCardId ?? null,
       referralEnabled: !!settings.referralEnabled,
       referralDealId: settings.referralDealId ?? null,
       referralCouponsPerSide: settings.referralCouponsPerSide ?? 1,
       referralMaxRewardsPerInviter: settings.referralMaxRewardsPerInviter ?? 20,
       availableDeals,
+      sponsorCards,
     });
   } catch (err: any) {
     res.status(500).json({ error: 'Serverfel', detail: err?.message });
@@ -780,6 +790,9 @@ const welcomeDealUpdateSchema = z.object({
   welcomeDealId: z.string().nullable().optional(),
   welcomeAudience: z.enum(['FIRST_ORDER', 'ALL', 'LOGGED_IN']).optional(),
   welcomeMaxOrders: z.number().int().min(1).max(3).optional(),
+  welcomePointsActive: z.boolean().optional(),
+  welcomePointsAmount: z.number().int().min(0).max(100000).optional(),
+  welcomePointsSponsorCardId: z.string().nullable().optional(),
   referralEnabled: z.boolean().optional(),
   referralDealId: z.string().nullable().optional(),
   referralCouponsPerSide: z.number().int().min(1).max(10).optional(),
@@ -830,6 +843,9 @@ adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, 
       welcomeDealId: updated.welcomeDealId,
       welcomeAudience: updated.welcomeAudience ?? 'FIRST_ORDER',
       welcomeMaxOrders: updated.welcomeMaxOrders ?? 1,
+      welcomePointsActive: !!updated.welcomePointsActive,
+      welcomePointsAmount: updated.welcomePointsAmount ?? 100,
+      welcomePointsSponsorCardId: updated.welcomePointsSponsorCardId ?? null,
       referralEnabled: !!updated.referralEnabled,
       referralDealId: updated.referralDealId,
       referralCouponsPerSide: updated.referralCouponsPerSide,

@@ -613,6 +613,11 @@ model RestaurantSettings {
   // ordrar den appliceras. audience: FIRST_ORDER | ALL | LOGGED_IN.
   welcomeAudience         String    @default("FIRST_ORDER")
   welcomeMaxOrders        Int       @default(1)
+  // Poäng-belöning för nya kunder (claimas efter registrering). Sponsor-valfri:
+  // welcomePointsSponsorCardId satt = sponsor-brandad bonus, null = ren plattform-bonus.
+  welcomePointsActive        Boolean  @default(false)
+  welcomePointsAmount        Int      @default(100)
+  welcomePointsSponsorCardId String?
   welcomeDealAmountKr     Int       @default(50)   // legacy
   welcomeDealPercent      Int       @default(20)   // legacy
   welcomeDealMinOrderKr   Int       @default(150)  // legacy
