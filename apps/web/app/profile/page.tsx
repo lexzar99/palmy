@@ -901,7 +901,7 @@ function ProfileContent() {
               <div>
                 <p className="text-[10px] font-black uppercase text-red-400 tracking-widest">{t("profile.actionRequired")}</p>
                 <div className="flex items-center gap-2">
-                  <p className="text-white font-bold text-sm">{user.phone}</p>
+                  <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.phone}</p>
                 </div>
               </div>
             </div>
@@ -931,7 +931,7 @@ function ProfileContent() {
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id as any); setIsEditing(false); }}
-              className={`flex flex-col items-center gap-1.5 py-4 rounded-3xl transition-all ${activeTab === tab.id ? "bg-gold-500/10 text-gold-600" : "text-zinc-400 hover:text-zinc-600"}`}
+              className={`flex flex-col items-center gap-1.5 py-4 rounded-3xl transition-all ${activeTab === tab.id ? "bg-gold-500/10 text-gold-600" : "text-zinc-400 hover:text-zinc-500"}`}
             >
               <tab.icon size={18} />
               <span className="text-[8px] font-black uppercase tracking-widest">{tab.label}</span>
@@ -1197,34 +1197,34 @@ function ProfileContent() {
           {activeTab === "settings" && !isEditing && (
             <motion.div key="set" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">{t("profile.settings.section.profile")}</div>
-                <div className="bg-white/5 border border-white/5 rounded-[2.5rem]">
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.profile")}</div>
+                <div className="rounded-[2.5rem]" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="w-full flex items-center justify-between p-6 hover:bg-white/5 transition-all text-left rounded-[2.5rem]"
+                    className="w-full flex items-center justify-between p-6 hover:bg-gold-500/5 transition-all text-left rounded-[2.5rem]"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-gold-500/10 text-gold-500 rounded-xl flex items-center justify-center"><Settings size={18} /></div>
                       <div>
-                        <p className="text-sm font-bold uppercase italic text-white">{t("profile.settings.editProfile")}</p>
-                        <p className="text-[10px] text-zinc-600">{t("profile.settings.editProfileSub")}</p>
+                        <p className="text-sm font-bold uppercase italic" style={{ color: "var(--text-primary)" }}>{t("profile.settings.editProfile")}</p>
+                        <p className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.editProfileSub")}</p>
                       </div>
                     </div>
-                    <ChevronRight size={18} className="text-zinc-700" />
+                    <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
                   </button>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">{t("profile.settings.section.prefs")}</div>
-                <div className="bg-white/5 border border-white/5 rounded-[2.5rem] divide-y divide-white/5">
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.prefs")}</div>
+                <div className="rounded-[2.5rem] divide-y divide-[color:var(--border-muted)]" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                   <div className="p-6 flex items-center justify-between group">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
                         <Bell size={18} />
                       </div>
                       <div>
-                        <p className="font-bold text-sm text-white">{t("profile.settings.push")}</p>
+                        <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.push")}</p>
                         <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">{t("profile.settings.pushSub")}</p>
                       </div>
                     </div>
@@ -1310,7 +1310,7 @@ function ProfileContent() {
                   <p className="font-black uppercase tracking-widest text-sm">{t("profile.orders.empty")}</p>
                 </div>
               ) : orders.map((order) => (
-                <div key={order.id} className="bg-white/5 border border-white/5 rounded-[2.5rem] p-6 hover:bg-white/10 transition-all group">
+                <div key={order.id} className="bg-[color:var(--bg-secondary)] border border-[color:var(--border-muted)] rounded-[2.5rem] p-6 hover:bg-gold-500/5 transition-all group">
                   <Link href={`/order/${order.id}`} className="flex justify-between items-center">
                     <div>
                       <p className="font-black uppercase italic text-sm">{order.restaurant?.name || t("profile.orders.fallbackName")}</p>
@@ -1325,7 +1325,7 @@ function ProfileContent() {
                     </div>
                     <div className="flex items-center gap-3">
                       <p className="text-xl font-black text-gold-500">{(order.total || 0).toFixed(0)} kr</p>
-                      <ChevronRight size={16} className="text-zinc-600 group-hover:text-gold-500 transition-colors" />
+                      <ChevronRight size={16} className="text-zinc-500 group-hover:text-gold-500 transition-colors" />
                     </div>
                   </Link>
                   <div className="mt-4 flex gap-3">
@@ -1402,7 +1402,7 @@ function ProfileContent() {
                                 console.warn("Failed to set default address:", err);
                               }
                             }}
-                            className="p-2 bg-white/5 rounded-lg text-zinc-600 hover:text-gold-500 transition-colors"
+                            className="p-2 bg-[color:var(--bg-deep)] rounded-lg text-zinc-500 hover:text-gold-500 transition-colors"
                             title={t("profile.addresses.makeDefault")}
                           >
                             <Check size={14} />
@@ -1413,7 +1413,7 @@ function ProfileContent() {
                             setAddressToDelete(addr);
                             setDeleteAddressModalOpen(true);
                           }}
-                          className="p-2 bg-white/5 rounded-lg text-zinc-600 hover:text-rose-500 transition-colors"
+                          className="p-2 bg-[color:var(--bg-deep)] rounded-lg text-zinc-500 hover:text-rose-500 transition-colors"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -1431,7 +1431,7 @@ function ProfileContent() {
                 <div className="flex gap-2">
                   {['Hem', 'Jobb', 'Annat'].map(l => (
                     <button key={l} type="button" onClick={() => setNewAddrLabel(l)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
-                      newAddrLabel === l ? 'bg-gold-500/10 border-gold-500/30 text-gold-600' : 'bg-zinc-50 border-zinc-100 text-zinc-400'
+                      newAddrLabel === l ? 'bg-gold-500/10 border-gold-500/30 text-gold-600' : 'bg-[color:var(--bg-deep)] border-[color:var(--border-muted)] text-zinc-400'
                     }`}>
                       {l === 'Hem' ? <Home size={12} /> : l === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
                       {l === 'Hem' ? t("profile.addresses.label.home") : l === 'Jobb' ? t("profile.addresses.label.work") : t("profile.addresses.label.other")}
@@ -1479,7 +1479,7 @@ function ProfileContent() {
               style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
             >
               <div className="flex items-center gap-3 mb-2">
-                <button type="button" onClick={() => setIsEditing(false)} className="p-2 text-zinc-400 hover:text-zinc-600 rounded-xl">
+                <button type="button" onClick={() => setIsEditing(false)} className="p-2 text-zinc-400 hover:text-zinc-500 rounded-xl">
                   <ArrowLeft size={18} />
                 </button>
                 <h3 className="text-lg font-black uppercase italic" style={{ color: "var(--text-primary)" }}>{t("profile.editForm.title")}</h3>

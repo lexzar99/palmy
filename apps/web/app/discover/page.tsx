@@ -8,6 +8,7 @@ import { Search, Heart, Star, Clock } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useFavorites } from "@/lib/favoritesStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import EmptyState from "@/components/EmptyState";
 
 const getImageSrc = (path?: string) => {
   if (!path) return "";
@@ -99,16 +100,13 @@ export default function FavoritesPage() {
             {[1, 2, 3].map((i) => <div key={i} className="skeleton h-64 rounded-2xl" />)}
           </div>
         ) : favoriteRestaurants.length === 0 ? (
-          <div className="py-20 text-center">
-            <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-              <Heart size={28} className="text-rose-400" />
-            </div>
-            <p className="text-lg font-bold tracking-tight mb-1.5" style={{ color: "var(--text-primary)" }}>{t("favorites.empty.title")}</p>
-            <p className="text-sm max-w-xs mx-auto" style={{ color: "var(--text-secondary)" }}>{t("favorites.empty.sub")}</p>
-            <Link href="/" className="inline-flex items-center gap-2 mt-6 px-7 py-3.5 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm active:scale-95 transition-all">
-              {t("favorites.empty.cta")}
-            </Link>
-          </div>
+          <EmptyState
+            icon={Heart}
+            title={t("favorites.empty.title")}
+            text={t("favorites.empty.sub")}
+            ctaLabel={t("favorites.empty.cta")}
+            ctaHref="/"
+          />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
             {favoriteRestaurants.map((r) => {

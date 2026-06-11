@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { Clock, ChevronRight, ShoppingBag } from "lucide-react";
+import { Clock, ChevronRight, History } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { readOrderHistory, removeOrderFromHistory, type StoredOrderRef } from "@/lib/orderHistory";
+import EmptyState from "@/components/EmptyState";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -179,23 +180,14 @@ export default function OrdersPage() {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="py-20 text-center"
           >
-            <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-              <ShoppingBag size={28} className="text-gold-500/70" />
-            </div>
-            <p className="text-lg font-bold tracking-tight mb-1.5" style={{ color: "var(--text-primary)" }}>
-              {t("orders.empty.title")}
-            </p>
-            <p className="text-sm max-w-xs mx-auto mb-6" style={{ color: "var(--text-secondary)" }}>
-              {t("orders.empty.subtitle")}
-            </p>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-7 py-3.5 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm hover:bg-gold-400 transition-all active:scale-95"
-            >
-              {t("orders.empty.cta")}
-            </Link>
+            <EmptyState
+              icon={History}
+              title={t("orders.empty.title")}
+              text={t("orders.empty.subtitle")}
+              ctaLabel={t("orders.empty.cta")}
+              ctaHref="/"
+            />
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

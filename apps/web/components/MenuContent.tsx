@@ -18,6 +18,7 @@ import { useCartStore } from "@/store/cartStore";
 import { useFavorites } from "@/lib/favoritesStore";
 import { type BogoPickerProduct } from "@/components/BogoPickerModal";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import EmptyState from "@/components/EmptyState";
 
 // Tunga modaler laddas först vid interaktion (köp/adress/BOGO) → mindre initial
 // JS för restaurang-sidan = snabbare första rendering/hydration.
@@ -913,15 +914,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         {/* ── Menyn: kategorier med produkter (FULL eller COMPACT per produkt) ── */}
         <div className="space-y-12">
            {filteredCategories.length === 0 ? (
-             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 flex flex-col items-center justify-center text-center">
-               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5" style={{ backgroundColor: "var(--bg-deep)" }}>
-                 <ShoppingBag size={28} className="text-gold-500/60" />
-               </div>
-               <h3 className="text-lg font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{t("menu.noMenuTitle")}</h3>
-               <p className="text-zinc-500 font-medium text-sm max-w-sm">
-                 {t("menu.noMenuDesc")}
-               </p>
-             </motion.div>
+             <EmptyState
+               icon={ShoppingBag}
+               title={t("menu.noMenuTitle")}
+               text={t("menu.noMenuDesc")}
+               ctaLabel={t("menu.goHome")}
+               ctaHref="/"
+             />
            ) : (
              <>
                {filteredCategories.map((cat: any) => (

@@ -30,6 +30,7 @@ import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DpointsHomeCard from "@/components/DpointsHomeCard";
 import type { SponsorCardData } from "@/lib/dpoints";
 import WelcomeDealBanner from "@/components/WelcomeDealBanner";
+import EmptyState from "@/components/EmptyState";
 import InviteFriendsBanner from "@/components/InviteFriendsBanner";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
@@ -1040,7 +1041,7 @@ export default function HomePage() {
           <section className="mb-5">
             <div className="hidden lg:flex items-center gap-2 mb-3 px-1">
               <Sparkles size={14} className="text-gold-500" />
-              <h2 className="text-base sm:text-lg font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>{t("home.section.current")}</h2>
+              <h2 className="text-lg sm:text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("home.section.current")}</h2>
             </div>
             <div
               ref={promoRailRef}
@@ -1176,13 +1177,13 @@ export default function HomePage() {
           <section className="mb-10">
             <div className="flex items-center justify-between gap-4 rounded-[1.8rem] border px-5 py-4" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "var(--text-secondary)" }}>{t("home.dealFilter.label")}</p>
-                <p className="text-sm font-black uppercase" style={{ color: "var(--text-primary)" }}>{filteredByDeal.title}</p>
+                <p className="text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>{t("home.dealFilter.label")}</p>
+                <p className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{filteredByDeal.title}</p>
               </div>
               <button onClick={() => setFilteredByDeal(null)}
-                className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border"
-                style={{ color: "#B8AA95", borderColor: "rgba(255,248,234,0.10)" }}>
-                <X size={11} /> {t("home.dealFilter.clear")}
+                className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-full border"
+                style={{ color: "var(--text-secondary)", borderColor: "var(--border-muted)" }}>
+                <X size={12} /> {t("home.dealFilter.clear")}
               </button>
             </div>
           </section>
@@ -1213,10 +1214,10 @@ export default function HomePage() {
 
           <div className="flex items-center justify-between mb-4 px-1">
             <div>
-              <h2 className="text-base sm:text-lg font-black tracking-[0.12em] uppercase" style={{ color: "var(--text-primary)" }}>
+              <h2 className="text-lg sm:text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
                 {activeCuisine === "Alla" ? t("home.section.allRestaurants") : t(`home.cuisine.${activeCuisine}`)}
               </h2>
-              <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-[12px] font-medium mt-0.5" style={{ color: "var(--text-secondary)" }}>
                 {filtered.length} {filtered.length === 1 ? t("home.restaurantCount.one") : t("home.restaurantCount.many")}
               </p>
             </div>
@@ -1263,13 +1264,7 @@ export default function HomePage() {
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="py-24 text-center">
-              <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                <Search size={32} style={{ color: "var(--text-secondary)" }} />
-              </div>
-              <p className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{t("home.empty.title")}</p>
-              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{t("home.empty.sub")}</p>
-            </div>
+            <EmptyState icon={Search} title={t("home.empty.title")} text={t("home.empty.sub")} />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
                 {filtered.map((r, i) => {
@@ -1465,7 +1460,7 @@ export default function HomePage() {
            <div className="absolute right-[-50px] top-[-50px] w-[200px] h-[200px] bg-white/20 rounded-full blur-[80px]" />
            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6 sm:gap-10">
               <div className="text-center sm:text-left">
-                 <h2 className="text-2xl sm:text-3xl lg:text-5xl font-black text-zinc-950 uppercase tracking-tighter leading-[1.15] mb-3 italic">{t("home.installCta.titleLine1")} <br /> {t("home.installCta.titleLine2")}</h2>
+                 <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-zinc-950 tracking-tight leading-tight mb-3">{t("home.installCta.titleLine1")} <br /> {t("home.installCta.titleLine2")}</h2>
                  <p className="text-zinc-950/60 text-[10px] font-black uppercase tracking-[0.2em]">{t("home.installCta.sub")}</p>
               </div>
               <button
@@ -1488,7 +1483,7 @@ export default function HomePage() {
                 <div className="w-20 h-20 bg-rose-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-rose-500/20 shadow-lg shadow-rose-500/10">
                    <span className="text-4xl text-rose-500 group-hover:scale-110 transition-transform">🌙</span>
                 </div>
-                <h3 className="text-2xl font-black uppercase tracking-tight italic mb-2" style={{ color: "var(--text-primary)" }}>{closedRestaurant.name}</h3>
+                <h3 className="text-xl font-bold tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{closedRestaurant.name}</h3>
                 <p className="text-[11px] font-bold uppercase tracking-widest mb-10 leading-relaxed" style={{ color: "var(--text-secondary)" }}>{t("home.closedModal.line1")} <br /> {t("home.closedModal.line2")}</p>
                 <div className="flex flex-col gap-3">
                    <button onClick={() => { router.push(getRestaurantHref(closedRestaurant)); setClosedRestaurant(null); }} className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all">{t("home.closedModal.seeMenu")}</button>

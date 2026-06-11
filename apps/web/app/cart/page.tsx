@@ -5,6 +5,7 @@ import Link from "next/link";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { fetchDpointsMe } from "@/lib/dpoints";
+import EmptyState from "@/components/EmptyState";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
@@ -146,7 +147,7 @@ function CartItemThumb({ imageUrl, quantity, name }: { imageUrl?: string | null;
   }
   const src = imageUrl!.startsWith("/") ? `${API_URL}${imageUrl}` : imageUrl!;
   return (
-    <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(28,28,30,0.06)" }}>
+    <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
       <img src={src} alt={name} loading="lazy" className="w-full h-full object-cover" onError={() => setImgError(true)} />
       <span className="absolute bottom-0 right-0 px-1.5 py-0.5 text-[10px] font-black italic text-zinc-950 bg-gold-500 rounded-tl-lg leading-none">{quantity}×</span>
     </div>
@@ -1774,13 +1775,14 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <div className="w-24 h-24 rounded-[3rem] flex items-center justify-center mb-8" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-          <ShoppingBag size={48} className="text-gold-500/30" />
-        </div>
-        <h1 className="text-xl font-bold tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{t("cart.empty.titlePrefix")} {t("cart.empty.titleAccent")}</h1>
-        <p className="text-sm mb-8" style={{ color: "var(--text-secondary)" }}>{t("cart.empty.subtitle")}</p>
-        <Link href="/" className="px-8 py-4 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm active:scale-95 transition-all">{t("cart.empty.cta")}</Link>
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
+        <EmptyState
+          icon={ShoppingBag}
+          title={`${t("cart.empty.titlePrefix")} ${t("cart.empty.titleAccent")}`}
+          text={t("cart.empty.subtitle")}
+          ctaLabel={t("cart.empty.cta")}
+          ctaHref="/"
+        />
       </div>
     );
   }
@@ -2041,10 +2043,10 @@ export default function CartPage() {
                   </button>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(28,28,30,0.06)" }}>
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                       <button
                         onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }}
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-zinc-600 hover:bg-white hover:text-gold-600 active:scale-90 transition-all"
+                        className="w-6 h-6 rounded-full flex items-center justify-center hover:text-gold-600 active:scale-90 transition-all" style={{ color: "var(--text-secondary)" }}
                         aria-label="Minska antal"
                       >
                         <Minus size={13} strokeWidth={2.5} />
@@ -2058,7 +2060,7 @@ export default function CartPage() {
                           }
                           updateQuantity(item.cartItemId, 1);
                         }}
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-zinc-600 hover:bg-white hover:text-gold-600 active:scale-90 transition-all"
+                        className="w-6 h-6 rounded-full flex items-center justify-center hover:text-gold-600 active:scale-90 transition-all" style={{ color: "var(--text-secondary)" }}
                         aria-label="Öka antal"
                       >
                         <Plus size={13} strokeWidth={2.5} />
@@ -2096,7 +2098,7 @@ export default function CartPage() {
 
             {/* Desktop left column: delivery details + pricing */}
             <div className="hidden lg:block mt-6 space-y-6" id="desktop-left-extras">
-              <div className="p-5 rounded-[2rem] shadow-xl space-y-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+              <div className="p-5 rounded-3xl space-y-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
 
                 {/* Tips */}
                 {orderType === 'DELIVERY' && (
@@ -2289,7 +2291,7 @@ export default function CartPage() {
           <div className="lg:sticky lg:top-24">
              <AnimatePresence mode="wait">
                {showPayment && clientSecret && stripePromise ? (
-                  <motion.div ref={paymentSectionRef} key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                  <motion.div ref={paymentSectionRef} key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-7 rounded-3xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                      <div className="flex items-center gap-3 text-gold-500 text-[10px] font-black uppercase tracking-[0.4em] mb-10">
                         <CreditCard size={18} /> {t("cart.payment.title")}
                      </div>
@@ -2319,7 +2321,7 @@ export default function CartPage() {
                      <button onClick={() => setShowPayment(false)} className="w-full text-[10px] font-black uppercase tracking-widest hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}>{t("cart.payment.backToDetails")}</button>
                   </motion.div>
                 ) : showPayment && stripeKeyMissing ? (
-                  <motion.div key="stripe-missing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 rounded-[2rem] sm:rounded-[3rem] border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+                  <motion.div key="stripe-missing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 rounded-3xl border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                      <div className="flex items-center gap-3 text-rose-500 text-[10px] font-black uppercase tracking-[0.4em] mb-6">
                         <AlertCircle size={18} /> {t("cart.payment.missingTitle")}
                      </div>
@@ -2331,7 +2333,7 @@ export default function CartPage() {
                      </button>
                   </motion.div>
                 ) : (
-                  <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                  <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-5 sm:p-7 rounded-3xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                       <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          {(['DELIVERY', 'PICKUP'] as const).map(type => (
                             <button key={type} type="button" onClick={() => { setOrderType(type); localStorage.setItem("cart_order_type", type); }} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
@@ -2830,7 +2832,7 @@ export default function CartPage() {
       <AnimatePresence>
         {showDealsModal && (
            <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setShowDealsModal(false)} style={{ backgroundColor: "rgba(23,21,19,0.95)" }}>
-             <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }} onClick={e => e.stopPropagation()}>
+             <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }} className="w-full max-w-sm glass-panel p-7 rounded-3xl relative" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }} onClick={e => e.stopPropagation()}>
                 <button onClick={() => setShowDealsModal(false)} className="absolute top-8 right-8 p-2 hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}><X size={24}/></button>
                 <h2 className="text-2xl font-black uppercase italic tracking-tight mb-8" style={{ color: "var(--text-primary)" }}>{t("cart.dealsModal.titlePrefix")} <span className="text-gold-gradient">{t("cart.dealsModal.titleAccent")}</span></h2>
                 <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar">

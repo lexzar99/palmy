@@ -4,8 +4,9 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { API_URL } from "@/lib/api";
-import { Search as SearchIcon, Star, Clock, Bike, ChevronRight, Utensils, Phone } from "lucide-react";
+import { Search as SearchIcon, SearchX, Star, Clock, Bike, ChevronRight, Utensils, Phone } from "lucide-react";
 import { motion } from "framer-motion";
+import EmptyState from "@/components/EmptyState";
 
 interface Restaurant {
   id: string;
@@ -156,13 +157,11 @@ export default function SearchPage() {
                     </Link>
                   ); })
                 ) : (
-                 <div className="py-12 text-center">
-                   <div className="mx-auto mb-4 w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-                     <SearchIcon size={24} className="text-gold-500/70" />
-                   </div>
-                   <p className="text-base font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Inga matchningar för &ldquo;{query}&rdquo;</p>
-                   <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Prova ett annat ord eller en annan rätt.</p>
-                 </div>
+                 <EmptyState
+                   icon={SearchX}
+                   title={`Inga matchningar för ”${query}”`}
+                   text="Prova ett annat ord eller en annan rätt."
+                 />
                )}
                </div>
             </div>
