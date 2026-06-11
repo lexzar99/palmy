@@ -1,22 +1,15 @@
-"use client";
-
-import { motion } from "framer-motion";
-
 /**
- * App-wide page transition. Ett template re-mountas vid varje navigering, så
- * en mjuk fade ger en premium-känsla när man klickar sig runt utan att det
- * känns "cheap". Vi animerar ENDAST opacity (ingen transform) — transform på
- * en förälder skapar en containing block och skulle bryta `position: fixed`
- * (adress-modal, bottom-nav m.m.). Opacity gör inte det.
+ * App-wide page transition. Ett template re-mountas vid varje navigering →
+ * en mjuk fade när man klickar sig runt.
+ *
+ * REN CSS-animation (page-fade-in), INTE framer-motion. Framer-varianten
+ * skickade SSR-HTML med style="opacity:0" och visade innehållet först när
+ * JS hydrerat — på långsamma laddningar (och ibland efter history.back())
+ * fastnade sidan osynlig på opacity 0. CSS-faden startar direkt vid paint,
+ * kräver ingen JS och kan aldrig lämna sidan dold (utan animation = opacity
+ * 1 default). Endast opacity — ingen transform (skulle skapa containing
+ * block och bryta position:fixed för modaler/bottom-nav).
  */
 export default function Template({ children }: { children: React.ReactNode }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className="page-fade-in">{children}</div>;
 }

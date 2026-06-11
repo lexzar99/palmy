@@ -56,12 +56,11 @@ export const viewport: Viewport = {
   // upp till 200%. iOS Safari zoomar inte automatiskt om viewport-meta
   // är korrekt och input-font-size är ≥16px.
   viewportFit: "cover",
-  // Status-baren följer systemtemat — vit i light, mörk i dark — istället för
-  // alltid-mörk (#18181b) som gav fel färg runt notchen i light mode-PWA:n.
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
-  ],
+  // Statisk vit default — appen är ljus tills användaren väljer mörkt.
+  // Providers synkar sedan taggen mot APPENS tema vid mount/toggle.
+  // (Media-baserade värden följde SYSTEMETS tema → mörkt system + ljus app
+  // gav svart "boxad" yta vid dynamic island i installerad PWA.)
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({

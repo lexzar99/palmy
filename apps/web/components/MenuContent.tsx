@@ -565,7 +565,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
   if (loading) {
     return (
-      <div className="pb-32 md:pt-20 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="pb-32 md:pt-20" style={{ backgroundColor: "var(--bg-primary)" }}>
         {/* Hero — matchar nya kompakta hero-höjden */}
         <div className="skeleton w-full h-40 sm:h-56 !rounded-none" />
         <div className="px-5 sm:px-6 lg:px-12 pt-5 relative max-w-5xl mx-auto">
@@ -609,7 +609,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
 
   return (
-    <div className="pb-32 md:pt-20 selection:bg-gold-500/30 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="pb-32 md:pt-20 selection:bg-gold-500/30" style={{ backgroundColor: "var(--bg-primary)" }}>
       {/* ── Hero: kompakt — bilden är kontext, inte huvudinnehåll ────────── */}
       <div className="relative w-full h-40 sm:h-56 overflow-hidden">
         {heroImage ? (

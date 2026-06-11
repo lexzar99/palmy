@@ -1753,7 +1753,7 @@ export default function CartPage() {
   // tomt-läget nedan istället för att visa en falsk "full varukorg".
   if (!mounted || (pageLoading && items.length > 0)) {
     return (
-      <div className="min-h-screen pb-32 pt-[env(safe-area-inset-top,0px)] md:pt-24 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="min-h-screen pb-32 pt-[env(safe-area-inset-top,0px)] md:pt-24" style={{ backgroundColor: "var(--bg-primary)" }}>
         <div className="max-w-2xl mx-auto px-5 sm:px-6 pt-6">
           <div className="skeleton h-8 w-40 rounded-xl mb-2" />
           <div className="skeleton h-10 w-3/4 rounded-xl mb-6" />

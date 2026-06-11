@@ -210,15 +210,16 @@
   animation: float 6s ease-in-out infinite;
 }
 
-/* Ren fade när en sida/vy monteras (restaurangsida m.fl.). OBS: enbart opacity —
-   ingen transform. En kvarvarande transform skapar ett containing block och
-   bryter position:fixed för barn (t.ex. produktmodalen → hamnade längst ner). */
+/* Ren fade när en sida monteras (global via app/template.tsx). OBS: enbart
+   opacity — ingen transform. En kvarvarande transform skapar ett containing
+   block och bryter position:fixed för barn (modaler, bottom-nav).
+   0.22s: snabb nog att kännas direkt, mjuk nog att inte blinka. */
 @keyframes pageFadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 .page-fade-in {
-  animation: pageFadeIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: pageFadeIn 0.22s ease-out both;
 }
 @media (prefers-reduced-motion: reduce) {
   .page-fade-in { animation: none; }

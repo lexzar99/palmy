@@ -323,7 +323,7 @@ const OrderStatusPage = () => {
     // Skeleton som matchar sidans faktiska layout (paritet med övriga sidor —
     // ingen blockerande spinner). Status-kort → kvitto → info-kort.
     return (
-      <div className="min-h-screen pb-28 pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="min-h-screen pb-28 pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24" style={{ backgroundColor: "var(--bg-primary)" }}>
         <div className="mx-auto max-w-2xl px-4">
           <div className="flex items-center justify-between py-3">
             <div className="skeleton h-9 w-28 rounded-full" />
@@ -395,7 +395,7 @@ const OrderStatusPage = () => {
     : stepDefs.reduce((acc, d, i) => (d.reached(currentStatus) ? i : acc), 0);
 
   return (
-    <div className="min-h-screen pb-28 pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24 page-fade-in" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="min-h-screen pb-28 pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="mx-auto max-w-2xl px-4">
 
         {/* Top bar */}
