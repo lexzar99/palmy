@@ -819,13 +819,20 @@ adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, 
     if (!parsed.success) {
       return res.status(400).json({ error: 'Ogiltiga värden', detail: parsed.error.errors });
     }
-    // Validera dropdown-vals (welcomeDealId + referralDealId) — båda måste
-    // peka på aktiva Personal Templates.
-    if (parsed.data.referralDealId) {
+    // Validera en deal-referens BARA när dess funktion faktiskt aktiveras.
+    // En stale referens (mallen raderad → spök-id) ska aldrig blockera ett
+    // sparande där funktionen är av (t.ex. ren poäng-konfig) — det orsakade
+    // "Vald deal hittades inte" på allt. Partiell patch: effektivt på-läge =
+    // payload-värdet om satt, annars nuvarande inställning.
+    const current = await getSettings();
+    const willActivateWelcome = parsed.data.welcomeDealActive ?? !!(current as any).welcomeDealActive;
+    const willActivateReferral = parsed.data.referralEnabled ?? !!(current as any).referralEnabled;
+
+    if (parsed.data.referralDealId && willActivateReferral) {
       const err = await validatePersonalTemplate(parsed.data.referralDealId);
       if (err) return res.status(400).json({ error: err });
     }
-    if (parsed.data.welcomeDealId) {
+    if (parsed.data.welcomeDealId && willActivateWelcome) {
       const err = await validatePersonalTemplate(parsed.data.welcomeDealId);
       if (err) return res.status(400).json({ error: err });
     }

@@ -52,7 +52,14 @@ export function WelcomeCampaignPage() {
   useEffect(() => {
     if (!q.data) return;
     setDiscountActive(!!q.data.welcomeDealActive);
-    setDealId(q.data.welcomeDealId ?? null);
+    // Orphan-guard: behåll bara sparat welcomeDealId om mallen FORTFARANDE
+    // finns bland availableDeals. Annars (mallen raderad → spök-id) nollas det,
+    // så att sparningen inte 400:ar på "Vald deal hittades inte" — vilket annars
+    // blockerar ALLA sparningar, även ren poäng-konfig. (Samma guard som
+    // referral-sidan redan har.)
+    const savedDealId = q.data.welcomeDealId ?? null;
+    const dealStillExists = savedDealId != null && (q.data.availableDeals ?? []).some((d) => d.id === savedDealId);
+    setDealId(dealStillExists ? savedDealId : null);
     setAudience((q.data.welcomeAudience as WelcomeAudience) ?? "FIRST_ORDER");
     setMaxOrders(q.data.welcomeMaxOrders ?? 1);
     setPointsActive(!!q.data.welcomePointsActive);
@@ -65,7 +72,10 @@ export function WelcomeCampaignPage() {
     mutationFn: () =>
       updateWelcomeDealSettings({
         welcomeDealActive: discountActive,
-        welcomeDealId: discountActive ? dealId : dealId, // behåll vald mall även när av
+        // dealId är nu garanterat antingen en giltig mall eller null (orphan-
+        // guarden ovan). Skicka null när rabatten är av så ett tomt val aldrig
+        // re-sänder ett spök-id.
+        welcomeDealId: discountActive ? dealId : null,
         welcomeAudience: audience,
         welcomeMaxOrders: maxOrders,
         welcomePointsActive: pointsActive,
@@ -74,6 +84,10 @@ export function WelcomeCampaignPage() {
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: welcomeDealQueryKey }),
   });
+
+  // Kan inte aktivera rabatt utan en vald mall — visa tydligt fel i stället
+  // för ett bakvänt 400 från servern.
+  const discountNeedsTemplate = discountActive && !dealId;
 
   if (q.isLoading) return <LoadingPanel label="Laddar välkomstkampanj…" />;
   if (q.isError || !q.data) return <ErrorPanel title="Kunde inte ladda välkomstkampanj" action={<Button onClick={() => void q.refetch()}>Försök igen</Button>} />;
@@ -88,7 +102,7 @@ export function WelcomeCampaignPage() {
         actions={
           <div className="flex items-center gap-2">
             <Link href="/marketing-referrals/referral" className="button-secondary">Värva vän</Link>
-            <Button variant="primary" disabled={save.isPending} onClick={() => save.mutate()}>
+            <Button variant="primary" disabled={save.isPending || discountNeedsTemplate} onClick={() => save.mutate()}>
               <Save size={15} /> {save.isPending ? "Sparar…" : "Spara"}
             </Button>
           </div>
@@ -124,9 +138,17 @@ export function WelcomeCampaignPage() {
                   </option>
                 ))}
               </Select>
-              <p className="mt-1.5 text-xs text-[var(--text-muted)]">
-                Skapa mallar (t.ex. 20% + fri leverans) under <Link href="/deals" className="underline">Deals → Personliga</Link>.
-              </p>
+              {deals.length === 0 ? (
+                <p className="mt-1.5 text-xs text-[var(--warning)]">
+                  Inga personliga mallar finns ännu. Skapa en under <Link href="/deals" className="underline">Deals → Personliga</Link> innan du aktiverar rabatten.
+                </p>
+              ) : discountNeedsTemplate ? (
+                <p className="mt-1.5 text-xs text-[var(--warning)]">Välj en mall för att kunna spara med rabatt på.</p>
+              ) : (
+                <p className="mt-1.5 text-xs text-[var(--text-muted)]">
+                  Skapa mallar (t.ex. 20% + fri leverans) under <Link href="/deals" className="underline">Deals → Personliga</Link>.
+                </p>
+              )}
             </Field>
             <Field label="Vilka kunder">
               <Select value={audience} onChange={(e) => setAudience(e.target.value as WelcomeAudience)}>
