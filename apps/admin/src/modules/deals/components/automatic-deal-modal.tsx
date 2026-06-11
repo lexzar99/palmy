@@ -293,7 +293,7 @@ export function AutomaticDealModal({
                 {availableTargets.length === 0 ? (
                   <div className="text-sm text-[var(--text-secondary)]">Select a restaurant to load {draft.scopeType === "CATEGORY" ? "categories" : draft.scopeType === "COMBO" ? "products for the combo" : "products"}.</div>
                 ) : availableTargets.map((target) => (
-                  <button key={target.id} type="button" onClick={() => toggleTarget(target.id)} className={`rounded-2xl border px-4 py-3 text-left transition-all ${draft.targetIds.includes(target.id) ? "border-[rgba(94,166,255,0.24)] bg-[rgba(94,166,255,0.1)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)]"}`}>
+                  <button key={target.id} type="button" onClick={() => toggleTarget(target.id)} className={`rounded-2xl border px-4 py-3 text-left transition-all ${draft.targetIds.includes(target.id) ? "border-[rgba(94,166,255,0.24)] bg-[rgba(94,166,255,0.1)]" : "border-[var(--border-subtle)] bg-[var(--bg-panel-muted)]"}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-black">{target.label}</p>

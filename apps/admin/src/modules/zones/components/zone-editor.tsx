@@ -544,7 +544,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
         )}
 
         {zones.length > 0 ? (
-          <button type="button" onClick={fitBounds} disabled={!mapsReady} className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] transition-all hover:text-[var(--text-primary)]">
+          <button type="button" onClick={fitBounds} disabled={!mapsReady} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] transition-all hover:text-[var(--text-primary)]">
             <ZoomIn size={12} className="mr-1 inline" /> Fit view
           </button>
         ) : null}

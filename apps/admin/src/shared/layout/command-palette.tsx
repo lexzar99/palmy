@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Activity,
   AlertTriangle,
   BellRing,
   Building2,
@@ -62,7 +61,6 @@ const COMMANDS: CommandItem[] = [
   { id: "platform-settings", label: "Plattform-inställningar", href: "/platform-settings", icon: Building2, group: "Plattform", keywords: "foretag company settings" },
   { id: "crisis", label: "Krisverktyg", href: "/crisis", icon: AlertTriangle, group: "Plattform", keywords: "emergency stang refund akut" },
   { id: "audit-log", label: "Audit-log", href: "/audit-log", icon: History, group: "Plattform", keywords: "logg compliance" },
-  { id: "health", label: "Systemhälsa", href: "/health", icon: Activity, group: "Plattform", keywords: "uptime status services" },
   { id: "2fa", label: "Tvåfaktor (2FA)", href: "/2fa", icon: Shield, group: "Plattform", keywords: "totp sakerhet" },
 ];
 

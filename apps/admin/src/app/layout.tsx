@@ -22,6 +22,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="sv" suppressHydrationWarning>
+      <head>
+        {/* Sätt tema innan paint så det inte blinkar mörkt→ljust vid reload. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{document.documentElement.dataset.theme=localStorage.getItem('admin:theme')==='light'?'light':'dark';}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className={`${inter.className} admin-body`}>
         <AppProviders>{children}</AppProviders>
       </body>

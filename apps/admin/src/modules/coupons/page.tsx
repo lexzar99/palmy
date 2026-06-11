@@ -414,7 +414,7 @@ export function CouponsPage() {
               {(restaurants.data ?? []).map((r: ControlCenterRestaurantSnapshot) => {
                 const checked = form.applicableRestaurantIds.includes(r.id);
                 return (
-                  <label key={r.id} className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-[rgba(255,255,255,0.04)] text-sm select-none">
+                  <label key={r.id} className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-[var(--bg-hover)] text-sm select-none">
                     <input
                       type="checkbox"
                       checked={checked}

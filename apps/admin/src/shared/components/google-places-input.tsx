@@ -157,7 +157,7 @@ export default function GooglePlacesInput({ value, onChange, onSelect, placehold
             if (predictions.length > 0 && value.trim().length >= 3) setOpen(true);
           }}
           placeholder={placeholder || "Sök adress…"}
-          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted,rgba(255,255,255,0.03))] py-2.5 pl-9 pr-9 text-sm font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[rgba(231,178,75,0.4)] focus:outline-none focus:ring-2 focus:ring-[rgba(231,178,75,0.15)] transition-all"
+          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] py-2.5 pl-9 pr-9 text-sm font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-all"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
           {resolving || loading ? (

@@ -381,7 +381,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                     {cat.items.slice(0, 6).map((item) => (
-                      <div key={item.id} className="rounded-xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3">
+                      <div key={item.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-4 py-3">
                         <p className="font-semibold text-sm">{item.name}</p>
                         <p className="mt-1 text-xs text-[var(--text-secondary)]">{formatCurrency(item.price)}</p>
                       </div>

@@ -103,15 +103,15 @@ function RestaurantCard({ restaurant: r, onClick }: { restaurant: ControlCenterR
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-lg bg-[rgba(255,255,255,0.04)] px-2 py-2">
+        <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
           <p className="text-base font-black">{formatNumber(r.liveOrders)}</p>
           <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Live</p>
         </div>
-        <div className="rounded-lg bg-[rgba(255,255,255,0.04)] px-2 py-2">
+        <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
           <p className="text-base font-black">{formatNumber(r.todayOrders)}</p>
           <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Idag</p>
         </div>
-        <div className="rounded-lg bg-[rgba(255,255,255,0.04)] px-2 py-2">
+        <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
           <p className="text-base font-black">{formatCurrency(r.todayRevenue)}</p>
           <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Intäkt</p>
         </div>

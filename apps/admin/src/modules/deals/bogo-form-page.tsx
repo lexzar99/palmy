@@ -444,7 +444,7 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
                       {allProducts.map((p) => {
                         const selected = draft.bogoTriggerProductIds.includes(p.id);
                         return (
-                          <label key={p.id} className={`flex items-center gap-2.5 cursor-pointer rounded-lg px-3 py-2 text-sm select-none transition-colors ${selected ? "bg-[rgba(99,102,241,0.12)]" : "hover:bg-[rgba(255,255,255,0.04)]"}`}>
+                          <label key={p.id} className={`flex items-center gap-2.5 cursor-pointer rounded-lg px-3 py-2 text-sm select-none transition-colors ${selected ? "bg-[rgba(99,102,241,0.12)]" : "hover:bg-[var(--bg-hover)]"}`}>
                             <input type="checkbox" checked={selected} onChange={() => toggleTriggerProduct(p.id)} className="accent-indigo-500 h-3.5 w-3.5 shrink-0" />
                             <span className={selected ? "text-[var(--accent)]" : ""}>{p.name}</span>
                             <span className="ml-auto text-xs text-[var(--text-muted)]">{(p.price / 100).toFixed(0)} kr</span>
@@ -491,7 +491,7 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
                     ) : rewardProductOptions.map((p) => {
                       const selected = draft.bogoRewardProductIds.includes(p.id);
                       return (
-                        <label key={p.id} className={`flex items-center gap-2.5 cursor-pointer rounded-lg px-3 py-2 text-sm select-none transition-colors ${selected ? "bg-[rgba(99,102,241,0.12)]" : "hover:bg-[rgba(255,255,255,0.04)]"}`}>
+                        <label key={p.id} className={`flex items-center gap-2.5 cursor-pointer rounded-lg px-3 py-2 text-sm select-none transition-colors ${selected ? "bg-[rgba(99,102,241,0.12)]" : "hover:bg-[var(--bg-hover)]"}`}>
                           <input type="checkbox" checked={selected} onChange={() => toggleRewardProduct(p.id)} className="accent-indigo-500 h-3.5 w-3.5 shrink-0" />
                           <span className={selected ? "font-semibold text-[var(--accent)]" : ""}>{p.name}</span>
                           <span className="ml-auto text-xs text-[var(--text-muted)]">{(p.price / 100).toFixed(0)} kr</span>
@@ -585,7 +585,7 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
                       {group.extras.map((extra) => {
                         const blocked = draft.bogoExcludedExtraIds.includes(extra.id);
                         return (
-                          <label key={extra.id} className={`flex items-center gap-2 cursor-pointer rounded-lg px-2.5 py-1.5 text-xs select-none transition-colors ${blocked ? "bg-rose-500/10 text-rose-400" : "hover:bg-[rgba(255,255,255,0.04)] text-[var(--text-secondary)]"}`}>
+                          <label key={extra.id} className={`flex items-center gap-2 cursor-pointer rounded-lg px-2.5 py-1.5 text-xs select-none transition-colors ${blocked ? "bg-rose-500/10 text-rose-400" : "hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"}`}>
                             <input
                               type="checkbox"
                               checked={blocked}

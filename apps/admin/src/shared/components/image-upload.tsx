@@ -115,7 +115,7 @@ export function ImageUploadField({
     <div className="grid gap-2">
       <span className="field-label">{label}</span>
       {value ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] p-2">
+        <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] p-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={value} alt={label} className="h-20 w-20 rounded-xl object-cover" />
           <div className="min-w-0 flex-1">

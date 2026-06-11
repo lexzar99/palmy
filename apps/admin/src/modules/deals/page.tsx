@@ -191,7 +191,7 @@ export function DealsPage() {
               {icon}
               <span>{label}</span>
               {count > 0 && (
-                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${tab === id ? "bg-[var(--accent)] text-white" : "bg-[rgba(255,255,255,0.08)] text-[var(--text-muted)]"}`}>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${tab === id ? "bg-[var(--accent)] text-white" : "bg-[var(--accent-soft)] text-[var(--text-muted)]"}`}>
                   {count}
                 </span>
               )}
@@ -344,7 +344,7 @@ export function DealsPage() {
               {(allRestaurants.data ?? []).map((r: ControlCenterRestaurantSnapshot) => {
                 const checked = couponForm.applicableRestaurantIds.includes(r.id);
                 return (
-                  <label key={r.id} className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-[rgba(255,255,255,0.04)] text-sm select-none">
+                  <label key={r.id} className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-[var(--bg-hover)] text-sm select-none">
                     <input type="checkbox" checked={checked} onChange={() => setCouponForm((p) => ({ ...p, applicableRestaurantIds: checked ? p.applicableRestaurantIds.filter((id) => id !== r.id) : [...p.applicableRestaurantIds, r.id] }))} className="accent-emerald-500 h-3.5 w-3.5 shrink-0" />
                     <span className="text-[var(--text-primary)]">{r.name}</span>
                   </label>

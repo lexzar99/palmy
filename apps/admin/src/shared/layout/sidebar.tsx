@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Activity,
   Gauge,
   AlertTriangle,
   BellRing,
@@ -23,8 +22,10 @@ import {
   type LucideIcon,
   Map,
   MenuSquare,
+  Moon,
   ReceiptText,
   Search,
+  Sun,
   Shield,
   Sparkles,
   Star,
@@ -35,6 +36,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/shared/utils/cn";
 import { clearStoredAdminSession } from "@/shared/auth/storage";
+import { getStoredTheme, setStoredTheme, type Theme } from "@/shared/store/theme";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 type NavSection = { id: string; label: string; items: NavItem[] };
@@ -81,7 +83,6 @@ const SECTIONS: NavSection[] = [
       { href: "/platform-settings", label: "Inställningar", icon: Building2 },
       { href: "/crisis", label: "Krisverktyg", icon: AlertTriangle },
       { href: "/audit-log", label: "Audit-log", icon: History },
-      { href: "/health", label: "Hälsa", icon: Activity },
       { href: "/2fa", label: "2FA", icon: Shield },
     ],
   },
@@ -104,6 +105,15 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [hydrated, setHydrated] = useState(false);
+  const [theme, setTheme] = useState<Theme>("dark");
+
+  useEffect(() => setTheme(getStoredTheme()), []);
+  const toggleTheme = () =>
+    setTheme((t) => {
+      const next: Theme = t === "dark" ? "light" : "dark";
+      setStoredTheme(next);
+      return next;
+    });
 
   // Hydrate from storage + auto-expand the section containing current path
   useEffect(() => {
@@ -219,6 +229,15 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           <Search size={14} />
           <span>Sök eller hoppa till…</span>
           <kbd>{isMac ? "⌘" : "Ctrl"}K</kbd>
+        </button>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="nav-link"
+          style={{ paddingLeft: 10, color: "var(--text-muted)" }}
+        >
+          {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+          <span>{theme === "dark" ? "Ljust tema" : "Mörkt tema"}</span>
         </button>
         <button
           type="button"

@@ -412,7 +412,7 @@ export function OrderHistoryPage() {
             <p className="field-label mb-2">Fält att inkludera</p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {allFields.map((field) => (
-                <label key={field.key} className="flex items-center gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-sm">
+                <label key={field.key} className="flex items-center gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-3 py-2 text-sm">
                   <input type="checkbox" checked={exportFields.includes(field.key)} onChange={() => toggleField(field.key)} />
                   {field.label}
                 </label>

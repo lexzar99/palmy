@@ -376,7 +376,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
                       return (
                         <label
                           key={p.id}
-                          className={`flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 text-sm select-none transition-colors ${selected ? "bg-[rgba(99,102,241,0.12)]" : "hover:bg-[rgba(255,255,255,0.04)]"}`}
+                          className={`flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 text-sm select-none transition-colors ${selected ? "bg-[rgba(99,102,241,0.12)]" : "hover:bg-[var(--bg-hover)]"}`}
                         >
                           <input
                             type="checkbox"
@@ -444,7 +444,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
                   return (
                     <label
                       key={p.id}
-                      className={`flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 text-sm select-none transition-colors ${excluded ? "bg-[rgba(239,68,68,0.08)]" : "hover:bg-[rgba(255,255,255,0.04)]"}`}
+                      className={`flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 text-sm select-none transition-colors ${excluded ? "bg-[rgba(239,68,68,0.08)]" : "hover:bg-[var(--bg-hover)]"}`}
                     >
                       <input
                         type="checkbox"
@@ -526,7 +526,7 @@ function DealSummary({ draft }: { draft: Draft }) {
   }
 
   return (
-    <div className="rounded-lg bg-[rgba(255,255,255,0.03)] border border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-muted)] grid gap-1">
+    <div className="rounded-lg bg-[var(--bg-panel-muted)] border border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-muted)] grid gap-1">
       {lines.map((l, i) => (
         <span key={i} className={l.color}>{l.text}</span>
       ))}

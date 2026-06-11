@@ -453,7 +453,7 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
           </div>
           <div className="mt-4 grid gap-3">
             {extras.map((extra, index) => (
-              <div key={index} className="grid gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-4 md:grid-cols-[1fr_140px_140px_auto]">
+              <div key={index} className="grid gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-4 py-4 md:grid-cols-[1fr_140px_140px_auto]">
                 <Input value={extra.name} onChange={(event) => updateExtra(index, "name", event.target.value)} placeholder="Extra name" />
                 <Input type="number" value={extra.priceAddon} onChange={(event) => updateExtra(index, "priceAddon", Number(event.target.value))} placeholder="0" />
                 <Select value={extra.isDefault ? "yes" : "no"} onChange={(event) => updateExtra(index, "isDefault", event.target.value === "yes")}><option value="no">Optional</option><option value="yes">Default</option></Select>

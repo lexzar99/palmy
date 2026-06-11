@@ -259,7 +259,7 @@ export function ZonesPage() {
               <select
                 value={selectedCityId || ""}
                 onChange={(event) => setSelectedCityId(event.target.value || null)}
-                className="w-full appearance-none rounded-lg border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] py-2.5 pl-10 pr-10 text-sm font-bold text-[var(--text-primary)] focus:border-[rgba(231,178,75,0.4)] focus:outline-none focus:ring-2 focus:ring-[rgba(231,178,75,0.15)]"
+                className="w-full appearance-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] py-2.5 pl-10 pr-10 text-sm font-bold text-[var(--text-primary)] focus:border-[rgba(231,178,75,0.4)] focus:outline-none focus:ring-2 focus:ring-[rgba(231,178,75,0.15)]"
               >
                 {cities.length === 0 && <option value="">Inga städer än</option>}
                 {cities.map((city) => (

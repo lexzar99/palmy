@@ -212,7 +212,7 @@ function OrderDetailsModal({
                         <button
                           type="button"
                           onClick={() => onViewCustomer(order.userId!)}
-                          className="flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--accent-strong)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+                          className="flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--accent-strong)] hover:bg-[var(--bg-hover)] transition-colors"
                         >
                           <UserRound size={11} /> Profil
                         </button>
@@ -239,7 +239,7 @@ function OrderDetailsModal({
                   {order.items.map((item) => {
                     const extras = parseExtras(item.selectedExtras);
                     return (
-                      <div key={item.id} className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-4">
+                      <div key={item.id} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-4 py-4">
                         <div className="flex items-start justify-between gap-4">
                           <div>
                             <p className="font-black">{item.quantity}x {item.productName}</p>

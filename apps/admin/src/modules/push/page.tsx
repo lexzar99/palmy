@@ -77,7 +77,7 @@ function linkPreviewLabel(form: ComposerForm): string {
 
 function PhonePreview({ title, body, linkLabel }: { title: string; body: string; linkLabel: string }) {
   return (
-    <div className="w-[260px] rounded-[26px] border border-[rgba(255,255,255,0.1)] bg-[#0b101b] p-3 shadow-[0_24px_60px_rgba(0,0,0,0.4)]">
+    <div className="w-[260px] rounded-[26px] border border-[var(--border-strong)] bg-[#0b101b] p-3 shadow-[0_24px_60px_rgba(0,0,0,0.4)]">
       <div className="mx-auto mb-3 h-1.5 w-16 rounded-full bg-white/15" />
       <div className="rounded-[20px] bg-[linear-gradient(180deg,#111827,#0b1220)] px-4 py-4">
         <div className="flex items-center gap-2">
@@ -260,7 +260,7 @@ export function PushPage() {
                           <button
                             key={c.id}
                             type="button"
-                            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-[rgba(255,255,255,0.04)] border-b border-[var(--border-subtle)] last:border-0"
+                            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-[var(--bg-hover)] border-b border-[var(--border-subtle)] last:border-0"
                             onClick={() => setForm((s) => ({ ...s, userId: c.id, userSearch: c.name }))}
                           >
                             <div>
