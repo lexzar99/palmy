@@ -169,6 +169,20 @@ export type MenuImportResult = {
 export const menuBulkImport = (payload: { restaurantId: string; content: string; apply: boolean }) =>
   apiPost<MenuImportResult>("/admin/menu/bulk-import", payload, { timeout: 5 * 60 * 1000 });
 
+// Kedjesynk master→platser (steg 3). Idempotent; lokal isActive bevaras.
+export interface MenuSyncSummary {
+  categoriesCreated: number; categoriesUpdated: number;
+  productsCreated: number; productsUpdated: number;
+  groupsCreated: number; groupsReused: number; links: number;
+}
+export interface MenuSyncResponse {
+  ok: boolean;
+  dryRun: boolean;
+  results: Array<{ targetRestaurantId: string; summary: MenuSyncSummary; warnings: string[] }>;
+}
+export const menuSync = (payload: { sourceRestaurantId: string; targetRestaurantIds: string[]; apply: boolean }) =>
+  apiPost<MenuSyncResponse>("/admin/menu/sync", payload, { timeout: 5 * 60 * 1000 });
+
 // Copy/import — nya id genereras, källan rörs inte.
 export const copyCategory = (sourceId: string, targetRestaurantId: string) =>
   apiPost<CategoryRecord>(`/admin/categories/${sourceId}/copy`, { targetRestaurantId });

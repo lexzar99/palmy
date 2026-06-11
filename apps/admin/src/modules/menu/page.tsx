@@ -27,6 +27,8 @@ import {
   r2AutoMatch,
   r2Migrate,
   menuBulkImport,
+  menuSync,
+  type MenuSyncResponse,
   type MenuImportResult,
   r2PathsTemplate,
   updateCategory,
@@ -924,6 +926,110 @@ function BulkImportButton({ restaurantId }: { restaurantId: string }) {
 }
 
 /**
+ * MenuSyncButton — kedjesynk (steg 3). Kopierar den valda (master-)restaurangens
+ * meny till en eller flera valda platser. Dry-run först (visar created/updated),
+ * sedan Synka. Idempotent, och varje plats lokala isActive (slutsålt) bevaras.
+ */
+function MenuSyncButton({ sourceRestaurantId, restaurants }: { sourceRestaurantId: string; restaurants: RestaurantRef[] }) {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [targets, setTargets] = useState<Set<string>>(new Set());
+  const [result, setResult] = useState<MenuSyncResponse | null>(null);
+
+  const targetOptions = restaurants.filter((r) => r.id !== sourceRestaurantId);
+  const sourceName = restaurants.find((r) => r.id === sourceRestaurantId)?.name ?? "vald restaurang";
+  const extractError = (e: any): string => e?.response?.data?.error || e?.message || "Okänt fel.";
+
+  const run = (apply: boolean) =>
+    menuSync({ sourceRestaurantId, targetRestaurantIds: [...targets], apply });
+
+  const previewMutation = useMutation({ meta: { toast: false },
+    mutationFn: () => run(false),
+    onSuccess: (data) => setResult(data),
+    onError: (e) => showToast({ type: "error", message: extractError(e) }),
+  });
+  const applyMutation = useMutation({ meta: { toast: false },
+    mutationFn: () => run(true),
+    onSuccess: async (data) => {
+      setResult(data);
+      await queryClient.invalidateQueries({ queryKey: ["menu"] });
+      const tot = data.results.reduce((a, r) => a + r.summary.productsCreated + r.summary.productsUpdated, 0);
+      showToast({ type: "success", message: `Synk klar: ${data.results.length} platser, ${tot} produkter` });
+    },
+    onError: (e) => showToast({ type: "error", message: extractError(e) }),
+  });
+
+  const isBusy = previewMutation.isPending || applyMutation.isPending;
+  const toggle = (id: string) => setTargets((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  return (
+    <>
+      <Button variant="secondary" onClick={() => { setOpen(true); setResult(null); setTargets(new Set()); }}>
+        <Copy size={14} /> Synka till platser
+      </Button>
+
+      <Modal
+        open={open}
+        onClose={() => { if (!isBusy) setOpen(false); }}
+        title="Synka meny till platser"
+        description={`Kopierar menyn från "${sourceName}" till valda platser. Förhandsvisa visar exakt vad som skapas/uppdateras — inget skrivs förrän du klickar Synka. Idempotent, och varje plats slutsålt-markeringar (dold/aktiv) bevaras.`}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => previewMutation.mutate()} disabled={isBusy || targets.size === 0}>
+              {previewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Förhandsvisa
+            </Button>
+            <Button variant="primary" onClick={() => applyMutation.mutate()} disabled={isBusy || targets.size === 0 || !result || result.dryRun === false}>
+              {applyMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+              {applyMutation.isPending ? "Synkar…" : "Synka"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid gap-4">
+          {targetOptions.length === 0 ? (
+            <p className="text-sm text-[var(--text-secondary)]">Det finns inga andra restauranger att synka till.</p>
+          ) : (
+            <div className="grid gap-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-muted)]">Målplatser ({targets.size} valda)</p>
+              <div className="grid gap-1 max-h-56 overflow-y-auto">
+                {targetOptions.map((r) => (
+                  <label key={r.id} className="surface-muted flex cursor-pointer items-center gap-2.5 px-3 py-2.5 text-sm">
+                    <input type="checkbox" checked={targets.has(r.id)} onChange={() => { toggle(r.id); setResult(null); }} className="h-4 w-4 accent-[var(--accent)]" />
+                    <span>{r.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result ? (
+            <div className="grid gap-2">
+              {result.results.map((r) => {
+                const name = restaurants.find((x) => x.id === r.targetRestaurantId)?.name ?? r.targetRestaurantId;
+                const s = r.summary;
+                return (
+                  <div key={r.targetRestaurantId} className="surface-muted px-4 py-3 text-sm">
+                    <div className="mb-1 font-semibold">{name}</div>
+                    <div className="text-[12px] text-[var(--text-secondary)]">
+                      Produkter: <b className="text-[var(--text-primary)]">+{s.productsCreated}</b> nya, {s.productsUpdated} uppdaterade ·
+                      {" "}Kategorier: +{s.categoriesCreated}/{s.categoriesUpdated} · Pålägg: +{s.groupsCreated}/{s.groupsReused} återanv. · {s.links} kopplingar
+                    </div>
+                  </div>
+                );
+              })}
+              <p className={`text-xs ${result.dryRun ? "text-[var(--text-secondary)]" : "text-emerald-400"}`}>
+                {result.dryRun ? "Förhandsvisning — inget har skrivits. Klicka Synka för att köra." : "✓ Synken är klar; platsernas menyer uppdaterade."}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+/**
  * R2 Auto-match-knapp: scannar Cloudflare R2-bucketen för restaurangen och
  * binder automatiskt bilder till produkter/kategorier baserat
  * på slug-konventionen. Visar alltid dry-run-resultat först så admin kan se
@@ -1389,6 +1495,7 @@ export function MenuPage() {
             {activeRestaurantId ? (
               <>
                 <BulkImportButton restaurantId={activeRestaurantId} />
+                <MenuSyncButton sourceRestaurantId={activeRestaurantId} restaurants={restaurants.data || []} />
                 <R2PathsButton restaurantId={activeRestaurantId} />
                 <R2AutoMatchButton restaurantId={activeRestaurantId} />
               </>

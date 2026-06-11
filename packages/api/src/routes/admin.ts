@@ -20,14 +20,36 @@ import { sanitizeError } from '../lib/errors';
 import { menuCacheBust } from './menu';
 import { bustCache } from '../lib/ttlCache';
 import { parseMenuImport, runMenuImport } from '../lib/menuImport';
+import { runMenuSync } from '../lib/menuSync';
 
 const router = Router();
 router.use(authenticate);
+
+// Den "bullriga" fan-outen (socket-emit till alla klienter + web SSR-revalidate)
+// — separerad så den kan debouncas. Cache-bust ligger UTANFÖR (alltid synkron).
+function fanoutMenuChange(restaurantId: string | null, payload: Record<string, unknown>) {
+  const event = { restaurantId, ...payload, at: new Date().toISOString() };
+  if (restaurantId) getIO().to(`menu:${restaurantId}`).emit('menu:changed', event);
+  getIO().to('admin-room').emit('menu:changed', event);
+  if (restaurantId) getIO().to(`admin-room:${restaurantId}`).emit('menu:changed', event);
+  // Fire-and-forget: rensa kund-webbens SSR-cache för denna slug.
+  void revalidateWebMenu(restaurantId);
+}
+
+// Per-restaurang debounce-state för fan-outen (leading + trailing).
+const menuBroadcastState = new Map<string, { timer: NodeJS.Timeout; pending: boolean; restaurantId: string | null; payload: Record<string, unknown> }>();
+const MENU_BROADCAST_WINDOW_MS = 1200;
 
 /**
  * Broadcast a menu change so customer apps refresh in real-time and
  * the server-side TTL cache for /api/menu/categories is busted.
  * Idempotent — safe to call after every product/category/extra mutation.
+ *
+ * Cache-bust körs SYNKRONT varje anrop (korrekthet). Den bullriga fan-outen
+ * (socket-emit + web-revalidate) DEBOUNCAS per restaurang: leading edge emittar
+ * direkt (enstaka redigering känns omedelbar), och en burst (t.ex. bulk-pris på
+ * 50 produkter via parallella PATCH) coalescas till EN trailing emit ~1.2s
+ * efter sista ändringen — i stället för 50 emits/revalidates mot varje klient.
  */
 function broadcastMenuChange(restaurantId: string | null, payload: Record<string, unknown> = {}) {
   try {
@@ -37,23 +59,29 @@ function broadcastMenuChange(restaurantId: string | null, payload: Record<string
     // the menu looks updated on the menu route but stale on those.
     bustCache('rest:detail');
     bustCache('rest:list');
-    const event = { restaurantId, ...payload, at: new Date().toISOString() };
-    // Public room for customers viewing this restaurant's menu
-    if (restaurantId) {
-      getIO().to(`menu:${restaurantId}`).emit('menu:changed', event);
-    }
-    // Admin/Flutter rooms watching their own menu
-    getIO().to('admin-room').emit('menu:changed', event);
-    if (restaurantId) {
-      getIO().to(`admin-room:${restaurantId}`).emit('menu:changed', event);
-    }
-    // Fire-and-forget: purge the customer web app's SSR cache for this slug so a
-    // menu edit shows immediately (falls back to time-based revalidate if the web
-    // app is unreachable or REVALIDATE_SECRET isn't configured).
-    void revalidateWebMenu(restaurantId);
   } catch (err) {
-    // Never let a socket broadcast failure abort the mutation
-    console.warn('[menu] broadcast failed', err);
+    console.warn('[menu] cache bust failed', err);
+  }
+
+  const key = restaurantId ?? '_global';
+  const existing = menuBroadcastState.get(key);
+  if (!existing) {
+    // Leading edge — emit direkt och öppna ett suppressions-fönster.
+    try { fanoutMenuChange(restaurantId, payload); } catch (err) { console.warn('[menu] broadcast failed', err); }
+    const timer = setTimeout(() => {
+      const st = menuBroadcastState.get(key);
+      menuBroadcastState.delete(key);
+      // Trailing — bara om fler ändringar kom under fönstret (annars redan emittat).
+      if (st?.pending) {
+        try { fanoutMenuChange(st.restaurantId, st.payload); } catch (err) { console.warn('[menu] trailing broadcast failed', err); }
+      }
+    }, MENU_BROADCAST_WINDOW_MS);
+    menuBroadcastState.set(key, { timer, pending: false, restaurantId, payload });
+  } else {
+    // Inom fönstret — markera trailing-emit och behåll senaste payload.
+    existing.pending = true;
+    existing.restaurantId = restaurantId;
+    existing.payload = payload;
   }
 }
 
@@ -1540,6 +1568,49 @@ router.post('/menu/bulk-import', async (req, res) => {
   } catch (error: any) {
     console.error('bulk-import error:', error);
     res.status(500).json({ error: sanitizeError(error, 'Import misslyckades') });
+  }
+});
+
+// POST /api/admin/menu/sync — kedjesynk master→platser (steg 3).
+// body: { sourceRestaurantId, targetRestaurantIds: string[], apply?: boolean }
+// Kopierar källans meny till varje vald plats. Idempotent (deterministisk
+// scopad slug → andra körningen uppdaterar). Lokal isActive bevaras per plats.
+// apply=false → dry-run. Endast super-admin (kedjeoperation över restauranger).
+router.post('/menu/sync', async (req, res) => {
+  try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      res.status(403).json({ error: 'Endast super-admin kan synka meny mellan restauranger' });
+      return;
+    }
+    const sourceRestaurantId = String(req.body.sourceRestaurantId || '');
+    const targetRestaurantIds: string[] = Array.isArray(req.body.targetRestaurantIds)
+      ? req.body.targetRestaurantIds.map((x: unknown) => String(x))
+      : [];
+    const apply = req.body.apply === true || req.body.apply === 'true';
+
+    if (!sourceRestaurantId) { res.status(400).json({ error: 'sourceRestaurantId krävs' }); return; }
+    const targets = targetRestaurantIds.filter((id) => id && id !== sourceRestaurantId);
+    if (targets.length === 0) { res.status(400).json({ error: 'Välj minst en målrestaurang (≠ källan)' }); return; }
+
+    const results = [];
+    for (const targetId of targets) {
+      const result = await runMenuSync(prisma, sourceRestaurantId, targetId, apply);
+      results.push(result);
+      if (apply && result.ok) {
+        menuCacheBust(targetId);
+        broadcastMenuChange(targetId, { kind: 'menu-sync', sourceRestaurantId });
+      }
+    }
+    if (apply) {
+      await audit(req as AuthRequest, 'MENU_SYNC', {
+        resourceType: 'Restaurant', resourceId: sourceRestaurantId,
+        changes: { targets, summaries: results.map((r) => r.summary) },
+      });
+    }
+    res.json({ ok: results.every((r) => r.ok), dryRun: !apply, results });
+  } catch (error: any) {
+    console.error('menu-sync error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Synk misslyckades') });
   }
 });
 
