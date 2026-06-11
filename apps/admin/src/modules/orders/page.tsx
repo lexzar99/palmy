@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Clock3, Loader2, ReceiptText, RefreshCw, Search, ShieldCheck, Trash2, UserRound, Wallet } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, ReceiptText, RefreshCw, Search, ShieldCheck, Trash2, UserRound, Wallet } from "lucide-react";
 import { bulkRefundOrders, deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
 import { CustomerModal } from "@/modules/customers/page";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Surface, Tabs, Textarea } from "@/shared/components/ui";
@@ -578,6 +578,7 @@ export function OrdersPage() {
               const tis = formatTimeInStatus(order, nowMs);
               const ctxBadge = customerContextBadge(order.customerStats);
               const isRefundable = !order.refundedAt && Boolean(order.stripePaymentIntentId) && order.stripePaymentIntentId !== "TEST_PAYMENT" && order.stripePaymentIntentId !== "FREE_PROMO";
+              const isLive = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(order.status);
               return (
                 <div
                   key={order.id}
@@ -585,60 +586,64 @@ export function OrdersPage() {
                   tabIndex={0}
                   onClick={() => setActiveOrderId(order.id)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveOrderId(order.id); } }}
-                  className="surface-muted w-full px-5 py-5 text-left cursor-pointer"
+                  className="surface-muted flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
                 >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
-                      {/* Checkbox — only for refundable orders */}
-                      {isRefundable ? (
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            setSelectedIds((prev) => {
-                              const next = new Set(prev);
-                              if (e.target.checked) next.add(order.id); else next.delete(order.id);
-                              return next;
-                            });
-                          }}
-                          className="mt-1 h-4 w-4 cursor-pointer accent-[var(--accent-strong)]"
-                          aria-label={`Välj order ${order.orderNumber}`}
-                        />
+                  {/* Checkbox — bara för återbetalningsbara ordrar */}
+                  {isRefundable ? (
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(order.id); else next.delete(order.id);
+                          return next;
+                        });
+                      }}
+                      className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent-strong)]"
+                      aria-label={`Välj order ${order.orderNumber}`}
+                    />
+                  ) : (
+                    <span className="inline-block h-4 w-4 shrink-0" aria-hidden />
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    {/* Rad 1: ordernr · status · (tid om live) · risk-flagga · restaurang */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[15px] font-bold tracking-[-0.01em] text-[var(--text-primary)]">{order.orderNumber}</span>
+                      <Badge tone={orderStatusTone(order.status) as "success" | "danger" | "warning" | "info" | "neutral"}>{orderStatusLabel(order.status)}</Badge>
+                      {isLive && <Badge tone={tis.tone}>{tis.label}</Badge>}
+                      {ctxBadge && (ctxBadge.tone === "danger" || ctxBadge.tone === "warning") ? <Badge tone={ctxBadge.tone}>{ctxBadge.label}</Badge> : null}
+                      {order.restaurantName ? <span className="truncate text-[13px] text-[var(--text-muted)]">{order.restaurantName}</span> : null}
+                    </div>
+                    {/* Rad 2: kund · telefon · artiklar · typ */}
+                    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-[var(--text-secondary)]">
+                      {order.userId ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setActiveCustomerId(order.userId!); }}
+                          className="font-medium transition-colors hover:text-[var(--accent-strong)]"
+                        >
+                          {order.customerName}
+                        </button>
                       ) : (
-                        <span className="mt-1 inline-block h-4 w-4 shrink-0" aria-hidden />
+                        <span className="font-medium">{order.customerName}</span>
                       )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-lg font-black tracking-[-0.02em]">{order.orderNumber}</p>
-                          <Badge tone={orderStatusTone(order.status) as "success" | "danger" | "warning" | "info" | "neutral"}>{orderStatusLabel(order.status)}</Badge>
-                          <Badge tone="neutral">{order.type}</Badge>
-                          {order.restaurantName ? <Badge tone="info">{order.restaurantName}</Badge> : null}
-                          {ctxBadge && <Badge tone={ctxBadge.tone}>{ctxBadge.label}</Badge>}
-                          <Badge tone={tis.tone}>I {orderStatusLabel(order.status).toLowerCase()} {tis.label}</Badge>
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-[var(--text-secondary)]">
-                          {order.userId ? (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); setActiveCustomerId(order.userId!); }}
-                              className="flex items-center gap-1 hover:text-[var(--accent-strong)] transition-colors font-semibold"
-                            >
-                              <UserRound size={13} /> {order.customerName}
-                            </button>
-                          ) : (
-                            <span>{order.customerName}</span>
-                          )}
-                          <span>{order.customerPhone}</span>
-                          <span>{order.items.length} artiklar</span>
-                        </div>
-                      </div>
+                      <span className="text-[var(--text-muted)]">·</span>
+                      <span className="text-[var(--text-muted)]">{order.customerPhone}</span>
+                      <span className="text-[var(--text-muted)]">·</span>
+                      <span className="text-[var(--text-muted)]">{order.items.length} art.</span>
+                      <span className="text-[var(--text-muted)]">·</span>
+                      <span className="text-[var(--text-muted)]">{order.type === "DELIVERY" ? "Leverans" : "Avhämtning"}</span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--text-secondary)]">
-                      <span className="inline-flex items-center gap-2"><Clock3 size={14} /> {formatDateTime(order.createdAt)}</span>
-                      <span className="font-black text-[var(--text-primary)]">{formatCurrency(order.total)}</span>
-                    </div>
+                  </div>
+
+                  {/* Höger: total + tidpunkt */}
+                  <div className="flex shrink-0 flex-col items-end gap-0.5">
+                    <span className="text-[15px] font-bold text-[var(--text-primary)]">{formatCurrency(order.total)}</span>
+                    <span className="text-[12px] text-[var(--text-muted)]">{formatDateTime(order.createdAt)}</span>
                   </div>
                 </div>
               );
