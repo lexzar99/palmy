@@ -787,11 +787,12 @@ export default function HomePage() {
     <section className="mb-3">
       <div className="flex items-end justify-between mb-1.5 px-1">
         <div className="min-w-0">
-          {/* Flat guld (ingen gradient) för högre kontrast — samma guldiga ton. */}
-          <h2 className="text-lg sm:text-xl font-black tracking-tight leading-[1.05] italic uppercase truncate" style={{ color: "#C28E2E" }}>{title}</h2>
-          {!!subtitle && <p className="text-zinc-500 text-[9px] font-bold uppercase tracking-wider mt-0.5 truncate">{subtitle}</p>}
+          {/* Lugn rubrik — samma skala som restaurang-/ordersidan. Guld bara
+              på "Visa alla"-länken. */}
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight truncate" style={{ color: "var(--text-primary)" }}>{title}</h2>
+          {!!subtitle && <p className="text-[12px] font-medium mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>{subtitle}</p>}
         </div>
-        <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-gold-500 transition-all shrink-0 ml-3">{t("home.viewAll")}</Link>
+        <Link href="/search" className="text-[12px] font-bold text-gold-600 hover:text-gold-500 transition-all shrink-0 ml-3">{t("home.viewAll")}</Link>
       </div>
       {/* Mobil: horisontell scroll • md+: 2-kolumn grid • lg+: 3-kolumn • xl+: 4-kolumn */}
       <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 overflow-x-auto md:overflow-visible pb-1 md:pb-0 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
@@ -854,7 +855,7 @@ export default function HomePage() {
                 </div>
 
                 <div className="px-3 py-2.5">
-                  <h3 className="text-sm sm:text-base font-black group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-tight mb-1.5 truncate" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
+                  <h3 className="text-sm sm:text-base font-bold group-hover:text-gold-500 transition-colors tracking-tight leading-tight mb-1.5 truncate" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
                   <div className="flex items-center gap-2 text-[10px] font-bold" style={{ color: "var(--text-secondary)" }}>
                     <span className="flex items-center gap-1">
                       <Star size={11} className="fill-gold-500 text-gold-500" />
@@ -1362,7 +1363,7 @@ export default function HomePage() {
 
                           {/* ── CARD FOOTER (minimal: namn + rating + leveranstid) ── */}
                           <div className="px-4 py-3.5">
-                            <h3 className="text-base sm:text-lg font-black uppercase italic tracking-tight leading-tight truncate group-hover:text-gold-600 transition-colors mb-1.5" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
+                            <h3 className="text-base sm:text-lg font-bold tracking-tight leading-tight truncate group-hover:text-gold-600 transition-colors mb-1.5" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
                             {(() => {
                               const zi = zoneDeliveryInfo[r.id];
                               const showEta = orderType === "DELIVERY";
@@ -1418,7 +1419,7 @@ export default function HomePage() {
                 <div className="w-16 h-16 bg-gold-500/10 rounded-[2rem] flex items-center justify-center mb-8 border border-gold-500/20 text-gold-500">
                     <Info size={32} />
                 </div>
-                <h2 className="text-3xl font-black uppercase italic mb-2" style={{ color: "var(--text-primary)" }}>{infoRestaurant.name}</h2>
+                <h2 className="text-2xl font-bold tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{infoRestaurant.name}</h2>
                 <p className="text-[10px] font-black uppercase tracking-widest mb-10" style={{ color: "var(--text-secondary)" }}>{t("home.info.title")}</p>
 
                 <div className="space-y-8">
@@ -1435,8 +1436,8 @@ export default function HomePage() {
                         <MapPin className="mt-1" size={18} style={{ color: "var(--text-secondary)" }} />
                         <div className="min-w-0">
                           <div className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>{t("home.info.findUs")}</div>
-                          <div className="text-sm font-black italic uppercase" style={{ color: "var(--text-primary)" }}>{infoRestaurant.address}</div>
-                          <div className="text-sm font-black italic uppercase opacity-40" style={{ color: "var(--text-primary)" }}>{infoRestaurant.zip} {infoRestaurant.city}</div>
+                          <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{infoRestaurant.address}</div>
+                          <div className="text-sm font-medium opacity-60" style={{ color: "var(--text-primary)" }}>{infoRestaurant.zip} {infoRestaurant.city}</div>
                         </div>
                       </div>
                     )}

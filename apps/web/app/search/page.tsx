@@ -156,20 +156,23 @@ export default function SearchPage() {
                     </Link>
                   ); })
                 ) : (
-                 <div className="py-12 text-center" style={{ color: "rgba(184,170,149,0.3)" }}>
-                   <p className="text-3xl mb-2">🛸</p>
-                   <p className="text-sm font-black uppercase tracking-widest">Inga matchningar för &ldquo;{query}&rdquo;</p>
+                 <div className="py-12 text-center">
+                   <div className="mx-auto mb-4 w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
+                     <SearchIcon size={24} className="text-gold-500/70" />
+                   </div>
+                   <p className="text-base font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Inga matchningar för &ldquo;{query}&rdquo;</p>
+                   <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Prova ett annat ord eller en annan rätt.</p>
                  </div>
                )}
                </div>
             </div>
           ) : (
-            <div className="py-12 text-center" style={{ color: "rgba(184,170,149,0.3)" }}>
-              <div className="inline-flex p-4 rounded-full mb-4 shadow-xl" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
-                <SearchIcon size={24} className="text-gold-500/40" />
+            <div className="py-12 text-center">
+              <div className="mx-auto mb-4 w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
+                <SearchIcon size={24} className="text-gold-500/70" />
               </div>
-              <p className="text-sm font-black uppercase tracking-widest">Börja söka efter din nästa måltid</p>
-              <p className="text-[10px] mt-2 font-bold uppercase tracking-tight" style={{ color: "rgba(184,170,149,0.3)" }}>Kebab, Sushi, Pasta eller din favoritrestaurang</p>
+              <p className="text-base font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Börja söka efter din nästa måltid</p>
+              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Kebab, sushi, pasta eller din favoritrestaurang</p>
             </div>
           )}
         </section>

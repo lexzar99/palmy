@@ -65,15 +65,15 @@ export default function FavoritesPage() {
         <div className="max-w-2xl md:max-w-5xl 2xl:max-w-[1400px] mx-auto space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-black uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>
-                {t("favorites.title")} <span className="text-gold-500">{t("favorites.titleAccent")}</span>
+              <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+                {t("favorites.title")} {t("favorites.titleAccent")}
               </h1>
-              <p className="text-[10px] font-black uppercase tracking-widest mt-1" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-[13px] font-medium mt-0.5" style={{ color: "var(--text-secondary)" }}>
                 {favorites.size > 0 ? t("favorites.count", { count: favorites.size }) : t("favorites.subtitle")}
               </p>
             </div>
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-rose-500" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-              <Heart size={22} className="fill-rose-500" />
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-rose-500" style={{ backgroundColor: "var(--bg-deep)" }}>
+              <Heart size={20} className="fill-rose-500" />
             </div>
           </div>
 
@@ -99,13 +99,13 @@ export default function FavoritesPage() {
             {[1, 2, 3].map((i) => <div key={i} className="skeleton h-64 rounded-2xl" />)}
           </div>
         ) : favoriteRestaurants.length === 0 ? (
-          <div className="py-24 text-center rounded-3xl border border-dashed" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-            <div className="mx-auto mb-5 w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(244,63,94,0.08)" }}>
+          <div className="py-20 text-center">
+            <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
               <Heart size={28} className="text-rose-400" />
             </div>
-            <p className="text-xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{t("favorites.empty.title")}</p>
-            <p className="text-xs font-bold max-w-xs mx-auto" style={{ color: "var(--text-secondary)" }}>{t("favorites.empty.sub")}</p>
-            <Link href="/" className="inline-flex items-center gap-2 mt-6 px-6 py-3 bg-gold-500 text-zinc-950 rounded-2xl font-black uppercase text-[11px] tracking-widest active:scale-95 transition-all">
+            <p className="text-lg font-bold tracking-tight mb-1.5" style={{ color: "var(--text-primary)" }}>{t("favorites.empty.title")}</p>
+            <p className="text-sm max-w-xs mx-auto" style={{ color: "var(--text-secondary)" }}>{t("favorites.empty.sub")}</p>
+            <Link href="/" className="inline-flex items-center gap-2 mt-6 px-7 py-3.5 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm active:scale-95 transition-all">
               {t("favorites.empty.cta")}
             </Link>
           </div>
@@ -136,7 +136,7 @@ export default function FavoritesPage() {
                       </button>
                     </div>
                     <div className="px-4 py-3.5">
-                      <h3 className="text-base sm:text-lg font-black uppercase italic tracking-tight leading-tight truncate group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
+                      <h3 className="text-base sm:text-lg font-bold tracking-tight leading-tight truncate group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
                       <div className="mt-1.5 flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
                         <span className="flex items-center gap-1">
                           <Star size={13} className="fill-gold-500 text-gold-500" />

@@ -161,10 +161,10 @@ export default function OrdersPage() {
       <div className="mx-auto max-w-2xl md:max-w-4xl lg:max-w-5xl 2xl:max-w-[1400px] px-4 sm:px-6 lg:px-10 pt-8">
         <header className="mb-8 md:mb-10">
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500 mb-2">{t("orders.eyebrow")}</p>
-          <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-3" style={{ color: "var(--text-primary)" }}>
-            {t("orders.title")} <span className="text-gold-500 italic">{t("orders.titleAccent")}</span>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>
+            {t("orders.title")} {t("orders.titleAccent")}
           </h1>
-          <p className="text-sm font-bold" style={{ color: "var(--text-secondary)" }}>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
             {t("orders.subtitle")}
           </p>
         </header>
@@ -179,34 +179,23 @@ export default function OrdersPage() {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative py-20 text-center rounded-3xl border overflow-hidden"
-            style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
+            className="py-20 text-center"
           >
-            {/* Decorative gold-glow + floating emoji */}
-            <div className="absolute inset-0 pointer-events-none" style={{
-              background: "radial-gradient(circle at 50% 30%, rgba(212,167,74,0.18) 0%, transparent 55%)",
-            }} />
-            <motion.div
-              animate={{ y: [0, -8, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              className="relative text-6xl mb-6"
-            >
-              🍕
-            </motion.div>
-            <div className="relative">
-              <p className="text-2xl font-black uppercase italic tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>
-                {t("orders.empty.title")}
-              </p>
-              <p className="text-xs font-bold uppercase tracking-widest mb-8" style={{ color: "var(--text-secondary)" }}>
-                {t("orders.empty.subtitle")}
-              </p>
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-gold-500 text-zinc-950 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-gold-400 transition-all active:scale-95 shadow-xl shadow-gold-500/20"
-              >
-                <ShoppingBag size={14} /> {t("orders.empty.cta")}
-              </Link>
+            <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
+              <ShoppingBag size={28} className="text-gold-500/70" />
             </div>
+            <p className="text-lg font-bold tracking-tight mb-1.5" style={{ color: "var(--text-primary)" }}>
+              {t("orders.empty.title")}
+            </p>
+            <p className="text-sm max-w-xs mx-auto mb-6" style={{ color: "var(--text-secondary)" }}>
+              {t("orders.empty.subtitle")}
+            </p>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 px-7 py-3.5 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm hover:bg-gold-400 transition-all active:scale-95"
+            >
+              {t("orders.empty.cta")}
+            </Link>
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

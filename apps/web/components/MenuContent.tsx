@@ -1027,7 +1027,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                 </div>
                 <button
                   onClick={() => setShowInfoModal(false)}
-                  className="shrink-0 ml-3 w-9 h-9 rounded-full flex items-center justify-center hover:bg-zinc-100/50 transition-colors"
+                  className="shrink-0 ml-3 w-9 h-9 rounded-full flex items-center justify-center hover:opacity-70 transition-colors"
                   aria-label={t("common.close")}
                 >
                   <X size={18} className="text-zinc-500" />

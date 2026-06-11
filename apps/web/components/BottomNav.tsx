@@ -49,15 +49,15 @@ const BottomNav = () => {
 
   return (
     <div
-      className="fixed left-4 right-4 z-[100] md:hidden flex justify-center pointer-events-none"
-      style={{ bottom: "max(env(safe-area-inset-bottom, 0px), 14px)" }}
+      className="fixed left-3 right-3 z-[100] md:hidden flex justify-center pointer-events-none"
+      style={{ bottom: "max(calc(env(safe-area-inset-bottom, 0px) - 12px), 10px)" }}
     >
       <nav
-        className="pointer-events-auto flex items-center gap-1 p-1.5 rounded-full backdrop-blur-xl"
+        className="pointer-events-auto w-full max-w-md flex items-center justify-between gap-1 px-2 py-2 rounded-[28px] backdrop-blur-xl"
         style={{
           backgroundColor: "var(--glass-bg)",
           border: "1px solid var(--glass-border)",
-          boxShadow: "0 8px 32px rgba(17,17,19,0.14), 0 2px 8px rgba(17,17,19,0.08)",
+          boxShadow: "0 10px 40px rgba(17,17,19,0.16), 0 2px 10px rgba(17,17,19,0.08)",
         }}
       >
         {navItems.map((item) => {
@@ -75,8 +75,8 @@ const BottomNav = () => {
               <motion.div
                 layout
                 transition={{ type: "spring", bounce: 0.18, duration: 0.45 }}
-                className="relative flex items-center justify-center gap-1.5 h-11 rounded-full"
-                style={{ paddingLeft: isActive ? 16 : 12, paddingRight: isActive ? 16 : 12 }}
+                className="relative flex items-center justify-center gap-2 h-[52px] rounded-full"
+                style={{ paddingLeft: isActive ? 20 : 16, paddingRight: isActive ? 20 : 16 }}
               >
                 {/* Delad guld-pill — glider mellan flikarna via layoutId */}
                 {isActive && (
@@ -88,7 +88,7 @@ const BottomNav = () => {
                   />
                 )}
                 <Icon
-                  size={20}
+                  size={23}
                   strokeWidth={isActive ? 2.4 : 2}
                   className="relative z-10 shrink-0"
                   style={{ color: isActive ? "#1c1c1e" : "var(--text-secondary)" }}
@@ -102,7 +102,7 @@ const BottomNav = () => {
                       animate={{ width: "auto", opacity: 1 }}
                       exit={{ width: 0, opacity: 0 }}
                       transition={{ type: "spring", bounce: 0, duration: 0.35 }}
-                      className="relative z-10 overflow-hidden whitespace-nowrap text-[12px] font-bold"
+                      className="relative z-10 overflow-hidden whitespace-nowrap text-[13.5px] font-bold"
                       style={{ color: "#1c1c1e" }}
                     >
                       {item.label}
