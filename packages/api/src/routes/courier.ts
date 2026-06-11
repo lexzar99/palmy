@@ -364,6 +364,91 @@ adminCourierRouter.get('/', async (_req: AuthRequest, res) => {
   );
 });
 
+// Kurir-detalj: profil + session/inloggning + prestanda (övergångstider) +
+// leveranshistorik. Driver admin-detaljsidans flikar. Super-admin-only (router).
+adminCourierRouter.get('/:id', async (req: AuthRequest, res) => {
+  try {
+    const courier = await prisma.courier.findUnique({ where: { id: req.params.id } });
+    if (!courier) return res.status(404).json({ error: 'Kurir hittades inte' });
+
+    const deliveries = await prisma.delivery.findMany({
+      where: { courierId: courier.id },
+      orderBy: { acceptedAt: 'desc' },
+      take: 50,
+      include: { order: { select: { orderNumber: true, type: true, restaurant: { select: { name: true } } } } },
+    });
+
+    // Prestanda: medel-tider för slutförda leveranser (minuter).
+    const mins = (a: Date | null, b: Date | null) => (a && b ? (b.getTime() - a.getTime()) / 60000 : null);
+    const completed = deliveries.filter((d) => d.status === 'DELIVERED' && d.deliveredAt);
+    const pickupTimes = completed.map((d) => mins(d.acceptedAt, d.pickedUpAt)).filter((x): x is number => x != null && x >= 0);
+    const deliverTimes = completed.map((d) => mins(d.pickedUpAt, d.deliveredAt)).filter((x): x is number => x != null && x >= 0);
+    const totalTimes = completed.map((d) => mins(d.acceptedAt, d.deliveredAt)).filter((x): x is number => x != null && x >= 0);
+    const avg = (arr: number[]) => (arr.length ? Math.round((arr.reduce((s, x) => s + x, 0) / arr.length) * 10) / 10 : null);
+
+    const today = startOfToday();
+    const since30 = new Date(Date.now() - 30 * 864e5);
+    const [todayAgg, agg30, totalAgg] = await Promise.all([
+      prisma.delivery.aggregate({ where: { courierId: courier.id, status: 'DELIVERED', deliveredAt: { gte: today } }, _sum: { payOre: true }, _count: { _all: true } }),
+      prisma.delivery.aggregate({ where: { courierId: courier.id, status: 'DELIVERED', deliveredAt: { gte: since30 } }, _sum: { payOre: true }, _count: { _all: true } }),
+      prisma.delivery.aggregate({ where: { courierId: courier.id, status: 'DELIVERED' }, _sum: { payOre: true }, _count: { _all: true } }),
+    ]);
+
+    res.json({
+      profile: {
+        id: courier.id,
+        name: courier.name,
+        email: courier.email,
+        phone: courier.phone,
+        city: courier.city,
+        vehicle: courier.vehicle,
+        ratePerKm: courier.ratePerKm / 100,
+        isActive: courier.isActive,
+        profileImageUrl: courier.profileImageUrl,
+        personalNumber: courier.personalNumber, // PII — routern är super-admin-only
+        address: courier.address,
+        payoutAccount: courier.payoutAccount,
+        createdAt: courier.createdAt,
+      },
+      session: {
+        online: courier.online,
+        sessionStartedAt: courier.sessionStartedAt,
+        lastSeenAt: courier.lastSeenAt,
+        currentLat: courier.currentLat,
+        currentLng: courier.currentLng,
+      },
+      stats: {
+        totalDeliveries: totalAgg._count._all,
+        totalEarnings: (totalAgg._sum.payOre ?? 0) / 100,
+        todayDeliveries: todayAgg._count._all,
+        todayEarnings: (todayAgg._sum.payOre ?? 0) / 100,
+        last30Deliveries: agg30._count._all,
+        last30Earnings: (agg30._sum.payOre ?? 0) / 100,
+        avgPickupMin: avg(pickupTimes), // accept → hämtad
+        avgDeliverMin: avg(deliverTimes), // hämtad → levererad
+        avgTotalMin: avg(totalTimes), // accept → levererad
+      },
+      deliveries: deliveries.map((d) => ({
+        id: d.id,
+        orderNumber: d.order?.orderNumber ?? null,
+        restaurantName: d.order?.restaurant?.name ?? null,
+        type: d.order?.type ?? null,
+        status: d.status,
+        distanceKm: d.distanceKm,
+        payout: d.payOre / 100,
+        acceptedAt: d.acceptedAt,
+        pickedUpAt: d.pickedUpAt,
+        deliveredAt: d.deliveredAt,
+        pickupMin: mins(d.acceptedAt, d.pickedUpAt),
+        deliverMin: mins(d.pickedUpAt, d.deliveredAt),
+      })),
+    });
+  } catch (e) {
+    console.error('Courier detail error:', e);
+    res.status(500).json({ error: 'Kunde inte hämta kurir' });
+  }
+});
+
 adminCourierRouter.post('/', async (req: AuthRequest, res) => {
   try {
     const { name, email, password, phone, city, vehicle, personalNumber, address, payoutAccount, ratePerKm } = req.body || {};

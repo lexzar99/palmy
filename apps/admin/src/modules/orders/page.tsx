@@ -237,6 +237,39 @@ function OrderDetailsModal({
                 </div>
               </div>
 
+              {order.courier && (
+                <div className="surface-muted px-5 py-5">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Bud</p>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-base font-black">{order.courier.name || "Ej tilldelad"}</p>
+                      <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
+                        {[order.courier.vehicle === "CAR" ? "Bil" : order.courier.vehicle === "BIKE" ? "Cykel" : null, order.courier.phone].filter(Boolean).join(" · ") || "—"}
+                      </p>
+                    </div>
+                    <Badge tone={order.courier.deliveryStatus === "DELIVERED" ? "success" : order.courier.deliveryStatus === "PICKED_UP" ? "info" : order.courier.deliveryStatus === "FAILED" ? "danger" : "warning"}>
+                      {order.courier.deliveryStatus === "DELIVERED" ? "Levererad" : order.courier.deliveryStatus === "PICKED_UP" ? "Hämtad" : order.courier.deliveryStatus === "EN_ROUTE_PICKUP" ? "På väg" : order.courier.deliveryStatus === "FAILED" ? "Misslyckad" : order.courier.deliveryStatus}
+                    </Badge>
+                  </div>
+                  {(order.courier.pickupMin != null || order.courier.deliverMin != null || order.courier.totalMin != null) && (
+                    <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
+                        <p className="text-sm font-black tabular-nums">{order.courier.pickupMin != null ? `${order.courier.pickupMin} min` : "–"}</p>
+                        <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Till hämtning</p>
+                      </div>
+                      <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
+                        <p className="text-sm font-black tabular-nums">{order.courier.deliverMin != null ? `${order.courier.deliverMin} min` : "–"}</p>
+                        <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Hämtad→lev.</p>
+                      </div>
+                      <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
+                        <p className="text-sm font-black tabular-nums">{order.courier.totalMin != null ? `${order.courier.totalMin} min` : "–"}</p>
+                        <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Totalt</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="surface-muted px-5 py-5">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Artiklar</p>
                 <div className="mt-4 grid gap-3">

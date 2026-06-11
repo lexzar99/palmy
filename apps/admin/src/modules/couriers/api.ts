@@ -41,7 +41,61 @@ export interface CreateCourierPayload {
   ratePerKm?: number; // kr/km
 }
 
+export interface CourierDeliveryRow {
+  id: string;
+  orderNumber: string | null;
+  restaurantName: string | null;
+  type: string | null;
+  status: string;
+  distanceKm: number;
+  payout: number;
+  acceptedAt: string | null;
+  pickedUpAt: string | null;
+  deliveredAt: string | null;
+  pickupMin: number | null;
+  deliverMin: number | null;
+}
+
+export interface CourierDetail {
+  profile: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string | null;
+    city: string;
+    vehicle: "BIKE" | "CAR";
+    ratePerKm: number;
+    isActive: boolean;
+    profileImageUrl?: string | null;
+    personalNumber?: string | null;
+    address?: string | null;
+    payoutAccount?: string | null;
+    createdAt: string;
+  };
+  session: {
+    online: boolean;
+    sessionStartedAt?: string | null;
+    lastSeenAt?: string | null;
+    currentLat?: number | null;
+    currentLng?: number | null;
+  };
+  stats: {
+    totalDeliveries: number;
+    totalEarnings: number;
+    todayDeliveries: number;
+    todayEarnings: number;
+    last30Deliveries: number;
+    last30Earnings: number;
+    avgPickupMin: number | null; // accept → hämtad
+    avgDeliverMin: number | null; // hämtad → levererad
+    avgTotalMin: number | null; // accept → levererad
+  };
+  deliveries: CourierDeliveryRow[];
+}
+
 export const couriersQueryKey = ["couriers", "list"] as const;
+export const courierDetailQueryKey = (id: string) => ["couriers", "detail", id] as const;
+export const getCourierDetail = (id: string) => apiGet<CourierDetail>(`/admin/couriers/${id}`);
 export const applicationsQueryKey = ["couriers", "applications"] as const;
 
 export const getCouriers = () => apiGet<CourierRow[]>("/admin/couriers");

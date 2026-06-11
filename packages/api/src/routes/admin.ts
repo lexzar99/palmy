@@ -604,6 +604,7 @@ router.get('/orders/:id', async (req, res) => {
         items: {
           include: { product: { select: { name: true } } },
         },
+        delivery: { include: { courier: { select: { id: true, name: true, phone: true, vehicle: true, city: true } } } },
       },
     });
 
@@ -621,9 +622,30 @@ router.get('/orders/:id', async (req, res) => {
       }
     }
 
+    // Tilldelad kurir + statusövergångs-tider (för order-modalen). null när
+    // ingen leverans/kurir finns (avhämtning, self-leverans, ej tilldelad än).
+    const dlv = (order as any).delivery;
+    const tMin = (a: Date | null, b: Date | null) => (a && b ? Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000) : null);
+    const courier = dlv
+      ? {
+          id: dlv.courier?.id ?? null,
+          name: dlv.courier?.name ?? null,
+          phone: dlv.courier?.phone ?? null,
+          vehicle: dlv.courier?.vehicle ?? null,
+          deliveryStatus: dlv.status,
+          acceptedAt: dlv.acceptedAt ?? null,
+          pickedUpAt: dlv.pickedUpAt ?? null,
+          deliveredAt: dlv.deliveredAt ?? null,
+          pickupMin: tMin(dlv.acceptedAt, dlv.pickedUpAt), // accept → hämtad
+          deliverMin: tMin(dlv.pickedUpAt, dlv.deliveredAt), // hämtad → levererad
+          totalMin: tMin(dlv.acceptedAt, dlv.deliveredAt), // accept → levererad
+        }
+      : null;
+
     const showFullPII = canSeeCustomerPII(req as AuthRequest);
     const base = {
       ...order,
+      courier,
       total: order.total / 100,
       deliveryFee: order.deliveryFee / 100,
       discountAmount: order.discountAmount / 100,

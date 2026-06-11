@@ -54,6 +54,20 @@ export interface AdminOrder {
   pointsEarned?: number | null;
   pointsSpent?: number | null;
   pointsReverted?: boolean | null;
+  // Tilldelad kurir + statusövergångs-tider (null = avhämtning/self/ej tilldelad)
+  courier?: {
+    id: string | null;
+    name: string | null;
+    phone: string | null;
+    vehicle: string | null;
+    deliveryStatus: string;
+    acceptedAt: string | null;
+    pickedUpAt: string | null;
+    deliveredAt: string | null;
+    pickupMin: number | null;
+    deliverMin: number | null;
+    totalMin: number | null;
+  } | null;
 }
 
 export interface BulkRefundResult {

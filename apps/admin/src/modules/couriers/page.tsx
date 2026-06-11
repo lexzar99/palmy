@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bike, Car, Loader2, Plus, RefreshCw } from "lucide-react";
+import { Bike, Car, ChevronRight, Loader2, Plus, RefreshCw } from "lucide-react";
 import {
   applicationsQueryKey,
   approveApplication,
@@ -139,6 +140,7 @@ function ApproveModal({ app, open, onClose }: { app: CourierApplication | null; 
 // ------------------------------------------------------------------ page
 export function CouriersPage() {
   const qc = useQueryClient();
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("couriers");
   const [createOpen, setCreateOpen] = useState(false);
   const [approveApp, setApproveApp] = useState<CourierApplication | null>(null);
@@ -207,7 +209,15 @@ export function CouriersPage() {
                   <tbody>
                     {rows.map((c) => (
                       <tr key={c.id} style={{ opacity: c.isActive ? 1 : 0.5 }}>
-                        <td><div><p className="font-black">{c.name}</p><p className="text-sm text-[var(--text-secondary)]">{c.email}</p></div></td>
+                        <td>
+                          <button onClick={() => router.push(`/couriers/${c.id}`)} className="group flex items-center gap-1.5 text-left transition-colors hover:text-[var(--accent-strong)]">
+                            <div>
+                              <p className="font-black">{c.name}</p>
+                              <p className="text-sm text-[var(--text-secondary)]">{c.email}</p>
+                            </div>
+                            <ChevronRight size={15} className="text-[var(--text-muted)] transition-colors group-hover:text-[var(--accent-strong)]" />
+                          </button>
+                        </td>
                         <td><VehiclePill v={c.vehicle} /></td>
                         <td>{c.city}</td>
                         <td><Badge tone={c.online ? "success" : "neutral"}>{c.online ? "Online" : "Offline"}</Badge></td>
