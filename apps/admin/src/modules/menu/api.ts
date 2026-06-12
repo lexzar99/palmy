@@ -57,6 +57,7 @@ export interface ProductRecord {
   hideDescription?: boolean;
   // Dpoints: köpbar med poäng.
   rewardable?: boolean;
+  localPriceLocked?: boolean;
   category: { name: string; restaurantId?: string | null };
   extraGroups: Array<{
     id: string;

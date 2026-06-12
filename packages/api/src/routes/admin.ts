@@ -1471,6 +1471,8 @@ const ProductSchema = z.object({
   discountActive: z.boolean().optional(),
   // Dpoints: markera varan som köpbar med poäng (rewardable).
   rewardable: z.boolean().optional(),
+  // Kedja: lås lokalt pris (master→plats-synk skriver inte över priset här).
+  localPriceLocked: z.boolean().optional(),
 });
 
 // PATCH-schema: alla fält frivilliga. Vi använder `.partial()` så zod släpper
@@ -1614,6 +1616,142 @@ router.post('/menu/sync', async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// KEDJOR (Brands) — gruppera platser, utse master, synka alla på en knapp.
+// Allt super-admin (kedjeoperationer spänner över restauranger).
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/admin/brands — alla kedjor + deras platser (lättviktigt).
+router.get('/brands', requireSuperAdmin, async (_req, res) => {
+  try {
+    const brands = await prisma.brand.findMany({
+      orderBy: { name: 'asc' },
+      include: { restaurants: { select: { id: true, name: true, slug: true, city: true }, orderBy: { name: 'asc' } } },
+    });
+    res.json(brands.map((b) => ({
+      id: b.id, name: b.name, slug: b.slug, logoUrl: b.logoUrl,
+      masterRestaurantId: b.masterRestaurantId,
+      restaurants: b.restaurants,
+      locationCount: b.restaurants.length,
+    })));
+  } catch (error: any) {
+    console.error('brands list error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte hämta kedjor') });
+  }
+});
+
+// POST /api/admin/brands — skapa kedja { name, logoUrl? }.
+router.post('/brands', requireSuperAdmin, async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    if (!name) { res.status(400).json({ error: 'Namn krävs' }); return; }
+    const base = slugify(name) || 'brand';
+    // Unik slug (slug är @unique). Disambiguera vid krock.
+    let slug = base;
+    for (let n = 2; await prisma.brand.findUnique({ where: { slug }, select: { id: true } }); n += 1) slug = `${base}-${n}`;
+    const brand = await prisma.brand.create({ data: { name, slug, logoUrl: req.body.logoUrl ? String(req.body.logoUrl) : null } });
+    await audit(req as AuthRequest, 'BRAND_CREATE', { resourceType: 'Brand', resourceId: brand.id, changes: { name } });
+    res.status(201).json(brand);
+  } catch (error: any) {
+    console.error('brand create error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte skapa kedja') });
+  }
+});
+
+// PATCH /api/admin/brands/:id — namn, logga, master-plats.
+router.patch('/brands/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    const data: Record<string, unknown> = {};
+    if (typeof req.body.name === 'string') data.name = req.body.name.trim();
+    if ('logoUrl' in req.body) data.logoUrl = req.body.logoUrl ? String(req.body.logoUrl) : null;
+    if ('masterRestaurantId' in req.body) {
+      const mid = req.body.masterRestaurantId ? String(req.body.masterRestaurantId) : null;
+      // Master MÅSTE vara en plats i kedjan.
+      if (mid) {
+        const inBrand = await prisma.restaurant.findFirst({ where: { id: mid, brandId: req.params.id }, select: { id: true } });
+        if (!inBrand) { res.status(400).json({ error: 'Master måste vara en plats som tillhör kedjan' }); return; }
+      }
+      data.masterRestaurantId = mid;
+    }
+    const brand = await prisma.brand.update({ where: { id: req.params.id }, data });
+    await audit(req as AuthRequest, 'BRAND_UPDATE', { resourceType: 'Brand', resourceId: brand.id, changes: data });
+    res.json(brand);
+  } catch (error: any) {
+    console.error('brand update error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte uppdatera kedja') });
+  }
+});
+
+// PUT /api/admin/brands/:id/restaurants — sätt EXAKT medlemslistan.
+// body: { restaurantIds: string[] }. Tilldelar listade, kopplar bort övriga.
+router.put('/brands/:id/restaurants', requireSuperAdmin, async (req, res) => {
+  try {
+    const brandId = req.params.id;
+    const brand = await prisma.brand.findUnique({ where: { id: brandId }, select: { id: true, masterRestaurantId: true } });
+    if (!brand) { res.status(404).json({ error: 'Kedja hittades inte' }); return; }
+    const ids: string[] = Array.isArray(req.body.restaurantIds) ? req.body.restaurantIds.map((x: unknown) => String(x)) : [];
+    // Koppla bort platser som inte längre är med, tilldela de nya.
+    await prisma.restaurant.updateMany({ where: { brandId, id: { notIn: ids.length ? ids : ['__none__'] } }, data: { brandId: null } });
+    if (ids.length) await prisma.restaurant.updateMany({ where: { id: { in: ids } }, data: { brandId } });
+    // Om master kopplades bort → nolla master.
+    const data: Record<string, unknown> = {};
+    if (brand.masterRestaurantId && !ids.includes(brand.masterRestaurantId)) data.masterRestaurantId = null;
+    if (Object.keys(data).length) await prisma.brand.update({ where: { id: brandId }, data });
+    await audit(req as AuthRequest, 'BRAND_MEMBERS_SET', { resourceType: 'Brand', resourceId: brandId, changes: { count: ids.length } });
+    res.json({ ok: true, count: ids.length });
+  } catch (error: any) {
+    console.error('brand members error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte uppdatera platser') });
+  }
+});
+
+// POST /api/admin/brands/:id/sync — synka master-menyn till ALLA platser i kedjan.
+// body: { apply?: boolean }. Återanvänder runMenuSync (idempotent; lokala
+// undantag — isActive, localPriceLocked, plats-deals — bevaras).
+router.post('/brands/:id/sync', requireSuperAdmin, async (req, res) => {
+  try {
+    const brand = await prisma.brand.findUnique({
+      where: { id: req.params.id },
+      include: { restaurants: { select: { id: true } } },
+    });
+    if (!brand) { res.status(404).json({ error: 'Kedja hittades inte' }); return; }
+    if (!brand.masterRestaurantId) { res.status(400).json({ error: 'Välj en master-plats för kedjan först' }); return; }
+    const apply = req.body.apply === true || req.body.apply === 'true';
+    const targets = brand.restaurants.map((r) => r.id).filter((id) => id !== brand.masterRestaurantId);
+    if (targets.length === 0) { res.status(400).json({ error: 'Kedjan har inga andra platser att synka till' }); return; }
+
+    const results = [];
+    for (const targetId of targets) {
+      const result = await runMenuSync(prisma, brand.masterRestaurantId, targetId, apply);
+      results.push(result);
+      if (apply && result.ok) {
+        menuCacheBust(targetId);
+        broadcastMenuChange(targetId, { kind: 'brand-sync', brandId: brand.id });
+      }
+    }
+    if (apply) {
+      await audit(req as AuthRequest, 'BRAND_SYNC', { resourceType: 'Brand', resourceId: brand.id, changes: { targets, summaries: results.map((r) => r.summary) } });
+    }
+    res.json({ ok: results.every((r) => r.ok), dryRun: !apply, results });
+  } catch (error: any) {
+    console.error('brand sync error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Synk misslyckades') });
+  }
+});
+
+// DELETE /api/admin/brands/:id — ta bort kedjan (platser kopplas bort via FK SetNull).
+router.delete('/brands/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    await prisma.restaurant.updateMany({ where: { brandId: req.params.id }, data: { brandId: null } });
+    await prisma.brand.delete({ where: { id: req.params.id } });
+    await audit(req as AuthRequest, 'BRAND_DELETE', { resourceType: 'Brand', resourceId: req.params.id, changes: {} });
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error('brand delete error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte ta bort kedja') });
+  }
+});
+
 // POST /api/admin/products
 router.post('/products', async (req, res) => {
   try {
@@ -1673,6 +1811,7 @@ router.post('/products', async (req, res) => {
         discountLabel: data.discountLabel ?? null,
         discountActive: data.discountActive ?? false,
         rewardable: data.rewardable ?? false,
+        localPriceLocked: data.localPriceLocked ?? false,
         ...(data.extraGroupIds && data.extraGroupIds.length > 0 ? {
           extraGroups: {
             create: data.extraGroupIds.map((groupId, i) => ({

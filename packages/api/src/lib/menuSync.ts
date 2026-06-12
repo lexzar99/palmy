@@ -20,6 +20,7 @@ export interface MenuSyncSummary {
   categoriesUpdated: number;
   productsCreated: number;
   productsUpdated: number;
+  priceLocked: number;
   groupsCreated: number;
   groupsReused: number;
   links: number;
@@ -43,7 +44,7 @@ export async function runMenuSync(
 ): Promise<MenuSyncResult> {
   const summary: MenuSyncSummary = {
     categoriesCreated: 0, categoriesUpdated: 0,
-    productsCreated: 0, productsUpdated: 0,
+    productsCreated: 0, productsUpdated: 0, priceLocked: 0,
     groupsCreated: 0, groupsReused: 0, links: 0,
   };
   const warnings: string[] = [];
@@ -146,13 +147,14 @@ export async function runMenuSync(
     // Hämtas så fort kategorin FINNS (även i dry-run) så created/updated räknas
     // rätt — annars trodde dry-run att allt var nytt.
     const existingProds = catId
-      ? await prisma.product.findMany({ where: { categoryId: catId }, select: { id: true, slug: true } })
+      ? await prisma.product.findMany({ where: { categoryId: catId }, select: { id: true, slug: true, localPriceLocked: true } })
       : [];
-    const prodIdBySlug = new Map(existingProds.map((p) => [p.slug, p.id]));
+    const prodBySlug = new Map(existingProds.map((p) => [p.slug, p]));
 
     for (const [pi, prod] of cat.products.entries()) {
       const prodSlug = `${slugify(prod.name)}-${slugify(targetSlug)}`;
-      const existingPid = prodIdBySlug.get(prodSlug);
+      const existing = prodBySlug.get(prodSlug);
+      const existingPid = existing?.id;
       const prodExists = Boolean(existingPid);
       if (prodExists) summary.productsUpdated++; else summary.productsCreated++;
 
@@ -163,13 +165,17 @@ export async function runMenuSync(
 
       if (!apply || !catId) continue;
 
-      // Master är sanning för pris/beskrivning/flaggor — men LOKAL isActive
-      // bevaras (skickas ALDRIG i update/create-overwrite).
-      const dataCommon = {
-        name: prod.name, description: prod.description, price: prod.price,
+      // Master är sanning för namn/beskrivning/flaggor. LOKALA undantag bevaras:
+      //  • isActive (slutsålt) — skickas ALDRIG i update.
+      //  • price — skippas om platsen låst sitt lokala pris (localPriceLocked).
+      const dataCommon: any = {
+        name: prod.name, description: prod.description,
         isVegan: prod.isVegan, isVegetarian: prod.isVegetarian, isGlutenFree: prod.isGlutenFree,
         displayMode: prod.displayMode, hideDescription: prod.hideDescription, position: pi,
       };
+      // Lås på en BEFINTLIG produkt → behåll lokalt pris. Nya produkter ärver alltid masterns pris.
+      if (!(prodExists && existing?.localPriceLocked)) dataCommon.price = prod.price;
+      if (prodExists && existing?.localPriceLocked) summary.priceLocked++;
       if (prodExists) {
         await prisma.product.update({ where: { id: existingPid! }, data: dataCommon });
         await prisma.productExtraGroup.deleteMany({ where: { productId: existingPid! } });

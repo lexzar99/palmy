@@ -32,6 +32,10 @@ model Product {
   slug                String              @unique
   description         String?
   price               Int
+  // Kedja: när true skriver master→plats-synken ALDRIG över detta pris — platsen
+  // håller sitt eget lokala pris (t.ex. dyrare på flygplatsen). Övriga fält
+  // synkas ändå. Sätts per produkt i admin. Default false = master styr priset.
+  localPriceLocked    Boolean             @default(false)
   categoryId          String
   imageUrl            String?
   isActive            Boolean             @default(true)
@@ -743,12 +747,36 @@ model Restaurant {
   payouts        RestaurantPayout[]
   printers       RestaurantPrinter[]
 
+  // Kedjekoppling: en plats kan tillhöra ett Brand (t.ex. "Max", "BK").
+  // null = fristående restaurang. Menyn synkas från brandets master-plats.
+  brandId        String?
+  brand          Brand?             @relation(fields: [brandId], references: [id], onDelete: SetNull)
+
   // Publika listan sorterar på featuredClass, filtrerar på city och joinar
   // city_relation (cityId). Indexen håller cold-queryn snabb när antalet
   // restauranger växer.
   @@index([featuredClass])
   @@index([city])
   @@index([cityId])
+  @@index([brandId])
+}
+
+// Kedja/varumärke som grupperar flera platser (Restaurant). En plats utses
+// till master (masterRestaurantId) — dess meny är källan, och "Synka alla
+// platser" kopierar den till övriga platser i brandet. Lokala undantag
+// (slutsålt via Product.isActive, prisundantag via Product.localPriceLocked,
+// plats-specifika erbjudanden via Deal.applicableRestaurantIds) bevaras.
+model Brand {
+  id                 String       @id @default(cuid())
+  name               String
+  slug               String       @unique
+  logoUrl            String?
+  // Mjuk pekare (ingen relation, undviker cirkulär master↔plats). Master är
+  // en av restaurangerna i `restaurants`.
+  masterRestaurantId String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  restaurants        Restaurant[]
 }
 
 model City {

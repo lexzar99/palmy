@@ -32,6 +32,8 @@ model Product {
   slug                String              @unique
   description         String?
   price               Int
+  // Kedja: när true skriver master→plats-synken aldrig över priset (lokalt pris).
+  localPriceLocked    Boolean             @default(false)
   categoryId          String
   imageUrl            String?
   isActive            Boolean             @default(true)
@@ -739,12 +741,30 @@ model Restaurant {
   payouts        RestaurantPayout[]
   printers       RestaurantPrinter[]
 
+  // Kedjekoppling — se api-schemat för doc. null = fristående.
+  brandId        String?
+  brand          Brand?             @relation(fields: [brandId], references: [id], onDelete: SetNull)
+
   // Publika listan sorterar på featuredClass, filtrerar på city och joinar
   // city_relation (cityId). Indexen håller cold-queryn snabb när antalet
   // restauranger växer.
   @@index([featuredClass])
   @@index([city])
   @@index([cityId])
+  @@index([brandId])
+}
+
+// Kedja/varumärke som grupperar flera platser. Master-platsens meny synkas
+// till övriga. Lokala undantag bevaras (isActive, localPriceLocked, deals).
+model Brand {
+  id                 String       @id @default(cuid())
+  name               String
+  slug               String       @unique
+  logoUrl            String?
+  masterRestaurantId String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  restaurants        Restaurant[]
 }
 
 model City {

@@ -23,6 +23,7 @@ import {
   Map,
   MenuSquare,
   Moon,
+  Network,
   ReceiptText,
   Search,
   Sun,
@@ -60,6 +61,7 @@ const SECTIONS: NavSection[] = [
     label: "Katalog",
     items: [
       { href: "/restaurants", label: "Restauranger", icon: Store },
+      { href: "/brands", label: "Kedjor", icon: Network },
       { href: "/restaurant-devices", label: "Enheter", icon: Tablet },
       { href: "/menu", label: "Meny", icon: MenuSquare },
       { href: "/categories", label: "Kategorier", icon: Filter },

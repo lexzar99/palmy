@@ -128,7 +128,7 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
 
 function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, restaurants, products, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; restaurants: DealRestaurantRef[]; products: DealProductRef[]; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, rewardable: false, extraGroupIds: [] as string[] });
+  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, rewardable: false, localPriceLocked: false, extraGroupIds: [] as string[] });
   const [promotionModalOpen, setPromotionModalOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -150,6 +150,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             displayMode: product.displayMode ?? "FULL",
             hideDescription: product.hideDescription ?? false,
             rewardable: product.rewardable ?? false,
+            localPriceLocked: (product as any).localPriceLocked ?? false,
             extraGroupIds: product.extraGroups.map((group) => group.id),
           }
         : {
@@ -166,6 +167,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             displayMode: "FULL",
             hideDescription: false,
             rewardable: false,
+            localPriceLocked: false,
             extraGroupIds: [],
           },
     );
@@ -296,6 +298,14 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
               className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.rewardable ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
             >
               ★ Köpbar med poäng (Dpoints)
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm((current) => ({ ...current, localPriceLocked: !current.localPriceLocked }))}
+              title="Kedja: när på skriver master→plats-synken aldrig över priset här — platsen håller sitt eget lokala pris."
+              className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.localPriceLocked ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
+            >
+              🔒 Lås lokalt pris (kedja)
             </button>
           </div>
         </div>
