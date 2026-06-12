@@ -19,6 +19,7 @@ import { useFavorites } from "@/lib/favoritesStore";
 import { type BogoPickerProduct } from "@/components/BogoPickerModal";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import EmptyState from "@/components/EmptyState";
+import DpointsBadge from "@/components/DpointsBadge";
 import { rehydrateMenuCategories, MENU_FORMAT_PARAM } from "@/lib/menu";
 
 // Tunga modaler laddas först vid interaktion (köp/adress/BOGO) → mindre initial
@@ -96,6 +97,8 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
               −{discountPct}%
             </span>
           )}
+          {/* Rewardable → "eller X p" bredvid priset så man ser att den är köpbar med poäng */}
+          <DpointsBadge priceKr={final} rewardable={!!product.rewardable} />
           {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
             <span className="flex items-center gap-1 ml-0.5">
               {product.isVegan && <span title="Vegan" className="w-2 h-2 rounded-full bg-emerald-500" />}
