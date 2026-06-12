@@ -50,13 +50,12 @@ export const messages: Record<Locale, Messages> = {
     "nav.locale.en": "English",
 
     // ── Favoriter (Upptäck-sidan) ─────────────────────────────────────────
-    "favorites.title": "Dina",
-    "favorites.titleAccent": "favoriter",
+    "favorites.title": "Favoriter",
     "favorites.subtitle": "Dina sparade restauranger",
     "favorites.count": "{count} sparade restauranger",
     "favorites.searchPlaceholder": "Sök bland dina favoriter…",
     "favorites.empty.title": "Inga favoriter än",
-    "favorites.empty.sub": "Tryck på hjärtat på ett restaurangkort för att spara det här.",
+    "favorites.empty.sub": "Tryck på hjärtat på en restaurang för att spara den här",
     "favorites.empty.cta": "Utforska restauranger",
 
     // ── Home ──────────────────────────────────────────────────────────────
@@ -270,13 +269,12 @@ export const messages: Record<Locale, Messages> = {
     "nav.locale.en": "English",
 
     // ── Favorites (Discover page) ─────────────────────────────────────────
-    "favorites.title": "Your",
-    "favorites.titleAccent": "favorites",
+    "favorites.title": "Favorites",
     "favorites.subtitle": "Your saved restaurants",
     "favorites.count": "{count} saved restaurants",
     "favorites.searchPlaceholder": "Search your favorites…",
     "favorites.empty.title": "No favorites yet",
-    "favorites.empty.sub": "Tap the heart on a restaurant card to save it here.",
+    "favorites.empty.sub": "Tap the heart on a restaurant to save it here",
     "favorites.empty.cta": "Explore restaurants",
 
     // ── Home ──────────────────────────────────────────────────────────────
