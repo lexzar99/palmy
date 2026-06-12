@@ -2621,6 +2621,19 @@ export default function CartPage() {
                                </p>
                              </div>
                            </div>
+                           {/* Byt gratis-vara: ta bort nuvarande val → picker öppnas igen */}
+                           <button
+                             type="button"
+                             onClick={() => {
+                               items
+                                 .filter((i) => i.bogoFreeFromDealId === bogoPreview.dealId)
+                                 .forEach((i) => removeItem(i.cartItemId));
+                               setShowBogoPicker(true);
+                             }}
+                             className="shrink-0 rounded-full border border-emerald-500/30 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-400 transition-colors hover:bg-emerald-500/10"
+                           >
+                             {t("cart.bogo.swap")}
+                           </button>
                          </div>
                        </motion.div>
                      )}

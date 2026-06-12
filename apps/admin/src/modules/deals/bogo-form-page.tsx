@@ -46,7 +46,6 @@ type Draft = {
   // "1 dryck per kebabpizza, ingen cap".
   bogoMaxRewardsPerOrder: string;
   isActive: boolean;
-  showAsBanner: boolean;
   validFrom: string;
   validUntil: string;
 };
@@ -68,7 +67,6 @@ const defaultDraft = (): Draft => ({
   bogoRewardsPerTrigger: 1,
   bogoMaxRewardsPerOrder: "1",
   isActive: true,
-  showAsBanner: true,
   validFrom: "",
   validUntil: "",
 });
@@ -139,7 +137,6 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
             ? ""
             : String((deal as any).bogoMaxRewardsPerOrder),
         isActive: deal.isActive,
-        showAsBanner: deal.showAsBanner ?? true,
         validFrom: deal.validFrom ? deal.validFrom.slice(0, 10) : "",
         validUntil: deal.validUntil ? deal.validUntil.slice(0, 10) : "",
       });
@@ -233,7 +230,6 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
           d.bogoMaxRewardsPerOrder.trim() === "" ? null : Math.max(1, Number(d.bogoMaxRewardsPerOrder) || 1),
         isActive: d.isActive,
         showOnSite: true,
-        showAsBanner: d.showAsBanner,
         popupEnabled: false,
         validFrom: d.validFrom || null,
         validUntil: d.validUntil || null,
@@ -506,42 +502,50 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
                   )}
                 </Field>
 
-                <Field label="Max gratis-basepris (kr, valfritt)">
-                  <Input type="number" min="1" step="1" value={draft.bogoMaxRewardPrice}
-                    onChange={(e) => set("bogoMaxRewardPrice", e.target.value)}
-                    placeholder="t.ex. 15 — kunden betalar mellanskillnad vid dyrare val" />
-                </Field>
+                <details className="group">
+                  <summary className="flex cursor-pointer items-center justify-between rounded-lg border border-[var(--border-subtle)] px-4 py-2.5 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
+                    Avancerat — pristak & antal
+                    <span className="text-[var(--text-muted)] transition-transform group-open:rotate-180">⌄</span>
+                  </summary>
+                  <div className="mt-3 grid gap-5">
+                    <Field label="Max gratis-basepris (kr, valfritt)">
+                      <Input type="number" min="1" step="1" value={draft.bogoMaxRewardPrice}
+                        onChange={(e) => set("bogoMaxRewardPrice", e.target.value)}
+                        placeholder="t.ex. 15 — kunden betalar mellanskillnad vid dyrare val" />
+                    </Field>
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <Field label="Antal gratis per gång trigger uppfylls">
-                    <Input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={String(draft.bogoRewardsPerTrigger)}
-                      onChange={(e) => set("bogoRewardsPerTrigger", Math.max(1, Number(e.target.value) || 1))}
-                      placeholder="1"
-                    />
-                    <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                      T.ex. <strong>2</strong> = "köp 1 pizza → få 2 drycker"
-                    </p>
-                  </Field>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Field label="Antal gratis per gång trigger uppfylls">
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={String(draft.bogoRewardsPerTrigger)}
+                          onChange={(e) => set("bogoRewardsPerTrigger", Math.max(1, Number(e.target.value) || 1))}
+                          placeholder="1"
+                        />
+                        <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                          T.ex. <strong>2</strong> = "köp 1 pizza → få 2 drycker"
+                        </p>
+                      </Field>
 
-                  <Field label="Max gratis per order (tomt = obegränsat)">
-                    <Input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={draft.bogoMaxRewardsPerOrder}
-                      onChange={(e) => set("bogoMaxRewardsPerOrder", e.target.value)}
-                      placeholder="t.ex. 1 (cap) eller tom (skalär)"
-                    />
-                    <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                      Tomt: kund får 1 gratis per kvalificerande artikel ("köp 2 pizzor → 2 gratis").
-                      <br />Sätt t.ex. <strong>1</strong> för att alltid bara ge 1 gratis oavsett cart-storlek.
-                    </p>
-                  </Field>
-                </div>
+                      <Field label="Max gratis per order (tomt = obegränsat)">
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={draft.bogoMaxRewardsPerOrder}
+                          onChange={(e) => set("bogoMaxRewardsPerOrder", e.target.value)}
+                          placeholder="t.ex. 1 (cap) eller tom (skalär)"
+                        />
+                        <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                          Tomt: kund får 1 gratis per kvalificerande artikel ("köp 2 pizzor → 2 gratis").
+                          <br />Sätt t.ex. <strong>1</strong> för att alltid bara ge 1 gratis oavsett cart-storlek.
+                        </p>
+                      </Field>
+                    </div>
+                  </div>
+                </details>
               </>
             )}
           </Surface>
@@ -620,12 +624,6 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
               <Select value={draft.isActive ? "active" : "inactive"} onChange={(e) => set("isActive", e.target.value === "active")}>
                 <option value="active">Aktiv</option>
                 <option value="inactive">Inaktiv</option>
-              </Select>
-            </Field>
-            <Field label="Visa som banner">
-              <Select value={draft.showAsBanner ? "yes" : "no"} onChange={(e) => set("showAsBanner", e.target.value === "yes")}>
-                <option value="yes">Ja — visas på restaurangsidan</option>
-                <option value="no">Nej</option>
               </Select>
             </Field>
             <Field label="Giltig från (valfritt)">

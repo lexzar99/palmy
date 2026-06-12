@@ -66,13 +66,15 @@ export const useCartStore = create<CartStore>()(
         
         if (isDifferentRestaurant) {
            // We expect the caller to have already confirmed this via window.confirm
-           // If they didn't, we still clear here to prevent mixed restaurants in one order
+           // If they didn't, we still clear here to prevent mixed restaurants in one order.
+           // Nolla bogoChoice — det hörde till den gamla restaurangens deal.
            return {
              items: [{ ...item, cartItemId: Math.random().toString(36).substr(2, 9) }],
              restaurantId: item.restaurantId,
              restaurantSlug: item.restaurantSlug ?? null,
              lastAddedItemName: item.name,
              lastAddedAt: Date.now(),
+             bogoChoice: null,
            };
         }
 
@@ -85,11 +87,16 @@ export const useCartStore = create<CartStore>()(
         };
       }),
       removeItem: (id) => set((state) => {
+        const removed = state.items.find((i) => i.cartItemId === id);
         const remainingItems = state.items.filter((i) => i.cartItemId !== id);
+        // Nolla bogoChoice om varukorgen töms ELLER om man tar bort just gratis-varan.
+        const removedFreeItem = !!removed?.bogoFreeFromDealId;
+        const clearBogo = remainingItems.length === 0 || removedFreeItem;
         return {
           items: remainingItems,
           restaurantId: remainingItems.length > 0 ? state.restaurantId : null,
           restaurantSlug: remainingItems.length > 0 ? state.restaurantSlug : null,
+          ...(clearBogo ? { bogoChoice: null } : {}),
         };
       }),
       updateQuantity: (id, amount) => set((state) => ({

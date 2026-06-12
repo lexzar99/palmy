@@ -820,6 +820,21 @@ router.post('/', async (req: Request, res: Response) => {
           `Du har valt ${claimedFreeCount} gratis-varor men endast ${appliedBogoMaxFreeItems} är tillåtna för denna deal. Ta bort några och försök igen.`,
         );
       }
+      // Enforce blockerade tillval server-side: en gratis-vara får inte bära
+      // tillval som admin uteslutit (bogoExcludedExtraIds). Klienten filtrerar
+      // redan bort dem, men vi litar inte på klienten.
+      let excludedExtraIds: string[] = [];
+      try { excludedExtraIds = JSON.parse((appliedDeal as any).bogoExcludedExtraIds || '[]'); } catch { excludedExtraIds = []; }
+      if (excludedExtraIds.length > 0) {
+        const excludedSet = new Set(excludedExtraIds);
+        for (const it of data.items) {
+          if (it.bogoFreeFromDealId !== appliedDeal.id) continue;
+          const bad = (it.selectedExtras || []).find((e) => excludedSet.has(e.extraId));
+          if (bad) {
+            throw new OrderValidationError(`Tillvalet "${bad.extraName ?? ''}" kan inte väljas på gratis-varan i denna deal.`);
+          }
+        }
+      }
     }
 
     // ── Välkomsterbjudande (driver kassans toggle) ──────────────────────────

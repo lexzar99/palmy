@@ -506,7 +506,26 @@ const OrderStatusPage = () => {
               </div>
 
               <div className="pt-4 space-y-2" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                 <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.subtotal")}</span><span className="tabular-nums">{(order.total - order.deliveryFee).toFixed(0)} kr</span></div>
+                 {(() => {
+                   // Rå delsumma = summan av produktrader (matchar vad raderna visar).
+                   // Rabatten (deal/BOGO/kupong) räknas ut ur datan vi redan har:
+                   // total = delsumma − rabatt + leverans → rabatt = delsumma + leverans − total.
+                   // Visas som egen rad så kvittot stämmer med raderna (gratis-varan
+                   // står med fullt pris + en tydlig "Erbjudande −X kr"-rad).
+                   const rawSubtotal = (order.items ?? []).reduce((s: number, it: any) => s + (Number(it.subtotal) || 0), 0);
+                   const discount = Math.round(rawSubtotal + order.deliveryFee - order.total);
+                   return (
+                     <>
+                       <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.subtotal")}</span><span className="tabular-nums">{rawSubtotal.toFixed(0)} kr</span></div>
+                       {discount > 0 && (
+                         <div className="flex justify-between text-[13px] text-emerald-600">
+                           <span>{order.appliedDealTitle || t("order.summary.discount")}</span>
+                           <span className="tabular-nums">−{discount.toFixed(0)} kr</span>
+                         </div>
+                       )}
+                     </>
+                   );
+                 })()}
                  {order.deliveryFee > 0 && <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.deliveryFee")}</span><span className="tabular-nums">+{order.deliveryFee.toFixed(0)} kr</span></div>}
                   <div className="flex justify-between items-baseline pt-3 mt-1" style={{ borderTop: "1px solid var(--border-muted)" }}>
                      <span className="text-base font-bold" style={{ color: "var(--text-primary)" }}>{t("order.summary.total")}</span>
