@@ -161,7 +161,9 @@ async function snapshotDealById(dealId: string | null | undefined): Promise<Deal
     title: deal.title || 'Referral-rabatt',
     discountType: isPercent ? 'PERCENTAGE' : isFixed ? 'FIXED' : 'NONE',
     discountPercent: isPercent ? deal.discountValue : null,
-    amountKr: isFixed ? deal.discountValue : null,
+    // FIXED-rabatt lagras i ÖRE (normalizeDealInputForDb + ensureWelcomeTemplate)
+    // → /100 till kr. (Tidigare lästes den rakt av → 100× för stort belopp.)
+    amountKr: isFixed ? Math.round((deal.discountValue ?? 0) / 100) : null,
     freeDelivery,
     minOrderKr,
     expiresAt,
@@ -765,9 +767,28 @@ adminRouter.get('/welcome-deal', authenticate, requireSuperAdmin, async (_req, r
       select: { id: true, sponsorName: true, title: true, bonusPoints: true },
       orderBy: { createdAt: 'desc' },
     });
+    // Inline-erbjudandets nuvarande värden (ur välkomst-mallen) → fyller formuläret.
+    let welcomeOffer = { discountKind: 'PERCENT' as 'PERCENT' | 'FIXED' | 'NONE', discountValue: 20, freeDelivery: true, minOrderKr: 0 };
+    if (settings.welcomeDealId) {
+      const tpl = await (prisma as any).deal.findUnique({
+        where: { id: settings.welcomeDealId },
+        select: { discountType: true, discountValue: true, freeDelivery: true, minOrder: true, isPersonalTemplate: true },
+      });
+      if (tpl?.isPersonalTemplate) {
+        const isFixed = tpl.discountType === 'FIXED' || tpl.discountType === 'FIXED_PRICE';
+        const isPercent = tpl.discountType === 'PERCENTAGE';
+        welcomeOffer = {
+          discountKind: isPercent ? 'PERCENT' : isFixed ? 'FIXED' : 'NONE',
+          discountValue: isFixed ? Math.round((tpl.discountValue ?? 0) / 100) : Math.round(tpl.discountValue ?? 0),
+          freeDelivery: !!tpl.freeDelivery || tpl.discountType === 'FREE_DELIVERY',
+          minOrderKr: Math.round((tpl.minOrder ?? 0) / 100),
+        };
+      }
+    }
     res.json({
       welcomeDealActive: !!settings.welcomeDealActive,
       welcomeDealId: settings.welcomeDealId ?? null,
+      welcomeOffer,
       welcomeAudience: settings.welcomeAudience ?? 'FIRST_ORDER',
       welcomeMaxOrders: settings.welcomeMaxOrders ?? 1,
       welcomePointsActive: !!(settings as any).welcomePointsActive,
@@ -793,11 +814,57 @@ const welcomeDealUpdateSchema = z.object({
   welcomePointsActive: z.boolean().optional(),
   welcomePointsAmount: z.number().int().min(0).max(100000).optional(),
   welcomePointsSponsorCardId: z.string().nullable().optional(),
+  // ── Inline välkomst-erbjudande (ersätter mall-dropdownen) ──────────────────
+  // Admin definierar rabatten HÄR; backend skapar/uppdaterar den personliga
+  // mallen automatiskt och sätter welcomeDealId. Ingen återvändsgränd.
+  welcomeOffer: z.object({
+    discountKind: z.enum(['PERCENT', 'FIXED', 'NONE']),
+    discountValue: z.number().min(0).max(100000),   // PERCENT: % · FIXED: kr
+    freeDelivery: z.boolean(),                        // stackbar med rabatten
+    minOrderKr: z.number().int().min(0).max(100000),
+  }).optional(),
   referralEnabled: z.boolean().optional(),
   referralDealId: z.string().nullable().optional(),
   referralCouponsPerSide: z.number().int().min(1).max(10).optional(),
   referralMaxRewardsPerInviter: z.number().int().min(0).max(1000).optional(),
 });
+
+// Skapar/uppdaterar EN dedikerad personlig mall för välkomst-erbjudandet ur
+// inline-värdena och returnerar dess id. Återanvänder befintlig mall (pekad av
+// welcomeDealId) om den finns → inga orphan-mallar staplas vid varje sparning.
+// Lagrar i samma enheter som snapshotDealById konsumerar: FIXED i öre, minOrder
+// i öre, PERCENT som %, freeDelivery ortogonal.
+async function ensureWelcomeTemplate(
+  currentWelcomeDealId: string | null | undefined,
+  offer: { discountKind: 'PERCENT' | 'FIXED' | 'NONE'; discountValue: number; freeDelivery: boolean; minOrderKr: number },
+): Promise<string> {
+  const discountType = offer.discountKind === 'PERCENT' ? 'PERCENTAGE' : offer.discountKind === 'FIXED' ? 'FIXED' : 'NONE';
+  const discountValue = offer.discountKind === 'FIXED' ? Math.round(offer.discountValue * 100) : Math.round(offer.discountValue);
+  const data = {
+    title: 'Välkomsterbjudande',
+    triggerType: 'NONE',
+    discountType,
+    discountValue,
+    freeDelivery: offer.freeDelivery,
+    minOrder: Math.round(offer.minOrderKr * 100),
+    isPersonalTemplate: true,
+    isActive: true,
+    showOnSite: false,
+    popupEnabled: false,
+    showAsBanner: false,
+    isGlobal: false,
+  };
+  // Återanvänd befintlig mall om welcomeDealId fortfarande pekar på en.
+  if (currentWelcomeDealId) {
+    const existing = await (prisma as any).deal.findUnique({ where: { id: currentWelcomeDealId }, select: { id: true, isPersonalTemplate: true } });
+    if (existing?.isPersonalTemplate) {
+      await (prisma as any).deal.update({ where: { id: existing.id }, data });
+      return existing.id;
+    }
+  }
+  const created = await (prisma as any).deal.create({ data });
+  return created.id;
+}
 
 // Hjälpfunktion: validera att en deal-id pekar på en aktiv Personal Template.
 async function validatePersonalTemplate(dealId: string): Promise<string | null> {
@@ -832,13 +899,22 @@ adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, 
       const err = await validatePersonalTemplate(parsed.data.referralDealId);
       if (err) return res.status(400).json({ error: err });
     }
-    if (parsed.data.welcomeDealId && willActivateWelcome) {
+
+    // Inline-erbjudande: skapa/uppdatera mallen automatiskt och peka welcomeDealId
+    // på den. Det ersätter dropdownen helt — admin behöver aldrig en förskapad mall.
+    const { welcomeOffer, ...settingsPatch } = parsed.data as any;
+    if (welcomeOffer) {
+      const id = await ensureWelcomeTemplate((current as any).welcomeDealId, welcomeOffer);
+      settingsPatch.welcomeDealId = id;
+    } else if (parsed.data.welcomeDealId && willActivateWelcome) {
+      // Bakåtkompat: om någon ändå skickar ett welcomeDealId (utan inline-offer).
       const err = await validatePersonalTemplate(parsed.data.welcomeDealId);
       if (err) return res.status(400).json({ error: err });
     }
+
     const updated = await (prisma as any).restaurantSettings.update({
       where: { id: 'settings' },
-      data: parsed.data,
+      data: settingsPatch,
     });
     await audit(req as AuthRequest, 'WELCOME_DEAL_CONFIG_UPDATE', {
       resourceType: 'RestaurantSettings',

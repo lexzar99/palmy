@@ -37,7 +37,6 @@ type Draft = {
   targetIds: string[];
   isActive: boolean;
   showOnSite: boolean;
-  showAsBanner: boolean;
   maxUsages: string;
   validFrom: string;
   validUntil: string;
@@ -58,7 +57,6 @@ const defaultDraft = (): Draft => ({
   targetIds: [],
   isActive: true,
   showOnSite: true,
-  showAsBanner: false,
   maxUsages: "",
   validFrom: "",
   validUntil: "",
@@ -70,7 +68,6 @@ const SCOPE_OPTIONS: { value: DealScopeType; label: string; description: string;
   { value: "CATEGORY", label: "Kategori", description: "Rabatt på en kategoris produkter", emoji: "📂" },
   { value: "PRODUCT", label: "Produkt", description: "Rabatt på specifika produkter", emoji: "🛍️" },
   { value: "MIN_ORDER", label: "Min.order", description: "Rabatt vid beställning över X kr", emoji: "💰" },
-  { value: "COMBO", label: "Combo", description: "Rabatt när kunden väljer alla combo-produkter", emoji: "🧩" },
 ];
 
 export function KampanjFormPage({ dealId }: { dealId?: string }) {
@@ -117,10 +114,9 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         discountType: (d.discountType === "FIXED_PRICE" ? "FIXED_PRICE" : d.discountType === "FIXED" ? "FIXED" : "PERCENTAGE") as DealDiscountType,
         discountValue: d.discountValue,
         minOrder: d.minOrder || 0,
-        targetIds: d.targetIds || d.comboProductIds || [],
+        targetIds: d.targetIds || [],
         isActive: d.isActive,
         showOnSite: d.showOnSite,
-        showAsBanner: d.showAsBanner ?? false,
         maxUsages: d.maxUsages ? String(d.maxUsages) : "",
         validFrom: d.validFrom ? d.validFrom.slice(0, 10) : "",
         validUntil: d.validUntil ? d.validUntil.slice(0, 10) : "",
@@ -130,7 +126,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
     }
   }, [existingDeal.data, initialized]);
 
-  const isItemScope = draft.scopeType === "PRODUCT" || draft.scopeType === "CATEGORY" || draft.scopeType === "COMBO";
+  const isItemScope = draft.scopeType === "PRODUCT" || draft.scopeType === "CATEGORY";
   const supportsFixedPrice = draft.scopeType === "PRODUCT" || draft.scopeType === "CATEGORY";
 
   const availableTargets = useMemo(() => {
@@ -163,7 +159,6 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         isGlobal: d.isGlobal,
         isActive: d.isActive,
         showOnSite: d.showOnSite,
-        showAsBanner: d.showAsBanner,
         popupEnabled: false,
         maxUsages: d.maxUsages ? Number(d.maxUsages) : null,
         validFrom: d.validFrom || null,
@@ -391,26 +386,33 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
             </Field>
             <Field label="Synlig på sajten">
               <Select value={draft.showOnSite ? "yes" : "no"} onChange={(e) => set("showOnSite", e.target.value === "yes")}>
-                <option value="yes">Ja</option>
+                <option value="yes">Ja — visas i kassan & spotlight</option>
                 <option value="no">Nej</option>
               </Select>
-            </Field>
-            <Field label="Visa som banner">
-              <Select value={draft.showAsBanner ? "yes" : "no"} onChange={(e) => set("showAsBanner", e.target.value === "yes")}>
-                <option value="no">Nej</option>
-                <option value="yes">Ja — banner på restaurangsidan</option>
-              </Select>
-            </Field>
-            <Field label="Max antal användningar (tom = ∞)">
-              <Input type="number" min="1" value={draft.maxUsages} onChange={(e) => set("maxUsages", e.target.value)} placeholder="Obegränsat" />
-            </Field>
-            <Field label="Giltig från (valfritt)">
-              <Input type="date" value={draft.validFrom} onChange={(e) => set("validFrom", e.target.value)} />
-            </Field>
-            <Field label="Giltig till (valfritt)">
-              <Input type="date" value={draft.validUntil} onChange={(e) => set("validUntil", e.target.value)} />
             </Field>
           </Surface>
+
+          {/* Avancerat — sällan-använda fält bakom en utfällning så grund-flödet
+              hålls rent (gränser + giltighetstid). */}
+          <details className="group">
+            <summary className="flex cursor-pointer items-center justify-between rounded-xl border border-[var(--border-subtle)] px-5 py-3 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
+              Avancerat
+              <span className="text-[var(--text-muted)] transition-transform group-open:rotate-180">⌄</span>
+            </summary>
+            <Surface className="mt-2 px-6 py-6 grid gap-4">
+              <Field label="Max antal användningar (tom = ∞)">
+                <Input type="number" min="1" value={draft.maxUsages} onChange={(e) => set("maxUsages", e.target.value)} placeholder="Obegränsat" />
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Giltig från (valfritt)">
+                  <Input type="date" value={draft.validFrom} onChange={(e) => set("validFrom", e.target.value)} />
+                </Field>
+                <Field label="Giltig till (valfritt)">
+                  <Input type="date" value={draft.validUntil} onChange={(e) => set("validUntil", e.target.value)} />
+                </Field>
+              </div>
+            </Surface>
+          </details>
 
           {/* Preview */}
           {draft.title && (

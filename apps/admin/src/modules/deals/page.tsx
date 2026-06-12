@@ -408,7 +408,6 @@ function DealCard({ deal, typeLabel, valueLine, onClick }: {
       <p className="mt-1.5 text-sm font-semibold text-[var(--text-primary)]">{valueLine}</p>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <Badge tone="info">{typeLabel}</Badge>
-        {deal.showAsBanner && <Badge tone="warning">Banner</Badge>}
       </div>
       <p className="mt-2 text-xs text-[var(--text-muted)]">
         {deal.restaurant?.name || (deal.isGlobal ? "Alla restauranger" : "Ingen restaurang")}

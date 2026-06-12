@@ -13,7 +13,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import PreviouslyOrderedBar from "@/components/PreviouslyOrderedBar";
-import DealBannerStrip from "@/components/DealBannerStrip";
 import { useCartStore } from "@/store/cartStore";
 import { useFavorites } from "@/lib/favoritesStore";
 import { type BogoPickerProduct } from "@/components/BogoPickerModal";
@@ -781,12 +780,6 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           </motion.div>
         ) : null}
 
-        {/* Aktuella deal-banners för den här restaurangen */}
-        {(restaurantSlug || restaurant?.slug) ? (
-          <div className="mb-5 -mx-4 sm:-mx-6">
-            <DealBannerStrip slug={restaurantSlug || restaurant?.slug} />
-          </div>
-        ) : null}
 
         {/* Previously ordered bar (inloggade kunder) */}
         {restaurant?.id && (

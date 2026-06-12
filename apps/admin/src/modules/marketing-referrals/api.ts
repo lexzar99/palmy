@@ -15,6 +15,15 @@ export interface AvailableDeal {
 
 export type WelcomeAudience = "FIRST_ORDER" | "ALL" | "LOGGED_IN";
 
+// Inline-erbjudandet (ersätter mall-dropdownen). Rabatt + fri leverans är
+// ortogonala: kunden kan få "25% OCH fri leverans".
+export interface WelcomeOffer {
+  discountKind: "PERCENT" | "FIXED" | "NONE";
+  discountValue: number; // PERCENT: % · FIXED: kr
+  freeDelivery: boolean;
+  minOrderKr: number;
+}
+
 export interface SponsorCardOption {
   id: string;
   sponsorName: string | null;
@@ -27,6 +36,8 @@ export interface WelcomeDealSettings {
   // Welcome-deal pekar nu på en Personal Template-Deal (samma pattern
   // som referral). Inga hårdkodade kr/percent/days-fält.
   welcomeDealId: string | null;
+  // Inline-erbjudandets nuvarande värden (ur välkomst-mallen).
+  welcomeOffer?: WelcomeOffer;
   // Vem erbjudandet gäller i kassan + på hur många av kundens första ordrar.
   welcomeAudience?: WelcomeAudience;
   welcomeMaxOrders?: number;

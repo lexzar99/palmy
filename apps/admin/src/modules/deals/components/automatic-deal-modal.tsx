@@ -204,7 +204,7 @@ export function AutomaticDealModal({
   const canSave =
     draft.title.trim().length > 0 &&
     (draft.isGlobal || restaurantLocked || draft.restaurantId.length > 0) &&
-    (!isItemScope && draft.scopeType !== "COMBO" ? true : draft.targetIds.length > 0);
+    (!isItemScope ? true : draft.targetIds.length > 0);
 
   return (
     <Modal
@@ -244,7 +244,7 @@ export function AutomaticDealModal({
                 targetIds: [],
                 discountType: !nextItemScope && current.discountType === "FIXED_PRICE" ? "PERCENTAGE" : current.discountType,
               };
-            })}><option value="RESTAURANT">Restaurant</option><option value="PRODUCT">Products</option><option value="CATEGORY">Categories</option><option value="MIN_ORDER">Min order</option><option value="COMBO">Combo</option></Select></Field>
+            })}><option value="RESTAURANT">Restaurant</option><option value="PRODUCT">Products</option><option value="CATEGORY">Categories</option><option value="MIN_ORDER">Min order</option></Select></Field>
             <Field label="Discount type"><Select value={draft.discountType} onChange={(event) => setDraft((current) => ({ ...current, discountType: event.target.value as DealDiscountType }))}><option value="PERCENTAGE">Percentage</option>{supportsFixedPrice ? <option value="FIXED_PRICE">Fixed price</option> : <option value="FIXED">Fixed amount</option>}</Select></Field>
             <Field label={draft.discountType === "PERCENTAGE" ? "Discount percent" : draft.discountType === "FIXED_PRICE" ? "Fixed price" : "Discount amount"}><Input type="number" value={draft.discountValue} onChange={(event) => setDraft((current) => ({ ...current, discountValue: Number(event.target.value) }))} /></Field>
             <Field label="Sort order"><Input type="number" value={draft.sortOrder} onChange={(event) => setDraft((current) => ({ ...current, sortOrder: Number(event.target.value) }))} /></Field>
@@ -283,7 +283,7 @@ export function AutomaticDealModal({
             </div>
           </div>
 
-          {isItemScope || draft.scopeType === "COMBO" ? (
+          {isItemScope ? (
             <div className="surface-muted px-4 py-4">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Targets</p>
@@ -291,7 +291,7 @@ export function AutomaticDealModal({
               </div>
               <div className="mt-4 grid max-h-[420px] gap-2 overflow-auto">
                 {availableTargets.length === 0 ? (
-                  <div className="text-sm text-[var(--text-secondary)]">Select a restaurant to load {draft.scopeType === "CATEGORY" ? "categories" : draft.scopeType === "COMBO" ? "products for the combo" : "products"}.</div>
+                  <div className="text-sm text-[var(--text-secondary)]">Select a restaurant to load {draft.scopeType === "CATEGORY" ? "categories" : "products"}.</div>
                 ) : availableTargets.map((target) => (
                   <button key={target.id} type="button" onClick={() => toggleTarget(target.id)} className={`rounded-2xl border px-4 py-3 text-left transition-all ${draft.targetIds.includes(target.id) ? "border-[rgba(94,166,255,0.24)] bg-[rgba(94,166,255,0.1)]" : "border-[var(--border-subtle)] bg-[var(--bg-panel-muted)]"}`}>
                     <div className="flex items-center justify-between gap-3">

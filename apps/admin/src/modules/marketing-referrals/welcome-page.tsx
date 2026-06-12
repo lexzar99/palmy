@@ -8,7 +8,7 @@ import {
   getWelcomeDealSettings,
   updateWelcomeDealSettings,
   welcomeDealQueryKey,
-  type WelcomeAudience,
+  type WelcomeOffer,
 } from "@/modules/marketing-referrals/api";
 import { Badge, Button, ErrorPanel, Field, Input, LoadingPanel, PageHeader, Select, Surface } from "@/shared/components/ui";
 
@@ -28,21 +28,15 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
   );
 }
 
-const AUDIENCE_LABEL: Record<WelcomeAudience, string> = {
-  FIRST_ORDER: "Alla nya (per telefon)",
-  LOGGED_IN: "Endast inloggade konton",
-  ALL: "Alla kunder (även återkommande)",
-};
+const DEFAULT_OFFER: WelcomeOffer = { discountKind: "PERCENT", discountValue: 20, freeDelivery: true, minOrderKr: 0 };
 
 export function WelcomeCampaignPage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: welcomeDealQueryKey, queryFn: getWelcomeDealSettings });
 
-  // Rabatt
+  // Rabatt — definieras INLINE (ingen mall-dropdown längre).
   const [discountActive, setDiscountActive] = useState(false);
-  const [dealId, setDealId] = useState<string | null>(null);
-  const [audience, setAudience] = useState<WelcomeAudience>("FIRST_ORDER");
-  const [maxOrders, setMaxOrders] = useState(1);
+  const [offer, setOffer] = useState<WelcomeOffer>(DEFAULT_OFFER);
   // Poäng
   const [pointsActive, setPointsActive] = useState(false);
   const [pointsAmount, setPointsAmount] = useState(100);
@@ -52,16 +46,7 @@ export function WelcomeCampaignPage() {
   useEffect(() => {
     if (!q.data) return;
     setDiscountActive(!!q.data.welcomeDealActive);
-    // Orphan-guard: behåll bara sparat welcomeDealId om mallen FORTFARANDE
-    // finns bland availableDeals. Annars (mallen raderad → spök-id) nollas det,
-    // så att sparningen inte 400:ar på "Vald deal hittades inte" — vilket annars
-    // blockerar ALLA sparningar, även ren poäng-konfig. (Samma guard som
-    // referral-sidan redan har.)
-    const savedDealId = q.data.welcomeDealId ?? null;
-    const dealStillExists = savedDealId != null && (q.data.availableDeals ?? []).some((d) => d.id === savedDealId);
-    setDealId(dealStillExists ? savedDealId : null);
-    setAudience((q.data.welcomeAudience as WelcomeAudience) ?? "FIRST_ORDER");
-    setMaxOrders(q.data.welcomeMaxOrders ?? 1);
+    setOffer(q.data.welcomeOffer ?? DEFAULT_OFFER);
     setPointsActive(!!q.data.welcomePointsActive);
     setPointsAmount(q.data.welcomePointsAmount ?? 100);
     setSponsorOn(!!q.data.welcomePointsSponsorCardId);
@@ -72,12 +57,12 @@ export function WelcomeCampaignPage() {
     mutationFn: () =>
       updateWelcomeDealSettings({
         welcomeDealActive: discountActive,
-        // dealId är nu garanterat antingen en giltig mall eller null (orphan-
-        // guarden ovan). Skicka null när rabatten är av så ett tomt val aldrig
-        // re-sänder ett spök-id.
-        welcomeDealId: discountActive ? dealId : null,
-        welcomeAudience: audience,
-        welcomeMaxOrders: maxOrders,
+        // Inline-erbjudandet — backend skapar/uppdaterar mallen automatiskt.
+        // Skickas bara när rabatten är på (annars rörs inte mallen).
+        ...(discountActive ? { welcomeOffer: offer } : {}),
+        // Endast inloggade konton, en kupong per konto (UserDeal per userId).
+        welcomeAudience: "LOGGED_IN",
+        welcomeMaxOrders: 1,
         welcomePointsActive: pointsActive,
         welcomePointsAmount: pointsAmount,
         welcomePointsSponsorCardId: sponsorOn ? sponsorCardId : null,
@@ -85,15 +70,16 @@ export function WelcomeCampaignPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: welcomeDealQueryKey }),
   });
 
-  // Kan inte aktivera rabatt utan en vald mall — visa tydligt fel i stället
-  // för ett bakvänt 400 från servern.
-  const discountNeedsTemplate = discountActive && !dealId;
+  // Rabatt på utan att något faktiskt ges (0% / 0 kr och ingen fri leverans).
+  const offerEmpty = discountActive
+    && (offer.discountKind === "NONE" || offer.discountValue <= 0)
+    && !offer.freeDelivery;
 
   if (q.isLoading) return <LoadingPanel label="Laddar välkomstkampanj…" />;
   if (q.isError || !q.data) return <ErrorPanel title="Kunde inte ladda välkomstkampanj" action={<Button onClick={() => void q.refetch()}>Försök igen</Button>} />;
 
-  const deals = q.data.availableDeals ?? [];
   const sponsors = q.data.sponsorCards ?? [];
+  const setOfferField = <K extends keyof WelcomeOffer>(k: K, v: WelcomeOffer[K]) => setOffer((o) => ({ ...o, [k]: v }));
 
   return (
     <div className="page-stack">
@@ -102,76 +88,72 @@ export function WelcomeCampaignPage() {
         actions={
           <div className="flex items-center gap-2">
             <Link href="/marketing-referrals/referral" className="button-secondary">Värva vän</Link>
-            <Button variant="primary" disabled={save.isPending || discountNeedsTemplate} onClick={() => save.mutate()}>
+            <Button variant="primary" disabled={save.isPending || offerEmpty} onClick={() => save.mutate()}>
               <Save size={15} /> {save.isPending ? "Sparar…" : "Spara"}
             </Button>
           </div>
         }
       />
       <p className="-mt-2 text-sm text-[var(--text-secondary)]">
-        Belöning till nya kunder. Rabatt och poäng kan vara på samtidigt — eller bara den ena.
+        Belöning till nya, inloggade kunder — en kupong per konto. Rabatt och poäng kan vara på samtidigt, eller bara den ena. Landar i kundens &ldquo;Mina deals&rdquo; direkt efter registrering.
       </p>
 
-      {/* ── Rabatt-belöning ── */}
+      {/* ── Rabatt-belöning (definieras inline) ── */}
       <Surface className="px-6 py-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]"><Percent size={17} /></span>
             <div>
-              <h2 className="text-lg font-bold tracking-[-0.01em]">Rabatt på första beställningarna</h2>
-              <p className="text-sm text-[var(--text-secondary)]">Auto i kassan, ingen kod. Stödjer % + fri leverans.</p>
+              <h2 className="text-lg font-bold tracking-[-0.01em]">Rabatt för nya konton</h2>
+              <p className="text-sm text-[var(--text-secondary)]">Auto i kassan, ingen kod. Rabatt + fri leverans kan kombineras.</p>
             </div>
           </div>
           <Toggle on={discountActive} onChange={setDiscountActive} />
         </div>
 
         {discountActive && (
-          <div className="mt-6 grid gap-5 border-t border-[var(--border-subtle)] pt-6 sm:grid-cols-2">
-            <Field label="Belöning (Personlig deal)">
-              <Select value={dealId ?? ""} onChange={(e) => setDealId(e.target.value || null)}>
-                <option value="">Välj mall…</option>
-                {deals.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.title}
-                    {d.discountType === "PERCENTAGE" ? ` · ${d.discountValue}%` : d.discountType === "FIXED" ? ` · ${d.discountValue} kr` : ""}
-                    {d.freeDelivery ? " + fri leverans" : ""}
-                  </option>
-                ))}
-              </Select>
-              {deals.length === 0 ? (
-                <p className="mt-1.5 text-xs text-[var(--warning)]">
-                  Inga personliga mallar finns ännu. Skapa en under <Link href="/deals" className="underline">Deals → Personliga</Link> innan du aktiverar rabatten.
-                </p>
-              ) : discountNeedsTemplate ? (
-                <p className="mt-1.5 text-xs text-[var(--warning)]">Välj en mall för att kunna spara med rabatt på.</p>
-              ) : (
-                <p className="mt-1.5 text-xs text-[var(--text-muted)]">
-                  Skapa mallar (t.ex. 20% + fri leverans) under <Link href="/deals" className="underline">Deals → Personliga</Link>.
-                </p>
+          <div className="mt-6 space-y-5 border-t border-[var(--border-subtle)] pt-6">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field label="Typ av rabatt">
+                <Select value={offer.discountKind} onChange={(e) => setOfferField("discountKind", e.target.value as WelcomeOffer["discountKind"])}>
+                  <option value="PERCENT">Procent av ordern</option>
+                  <option value="FIXED">Fast belopp (kr)</option>
+                  <option value="NONE">Endast fri leverans</option>
+                </Select>
+              </Field>
+              {offer.discountKind !== "NONE" && (
+                <Field label={offer.discountKind === "PERCENT" ? "Rabatt (%)" : "Rabatt (kr)"}>
+                  <Input
+                    type="number" min={0} max={offer.discountKind === "PERCENT" ? 100 : undefined}
+                    value={offer.discountValue}
+                    onChange={(e) => setOfferField("discountValue", e.target.value ? Number(e.target.value) : 0)}
+                  />
+                </Field>
               )}
-            </Field>
-            <Field label="Vilka kunder">
-              <Select value={audience} onChange={(e) => setAudience(e.target.value as WelcomeAudience)}>
-                {(["FIRST_ORDER", "LOGGED_IN", "ALL"] as WelcomeAudience[]).map((a) => (
-                  <option key={a} value={a}>{AUDIENCE_LABEL[a]}</option>
-                ))}
-              </Select>
-            </Field>
-            <div>
-              <p className="field-label mb-2">Gäller kundens första … beställningar</p>
-              <div className="flex gap-2">
-                {[1, 2, 3].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setMaxOrders(n)}
-                    className={`h-10 w-12 rounded-lg border text-sm font-bold transition-colors ${maxOrders === n ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]"}`}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
+              <Field label="Minsta ordervärde (kr)">
+                <Input type="number" min={0} value={offer.minOrderKr} onChange={(e) => setOfferField("minOrderKr", e.target.value ? Number(e.target.value) : 0)} />
+              </Field>
             </div>
+            <div className="flex items-center justify-between gap-4 rounded-xl bg-[var(--bg-panel-muted)] px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <Truck size={16} className="text-[var(--text-secondary)]" />
+                <div>
+                  <p className="text-sm font-semibold">Fri leverans ingår</p>
+                  <p className="text-xs text-[var(--text-secondary)]">Stackbar — kan kombineras med rabatten ovan.</p>
+                </div>
+              </div>
+              <Toggle on={offer.freeDelivery} onChange={(v) => setOfferField("freeDelivery", v)} />
+            </div>
+            {offerEmpty ? (
+              <p className="text-xs text-[var(--warning)]">Sätt en rabatt eller slå på fri leverans — annars ger erbjudandet ingenting.</p>
+            ) : (
+              <p className="text-xs text-[var(--text-muted)]">
+                Förhandsvisning: nya konton får {offer.discountKind === "PERCENT" && offer.discountValue > 0 ? `${offer.discountValue}% rabatt` : offer.discountKind === "FIXED" && offer.discountValue > 0 ? `${offer.discountValue} kr rabatt` : ""}
+                {(offer.discountKind !== "NONE" && offer.discountValue > 0 && offer.freeDelivery) ? " + " : ""}
+                {offer.freeDelivery ? "fri leverans" : ""}
+                {offer.minOrderKr > 0 ? ` (vid order ≥ ${offer.minOrderKr} kr)` : ""}.
+              </p>
+            )}
           </div>
         )}
       </Surface>
