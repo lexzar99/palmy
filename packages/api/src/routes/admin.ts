@@ -59,6 +59,10 @@ function broadcastMenuChange(restaurantId: string | null, payload: Record<string
     // the menu looks updated on the menu route but stale on those.
     bustCache('rest:detail');
     bustCache('rest:list');
+    // Deals (inkl. BOGO) cachas 30s i /api/deals. En ny/ändrad deal måste
+    // busta den — annars ser kunden inte t.ex. en nyss skapad BOGO på upp till
+    // 30s, och menyns checkBogoTrigger triggas aldrig (deals-listan är tom).
+    bustCache('deals:public');
   } catch (err) {
     console.warn('[menu] cache bust failed', err);
   }
@@ -2968,6 +2972,9 @@ router.post('/deals', async (req, res) => {
       resourceId: deal.id,
       changes: { title: deal.title, restaurantId: scopedRestaurantId, triggerType: normalized.triggerType },
     });
+    // Busta deals-cachen + notifiera öppna restaurangsidor så en ny deal (t.ex.
+    // BOGO) syns direkt — annars stale i upp till 30s + ingen socket-refresh.
+    broadcastMenuChange((deal as any).restaurantId ?? null, { kind: 'deal', dealId: deal.id });
     res.status(201).json(formatDealForAdmin(deal));
   } catch (error) {
     console.error('Create deal error:', error);
@@ -3045,6 +3052,7 @@ router.patch('/deals/:id', async (req, res) => {
       resourceId: deal.id,
       changes: { isActive: nextIsActive, scopeChanged, scopeType: nextScopeType },
     });
+    broadcastMenuChange((deal as any).restaurantId ?? null, { kind: 'deal', dealId: deal.id });
     res.json(formatDealForAdmin(deal));
   } catch (error) {
     console.error('Update deal error:', error);
@@ -3064,7 +3072,7 @@ router.delete('/deals/:id', async (req, res) => {
       }
     }
 
-    const existing = await prisma.deal.findUnique({ where: { id }, select: { id: true } });
+    const existing = await prisma.deal.findUnique({ where: { id }, select: { id: true, restaurantId: true } });
     if (!existing) {
       return res.status(404).json({ error: 'Dealen hittades inte' });
     }
@@ -3074,6 +3082,7 @@ router.delete('/deals/:id', async (req, res) => {
       resourceType: 'Deal',
       resourceId: id,
     });
+    broadcastMenuChange(existing.restaurantId ?? null, { kind: 'deal', dealId: id, deleted: true });
     res.json({ success: true });
   } catch (error) {
     console.error('Delete deal error:', error);

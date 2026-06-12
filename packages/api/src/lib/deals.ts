@@ -216,10 +216,10 @@ export const evaluateBogoCategoryDeal = (
   const rewardsAvailable = triggerSatisfactions * rewardsPerTrigger;
   const cappedRewards = maxPerOrder != null ? Math.min(rewardsAvailable, maxPerOrder) : rewardsAvailable;
 
-  // --- Find reward items ---
+  // --- Find reward items som REDAN ligger i carten (för rabattberäkning) ---
   const allowedRewardIds = parseDealProductIds(deal.bogoRewardProductIds);
   const rewardCatId = allowedRewardIds.length > 0 ? null : (deal.rewardCategoryId || deal.triggerCategoryId);
-  const rewardPrices = cartItems
+  const rewardPricesInCart = cartItems
     .filter((item) => {
       if (excludedIds.has(item.productId)) return false;
       if (allowedRewardIds.length > 0 && !allowedRewardIds.includes(item.productId)) return false;
@@ -228,19 +228,35 @@ export const evaluateBogoCategoryDeal = (
     .flatMap((item) => Array.from({ length: item.quantity }, () => item.basePriceOre))
     .sort((a, b) => a - b);
 
-  if (rewardPrices.length === 0) return { eligible: false, discountAmountOre: 0, maxFreeItems: 0 };
+  // Är detta en "plocka-en-belöning"-deal? Dvs. gratis-varan kommer från en
+  // whitelist ELLER en separat reward-kategori (≠ trigger-kategorin). Då finns
+  // belöningen INTE i carten förrän kunden plockat den i pickern — triggern
+  // ensam ska göra dealen kvalificerad (annars visas aldrig pickern i kassan).
+  // För "samma kategori, billigaste gratis" (rewardCat == triggerCat, ingen
+  // whitelist) krävs däremot att belönings-varan redan ligger i carten.
+  const isPickReward =
+    allowedRewardIds.length > 0 ||
+    (deal.rewardCategoryId != null && deal.rewardCategoryId !== deal.triggerCategoryId);
 
-  // Antal verkliga gratis-varor = min(cappedRewards, antalet kvalificerande artiklar i cart).
-  // Kunden kan inte få fler gratis än vad som finns i carten.
-  const actualFreeItems = Math.min(cappedRewards, rewardPrices.length);
+  if (!isPickReward && rewardPricesInCart.length === 0) {
+    return { eligible: false, discountAmountOre: 0, maxFreeItems: 0 };
+  }
 
-  // Summan av de N billigaste kvalificerande artiklarna = total rabatt.
+  // maxFreeItems = hur många gratis-varor kunden FÅR (för pickern).
+  // - Pick-reward: triggern bestämmer antalet (belöningen plockas separat).
+  // - Samma-kategori: kan inte få fler gratis än vad som finns i carten.
+  const actualFreeItems = isPickReward
+    ? cappedRewards
+    : Math.min(cappedRewards, rewardPricesInCart.length);
+
+  // Summan av de N billigaste belönings-varorna SOM LIGGER I CARTEN = rabatt.
+  // Innan kunden plockat (pick-reward) är detta 0 — pickern visas ändå via
+  // maxFreeItems, och rabatten räknas om när gratis-varan lagts till.
   // bogoMaxRewardPriceOre cap:ar varje enskild reward-item.
   const cap = deal.bogoMaxRewardPriceOre ?? null;
-  const discountAmountOre = rewardPrices.slice(0, actualFreeItems).reduce(
-    (sum, price) => sum + (cap !== null ? Math.min(price, cap) : price),
-    0,
-  );
+  const discountAmountOre = rewardPricesInCart
+    .slice(0, Math.min(actualFreeItems, rewardPricesInCart.length))
+    .reduce((sum, price) => sum + (cap !== null ? Math.min(price, cap) : price), 0);
 
   return { eligible: true, discountAmountOre, maxFreeItems: actualFreeItems };
 };

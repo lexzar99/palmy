@@ -228,6 +228,10 @@ export default function CartPage() {
     // Antal gratis-varor kunden kan välja. 1 för traditionell BOGO,
     // N för skalad (t.ex. 2 kebabpizzor → 2 gratis drycker).
     maxFreeItems: number;
+    // True = gratis-varan plockas som en separat pris-0-rad (whitelist/annan
+    // kategori). Rabatten realiseras då av raden → dra INTE av bogoDiscount
+    // igen, och tvinga ett val innan kassan.
+    isPickReward: boolean;
   } | null>(null);
   // Banner som visas när kundens BOGO-val plötsligt försvinner mitt-session
   // (deal-admin disablade, expiry passerade, eller kvalificerande artikel
@@ -746,6 +750,12 @@ export default function CartPage() {
     : 0;
   const bogoMaxFreeItems = bogoPreview?.maxFreeItems ?? 0;
   const bogoPicksRemaining = Math.max(0, bogoMaxFreeItems - bogoPickedCount);
+  // En PICK-REWARD-BOGO är upplåst men kunden har inte plockat sin gratis-vara
+  // än → checkout blockeras tills den valts (man ska inte betala och missa
+  // gratisen). Gäller bara pick-reward: samma-kategori-deals applicerar rabatt
+  // automatiskt och ska inte tvinga ett val.
+  const bogoMustPick = !!bogoPreview && bogoPreview.isPickReward
+    && (bogoPreview.rewardProducts?.length ?? 0) > 0 && bogoPicksRemaining > 0;
 
   // Account-deal-rabatt: appliceras bara om vald + min-order är uppfyllt.
   // Stöder både percent (ny) och amountKr (legacy) via computeDealAmountKr.
@@ -797,7 +807,10 @@ export default function CartPage() {
   const autoDealTitle = welcomeWinsToggle
     ? (welcomeOffer?.title ?? null)
     : (automaticDeal.deal?.title ?? (bogoIsPureDiscount ? bogoPreview?.dealTitle : null));
-  const freeItemBogoDiscount = bogoIsPureDiscount ? 0 : bogoDiscount;
+  // Pick-reward: gratis-varan ligger redan som pris-0-rad i carten → rabatten
+  // är realiserad där. Dra INTE av bogoDiscount igen (skulle dubbel-rabattera
+  // mot serverns totalsumma). Endast pure-discount/samma-kategori subtraherar.
+  const freeItemBogoDiscount = (bogoIsPureDiscount || bogoPreview?.isPickReward) ? 0 : bogoDiscount;
   const finalDiscount = hasUserExplicitChoice
     ? Math.max(personalDiscount, accountDealDiscount, freeItemBogoDiscount)
     : Math.max(dismissibleAutoDiscount, freeItemBogoDiscount);
@@ -1172,7 +1185,11 @@ export default function CartPage() {
           items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
         });
         const data = res.data;
-        if (data.discountAmountKr > 0 && data.dealTitle) {
+        // Visa BOGO-preview när det finns rabatt ELLER när kunden har gratis-
+        // varor kvar att plocka (pick-reward: discount=0 tills varan valts men
+        // maxFreeItems>0 → pickern måste visas i kassan).
+        const hasPicksToMake = (data.maxFreeItems ?? 0) > 0 && (data.rewardProducts?.length ?? 0) > 0;
+        if ((data.discountAmountKr > 0 || hasPicksToMake) && data.dealTitle) {
           setBogoPreview({
             discountKr: data.discountAmountKr,
             dealTitle: data.dealTitle,
@@ -1181,6 +1198,7 @@ export default function CartPage() {
             rewardProducts: data.rewardProducts ?? [],
             bogoExcludedExtraIds: Array.isArray(data.bogoExcludedExtraIds) ? data.bogoExcludedExtraIds : [],
             maxFreeItems: typeof data.maxFreeItems === "number" && data.maxFreeItems > 0 ? data.maxFreeItems : 1,
+            isPickReward: !!data.isPickReward,
           });
           // Rensa bogoChoice om det gäller en annan deal — varna kunden
           // så de inte förvirras av att gratis-varan plötsligt byttes.
@@ -1544,6 +1562,13 @@ export default function CartPage() {
   const startCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // Obligatoriskt BOGO-val: en upplåst gratis-vara måste plockas innan
+    // betalning (annars betalar kunden och missar gratisen). Öppna pickern.
+    if (bogoMustPick) {
+      setShowBogoPicker(true);
+      return;
+    }
 
     // Test-bypass: koden "test"/"testa" ska kunna gå rakt igenom utan
     // Klarna/Stripe så vi kan smoke-testa hela order-flödet snabbt.
@@ -2069,6 +2094,8 @@ export default function CartPage() {
                     <div className="text-right min-w-[3.5rem]">
                       {item.paidWithPoints ? (
                         <div className="inline-flex items-center gap-1 rounded-full bg-gold-500/15 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-gold-700">Med poäng</div>
+                      ) : item.bogoFreeFromDealId ? (
+                        <div className="inline-flex items-center gap-1 rounded-full bg-gold-500/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-gold-700">{t("cart.bogo.freeTag")}</div>
                       ) : (
                         <div className="text-sm font-black leading-none" style={{ color: "var(--text-primary)", fontFeatureSettings: "'tnum'" }}>{(item.price * item.quantity).toFixed(0)} kr</div>
                       )}
@@ -2264,6 +2291,7 @@ export default function CartPage() {
                   onClick={startCheckout}
                   disabled={
                     loading
+                    || bogoMustPick
                     || (!isTestFlow && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
                     || (!isTestFlow && !restaurantSettings.isOpen)
                     || (!isTestFlow && addressZoneStatus === "error")
@@ -2273,13 +2301,15 @@ export default function CartPage() {
                 >
                   {loading
                     ? <Loader2 className="animate-spin" size={24} />
-                    : addressZoneStatus === "checking"
-                      ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
-                      : (Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
-                        ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
-                        : addressZoneStatus === "error"
-                          ? t("cart.submit.zoneError")
-                          : <>{t("cart.submit")} <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                    : bogoMustPick
+                      ? t("cart.bogo.mustPick")
+                      : addressZoneStatus === "checking"
+                        ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
+                        : (Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
+                          ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
+                          : addressZoneStatus === "error"
+                            ? t("cart.submit.zoneError")
+                            : <>{t("cart.submit")} <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
                 </button>
               </div>
             </div>
@@ -2571,21 +2601,30 @@ export default function CartPage() {
                          initial={{ opacity: 0, y: 6 }}
                          animate={{ opacity: 1, y: 0 }}
                          onClick={() => setShowBogoPicker(true)}
-                         className="mt-6 w-full rounded-2xl border px-4 py-3.5 text-left transition-all hover:brightness-110 active:scale-[0.99]"
-                         style={{ background: "rgba(16,185,129,0.08)", borderColor: "rgba(16,185,129,0.25)" }}
+                         className="mt-6 w-full rounded-2xl border px-4 py-3.5 text-left transition-all hover:brightness-[1.04] active:scale-[0.99]"
+                         style={{
+                           background: "linear-gradient(150deg, rgba(231,178,75,0.14) 0%, rgba(231,178,75,0.05) 100%)",
+                           borderColor: "var(--color-gold-500, #E7B24B)",
+                           boxShadow: "0 2px 16px rgba(200,154,60,0.18)",
+                         }}
                        >
                          <div className="flex items-center justify-between gap-2">
-                           <div className="flex items-center gap-2.5">
-                             <span className="text-lg">🎁</span>
-                             <div>
-                               <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                           <div className="flex items-center gap-3 min-w-0">
+                             <span
+                               className="shrink-0 w-9 h-9 rounded-xl grid place-items-center"
+                               style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", boxShadow: "0 2px 8px rgba(200,154,60,0.3)" }}
+                             >
+                               <Gift size={17} className="text-zinc-900" strokeWidth={2.3} />
+                             </span>
+                             <div className="min-w-0">
+                               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-gold-600">
                                  {bogoPickedCount > 0
                                    ? (bogoPicksRemaining === 1
                                        ? t("cart.bogo.pickMoreOne")
                                        : t("cart.bogo.pickMoreMany", { count: bogoPicksRemaining }))
                                    : t("cart.bogo.pickFree")}
                                </p>
-                               <p className="text-xs font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                               <p className="text-xs font-bold mt-0.5 line-clamp-1" style={{ color: "var(--text-secondary)" }}>
                                  {bogoPickedCount > 0
                                    ? t("cart.bogo.progress", { picked: bogoPickedCount, max: bogoMaxFreeItems })
                                    : bogoMaxFreeItems > 1
@@ -2596,7 +2635,12 @@ export default function CartPage() {
                                </p>
                              </div>
                            </div>
-                           <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 shrink-0">{t("cart.bogo.choose")}</span>
+                           <span
+                             className="shrink-0 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest"
+                             style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e" }}
+                           >
+                             {t("cart.bogo.choose")} <ArrowRight size={12} strokeWidth={3} />
+                           </span>
                          </div>
                        </motion.button>
                      )}
@@ -2745,7 +2789,12 @@ export default function CartPage() {
                               </div>
                             );
                           }
-                          if (!automaticDealDismissed && bogoPreview && bogoDiscount > 0) {
+                          // Pick-reward visas INTE som rabattrad: gratis-varan
+                          // ligger redan som "Gratis"-rad i artikellistan, och
+                          // totalen subtraherar inte (skulle annars visa -95 mot
+                          // en oförändrad total). Pure-discount + samma-kategori
+                          // (rabatt faktiskt avdragen) visas däremot.
+                          if (!automaticDealDismissed && bogoPreview && !bogoPreview.isPickReward && bogoDiscount > 0) {
                             return (
                               <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
                                 <span>{bogoIsPureDiscount ? "" : "🎁 "}{bogoChoice && !bogoIsPureDiscount ? bogoChoice.product.name : bogoPreview.dealTitle}</span>
@@ -2815,6 +2864,7 @@ export default function CartPage() {
                           onClick={startCheckout}
                           disabled={
                             loading
+                            || bogoMustPick
                             || (!isTestFlow && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
                             || (!isTestFlow && !restaurantSettings.isOpen)
                             || (!isTestFlow && addressZoneStatus === "error")
@@ -2824,13 +2874,15 @@ export default function CartPage() {
                        >
                           {loading
                             ? <Loader2 className="animate-spin" size={24} />
-                            : addressZoneStatus === "checking"
-                              ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
-                              : (Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
-                                ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
-                                : addressZoneStatus === "error"
-                                  ? t("cart.submit.zoneError")
-                                  : <>{t("cart.submit")} <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                            : bogoMustPick
+                              ? t("cart.bogo.mustPick")
+                              : addressZoneStatus === "checking"
+                                ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
+                                : (Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
+                                  ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
+                                  : addressZoneStatus === "error"
+                                    ? t("cart.submit.zoneError")
+                                    : <>{t("cart.submit")} <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
                        </button>
                        </div>
                      </div>

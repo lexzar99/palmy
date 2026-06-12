@@ -352,12 +352,22 @@ router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
         productIds: productIdsFlat,
         cartItems,
       });
-      if (evaluation.eligible && evaluation.discountAmountOre > bestDiscount) {
+      if (!evaluation.eligible) continue;
+      // Endast BOGO returnerar maxFreeItems — andra deals har bara en
+      // bulkrabatt och behöver inte picker-multi-select.
+      const maxFree = (evaluation as any).maxFreeItems ?? 0;
+      // En "pick-reward"-BOGO (gratis-varan inte plockad än) har discount=0 men
+      // maxFreeItems>0. Den ska ändå väljas så pickern kan visas i kassan —
+      // annars kan kunden aldrig plocka sin gratis-vara. Deal med faktisk
+      // rabatt vinner fortfarande över en väntande pick.
+      const isPendingPick = evaluation.discountAmountOre === 0 && maxFree > 0;
+      const better =
+        evaluation.discountAmountOre > bestDiscount ||
+        (bestDeal === null && isPendingPick);
+      if (better) {
         bestDiscount = evaluation.discountAmountOre;
         bestDeal = deal;
-        // Endast BOGO returnerar maxFreeItems — andra deals har bara en
-        // bulkrabatt och behöver inte picker-multi-select.
-        bestMaxFreeItems = (evaluation as any).maxFreeItems ?? 0;
+        bestMaxFreeItems = maxFree;
       }
     }
 
@@ -406,12 +416,23 @@ router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
       ? parseJsonArray((bestDeal as any).bogoExcludedExtraIds)
       : [];
 
+    // "Pick-reward" = gratis-varan kommer från en whitelist ELLER en separat
+    // reward-kategori (≠ trigger). Då lägger klienten till gratis-varan som en
+    // pris-0-rad via pickern → rabatten är redan realiserad i raden och får
+    // INTE dras av igen i totalen (annars dubbel rabatt). Cart-UI:n använder
+    // även flaggan för att tvinga ett val innan kassan.
+    const isPickRewardBogo = !!bestDeal && bestDeal.triggerType === 'BOGO_CATEGORY' && (
+      parseJsonArray((bestDeal as any).bogoRewardProductIds).length > 0 ||
+      ((bestDeal as any).rewardCategoryId != null && (bestDeal as any).rewardCategoryId !== bestDeal.triggerCategoryId)
+    );
+
     res.json({
       discountAmountOre: bestDiscount,
       discountAmountKr: bestDiscount / 100,
       dealTitle: bestDeal?.title ?? null,
       dealId: bestDeal?.id ?? null,
       isBogo: bestDeal?.triggerType === 'BOGO_CATEGORY',
+      isPickReward: isPickRewardBogo,
       rewardCategoryId: bestDeal?.rewardCategoryId ?? bestDeal?.triggerCategoryId ?? null,
       rewardCategoryName,
       rewardProducts,
@@ -423,7 +444,7 @@ router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
     });
   } catch (error) {
     console.error('Cart evaluate error:', error);
-    res.json({ discountAmountOre: 0, discountAmountKr: 0, dealTitle: null, dealId: null, isBogo: false, rewardCategoryName: null, rewardProducts: [], bogoExcludedExtraIds: [], maxFreeItems: 0 });
+    res.json({ discountAmountOre: 0, discountAmountKr: 0, dealTitle: null, dealId: null, isBogo: false, isPickReward: false, rewardCategoryName: null, rewardProducts: [], bogoExcludedExtraIds: [], maxFreeItems: 0 });
   }
 });
 

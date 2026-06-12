@@ -20,7 +20,6 @@ import {
 } from "@/modules/deals/api";
 import { Button, Field, Input, Select, Surface } from "@/shared/components/ui";
 import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
-import { ImageUploadField } from "@/shared/components/image-upload";
 
 type TriggerMode = "category" | "minorder" | "products";
 
@@ -354,12 +353,6 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
                   bogoTriggerProductIds: [],
                 }));
               }}
-            />
-
-            <ImageUploadField
-              label="Bannerbild (valfritt)"
-              value={draft.imageUrl}
-              onChange={(url) => set("imageUrl", url)}
             />
           </Surface>
 
