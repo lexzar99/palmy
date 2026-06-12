@@ -7,129 +7,75 @@ import { io as socketIO, Socket } from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock,
-  CheckCircle2,
+  Check,
   Flame,
   Bike,
   Package,
   ShoppingBag,
-  ChevronRight,
   X,
-  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
+import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
-function getStatusDisplay(status: string) {
+// Visuell konfiguration per status. Label/subtext resolveras via t()
+// (order.status.*.label / .desc) inne i komponenten — här bor bara ikon,
+// färgton och vilket av de fyra progress-segmenten som är aktivt.
+// stage: 0=Bekräftad, 1=Tillagas, 2=På väg, 3=Levererad pågår; 4 = allt klart.
+type Tone = "neutral" | "gold" | "success" | "danger";
+type StatusVisual = { Icon: LucideIcon; tone: Tone; stage: number; key: string };
+
+function getStatusVisual(status: string): StatusVisual {
   switch (status) {
     case "PENDING":
-      return {
-        label: "Granskas",
-        subtext: "Väntar på att köket bekräftar",
-        Icon: Clock,
-        color: "text-gold-500",
-        glow: "rgba(234,181,69,0.25)",
-        border: "rgba(234,181,69,0.3)",
-        bg: "from-gold-500/20 to-gold-900/10",
-        progress: 10,
-        pulse: true,
-      };
+      return { Icon: Clock, tone: "gold", stage: 0, key: "PENDING" };
     case "ACCEPTED":
-      return {
-        label: "Bekräftad",
-        subtext: "Restaurangen har sagt ja!",
-        Icon: CheckCircle2,
-        color: "text-gold-500",
-        glow: "rgba(234,181,69,0.25)",
-        border: "rgba(234,181,69,0.3)",
-        bg: "from-gold-500/20 to-gold-900/10",
-        progress: 28,
-        pulse: false,
-      };
+      return { Icon: Check, tone: "gold", stage: 1, key: "ACCEPTED" };
     case "PREPARING":
-      return {
-        label: "Tillagas",
-        subtext: "Kocken är igång med din order",
-        Icon: Flame,
-        color: "text-gold-500",
-        glow: "rgba(234,181,69,0.25)",
-        border: "rgba(234,181,69,0.3)",
-        bg: "from-gold-500/20 to-gold-900/10",
-        progress: 55,
-        pulse: false,
-      };
+      return { Icon: Flame, tone: "gold", stage: 1, key: "PREPARING" };
     case "READY":
-      return {
-        label: "Redo!",
-        subtext: "Hämtning pågår snart",
-        Icon: ShoppingBag,
-        color: "text-gold-500",
-        glow: "rgba(234,181,69,0.25)",
-        border: "rgba(234,181,69,0.3)",
-        bg: "from-gold-500/20 to-gold-900/10",
-        progress: 85,
-        pulse: false,
-      };
+      return { Icon: ShoppingBag, tone: "gold", stage: 2, key: "READY" };
     case "OUT_FOR_DELIVERY":
     case "DELIVERING":
-      return {
-        label: "På väg!",
-        subtext: "Bud är ute med din mat",
-        Icon: Bike,
-        color: "text-emerald-500",
-        glow: "rgba(52,211,153,0.25)",
-        border: "rgba(52,211,153,0.3)",
-        bg: "from-emerald-500/20 to-emerald-900/10",
-        progress: 82,
-        pulse: false,
-      };
+      return { Icon: Bike, tone: "gold", stage: 2, key: "DELIVERING" };
     case "DELIVERED":
     case "COMPLETED":
-      return {
-        label: "Levererad!",
-        subtext: "Hoppas det smakar",
-        Icon: CheckCircle2,
-        color: "text-emerald-500",
-        glow: "rgba(52,211,153,0.25)",
-        border: "rgba(52,211,153,0.3)",
-        bg: "from-emerald-500/20 to-emerald-900/10",
-        progress: 100,
-        pulse: false,
-      };
+      return { Icon: Check, tone: "success", stage: 4, key: "DELIVERED" };
+    case "CANCELLED":
+      return { Icon: X, tone: "danger", stage: -1, key: "CANCELLED" };
+    case "REJECTED":
+      return { Icon: X, tone: "danger", stage: -1, key: "REJECTED" };
     default:
-      return {
-        label: "Aktiv",
-        subtext: "Din order behandlas",
-        Icon: Package,
-        color: "text-gold-500",
-        glow: "rgba(234,181,69,0.25)",
-        border: "rgba(234,181,69,0.3)",
-        bg: "from-gold-500/20 to-gold-900/10",
-        progress: 5,
-        pulse: true,
-      };
+      return { Icon: Package, tone: "gold", stage: 0, key: "PENDING" };
   }
 }
 
-function getDynamicETA(order: any): string {
-  const t = order.orderType || order.type;
-  if (order.status === "DELIVERED" || order.status === "COMPLETED") return "🎉";
-  if (t === "PICKUP") {
-    if (order.status === "READY") return "Nu";
-    if (order.scheduledFor)
-      return new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
-    return "~10m";
+const TONE_PLATE: Record<Tone, { backgroundColor: string; color: string }> = {
+  neutral: { backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" },
+  gold: { backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" },
+  success: { backgroundColor: "var(--success-soft)", color: "var(--success-ink)" },
+  danger: { backgroundColor: "rgba(225,29,72,.08)", color: "#be123c" },
+};
+
+// Stor ETA-text till höger ("12 min" / "18:25" / "Snart"). t skickas in —
+// modul-nivå-funktion kan inte använda hooken.
+function getEtaDisplay(
+  order: any,
+  etaLeftSecs: number | null,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string | null {
+  if (order.status === "DELIVERED" || order.status === "COMPLETED") return null;
+  if (etaLeftSecs !== null) {
+    if (etaLeftSecs <= 0) return t("order.eta.soon");
+    return t("order.eta.minutesShort", { m: Math.max(1, Math.ceil(etaLeftSecs / 60)) });
   }
-  if (order.status === "OUT_FOR_DELIVERY" || order.status === "DELIVERING") {
-    const endsAt = order.etaEndsAt;
-    if (endsAt) {
-      const ms = new Date(endsAt).getTime() - Date.now();
-      if (ms <= 0) return "snart";
-      return `${Math.max(1, Math.round(ms / 60000))}m`;
-    }
-    return "snart";
-  }
-  if (order.scheduledFor)
+  const type = order.orderType || order.type;
+  if (type === "PICKUP" && order.status === "READY") return t("order.eta.now");
+  if (order.scheduledFor) {
     return new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
-  return order.estimatedTime ? `${order.estimatedTime}m` : "snart";
+  }
+  if (order.estimatedTime) return t("order.eta.minutesShort", { m: order.estimatedTime });
+  return t("order.eta.soon");
 }
 
 const TERMINAL_STATUSES = new Set(["DELIVERED", "COMPLETED", "CANCELLED", "REJECTED"]);
@@ -142,6 +88,7 @@ const TOKEN_KEY = "matgo_active_order_token";
 const PHONE_KEY = "matgo_active_order_phone";
 
 export default function LiveOrderBanner() {
+  const { t } = useTranslation();
   const [orderId, setOrderId] = useState<string | null>(null);
   const [order, setOrder] = useState<any | null>(null);
   const [dismissed, setDismissed] = useState(false);
@@ -246,15 +193,16 @@ export default function LiveOrderBanner() {
     return () => clearInterval(t);
   }, [order?.etaEndsAt, order?.estimatedTime, order?.status]);
 
-  const display = useMemo(() => (order ? getStatusDisplay(order.status) : null), [order]);
+  const visual = useMemo(() => (order ? getStatusVisual(order.status) : null), [order]);
 
   // Never show the live banner for an unpaid (AWAITING_PAYMENT) order — it's not
   // a live order yet, and an abandoned one would otherwise sit here forever.
   // (Backend deletes abandoned ones after 30 min; the poll then 404s and clears.)
-  if (!order || dismissed || !display || order.status === "AWAITING_PAYMENT") return null;
+  if (!order || dismissed || !visual || order.status === "AWAITING_PAYMENT") return null;
 
   const orderNumber = (order.orderNumber || "").toString().replace(/^PX-/, "") || order.id;
   const isTerminal = order.status === "DELIVERED" || order.status === "COMPLETED";
+  const isCancelled = visual.tone === "danger";
 
   // Länka MED ägar-bevis (token/phone) så order-sidan inte 404:ar — samma proof
   // som bannern själv pollar med. Utan detta gav klick "order ej hittad".
@@ -269,108 +217,133 @@ export default function LiveOrderBanner() {
     return qs.toString() ? `/order/${order.id}?${qs.toString()}` : `/order/${order.id}`;
   })();
 
+  const etaDisplay = isTerminal || isCancelled ? null : getEtaDisplay(order, etaLeftSecs, t);
+  const showEtaUnit = etaDisplay !== null && etaLeftSecs !== null && etaLeftSecs > 0;
+
+  // Underrad: "Klar ca 18:25" när vi har en nedräkning, annars statusens subtext.
+  const subline = (() => {
+    if (isTerminal) return t("order.banner.thanks");
+    if (etaLeftSecs !== null && etaLeftSecs > 0) {
+      const readyAt = new Date(Date.now() + etaLeftSecs * 1000)
+        .toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+      return t("order.eta.readyAt", { time: readyAt });
+    }
+    return t(`order.status.${visual.key}.desc`);
+  })();
+
+  const plate = TONE_PLATE[visual.tone];
+
   return (
     <AnimatePresence>
       <motion.div
         key="live-order-banner"
-        initial={{ y: 120, opacity: 0, scale: 0.96 }}
-        animate={{ y: 0, opacity: 1, scale: 1 }}
-        exit={{ y: 120, opacity: 0, scale: 0.96 }}
-        transition={{ type: "spring", stiffness: 260, damping: 26 }}
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 80, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 260, damping: 28 }}
         className="fixed left-3 right-3 z-[90]"
         style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 9rem)" }}
       >
-        <Link href={trackHref} className="block group">
+        <style>{`
+          @keyframes lob-sweep {
+            0% { background-position: 150% 0; }
+            100% { background-position: -50% 0; }
+          }
+          .lob-seg-active {
+            background-image: linear-gradient(90deg,
+              var(--gold-soft) 0%,
+              var(--color-gold-500, #E7B24B) 50%,
+              var(--gold-soft) 100%);
+            background-size: 200% 100%;
+            animation: lob-sweep 2s linear infinite;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .lob-seg-active { animation: none; background-image: none; background-color: var(--color-gold-500, #E7B24B); opacity: .45; }
+          }
+        `}</style>
+        <Link
+          href={trackHref}
+          className="block"
+          aria-label={`${t(`order.status.${visual.key}.label`)} — ${order.restaurantName || t("order.banner.fallbackTitle")} #${orderNumber}`}
+        >
           <div
-            className="relative overflow-hidden rounded-[2rem]"
+            className="rounded-xl"
             style={{
-              // Tema-yta (ljus #FFF / mörk #18181b) istället för hårdkodad svärta
-              // → matchar resten av appen och ger riktig kontrast i båda lägen.
               backgroundColor: "var(--bg-secondary)",
-              border: `1px solid ${display.border}`,
-              boxShadow: `0 8px 30px -10px ${display.glow}, 0 20px 48px -22px rgba(0,0,0,0.30)`,
-              backdropFilter: "blur(20px)",
+              border: "1px solid var(--border-muted)",
+              boxShadow: "0 1px 2px rgba(20,20,22,.04)",
             }}
           >
-            {/* Subtil accent-wash i statusfärgen — på-tema utan att dränka ytan. */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${display.bg} pointer-events-none opacity-50`} />
-
-            {/* Progress-bar längst ner */}
-            <div className="absolute bottom-0 left-0 right-0 h-[3px]" style={{ backgroundColor: "var(--border-muted)" }}>
-              <motion.div
-                className="h-full"
-                initial={{ width: "0%" }}
-                animate={{ width: `${display.progress}%` }}
-                transition={{ duration: 1.2, ease: "easeOut" }}
-                style={{
-                  background: `linear-gradient(to right, transparent, ${display.glow.replace("0.25", "0.95")}, ${display.glow.replace("0.25", "0.7")})`,
-                }}
-              />
-            </div>
-
-            <div className="relative flex items-center gap-4 px-4 py-4">
-              {/* Status-ikon i accent-tonad bricka */}
-              <div className="relative shrink-0">
-                <div
-                  className={`w-14 h-14 rounded-[1.2rem] flex items-center justify-center ${display.color} relative`}
-                  style={{ backgroundColor: display.glow.replace("0.25", "0.16") }}
-                >
-                  <display.Icon size={26} strokeWidth={2} className={display.pulse ? "animate-pulse" : ""} />
-                </div>
-                <span
-                  className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full animate-pulse"
-                  style={{ backgroundColor: isTerminal ? "#10b981" : "#22c55e", boxShadow: "0 0 0 2px var(--bg-secondary)" }}
-                />
+            <div className="flex items-center gap-3 px-4 pt-3.5 pb-3">
+              {/* Status-ikon i platt 36px-platta */}
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                style={plate}
+              >
+                <visual.Icon size={19} strokeWidth={2} />
               </div>
 
-              {/* Main info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <Zap size={9} className={`${display.color} shrink-0`} />
-                  <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${display.color}`}>
-                    {display.label}
-                  </span>
-                  <span className="text-[9px] font-bold tracking-widest" style={{ color: "var(--text-secondary)" }}>
-                    #{orderNumber}
-                  </span>
+              {/* Status + underrad */}
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
+                  {t(`order.status.${visual.key}.label`)}
                 </div>
-                <div className="font-black text-[15px] leading-tight truncate" style={{ color: "var(--text-primary)" }}>
-                  {order.restaurantName || "Din beställning"}
-                </div>
-                <div className="text-[10px] font-bold uppercase tracking-widest truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                  {isTerminal ? "Tack för din beställning!" : display.subtext}
+                <div className="mt-0.5 truncate text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
+                  {subline}
                 </div>
               </div>
 
-              {/* ETA + actions */}
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="text-right">
-                  <div className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--text-secondary)" }}>ETA</div>
-                  <div className={`text-xl font-black tabular-nums leading-none ${display.color}`}>
-                    {isTerminal
-                      ? "🎉"
-                      : etaLeftSecs === null
-                        ? getDynamicETA(order)
-                        : etaLeftSecs <= 0
-                          ? "Snart!"
-                          : `${Math.floor(etaLeftSecs / 60)}:${(etaLeftSecs % 60).toString().padStart(2, "0")}`}
+              {/* ETA stor till höger */}
+              {etaDisplay !== null && (
+                <div className="shrink-0 text-right">
+                  <div
+                    className="text-[18px] font-bold leading-none"
+                    style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {etaDisplay}
                   </div>
+                  {showEtaUnit && (
+                    <div className="mt-0.5 text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                      {t("order.eta.left")}
+                    </div>
+                  )}
                 </div>
-                <ChevronRight
-                  size={18}
-                  className="group-hover:translate-x-0.5 transition-all"
-                  style={{ color: "var(--text-secondary)" }}
-                />
-                <button
-                  onClick={(e) => { e.preventDefault(); setDismissed(true); try { localStorage.setItem(DISMISS_KEY, order.id); } catch { } }}
-                  className="p-2 rounded-xl transition-colors hover:opacity-70"
-                  style={{ color: "var(--text-secondary)" }}
-                  aria-label="Dölj"
-                >
-                  <X size={14} />
-                </button>
-              </div>
+              )}
+
+              <button
+                onClick={(e) => { e.preventDefault(); setDismissed(true); try { localStorage.setItem(DISMISS_KEY, order.id); } catch { } }}
+                className="shrink-0 rounded-lg p-2 transition-opacity hover:opacity-70"
+                style={{ color: "var(--text-secondary)" }}
+                aria-label={t("order.banner.dismiss")}
+              >
+                <X size={14} strokeWidth={2} />
+              </button>
             </div>
+
+            {/* Segmenterad progress: Bekräftad / Tillagas / På väg / Levererad */}
+            {!isCancelled && (
+              <div className="flex gap-1 px-4 pb-3.5">
+                {[0, 1, 2, 3].map((i) => {
+                  const done = visual.stage > i;
+                  const active = visual.stage === i;
+                  return (
+                    <div
+                      key={i}
+                      className={`h-1 flex-1 rounded-full ${active ? "lob-seg-active" : ""}`}
+                      style={
+                        active
+                          ? undefined
+                          : {
+                              backgroundColor: done
+                                ? "var(--color-gold-500, #E7B24B)"
+                                : "var(--border-muted)",
+                            }
+                      }
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
         </Link>
       </motion.div>

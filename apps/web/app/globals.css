@@ -24,6 +24,14 @@
   --card-shadow:  0px 8px 24px rgba(17,17,19,0.06);
   --skeleton-base: #EAEAEA;
   --skeleton-highlight: #F5F5F5;
+  /* "Tyst & direkt"-tokens: guld som textfärg kräver mörkare nyans på vitt
+     för att klara kontrast; mjuka statusytor ersätter genomskinliga
+     färg/glow-kombinationer. */
+  --gold-ink:     #8A6512;         /* Guld som läsbar text på ljus yta */
+  --gold-soft:    #FBF4E4;         /* Mjuk guldyta (info, aktiv status) */
+  --success-ink:  #2E7D4F;         /* Rabatter, levererat */
+  --success-soft: #E6F1E8;
+  --line-strong:  rgba(17,17,19,0.14); /* Inputs/steppers — snäppet tydligare */
 }
 
 /* Dark mode opt-in */
@@ -40,6 +48,11 @@
   --card-shadow:  0px 8px 24px rgba(0,0,0,0.3);
   --skeleton-base: #27272a;
   --skeleton-highlight: #3f3f46;
+  --gold-ink:     #E7B24B;         /* Ljus guld läses bra direkt på mörkt */
+  --gold-soft:    rgba(231,178,75,0.12);
+  --success-ink:  #5BBF85;
+  --success-soft: rgba(46,125,79,0.18);
+  --line-strong:  rgba(255,255,255,0.12);
 }
 
 @layer base {
@@ -167,36 +180,32 @@
   border-radius: 8px;
 }
 
-/* ── Quick-filter chips ──────────────────────────────────────────────────────── */
+/* ── Filter-chips — textchips, svart aktiv (inga emoji, ingen glow) ─────────── */
 .quick-filter-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 7px 14px;
   background: var(--bg-card);
-  border: 1px solid var(--border-muted);
+  border: 1px solid var(--line-strong);
   border-radius: 999px;
-  box-shadow: var(--card-shadow);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   white-space: nowrap;
   user-select: none;
 }
 
 .quick-filter-chip:hover {
-  border-color: rgba(234,181,69,0.4);
-  color: var(--text-primary);
+  border-color: var(--text-secondary);
 }
 
 .quick-filter-chip.active {
-  background: #EAB545;
-  border-color: #EAB545;
-  color: #000;
-  font-weight: 800;
-  box-shadow: 0 4px 12px rgba(234,181,69,0.3);
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-primary);
 }
 
 /* ── Animations ──────────────────────────────────────────────────────────────── */

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Outfit } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import Navbar from "@/components/Navbar";
@@ -13,7 +13,8 @@ import PlatformBanner from "@/components/PlatformBanner";
 import SupportChat from "@/components/SupportChat";
 import OfflineBanner from "@/components/OfflineBanner";
 
-const outfit = Outfit({ subsets: ["latin"] });
+// Inter — lugnare och mer neutral än Outfit; bär "tyst & direkt"-designen.
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   // Basurl för OG-bilder + canonical URLs. Krävs i prod annars fallar
@@ -70,7 +71,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="sv">
-      <body className={`${outfit.className} min-h-screen antialiased`}>
+      <body className={`${inter.className} min-h-screen antialiased`}>
         <Providers>
           <ServiceWorkerRegister />
           <OfflineBanner />

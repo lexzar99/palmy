@@ -2,8 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { User, ArrowLeft, Loader2, CheckCircle2, Mail, Eye, EyeOff } from "lucide-react";
-import { motion } from "framer-motion";
+import { ArrowLeft, Loader2, CheckCircle2, Mail, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { API_URL } from "@/lib/api";
@@ -11,6 +10,34 @@ import { persistPlatformSession } from "@/lib/platformSessionClient";
 import { useToast } from "@/components/Toast";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+
+// Delade input-stilar — CSS-klass (inte inline style) så :focus-reglerna
+// fungerar utan JS. Samma utseende som login-sidan.
+const AUTH_CSS = `
+.auth-input {
+  width: 100%;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-secondary);
+  padding: 0 16px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.auth-input:focus {
+  border-color: var(--text-primary);
+  box-shadow: 0 0 0 3px rgba(127,127,127,0.12);
+}
+.auth-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.55;
+}
+`;
+
+const FIELD_LABEL_CLASS = "block text-[13.5px] font-medium mb-1.5";
 
 // Registreringen loggar in användaren direkt. Backend skapar kontot, skickar
 // verifieringsmejl fire-and-forget och svarar med JWT + user. Vi persistar
@@ -131,49 +158,50 @@ function RegisterContent() {
   };
 
   return (
-    <div className="min-h-screen md:pt-20 pt-24 pb-32 px-6 flex flex-col items-center" style={{ backgroundColor: "var(--bg-primary)" }}>
-      <Link href="/profile" className="absolute top-8 left-8 transition-all flex items-center gap-2 font-black uppercase tracking-widest text-[10px]" style={{ color: "var(--text-secondary)" }}>
-        <ArrowLeft size={16} /> {t("auth.back")}
-      </Link>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-sm space-y-10"
-      >
+    <div
+      className="min-h-screen flex flex-col items-center justify-start px-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] md:pt-20 pb-28"
+      style={{ backgroundColor: "var(--bg-primary)" }}
+    >
+      <style>{AUTH_CSS}</style>
+      <div className="w-full max-w-sm space-y-5">
         {success ? (
           /* Success-vy efter lyckad registrering. Manuell dismiss via knapp
              så user hinner läsa verifierings-instruktionen — auto-redirect
              hade gjort det förvirrande (matchar RN-flow). */
-          <div className="space-y-6">
-            <div className="text-center space-y-4">
-              <div className="w-20 h-20 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20 flex items-center justify-center text-emerald-500 mx-auto shadow-2xl shadow-emerald-500/10">
-                <CheckCircle2 size={36} />
+          <div className="space-y-5">
+            <div className="space-y-1.5">
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center mb-3"
+                style={{ backgroundColor: "rgba(16,185,129,0.1)", color: "#10b981" }}
+              >
+                <CheckCircle2 size={24} strokeWidth={2} />
               </div>
-              <h1 className="text-3xl font-black uppercase tracking-tight">
-                <span className="text-emerald-500">{t("auth.register.successTitle")}</span>
+              <h1 className="text-[26px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+                {t("auth.register.successTitle")}
               </h1>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-[14.5px]" style={{ color: "var(--text-secondary)" }}>
                 {t("auth.register.successSub")}
               </p>
             </div>
 
-            <div className="rounded-[1.75rem] p-6 space-y-3" style={{ backgroundColor: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)" }}>
-              <div className="flex items-center gap-2 text-emerald-500">
-                <Mail size={16} />
-                <p className="text-[10px] font-black uppercase tracking-widest">
-                  {t("auth.register.verifSent")}
-                </p>
+            <div
+              className="rounded-xl p-5 space-y-2.5"
+              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--line-strong)" }}
+            >
+              <div className="flex items-center gap-2" style={{ color: "#10b981" }}>
+                <Mail size={16} strokeWidth={2} />
+                <p className="text-[13.5px] font-semibold">{t("auth.register.verifSent")}</p>
               </div>
-              <p className="text-sm font-bold leading-relaxed" style={{ color: "var(--text-primary)" }}>
-                {t("auth.register.verifTo")} <span className="text-gold-500 font-black">{success.email}</span>
+              <p className="text-[14px]" style={{ color: "var(--text-primary)" }}>
+                {t("auth.register.verifTo")}{" "}
+                <span className="font-semibold">{success.email}</span>
               </p>
-              <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                 {success.loggedIn
                   ? t("auth.register.verifHintLoggedIn")
                   : t("auth.register.verifHintEmailExists")}
               </p>
-              <p className="text-[10px] italic" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
                 {t("auth.register.verifSpamHint")}
               </p>
             </div>
@@ -181,147 +209,177 @@ function RegisterContent() {
             <button
               type="button"
               onClick={() => router.push(success.loggedIn ? "/profile" : "/")}
-              className="w-full bg-gold-500 hover:bg-gold-600 text-zinc-950 py-5 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all"
+              className="w-full h-[52px] bg-gold-500 rounded-xl text-[15.5px] font-semibold flex items-center justify-center transition-opacity hover:opacity-90"
+              style={{ color: "#141416" }}
             >
               {success.loggedIn ? t("auth.register.continueProfile") : t("auth.register.continueHome")}
             </button>
           </div>
         ) : (
-        <>
-        <div className="text-center space-y-4">
-           <div className="w-20 h-20 bg-gold-500/10 rounded-[2rem] border border-gold-500/20 flex items-center justify-center text-gold-500 mx-auto shadow-2xl shadow-gold-500/10">
-              <User size={32} />
-           </div>
-           <h1 className="text-3xl font-black uppercase tracking-tight">
-             {t("auth.welcomeBack.title.create")} <span className="text-gold-500">{t("auth.welcomeBack.title.createAccent")}</span>
-           </h1>
-           <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">
-             {t("auth.register.subSaveHistory")}
-           </p>
-        </div>
+          <>
+            {/* Tillbaka — rund ghost-knapp */}
+            <Link
+              href="/profile"
+              aria-label={t("auth.back")}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--bg-deep)]"
+              style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
+            >
+              <ArrowLeft size={16} strokeWidth={2} />
+            </Link>
 
-        <form onSubmit={handleRegister} className="space-y-4" noValidate>
-           <input
-             type="text"
-             autoComplete="given-name"
-             aria-label={t("auth.register.firstNamePlaceholder")}
-             placeholder={t("auth.register.firstNamePlaceholder")}
-             required
-             value={firstName}
-             onChange={(e) => setFirstName(e.target.value)}
-             className="w-full rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-bold text-base placeholder:text-zinc-400 shadow-sm"
-             style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)", color: "var(--text-primary)" }}
-           />
-           <input
-             type="text"
-             autoComplete="family-name"
-             aria-label={t("auth.register.lastNamePlaceholder")}
-             placeholder={t("auth.register.lastNamePlaceholder")}
-             required
-             value={lastName}
-             onChange={(e) => setLastName(e.target.value)}
-             className="w-full rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-bold text-base placeholder:text-zinc-400 shadow-sm"
-             style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)", color: "var(--text-primary)" }}
-           />
-           <input
-             type="email"
-             autoComplete="email"
-             inputMode="email"
-             aria-label={t("auth.register.emailPlaceholder")}
-             placeholder={t("auth.register.emailPlaceholder")}
-             required
-             value={email}
-             onChange={(e) => setEmail(e.target.value)}
-             className="w-full rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-bold text-base placeholder:text-zinc-400 shadow-sm"
-             style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)", color: "var(--text-primary)" }}
-           />
-           <input
-             type="tel"
-             autoComplete="tel"
-             inputMode="tel"
-             aria-label={t("auth.register.phonePlaceholder")}
-             placeholder={t("auth.register.phonePlaceholder")}
-             required
-             value={phone}
-             onChange={(e) => setPhone(e.target.value)}
-             className="w-full rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-bold text-base placeholder:text-zinc-400 shadow-sm"
-             style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)", color: "var(--text-primary)" }}
-           />
-           <div className="space-y-2">
-             <div className="relative">
-               <input
-                 type={showPassword ? "text" : "password"}
-                 autoComplete="new-password"
-                 aria-label={t("auth.register.passwordPlaceholder")}
-                 placeholder={t("auth.register.passwordPlaceholder")}
-                 required
-                 minLength={6}
-                 value={password}
-                 onChange={(e) => setPassword(e.target.value)}
-                 className="w-full rounded-3xl py-4 px-6 pr-14 outline-none focus:ring-2 focus:ring-gold-500/40 focus:border-gold-500/40 transition-all font-bold text-base placeholder:text-zinc-400 shadow-sm"
-                 style={{ backgroundColor: "var(--bg-secondary)", border: "1.5px solid rgba(28,28,30,0.12)", color: "var(--text-primary)" }}
-               />
-               <button
-                 type="button"
-                 tabIndex={-1}
-                 onClick={() => setShowPassword((v) => !v)}
-                 aria-label={showPassword ? "Dölj lösenord" : "Visa lösenord"}
-                 className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-zinc-100/40 text-zinc-500 hover:text-zinc-800 transition-colors"
-               >
-                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-               </button>
-             </div>
-             {/* Password-strength: 4-segment-bar visas så fort user börjat
-                 skriva. Standard regler — längd + variation. Ingen tvingande
-                 spärr, bara visuell hint som matchar RN-mobil-appen. */}
-             {passwordStrength && (
-               <div className="px-2">
-                 <div className="flex gap-1">
-                   {[0, 1, 2, 3].map((i) => (
-                     <div
-                       key={i}
-                       className="flex-1 h-1 rounded-full transition-colors"
-                       style={{
-                         backgroundColor: i < passwordStrength.activeBars
-                           ? passwordStrength.color
-                           : "var(--border-muted)",
-                       }}
-                     />
-                   ))}
-                 </div>
-                 <p
-                   className="text-[10px] font-bold uppercase tracking-wider mt-1.5"
-                   style={{ color: passwordStrength.color }}
-                 >
-                   {t("auth.register.strengthLabel", { label: passwordStrength.label })}
-                 </p>
-               </div>
-             )}
-           </div>
+            {/* Header */}
+            <div className="space-y-1.5">
+              <h1 className="text-[26px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+                {t("auth.register.title")}
+              </h1>
+              <p className="text-[14.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                {t("auth.register.subSaveHistory")}
+              </p>
+            </div>
 
-           {/* Referral-system avstängt — håller fältet osynligt men låter
-               ?ref=KOD-URL-prefill fortsätta fungera tyst i bakgrunden så
-               befintliga referral-länkar inte 404:ar. Backend-redeemen
-               sker fortfarande automatiskt vid registrering om koden
-               är validate-bar. */}
+            <form onSubmit={handleRegister} className="space-y-3.5" noValidate>
+              <div>
+                <label htmlFor="reg-firstname" className={FIELD_LABEL_CLASS} style={{ color: "var(--text-secondary)" }}>
+                  {t("auth.register.firstNameLabel")}
+                </label>
+                <input
+                  id="reg-firstname"
+                  type="text"
+                  autoComplete="given-name"
+                  required
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="auth-input"
+                />
+              </div>
+              <div>
+                <label htmlFor="reg-lastname" className={FIELD_LABEL_CLASS} style={{ color: "var(--text-secondary)" }}>
+                  {t("auth.register.lastNameLabel")}
+                </label>
+                <input
+                  id="reg-lastname"
+                  type="text"
+                  autoComplete="family-name"
+                  required
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="auth-input"
+                />
+              </div>
+              <div>
+                <label htmlFor="reg-email" className={FIELD_LABEL_CLASS} style={{ color: "var(--text-secondary)" }}>
+                  {t("auth.field.email")}
+                </label>
+                <input
+                  id="reg-email"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder={t("auth.emailPlaceholder")}
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="auth-input"
+                />
+              </div>
+              <div>
+                <label htmlFor="reg-phone" className={FIELD_LABEL_CLASS} style={{ color: "var(--text-secondary)" }}>
+                  {t("auth.register.phoneLabel")}
+                </label>
+                <input
+                  id="reg-phone"
+                  type="tel"
+                  autoComplete="tel"
+                  inputMode="tel"
+                  placeholder={t("auth.register.phonePlaceholder")}
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="auth-input"
+                />
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <label htmlFor="reg-password" className={FIELD_LABEL_CLASS} style={{ color: "var(--text-secondary)" }}>
+                    {t("auth.field.password")}
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="reg-password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder={t("auth.register.passwordPlaceholder")}
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="auth-input"
+                      style={{ paddingRight: 48 }}
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? "Dölj lösenord" : "Visa lösenord"}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full transition-colors hover:bg-[var(--bg-deep)]"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      {showPassword ? <EyeOff size={18} strokeWidth={2} /> : <Eye size={18} strokeWidth={2} />}
+                    </button>
+                  </div>
+                </div>
+                {/* Password-strength: 4-segment-bar visas så fort user börjat
+                    skriva. Standard regler — längd + variation. Ingen tvingande
+                    spärr, bara visuell hint som matchar RN-mobil-appen. */}
+                {passwordStrength && (
+                  <div className="px-1">
+                    <div className="flex gap-1">
+                      {[0, 1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="flex-1 h-1 rounded-full transition-colors"
+                          style={{
+                            backgroundColor: i < passwordStrength.activeBars
+                              ? passwordStrength.color
+                              : "var(--border-muted)",
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-[12px] font-medium mt-1.5" style={{ color: passwordStrength.color }}>
+                      {t("auth.register.strengthLabel", { label: passwordStrength.label })}
+                    </p>
+                  </div>
+                )}
+              </div>
 
-           {error && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest text-center">{error}</p>}
+              {/* Referral-system avstängt — håller fältet osynligt men låter
+                  ?ref=KOD-URL-prefill fortsätta fungera tyst i bakgrunden så
+                  befintliga referral-länkar inte 404:ar. Backend-redeemen
+                  sker fortfarande automatiskt vid registrering om koden
+                  är validate-bar. */}
 
-           <button
-             type="submit"
-             disabled={isRegistering}
-             className="w-full bg-gold-500 hover:bg-gold-600 text-zinc-950 py-5 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3"
-           >
-             {isRegistering ? <Loader2 className="animate-spin" size={20} /> : t("auth.submitRegister")}
-           </button>
-        </form>
+              {error && <p className="text-[13px] text-rose-600 text-center leading-snug">{error}</p>}
 
-        <p className="text-center text-[10px] font-black uppercase tracking-widest text-zinc-600">
-           {t("auth.hasAccount")} <Link href="/profile" className="text-gold-500">{t("auth.signIn")}</Link>
-        </p>
-        </>
+              <button
+                type="submit"
+                disabled={isRegistering}
+                className="w-full h-[52px] bg-gold-500 rounded-xl text-[15.5px] font-semibold flex items-center justify-center gap-2 transition-opacity disabled:opacity-60"
+                style={{ color: "#141416" }}
+              >
+                {isRegistering ? <Loader2 className="animate-spin" size={20} /> : t("auth.submitRegister")}
+              </button>
+            </form>
+
+            <p className="text-center text-[14px]" style={{ color: "var(--text-secondary)" }}>
+              {t("auth.hasAccount")}{" "}
+              <Link href="/login" className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                {t("auth.signIn")}
+              </Link>
+            </p>
+          </>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

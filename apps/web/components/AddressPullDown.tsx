@@ -38,7 +38,13 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
 
   const computePos = () => {
     const r = triggerRef.current?.getBoundingClientRect();
-    if (r) setPos({ top: r.bottom + 8, left: r.left, width: r.width });
+    if (!r) return;
+    // Panelen har EGEN bredd (triggern är numera ett smalt textblock) och
+    // clampas mot viewporten så den aldrig klipps utanför skärmen.
+    const vw = window.innerWidth;
+    const width = Math.min(360, vw - 24);
+    const left = Math.max(12, Math.min(r.left, vw - width - 12));
+    setPos({ top: r.bottom + 8, left, width });
   };
   const openMenu = () => { computePos(); setOpen(true); };
 
@@ -82,27 +88,30 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
   if (isPickup) {
     return (
       <div className="relative z-30">
-        <motion.div
+        {/* Adressblock som primärkontroll: liten label + stad i fetstil. */}
+        <div
           onClick={onOpenFull}
-          whileTap={{ scale: 0.98 }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-full border cursor-pointer select-none"
-          style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpenFull(); } }}
+          className="flex flex-col cursor-pointer select-none min-w-0 active:opacity-80 transition-opacity"
         >
-          <Building2 size={14} className="text-gold-500 shrink-0" />
-          <span className="text-[11px] font-bold truncate flex-1" style={{ color: "var(--text-primary)" }}>
-            {cityName || "Välj stad"}
+          <span className="text-[12px] font-medium leading-tight" style={{ color: "var(--text-secondary)" }}>Hämtas i</span>
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[16px] font-bold tracking-tight truncate leading-snug" style={{ color: "var(--text-primary)" }}>
+              {cityName || "Välj stad"}
+            </span>
+            <ChevronDown size={15} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
           </span>
-          <span className="text-[9px] font-black uppercase tracking-widest shrink-0" style={{ color: "var(--text-secondary)" }}>
-            Byt stad
-          </span>
-          <ChevronDown size={14} style={{ color: "var(--text-secondary)" }} />
-        </motion.div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="relative z-30">
+      {/* Adressblock som primärkontroll ("Levereras till / Storgatan 5 ⌄").
+          Drag-gesten (öppna/stäng) och dropdown-logiken är oförändrade. */}
       <motion.div
         ref={triggerRef}
         drag="y"
@@ -110,20 +119,19 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
         dragElastic={0.2}
         onDrag={handleDrag}
         onClick={() => { if (open) setOpen(false); else openMenu(); }}
-        whileTap={{ scale: 0.98 }}
-        className="flex items-center gap-2 px-4 py-2.5 rounded-full border cursor-pointer select-none"
-        style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
+        className="flex flex-col cursor-pointer select-none min-w-0 active:opacity-80"
       >
-        <MapPin size={14} className="text-gold-500 shrink-0" />
-        <span className="text-[11px] font-bold truncate flex-1" style={{ color: "var(--text-primary)" }}>
-          {currentAddress || "Välj adress"}
+        <span className="text-[12px] font-medium leading-tight" style={{ color: "var(--text-secondary)" }}>Levereras till</span>
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[16px] font-bold tracking-tight truncate leading-snug" style={{ color: "var(--text-primary)" }}>
+            {currentAddress || "Välj adress"}
+          </span>
+          {zoneStatus === "ok" && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: "var(--success-ink)" }} />}
+          {zoneStatus === "error" && <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-rose-500" />}
+          <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }} className="shrink-0 inline-flex">
+            <ChevronDown size={15} style={{ color: "var(--text-secondary)" }} />
+          </motion.span>
         </span>
-        {zoneStatus === "ok" && <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.6)]" />}
-        {zoneStatus === "error" && <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.6)]" />}
-        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
-          <ChevronDown size={14} style={{ color: "var(--text-secondary)" }} />
-        </motion.div>
-        <div className="w-6 h-1 rounded-full" style={{ backgroundColor: "var(--border-muted)" }} />
       </motion.div>
 
       {mounted && createPortal(
@@ -144,11 +152,11 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
               className="fixed rounded-2xl border p-2 shadow-2xl z-[121]"
               style={{ top: pos.top, left: pos.left, width: pos.width, backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}
             >
-              <p className="text-[8px] font-black uppercase tracking-[0.3em] px-3 pt-1 pb-2" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-[12.5px] font-medium px-3 pt-1.5 pb-2" style={{ color: "var(--text-secondary)" }}>
                 Mina adresser ({addresses.length}/{MAX_ADDRESSES})
               </p>
               {addresses.length === 0 && (
-                <p className="text-[10px] px-3 py-2" style={{ color: "var(--text-secondary)" }}>Inga sparade adresser än.</p>
+                <p className="text-[13px] px-3 py-2" style={{ color: "var(--text-secondary)" }}>Inga sparade adresser än.</p>
               )}
               {addresses.map((a, i) => (
                 <div
@@ -168,18 +176,18 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
                   role="button"
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--bg-deep)] transition-colors text-left cursor-pointer"
                 >
-                  <div className="w-7 h-7 rounded-lg bg-gold-500/10 text-gold-500 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
                     {pickIcon(a.label)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-black uppercase tracking-wider truncate" style={{ color: "var(--text-primary)" }}>
+                    <div className="text-[14px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>
                       {a.label || "Adress"}
                     </div>
-                    <div className="text-[10px] truncate" style={{ color: "var(--text-secondary)" }}>{formatQuickAddress(a)}</div>
+                    <div className="text-[12.5px] leading-snug break-words" style={{ color: "var(--text-secondary)" }}>{formatQuickAddress(a)}</div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {a.isDefault && (
-                      <span className="text-[8px] font-black uppercase tracking-widest text-gold-500">Standard</span>
+                      <span className="text-[11px] font-semibold" style={{ color: "var(--gold-ink)" }}>Standard</span>
                     )}
                     {!a.isDefault && (
                       <button
@@ -228,11 +236,12 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
                   setOpen(false);
                   onOpenFull();
                 }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-dashed border-gold-500/30 text-gold-500 hover:bg-gold-500/5 transition-colors mt-1"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors mt-1 hover:bg-[var(--bg-deep)]"
+                style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
               >
-                <Plus size={14} />
-                <span className="text-[10px] font-black uppercase tracking-widest">
-                  {addresses.length >= MAX_ADDRESSES ? "Ändra adress" : "Lägg till / ny adress"}
+                <Plus size={15} strokeWidth={2} />
+                <span className="text-[13.5px] font-semibold">
+                  {addresses.length >= MAX_ADDRESSES ? "Ändra adress" : "Lägg till ny adress"}
                 </span>
               </button>
             </motion.div>

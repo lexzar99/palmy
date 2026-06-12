@@ -8,6 +8,7 @@ import { Search, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, Shop
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import dynamic from "next/dynamic";
 import FloatingCartButton from "@/components/FloatingCartButton";
+import SmartImage from "@/components/SmartImage";
 import { PublicDeal } from "@/lib/deals";
 import Link from "next/link";
 import Image from "next/image";
@@ -74,7 +75,7 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
       style={{ borderBottom: "1px solid var(--border-muted)" }}
     >
       <div className="flex-1 min-w-0 flex flex-col gap-1">
-        <h3 className="m-0 text-[15px] font-bold leading-snug line-clamp-2" style={{ color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
+        <h3 className="m-0 text-[15px] font-semibold leading-snug line-clamp-2" style={{ color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
           {product.name}
         </h3>
         {showDescription && (
@@ -83,26 +84,26 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
           </p>
         )}
         <div className="mt-0.5 flex items-center gap-2 flex-wrap">
-          <span className="text-[15px] font-bold" style={{ color: original != null ? "var(--color-gold-600, #C28E2E)" : "var(--text-primary)", fontFeatureSettings: "'tnum'" }}>
+          <span className="text-[14.5px] font-semibold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
             {final} kr
           </span>
           {original != null && original !== final && (
-            <span className="text-[12px] font-medium line-through" style={{ color: "var(--text-secondary)", opacity: 0.75 }}>
+            <span className="text-[13px] line-through" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
               {original} kr
             </span>
           )}
           {discountPct > 0 && (
-            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e" }}>
-              −{discountPct}%
+            <span className="text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>
+              −{discountPct} %
             </span>
           )}
-          {/* Rewardable → "eller X p" bredvid priset så man ser att den är köpbar med poäng */}
+          {/* Rewardable → "eller X poäng" bredvid priset */}
           <DpointsBadge priceKr={final} rewardable={!!product.rewardable} />
           {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
-            <span className="flex items-center gap-1 ml-0.5">
-              {product.isVegan && <span title="Vegan" className="w-2 h-2 rounded-full bg-emerald-500" />}
-              {product.isVegetarian && !product.isVegan && <span title="Vegetariskt" className="w-2 h-2 rounded-full bg-amber-500" />}
-              {product.isGlutenFree && <span title="Glutenfritt" className="w-2 h-2 rounded-full bg-sky-400" />}
+            <span className="flex items-center gap-1.5 ml-0.5">
+              {product.isVegan && <span className="text-[11.5px] font-medium px-1.5 rounded-md" style={{ color: "var(--success-ink)", border: "1px solid color-mix(in srgb, var(--success-ink) 30%, transparent)" }}>Vegan</span>}
+              {product.isVegetarian && !product.isVegan && <span className="text-[11.5px] font-medium px-1.5 rounded-md" style={{ color: "var(--success-ink)", border: "1px solid color-mix(in srgb, var(--success-ink) 30%, transparent)" }}>Vegetarisk</span>}
+              {product.isGlutenFree && <span className="text-[11.5px] font-medium px-1.5 rounded-md" style={{ color: "var(--success-ink)", border: "1px solid color-mix(in srgb, var(--success-ink) 30%, transparent)" }}>Glutenfri</span>}
             </span>
           )}
         </div>
@@ -123,18 +124,18 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
           <span
             aria-hidden="true"
             className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full grid place-items-center"
-            style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.22)" }}
+            style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--line-strong)", boxShadow: "0 1px 4px rgba(20,20,22,0.12)" }}
           >
-            <Plus size={15} strokeWidth={3} />
+            <Plus size={15} strokeWidth={2.2} />
           </span>
         </div>
       ) : (
         <span
           aria-hidden="true"
           className="shrink-0 w-8 h-8 rounded-full grid place-items-center"
-          style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.15)" }}
+          style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--line-strong)", boxShadow: "0 1px 4px rgba(20,20,22,0.12)" }}
         >
-          <Plus size={16} strokeWidth={3} />
+          <Plus size={16} strokeWidth={2.2} />
         </span>
       )}
     </button>
@@ -603,12 +604,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
   if (error || (!restaurant && !loading)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <div className="w-20 h-20 bg-rose-500/10 rounded-[2.5rem] border border-rose-500/20 flex items-center justify-center mb-8">
-          <X size={40} className="text-rose-500" />
+        <div className="w-16 h-16 rounded-xl flex items-center justify-center mb-6" style={{ backgroundColor: "rgba(225,29,72,0.08)" }}>
+          <X size={28} strokeWidth={1.8} style={{ color: "#be123c" }} />
         </div>
-        <h2 className="text-2xl font-bold tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{t("menu.errorTitle")}</h2>
-        <p className="text-sm mb-10 max-w-sm" style={{ color: "var(--text-secondary)" }}>{error || t("menu.restaurantNotFound")}</p>
-        <Link href="/" className="px-8 py-4 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm active:scale-95 transition-all">{t("menu.goHome")}</Link>
+        <h2 className="text-[20px] font-bold tracking-tight mb-1.5" style={{ color: "var(--text-primary)" }}>{t("menu.errorTitle")}</h2>
+        <p className="text-[13.5px] mb-8 max-w-sm" style={{ color: "var(--text-secondary)" }}>{error || t("menu.restaurantNotFound")}</p>
+        <Link href="/" className="px-6 h-12 bg-gold-500 rounded-xl text-[15px] font-semibold active:scale-95 transition-all flex items-center" style={{ color: "#141416" }}>{t("menu.goHome")}</Link>
       </div>
     );
   }
@@ -622,7 +623,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       {/* ── Hero: kompakt — bilden är kontext, inte huvudinnehåll ────────── */}
       <div className="relative w-full h-40 sm:h-56 overflow-hidden">
         {heroImage ? (
-          <img src={heroImage} alt={restaurant?.name} loading="eager" decoding="async" className="w-full h-full object-cover" />
+          <SmartImage src={heroImage} alt={restaurant?.name || ""} loading="eager" sizes="100vw" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full" style={{ backgroundImage: "linear-gradient(135deg, var(--bg-deep), var(--bg-primary))" }} />
         )}
@@ -695,10 +696,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           <h1 className="m-0 font-bold tracking-tight leading-tight text-[1.65rem] sm:text-4xl" style={{ color: "var(--text-primary)" }}>
             {restaurantDisplayTitle}
           </h1>
-          {/* Öppet/stängt — lugn badge bredvid titeln */}
-          <div className={`px-2.5 py-1 rounded-full flex items-center gap-1.5 ${restaurant?.isOpen ? "bg-emerald-500/10" : "bg-rose-500/10"}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${restaurant?.isOpen ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
-            <span className={`text-[11px] font-bold ${restaurant?.isOpen ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"}`}>
+          {/* Öppet/stängt — lugn chip i statuspaletten, ingen puls */}
+          <div
+            className="px-2.5 py-1 rounded-md flex items-center gap-1.5"
+            style={{ backgroundColor: restaurant?.isOpen ? "var(--success-soft)" : "rgba(225,29,72,0.08)" }}
+          >
+            <span className="text-[12px] font-semibold" style={{ color: restaurant?.isOpen ? "var(--success-ink)" : "#be123c" }}>
               {restaurant?.isOpen ? t("menu.statusOpen") : t("menu.statusClosed")}
             </span>
           </div>
@@ -732,32 +735,33 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="mb-6 p-6 rounded-[2rem] bg-rose-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center gap-4"
+              className="mb-6 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center gap-3.5"
+              style={{ backgroundColor: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.2)" }}
             >
-              <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
-                <AlertTriangle size={22} className="text-rose-600" />
-              </div>
+              <AlertTriangle size={18} strokeWidth={1.8} className="shrink-0 mt-0.5 sm:mt-0" style={{ color: "#be123c" }} />
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-black uppercase tracking-widest text-rose-600 mb-1">
+                <p className="text-[14px] font-semibold mb-0.5" style={{ color: "#be123c" }}>
                   {t("menu.outOfZone.title")}
                 </p>
-                <p className="text-[11px] font-bold text-rose-600/70 leading-relaxed break-words">
+                <p className="text-[13px] leading-snug break-words" style={{ color: "var(--text-secondary)" }}>
                   {address
                     ? t("menu.outOfZone.descWithAddress", { address })
                     : t("menu.outOfZone.desc")}{" "}
                   {t("menu.outOfZone.action")}
                 </p>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-2.5 shrink-0">
                 <button
                   onClick={() => setShowAddressModal(true)}
-                  className="px-4 py-2.5 bg-rose-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all active:scale-95"
+                  className="px-4 h-10 rounded-xl text-[13.5px] font-semibold transition-all active:scale-95"
+                  style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-primary)" }}
                 >
                   {t("menu.outOfZone.newAddress")}
                 </button>
                 <Link
                   href="/"
-                  className="px-4 py-2.5 bg-rose-500/20 border border-rose-500/30 text-rose-700 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-500/30 transition-all"
+                  className="px-4 h-10 rounded-xl text-[13.5px] font-semibold transition-all flex items-center"
+                  style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
                 >
                   {t("common.back")}
                 </Link>
@@ -771,10 +775,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-5 py-4"
+            className="mb-5 flex items-start gap-3 rounded-xl px-4 py-3.5"
+            style={{ backgroundColor: "var(--gold-soft)", border: "1px solid color-mix(in srgb, var(--gold-ink) 25%, transparent)" }}
           >
-            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-500" />
-            <p className="text-[12px] font-bold leading-relaxed text-amber-700 dark:text-amber-400">
+            <Info size={15} strokeWidth={1.8} className="mt-0.5 shrink-0" style={{ color: "var(--gold-ink)" }} />
+            <p className="text-[13.5px] font-medium leading-snug" style={{ color: "var(--gold-ink)" }}>
               {restaurant.announcementText}
             </p>
           </motion.div>
@@ -792,7 +797,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         {orderType === "DELIVERY" && (
           <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px]">
             <span className="inline-flex items-center gap-1.5">
-              <Bike size={15} className="text-gold-500 shrink-0" strokeWidth={2.2} />
+              <Bike size={15} className="shrink-0" strokeWidth={1.8} style={{ color: "var(--text-secondary)" }} />
               <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
                 {(zoneAvailable === false && restaurant?.isOpen)
                   ? "–"
@@ -812,11 +817,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
               <span className="lowercase" style={{ color: "var(--text-secondary)" }}>{t("menu.stats.fee")}</span>
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <Clock size={15} className="text-gold-500 shrink-0" strokeWidth={2.2} />
+              <Clock size={15} className="shrink-0" strokeWidth={1.8} style={{ color: "var(--text-secondary)" }} />
               <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{`~${restaurant.etaMinutes} ${t("menu.stats.min")}`}</span>
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <ShoppingBag size={15} className="text-gold-500 shrink-0" strokeWidth={2.2} />
+              <ShoppingBag size={15} className="shrink-0" strokeWidth={1.8} style={{ color: "var(--text-secondary)" }} />
               <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{restaurant.minOrderAmount} kr</span>
               <span className="lowercase" style={{ color: "var(--text-secondary)" }}>{t("menu.stats.minOrder")}</span>
             </span>
@@ -828,7 +833,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         {orderType === "PICKUP" && (
           <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px]">
             <span className="inline-flex items-center gap-1.5">
-              <Clock size={15} className="text-gold-500 shrink-0" strokeWidth={2.2} />
+              <Clock size={15} className="shrink-0" strokeWidth={1.8} style={{ color: "var(--text-secondary)" }} />
               <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{`~${Math.max(5, Math.min(25, (restaurant.etaMinutes ?? 30) - 5))} ${t("menu.stats.min")}`}</span>
               <span className="lowercase" style={{ color: "var(--text-secondary)" }}>{t("cart.deliveryType.pickup")}</span>
             </span>
@@ -858,35 +863,36 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             >
               <ChevronLeft size={20} />
             </button>
-            <div className="flex-1 min-w-0 rounded-full flex items-center gap-3 px-5 py-3" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-              <Search size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+            <div className="flex-1 min-w-0 h-12 rounded-xl flex items-center gap-2.5 px-4" style={{ backgroundColor: "var(--bg-deep)" }}>
+              <Search size={16} strokeWidth={2} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
               <input
                 type="text"
                 placeholder={restaurant?.name || t("menu.searchPlaceholder")}
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full min-w-0 bg-transparent border-none text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-zinc-400 truncate"
+                className="w-full min-w-0 bg-transparent border-none text-[14px] font-medium focus:ring-0 focus:outline-none placeholder:text-zinc-400 truncate"
                 style={{ color: "var(--text-primary)" }}
               />
             </div>
           </div>
 
-          {/* Rad 2: kategori-pills */}
+          {/* Rad 2: kategorier som understrukna tabbar (Wolt-stil) — aktiv =
+              text-primary med 2px underline, inaktiv = secondary. Scroll-spy
+              och auto-center är oförändrade. */}
           {scopedCategories.length > 0 && (
             <div
-              className="flex gap-2 no-scrollbar pt-2.5"
-              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x" }}
+              className="flex gap-6 no-scrollbar pt-2 border-b"
+              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, touchAction: "pan-x", borderColor: "var(--border-muted)" }}
             >
               {scopedCategories.map((cat: any) => {
                 const isActive = activeCategory === cat.id;
                 return (
-                  <motion.button
+                  <button
                     key={cat.id}
                     ref={(el) => {
                       if (el) pillRefs.current.set(cat.id, el);
                       else pillRefs.current.delete(cat.id);
                     }}
-                    whileTap={{ scale: 0.96 }}
                     onClick={() => {
                       setActiveCategory(cat.id);
                       // Pausa intersection-observer i 700ms så manuellt klick
@@ -898,15 +904,15 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                         window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
                       }
                     }}
-                    className={`px-4 py-2.5 rounded-full text-xs font-bold transition-all shrink-0 whitespace-nowrap ${
-                      isActive
-                        ? "bg-gold-500 text-zinc-950 shadow-md shadow-gold-500/25"
-                        : ""
-                    }`}
-                    style={isActive ? {} : { backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                    className="pb-2.5 text-[14.5px] font-semibold transition-colors shrink-0 whitespace-nowrap"
+                    style={{
+                      color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+                      borderBottom: isActive ? "2px solid var(--color-gold-500, #E7B24B)" : "2px solid transparent",
+                      marginBottom: "-1px",
+                    }}
                   >
                     {cat.name}
-                  </motion.button>
+                  </button>
                 );
               })}
             </div>
@@ -931,8 +937,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                      <h2 className="m-0 text-lg sm:text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
                        {cat.name}
                      </h2>
-                     <span className="ml-auto text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                       {cat.products.length} {cat.products.length === 1 ? "rätt" : "rätter"}
+                     <span className="ml-auto text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                       {cat.products.length === 1 ? t("menu.dishCount.one", { n: cat.products.length }) : t("menu.dishCount.other", { n: cat.products.length })}
                      </span>
                    </div>
                    {/* Full-width lista med hårfina avdelare (Foodora-stil) — inga
@@ -1015,7 +1021,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
               initial={{ scale: 0.96, y: 12 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.96, y: 12 }}
-              className="w-full max-w-md rounded-3xl relative shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              className="w-full max-w-md rounded-2xl relative overflow-hidden max-h-[90vh] flex flex-col"
               onClick={e => e.stopPropagation()}
               style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
             >
@@ -1023,8 +1029,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                   cleaner header so the rest of the body can breathe. */}
               <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b" style={{ borderColor: "var(--border-muted)" }}>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-500 mb-1">{t("menu.info.title")}</div>
-                  <h2 className="text-lg sm:text-xl font-black uppercase italic tracking-tight truncate" style={{ color: "var(--text-primary)" }}>
+                  <div className="text-[12.5px] font-medium mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("menu.info.title")}</div>
+                  <h2 className="text-[18px] font-bold tracking-tight truncate" style={{ color: "var(--text-primary)" }}>
                     {restaurant?.name}
                   </h2>
                 </div>
@@ -1040,16 +1046,16 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
               <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-5 space-y-5">
                 {restaurant?.description && (
                   <div>
-                    <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1.5">{t("product.description")}</div>
+                    <div className="text-[12.5px] font-medium mb-1" style={{ color: "var(--text-secondary)" }}>{t("product.description")}</div>
                     <p className="text-sm leading-relaxed" style={{ color: "var(--text-primary)" }}>{restaurant.description}</p>
                   </div>
                 )}
 
                 {restaurant?.address && (
                   <div className="flex items-start gap-3">
-                    <MapPin className="text-gold-500 mt-0.5" size={16} />
+                    <MapPin className="mt-0.5" size={16} strokeWidth={1.8} style={{ color: "var(--text-secondary)" }} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("menu.info.findHere")}</div>
+                      <div className="text-[12.5px] font-medium mb-1" style={{ color: "var(--text-secondary)" }}>{t("menu.info.findHere")}</div>
                       {/* Tappable address — opens Google Maps from any device.
                           Falls back gracefully if no zip/city. */}
                       <a
@@ -1058,13 +1064,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                         rel="noreferrer"
                         className="block group"
                       >
-                        <div className="text-sm font-bold leading-snug group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{restaurant.address}</div>
+                        <div className="text-sm font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>{restaurant.address}</div>
                         {(restaurant.zip || restaurant.city) && (
-                          <div className="text-xs opacity-70" style={{ color: "var(--text-secondary)" }}>
+                          <div className="text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
                             {[restaurant.zip, restaurant.city].filter(Boolean).join(" ")}
                           </div>
                         )}
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gold-500 mt-1 inline-block">{t("menu.info.openMaps") || "Öppna i kartor →"}</span>
+                        <span className="text-[12.5px] font-medium mt-1 inline-block" style={{ color: "var(--gold-ink)" }}>{t("menu.info.openMaps") || "Öppna i kartor"}</span>
                       </a>
                     </div>
                   </div>
@@ -1072,10 +1078,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
                 {restaurant?.phone && (
                   <div className="flex items-start gap-3">
-                    <Phone className="text-gold-500 mt-0.5" size={16} />
+                    <Phone className="mt-0.5" size={16} strokeWidth={1.8} style={{ color: "var(--text-secondary)" }} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">{t("menu.info.callUs")}</div>
-                      <a href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`} className="text-sm font-bold text-gold-500 hover:text-gold-600 transition-colors">
+                      <div className="text-[12.5px] font-medium mb-1" style={{ color: "var(--text-secondary)" }}>{t("menu.info.callUs")}</div>
+                      <a href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`} className="text-sm font-semibold transition-colors" style={{ color: "var(--text-primary)" }}>
                         {restaurant.phone}
                       </a>
                     </div>
@@ -1084,10 +1090,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
                 {(restaurant as any)?.email && (
                   <div className="flex items-start gap-3">
-                    <Mail className="text-gold-500 mt-0.5" size={16} />
+                    <Mail className="mt-0.5" size={16} strokeWidth={1.8} style={{ color: "var(--text-secondary)" }} />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">E-post</div>
-                      <a href={`mailto:${(restaurant as any).email}`} className="text-sm font-bold text-gold-500 hover:text-gold-600 transition-colors break-words">
+                      <div className="text-[12.5px] font-medium mb-1" style={{ color: "var(--text-secondary)" }}>{t("menu.info.email")}</div>
+                      <a href={`mailto:${(restaurant as any).email}`} className="text-sm font-semibold transition-colors break-words" style={{ color: "var(--text-primary)" }}>
                         {(restaurant as any).email}
                       </a>
                     </div>
@@ -1099,15 +1105,15 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                     rendered when restaurant has filled in their company info. */}
                 {((restaurant as any)?.legalName || (restaurant as any)?.organizationNumber) && (
                   <div className="pt-4 border-t" style={{ borderColor: "var(--border-muted)" }}>
-                    <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-2">Juridisk information</div>
+                    <div className="text-[12.5px] font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>{t("menu.info.legal")}</div>
                     {(restaurant as any)?.legalName && (
-                      <div className="text-sm font-bold mb-0.5" style={{ color: "var(--text-primary)" }}>
+                      <div className="text-sm font-semibold mb-0.5" style={{ color: "var(--text-primary)" }}>
                         {(restaurant as any).legalName}
                       </div>
                     )}
                     {(restaurant as any)?.organizationNumber && (
-                      <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                        Org.nr {(restaurant as any).organizationNumber}
+                      <div className="text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
+                        {t("menu.info.orgNr", { nr: (restaurant as any).organizationNumber })}
                       </div>
                     )}
                   </div>

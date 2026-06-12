@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Menu, X, Sun, Moon, User as UserIcon, Mail } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { ShoppingBag, Sun, Moon, Mail } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTheme } from "@/app/providers";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
-import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { PLATFORM_SESSION_CHANGED_EVENT } from "@/lib/platformSessionClient";
@@ -17,12 +17,18 @@ type SessionUser = {
   name?: string | null;
 };
 
+/**
+ * Navbar — desktop-header (renderas bara md+ via layout.tsx).
+ * Platt vit bar med hårfin linje under: logotyp till vänster,
+ * sentence case-länkar + tysta ikonknappar till höger.
+ * Ingen blur, ingen skugga, inga versaler.
+ */
 const Navbar = () => {
   const { theme, toggleTheme } = useTheme();
   const { t } = useTranslation();
+  const pathname = usePathname();
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
 
@@ -59,157 +65,119 @@ const Navbar = () => {
       || null
     : null;
 
-  // Lock body scroll when mobile menu is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
-  }, [isOpen]);
+  const logo = (
+    <Link href="/" className="flex items-center" aria-label="Delívera — startsidan">
+      <span className="text-[21px] font-extrabold tracking-tight leading-none" style={{ color: "var(--text-primary)" }}>
+        delí<span style={{ color: "var(--gold-ink)" }}>vera</span>
+      </span>
+    </Link>
+  );
 
   if (!mounted) return (
-    <nav className="fixed top-0 left-0 right-0 z-[100]" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", height: "72px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
-       <div className="flex items-center gap-3">
-          <span className="text-2xl font-black italic tracking-tighter" style={{ color: "var(--text-primary)" }}>
-            Deli<span className="text-gold-500">vera</span>
-          </span>
-       </div>
+    <nav
+      className="fixed top-0 left-0 right-0 z-[100] h-16 flex items-center px-7"
+      style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)" }}
+    >
+      {logo}
     </nav>
   );
+
+  const links = [
+    { href: "/", label: t("nav.home") },
+    { href: "/discover", label: t("nav.favorites") },
+    { href: "/orders", label: t("nav.myOrders") },
+  ];
+
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 border-b transition-all duration-300 ${isOpen ? 'z-[200]' : 'z-[100] backdrop-blur-md'}`}
+      className="fixed top-0 left-0 right-0 z-[100]"
       style={{
         backgroundColor: "var(--bg-primary)",
-        borderColor: "var(--border-muted)",
-        // Subtle skugga under navbaren ger separation från content i båda
-        // tema-lägena. Mörkare/tunnare på dark, ljusare på light.
-        boxShadow: "0 1px 0 var(--border-muted), 0 4px 16px rgba(0,0,0,0.06)",
+        borderBottom: "1px solid var(--border-muted)",
       }}
     >
-      <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-1 group" aria-label="Delívera — startsidan">
-          <span className="text-2xl font-black italic tracking-tighter leading-[1.15] transition-transform group-hover:scale-105" style={{ color: "var(--text-primary)" }}>
-            Delí<span className="text-gold-500">vera</span>
-          </span>
-        </Link>
+      <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-7 h-16 flex items-center justify-between">
+        {logo}
 
-        {/* Desktop-länkar — kompaktare nu: bara HEM, UPPTÄCK, MINA BESTÄLLNINGAR
-            som textlänkar. Om oss + Kontakt flyttade till små icon-knappar
-            i höger-clustret tillsammans med theme + locale + cart. */}
-        <div className="hidden md:flex items-center gap-8 text-sm font-bold uppercase tracking-widest">
-          <Link href="/" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{t("nav.home")}</Link>
-          <Link href="/discover" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{t("nav.favorites")}</Link>
-          <Link href="/orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>{t("nav.myOrders")}</Link>
+        <div className="flex items-center gap-7">
+          {links.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-sm transition-colors"
+                style={{
+                  color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+                  fontWeight: isActive ? 650 : 500,
+                }}
+                aria-current={isActive ? "page" : undefined}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+
           {displayName ? (
-            <Link href="/profile" className="flex items-center gap-2 text-gold-500 hover:text-gold-400 transition-colors">
-              <UserIcon size={14} />
-              <span className="truncate max-w-[160px]">{displayName}</span>
+            <Link
+              href="/profile"
+              className="text-sm font-semibold transition-colors truncate max-w-[160px]"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {displayName}
             </Link>
           ) : (
-            <Link href="/profile" className="text-gold-500 hover:text-gold-400 transition-colors">{t("nav.login")}</Link>
+            <Link
+              href="/profile"
+              className="text-sm font-semibold transition-colors"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {t("nav.login")}
+            </Link>
           )}
-        </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 relative z-[100]">
-          {/* Kontakt som liten icon-knapp — visas bara på desktop. "Om oss"
-              borttagen enligt önskemål. */}
-          <Link
-            href="/contact"
-            className="hidden md:flex p-2 transition-colors rounded-full items-center justify-center"
-            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)", border: "1px solid var(--border-muted)" }}
-            aria-label={t("nav.contact")}
-            title={t("nav.contact")}
-          >
-            <Mail size={18} className="text-gold-600" />
-          </Link>
+          {/* Tysta ikonknappar — ingen bakgrundsplatta, ingen kant */}
+          <div className="flex items-center gap-1 pl-4" style={{ borderLeft: "1px solid var(--border-muted)" }}>
+            <Link
+              href="/contact"
+              className="p-2 rounded-lg transition-colors"
+              style={{ color: "var(--text-secondary)" }}
+              aria-label={t("nav.contact")}
+              title={t("nav.contact")}
+            >
+              <Mail size={18} strokeWidth={1.8} />
+            </Link>
 
-          <LocaleSwitcher />
+            <LocaleSwitcher />
 
-          <button
-            onClick={toggleTheme}
-            className="p-2 transition-colors rounded-full"
-            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)", border: "1px solid var(--border-muted)" }}
-            aria-label={theme === 'dark' ? t("nav.theme.toLight") : t("nav.theme.toDark")}
-          >
-            {theme === 'dark' ? <Sun size={20} className="text-gold-500" /> : <Moon size={20} className="text-gold-600" />}
-          </button>
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg transition-colors"
+              style={{ color: "var(--text-secondary)" }}
+              aria-label={theme === 'dark' ? t("nav.theme.toLight") : t("nav.theme.toDark")}
+            >
+              {theme === 'dark' ? <Sun size={18} strokeWidth={1.8} /> : <Moon size={18} strokeWidth={1.8} />}
+            </button>
 
-          <Link
-            href="/cart"
-            className="relative p-2 transition-colors group rounded-full"
-            style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
-            aria-label={t("nav.cart")}
-          >
-            <ShoppingCart size={20} className="text-gold-600 group-hover:scale-110 transition-transform" />
-            {itemCount > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 w-5 h-5 bg-gold-500 text-zinc-950 text-[10px] font-bold rounded-full flex items-center justify-center"
-              >
-                {itemCount}
-              </motion.span>
-            )}
-          </Link>
-          <button
-            type="button"
-            onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden p-3 -mr-2 rounded-xl active:scale-95 transition-all select-none touch-manipulation"
-            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)", border: "1px solid var(--border-muted)" }}
-            aria-label="Toggle Menu"
-          >
-            {isOpen ? <X size={26} /> : <Menu size={26} />}
-          </button>
+            <Link
+              href="/cart"
+              className="relative p-2 rounded-lg transition-colors"
+              style={{ color: "var(--text-primary)" }}
+              aria-label={t("nav.cart")}
+            >
+              <ShoppingBag size={19} strokeWidth={1.8} />
+              {itemCount > 0 && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#141416" }}
+                >
+                  {itemCount}
+                </span>
+              )}
+            </Link>
+          </div>
         </div>
       </div>
-
-      {/* Mobile Menu Overlay */}
-      <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ opacity: 0, x: "100%" }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: "100%" }}
-              className="fixed inset-0 z-[190] md:hidden flex flex-col pt-32 pb-12 px-8 overflow-y-auto"
-              style={{ backgroundColor: "var(--bg-primary)" }}
-            >
-              <div className="flex flex-col gap-8">
-                {[
-                  { name: t("nav.home"), href: "/" },
-                  { name: t("nav.favorites"), href: "/discover" },
-                  { name: t("nav.myOrders"), href: "/orders" },
-                  { name: t("nav.contact"), href: "/contact" },
-                  // Visa namn om inloggad, annars "Logga in"
-                  { name: displayName ?? t("nav.login"), href: "/profile", isUser: true },
-                ].map((link, i) => (
-                  <motion.div
-                    key={link.href}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                     <Link
-                       href={link.href}
-                       onClick={() => setIsOpen(false)}
-                       className="text-4xl font-black uppercase tracking-tighter italic"
-                       style={{ color: link.name === 'Mina Beställningar' || (link as { isUser?: boolean }).isUser ? 'var(--gold-primary)' : 'var(--text-primary)' }}
-                    >
-                      {link.name}
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-      </AnimatePresence>
-
-
-
     </nav>
   );
 };

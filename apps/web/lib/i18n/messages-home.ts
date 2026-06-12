@@ -28,6 +28,12 @@ export const homePagePending = {
     // ── Search / CTA ─────────────────────────────────────────────────────
     "home.searchCta": "Sök restaurang eller maträtt",
 
+    // ── Address block (header) ───────────────────────────────────────────
+    "home.address.deliverTo": "Levereras till",
+    "home.address.pickupIn": "Hämtas i",
+    "home.address.choose": "Välj adress",
+    "home.address.chooseCity": "Välj stad",
+
     // ── Cuisine display labels (identifiers stay in source) ──────────────
     "home.cuisine.Alla": "Alla",
     "home.cuisine.Favoriter": "Favoriter",
@@ -58,23 +64,17 @@ export const homePagePending = {
     "home.restaurantCount.one": "restaurang",
     "home.restaurantCount.many": "restauranger",
 
-    // ── Quick filters ────────────────────────────────────────────────────
-    "home.quickFilter.all": "Alla",
-    "home.quickFilter.rated": "Betyg 4.0+",
-    "home.quickFilter.fast": "Under 30 min",
-    "home.quickFilter.deals": "Erbjudanden",
-    "home.quickFilter.free": "Fri leverans",
-
     // ── Deal filter banner ───────────────────────────────────────────────
     "home.dealFilter.label": "Filtrerat erbjudande",
     "home.dealFilter.clear": "Rensa filter",
 
     // ── Loyalty banner ───────────────────────────────────────────────────
-    "home.loyalty.headline": "Personliga erbjudanden",
-    "home.loyalty.sub": "och orderhistorik.",
-    "home.loyalty.cta": "Logga in gratis →",
+    "home.loyalty.title": "Personliga erbjudanden och orderhistorik",
+    "home.loyalty.subtitle": "Logga in gratis — du kan alltid beställa utan konto",
 
     // ── Errors / empty states ────────────────────────────────────────────
+    "home.cityEmpty.title": "Vi har inte kommit till {city} ännu",
+    "home.cityEmpty.sub": "Men vi expanderar fort — kolla tillbaka snart. Tills dess kan du använda en annan adress för att se restauranger i en stad vi servar.",
     "home.error.serverUnreachable": "Kan inte nå servern",
     "home.error.checkConnection": "Kontrollera din anslutning och försök igen.",
     "home.error.reload": "Ladda om",
@@ -110,6 +110,7 @@ export const homePagePending = {
     "home.deal.autoApplied": "Används automatiskt vid köp.",
     "home.deal.minOrderShort": "Min {amount} kr",
     "home.deal.bogo": "1+1 GRATIS",
+    "home.deal.badge.bogo": "2 för 1",
     "home.deal.atRestaurant": "Hos {name}",
     "home.deal.allRestaurants": "Gäller alla restauranger",
   },
@@ -141,6 +142,12 @@ export const homePagePending = {
     // ── Search / CTA ─────────────────────────────────────────────────────
     "home.searchCta": "Search restaurants or dishes",
 
+    // ── Address block (header) ───────────────────────────────────────────
+    "home.address.deliverTo": "Delivering to",
+    "home.address.pickupIn": "Pickup in",
+    "home.address.choose": "Choose address",
+    "home.address.chooseCity": "Choose city",
+
     // ── Cuisine display labels (identifiers stay in source) ──────────────
     "home.cuisine.Alla": "All",
     "home.cuisine.Favoriter": "Favourites",
@@ -171,23 +178,17 @@ export const homePagePending = {
     "home.restaurantCount.one": "restaurant",
     "home.restaurantCount.many": "restaurants",
 
-    // ── Quick filters ────────────────────────────────────────────────────
-    "home.quickFilter.all": "All",
-    "home.quickFilter.rated": "Rated 4.0+",
-    "home.quickFilter.fast": "Under 30 min",
-    "home.quickFilter.deals": "Offers",
-    "home.quickFilter.free": "Free delivery",
-
     // ── Deal filter banner ───────────────────────────────────────────────
     "home.dealFilter.label": "Filtered offer",
     "home.dealFilter.clear": "Clear filter",
 
     // ── Loyalty banner ───────────────────────────────────────────────────
-    "home.loyalty.headline": "Personal offers",
-    "home.loyalty.sub": "and order history.",
-    "home.loyalty.cta": "Sign in free →",
+    "home.loyalty.title": "Personal offers and order history",
+    "home.loyalty.subtitle": "Sign in for free — you can always order without an account",
 
     // ── Errors / empty states ────────────────────────────────────────────
+    "home.cityEmpty.title": "We haven't reached {city} yet",
+    "home.cityEmpty.sub": "We're expanding fast — check back soon. Until then, try a different address to see restaurants in a city we serve.",
     "home.error.serverUnreachable": "Can't reach the server",
     "home.error.checkConnection": "Check your connection and try again.",
     "home.error.reload": "Reload",
@@ -223,6 +224,7 @@ export const homePagePending = {
     "home.deal.autoApplied": "Applied automatically at checkout.",
     "home.deal.minOrderShort": "Min {amount} kr",
     "home.deal.bogo": "1+1 FREE",
+    "home.deal.badge.bogo": "2 for 1",
     "home.deal.atRestaurant": "At {name}",
     "home.deal.allRestaurants": "All restaurants eligible",
   },

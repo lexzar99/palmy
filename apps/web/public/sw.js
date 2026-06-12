@@ -79,3 +79,40 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// ── Web push: orderstatus-notiser ("Din mat är på väg") ─────────────────────
+// Payload sätts av API:t (lib/customerPush.ts): { title, body, tag, url }.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: "Delívera", body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "Delívera";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      tag: data.tag || "delivera-order",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      data: { url: data.url || "/orders" },
+      renotify: true,
+    })
+  );
+});
+
+// Klick på notisen → fokusera befintlig flik på ordersidan, annars öppna ny.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/orders";
+  event.waitUntil(
+    (async () => {
+      const all = await clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const client of all) {
+        if (client.url.includes(url) && "focus" in client) return client.focus();
+      }
+      return clients.openWindow(url);
+    })()
+  );
+});

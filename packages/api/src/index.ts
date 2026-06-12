@@ -31,6 +31,7 @@ import menuRoutes from './routes/menu';
 import mapsStatsRoutes from './routes/mapsStats';
 import placesRoutes from './routes/places';
 import sponsorsRoutes from './routes/sponsors';
+import pushRoutes from './routes/push';
 import homeCategoriesRoutes from './routes/homeCategories';
 import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
@@ -294,6 +295,7 @@ app.use('/api/maps-stats', mapsStatsRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/sponsors', sponsorsRoutes);
+app.use('/api/push', pushRoutes);
 app.use('/api/dpoints', dpointsRoutes);
 app.use('/api/home-categories', homeCategoriesRoutes);
 

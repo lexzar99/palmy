@@ -7,6 +7,7 @@ import { getIO } from '../lib/socket';
 import { haversineKm } from '../utils/geo';
 import { authenticate, requireSuperAdmin, type AuthRequest } from '../middleware/auth';
 import { saveSubscription, removeSubscription, getVapidPublicKey } from '../lib/courierPush';
+import { sendOrderStatusPush } from '../lib/customerPush';
 
 const ACTIVE_STATUSES = ['EN_ROUTE_PICKUP', 'PICKED_UP'];
 const AVAILABLE_ORDER_STATUSES = ['ACCEPTED', 'PREPARING', 'READY'];
@@ -84,6 +85,7 @@ function emitOrderStatus(order: any) {
       status: order.status,
       deliveringAt: order.deliveringAt ?? null,
     });
+    void sendOrderStatusPush(order.id, order.status);
     io.to('admin-room').emit('order:updated', { orderId: order.id });
     if (order.restaurantId) io.to(`admin-room:${order.restaurantId}`).emit('order:updated', { orderId: order.id });
   } catch {

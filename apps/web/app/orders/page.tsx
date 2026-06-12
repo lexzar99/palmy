@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { Clock, ChevronRight, History } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { readOrderHistory, removeOrderFromHistory, type StoredOrderRef } from "@/lib/orderHistory";
+import { cacheOrdersList, getCachedOrdersList } from "@/lib/offlineOrders";
 import EmptyState from "@/components/EmptyState";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
@@ -40,17 +41,28 @@ const STATUS_TONE: Record<string, "warn" | "ok" | "info" | "muted"> = {
   DELIVERY_FAILED: "muted",
 };
 
+// EN statuspalett ("tyst & direkt"): väntar = neutral, pågår = mjuk guld,
+// klart = mjuk grön, avbrutet = neutral dämpad.
 const toneClasses: Record<string, string> = {
-  warn: "bg-amber-500/10 text-amber-500 border border-amber-500/20",
-  ok: "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20",
-  info: "bg-sky-500/10 text-sky-500 border border-sky-500/20",
-  muted: "bg-zinc-500/10 text-zinc-500 border border-zinc-500/20",
+  warn: "bg-[var(--bg-deep)] text-[var(--text-secondary)] border border-[var(--border-muted)]",
+  ok: "bg-[var(--success-soft)] text-[var(--success-ink)] border border-[var(--border-muted)]",
+  info: "bg-[var(--gold-soft)] text-[var(--gold-ink)] border border-[var(--border-muted)]",
+  muted: "bg-[var(--bg-deep)] text-[var(--text-secondary)] border border-[var(--border-muted)]",
 };
 
 export default function OrdersPage() {
   const { t } = useTranslation();
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showingOffline, setShowingOffline] = useState(false);
+
+  // Offline orderhistorik: persist:a berikade rader (status/ordernummer) så
+  // listan är komplett även utan nät — inte bara app-skalet.
+  useEffect(() => {
+    if (rows.length > 0 && rows.some((r) => r.loaded && (r as FetchedOrder).status)) {
+      cacheOrdersList(rows);
+    }
+  }, [rows]);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,13 +72,21 @@ export default function OrdersPage() {
     //    Detta gör att listan blir klickbar omedelbart istället för att vänta
     //    8s på flera API-anrop.
     const refs = readOrderHistory();
+    // Berika direkt från offline-cachen (status/ordernummer från förra
+    // besöket) — utan nät är detta hela innehållet, med nät ersätts det
+    // strax av färsk data.
+    const cached = getCachedOrdersList();
+    const cachedById = new Map<string, any>((cached?.orders ?? []).map((o: any) => [o.id, o]));
+    if (typeof navigator !== "undefined" && !navigator.onLine && cachedById.size > 0) {
+      setShowingOffline(true);
+    }
     if (refs.length > 0) {
       const initial: OrderRow[] = refs
         .map((ref) => ({
           ...ref,
           loaded: true as const,
-          orderNumber: undefined,
-          status: undefined,
+          orderNumber: cachedById.get(ref.id)?.orderNumber ?? undefined,
+          status: cachedById.get(ref.id)?.status ?? undefined,
           fetchedTotal: ref.total,
           restaurantName: ref.restaurantName ?? null,
         }))
@@ -161,10 +181,15 @@ export default function OrdersPage() {
     <div className="min-h-screen md:pt-20 pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <div className="mx-auto max-w-2xl md:max-w-4xl lg:max-w-5xl 2xl:max-w-[1400px] px-4 sm:px-6 lg:px-10 pt-8">
         <header className="mb-8 md:mb-10">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500 mb-2">{t("orders.eyebrow")}</p>
+          
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>
             {t("orders.title")} {t("orders.titleAccent")}
           </h1>
+          {showingOffline && (
+            <p className="mb-2 inline-flex items-center gap-2 rounded-md px-2.5 py-1 text-[12.5px] font-medium" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
+              Offline — visar senast sparade ordrar
+            </p>
+          )}
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
             {t("orders.subtitle")}
           </p>
@@ -200,17 +225,17 @@ export default function OrdersPage() {
                     style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
                   >
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-rose-400">
+                      <p className="text-[10px] font-bold text-rose-400">
                         {row.error === "not_found" ? t("orders.row.notFound") : t("orders.row.fetchError")}
                       </p>
                       <button
                         onClick={() => handleClearMissing(row.id)}
-                        className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-300"
+                        className="text-[12px] font-medium text-zinc-500 hover:text-zinc-300"
                       >
                         {t("orders.row.remove")}
                       </button>
                     </div>
-                    <p className="text-sm font-black" style={{ color: "var(--text-secondary)" }}>
+                    <p className="text-sm font-bold" style={{ color: "var(--text-secondary)" }}>
                       {new Date(row.createdAt).toLocaleString("sv-SE")}
                     </p>
                   </div>
@@ -226,10 +251,10 @@ export default function OrdersPage() {
                 >
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--text-secondary)" }}>
+                      <p className="text-[10px] font-bold mb-1" style={{ color: "var(--text-secondary)" }}>
                         {row.restaurantName || t("orders.row.fallbackName")}
                       </p>
-                      <p className="text-lg font-black tracking-tight truncate" style={{ color: "var(--text-primary)" }}>
+                      <p className="text-lg font-bold tracking-tight truncate" style={{ color: "var(--text-primary)" }}>
                         {row.orderNumber || row.id.slice(-6).toUpperCase()}
                       </p>
                     </div>
@@ -237,11 +262,11 @@ export default function OrdersPage() {
                   </div>
                   <div className="flex items-center gap-2 flex-wrap mb-3">
                     {row.status && tone ? (
-                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${toneClasses[tone]}`}>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold ${toneClasses[tone]}`}>
                         {t(`orders.status.${row.status}`)}
                       </span>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">
+                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">
                         {t("orders.row.statusLoading")}
                       </span>
                     )}

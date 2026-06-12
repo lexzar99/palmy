@@ -9,6 +9,8 @@ import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, AlertCircle
 import { openSupportChatWithOrder } from "@/components/SupportChat";
 import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
+import { cacheOrderDetail, getCachedOrderDetail } from "@/lib/offlineOrders";
+import { isPushSupported, getPushPublicKey, subscribeOrderPush, hasOrderPush } from "@/lib/webPushClient";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import dynamic from "next/dynamic";
 
@@ -29,61 +31,64 @@ const BoxCheckIcon = ({ size = 24, className = "" }: { size?: number; className?
 
 // Stil + icon per status. Label + desc resolveras via t() inne i komponenten
 // (order.status.*.label / .desc) eftersom STATUS_CONFIG är module-level.
+// EN statuspalett, en form ("tyst & direkt"): väntande = neutral yta,
+// aktivt arbete (tillagas/på väg) = mjuk guldyta, klart = mjuk grön,
+// fel/avbrutet = mjuk rosé. Inga glow-skuggor eller spridda accentfärger.
 const STATUS_CONFIG: Record<string, { icon: any; colorClass: string; textClass: string }> = {
   AWAITING_PAYMENT: {
     icon: Clock,
-    colorClass: "bg-amber-500/10 border-amber-500/20 shadow-amber-500/5",
-    textClass: "text-amber-500",
+    colorClass: "bg-[var(--bg-deep)] border-[var(--border-muted)]",
+    textClass: "text-[var(--text-secondary)]",
   },
   PENDING: {
     icon: Clock,
-    colorClass: "bg-amber-500/10 border-amber-500/20 shadow-amber-500/5",
-    textClass: "text-amber-500",
+    colorClass: "bg-[var(--bg-deep)] border-[var(--border-muted)]",
+    textClass: "text-[var(--text-secondary)]",
   },
   ACCEPTED: {
     icon: Check,
-    colorClass: "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/5",
-    textClass: "text-emerald-500",
+    colorClass: "bg-[var(--bg-deep)] border-[var(--border-muted)]",
+    textClass: "text-[var(--text-primary)]",
   },
   PREPARING: {
     icon: FlameIcon,
-    colorClass: "bg-orange-500/10 border-orange-500/20 shadow-orange-500/5",
-    textClass: "text-orange-500",
+    colorClass: "bg-[var(--gold-soft)] border-[var(--border-muted)]",
+    textClass: "text-[var(--gold-ink)]",
   },
   READY: {
     icon: BoxCheckIcon,
-    colorClass: "bg-gold-500/10 border-gold-500/20 shadow-gold-500/5",
-    textClass: "text-gold-500",
+    colorClass: "bg-[var(--gold-soft)] border-[var(--border-muted)]",
+    textClass: "text-[var(--gold-ink)]",
   },
   DELIVERING: {
     icon: Truck,
-    colorClass: "bg-sky-500/10 border-sky-500/20 shadow-sky-500/5",
-    textClass: "text-sky-500",
+    colorClass: "bg-[var(--gold-soft)] border-[var(--border-muted)]",
+    textClass: "text-[var(--gold-ink)]",
   },
   DELIVERY_FAILED: {
     icon: AlertCircle,
-    colorClass: "bg-rose-500/10 border-rose-500/20 shadow-rose-500/5",
-    textClass: "text-rose-500",
+    colorClass: "bg-rose-500/8 border-rose-500/20",
+    textClass: "text-rose-600",
   },
   REJECTED: {
     icon: AlertCircle,
-    colorClass: "bg-rose-500/10 border-rose-500/20 shadow-rose-500/5",
-    textClass: "text-rose-500",
+    colorClass: "bg-rose-500/8 border-rose-500/20",
+    textClass: "text-rose-600",
   },
   DELIVERED: {
     icon: Check,
-    colorClass: "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/5",
-    textClass: "text-emerald-500",
+    colorClass: "bg-[var(--success-soft)] border-[var(--border-muted)]",
+    textClass: "text-[var(--success-ink)]",
   },
   COMPLETED: {
     icon: Check,
-    colorClass: "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/5",
-    textClass: "text-emerald-500",
+    colorClass: "bg-[var(--success-soft)] border-[var(--border-muted)]",
+    textClass: "text-[var(--success-ink)]",
   },
   CANCELLED: {
     icon: AlertCircle,
-    colorClass: "bg-zinc-500/10 border-zinc-500/20",
-    textClass: "text-zinc-400",
+    colorClass: "bg-[var(--bg-deep)] border-[var(--border-muted)]",
+    textClass: "text-[var(--text-secondary)]",
   },
 };
 
@@ -142,6 +147,28 @@ const OrderStatusPage = () => {
   const [likedItemIds, setLikedItemIds] = useState<string[]>([]);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewDone, setReviewDone] = useState(false);
+  // Web push: visas bara när webbläsaren stödjer push OCH servern har VAPID-
+  // nycklar (annars null → raden renderas inte alls).
+  const [pushAvailable, setPushAvailable] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  useEffect(() => {
+    if (!orderId || !isPushSupported()) return;
+    let active = true;
+    getPushPublicKey().then((key) => {
+      if (!active || !key) return;
+      setPushAvailable(true);
+      setPushEnabled(hasOrderPush(orderId));
+    });
+    return () => { active = false; };
+  }, [orderId]);
+  const enablePush = async () => {
+    if (!orderId || pushBusy || pushEnabled) return;
+    setPushBusy(true);
+    const ok = await subscribeOrderPush(orderId);
+    setPushEnabled(ok);
+    setPushBusy(false);
+  };
 
   const fetchOrder = useCallback(async (opts?: { silent?: boolean }) => {
     if (!orderId) return;
@@ -163,6 +190,9 @@ const OrderStatusPage = () => {
           ? { ...res.data, status: prev.status }
           : res.data
       );
+      // Offline-kvitto: senaste ordern cachas lokalt så sidan kan visas helt
+      // utan nät (app-skalet serveras redan av service workern).
+      cacheOrderDetail(res.data);
       setFetchError(null);
     } catch (err: any) {
       console.error(err);
@@ -170,7 +200,15 @@ const OrderStatusPage = () => {
         if (err?.response?.status === 404) {
           setFetchError("not-found");
         } else {
-          setFetchError("network");
+          // Nätverksfel: fall tillbaka till offline-cachad order om den
+          // matchar — kvittot är viktigare än felmeddelandet.
+          const cached = getCachedOrderDetail(orderId);
+          if (cached) {
+            setOrder((prev: any) => prev ?? cached.order);
+            setFetchError(null);
+          } else {
+            setFetchError("network");
+          }
         }
       }
     } finally {
@@ -330,9 +368,9 @@ const OrderStatusPage = () => {
             <div className="skeleton h-7 w-32 rounded-full" />
           </div>
           <div className="skeleton h-8 w-48 rounded-xl mb-5" />
-          <div className="skeleton h-44 w-full rounded-3xl mb-4" />
-          <div className="skeleton h-64 w-full rounded-3xl mb-4" />
-          <div className="skeleton h-48 w-full rounded-3xl" />
+          <div className="skeleton h-44 w-full rounded-2xl mb-4" />
+          <div className="skeleton h-64 w-full rounded-2xl mb-4" />
+          <div className="skeleton h-48 w-full rounded-2xl" />
         </div>
       </div>
     );
@@ -413,7 +451,7 @@ const OrderStatusPage = () => {
         <h1 className="mb-4 px-1 text-[1.45rem] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.title")} <span className="text-gold-600">#{order.orderNumber}</span></h1>
 
         {/* Hero: karta (vi-levererar) + status + ETA + steg */}
-        <motion.div key={currentStatus} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-3xl border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+        <motion.div key={currentStatus} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-2xl border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
 
           {/* Live-karta — endast vi-levererar (ej self) + under leverans. Visas direkt vid hämtad;
               budets prick fylls i när dess position kommit in. Försvinner vid DELIVERED. */}
@@ -431,22 +469,29 @@ const OrderStatusPage = () => {
               <StatusIcon size={28} className={currentStatus === "PENDING" ? "animate-pulse" : ""} />
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-black leading-tight" style={{ color: "var(--text-primary)" }}>{statusLabel(currentStatus)}</h2>
+              <h2 className="text-lg font-bold leading-tight" style={{ color: "var(--text-primary)" }}>{statusLabel(currentStatus)}</h2>
               <p className="mt-0.5 text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>{statusDesc(currentStatus)}</p>
             </div>
             {order.estimatedTime && !isRejected && !isCompleted && (
               <div className="shrink-0 rounded-2xl px-3.5 py-2 text-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-                <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{etaLeft !== null && etaLeft <= 0 ? t("order.eta.ready") : t("order.eta.short")}</div>
-                <div className={`text-lg font-black tabular-nums ${etaLeft !== null && etaLeft <= 300 ? "text-emerald-500" : "text-gold-600"}`}>
+                <div className="text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>{etaLeft !== null && etaLeft <= 0 ? t("order.eta.ready") : t("order.eta.short")}</div>
+                <div className={`text-lg font-bold tabular-nums ${etaLeft !== null && etaLeft <= 300 ? "text-emerald-500" : "text-gold-600"}`}>
                   {etaLeft === null ? `${order.estimatedTime} min` : etaLeft <= 0 ? t("order.eta.soon") : `${Math.floor(etaLeft / 60)}:${(etaLeft % 60).toString().padStart(2, "0")}`}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Steg — robust tracker: nod + halv-connectors per steg */}
+          {/* Steg — robust tracker: nod + halv-connectors per steg.
+              Vid "På väg" glider en liten bud-ikon fram och tillbaka ovanför
+              det aktiva steget (CSS-only, respekterar reduced motion). */}
           {!isRejected && (
             <div className="border-t px-4 pb-6 pt-6" style={{ borderColor: "var(--border-muted)" }}>
+              <style>{`
+                @keyframes courierGlide { 0%, 100% { transform: translateX(-7px); } 50% { transform: translateX(7px); } }
+                .courier-glide { animation: courierGlide 4s ease-in-out infinite; }
+                @media (prefers-reduced-motion: reduce) { .courier-glide { animation: none; } }
+              `}</style>
               <div className="flex items-start">
                 {stepDefs.map((step, idx) => {
                   const isDone = currentIdx >= idx;
@@ -456,11 +501,18 @@ const OrderStatusPage = () => {
                     <div key={step.label} className="flex flex-1 flex-col items-center">
                       <div className="flex w-full items-center">
                         <div className={`h-0.5 flex-1 rounded-full ${idx === 0 ? "opacity-0" : isDone ? "bg-gold-500" : ""}`} style={idx !== 0 && !isDone ? { backgroundColor: "var(--border-muted)" } : undefined} />
+                        <div className="relative">
+                          {isActive && currentStatus === "DELIVERING" && (
+                            <span className="courier-glide absolute -top-5 left-1/2 -ml-[7px]" aria-hidden="true">
+                              <Truck size={14} strokeWidth={2} style={{ color: "var(--gold-ink)" }} />
+                            </span>
+                          )}
                         <div
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-500 ${isActive ? "scale-110 border-gold-500 bg-gold-500 shadow-lg shadow-gold-500/30" : isDone ? "border-gold-500 bg-gold-500" : ""}`}
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-500 ${isActive ? "scale-110 border-gold-500 bg-gold-500" : isDone ? "border-gold-500 bg-gold-500" : ""}`}
                           style={!isDone && !isActive ? { borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" } : undefined}
                         >
                           {isDone && !isActive ? <Check size={14} className="text-zinc-950" strokeWidth={4} /> : isActive ? <span className="h-2 w-2 animate-pulse rounded-full bg-zinc-950" /> : <span className="h-1.5 w-1.5 rounded-full bg-current opacity-50" />}
+                        </div>
                         </div>
                         <div className={`h-0.5 flex-1 rounded-full ${last ? "opacity-0" : currentIdx > idx ? "bg-gold-500" : ""}`} style={!last && currentIdx <= idx ? { backgroundColor: "var(--border-muted)" } : undefined} />
                       </div>
@@ -473,11 +525,38 @@ const OrderStatusPage = () => {
           )}
         </motion.div>
 
+        {/* Web push — "Få avisering när maten är på väg". Visas bara när
+            servern har VAPID-nycklar + webbläsaren stödjer push, och döljs
+            för avslutade ordrar. */}
+        {pushAvailable && !isTerminal(currentStatus) && (
+          <div className="mt-4 flex items-center justify-between gap-4 rounded-xl px-4 py-3.5" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+            <div className="min-w-0">
+              <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>Få avisering när maten är på väg</p>
+              <p className="text-[12.5px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                {pushEnabled ? "Aktiverat — vi säger till även om fliken är stängd" : "Push via webben — även när fliken är stängd"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={enablePush}
+              disabled={pushBusy || pushEnabled}
+              aria-pressed={pushEnabled}
+              className="relative w-11 h-[26px] rounded-full shrink-0 transition-colors disabled:cursor-default"
+              style={{ backgroundColor: pushEnabled ? "var(--text-primary)" : "var(--border-muted)" }}
+            >
+              <span
+                className="absolute top-[3px] w-5 h-5 rounded-full bg-white transition-all"
+                style={{ left: pushEnabled ? "calc(100% - 23px)" : "3px", boxShadow: "0 1px 3px rgba(0,0,0,0.25)" }}
+              />
+            </button>
+          </div>
+        )}
+
         {/* ShareInviteCard borttagen — referral-systemet avstängt för launch */}
 
         <div className="mt-4 grid grid-cols-1 gap-4 items-start">
            {/* Kvitto — rena rader, tunna avdelare, guld bara på totalen */}
-            <div className="rounded-3xl p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+            <div className="rounded-2xl p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
               <div className="flex items-center justify-between mb-5">
                   <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.detailsTitle")}</h2>
                  <ShoppingBag size={19} className="text-gold-500" />
@@ -536,7 +615,7 @@ const OrderStatusPage = () => {
 
            {/* Info sidebar */}
            <div className="space-y-4">
-               <div className="rounded-3xl border p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+               <div className="rounded-2xl border p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                   <h2 className="text-lg font-bold tracking-tight mb-5 flex items-center justify-between" style={{ color: "var(--text-primary)" }}>
                     {t("order.handling")}
                     {order.type === "DELIVERY" ? <Truck size={19} className="text-gold-500" /> : <Store size={19} className="text-gold-500" />}
@@ -546,7 +625,7 @@ const OrderStatusPage = () => {
                     <div className="flex items-start gap-3.5">
                        <Phone className="text-gold-500 mt-0.5 shrink-0" size={16} />
                         <div>
-                           <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.yourNumber")}</div>
+                           <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.yourNumber")}</div>
                            <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{order.customerPhone}</div>
                         </div>
                     </div>
@@ -554,7 +633,7 @@ const OrderStatusPage = () => {
                     <div className="flex items-start gap-3.5">
                        <Store className="text-gold-500 mt-0.5 shrink-0" size={16} />
                         <div className="min-w-0 flex-1">
-                           <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.restaurant")}</div>
+                           <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.restaurant")}</div>
                            <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{order.restaurantName}</div>
                            {/* Contact restaurant — phone (tel:) and email
                                (mailto:) shown as pill links when present. */}
@@ -584,7 +663,7 @@ const OrderStatusPage = () => {
                           <div className="flex items-start gap-3.5">
                              <MapPin className="text-gold-500 mt-0.5 shrink-0" size={16} />
                               <div className="min-w-0 flex-1">
-                                 <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.deliveryAddress")}</div>
+                                 <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.deliveryAddress")}</div>
                                  {/* Tappable delivery address — opens in maps */}
                                  <a
                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([order.deliveryStreet, order.restaurantCity].filter(Boolean).join(", "))}`}
@@ -603,7 +682,7 @@ const OrderStatusPage = () => {
                           <div className="flex items-start gap-3.5">
                              <MapPin className="text-emerald-500 mt-0.5 shrink-0" size={16} />
                               <div className="min-w-0 flex-1">
-                                 <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5 text-emerald-600">{t("order.pickupAt")}</div>
+                                 <div className="text-[10px] font-bold mb-0.5 text-emerald-600">{t("order.pickupAt")}</div>
                                  {/* Tappable pickup address — opens in maps */}
                                  <a
                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([order.restaurantAddress, order.restaurantZip, order.restaurantCity].filter(Boolean).join(", "))}`}
@@ -622,7 +701,7 @@ const OrderStatusPage = () => {
                     <div className="flex items-start gap-3.5">
                        <Calendar className="text-gold-500 mt-0.5 shrink-0" size={16} />
                         <div>
-                           <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.placed")}</div>
+                           <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.placed")}</div>
                            <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{t("order.scheduledToday", { time: new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) })}</div>
                         </div>
                     </div>
@@ -646,7 +725,7 @@ const OrderStatusPage = () => {
                           <div className="flex items-start gap-3.5">
                              <Clock className="text-gold-500 mt-0.5 shrink-0" size={16} />
                               <div>
-                                 <div className="text-[10px] font-bold uppercase tracking-wider text-gold-600 mb-0.5">
+                                 <div className="text-[10px] font-bold text-gold-600 mb-0.5">
                                     {order.type === "DELIVERY" ? t("order.scheduledFor.delivery") : t("order.scheduledFor.pickup")}
                                  </div>
                                  <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -661,7 +740,7 @@ const OrderStatusPage = () => {
 
               {/* Review Card or Thank You */}
               {order.rating || reviewDone ? (
-                  <div className="rounded-3xl border p-5 text-center" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+                  <div className="rounded-2xl border p-5 text-center" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                     <div className="flex items-center justify-center gap-1 mb-3">
                       {[1,2,3,4,5].map(s => <Star key={s} size={22} className={s <= (order.rating || reviewRating) ? 'text-gold-500 fill-gold-500' : ''} style={s <= (order.rating || reviewRating) ? undefined : { color: "var(--border-muted)" }} />)}
                     </div>
@@ -669,7 +748,7 @@ const OrderStatusPage = () => {
                     <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{t("order.review.thanksSub")}</p>
                  </div>
               ) : (
-                 <div className="rounded-3xl p-5 text-center" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                 <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                    <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-3 text-emerald-600">
                       <ShieldCheck size={24} />
                    </div>
@@ -694,7 +773,7 @@ const OrderStatusPage = () => {
         <AnimatePresence>
           {showReview && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center px-6 pb-8 sm:pb-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.7)" }}>
-               <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm space-y-5 rounded-3xl border p-6 sm:p-7 shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+               <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm space-y-5 rounded-2xl border p-6 sm:p-7 shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.review.title")}</h2>
                   <button onClick={dismissReview} className="p-2 transition-colors" style={{ color: "var(--text-secondary)" }} aria-label={t("order.review.dismissAria")}><X size={20} /></button>
@@ -730,7 +809,7 @@ const OrderStatusPage = () => {
                             key={id}
                             type="button"
                             onClick={() => setLikedItemIds((current) => active ? current.filter((x) => x !== id) : [...current, id])}
-                            className="px-3 py-2 rounded-full text-[11px] font-black uppercase tracking-wider transition-all"
+                            className="px-3 py-2 rounded-full text-[11px] font-bold transition-all"
                             style={{
                               backgroundColor: active ? "var(--accent-strong, #f3bf57)" : "var(--bg-deep)",
                               color: active ? "#11151b" : "var(--text-primary)",

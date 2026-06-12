@@ -23,6 +23,7 @@ import supabaseAdmin from '../lib/supabase';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
+import { sendOrderStatusPush } from '../lib/customerPush';
 
 const router = Router();
 const STOCKHOLM_TIMEZONE = 'Europe/Stockholm';
@@ -1991,6 +1992,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     // Notify any connected clients (restaurant, admin, customer mirrors).
     try {
       getIO()?.to(`order:${orderId}`).emit('order:status', { id: orderId, status: 'DELIVERED' });
+      void sendOrderStatusPush(orderId, 'DELIVERED');
     } catch {}
 
     // Sync the iOS Live Activity if one is registered.

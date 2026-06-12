@@ -25,6 +25,13 @@
       "autoPort": true
     },
     {
+      "name": "facelift-mockup",
+      "cwd": "/Users/jalle/testa/facelift-mockup",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8765"],
+      "port": 8765
+    },
+    {
       "name": "courier",
       "cwd": "/Users/jalle/testa/apps/courier",
       "runtimeExecutable": "node_modules/.bin/vite",

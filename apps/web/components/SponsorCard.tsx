@@ -1,5 +1,7 @@
 "use client";
 
+import SmartImage from "@/components/SmartImage";
+
 import { useRouter } from "next/navigation";
 import { ExternalLink, ChevronRight, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
@@ -78,10 +80,11 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
         }}
       />
 
-      <img
+      <SmartImage
         src={sponsor.imageUrl}
         alt={sponsor.name}
-        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.07]"
+        sizes="(max-width: 768px) 86vw, 460px"
+        className="w-full h-full object-cover"
       />
 
       {/* Bottom gradient + content */}

@@ -15,9 +15,9 @@ export const cartPagePending = {
     "cart.dealType.fallback": "Rabatt",
 
     // Heading & empty state
-    "cart.heading.prefix": "Din",
-    "cart.heading.accent": "Kasse",
-    "cart.empty.titlePrefix": "Din kasse är",
+    "cart.heading.prefix": "Varukorg",
+    "cart.heading.accent": "",
+    "cart.empty.titlePrefix": "Din varukorg är",
     "cart.empty.titleAccent": "tom",
 
     // Login-prompt banner
@@ -121,8 +121,8 @@ export const cartPagePending = {
     "cart.dealType.fallback": "Discount",
 
     // Heading & empty state
-    "cart.heading.prefix": "Your",
-    "cart.heading.accent": "Cart",
+    "cart.heading.prefix": "Cart",
+    "cart.heading.accent": "",
     "cart.empty.titlePrefix": "Your cart is",
     "cart.empty.titleAccent": "empty",
 

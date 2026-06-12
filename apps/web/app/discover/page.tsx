@@ -143,8 +143,35 @@ export default function FavoritesPage() {
           </div>
         ) : favoriteRestaurants.length === 0 ? (
           <div className="flex flex-col items-center text-center pt-16 pb-10">
-            <Heart size={40} strokeWidth={1.8} style={{ color: "var(--text-secondary)" }} />
-            <h2 className="mt-4 text-[17px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+            {/* Samma line-art-språk som tomma varukorgen: guld-hjärta som
+                ritas upp vid mount och svävar mjukt, med andande guld-skugga. */}
+            <style>{`
+              @keyframes favHeartDraw { from { stroke-dashoffset: 80; } to { stroke-dashoffset: 0; } }
+              @keyframes favHeartFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+              @keyframes favShadowBreathe { 0%, 100% { transform: scaleX(1); opacity: 0.55; } 50% { transform: scaleX(0.8); opacity: 0.3; } }
+              .fav-empty-heart path { stroke-dasharray: 80; animation: favHeartDraw 1s ease-out forwards; }
+              .fav-empty-float { animation: favHeartFloat 5s ease-in-out 1.1s infinite; }
+              .fav-empty-shadow { transform-origin: center; animation: favShadowBreathe 5s ease-in-out 1.1s infinite; }
+              @media (prefers-reduced-motion: reduce) {
+                .fav-empty-heart path { animation: none; stroke-dashoffset: 0; }
+                .fav-empty-float, .fav-empty-shadow { animation: none; }
+              }
+            `}</style>
+            <div className="fav-empty-float">
+              <svg className="fav-empty-heart" width="64" height="60" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.51 4.04 3 5.5l7 7Z"
+                  stroke="var(--color-gold-500, #E7B24B)"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <svg className="fav-empty-shadow mt-1" width="60" height="9" viewBox="0 0 60 9" aria-hidden="true">
+              <ellipse cx="30" cy="4.5" rx="25" ry="3.5" fill="var(--gold-soft)" />
+            </svg>
+            <h2 className="mt-5 text-[17px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
               {t("favorites.empty.title")}
             </h2>
             <p className="mt-1 text-[13.5px] max-w-[300px]" style={{ color: "var(--text-secondary)" }}>

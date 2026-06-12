@@ -13,6 +13,7 @@ import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { notifyCouriersOfNewJob } from '../lib/courierPush';
+import { sendOrderStatusPush } from '../lib/customerPush';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
 import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
 import { ALLOW_WIPE_ORDERS } from '../lib/config';
@@ -783,6 +784,9 @@ router.patch('/orders/:id/status', async (req, res) => {
       etaEndsAt: emitEtaEndsAt,
       deliveringAt: isDeliveringTransition ? new Date().toISOString() : undefined,
     });
+    // Web push till kundens enhet (om den prenumererat) — "Din mat är på väg"
+    // även med stängd flik. Best effort, blockar aldrig.
+    void sendOrderStatusPush(order.id, customerStatus);
 
     // Ny tillgänglig order → web-push till online-kurirer i restaurangens stad
     // så de notifieras ÄVEN med appen helt stängd. Endast vi-levererar (self-

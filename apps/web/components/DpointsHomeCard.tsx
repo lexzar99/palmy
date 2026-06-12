@@ -1,5 +1,7 @@
 "use client";
 
+import SmartImage from "@/components/SmartImage";
+
 import { useRouter } from "next/navigation";
 import { Coins, ArrowRight } from "lucide-react";
 import type { SponsorCardData } from "@/lib/dpoints";
@@ -18,7 +20,7 @@ export default function DpointsHomeCard({ card }: { card: SponsorCardData }) {
       {/* Bakgrund: bild om satt, annars djup charcoal */}
       {card.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={card.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <SmartImage src={card.imageUrl} alt="" sizes="460px" className="absolute inset-0 h-full w-full object-cover" />
       ) : null}
       <div className="absolute inset-0" style={{ backgroundColor: card.imageUrl ? "rgba(9,9,11,0.72)" : "#0b0b0d" }} />
       {/* Mjuk guld-glöd uppe till höger för djup */}

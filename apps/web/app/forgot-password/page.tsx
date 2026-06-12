@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import axios from "axios";
-import { Mail, ArrowLeft, Loader2, CheckCircle2, KeyRound } from "lucide-react";
-import { motion } from "framer-motion";
+import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { API_URL } from "@/lib/api";
 
@@ -16,6 +15,7 @@ export default function ForgotPasswordPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,65 +42,64 @@ export default function ForgotPasswordPage() {
 
   return (
     <div
-      className="min-h-screen md:pt-20 pt-24 pb-32 px-6 flex flex-col items-center"
+      className="min-h-screen flex flex-col items-center justify-start px-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] md:pt-24 pb-28"
       style={{ backgroundColor: "var(--bg-primary)" }}
     >
-      <Link
-        href="/profile"
-        className="absolute top-8 left-8 transition-all flex items-center gap-2 font-black uppercase tracking-widest text-[10px]"
-        style={{ color: "var(--text-secondary)" }}
-      >
-        <ArrowLeft size={16} /> Tillbaka
-      </Link>
+      <div className="w-full max-w-[400px]">
+        <Link
+          href="/login"
+          aria-label="Tillbaka"
+          className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95"
+          style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
+        >
+          <ArrowLeft size={16} strokeWidth={2} />
+        </Link>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-sm space-y-10"
-      >
-        <div className="text-center space-y-4">
-          <div className="w-20 h-20 bg-gold-500/10 rounded-[2rem] border border-gold-500/20 flex items-center justify-center text-gold-500 mx-auto shadow-2xl shadow-gold-500/10">
-            <KeyRound size={32} />
-          </div>
-          <h1 className="text-3xl font-black uppercase tracking-tight">
-            Glömt <span className="text-gold-500">Lösenord</span>
-          </h1>
-          <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">
-            Vi mejlar en återställningslänk
-          </p>
-        </div>
+        <h1 className="mt-6 text-[26px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+          Återställ lösenord
+        </h1>
+        <p className="mt-1.5 text-[14.5px] leading-snug" style={{ color: "var(--text-secondary)" }}>
+          Ange din e-postadress så mejlar vi en återställningslänk.
+        </p>
 
         {sent ? (
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-[2.5rem] p-10 text-center space-y-4">
-            <CheckCircle2 size={48} className="text-emerald-500 mx-auto" />
-            <h2 className="text-xl font-black uppercase tracking-tight text-emerald-500">Klart!</h2>
-            <p className="text-zinc-400 text-xs leading-relaxed">
-              Om kontot finns har vi skickat en länk till din mejl. Kolla även skräpposten.
-            </p>
-            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest pt-2">
-              Länken gäller i 1 timme
+          <div
+            className="mt-7 rounded-xl p-6 text-center space-y-3"
+            style={{ backgroundColor: "var(--success-soft)", border: "1px solid color-mix(in srgb, var(--success-ink) 25%, transparent)" }}
+          >
+            <CheckCircle2 size={32} strokeWidth={1.8} className="mx-auto" style={{ color: "var(--success-ink)" }} />
+            <h2 className="text-[16px] font-bold" style={{ color: "var(--success-ink)" }}>Länken är skickad</h2>
+            <p className="text-[13.5px] leading-snug" style={{ color: "var(--text-secondary)" }}>
+              Om kontot finns har vi skickat en länk till din mejl. Kolla även skräpposten. Länken gäller i 1 timme.
             </p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="relative">
-              <Mail
-                size={18}
-                className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
-              />
+          <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+            <div>
+              <label className="block text-[13.5px] font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>
+                E-post
+              </label>
               <input
                 type="email"
-                placeholder="E-post"
+                placeholder="namn@exempel.se"
                 required
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 pl-14 pr-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                className="w-full h-12 rounded-xl px-4 text-[15px] font-medium outline-none transition-all placeholder:text-zinc-400"
+                style={{
+                  backgroundColor: "var(--bg-secondary)",
+                  border: `1px solid ${focused ? "var(--text-primary)" : "var(--line-strong)"}`,
+                  boxShadow: focused ? "0 0 0 3px rgba(127,127,127,.12)" : "none",
+                  color: "var(--text-primary)",
+                }}
               />
             </div>
 
             {error && (
-              <p className="text-red-500 text-[10px] font-black uppercase tracking-widest text-center">
+              <p className="text-[13px] text-center" style={{ color: "#dc2626" }}>
                 {error}
               </p>
             )}
@@ -108,24 +107,21 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full bg-gold-500 hover:bg-gold-600 text-zinc-950 py-5 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60"
+              className="w-full h-[52px] bg-gold-500 rounded-xl text-[15.5px] font-semibold active:scale-[0.99] transition-all flex items-center justify-center gap-3 disabled:opacity-60"
+              style={{ color: "#141416" }}
             >
-              {submitting ? (
-                <Loader2 className="animate-spin" size={20} />
-              ) : (
-                "Skicka återställningslänk"
-              )}
+              {submitting ? <Loader2 className="animate-spin" size={20} /> : "Skicka återställningslänk"}
             </button>
           </form>
         )}
 
-        <p className="text-center text-[10px] font-black uppercase tracking-widest text-zinc-600">
+        <p className="mt-6 text-center text-[14px]" style={{ color: "var(--text-secondary)" }}>
           Kom du på lösenordet?{" "}
-          <Link href="/profile" className="text-gold-500">
+          <Link href="/login" className="font-semibold" style={{ color: "var(--text-primary)" }}>
             Logga in
           </Link>
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 }
