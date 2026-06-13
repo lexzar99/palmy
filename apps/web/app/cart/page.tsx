@@ -1983,8 +1983,8 @@ export default function CartPage() {
 
   const renderNoteField = () => (
     <>
-      <label className="text-[13px] font-medium ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.noteLabel")}</label>
-      <textarea rows={2} value={formData.note} onChange={e => { setFormData({...formData, note: e.target.value}); localStorage.setItem("cart_note", e.target.value); }} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder={t("cart.fields.notePlaceholderExample")} />
+      <label className="block text-[13px] font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.noteLabel")}</label>
+      <textarea rows={2} value={formData.note} onChange={e => { setFormData({...formData, note: e.target.value}); localStorage.setItem("cart_note", e.target.value); }} className="w-full border rounded-xl p-3 text-[14px] font-medium placeholder:text-zinc-400 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--line-strong)", color: "var(--text-primary)" }} placeholder={t("cart.fields.notePlaceholderExample")} />
     </>
   );
 
@@ -2053,27 +2053,34 @@ export default function CartPage() {
   // viktiga uppgifterna (namn/adress/telefon/e-post) bor kvar synliga inline.
   const renderCartExtras = (keyPrefix: string) => {
     const tipHint = effectiveTip > 0 ? `${effectiveTip} ${t("common.kr")}` : null;
-    const dealsHint = selectedAccountDealId ? t("cart.discount.activeReward") : null;
-    const promoHint = selectedPersonalDeal ? t("cart.discount.promoApplied") : null;
-    const firstKey = orderType === "DELIVERY" ? "tip" : accountDeals.length > 0 ? "deals" : "promo";
+    // Rabattkod-raden rymmer BÅDE personliga/konto-deals OCH kupong-fältet, så
+    // man kan välja en sparad belöning eller skriva en kod i samma expansion.
+    const discountHint = selectedPersonalDeal
+      ? t("cart.discount.promoApplied")
+      : selectedAccountDealId
+        ? t("cart.discount.activeReward")
+        : accountDeals.length > 0
+          ? t("cart.discount.available", { count: accountDeals.length })
+          : null;
+    const discountOpen = !!selectedPersonalDeal || !!selectedAccountDealId;
+    const firstKey = orderType === "DELIVERY" ? "tip" : "promo";
     return (
-      <div className="rounded-xl px-4" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
-        {orderType === "DELIVERY" && (
-          <CartCollapsibleRow first={firstKey === "tip"} label={t("cart.tip.label")} hint={tipHint} defaultOpen={effectiveTip > 0}>
-            {renderTipGrid(keyPrefix)}
+      <div className="space-y-3">
+        <div className="rounded-xl px-4" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+          {orderType === "DELIVERY" && (
+            <CartCollapsibleRow first={firstKey === "tip"} label={t("cart.tip.label")} hint={tipHint} defaultOpen={effectiveTip > 0}>
+              {renderTipGrid(keyPrefix)}
+            </CartCollapsibleRow>
+          )}
+          <CartCollapsibleRow first={firstKey === "promo"} label={t("cart.discount.promoTitle")} hint={discountHint} defaultOpen={discountOpen}>
+            <div className="space-y-3">
+              {renderAccountDeals()}
+              {renderPromoInput()}
+            </div>
           </CartCollapsibleRow>
-        )}
-        {accountDeals.length > 0 && (
-          <CartCollapsibleRow first={firstKey === "deals"} label={t("cart.discount.rewardsTitle")} hint={dealsHint} defaultOpen={!!selectedAccountDealId}>
-            {renderAccountDeals()}
-          </CartCollapsibleRow>
-        )}
-        <CartCollapsibleRow first={firstKey === "promo"} label={t("cart.discount.promoTitle")} hint={promoHint} defaultOpen={!!selectedPersonalDeal}>
-          {renderPromoInput()}
-        </CartCollapsibleRow>
-        <CartCollapsibleRow label={t("cart.fields.noteLabel")}>
-          <div className="space-y-2">{renderNoteField()}</div>
-        </CartCollapsibleRow>
+        </div>
+        {/* Notering — synlig inline (ej gömd bakom en rad), kompakt fält. */}
+        <div className="space-y-1.5">{renderNoteField()}</div>
       </div>
     );
   };
@@ -2209,7 +2216,7 @@ export default function CartPage() {
           </motion.div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_480px] gap-6 lg:gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_480px] gap-4 lg:gap-8 items-start">
           {/* Cart items list — kompakta en-rad-kort. Vänster kolumn växer
               med tillgänglig bredd; höger sidebar har fast bredd och blir
               sticky på desktop för att undvika scroll. */}
@@ -2290,7 +2297,7 @@ export default function CartPage() {
             )}
 
             {/* Desktop left column: delivery details + pricing */}
-            <div className="hidden lg:block mt-6 space-y-6" id="desktop-left-extras">
+            <div className="hidden lg:block mt-5 space-y-4" id="desktop-left-extras">
               <div className="p-5 rounded-2xl space-y-5" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
 
                 {/* Kollapsade extras-rader (dricks/rabatter/rabattkod/meddelande)
@@ -2450,8 +2457,8 @@ export default function CartPage() {
                      </button>
                   </motion.div>
                 ) : (
-                  <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-5 sm:p-7 rounded-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                      <div className="flex gap-4 p-1.5 rounded-xl mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                  <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-4 sm:p-5 rounded-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                      <div className="flex gap-1.5 p-1 rounded-xl mb-5" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          {(['DELIVERY', 'PICKUP'] as const).map(type => (
                             <button key={type} type="button" onClick={() => { setOrderType(type); localStorage.setItem("cart_order_type", type); }} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-lg text-[13px] font-medium transition-all ${orderType === type ? 'bg-gold-500 text-[#141416]' : 'text-zinc-500'}`}>
                                {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
@@ -2461,7 +2468,7 @@ export default function CartPage() {
                       </div>
 
 
-                       <div className="space-y-4">
+                       <div className="space-y-3">
                         {(() => {
                           // Inline-validering: vi flagga fält som har varit "rört" och nu är ogiltigt.
                           // Definieras inline för att inte behöva nya useState.
@@ -2485,7 +2492,7 @@ export default function CartPage() {
                                 onChange={e => setFormData({...formData, customerName: e.target.value})}
                                 autoComplete="name"
                                 aria-invalid={nameInvalid || undefined}
-                                className={`w-full border rounded-xl p-3.5 text-base sm:text-[15px] font-medium placeholder:text-zinc-400 outline-none transition-all ${nameInvalid ? errorBorder : okBorder}`}
+                                className={`w-full border rounded-xl p-3 text-base sm:text-[15px] font-medium placeholder:text-zinc-400 outline-none transition-all ${nameInvalid ? errorBorder : okBorder}`}
                                 style={{ backgroundColor: "var(--bg-deep)", borderColor: nameInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
                                 placeholder={t("cart.fields.namePlaceholder")}
                               />
@@ -2500,7 +2507,7 @@ export default function CartPage() {
                                 autoComplete="tel"
                                 inputMode="tel"
                                 aria-invalid={phoneInvalid || undefined}
-                                className={`w-full border rounded-xl p-3.5 text-base sm:text-[15px] font-medium placeholder:text-zinc-400 outline-none transition-all ${phoneInvalid ? errorBorder : okBorder}`}
+                                className={`w-full border rounded-xl p-3 text-base sm:text-[15px] font-medium placeholder:text-zinc-400 outline-none transition-all ${phoneInvalid ? errorBorder : okBorder}`}
                                 style={{ backgroundColor: "var(--bg-deep)", borderColor: phoneInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
                                 placeholder="+46 70 000 00 00"
                               />
@@ -2516,7 +2523,7 @@ export default function CartPage() {
                              autoComplete="email"
                              inputMode="email"
                              aria-invalid={emailInvalid || undefined}
-                             className={`w-full border rounded-xl p-3.5 text-base sm:text-[15px] font-medium placeholder:text-zinc-400 outline-none transition-all ${emailInvalid ? errorBorder : okBorder}`}
+                             className={`w-full border rounded-xl p-3 text-base sm:text-[15px] font-medium placeholder:text-zinc-400 outline-none transition-all ${emailInvalid ? errorBorder : okBorder}`}
                              style={{ backgroundColor: "var(--bg-deep)", borderColor: emailInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
                              placeholder={t("cart.fields.emailPlaceholderReceipt")}
                              required
@@ -2528,7 +2535,7 @@ export default function CartPage() {
                         })()}
 
                         {orderType === 'DELIVERY' && (
-                           <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                           <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
                               {/* Sparade adresser visas inte här — man byter via
                                   kart-modalen ("Ändra"). */}
                               {/* Kompakt adress — visar bara vald adress. "Ändra"
@@ -2570,7 +2577,7 @@ export default function CartPage() {
                         )}
 
                         {/* ── Mobile only: extras (desktop shows these in left column) ── */}
-                        <div className="lg:hidden space-y-8">
+                        <div className="lg:hidden space-y-4">
                         {renderCartExtras("mb")}
 
                      {/* BOGO: påminn om gratisprodukt(er) om fler kan väljas.
@@ -2701,7 +2708,7 @@ export default function CartPage() {
                          effektiv min. */}
                      {renderMinOrderBanner("mt-6")}
 
-                     <div className="mt-10 pt-10 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
+                     <div className="mt-6 pt-5 space-y-3" style={{ borderTop: "1px solid var(--border-muted)" }}>
                         <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{subtotal.toFixed(0)} {t("common.sek")}</span></div>
                         {orderType === 'DELIVERY' && !isPointsOnlyOrder && (
                           <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
@@ -2946,5 +2953,6 @@ export default function CartPage() {
     </div>
   );
 }
+
 
 

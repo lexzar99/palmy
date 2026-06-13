@@ -52,11 +52,11 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
       whileTap={isInteractive ? { scale: 0.99 } : undefined}
       transition={{ type: "spring", stiffness: 320, damping: 22 }}
       onClick={handleClick}
-      // Full-bredds bannerkort: bilden visas i sitt NATURLIGA bildförhållande
-      // (height: auto) i stället för att croppas i en fast box — så in-bakad
-      // text på sponsorns bild aldrig klipps/zoomas bort på mobil. Bredden är
-      // ~full på mobil (liten peek av nästa), fast på sm+.
-      className={`relative shrink-0 rounded-2xl overflow-hidden group w-[88vw] max-w-[460px] sm:w-[460px] ${
+      // STANDARD-storlek för alla promo-kort (sponsor + dpoints) — samma
+      // bredd OCH höjd så railen är enhetlig. Bilden visas HEL via object-
+      // contain (ingen crop → in-bakad text klipps aldrig); letterboxen fylls
+      // av en suddig cover-kopia av samma bild så kanterna ser polerade ut.
+      className={`relative shrink-0 rounded-2xl overflow-hidden group w-[88vw] max-w-[460px] sm:w-[460px] h-[184px] sm:h-[200px] ${
         isInteractive ? "cursor-pointer" : "cursor-default"
       }`}
       style={{
@@ -64,15 +64,24 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
         border: "1px solid var(--border-muted)",
       }}
     >
-      {/* Originalbild i full bredd, dynamisk höjd (ingen crop). Plain <img>
-          för att höjden ska följa bildens egna proportioner per enhet. */}
+      {/* Suddig cover-bakgrund som fyller letterboxen */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={sponsor.imageUrl}
+        alt=""
+        aria-hidden="true"
+        loading="lazy"
+        decoding="async"
+        className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-50"
+      />
+      {/* Skarp, HEL bild (ingen crop) */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={sponsor.imageUrl}
         alt={sponsor.name}
         loading="lazy"
         decoding="async"
-        className="block w-full h-auto"
+        className="absolute inset-0 w-full h-full object-contain"
       />
 
       {/* Namn-overlay (valfri, admin-styrd). Visas bara om sponsorn INTE redan
@@ -110,3 +119,4 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
     </motion.div>
   );
 }
+

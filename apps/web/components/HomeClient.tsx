@@ -191,21 +191,20 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       if (saved) setActiveCuisine(saved);
     } catch { /* noop */ }
   }, []);
-  // Scroll-riktning → collapse/expand av sticky-headern. rAF-throttlad + dödzon
-  // (≥10px) + ignore-fönster efter toggle → ingen flip-flop/glitch.
+  // Sticky-header collapse: TRÖSKEL-baserad hysteres (inte riktnings-baserad).
+  // Kollapsa när man scrollat förbi 130px, expandera först när man är tillbaka
+  // över 60px. Den 70px breda hysteres-bandet gör att reflow:en när headern
+  // ändrar höjd aldrig kan flippa tillbaka state → ingen glitch/flip-flop, och
+  // det fungerar oberoende av browser-zoom (200%) eftersom logiken bara läser
+  // window.scrollY (CSS-px) mot fasta trösklar. rAF-throttlad.
   useEffect(() => {
     let ticking = false;
     const update = () => {
       ticking = false;
       const y = window.scrollY;
-      if (Date.now() < ignoreScrollUntil.current) { lastScrollY.current = y; return; }
-      const delta = y - lastScrollY.current;
-      if (Math.abs(delta) < 10) return; // dödzon — ignorera småjitter
-      const next = y < 80 ? false : delta > 0;
-      lastScrollY.current = y;
+      const next = collapsedRef.current ? y > 60 : y > 130;
       if (collapsedRef.current !== next) {
         collapsedRef.current = next;
-        ignoreScrollUntil.current = Date.now() + 380;
         const el = collapseRef.current;
         if (el) {
           el.style.gridTemplateRows = next ? "0fr" : "1fr";
@@ -963,12 +962,12 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         <div className="px-4 pt-2 pb-2.5">
           {/* Rad 0: delívera-wordmark (varumärkesnärvaro på mobil — desktop har
               Navbar). Språkväljaren bor numera i Profil → Inställningar. */}
-          <div className="flex items-center justify-between mb-1.5">
+          {/* Rad 0: delívera-wordmark + leverans/hämtning — ALLTID synlig
+              (den kompakta baren som blir kvar vid scroll). */}
+          <div className="flex items-center justify-between">
             <span className="text-[18px] font-extrabold tracking-tight lowercase leading-none" style={{ color: "var(--text-primary)" }}>
               del<span style={{ color: "var(--gold-ink)" }}>ívera</span>
             </span>
-            {/* Leverans/Hämtning — kompakt segmentkontroll, flyttad hit så
-                adressraden nedanför får full bredd (mer synlig adress). */}
             <div className="shrink-0 p-0.5 rounded-full flex items-center" style={{ backgroundColor: "var(--bg-deep)" }}>
               <button
                 onClick={() => toggleOrderType("DELIVERY")}
@@ -986,29 +985,30 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
               </button>
             </div>
           </div>
-          {/* Rad 1: adressblock i full bredd (primärkontroll, nu mer synlig). */}
-          <div className="flex items-center">
-            <div className="flex-1 min-w-0">
-              <AddressPullDown
-                currentAddress={address}
-                zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
-                onOpenFull={() => setShowAddressModal(true)}
-                orderType={orderType}
-                cityName={detectedCityName}
-                onSelect={handleQuickAddressSelect}
-              />
-            </div>
-          </div>
 
-          {/* Rad 2 (sök) — fälls ihop mjukt när man scrollar ner och
-              expanderar när man scrollar upp / är nära toppen. CSS-driven
-              grid-rows-animation (ingen React-render per scroll → jank-fritt). */}
+          {/* Adress + sök — fälls ihop (höjd + opacity → 0) när man scrollar
+              förbi tröskeln, så bara den kompakta baren ovan blir kvar.
+              Tröskel-baserad hysteres i scroll-handlern → ingen flip-flop. */}
           <div
             ref={collapseRef}
             className="grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out"
             style={{ gridTemplateRows: "1fr", opacity: 1, willChange: "grid-template-rows" }}
           >
             <div className="min-h-0 overflow-hidden">
+              {/* Adressblock i full bredd (primärkontroll) */}
+              <div className="flex items-center pt-1.5">
+                <div className="flex-1 min-w-0">
+                  <AddressPullDown
+                    currentAddress={address}
+                    zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
+                    onOpenFull={() => setShowAddressModal(true)}
+                    orderType={orderType}
+                    cityName={detectedCityName}
+                    onSelect={handleQuickAddressSelect}
+                  />
+                </div>
+              </div>
+              {/* Sökfält */}
               <Link
                 href="/search"
                 aria-label={t("home.searchCta")}
@@ -1518,4 +1518,5 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     </div>
   );
 }
+
 

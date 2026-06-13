@@ -220,7 +220,7 @@ function ProfileSkeleton() {
 // ─── Main component ─────────────────────────────────────────────────────────
 function ProfileContent() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, locale, setLocale } = useTranslation();
   const [hasPlatformSession, setHasPlatformSession] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
@@ -709,6 +709,26 @@ function ProfileContent() {
                 <ChevronRight size={14} className="text-zinc-500 shrink-0" />
               </Link>
             ))}
+          </div>
+
+          {/* Språkval — nåbart även utloggad (standard svenska). */}
+          <div className="flex items-center justify-center gap-2 pt-2">
+            {SUPPORTED_LOCALES.map((l) => {
+              const active = locale === l.code;
+              return (
+                <button
+                  key={l.code}
+                  type="button"
+                  onClick={() => setLocale(l.code as typeof locale)}
+                  className="h-9 px-3.5 rounded-xl text-[13px] font-semibold flex items-center gap-1.5 transition-all active:scale-95"
+                  style={active
+                    ? { backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)", border: "1px solid color-mix(in srgb, var(--gold-ink) 30%, transparent)" }
+                    : { backgroundColor: "var(--bg-secondary)", color: "var(--text-secondary)", border: "1px solid var(--border-muted)" }}
+                >
+                  <span aria-hidden>{l.flag}</span> {l.label}
+                </button>
+              );
+            })}
           </div>
         </motion.div>
       </div>
