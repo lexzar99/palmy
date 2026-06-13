@@ -1996,13 +1996,13 @@ export default function CartPage() {
                   style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
                 >
                   <Store size={13} className="text-gold-500 shrink-0" />
-                  <span className="text-[11px] font-bold uppercase tracking-wide truncate max-w-[60vw]" style={{ color: "var(--text-primary)" }}>{cartRestaurantName}</span>
+                  <span className="text-[13px] font-semibold truncate max-w-[60vw]" style={{ color: "var(--text-primary)" }}>{cartRestaurantName}</span>
                 </Link>
               )}
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight mb-1" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")} {t("cart.heading.accent")}</h1>
-              <p className="text-zinc-500 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">{t("cart.subtitle")}</p>
+              <p className="text-[13.5px]">{t("cart.subtitle")}</p>
            </div>
-           <Link href={cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/menu"} className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-gold-600 hover:text-gold-700 transition-colors flex items-center gap-1.5 mb-1 group shrink-0 ml-3">
+           <Link href={cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/menu"} className="text-[13.5px] font-semibold text-gold-600 hover:text-gold-700 transition-colors flex items-center gap-1.5 mb-1 group shrink-0 ml-3">
               {t("cart.addMore")} <Plus size={14} className="group-hover:rotate-90 transition-transform" />
            </Link>
         </div>
@@ -2082,8 +2082,8 @@ export default function CartPage() {
                 <motion.div
                   key={item.cartItemId}
                   layout
-                  className="p-3 rounded-2xl flex items-center gap-3 transition-all group"
-                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(28,28,30,0.08)", boxShadow: "0 2px 8px rgba(28,28,30,0.03)" }}
+                  className="px-3.5 py-3 rounded-xl flex items-center gap-3 transition-all group"
+                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
                 >
                   <button
                     type="button"
@@ -2091,9 +2091,8 @@ export default function CartPage() {
                     className="flex items-center gap-3 text-left flex-1 min-w-0"
                     aria-label={`${t("cart.tapToEdit")}: ${item.name}`}
                   >
-                    <CartItemThumb imageUrl={item.imageUrl} quantity={item.quantity} name={item.name} />
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm font-bold uppercase italic tracking-tight truncate group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{item.name}</h3>
+                      <h3 className="text-[14.5px] font-semibold leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>{item.name}</h3>
                       {item.extras.length > 0 && (
                         <p className="text-[11px] font-medium truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
                           {item.extras.map(e => e.name).join(" · ")}
@@ -2128,20 +2127,13 @@ export default function CartPage() {
                     </div>
                     <div className="text-right min-w-[3.5rem]">
                       {item.paidWithPoints ? (
-                        <div className="inline-flex items-center gap-1 rounded-full bg-gold-500/15 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-gold-700">Med poäng</div>
+                        <div className="inline-flex items-center gap-1 rounded-full bg-gold-500/15 px-2 py-1 text-[11.5px] font-semibold text-gold-700">Med poäng</div>
                       ) : item.bogoFreeFromDealId ? (
-                        <div className="inline-flex items-center gap-1 rounded-full bg-gold-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-gold-700">{t("cart.bogo.freeTag")}</div>
+                        <div className="inline-flex items-center gap-1 rounded-full bg-gold-500/15 px-2.5 py-1 text-[11.5px] font-semibold text-gold-700">{t("cart.bogo.freeTag")}</div>
                       ) : (
                         <div className="text-sm font-bold leading-none" style={{ color: "var(--text-primary)", fontFeatureSettings: "'tnum'" }}>{(item.price * item.quantity).toFixed(0)} kr</div>
                       )}
                     </div>
-                    <button
-                      onClick={() => removeItem(item.cartItemId)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-rose-500 hover:bg-rose-50 active:scale-90 transition-all"
-                      aria-label="Ta bort"
-                    >
-                      <Trash2 size={15} />
-                    </button>
                   </div>
                 </motion.div>
               ))}
@@ -2274,13 +2266,13 @@ export default function CartPage() {
                       Utan denna rad ser kunden bara "kod applied" i input-fältet utan att
                       förstå varför totalen inte ändras — Bilal A2 fynd. */}
                   {finalDiscount === 0 && selectedPersonalDeal && (selectedPersonalDeal.campaign.minOrder || 0) > subtotal && (
-                    <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-amber-500/90 leading-snug">
+                    <div className="flex justify-between text-[12.5px] font-medium text-amber-600 leading-snug">
                       <span>{selectedPersonalDeal.code}</span>
                       <span>{t("cart.summary.discountPendingMin", { defaultValue: "Aktiveras vid {{amount}} kr", amount: (selectedPersonalDeal.campaign.minOrder || 0).toFixed(0) })}</span>
                     </div>
                   )}
                   {finalDiscount === 0 && selectedAccountDeal && (selectedAccountDeal.minOrderKr ?? 0) > subtotal && (
-                    <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-amber-500/90 leading-snug">
+                    <div className="flex justify-between text-[12.5px] font-medium text-amber-600 leading-snug">
                       <span>{formatDealLabel(selectedAccountDeal, t)}</span>
                       <span>{t("cart.summary.discountPendingMin", { defaultValue: "Aktiveras vid {{amount}} kr", amount: (selectedAccountDeal.minOrderKr ?? 0).toFixed(0) })}</span>
                     </div>
@@ -2319,7 +2311,7 @@ export default function CartPage() {
                   </div>
                 )}
 
-                {error && <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13px] font-bold uppercase tracking-wider text-center leading-snug">{error}</div>}
+                {error && <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">{error}</div>}
 
                 {/* Checkout button */}
                 <button
@@ -2373,9 +2365,7 @@ export default function CartPage() {
                        </div>
                      )}
                      <div className="rounded-2xl p-6 mb-10 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                        <Elements stripe={stripePromise} options={{ clientSecret, appearance: (typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark")
-                          ? { theme: 'night', variables: { colorPrimary: '#e7b24b', colorBackground: '#18181b', colorText: '#ffffff', colorDanger: '#ef4444', borderRadius: '12px', fontFamily: 'Inter, sans-serif' } }
-                          : { theme: 'stripe', variables: { colorPrimary: '#111113', colorBackground: '#ffffff', colorText: '#141416', colorDanger: '#ef4444', borderRadius: '12px', fontFamily: 'Inter, sans-serif' } } }}>
+                        <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#111113', colorBackground: '#ffffff', colorText: '#141416', colorDanger: '#ef4444', borderRadius: '12px', fontFamily: 'Inter, sans-serif' } } }}>
                            <StripeCheckout
                             amount={serverCharge?.total ?? total}
                             onSuccess={handlePaymentSuccess}
@@ -2652,7 +2642,7 @@ export default function CartPage() {
                                <Gift size={17} className="text-zinc-900" strokeWidth={2.3} />
                              </span>
                              <div className="min-w-0">
-                               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-gold-600">
+                               <p className="text-[12.5px] font-semibold text-gold-600">
                                  {bogoPickedCount > 0
                                    ? (bogoPicksRemaining === 1
                                        ? t("cart.bogo.pickMoreOne")
@@ -2854,12 +2844,12 @@ export default function CartPage() {
                           </div>
                         ) : null}
                         <div className="flex justify-between items-center mt-6">
-                           <span className="text-2xl sm:text-3xl font-bold italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
+                           <span className="text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
                            <span className="text-3xl sm:text-5xl font-bold italic tracking-tighter leading-[1.15] text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span></span>
                         </div>
                      </div>
 
-                    {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13px] font-bold uppercase tracking-wider text-center leading-snug">{error}</motion.div>}
+                    {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">{error}</motion.div>}
 
                       {/* Guest info banner — not blocking, just informative */}
                       {!user && (
@@ -2886,7 +2876,7 @@ export default function CartPage() {
                          </motion.div>
                        )}
 
-                       {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13px] font-bold uppercase tracking-wider text-center leading-snug">{error}</motion.div>}
+                       {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">{error}</motion.div>}
 
                        {/* Sticky på mobil: knappen följer med ovanför bottennaven
                            tills man scrollat ner till dess naturliga plats —

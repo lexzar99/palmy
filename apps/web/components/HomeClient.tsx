@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import SmartImage from "@/components/SmartImage";
+import { readHomeCache, writeHomeCache } from "@/lib/homeCache";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
@@ -18,13 +19,10 @@ import {
   Sparkles,
   Info,
   Phone,
-  Sun,
-  Moon,
   Gift,
   ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useTheme } from "@/app/providers";
 import AddressModal from "@/components/AddressModal";
 import AddressPullDown from "@/components/AddressPullDown";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
@@ -140,7 +138,6 @@ export interface HomeInitialData {
  */
 export default function HomeClient({ initialData = null }: { initialData?: HomeInitialData | null }) {
   const router = useRouter();
-  const { theme, toggleTheme } = useTheme();
   const { t, locale } = useTranslation();
   const promoRailRef = useRef<HTMLDivElement | null>(null);
   const promoIndexRef = useRef(0);
@@ -181,6 +178,11 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   // listan-filtret för restauranger som saknar cityId men har stad-namn.
   const [cityFamilyNames, setCityFamilyNames] = useState<string[] | null>(null);
   const [detectedCityName, setDetectedCityName] = useState<string | null>(null);
+  // Sant medan stad-familjen slås upp (family-by-name in-flight). Under denna
+  // lucka faller filtret tillbaka på mjuk namn-matchning istället för strikt
+  // "visa inget" — annars flashade "inte tillgänglig i din stad än" för en
+  // återbesökare innan uppslaget hunnit svara.
+  const [cityFamilyResolving, setCityFamilyResolving] = useState(false);
   // A14 — hero override from admin CMS. null = use translations (default).
   // Återställ senast valda kategori vid mount (t.ex. när man backar in från en
   // restaurang) så man inte alltid hamnar på "Alla".
@@ -270,6 +272,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         : localStorage.getItem("platform_city");
       if (storedCity) {
         setDetectedCityName(storedCity);
+        setCityFamilyResolving(true);
         axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: storedCity } })
           .then((res) => {
             const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
@@ -278,7 +281,8 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             setCityFamilyNames(familyNames.length > 0 ? familyNames.map((n) => n.toLowerCase()) : null);
             if (res.data?.name) setDetectedCityName(res.data.name);
           })
-          .catch(() => { setCityFamilyIds(null); setCityFamilyNames(null); });
+          .catch(() => { setCityFamilyIds(null); setCityFamilyNames(null); })
+          .finally(() => setCityFamilyResolving(false));
       }
 
       const err = localStorage.getItem("platform_address_error");
@@ -308,11 +312,32 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
 
   // Seedad av servern? Då målas sidan direkt och denna fetch blir en TYST
   // bakgrunds-refresh (ingen spinner, inget fel-overlay över giltig SSR-data).
+  // Seed från localStorage-cachen när servern inte gav initialData (kall ISR-
+  // revalidering, API nere vid build, eller dev-mode utan RSC-cache). Körs
+  // post-hydrering → ingen hydration-mismatch. Den tysta fetchen nedan ersätter
+  // strax med färsk data; detta tar bara bort skeleton-flashen vid återbesök.
+  const seededFromCacheRef = useRef(false);
+  useEffect(() => {
+    if (initialData) return;
+    const cached = readHomeCache();
+    if (!cached) return;
+    seededFromCacheRef.current = true;
+    setRestaurants(cached.restaurants);
+    setCities(cached.cities);
+    setDeals((cached.deals ?? []).filter((d: any) => d.isActive && d.showOnSite));
+    setSponsors(cached.sponsors);
+    setHomeCategorySections(cached.homeCategories);
+    setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const ssrSeededRef = useRef(!!initialData);
   useEffect(() => {
     const ssrSeed = ssrSeededRef.current;
     ssrSeededRef.current = false;
-    if (!ssrSeed) setLoading(true);
+    // Visa skeleton bara om vi inte redan har NÅGOT att rendera (varken RSC-
+    // seed eller cache) — annars körs fetchen tyst i bakgrunden.
+    if (!ssrSeed && !seededFromCacheRef.current) setLoading(true);
     Promise.all([
       axios.get(`${API_URL}/api/restaurants`),
       axios.get(`${API_URL}/api/cities`),
@@ -334,6 +359,16 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       setSponsors(sponsorsData);
       setHomeCategorySections(homeCategoryData);
       setPersonalDeals(personalDealsData);
+
+      // Persistera för nästa besök → instant paint utan skeleton (personalDeals
+      // utelämnas medvetet: kontospecifikt, hämtas alltid färskt).
+      writeHomeCache({
+        restaurants: restaurantsData,
+        cities: citiesData,
+        deals: dealsData,
+        sponsors: sponsorsData,
+        homeCategories: homeCategoryData,
+      });
 
       const initialAddress = localStorage.getItem("platform_address") || "";
       if (initialAddress && citiesData.length > 0) {
@@ -396,6 +431,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   };
 
   const resolveCityFamily = async (cityName: string) => {
+    setCityFamilyResolving(true);
     try {
       const res = await axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: cityName } });
       const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
@@ -406,6 +442,8 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     } catch {
       setCityFamilyIds(null);
       setCityFamilyNames(null);
+    } finally {
+      setCityFamilyResolving(false);
     }
   };
 
@@ -606,11 +644,16 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       }
       return false;
     }
+    // Familjen slås fortfarande upp → mjuk namn-matchning så stadens
+    // restauranger syns direkt (ingen "inte tillgänglig"-flash).
+    if (detectedCityName && cityFamilyResolving) {
+      return (r.city || "").toLowerCase() === detectedCityName.toLowerCase();
+    }
     // Strict: vi har stad-namnet men inte hittade familyIds → visa inget
     if (detectedCityName) return false;
     if (orderType === "PICKUP") return false;
     return true;
-  }, [cityFamilyIds, cityFamilyNames, detectedCityName, orderType]);
+  }, [cityFamilyIds, cityFamilyNames, detectedCityName, cityFamilyResolving, orderType]);
 
   // Antal restauranger i kundens stad per cuisine — visas som liten siffra i
   // chip-raden så man ser hur många som faktiskt finns i staden av varje.
@@ -951,14 +994,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             </div>
             <div className="flex items-center shrink-0">
               <LocaleSwitcher buttonClassName="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95" iconSize={15} />
-              <button
-                onClick={toggleTheme}
-                aria-label={theme === "dark" ? t("nav.theme.toLight") : t("nav.theme.toDark")}
-                className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {theme === "dark" ? <Sun size={15} strokeWidth={2} /> : <Moon size={15} strokeWidth={2} />}
-              </button>
             </div>
           </div>
 
@@ -1080,9 +1115,10 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         {/* "Senaste beställning"-kortet borttaget — den live order-tracking-
             bannern (LiveOrderBanner, fixed nederst) sköter aktiv order. */}
 
-        {/* ── KATEGORIER — minimal text-chips (under What's on). ── */}
+        {/* ── KATEGORIER — ramlösa text-tabbar med guld-underline för aktiv
+            (samma språk som menysidans sticky kategori-rad). ── */}
         <section className="mb-5 sm:mb-6 mt-4">
-          <div className="flex gap-2 overflow-x-auto lg:flex-wrap lg:overflow-visible pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="flex gap-5 sm:gap-6 overflow-x-auto lg:flex-wrap lg:overflow-visible no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 border-b" style={{ borderColor: "var(--border-muted)" }}>
             {cuisineFilters.map((c) => {
               const active = activeCuisine === c.label;
               const count = cuisineCounts.counts[c.label] ?? 0;
@@ -1148,7 +1184,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
               - Men varken filtered eller någon HomeCategorySection har träffar
             Backend-data laddas ENBART när /api/restaurants returnerar nya
             data — ingen polling, ingen hammring av cities/family-by-name. */}
-        {!loading && detectedCityName && filtered.length === 0 && resolvedHomeCategorySections.every((s) => s.restaurants.filter(matchesCityFamily).length === 0) && (
+        {!loading && !cityFamilyResolving && detectedCityName && filtered.length === 0 && resolvedHomeCategorySections.every((s) => s.restaurants.filter(matchesCityFamily).length === 0) && (
           <section className="mb-10">
             <div className="rounded-3xl px-6 py-10 text-center" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
               <div className="mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(231,178,75,0.1)" }}>

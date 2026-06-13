@@ -19,8 +19,8 @@ export default function MobileFooterLinks() {
           color: "var(--text-primary)",
         }}
       >
-        <MessageSquare size={14} className="text-gold-500" />
-        <span className="text-[10px] font-black uppercase tracking-widest">Kontakt</span>
+        <MessageSquare size={15} className="text-gold-500" />
+        <span className="text-[14px] font-semibold">Kontakt</span>
       </Link>
     </div>
   );

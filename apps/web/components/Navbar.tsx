@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Sun, Moon, Mail } from "lucide-react";
+import { ShoppingBag, Mail } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
-import { useTheme } from "@/app/providers";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
 import { useState, useEffect } from "react";
@@ -24,7 +23,6 @@ type SessionUser = {
  * Ingen blur, ingen skugga, inga versaler.
  */
 const Navbar = () => {
-  const { theme, toggleTheme } = useTheme();
   const { t } = useTranslation();
   const pathname = usePathname();
   const items = useCartStore((state) => state.items);
@@ -149,15 +147,6 @@ const Navbar = () => {
             </Link>
 
             <LocaleSwitcher />
-
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg transition-colors"
-              style={{ color: "var(--text-secondary)" }}
-              aria-label={theme === 'dark' ? t("nav.theme.toLight") : t("nav.theme.toDark")}
-            >
-              {theme === 'dark' ? <Sun size={18} strokeWidth={1.8} /> : <Moon size={18} strokeWidth={1.8} />}
-            </button>
 
             <Link
               href="/cart"

@@ -7,7 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
   Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2, Sparkles, Ticket, Tag,
-  Star, RotateCcw, Home, Briefcase, Plus, Trash2, Scale
+  Star, RotateCcw, Home, Briefcase, Plus, Trash2, Scale, Gift
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -90,7 +90,7 @@ function CountryPicker({
             initial={{ opacity: 0, y: -8, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.95 }}
-            className="absolute top-full left-0 mt-2 z-50 rounded-2xl overflow-hidden shadow-2xl w-72 max-w-[calc(100vw-2rem)]"
+            className="absolute top-full left-0 mt-2 z-50 rounded-2xl overflow-hidden w-72 max-w-[calc(100vw-2rem)]"
             style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}
             role="listbox"
           >
@@ -114,7 +114,7 @@ function CountryPicker({
                     key={c.code}
                     type="button"
                     onClick={() => { onChange(c.code); setOpen(false); setSearch(""); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors text-left ${value === c.code ? "font-black" : ""}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors text-left ${value === c.code ? "font-bold" : ""}`}
                     style={{ color: "var(--text-primary)", backgroundColor: value === c.code ? "var(--bg-secondary)" : "transparent" }}
                     role="option"
                     aria-selected={value === c.code}
@@ -185,7 +185,7 @@ function LanguagePickerRow() {
         </div>
         <div>
           <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.language")}</p>
-          <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">{t("profile.settings.languageSub")}</p>
+          <p className="text-[10px] text-zinc-500 font-medium">{t("profile.settings.languageSub")}</p>
         </div>
       </div>
       <div className="relative">
@@ -219,7 +219,7 @@ function ProfileSkeleton() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="skeleton w-14 h-14 rounded-[1.5rem]" />
+            <div className="skeleton w-14 h-14 rounded-xl" />
             <div className="space-y-2">
               <div className="skeleton h-5 w-40 rounded-lg" />
               <div className="skeleton h-3 w-24 rounded" />
@@ -228,11 +228,11 @@ function ProfileSkeleton() {
           <div className="skeleton w-12 h-12 rounded-2xl" />
         </div>
         {/* Tabs */}
-        <div className="skeleton h-16 rounded-[2rem]" />
+        <div className="skeleton h-16 rounded-2xl" />
         {/* Innehållskort */}
         <div className="space-y-4">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="skeleton h-24 rounded-[2rem]" />
+            <div key={i} className="skeleton h-24 rounded-2xl" />
           ))}
         </div>
       </div>
@@ -662,7 +662,7 @@ function ProfileContent() {
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-gold-500 mx-auto bg-gold-500/10 border border-gold-500/20">
               <Lock size={22} />
             </div>
-            <h1 className="text-2xl font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
+            <h1 className="text-[22px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
               {hasVisited ? t("auth.welcomeBack.title.welcome") : t("auth.welcomeBack.title.create")}{" "}
               <span className="text-gold-500">{hasVisited ? t("auth.welcomeBack.title.welcomeAccent") : t("auth.welcomeBack.title.createAccent")}</span>
             </h1>
@@ -678,14 +678,14 @@ function ProfileContent() {
             <button
               type="button"
               onClick={() => router.push("/login")}
-              className="w-full py-4 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all"
+              className="w-full py-4 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-sm active:scale-95 transition-all"
             >
               {t("auth.submitLogin")}
             </button>
             <button
               type="button"
               onClick={() => router.push("/register")}
-              className="w-full py-4 rounded-3xl font-black uppercase tracking-widest text-sm active:scale-95 transition-all"
+              className="w-full py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all"
               style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
             >
               {t("auth.createFree")}
@@ -704,7 +704,7 @@ function ProfileContent() {
               <span className="w-9 h-9 rounded-xl bg-gold-500/15 text-gold-600 flex items-center justify-center shrink-0">
                 <History size={18} />
               </span>
-              <span className="text-sm font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
+              <span className="text-[14px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
                 {t("profile.ordersSupport")}
               </span>
             </span>
@@ -726,7 +726,7 @@ function ProfileContent() {
                 className="flex items-center justify-between gap-2 px-4 py-3 rounded-2xl transition-all active:scale-[0.99]"
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
               >
-                <span className="text-[11px] font-black uppercase tracking-wider truncate" style={{ color: "var(--text-secondary)" }}>
+                <span className="text-[12.5px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>
                   {l.label}
                 </span>
                 <ChevronRight size={14} className="text-zinc-500 shrink-0" />
@@ -745,7 +745,7 @@ function ProfileContent() {
         <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-8">
           <div className="text-center space-y-3">
             <div className="w-16 h-16 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500 mx-auto"><Phone size={28} /></div>
-            <h2 className="text-2xl font-black uppercase italic tracking-tight">{t("profile.addPhone.title")}</h2>
+            <h2 className="text-[22px] font-bold tracking-tight">{t("profile.addPhone.title")}</h2>
             <p className="text-zinc-500 text-sm leading-relaxed">
               {t("profile.addPhone.sub")}
             </p>
@@ -764,11 +764,11 @@ function ProfileContent() {
                 style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
               />
             </div>
-            {addPhoneError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{addPhoneError}</p>}
+            {addPhoneError && <p className="text-[12.5px] text-center font-medium" style={{ color: "#dc2626" }}>{addPhoneError}</p>}
             <button
               type="submit"
               disabled={addPhoneLoading}
-              className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+              className="w-full py-5 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3"
             >
               {addPhoneLoading ? <Loader2 className="animate-spin" size={20} /> : t("profile.addPhone.save")}
             </button>
@@ -787,24 +787,24 @@ function ProfileContent() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-gold-gradient rounded-[1.5rem] flex items-center justify-center text-zinc-950 font-black text-xl shadow-lg">
+            <div className="w-14 h-14 bg-gold-gradient rounded-xl flex items-center justify-center text-zinc-950 font-bold text-xl shadow-lg">
               {user.image ? (
-                <img src={user.image} alt="" className="w-full h-full rounded-[1.5rem] object-cover" />
+                <img src={user.image} alt="" className="w-full h-full rounded-xl object-cover" />
               ) : (
                 user.name?.charAt(0)?.toUpperCase() || "U"
               )}
             </div>
             <div>
-              <h1 className="text-xl font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>{user.name}</h1>
+              <h1 className="text-[20px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{user.name}</h1>
               {user.isVerified ? (
                 <div className="flex items-center gap-1.5 mt-1 text-emerald-600">
                   <ShieldCheck size={14} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">{t("profile.verified")}</span>
+                  <span className="text-[12px] font-medium">{t("profile.verified")}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 mt-1 text-rose-500">
                   <Lock size={14} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">{t("profile.notVerified")}</span>
+                  <span className="text-[12px] font-medium">{t("profile.notVerified")}</span>
                 </div>
               )}
             </div>
@@ -832,12 +832,12 @@ function ProfileContent() {
               <div className="flex items-start gap-3">
                 <div
                   className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: "rgba(234,181,69,0.20)" }}
+                  style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}
                 >
-                  <span className="text-base">👤</span>
+                  <User size={17} strokeWidth={2} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-black uppercase tracking-tight text-gold-700">
+                  <h3 className="text-[14px] font-semibold tracking-tight text-gold-700">
                     {t("profile.appleNoName.title")}
                   </h3>
                   <p
@@ -881,10 +881,10 @@ function ProfileContent() {
         {!user.phone && (
           <button
             onClick={() => setShowAddPhone(true)}
-            className="w-full bg-amber-500/5 border border-amber-500/20 p-5 rounded-[2rem] flex items-center justify-between text-left hover:bg-amber-500/10 transition-all"
+            className="w-full bg-amber-500/5 border border-amber-500/20 p-5 rounded-2xl flex items-center justify-between text-left hover:bg-amber-500/10 transition-all"
           >
             <div>
-              <p className="text-[10px] font-black uppercase text-amber-600 tracking-widest">{t("profile.recommended")}</p>
+              <p className="text-[12px] font-medium text-amber-600 tracking-widest">{t("profile.recommended")}</p>
               <p className="font-bold text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>{t("profile.addPhone")}</p>
             </div>
             <ChevronRight size={18} className="text-amber-500" />
@@ -893,13 +893,13 @@ function ProfileContent() {
 
         {/* Verify phone banner - ONLY if they have a phone but not verified (legacy or fail) */}
         {user.phone && !user.isVerified && (
-          <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-[2.5rem] flex items-center justify-between">
+          <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-red-500/20 rounded-xl flex items-center justify-center text-red-500">
                 <Bell size={20} />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase text-red-400 tracking-widest">{t("profile.actionRequired")}</p>
+                <p className="text-[12px] font-medium text-red-400 tracking-widest">{t("profile.actionRequired")}</p>
                 <div className="flex items-center gap-2">
                   <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.phone}</p>
                 </div>
@@ -911,14 +911,14 @@ function ProfileContent() {
                 setAddPhoneCountry(user.phone.startsWith("+") ? user.phone.slice(0, 3) : "+46");
                 setShowAddPhone(true);
               }}
-              className="px-6 py-3 bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-red-500/20"
+              className="px-6 py-3 bg-red-500 text-white rounded-2xl text-[12px] font-medium active:scale-95 transition-all shadow-lg shadow-red-500/20"
             >
               {t("profile.fixNow")}
             </button>
           </div>
         )}
 
-        <div className="grid grid-cols-5 p-1.5 rounded-[2rem] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+        <div className="grid grid-cols-5 p-1.5 rounded-2xl shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
           {[
             { id: "overview", icon: User, label: t("profile.tabs.home") },
             { id: "deals", icon: Sparkles, label: t("profile.tabs.deals") },
@@ -931,10 +931,10 @@ function ProfileContent() {
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id as any); setIsEditing(false); }}
-              className={`flex flex-col items-center gap-1.5 py-4 rounded-3xl transition-all ${activeTab === tab.id ? "bg-gold-500/10 text-gold-600" : "text-zinc-400 hover:text-zinc-500"}`}
+              className={`flex flex-col items-center gap-1.5 py-4 rounded-2xl transition-all ${activeTab === tab.id ? "bg-gold-500/10 text-gold-600" : "text-zinc-400 hover:text-zinc-500"}`}
             >
               <tab.icon size={18} />
-              <span className="text-[8px] font-black uppercase tracking-widest">{tab.label}</span>
+              <span className="text-[8px] font-bold">{tab.label}</span>
             </button>
           ))}
         </div>
@@ -948,13 +948,13 @@ function ProfileContent() {
                    vid app-öppning. */}
                {availableDeals.length > 0 ? (
                  <div className="space-y-3">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">{t("profile.deals.availableTitle")}</p>
+                   <p className="text-[12px] font-medium text-zinc-500 px-2">{t("profile.deals.availableTitle")}</p>
                    {availableDeals.map((deal: any) => {
                      const isClaiming = claimingId === deal.id;
                      return (
                        <div
                          key={`avail-${deal.id}`}
-                         className="p-6 rounded-[2.5rem] relative overflow-hidden"
+                         className="p-6 rounded-2xl relative overflow-hidden"
                          style={{
                            background: "linear-gradient(135deg, rgba(243,191,87,0.16), rgba(243,191,87,0.06))",
                            border: "1px solid rgba(243,191,87,0.35)",
@@ -965,13 +965,13 @@ function ProfileContent() {
                              // eslint-disable-next-line @next/next/no-img-element
                              <img src={deal.imageUrl} alt="" className="h-16 w-16 rounded-2xl object-cover shrink-0" />
                            ) : (
-                             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold-500/15 text-2xl shrink-0">🎁</div>
+                             <div className="flex h-16 w-16 items-center justify-center rounded-2xl shrink-0" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}><Gift size={26} strokeWidth={1.8} /></div>
                            )}
                            <div className="flex-1 min-w-0">
-                             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600 mb-1">
+                             <div className="text-[12px] font-medium text-gold-600 mb-1">
                                {t("profile.deals.newOffer")}
                              </div>
-                             <h3 className="text-lg font-black italic tracking-tighter uppercase leading-tight" style={{ color: "var(--text-primary)" }}>
+                             <h3 className="text-[17px] font-bold tracking-tight leading-tight" style={{ color: "var(--text-primary)" }}>
                                {deal.popupHeadline || deal.title}
                              </h3>
                              {deal.popupBody || deal.description ? (
@@ -980,7 +980,7 @@ function ProfileContent() {
                            </div>
                          </div>
                          <div className="mt-4 flex items-center justify-between gap-3">
-                           <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                           <div className="text-[12px] font-medium text-zinc-500">
                              {deal.discountType === "PERCENTAGE" ? t("profile.deals.discountPct", { value: deal.discountValue }) : t("profile.deals.discountKr", { value: deal.discountValue })}
                              {deal.minOrder > 0 ? ` • ${t("profile.deals.minOrder", { amount: deal.minOrder })}` : ""}
                            </div>
@@ -1000,7 +1000,7 @@ function ProfileContent() {
                                  setClaimingId(null);
                                }
                              }}
-                             className="px-5 py-3 rounded-2xl bg-gold-500 text-zinc-950 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-60"
+                             className="px-5 py-3 rounded-2xl bg-gold-500 text-zinc-950 font-bold text-[10px] active:scale-95 transition-all disabled:opacity-60"
                            >
                              {isClaiming ? t("profile.deals.saving") : (deal.popupCtaLabel || t("profile.deals.claim"))}
                            </button>
@@ -1014,7 +1014,7 @@ function ProfileContent() {
                {/* Claimade + globala deals (från popup-builder och broadcast) */}
                {claimedDeals.length > 0 ? (
                  <div className="space-y-3">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">{t("profile.deals.savedTitle")}</p>
+                   <p className="text-[12px] font-medium text-zinc-500 px-2">{t("profile.deals.savedTitle")}</p>
                    {claimedDeals.map((deal: any) => {
                      const isClaimed = deal._kind === 'CLAIMED';
                      // Tag som visar typ av deal: Personlig (CustomerDeal),
@@ -1028,19 +1028,19 @@ function ProfileContent() {
                        <Link
                          href={`/deals/${deal.id}`}
                          key={`claimed-${deal.id}`}
-                         className="block p-6 rounded-[2.5rem] bg-gold-500/5 border border-gold-500/15 relative overflow-hidden hover:bg-gold-500/8 transition-colors"
+                         className="block p-6 rounded-2xl bg-gold-500/5 border border-gold-500/15 relative overflow-hidden hover:bg-gold-500/8 transition-colors"
                        >
                          <div className="flex items-start justify-between mb-4 gap-3">
                            <div className="flex-1">
                              <div className="flex flex-wrap items-center gap-2 mb-1">
-                               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600">
+                               <div className="text-[12px] font-medium text-gold-600">
                                  {isClaimed ? t("profile.deals.saved") : t("profile.deals.availableAll")}
                                </div>
-                               <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider ${dealKind.tone}`}>
+                               <span className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold ${dealKind.tone}`}>
                                  {dealKind.label}
                                </span>
                              </div>
-                             <h3 className="text-xl font-black italic tracking-tighter uppercase leading-tight" style={{ color: "var(--text-primary)" }}>
+                             <h3 className="text-[19px] font-bold tracking-tight leading-tight" style={{ color: "var(--text-primary)" }}>
                                {deal.popupHeadline || deal.title}
                              </h3>
                              {deal.popupBody || deal.description ? (
@@ -1053,18 +1053,18 @@ function ProfileContent() {
                          </div>
                          {deal.popupCode ? (
                            <div className="p-3 rounded-2xl flex items-center justify-between mb-3" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                             <div className="text-[10px] font-black tracking-[0.3em] uppercase text-zinc-400">
+                             <div className="text-[12px] font-medium text-zinc-400">
                                {t("profile.deals.codeLabel")}: <span className="select-all" style={{ color: "var(--text-primary)" }}>{deal.popupCode}</span>
                              </div>
                              <button
                                onClick={() => { navigator.clipboard.writeText(deal.popupCode); }}
-                               className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700 transition-colors"
+                               className="text-[12px] font-medium text-gold-600 hover:text-gold-700 transition-colors"
                              >
                                {t("profile.deals.copy")}
                              </button>
                            </div>
                          ) : null}
-                         <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                         <div className="flex items-center justify-between text-[12px] font-medium text-zinc-400">
                            <div>{deal.discountType === "PERCENTAGE" ? t("profile.deals.discountPct", { value: deal.discountValue }) : t("profile.deals.discountKr", { value: deal.discountValue })} {deal.minOrder > 0 ? `• ${t("profile.deals.minOrder", { amount: deal.minOrder })}` : ""}</div>
                            <div>{t("profile.deals.validUntil", { date: deal.validUntil ? new Date(deal.validUntil).toLocaleDateString("sv-SE") : t("profile.deals.validUntilNever") })}</div>
                          </div>
@@ -1085,14 +1085,14 @@ function ProfileContent() {
                  </div>
                ) : deals.length > 0 ? (
                  <div className="space-y-3">
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">{t("profile.deals.personalCodes")}</p>
+                   <p className="text-[12px] font-medium text-zinc-500 px-2">{t("profile.deals.personalCodes")}</p>
                    {deals.map((deal: any) => (
-                   <div key={deal.id} className="p-8 rounded-[2.5rem] bg-gold-500/5 border border-gold-500/10 shadow-sm relative overflow-hidden group">
+                   <div key={deal.id} className="p-8 rounded-2xl bg-gold-500/5 border border-gold-500/10 shadow-sm relative overflow-hidden group">
                       <div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/5 blur-2xl group-hover:bg-gold-500/10 transition-all" />
                       <div className="flex items-start justify-between mb-6">
                          <div className="flex-1 pr-4">
-                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600 mb-1">{deal.campaign.title}</div>
-                            <h3 className="text-2xl font-black italic tracking-tighter uppercase leading-tight" style={{ color: "var(--text-primary)" }}>
+                            <div className="text-[12px] font-medium text-gold-600 mb-1">{deal.campaign.title}</div>
+                            <h3 className="text-[22px] font-bold tracking-tight leading-tight" style={{ color: "var(--text-primary)" }}>
                                 {deal.campaign.discountType === "PERCENTAGE" ? t("profile.deals.discountPctTitle", { value: deal.campaign.discountValue }) : t("profile.deals.discountKrTitle", { value: deal.campaign.discountValue })}
                             </h3>
                          </div>
@@ -1100,16 +1100,16 @@ function ProfileContent() {
                       </div>
 
                       <div className="p-4 rounded-2xl flex items-center justify-between mb-6" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                         <div className="text-[10px] font-black tracking-[0.3em] uppercase text-zinc-400">{t("profile.deals.codeLabel")}: <span className="select-all" style={{ color: "var(--text-primary)" }}>{deal.code}</span></div>
+                         <div className="text-[12px] font-medium text-zinc-400">{t("profile.deals.codeLabel")}: <span className="select-all" style={{ color: "var(--text-primary)" }}>{deal.code}</span></div>
                          <button
                             onClick={() => { navigator.clipboard.writeText(deal.code); }}
-                            className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700 transition-colors"
+                            className="text-[12px] font-medium text-gold-600 hover:text-gold-700 transition-colors"
                           >
                             {t("profile.deals.copy")}
                           </button>
                       </div>
 
-                      <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                      <div className="flex items-center justify-between text-[12px] font-medium text-zinc-400">
                          <div>{t("profile.deals.minOrderRow", { amount: deal.campaign.minOrder })}</div>
                          <div>{t("profile.deals.validUntil", { date: deal.campaign.validUntil ? new Date(deal.campaign.validUntil).toLocaleDateString("sv-SE") : t("profile.deals.validUntilNever") })}</div>
                       </div>
@@ -1124,15 +1124,15 @@ function ProfileContent() {
           {activeTab === "overview" && (
             <motion.div key="ov" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
               <DpointsPanel />
-              <div className="rounded-[2.5rem] p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+              <div className="rounded-2xl p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                 <div className="flex items-center gap-4">
                   <Phone size={16} className="text-zinc-400 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{t("profile.overview.phone")}</p>
+                    <p className="text-[12px] font-medium text-zinc-400">{t("profile.overview.phone")}</p>
                     <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.phone || t("profile.overview.notSet")}</p>
                   </div>
                   {user.isVerified ? (
-                    <span className="text-[8px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1.5 rounded-full uppercase font-black flex items-center gap-1">
+                    <span className="text-[8px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1.5 rounded-full font-semibold flex items-center gap-1">
                       <Lock size={8} /> {t("profile.overview.locked")}
                     </span>
                   ) : (
@@ -1142,7 +1142,7 @@ function ProfileContent() {
                         setAddPhoneCountry(user.phone?.startsWith("+") ? user.phone.slice(0, 3) : "+46");
                         setShowAddPhone(true);
                       }}
-                      className="text-[8px] bg-amber-50 text-amber-600 border border-amber-100 px-3 py-1.5 rounded-full uppercase font-black hover:bg-amber-100 transition-all flex items-center gap-1"
+                      className="text-[8px] bg-amber-50 text-amber-600 border border-amber-100 px-3 py-1.5 rounded-full font-semibold hover:bg-amber-100 transition-all flex items-center gap-1"
                     >
                       <Edit2 size={8} /> {t("profile.overview.edit")}
                     </button>
@@ -1151,19 +1151,19 @@ function ProfileContent() {
                 <div className="flex items-center gap-4">
                   <Mail size={16} className="text-zinc-400 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{t("profile.overview.email")}</p>
+                    <p className="text-[12px] font-medium text-zinc-400">{t("profile.overview.email")}</p>
                     <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.email || t("profile.overview.notSet")}</p>
                   </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-[2rem] p-6 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mb-1">{t("profile.overview.ordersCount")}</p>
-                  <p className="text-3xl font-black" style={{ color: "var(--text-primary)" }}>{orders.length}</p>
+                <div className="rounded-2xl p-6 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                  <p className="text-[12px] font-medium text-zinc-400 mb-1">{t("profile.overview.ordersCount")}</p>
+                  <p className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>{orders.length}</p>
                 </div>
-                <div className="rounded-[2rem] p-6 shadow-sm" style={{ backgroundColor: user.isVerified ? "var(--bg-secondary)" : "var(--bg-secondary)", border: user.isVerified ? "1px solid rgba(5,150,105,0.1)" : "1px solid var(--border-muted)" }}>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mb-1">{t("profile.overview.status")}</p>
-                  <p className={`text-sm font-black uppercase ${user.isVerified ? "text-emerald-600" : "text-rose-500"}`}>
+                <div className="rounded-2xl p-6 shadow-sm" style={{ backgroundColor: user.isVerified ? "var(--bg-secondary)" : "var(--bg-secondary)", border: user.isVerified ? "1px solid rgba(5,150,105,0.1)" : "1px solid var(--border-muted)" }}>
+                  <p className="text-[12px] font-medium text-zinc-400 mb-1">{t("profile.overview.status")}</p>
+                  <p className={`text-[14px] font-semibold ${user.isVerified ? "text-emerald-600" : "text-rose-500"}`}>
                     {user.isVerified ? t("profile.overview.statusVerified") : t("profile.overview.statusUnverified")}
                   </p>
                 </div>
@@ -1173,7 +1173,7 @@ function ProfileContent() {
                   /orders-sidan (fungerar utan login via localStorage-historik). */}
               <Link
                 href="/orders"
-                className="rounded-[2rem] p-6 flex items-center justify-between group shadow-sm transition-all hover:border-gold-500/40"
+                className="rounded-2xl p-6 flex items-center justify-between group shadow-sm transition-all hover:border-gold-500/40"
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
               >
                 <div className="flex items-center gap-4">
@@ -1181,8 +1181,8 @@ function ProfileContent() {
                     <History size={20} />
                   </div>
                   <div>
-                    <p className="font-black uppercase italic text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.ordersSupport")}</p>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: "var(--text-secondary)" }}>{t("orders.subtitle")}</p>
+                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.ordersSupport")}</p>
+                    <p className="text-[10px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>{t("orders.subtitle")}</p>
                   </div>
                 </div>
                 <ChevronRight size={18} className="text-zinc-400 group-hover:text-gold-500 transition-colors" />
@@ -1197,16 +1197,16 @@ function ProfileContent() {
           {activeTab === "settings" && !isEditing && (
             <motion.div key="set" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.profile")}</div>
-                <div className="rounded-[2.5rem]" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <div className="px-4 text-[12px] font-medium mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.profile")}</div>
+                <div className="rounded-2xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="w-full flex items-center justify-between p-6 hover:bg-gold-500/5 transition-all text-left rounded-[2.5rem]"
+                    className="w-full flex items-center justify-between p-6 hover:bg-gold-500/5 transition-all text-left rounded-2xl"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-gold-500/10 text-gold-500 rounded-xl flex items-center justify-center"><Settings size={18} /></div>
                       <div>
-                        <p className="text-sm font-bold uppercase italic" style={{ color: "var(--text-primary)" }}>{t("profile.settings.editProfile")}</p>
+                        <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>{t("profile.settings.editProfile")}</p>
                         <p className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.editProfileSub")}</p>
                       </div>
                     </div>
@@ -1216,8 +1216,8 @@ function ProfileContent() {
               </div>
 
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.prefs")}</div>
-                <div className="rounded-[2.5rem] divide-y divide-[color:var(--border-muted)]" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <div className="px-4 text-[12px] font-medium mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.prefs")}</div>
+                <div className="rounded-2xl divide-y divide-[color:var(--border-muted)]" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                   <div className="p-6 flex items-center justify-between group">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
@@ -1225,7 +1225,7 @@ function ProfileContent() {
                       </div>
                       <div>
                         <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.push")}</p>
-                        <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">{t("profile.settings.pushSub")}</p>
+                        <p className="text-[10px] text-zinc-500 font-medium">{t("profile.settings.pushSub")}</p>
                       </div>
                     </div>
                     <div className="w-12 h-6 bg-zinc-800 rounded-full relative cursor-pointer opacity-50">
@@ -1243,11 +1243,11 @@ function ProfileContent() {
               </div>
 
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-2">{t("profile.settings.section.account")}</div>
-                <div className="rounded-[2.5rem] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <div className="px-4 text-[12px] font-medium text-zinc-400 mb-2">{t("profile.settings.section.account")}</div>
+                <div className="rounded-2xl shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                   <button
                     onClick={() => setDeleteAccountModalOpen(true)}
-                    className="w-full text-left p-6 flex items-center justify-between group hover:bg-rose-50 transition-all rounded-[2.5rem]"
+                    className="w-full text-left p-6 flex items-center justify-between group hover:bg-rose-50 transition-all rounded-2xl"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center">
@@ -1255,7 +1255,7 @@ function ProfileContent() {
                       </div>
                       <div>
                         <p className="font-bold text-sm text-rose-500">{t("profile.settings.deleteAccount")}</p>
-                        <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest">{t("profile.settings.deleteAccountSub")}</p>
+                        <p className="text-[10px] text-zinc-400 font-medium">{t("profile.settings.deleteAccountSub")}</p>
                       </div>
                     </div>
                   </button>
@@ -1264,8 +1264,8 @@ function ProfileContent() {
 
               {/* Juridiskt */}
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.legal2")}</div>
-                <div className="rounded-[2.5rem] shadow-sm divide-y" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", borderColor: "var(--border-muted)" }}>
+                <div className="px-4 text-[12px] font-medium mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.legal2")}</div>
+                <div className="rounded-2xl shadow-sm divide-y" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", borderColor: "var(--border-muted)" }}>
                   <Link
                     href="/terms"
                     className="w-full text-left p-6 flex items-center justify-between hover:bg-gold-500/5 transition-all rounded-t-[2.5rem]"
@@ -1276,7 +1276,7 @@ function ProfileContent() {
                       </div>
                       <div>
                         <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.termsLong")}</p>
-                        <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.termsSub")}</p>
+                        <p className="text-[10px] font-medium" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.termsSub")}</p>
                       </div>
                     </div>
                     <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
@@ -1291,7 +1291,7 @@ function ProfileContent() {
                       </div>
                       <div>
                         <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.privacy")}</p>
-                        <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.privacySub")}</p>
+                        <p className="text-[10px] font-medium" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.privacySub")}</p>
                       </div>
                     </div>
                     <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
@@ -1307,14 +1307,14 @@ function ProfileContent() {
               {orders.length === 0 ? (
                 <div className="py-20 text-center opacity-30">
                   <History size={48} className="mx-auto mb-4" />
-                  <p className="font-black uppercase tracking-widest text-sm">{t("profile.orders.empty")}</p>
+                  <p className="font-bold text-sm">{t("profile.orders.empty")}</p>
                 </div>
               ) : orders.map((order) => (
-                <div key={order.id} className="bg-[color:var(--bg-secondary)] border border-[color:var(--border-muted)] rounded-[2.5rem] p-6 hover:bg-gold-500/5 transition-all group">
+                <div key={order.id} className="bg-[color:var(--bg-secondary)] border border-[color:var(--border-muted)] rounded-2xl p-6 hover:bg-gold-500/5 transition-all group">
                   <Link href={`/order/${order.id}`} className="flex justify-between items-center">
                     <div>
-                      <p className="font-black uppercase italic text-sm">{order.restaurant?.name || t("profile.orders.fallbackName")}</p>
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">
+                      <p className="font-bold text-sm">{order.restaurant?.name || t("profile.orders.fallbackName")}</p>
+                      <p className="text-[10px] text-zinc-500 font-bold mt-1">
                         {new Date(order.createdAt).toLocaleDateString("sv-SE")}
                         {order.rating && (
                           <span className="ml-3 inline-flex items-center gap-1 text-gold-500">
@@ -1324,7 +1324,7 @@ function ProfileContent() {
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <p className="text-xl font-black text-gold-500">{(order.total || 0).toFixed(0)} kr</p>
+                      <p className="text-xl font-bold text-gold-500">{(order.total || 0).toFixed(0)} kr</p>
                       <ChevronRight size={16} className="text-zinc-500 group-hover:text-gold-500 transition-colors" />
                     </div>
                   </Link>
@@ -1351,7 +1351,7 @@ function ProfileContent() {
                         }
                       }}
                       disabled={reorderingId === order.id}
-                      className="flex items-center gap-2 px-5 py-3 bg-gold-500/10 border border-gold-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest text-gold-600 hover:bg-gold-500/20 active:scale-95 transition-all disabled:opacity-50"
+                      className="flex items-center gap-2 px-5 py-3 bg-gold-500/10 border border-gold-500/20 rounded-xl text-[12px] font-medium text-gold-600 hover:bg-gold-500/20 active:scale-95 transition-all disabled:opacity-50"
                     >
                       {reorderingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
                       {t("profile.orders.reorder")}
@@ -1377,17 +1377,17 @@ function ProfileContent() {
               ) : (
                 <div className="space-y-3">
                   {savedAddresses.map(addr => (
-                    <div key={addr.id} className="rounded-[2rem] p-6 flex items-center justify-between group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                    <div key={addr.id} className="rounded-2xl p-6 flex items-center justify-between group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                       <div className="flex items-center gap-4">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm ${addr.isDefault ? 'bg-gold-500/10 text-gold-600 border border-gold-500/20' : 'bg-[color:var(--bg-deep)] text-zinc-400'}`}>
                           {addr.label === 'Hem' ? <Home size={18} /> : addr.label === 'Jobb' ? <Briefcase size={18} /> : <MapPin size={18} />}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-black uppercase italic text-sm" style={{ color: "var(--text-primary)" }}>{addr.label === 'Hem' ? t("profile.addresses.label.home") : addr.label === 'Jobb' ? t("profile.addresses.label.work") : addr.label}</p>
-                            {addr.isDefault && <span className="text-[7px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md">{t("profile.addresses.default")}</span>}
+                            <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{addr.label === 'Hem' ? t("profile.addresses.label.home") : addr.label === 'Jobb' ? t("profile.addresses.label.work") : addr.label}</p>
+                            {addr.isDefault && <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md">{t("profile.addresses.default")}</span>}
                           </div>
-                          <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">{addr.street}, {addr.zip} {addr.city}</p>
+                          <p className="text-[10px] text-zinc-400 font-bold mt-0.5">{addr.street}, {addr.zip} {addr.city}</p>
                           {addr.note && <p className="text-[9px] text-zinc-400 mt-1 opacity-70">{addr.note}</p>}
                         </div>
                       </div>
@@ -1424,13 +1424,13 @@ function ProfileContent() {
               )}
 
               {/* Add New Address */}
-              <div className="rounded-[2.5rem] p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                <h3 className="text-sm font-black uppercase italic flex items-center gap-3" style={{ color: "var(--text-primary)" }}>
+              <div className="rounded-2xl p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <h3 className="text-sm font-bold flex items-center gap-3" style={{ color: "var(--text-primary)" }}>
                   <Plus size={16} className="text-gold-600" /> {t("profile.addresses.add")}
                 </h3>
                 <div className="flex gap-2">
                   {['Hem', 'Jobb', 'Annat'].map(l => (
-                    <button key={l} type="button" onClick={() => setNewAddrLabel(l)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
+                    <button key={l} type="button" onClick={() => setNewAddrLabel(l)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[12px] font-medium border transition-all ${
                       newAddrLabel === l ? 'bg-gold-500/10 border-gold-500/30 text-gold-600' : 'bg-[color:var(--bg-deep)] border-[color:var(--border-muted)] text-zinc-400'
                     }`}>
                       {l === 'Hem' ? <Home size={12} /> : l === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
@@ -1459,7 +1459,7 @@ function ProfileContent() {
                     } finally { setAddrSaving(false); }
                   }}
                   disabled={addrSaving || !newAddrStreet || !newAddrCity || !newAddrZip}
-                  className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-[11px] shadow-xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-3"
+                  className="w-full py-5 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-[11px] active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-3"
                 >
                   {addrSaving ? <Loader2 size={16} className="animate-spin" /> : <><Plus size={16} /> {t("profile.addresses.save")}</>}
                 </button>
@@ -1475,33 +1475,33 @@ function ProfileContent() {
               onSubmit={handleUpdateProfile}
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="p-8 rounded-[2.5rem] space-y-6 shadow-sm"
+              className="p-8 rounded-2xl space-y-6 shadow-sm"
               style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
             >
               <div className="flex items-center gap-3 mb-2">
                 <button type="button" onClick={() => setIsEditing(false)} className="p-2 text-zinc-400 hover:text-zinc-500 rounded-xl">
                   <ArrowLeft size={18} />
                 </button>
-                <h3 className="text-lg font-black uppercase italic" style={{ color: "var(--text-primary)" }}>{t("profile.editForm.title")}</h3>
+                <h3 className="text-[17px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("profile.editForm.title")}</h3>
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.name")}</label>
+                  <label className="text-[12px] font-medium text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.name")}</label>
                   <input value={editName} onChange={e => setEditName(e.target.value)} className="w-full rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.email")}</label>
+                  <label className="text-[12px] font-medium text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.email")}</label>
                   <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder={t("auth.emailPlaceholder")} className="w-full rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.phoneLocked")}</label>
+                  <label className="text-[12px] font-medium text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.phoneLocked")}</label>
                   <input disabled value={user.phone || t("profile.overview.notSet")} className="w-full rounded-2xl py-4 px-6 font-bold cursor-not-allowed opacity-50" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }} />
                 </div>
               </div>
               <button
                 type="submit"
                 disabled={isSaving}
-                className={`w-full py-5 rounded-3xl font-black uppercase tracking-widest text-sm flex items-center justify-center gap-3 transition-all ${saveSuccess ? "bg-emerald-500 text-white" : "bg-gold-500 text-zinc-950 shadow-xl shadow-gold-500/20 active:scale-95"}`}
+                className={`w-full py-5 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 transition-all ${saveSuccess ? "bg-emerald-500 text-white" : "bg-gold-500 text-zinc-950 active:scale-95"}`}
               >
                 {isSaving ? <Loader2 className="animate-spin" size={20} /> : saveSuccess ? t("profile.editForm.saved") : <><Save size={18} /> {t("common.save")}</>}
               </button>

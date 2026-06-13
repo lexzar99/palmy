@@ -34,26 +34,7 @@
   --line-strong:  rgba(17,17,19,0.14); /* Inputs/steppers — snäppet tydligare */
 }
 
-/* Dark mode opt-in */
-[data-theme='dark'] {
-  --bg-primary:   #09090b;
-  --bg-secondary: #18181b;
-  --bg-deep:      #09090b;
-  --bg-card:      rgba(30,30,35,0.95);
-  --text-primary: #ffffff;
-  --text-secondary: rgba(255,255,255,0.6);
-  --glass-bg:     rgba(24,24,27,0.9);
-  --glass-border: rgba(255,255,255,0.05);
-  --border-muted: rgba(255,255,255,0.04);
-  --card-shadow:  0px 8px 24px rgba(0,0,0,0.3);
-  --skeleton-base: #27272a;
-  --skeleton-highlight: #3f3f46;
-  --gold-ink:     #E7B24B;         /* Ljus guld läses bra direkt på mörkt */
-  --gold-soft:    rgba(231,178,75,0.12);
-  --success-ink:  #5BBF85;
-  --success-soft: rgba(46,125,79,0.18);
-  --line-strong:  rgba(255,255,255,0.12);
-}
+/* Mörka temat borttaget — appen är ljus, ett enda token-set i :root ovan. */
 
 @layer base {
   * {
@@ -180,32 +161,34 @@
   border-radius: 8px;
 }
 
-/* ── Filter-chips — textchips, svart aktiv (inga emoji, ingen glow) ─────────── */
+/* ── Filter-tabbar — ramlösa ord, guld-underline för aktiv (som menysidans
+   sticky kategori-rad). Ingen ruta, ingen glow, ingen emoji. ─────────────── */
 .quick-filter-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
-  background: var(--bg-card);
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  font-size: 13px;
+  padding: 0 0 9px 0;
+  margin-bottom: -1px;                 /* lägg underline ovanpå container-hairline */
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: 14.5px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: color 0.15s ease, border-color 0.15s ease;
   white-space: nowrap;
   user-select: none;
 }
 
 .quick-filter-chip:hover {
-  border-color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .quick-filter-chip.active {
-  background: var(--text-primary);
-  border-color: var(--text-primary);
-  color: var(--bg-primary);
+  color: var(--text-primary);
+  border-bottom-color: var(--color-gold-500, #E7B24B);
 }
 
 /* ── Animations ──────────────────────────────────────────────────────────────── */

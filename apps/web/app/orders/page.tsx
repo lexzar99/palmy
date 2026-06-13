@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { Clock, ChevronRight, History } from "lucide-react";
+import { Clock, ChevronRight } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { readOrderHistory, removeOrderFromHistory, type StoredOrderRef } from "@/lib/orderHistory";
 import { cacheOrdersList, getCachedOrdersList } from "@/lib/offlineOrders";
-import EmptyState from "@/components/EmptyState";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -202,18 +201,48 @@ export default function OrdersPage() {
             ))}
           </div>
         ) : rows.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <EmptyState
-              icon={History}
-              title={t("orders.empty.title")}
-              text={t("orders.empty.subtitle")}
-              ctaLabel={t("orders.empty.cta")}
-              ctaHref="/"
-            />
-          </motion.div>
+          <div className="flex flex-col items-center text-center pt-12 pb-10 px-6">
+            {/* Tom orderhistorik — samma guld-line-art-språk som tomma
+                varukorgen: ett kvitto ritas upp vid mount, svävar mjukt, och
+                guld-skuggan andas i motfas. Ingen lucide-ikon, ingen emoji. */}
+            <style>{`
+              @keyframes ordReceiptDraw { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
+              @keyframes ordReceiptFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+              @keyframes ordShadowBreathe { 0%, 100% { transform: scaleX(1); opacity: 0.55; } 50% { transform: scaleX(0.82); opacity: 0.3; } }
+              .ord-empty-art path, .ord-empty-art line { stroke-dasharray: 300; animation: ordReceiptDraw 1.1s ease-out forwards; }
+              .ord-empty-float { animation: ordReceiptFloat 5s ease-in-out 1.2s infinite; }
+              .ord-empty-shadow { transform-origin: center; animation: ordShadowBreathe 5s ease-in-out 1.2s infinite; }
+              @media (prefers-reduced-motion: reduce) {
+                .ord-empty-art path, .ord-empty-art line { animation: none; stroke-dashoffset: 0; }
+                .ord-empty-float, .ord-empty-shadow { animation: none; }
+              }
+            `}</style>
+            <div className="ord-empty-float">
+              <svg className="ord-empty-art" width="84" height="84" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                {/* Kvitto med tandad nederkant */}
+                <path d="M18 8h28v44l-5-3.5-5 3.5-6-3.5-6 3.5-5-3.5V8z" stroke="var(--color-gold-500, #E7B24B)" strokeWidth="2" strokeLinejoin="round" fill="none" />
+                <line x1="25" y1="20" x2="39" y2="20" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" />
+                <line x1="25" y1="28" x2="39" y2="28" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" />
+                <line x1="25" y1="36" x2="33" y2="36" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <svg className="ord-empty-shadow mt-2" width="68" height="10" viewBox="0 0 68 10" aria-hidden="true">
+              <ellipse cx="34" cy="5" rx="28" ry="4" fill="var(--gold-soft)" />
+            </svg>
+            <h2 className="mt-6 text-[17px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+              {t("orders.empty.title")}
+            </h2>
+            <p className="mt-1.5 text-[13.5px] max-w-[280px]" style={{ color: "var(--text-secondary)" }}>
+              {t("orders.empty.subtitle")}
+            </p>
+            <Link
+              href="/"
+              className="mt-6 h-11 px-5 rounded-xl flex items-center text-[14.5px] font-semibold transition-all active:scale-95"
+              style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
+            >
+              {t("orders.empty.cta")}
+            </Link>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {rows.map((row) => {

@@ -51,6 +51,11 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const [quantity, setQuantity] = useState(initialQuantity ?? 1);
   const [selectedExtras, setSelectedExtras] = useState<any[]>([]);
   const [note, setNote] = useState(initialNote ?? "");
+  // Bildbandet ska BARA visas för en giltig, laddbar bild. En tom/whitespace-
+  // URL räknas inte som bild, och en URL som 404:ar döljs via onError så ingen
+  // tom/bruten grå ruta visas för bildlösa produkter.
+  const [imgFailed, setImgFailed] = useState(false);
+  const hasModalImage = typeof product.imageUrl === "string" && product.imageUrl.trim() !== "" && !imgFailed;
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const buyWithPointsRef = useRef(false);
@@ -297,12 +302,19 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         onClick={(e) => e.stopPropagation()}
         style={{ backgroundColor: "var(--bg-secondary)" }}
       >
-        {/* ── Produktbild (om den finns): kompakt 144px-band överst. Utan
-            bild hoppar modalen direkt till headern. ─────────────────────── */}
-        {product.imageUrl ? (
+        {/* ── Produktbild (endast giltig, laddbar bild): kompakt 144px-band
+            överst. Bildlösa/trasiga produkter hoppar direkt till headern. ── */}
+        {hasModalImage ? (
           <div className="relative flex-shrink-0 w-full h-36 overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" loading="eager" decoding="async" />
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              className="w-full h-full object-cover"
+              loading="eager"
+              decoding="async"
+              onError={() => setImgFailed(true)}
+            />
           </div>
         ) : null}
 

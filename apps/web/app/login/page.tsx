@@ -14,7 +14,7 @@ import {
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 // Delade input-/Apple-knapp-stilar. CSS-klass (inte inline style) så att
-// :focus-reglerna och [data-theme='dark']-flippen fungerar utan JS.
+// :focus-reglerna fungerar utan JS.
 const AUTH_CSS = `
 .auth-input {
   width: 100%;
@@ -40,10 +40,6 @@ const AUTH_CSS = `
 .auth-apple-btn {
   background-color: #141416;
   color: #ffffff;
-}
-[data-theme='dark'] .auth-apple-btn {
-  background-color: #ffffff;
-  color: #141416;
 }
 `;
 

@@ -94,8 +94,8 @@ export default function FavoritesPage() {
 
   return (
     <div className="min-h-screen pb-32 md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
-      {/* Scrim över stängda restaurangers bild — ljus i light mode, mörk i dark mode. */}
-      <style>{`.fav-closed-scrim{background:rgba(255,255,255,.45)}[data-theme='dark'] .fav-closed-scrim{background:rgba(0,0,0,.45)}`}</style>
+      {/* Scrim över stängda restaurangers bild. */}
+      <style>{`.fav-closed-scrim{background:rgba(255,255,255,.45)}`}</style>
 
       {/* Header + search */}
       <div
