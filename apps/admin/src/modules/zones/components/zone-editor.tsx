@@ -65,7 +65,13 @@ function loadGoogleMaps(onAuthError: () => void): Promise<void> {
     };
 
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=drawing,geometry&callback=_mapsZoneEditorCb`;
+    // VIKTIGT: pinna v=3.62. DrawingManager (libraries=drawing) togs BORT i Maps
+    // JS API v3.65 → utan pinning kastade `new g.maps.drawing.DrawingManager()`
+    // och hela zon-sidan kraschade ("This page couldn't load"). 3.62 har kvar
+    // drawing-biblioteket. (Koden nedan guardar dessutom mot att det saknas, så
+    // sidan degraderar till visning/redigering i stället för att krascha om
+    // Google någon gång rensar bort den pinnade versionen.)
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&v=3.62&libraries=drawing,geometry&callback=_mapsZoneEditorCb`;
     script.async = true;
     script.defer = true;
     script.onerror = (error) => {
@@ -257,6 +263,11 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
     });
     mapInstance.current = map;
 
+    // Guard: DrawingManager togs bort i Maps JS API v3.65. Saknas det (t.ex. om
+    // den pinnade versionen rensas av Google) hoppar vi över rit-verktyget i
+    // stället för att krascha sidan — kartan + redigering av befintliga zoner
+    // fungerar ändå, och rita-knapparna är redan no-op när drawingManager=null.
+    if (g.maps.drawing?.DrawingManager) {
     const manager = new g.maps.drawing.DrawingManager({
       drawingMode: null,
       drawingControl: false,
@@ -335,6 +346,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
       onChange([...current, nextZone]);
       setSelectedId(nextZone.id);
     });
+    } // slut på DrawingManager-guard
 
     map.addListener("click", () => setSelectedId(null));
 
@@ -347,7 +359,9 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
     const overlayMap = overlays.current;
 
     return () => {
-      manager.setMap(null);
+      // drawingManager.current i stället för det guard-scopade `manager`
+      // (null om DrawingManager saknades).
+      drawingManager.current?.setMap(null);
       if (centerMarker.current) centerMarker.current.setMap(null);
       overlayMap.forEach((overlay) => overlay.setMap(null));
       overlayMap.clear();
