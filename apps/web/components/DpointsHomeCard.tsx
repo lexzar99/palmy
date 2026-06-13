@@ -14,8 +14,9 @@ export default function DpointsHomeCard({ card }: { card: SponsorCardData }) {
       type="button"
       onClick={() => router.push("/register")}
       aria-label={card.title}
-      className="group relative shrink-0 overflow-hidden rounded-2xl text-left flex flex-col justify-between p-4 w-[88vw] max-w-[460px] sm:w-[460px] h-[184px] sm:h-[200px]"
+      className="group relative shrink-0 overflow-hidden rounded-2xl text-left flex flex-col justify-between p-4 w-[88vw] max-w-[460px] sm:w-[460px]"
       style={{
+        aspectRatio: "1.9 / 1",
         backgroundColor: "var(--bg-secondary)",
         border: "1px solid color-mix(in srgb, var(--gold-ink) 28%, transparent)",
       }}

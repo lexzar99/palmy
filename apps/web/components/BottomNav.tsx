@@ -49,7 +49,7 @@ const BottomNav = () => {
 
   return (
     <nav
-      className={`fixed left-0 right-0 bottom-0 z-[100] md:hidden flex transition-all duration-300 ease-out ${hidden ? "pointer-events-none" : ""}`}
+      className={`fixed left-0 right-0 bottom-0 z-[100] md:hidden flex transition-[transform,opacity] duration-300 ease-out ${hidden ? "pointer-events-none" : ""}`}
       style={{
         backgroundColor: "var(--bg-primary)",
         borderTop: "1px solid var(--border-muted)",

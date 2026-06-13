@@ -52,36 +52,28 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
       whileTap={isInteractive ? { scale: 0.99 } : undefined}
       transition={{ type: "spring", stiffness: 320, damping: 22 }}
       onClick={handleClick}
-      // STANDARD-storlek för alla promo-kort (sponsor + dpoints) — samma
-      // bredd OCH höjd så railen är enhetlig. Bilden visas HEL via object-
-      // contain (ingen crop → in-bakad text klipps aldrig); letterboxen fylls
-      // av en suddig cover-kopia av samma bild så kanterna ser polerade ut.
-      className={`relative shrink-0 rounded-2xl overflow-hidden group w-[88vw] max-w-[460px] sm:w-[460px] h-[184px] sm:h-[200px] ${
+      // STANDARD-format för alla promo-kort (sponsor + dpoints): samma bredd
+      // OCH samma bildförhållande (banner ~1.9:1). Bilden fyller HELA kortet
+      // kant-till-kant via object-cover — eftersom kortets aspect matchar
+      // bannerns blir det ingen tom letterbox (desktop) och ingen hård crop
+      // (mobil). Bredden: ~full på mobil, fast på sm+; höjden följer aspect.
+      className={`relative shrink-0 rounded-2xl overflow-hidden group w-[88vw] max-w-[460px] sm:w-[460px] ${
         isInteractive ? "cursor-pointer" : "cursor-default"
       }`}
       style={{
+        aspectRatio: "1.9 / 1",
         backgroundColor: "var(--bg-deep)",
         border: "1px solid var(--border-muted)",
       }}
     >
-      {/* Suddig cover-bakgrund som fyller letterboxen */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={sponsor.imageUrl}
-        alt=""
-        aria-hidden="true"
-        loading="lazy"
-        decoding="async"
-        className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-50"
-      />
-      {/* Skarp, HEL bild (ingen crop) */}
+      {/* Bilden fyller kortet (aspect matchar banner → ingen tom yta/crop). */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={sponsor.imageUrl}
         alt={sponsor.name}
         loading="lazy"
         decoding="async"
-        className="absolute inset-0 w-full h-full object-contain"
+        className="absolute inset-0 w-full h-full object-cover"
       />
 
       {/* Namn-overlay (valfri, admin-styrd). Visas bara om sponsorn INTE redan

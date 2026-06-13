@@ -73,6 +73,14 @@ export default function RootLayout({
     <html lang="sv">
       <body className={`${inter.className} min-h-screen antialiased`}>
         <Providers>
+          {/* iOS PWA (standalone): toppen (status bar/notch-ytan) visade svart.
+              Denna vita, klick-genomsläppliga remsa täcker safe-area-top på
+              alla sidor så toppen alltid är vit. Endast mobil/PWA. */}
+          <div
+            aria-hidden
+            className="md:hidden fixed top-0 left-0 right-0 z-[60] pointer-events-none"
+            style={{ height: "env(safe-area-inset-top, 0px)", backgroundColor: "var(--bg-primary)" }}
+          />
           <ServiceWorkerRegister />
           <OfflineBanner />
           <PlatformBanner />
