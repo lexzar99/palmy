@@ -59,6 +59,16 @@ const BottomNav = () => {
       }}
       aria-hidden={hidden}
     >
+      {/* iOS Safari: när det nedre verktygsfältet (sökfältet) krymper vid scroll
+          uppstår annars en transparent remsa MELLAN navet och skärmkanten.
+          Detta vita barn förlänger navets bakgrund nedåt (top:100% = från navets
+          underkant) så ytan alltid är vit — täcker safe-arean + ev. dynamiskt
+          viewport-gap. Ligger bakom innehållet, fångar inga klick. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-0 right-0 top-full"
+        style={{ height: "120px", backgroundColor: "var(--bg-primary)" }}
+      />
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = pathname === item.href;
@@ -113,3 +123,4 @@ const BottomNav = () => {
 };
 
 export default BottomNav;
+

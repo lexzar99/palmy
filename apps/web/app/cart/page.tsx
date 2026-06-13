@@ -2065,7 +2065,10 @@ export default function CartPage() {
     const discountOpen = !!selectedPersonalDeal || !!selectedAccountDealId;
     const firstKey = orderType === "DELIVERY" ? "tip" : "promo";
     return (
-      <div className="space-y-3">
+      <div className="space-y-2.5">
+        {/* Notering FÖRST (ovanför rabatter & dricks) — synligt inline-fält. */}
+        <div className="space-y-1.5">{renderNoteField()}</div>
+        {/* Sedan rabatter & dricks som kollapsade rader. */}
         <div className="rounded-xl px-4" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
           {orderType === "DELIVERY" && (
             <CartCollapsibleRow first={firstKey === "tip"} label={t("cart.tip.label")} hint={tipHint} defaultOpen={effectiveTip > 0}>
@@ -2079,8 +2082,6 @@ export default function CartPage() {
             </div>
           </CartCollapsibleRow>
         </div>
-        {/* Notering — synlig inline (ej gömd bakom en rad), kompakt fält. */}
-        <div className="space-y-1.5">{renderNoteField()}</div>
       </div>
     );
   };
@@ -2228,7 +2229,7 @@ export default function CartPage() {
                 <motion.div
                   key={item.cartItemId}
                   layout
-                  className="px-3.5 py-3.5 flex items-center gap-3 group"
+                  className="px-3.5 py-3 flex items-center gap-3 group"
                   style={{ borderTop: idx === 0 ? "none" : "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}
                 >
                   {/* Stepper — vänster, en samlad kontroll (− qty +) */}
@@ -2458,9 +2459,9 @@ export default function CartPage() {
                   </motion.div>
                 ) : (
                   <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-4 sm:p-5 rounded-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                      <div className="flex gap-1.5 p-1 rounded-xl mb-5" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                      <div className="flex gap-1.5 p-1 rounded-xl mb-4" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          {(['DELIVERY', 'PICKUP'] as const).map(type => (
-                            <button key={type} type="button" onClick={() => { setOrderType(type); localStorage.setItem("cart_order_type", type); }} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-lg text-[13px] font-medium transition-all ${orderType === type ? 'bg-gold-500 text-[#141416]' : 'text-zinc-500'}`}>
+                            <button key={type} type="button" onClick={() => { setOrderType(type); localStorage.setItem("cart_order_type", type); }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${orderType === type ? 'bg-gold-500 text-[#141416]' : 'text-zinc-500'}`}>
                                {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
                                {type === 'DELIVERY' ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
                             </button>
@@ -2468,7 +2469,7 @@ export default function CartPage() {
                       </div>
 
 
-                       <div className="space-y-3">
+                       <div className="space-y-2.5">
                         {(() => {
                           // Inline-validering: vi flagga fält som har varit "rört" och nu är ogiltigt.
                           // Definieras inline för att inte behöva nya useState.
@@ -2484,22 +2485,22 @@ export default function CartPage() {
                           const okBorder = "focus:border-gold-500/40";
                           return (
                             <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                            <div className="space-y-1.5">
-                              <label className="text-[13px] font-medium ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.name")}</label>
+                              <label className="text-[12.5px] font-medium ml-1" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.name")}</label>
                               <input
                                 value={formData.customerName}
                                 onChange={e => setFormData({...formData, customerName: e.target.value})}
                                 autoComplete="name"
                                 aria-invalid={nameInvalid || undefined}
-                                className={`w-full border rounded-xl p-3 text-base sm:text-[15px] font-medium placeholder:text-zinc-400 outline-none transition-all ${nameInvalid ? errorBorder : okBorder}`}
+                                className={`w-full border rounded-xl px-3.5 h-11 text-base sm:text-[14px] font-medium placeholder:text-zinc-400 outline-none transition-all ${nameInvalid ? errorBorder : okBorder}`}
                                 style={{ backgroundColor: "var(--bg-deep)", borderColor: nameInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
                                 placeholder={t("cart.fields.namePlaceholder")}
                               />
                               {nameInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">{t("cart.errors.nameTooShort")}</p>}
                            </div>
                            <div className="space-y-1.5">
-                              <label className="text-[13px] font-medium ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.phone")}</label>
+                              <label className="text-[12.5px] font-medium ml-1" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.phone")}</label>
                               <input
                                 value={formData.customerPhone}
                                 onChange={e => setFormData({...formData, customerPhone: e.target.value})}
@@ -2507,7 +2508,7 @@ export default function CartPage() {
                                 autoComplete="tel"
                                 inputMode="tel"
                                 aria-invalid={phoneInvalid || undefined}
-                                className={`w-full border rounded-xl p-3 text-base sm:text-[15px] font-medium placeholder:text-zinc-400 outline-none transition-all ${phoneInvalid ? errorBorder : okBorder}`}
+                                className={`w-full border rounded-xl px-3.5 h-11 text-base sm:text-[14px] font-medium placeholder:text-zinc-400 outline-none transition-all ${phoneInvalid ? errorBorder : okBorder}`}
                                 style={{ backgroundColor: "var(--bg-deep)", borderColor: phoneInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
                                 placeholder="+46 70 000 00 00"
                               />
@@ -2515,7 +2516,7 @@ export default function CartPage() {
                            </div>
                         </div>
                         <div className="space-y-1.5">
-                           <label className="text-[13px] font-medium ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.email")}</label>
+                           <label className="text-[12.5px] font-medium ml-1" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.email")}</label>
                            <input
                              value={formData.customerEmail}
                              onChange={e => setFormData({...formData, customerEmail: e.target.value})}
@@ -2523,7 +2524,7 @@ export default function CartPage() {
                              autoComplete="email"
                              inputMode="email"
                              aria-invalid={emailInvalid || undefined}
-                             className={`w-full border rounded-xl p-3 text-base sm:text-[15px] font-medium placeholder:text-zinc-400 outline-none transition-all ${emailInvalid ? errorBorder : okBorder}`}
+                             className={`w-full border rounded-xl px-3.5 h-11 text-base sm:text-[14px] font-medium placeholder:text-zinc-400 outline-none transition-all ${emailInvalid ? errorBorder : okBorder}`}
                              style={{ backgroundColor: "var(--bg-deep)", borderColor: emailInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
                              placeholder={t("cart.fields.emailPlaceholderReceipt")}
                              required
@@ -2541,11 +2542,11 @@ export default function CartPage() {
                               {/* Kompakt adress — visar bara vald adress. "Ändra"
                                   öppnar kart-modalen (nål + sök). Zon-check körs efter. */}
                               <div className="space-y-1.5">
-                                 <label className="text-[13px] font-medium ml-3" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.address")}</label>
+                                 <label className="text-[12.5px] font-medium ml-1" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.address")}</label>
                                  <button
                                    type="button"
                                    onClick={() => setShowCartAddressModal(true)}
-                                   className="w-full flex items-center gap-3 rounded-2xl border p-4 text-left transition-all active:scale-[0.99]"
+                                   className="w-full flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left transition-all active:scale-[0.99]"
                                    style={{
                                      backgroundColor: "var(--bg-deep)",
                                      borderColor:
@@ -2554,8 +2555,8 @@ export default function CartPage() {
                                        : "var(--border-muted)",
                                    }}
                                  >
-                                   <MapPin className="text-gold-500 shrink-0" size={18} />
-                                   <span className="flex-1 min-w-0 text-sm font-bold truncate" style={{ color: addressInput ? "var(--text-primary)" : "var(--text-secondary)" }}>
+                                   <MapPin className="text-gold-500 shrink-0" size={17} />
+                                   <span className="flex-1 min-w-0 text-[14px] font-semibold truncate" style={{ color: addressInput ? "var(--text-primary)" : "var(--text-secondary)" }}>
                                      {addressInput || t("cart.fields.addressPlaceholderFull")}
                                    </span>
                                    {(checkingDelivery || addressZoneStatus === "checking") ? (
@@ -2953,6 +2954,7 @@ export default function CartPage() {
     </div>
   );
 }
+
 
 
 
