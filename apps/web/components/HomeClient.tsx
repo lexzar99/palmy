@@ -1143,7 +1143,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
               - Men varken filtered eller någon HomeCategorySection har träffar
             Backend-data laddas ENBART när /api/restaurants returnerar nya
             data — ingen polling, ingen hammring av cities/family-by-name. */}
-        {!loading && !cityFamilyResolving && detectedCityName && filtered.length === 0 && resolvedHomeCategorySections.every((s) => s.restaurants.filter(matchesCityFamily).length === 0) && (
+        {!loading && !apiError && !cityFamilyResolving && detectedCityName && filtered.length === 0 && resolvedHomeCategorySections.every((s) => s.restaurants.filter(matchesCityFamily).length === 0) && (
           <section className="mb-10">
             <div className="rounded-3xl px-6 py-10 text-center" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
               <div className="mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(231,178,75,0.1)" }}>

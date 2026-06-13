@@ -129,9 +129,24 @@ if (stripeKeyMissing && typeof window !== "undefined") {
   );
 }
 
-const stripePromise = stripeKeyMissing
-  ? null
-  : loadStripe(STRIPE_PUBLISHABLE_KEY as string);
+// LAT Stripe-laddning: tidigare kallades loadStripe() på modul-nivå, vilket
+// triggade js.stripe.com-skriptet så fort cart-modulen evaluerades — och Next
+// PREFETCHAR cart-routen via <Link href="/cart"> i bottomnav redan på hemsidan.
+// Resultat: Stripe.js laddades (och kunde faila p.g.a. adblock/nät) på sidor
+// som inte ens har en betalning → "Failed to load Stripe.js" i Sentry på "/".
+// Nu skapas promisen FÖRST när betalningen faktiskt visas, och ett load-fel
+// SVÄLJS (→ null) så det aldrig blir en ofångad rejection.
+let _stripePromise: Promise<import("@stripe/stripe-js").Stripe | null> | null = null;
+const getStripePromise = () => {
+  if (stripeKeyMissing) return null;
+  if (!_stripePromise) {
+    _stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY as string).catch((err) => {
+      console.warn("[stripe] kunde inte ladda Stripe.js (adblock/nät?)", err);
+      return null;
+    });
+  }
+  return _stripePromise;
+};
 
 // Varukorgs-thumbnail: visar produktbilden om den finns OCH laddar. Saknas
 // bilden — eller är URL:en trasig (onError) — visar vi antalet i stället för
@@ -2417,7 +2432,7 @@ export default function CartPage() {
               ogillade). Sticky-positionen följer dokumentscrollen istället. */}
           <div className="lg:sticky lg:top-24">
              <AnimatePresence mode="wait">
-               {showPayment && clientSecret && stripePromise ? (
+               {showPayment && clientSecret && getStripePromise() ? (
                   <motion.div ref={paymentSectionRef} key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-7 rounded-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                      <div className="flex items-center gap-3 text-gold-500 text-[13px] font-medium mb-10">
                         <CreditCard size={18} /> {t("cart.payment.title")}
@@ -2435,7 +2450,7 @@ export default function CartPage() {
                        </div>
                      )}
                      <div className="rounded-2xl p-6 mb-10 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                        <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#111113', colorBackground: '#ffffff', colorText: '#141416', colorDanger: '#ef4444', borderRadius: '12px', fontFamily: 'Inter, sans-serif' } } }}>
+                        <Elements stripe={getStripePromise()} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#111113', colorBackground: '#ffffff', colorText: '#141416', colorDanger: '#ef4444', borderRadius: '12px', fontFamily: 'Inter, sans-serif' } } }}>
                            <StripeCheckout
                             amount={serverCharge?.total ?? total}
                             onSuccess={handlePaymentSuccess}
