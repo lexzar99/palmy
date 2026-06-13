@@ -141,18 +141,10 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   const promoRailRef = useRef<HTMLDivElement | null>(null);
   const promoIndexRef = useRef(0);
   const [activePromo, setActivePromo] = useState(0);
-  // Sticky-header collapse: kompakt (bara rad 1) när man scrollar ner, expanderar
-  // mjukt (adress + sök) när man scrollar upp eller är nära toppen.
-  // Drivs via ref + CSS (grid-template-rows 1fr↔0fr) istället för React-state så
-  // att scroll INTE re-renderar hela (tunga) sidan varje gång headern fälls →
-  // mjuk, jank-fri animation.
-  const collapseRef = useRef<HTMLDivElement | null>(null);
-  const collapsedRef = useRef(false);
-  const lastScrollY = useRef(0);
-  // Ignorera scroll-events en kort stund efter en collapse/expand så reflow:en
-  // (innehållet skiftar när headern ändrar höjd) inte triggar en motsatt toggle
-  // → inget "glitch upp/ner".
-  const ignoreScrollUntil = useRef(0);
+  // Sticky-headern är nu TVÅ lager (ingen JS, ingen höjd-animation → kan aldrig
+  // glitcha): en tunn sticky bar (delívera + leverans/hämtning) som alltid
+  // sitter kvar, och adress + sök som vanligt dokumentflöde nedanför som bara
+  // scrollar bort naturligt bakom den sticky baren. Ren CSS position:sticky.
   const [restaurants, setRestaurants] = useState<Restaurant[]>(initialData?.restaurants ?? []);
   const [address, setAddress] = useState("");
   const [query, setQuery] = useState("");
@@ -190,31 +182,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       const saved = sessionStorage.getItem("home_cuisine");
       if (saved) setActiveCuisine(saved);
     } catch { /* noop */ }
-  }, []);
-  // Sticky-header collapse: TRÖSKEL-baserad hysteres (inte riktnings-baserad).
-  // Kollapsa när man scrollat förbi 130px, expandera först när man är tillbaka
-  // över 60px. Den 70px breda hysteres-bandet gör att reflow:en när headern
-  // ändrar höjd aldrig kan flippa tillbaka state → ingen glitch/flip-flop, och
-  // det fungerar oberoende av browser-zoom (200%) eftersom logiken bara läser
-  // window.scrollY (CSS-px) mot fasta trösklar. rAF-throttlad.
-  useEffect(() => {
-    let ticking = false;
-    const update = () => {
-      ticking = false;
-      const y = window.scrollY;
-      const next = collapsedRef.current ? y > 60 : y > 130;
-      if (collapsedRef.current !== next) {
-        collapsedRef.current = next;
-        const el = collapseRef.current;
-        if (el) {
-          el.style.gridTemplateRows = next ? "0fr" : "1fr";
-          el.style.opacity = next ? "0" : "1";
-        }
-      }
-    };
-    const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
   }, []);
   // Favoriter (delad localStorage-backad store — paritet med RN)
   const { favorites, toggle: toggleFavorite } = useFavorites();
@@ -952,75 +919,64 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
 
   return (
     <div className="min-h-screen pb-36 md:pt-28" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
-      {/* ── MOBIL STICKY HEADER ── adressblock (primärkontroll) + kompakt
-          leverans/hämtning-segmentkontroll (rad 1), sökfält (rad 2). Sticky
-          så adressen alltid syns när man scrollar. Döljs på desktop. */}
+      {/* ── MOBIL HEADER — två lager, ren CSS, kan aldrig glitcha ──────────
+          Tier 1 och Tier 2 är DIREKTA barn till den höga sid-diven — annars
+          slutar position:sticky fungera så fort man scrollat förbi en kort
+          wrapper (sticky stickar bara inom sin närmaste blockförälder).
+          Tier 1 (sticky): delívera + leverans/hämtning, pinnad hela sidan.
+          Tier 2 (vanligt flöde): adress + sök, scrollar bort naturligt bakom
+          tier 1 (solid bakgrund). Ingen scroll-JS, ingen höjd-animation →
+          noll glitch, oberoende av zoom. Döljs på desktop. */}
       <div
         className="md:hidden sticky top-0 z-50"
         style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
-        <div className="px-4 pt-2 pb-2.5">
-          {/* Rad 0: delívera-wordmark (varumärkesnärvaro på mobil — desktop har
-              Navbar). Språkväljaren bor numera i Profil → Inställningar. */}
-          {/* Rad 0: delívera-wordmark + leverans/hämtning — ALLTID synlig
-              (den kompakta baren som blir kvar vid scroll). */}
-          <div className="flex items-center justify-between">
-            <span className="text-[18px] font-extrabold tracking-tight lowercase leading-none" style={{ color: "var(--text-primary)" }}>
-              del<span style={{ color: "var(--gold-ink)" }}>ívera</span>
-            </span>
-            <div className="shrink-0 p-0.5 rounded-full flex items-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-              <button
-                onClick={() => toggleOrderType("DELIVERY")}
-                className="px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors"
-                style={{ backgroundColor: orderType === "DELIVERY" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "DELIVERY" ? "#141416" : "var(--text-secondary)" }}
-              >
-                {t("cart.deliveryType.delivery")}
-              </button>
-              <button
-                onClick={() => toggleOrderType("PICKUP")}
-                className="px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors"
-                style={{ backgroundColor: orderType === "PICKUP" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "PICKUP" ? "#141416" : "var(--text-secondary)" }}
-              >
-                {t("cart.deliveryType.pickup")}
-              </button>
-            </div>
-          </div>
-
-          {/* Adress + sök — fälls ihop (höjd + opacity → 0) när man scrollar
-              förbi tröskeln, så bara den kompakta baren ovan blir kvar.
-              Tröskel-baserad hysteres i scroll-handlern → ingen flip-flop. */}
-          <div
-            ref={collapseRef}
-            className="grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out"
-            style={{ gridTemplateRows: "1fr", opacity: 1, willChange: "grid-template-rows" }}
-          >
-            <div className="min-h-0 overflow-hidden">
-              {/* Adressblock i full bredd (primärkontroll) */}
-              <div className="flex items-center pt-1.5">
-                <div className="flex-1 min-w-0">
-                  <AddressPullDown
-                    currentAddress={address}
-                    zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
-                    onOpenFull={() => setShowAddressModal(true)}
-                    orderType={orderType}
-                    cityName={detectedCityName}
-                    onSelect={handleQuickAddressSelect}
-                  />
-                </div>
-              </div>
-              {/* Sökfält */}
-              <Link
-                href="/search"
-                aria-label={t("home.searchCta")}
-                className="mt-2 flex h-12 items-center gap-2.5 rounded-xl px-4 transition-colors active:opacity-80"
-                style={{ backgroundColor: "var(--bg-deep)" }}
-              >
-                <Search size={16} strokeWidth={2} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-                <span className="text-[14px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>{t("home.searchCta")}</span>
-              </Link>
-            </div>
+        <div className="px-4 py-2.5 flex items-center justify-between">
+          <span className="text-[18px] font-extrabold tracking-tight lowercase leading-none" style={{ color: "var(--text-primary)" }}>
+            del<span style={{ color: "var(--gold-ink)" }}>ívera</span>
+          </span>
+          <div className="shrink-0 p-0.5 rounded-full flex items-center" style={{ backgroundColor: "var(--bg-deep)" }}>
+            <button
+              onClick={() => toggleOrderType("DELIVERY")}
+              className="px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors"
+              style={{ backgroundColor: orderType === "DELIVERY" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "DELIVERY" ? "#141416" : "var(--text-secondary)" }}
+            >
+              {t("cart.deliveryType.delivery")}
+            </button>
+            <button
+              onClick={() => toggleOrderType("PICKUP")}
+              className="px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors"
+              style={{ backgroundColor: orderType === "PICKUP" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "PICKUP" ? "#141416" : "var(--text-secondary)" }}
+            >
+              {t("cart.deliveryType.pickup")}
+            </button>
           </div>
         </div>
+      </div>
+
+      {/* Tier 2 — adress + sök (vanligt flöde, scrollar bort bakom tier 1) */}
+      <div className="md:hidden px-4 pt-2.5 pb-3" style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)" }}>
+        <div className="flex items-center">
+          <div className="flex-1 min-w-0">
+            <AddressPullDown
+              currentAddress={address}
+              zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
+              onOpenFull={() => setShowAddressModal(true)}
+              orderType={orderType}
+              cityName={detectedCityName}
+              onSelect={handleQuickAddressSelect}
+            />
+          </div>
+        </div>
+        <Link
+          href="/search"
+          aria-label={t("home.searchCta")}
+          className="mt-2.5 flex h-12 items-center gap-2.5 rounded-xl px-4 transition-colors active:opacity-80"
+          style={{ backgroundColor: "var(--bg-deep)" }}
+        >
+          <Search size={16} strokeWidth={2} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+          <span className="text-[14px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>{t("home.searchCta")}</span>
+        </Link>
       </div>
       <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 pt-3 md:pt-0">
         {/* DESKTOP SUBHEADER — adressblock till vänster, sök i mitten,
@@ -1518,5 +1474,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     </div>
   );
 }
+
+
 
 
