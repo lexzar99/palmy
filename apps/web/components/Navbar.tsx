@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { ShoppingBag, Mail } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
-import LocaleSwitcher from "@/components/LocaleSwitcher";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { PLATFORM_SESSION_CHANGED_EVENT } from "@/lib/platformSessionClient";
@@ -145,8 +144,6 @@ const Navbar = () => {
             >
               <Mail size={18} strokeWidth={1.8} />
             </Link>
-
-            <LocaleSwitcher />
 
             <Link
               href="/cart"

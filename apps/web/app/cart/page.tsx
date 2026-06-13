@@ -32,6 +32,7 @@ import {
   Coins,
   AlertCircle,
   Check,
+  ChevronDown,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
@@ -150,6 +151,51 @@ function CartItemThumb({ imageUrl, quantity, name }: { imageUrl?: string | null;
     <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
       <img src={src} alt={name} loading="lazy" className="w-full h-full object-cover" onError={() => setImgError(true)} />
       <span className="absolute bottom-0 right-0 px-1.5 py-0.5 text-[10px] font-bold italic text-zinc-950 bg-gold-500 rounded-tl-lg leading-none">{quantity}×</span>
+    </div>
+  );
+}
+
+/**
+ * CartCollapsibleRow — kollapsad länkrad (mockup): "Rabattkod ›" / "Dricks ·
+ * 20 kr ›". Visar etikett + (valfri) hint om nuvarande val; expanderar inline
+ * till kontrollerna. Default stängd, men öppnas automatiskt om defaultOpen
+ * (t.ex. när en rabatt redan är aktiv). Behåller all befintlig kontroll-logik
+ * — bara presentationen kollapsas, så sidan blir tätare som i mockupen.
+ */
+function CartCollapsibleRow({
+  label,
+  hint,
+  icon,
+  defaultOpen = false,
+  first = false,
+  children,
+}: {
+  label: string;
+  hint?: string | null;
+  icon?: React.ReactNode;
+  defaultOpen?: boolean;
+  first?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ borderTop: first ? "none" : "1px solid var(--border-muted)" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 py-3.5 text-left"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2.5 min-w-0">
+          {icon}
+          <span className="text-[14.5px] font-semibold" style={{ color: "var(--text-primary)" }}>{label}</span>
+        </span>
+        <span className="flex items-center gap-2 shrink-0">
+          {hint && <span className="text-[13px] font-medium" style={{ color: "var(--gold-ink)" }}>{hint}</span>}
+          <ChevronDown size={16} strokeWidth={2} className="transition-transform" style={{ color: "var(--text-secondary)", transform: open ? "rotate(180deg)" : "none" }} />
+        </span>
+      </button>
+      {open && <div className="pb-3.5">{children}</div>}
     </div>
   );
 }
@@ -1942,6 +1988,96 @@ export default function CartPage() {
     </>
   );
 
+  // Dricks-grid (0/10/20/30 + eget) — extraherad så samma markup kan återanvändas
+  // i både mobil- och desktop-layouten. keyPrefix undviker dubbla React-keys
+  // (båda layouterna finns i DOM, en döljs via CSS).
+  const renderTipGrid = (keyPrefix: string) => (
+    <div className="space-y-3">
+      <p className="text-[12.5px] leading-snug" style={{ color: "var(--text-secondary)" }}>{t("cart.tip.sub")}</p>
+      <div className="grid grid-cols-5 gap-2">
+        {[0, 10, 20, 30].map((amt) => {
+          const isActive = !showCustomTipInput && tipAmount === amt;
+          return (
+            <button
+              key={`${keyPrefix}-tip-${amt}`}
+              type="button"
+              onClick={() => { setShowCustomTipInput(false); setCustomTipText(""); setTipAmount(amt); }}
+              className="py-2.5 rounded-xl text-[13px] font-semibold border transition-all active:scale-95"
+              style={isActive
+                ? { backgroundColor: "var(--color-gold-500, #E7B24B)", borderColor: "var(--color-gold-500, #E7B24B)", color: "#141416" }
+                : { backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
+            >
+              {amt === 0 ? t("cart.tip.none") : `+${amt}`}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => {
+            const next = !showCustomTipInput;
+            setShowCustomTipInput(next);
+            if (next) { setCustomTipText(tipAmount > 0 ? String(tipAmount) : ""); }
+            else { setCustomTipText(""); setTipAmount(0); }
+          }}
+          className="py-2.5 rounded-xl text-[13px] font-semibold border transition-all active:scale-95"
+          style={showCustomTipInput
+            ? { backgroundColor: "var(--color-gold-500, #E7B24B)", borderColor: "var(--color-gold-500, #E7B24B)", color: "#141416" }
+            : { backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
+        >
+          {t("cart.tip.custom")}
+        </button>
+      </div>
+      {showCustomTipInput && (
+        <div className="relative">
+          <input
+            type="number" min={0} step={1} inputMode="numeric"
+            value={customTipText}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^0-9]/g, "");
+              setCustomTipText(raw);
+              const parsed = raw === "" ? 0 : parseInt(raw, 10);
+              setTipAmount(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
+            }}
+            placeholder={t("cart.tip.customPlaceholder")}
+            className="w-full border rounded-xl p-3.5 text-[15px] font-medium placeholder:text-zinc-400 outline-none transition-all"
+            style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--line-strong)", color: "var(--text-primary)" }}
+          />
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] font-medium text-zinc-500">{t("common.kr")}</span>
+        </div>
+      )}
+    </div>
+  );
+
+  // Kollapsade extras-rader (mockup): dricks / rabatter / rabattkod / meddelande
+  // som "Rabattkod ›"-rader i stället för tre alltid-öppna guldsektioner. De
+  // viktiga uppgifterna (namn/adress/telefon/e-post) bor kvar synliga inline.
+  const renderCartExtras = (keyPrefix: string) => {
+    const tipHint = effectiveTip > 0 ? `${effectiveTip} ${t("common.kr")}` : null;
+    const dealsHint = selectedAccountDealId ? t("cart.discount.activeReward") : null;
+    const promoHint = selectedPersonalDeal ? t("cart.discount.promoApplied") : null;
+    const firstKey = orderType === "DELIVERY" ? "tip" : accountDeals.length > 0 ? "deals" : "promo";
+    return (
+      <div className="rounded-xl px-4" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+        {orderType === "DELIVERY" && (
+          <CartCollapsibleRow first={firstKey === "tip"} label={t("cart.tip.label")} hint={tipHint} defaultOpen={effectiveTip > 0}>
+            {renderTipGrid(keyPrefix)}
+          </CartCollapsibleRow>
+        )}
+        {accountDeals.length > 0 && (
+          <CartCollapsibleRow first={firstKey === "deals"} label={t("cart.discount.rewardsTitle")} hint={dealsHint} defaultOpen={!!selectedAccountDealId}>
+            {renderAccountDeals()}
+          </CartCollapsibleRow>
+        )}
+        <CartCollapsibleRow first={firstKey === "promo"} label={t("cart.discount.promoTitle")} hint={promoHint} defaultOpen={!!selectedPersonalDeal}>
+          {renderPromoInput()}
+        </CartCollapsibleRow>
+        <CartCollapsibleRow label={t("cart.fields.noteLabel")}>
+          <div className="space-y-2">{renderNoteField()}</div>
+        </CartCollapsibleRow>
+      </div>
+    );
+  };
+
   const renderMinOrderBanner = (extraClass = "") =>
     subtotal > 0 && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && addressZoneStatus !== "error" && (
       <div
@@ -1988,19 +2124,20 @@ export default function CartPage() {
       <div className="max-w-[1400px] mx-auto">
         <div className="flex items-end justify-between mb-4 lg:mb-8 px-1 sm:px-4">
            <div className="min-w-0">
-              {/* Vilken restaurang man beställer från — visas högst upp. */}
-              {cartRestaurantName && (
-                <Link
-                  href={cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/"}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-2 transition-all hover:border-gold-500/40 active:scale-95"
-                  style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
-                >
-                  <Store size={13} className="text-gold-500 shrink-0" />
-                  <span className="text-[13px] font-semibold truncate max-w-[60vw]" style={{ color: "var(--text-primary)" }}>{cartRestaurantName}</span>
-                </Link>
-              )}
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight mb-1" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")} {t("cart.heading.accent")}</h1>
-              <p className="text-[13.5px]">{t("cart.subtitle")}</p>
+              {/* Titel "Varukorg" + subtitel = restaurang · leverans/avhämtning ~ETA
+                  (enligt mockup). Restaurangnamnet är klickbart tillbaka till menyn. */}
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight mb-1" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")}</h1>
+              <p className="text-[13.5px]" style={{ color: "var(--text-secondary)" }}>
+                {cartRestaurantName ? (
+                  <Link href={cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/"} className="font-semibold hover:underline" style={{ color: "var(--text-primary)" }}>
+                    {cartRestaurantName}
+                  </Link>
+                ) : null}
+                {cartRestaurantName && <span className="mx-1.5" style={{ opacity: 0.5 }}>·</span>}
+                {orderType === "DELIVERY"
+                  ? `${t("cart.deliveryType.delivery")} ~${restaurantSettings.estimatedDeliveryTime} min`
+                  : t("cart.deliveryType.pickup")}
+              </p>
            </div>
            <Link href={cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/menu"} className="text-[13.5px] font-semibold text-gold-600 hover:text-gold-700 transition-colors flex items-center gap-1.5 mb-1 group shrink-0 ml-3">
               {t("cart.addMore")} <Plus size={14} className="group-hover:rotate-90 transition-transform" />
@@ -2076,64 +2213,66 @@ export default function CartPage() {
           {/* Cart items list — kompakta en-rad-kort. Vänster kolumn växer
               med tillgänglig bredd; höger sidebar har fast bredd och blir
               sticky på desktop för att undvika scroll. */}
-          <div className="space-y-2.5 min-w-0">
-            <div className="space-y-2.5">
-              {items.map((item) => (
+          <div className="min-w-0">
+            {/* Flat lista med hårfina separatorer (mockup): stepper VÄNSTER,
+                namn+extras i mitten (klickbart för att ändra), pris höger. */}
+            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)" }}>
+              {items.map((item, idx) => (
                 <motion.div
                   key={item.cartItemId}
                   layout
-                  className="px-3.5 py-3 rounded-xl flex items-center gap-3 transition-all group"
-                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+                  className="px-3.5 py-3.5 flex items-center gap-3 group"
+                  style={{ borderTop: idx === 0 ? "none" : "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}
                 >
+                  {/* Stepper — vänster, en samlad kontroll (− qty +) */}
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-full shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                    <button
+                      onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }}
+                      className="w-6 h-6 rounded-full flex items-center justify-center hover:text-gold-600 active:scale-90 transition-all" style={{ color: "var(--text-secondary)" }}
+                      aria-label="Minska antal"
+                    >
+                      <Minus size={13} strokeWidth={2.5} />
+                    </button>
+                    <span className="text-[13px] font-bold w-3 text-center" style={{ color: "var(--text-primary)" }}>{item.quantity}</span>
+                    <button
+                      onClick={() => {
+                        if (item.paidWithPoints && dpointsBalance != null && item.dpointsUnitCost) {
+                          const committed = items.reduce((s, i) => s + (i.paidWithPoints ? (i.dpointsUnitCost ?? 0) * i.quantity : 0), 0);
+                          if (committed + item.dpointsUnitCost > dpointsBalance) { setShowInsufficientPoints(true); return; }
+                        }
+                        updateQuantity(item.cartItemId, 1);
+                      }}
+                      className="w-6 h-6 rounded-full flex items-center justify-center hover:text-gold-600 active:scale-90 transition-all" style={{ color: "var(--text-secondary)" }}
+                      aria-label="Öka antal"
+                    >
+                      <Plus size={13} strokeWidth={2.5} />
+                    </button>
+                  </div>
+
+                  {/* Namn + extras — klickbart för att redigera */}
                   <button
                     type="button"
                     onClick={() => handleEditCartItem(item)}
-                    className="flex items-center gap-3 text-left flex-1 min-w-0"
+                    className="text-left flex-1 min-w-0"
                     aria-label={`${t("cart.tapToEdit")}: ${item.name}`}
                   >
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-[14.5px] font-semibold leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>{item.name}</h3>
-                      {item.extras.length > 0 && (
-                        <p className="text-[11px] font-medium truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                          {item.extras.map(e => e.name).join(" · ")}
-                        </p>
-                      )}
-                    </div>
+                    <h3 className="text-[14.5px] font-semibold leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>{item.name}</h3>
+                    {item.extras.length > 0 && (
+                      <p className="text-[12px] truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                        {item.extras.map(e => e.name).join(" · ")}
+                      </p>
+                    )}
                   </button>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-full" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                      <button
-                        onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }}
-                        className="w-6 h-6 rounded-full flex items-center justify-center hover:text-gold-600 active:scale-90 transition-all" style={{ color: "var(--text-secondary)" }}
-                        aria-label="Minska antal"
-                      >
-                        <Minus size={13} strokeWidth={2.5} />
-                      </button>
-                      <span className="text-xs font-bold w-3 text-center" style={{ color: "var(--text-primary)" }}>{item.quantity}</span>
-                      <button
-                        onClick={() => {
-                          if (item.paidWithPoints && dpointsBalance != null && item.dpointsUnitCost) {
-                            const committed = items.reduce((s, i) => s + (i.paidWithPoints ? (i.dpointsUnitCost ?? 0) * i.quantity : 0), 0);
-                            if (committed + item.dpointsUnitCost > dpointsBalance) { setShowInsufficientPoints(true); return; }
-                          }
-                          updateQuantity(item.cartItemId, 1);
-                        }}
-                        className="w-6 h-6 rounded-full flex items-center justify-center hover:text-gold-600 active:scale-90 transition-all" style={{ color: "var(--text-secondary)" }}
-                        aria-label="Öka antal"
-                      >
-                        <Plus size={13} strokeWidth={2.5} />
-                      </button>
-                    </div>
-                    <div className="text-right min-w-[3.5rem]">
-                      {item.paidWithPoints ? (
-                        <div className="inline-flex items-center gap-1 rounded-full bg-gold-500/15 px-2 py-1 text-[11.5px] font-semibold text-gold-700">Med poäng</div>
-                      ) : item.bogoFreeFromDealId ? (
-                        <div className="inline-flex items-center gap-1 rounded-full bg-gold-500/15 px-2.5 py-1 text-[11.5px] font-semibold text-gold-700">{t("cart.bogo.freeTag")}</div>
-                      ) : (
-                        <div className="text-sm font-bold leading-none" style={{ color: "var(--text-primary)", fontFeatureSettings: "'tnum'" }}>{(item.price * item.quantity).toFixed(0)} kr</div>
-                      )}
-                    </div>
+                  {/* Pris — höger */}
+                  <div className="text-right shrink-0">
+                    {item.paidWithPoints ? (
+                      <div className="inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>Med poäng</div>
+                    ) : item.bogoFreeFromDealId ? (
+                      <div className="inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>{t("cart.bogo.freeTag")}</div>
+                    ) : (
+                      <div className="text-[14.5px] font-semibold leading-none" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{(item.price * item.quantity).toFixed(0)} kr</div>
+                    )}
                   </div>
                 </motion.div>
               ))}
@@ -2152,91 +2291,11 @@ export default function CartPage() {
 
             {/* Desktop left column: delivery details + pricing */}
             <div className="hidden lg:block mt-6 space-y-6" id="desktop-left-extras">
-              <div className="p-5 rounded-2xl space-y-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+              <div className="p-5 rounded-2xl space-y-5" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
 
-                {/* Tips */}
-                {orderType === 'DELIVERY' && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 ml-3">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-gold-500"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                      <label className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{t("cart.tip.label")}</label>
-                    </div>
-                    <p className="text-[10px] font-bold leading-snug ml-3" style={{ color: "var(--text-secondary)" }}>
-                      {t("cart.tip.sub")}
-                    </p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {[0, 10, 20, 30].map((amt) => {
-                        const isActive = !showCustomTipInput && tipAmount === amt;
-                        return (
-                          <button
-                            key={`dl-tip-${amt}`}
-                            type="button"
-                            onClick={() => { setShowCustomTipInput(false); setCustomTipText(""); setTipAmount(amt); }}
-                            className={`py-3 rounded-xl text-[13px] font-medium border transition-all active:scale-95 ${
-                              isActive
-                                ? "bg-gold-500 border-gold-500 text-zinc-950"
-                                : "border-[var(--border-muted)] text-zinc-500 hover:text-gold-500 hover:border-gold-500/30"
-                            }`}
-                            style={{ backgroundColor: isActive ? undefined : "var(--bg-deep)" }}
-                          >
-                            {amt === 0 ? t("cart.tip.none") : `+${amt} ${t("common.kr")}`}
-                          </button>
-                        );
-                      })}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = !showCustomTipInput;
-                          setShowCustomTipInput(next);
-                          if (next) {
-                            setCustomTipText(tipAmount > 0 ? String(tipAmount) : "");
-                          } else {
-                            setCustomTipText("");
-                            setTipAmount(0);
-                          }
-                        }}
-                        className={`py-3 rounded-xl text-[13px] font-medium border transition-all active:scale-95 ${
-                          showCustomTipInput
-                            ? "bg-gold-500 border-gold-500 text-zinc-950"
-                            : "border-[var(--border-muted)] text-zinc-500 hover:text-gold-500 hover:border-gold-500/30"
-                        }`}
-                        style={{ backgroundColor: showCustomTipInput ? undefined : "var(--bg-deep)" }}
-                      >
-                        {t("cart.tip.custom")}
-                      </button>
-                    </div>
-                    {showCustomTipInput && (
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          inputMode="numeric"
-                          value={customTipText}
-                          onChange={(e) => {
-                            const raw = e.target.value.replace(/[^0-9]/g, "");
-                            setCustomTipText(raw);
-                            const parsed = raw === "" ? 0 : parseInt(raw, 10);
-                            setTipAmount(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
-                          }}
-                          placeholder={t("cart.tip.customPlaceholder")}
-                          className="w-full border rounded-2xl p-4 text-sm font-bold placeholder:text-zinc-400 outline-none transition-all focus:border-gold-500/40"
-                          style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
-                        />
-                        <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[13px] font-medium text-zinc-500">{t("common.kr")}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Auto-deal-toggeln borttagen — välkomst/första-beställning-rabatten
-                    appliceras automatiskt och syns i totalsammanställningen nedan. */}
-
-                {/* Account deals + rabattkod + anteckning + min-order — delade
-                    render-block (samma JSX som mobil-flödet, definierade ovan). */}
-                {renderAccountDeals()}
-                {renderPromoInput()}
-                <div className="space-y-2">{renderNoteField()}</div>
+                {/* Kollapsade extras-rader (dricks/rabatter/rabattkod/meddelande)
+                    enligt mockup — samma delade render-block som mobil-flödet. */}
+                {renderCartExtras("dl")}
                 {renderMinOrderBanner()}
 
                 {/* Totals */}
@@ -2257,7 +2316,7 @@ export default function CartPage() {
                   {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-semibold text-gold-500"><span>{t("cart.summary.tip")}</span><span>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
                   {minOrderTopUp > 0 && <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span className="text-gold-500">+{minOrderTopUp.toFixed(0)} {t("common.sek")}</span></div>}
                   {finalDiscount > 0 && (
-                    <div className="flex justify-between text-[13px] font-semibold text-emerald-500 italic">
+                    <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                       <span>{t("cart.summary.discount")}</span>
                       <span>-{finalDiscount.toFixed(0)} {t("common.sek")}</span>
                     </div>
@@ -2324,7 +2383,7 @@ export default function CartPage() {
                     || (!isTestFlow && addressZoneStatus === "error")
                     || (!isTestFlow && addressZoneStatus === "checking")
                   }
-                  className="w-full h-[52px] bg-gold-500 rounded-xl text-[15.5px] font-semibold active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3 group" style={{ color: "#141416" }}
+                  className="w-full h-[52px] px-5 bg-gold-500 rounded-xl text-[15.5px] font-semibold active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3 group" style={{ color: "#141416" }}
                 >
                   {loading
                     ? <Loader2 className="animate-spin" size={24} />
@@ -2336,7 +2395,10 @@ export default function CartPage() {
                           ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
                           : addressZoneStatus === "error"
                             ? t("cart.submit.zoneError")
-                            : <>{t("cart.submit")} <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                            : <span className="w-full flex items-center justify-between gap-3">
+                                <span className="flex items-center gap-2">{t("cart.submit")} <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" /></span>
+                                <span style={{ fontVariantNumeric: "tabular-nums" }}>{total.toFixed(0)} {t("common.sek")}</span>
+                              </span>}
                 </button>
               </div>
             </div>
@@ -2507,115 +2569,9 @@ export default function CartPage() {
                           </div>
                         )}
 
-                        <div className="space-y-2 lg:hidden">{renderNoteField()}</div>
-
                         {/* ── Mobile only: extras (desktop shows these in left column) ── */}
                         <div className="lg:hidden space-y-8">
-                        {/*
-                         * Dricks till leveranspersonen (paritet med RN CartScreen, raderna 1638-1675).
-                         * Default = 0 kr så befintligt flöde är opåverkat.
-                         * Belopp läggs både i `tip`-fältet och bakas in i `note`/`deliveryInstructions`
-                         * som "(Dricks gett: X kr i appen)" — samma mönster som RN.
-                         * Visas endast vid DELIVERY; vid PICKUP är dricks dolt.
-                         */}
-                        {orderType === 'DELIVERY' && (
-                           <div className="space-y-3">
-                              <div className="flex items-center gap-3 ml-3">
-                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-gold-500"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                                 <label className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{t("cart.tip.label")}</label>
-                              </div>
-                              <p className="text-[10px] font-bold leading-snug ml-3" style={{ color: "var(--text-secondary)" }}>
-                                 {t("cart.tip.sub")}
-                              </p>
-                              <div className="grid grid-cols-5 gap-2">
-                                 {[0, 10, 20, 30].map((amt) => {
-                                    const isActive = !showCustomTipInput && tipAmount === amt;
-                                    return (
-                                       <button
-                                          key={amt}
-                                          type="button"
-                                          onClick={() => { setShowCustomTipInput(false); setCustomTipText(""); setTipAmount(amt); }}
-                                          className={`py-3 rounded-xl text-[13px] font-medium border transition-all active:scale-95 ${
-                                             isActive
-                                                ? "bg-gold-500 border-gold-500 text-zinc-950"
-                                                : "border-[var(--border-muted)] text-zinc-500 hover:text-gold-500 hover:border-gold-500/30"
-                                          }`}
-                                          style={{ backgroundColor: isActive ? undefined : "var(--bg-deep)" }}
-                                       >
-                                          {amt === 0 ? t("cart.tip.none") : `+${amt} ${t("common.kr")}`}
-                                       </button>
-                                    );
-                                 })}
-                                 <button
-                                    type="button"
-                                    onClick={() => {
-                                       const next = !showCustomTipInput;
-                                       setShowCustomTipInput(next);
-                                       if (next) {
-                                          setCustomTipText(tipAmount > 0 ? String(tipAmount) : "");
-                                       } else {
-                                          setCustomTipText("");
-                                          setTipAmount(0);
-                                       }
-                                    }}
-                                    className={`py-3 rounded-xl text-[13px] font-medium border transition-all active:scale-95 ${
-                                       showCustomTipInput
-                                          ? "bg-gold-500 border-gold-500 text-zinc-950"
-                                          : "border-[var(--border-muted)] text-zinc-500 hover:text-gold-500 hover:border-gold-500/30"
-                                    }`}
-                                    style={{ backgroundColor: showCustomTipInput ? undefined : "var(--bg-deep)" }}
-                                 >
-                                    {t("cart.tip.custom")}
-                                 </button>
-                              </div>
-                              {showCustomTipInput && (
-                                 <div className="relative">
-                                    <input
-                                       type="number"
-                                       min={0}
-                                       step={1}
-                                       inputMode="numeric"
-                                       value={customTipText}
-                                       onChange={(e) => {
-                                          const raw = e.target.value.replace(/[^0-9]/g, "");
-                                          setCustomTipText(raw);
-                                          const parsed = raw === "" ? 0 : parseInt(raw, 10);
-                                          setTipAmount(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
-                                       }}
-                                       placeholder={t("cart.tip.customPlaceholder")}
-                                       className="w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all focus:border-gold-500/40"
-                                       style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
-                                    />
-                                    <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[13px] font-medium text-zinc-500">{t("common.kr")}</span>
-                                 </div>
-                              )}
-                           </div>
-                        )}
-
-                        {/* Auto-applicerad rabatt (t.ex. "25% första beställning")
-                            — visas som synlig, aktiv knapp som kund kan stänga av.
-                            Klick frigör rabatt-platsen så kunden kan använda
-                            egen kupong istället. Skriva i kupong-fältet stänger
-                            den automatiskt också (skipAutomaticDeal-flagga går
-                            till backend).
-                            Två möjliga källor:
-                              - automaticDeal (client-eval av publika deals)
-                              - bogoPreview (server-eval via /evaluate-cart) — när
-                                bogo är PURE DISCOUNT (rewardProducts tom) räknas
-                                det som "vanlig" auto-deal och är dismissable. */}
-                        {/* Auto-deal-toggeln borttagen — rabatten appliceras automatiskt. */}
-
-                        {/* Account-deals (WELCOME / REFERRAL_*) — tydlig
-                            klickbar knapp per deal istället för checkbox.
-                            Mutex med rabattkod: knappen är disabled när en
-                            kupong-kod är aktiv (och vice versa) så kunden
-                            kan välja den BÄSTA av sina belöningar +
-                            kupongkoder, inte stacka dem. Auto-rensar motsatt
-                            sida vid val. */}
-                        {/* Account-deals + rabattkod — delade render-block (samma
-                            JSX som desktop-vänsterkolumnen, definierade ovan). */}
-                        {renderAccountDeals()}
-                        {renderPromoInput()}
+                        {renderCartExtras("mb")}
 
                      {/* BOGO: påminn om gratisprodukt(er) om fler kan väljas.
                          För scaled-BOGO (maxFreeItems > 1): visar antal kvar.
@@ -2783,7 +2739,7 @@ export default function CartPage() {
                           if (selectedPersonalDeal) {
                             if (personalDiscount <= 0) return null;
                             return (
-                              <div className="flex justify-between text-[13px] font-semibold text-emerald-500 italic">
+                              <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                                 <span>{t("cart.summary.coupon", { code: selectedPersonalDeal.code })}</span>
                                 <span>-{personalDiscount.toFixed(0)} {t("common.sek")}</span>
                               </div>
@@ -2792,7 +2748,7 @@ export default function CartPage() {
                           if (selectedAccountDealId) {
                             if (accountDealDiscount <= 0) return null;
                             return (
-                              <div className="flex justify-between text-[13px] font-semibold text-emerald-500 italic">
+                              <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                                 <span>{selectedAccountDeal ? dealTypeLabel(selectedAccountDeal.type, t) : t("cart.summary.reward")}</span>
                                 <span>-{accountDealDiscount.toFixed(0)} {t("common.sek")}</span>
                               </div>
@@ -2808,7 +2764,7 @@ export default function CartPage() {
                             welcomeDiscount >= bogoDiscount
                           ) {
                             return (
-                              <div className="flex justify-between text-[13px] font-semibold text-emerald-500 italic">
+                              <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                                 <span>{welcomeOffer?.title}</span>
                                 <span>-{welcomeDiscount.toFixed(0)} {t("common.sek")}</span>
                               </div>
@@ -2821,7 +2777,7 @@ export default function CartPage() {
                           // (rabatt faktiskt avdragen) visas däremot.
                           if (!automaticDealDismissed && bogoPreview && !bogoPreview.isPickReward && bogoDiscount > 0) {
                             return (
-                              <div className="flex justify-between text-[13px] font-semibold text-emerald-500 italic">
+                              <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                                 <span>{bogoIsPureDiscount ? "" : "🎁 "}{bogoChoice && !bogoIsPureDiscount ? bogoChoice.product.name : bogoPreview.dealTitle}</span>
                                 <span>-{bogoDiscount.toFixed(0)} {t("common.sek")}</span>
                               </div>
@@ -2829,7 +2785,7 @@ export default function CartPage() {
                           }
                           if (!automaticDealDismissed && automaticDeal.deal && automaticDeal.discountAmount > 0) {
                             return (
-                              <div className="flex justify-between text-[13px] font-semibold text-emerald-500 italic">
+                              <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                                 <span>{automaticDeal.deal.title}</span>
                                 <span>-{automaticDeal.discountAmount.toFixed(0)} {t("common.sek")}</span>
                               </div>
@@ -2844,8 +2800,8 @@ export default function CartPage() {
                           </div>
                         ) : null}
                         <div className="flex justify-between items-center mt-6">
-                           <span className="text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
-                           <span className="text-3xl sm:text-5xl font-bold italic tracking-tighter leading-[1.15] text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span></span>
+                           <span className="text-[16px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
+                           <span className="text-[22px] font-bold tracking-tight leading-none" style={{ color: "var(--gold-ink)", fontVariantNumeric: "tabular-nums" }}>{total.toFixed(0)} <span className="text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span></span>
                         </div>
                      </div>
 
@@ -2895,7 +2851,7 @@ export default function CartPage() {
                             || (!isTestFlow && addressZoneStatus === "error")
                             || (!isTestFlow && addressZoneStatus === "checking")
                           }
-                          className="w-full h-[52px] bg-gold-500 rounded-xl text-[15.5px] font-semibold active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3 group" style={{ color: "#141416" }}
+                          className="w-full h-[52px] px-5 bg-gold-500 rounded-xl text-[15.5px] font-semibold active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3 group" style={{ color: "#141416" }}
                        >
                           {loading
                             ? <Loader2 className="animate-spin" size={24} />
@@ -2907,7 +2863,10 @@ export default function CartPage() {
                                   ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
                                   : addressZoneStatus === "error"
                                     ? t("cart.submit.zoneError")
-                                    : <>{t("cart.submit")} <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                                    : <span className="w-full flex items-center justify-between gap-3">
+                                <span className="flex items-center gap-2">{t("cart.submit")} <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" /></span>
+                                <span style={{ fontVariantNumeric: "tabular-nums" }}>{total.toFixed(0)} {t("common.sek")}</span>
+                              </span>}
                        </button>
                        </div>
                      </div>
@@ -2987,3 +2946,5 @@ export default function CartPage() {
     </div>
   );
 }
+
+

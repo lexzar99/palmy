@@ -7,7 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
   Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2, Sparkles, Ticket, Tag,
-  Star, RotateCcw, Home, Briefcase, Plus, Trash2, Scale, Gift
+  Star, RotateCcw, Home, Briefcase, Plus, Trash2, Scale, Gift, Languages
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -142,67 +142,44 @@ function CountryPicker({
  * Persisterar i `matgo_locale`. Faktisk i18n-byte över UI:t är inte aktiverad
  * i webben ännu, så just nu bara sparar vi valet inför framtida i18n-runtime.
  */
+// Endast de språk som faktiskt är implementerade i web-i18n:n (sv/en).
 const SUPPORTED_LOCALES = [
   { code: "sv", label: "Svenska", flag: "🇸🇪" },
   { code: "en", label: "English", flag: "🇬🇧" },
-  { code: "ar", label: "العربية", flag: "🇸🇦" },
 ] as const;
 
 function LanguagePickerRow() {
-  const { t } = useTranslation();
-  const [locale, setLocale] = useState<string>("sv");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const stored = localStorage.getItem("matgo_locale");
-      if (stored && SUPPORTED_LOCALES.some((l) => l.code === stored)) {
-        setLocale(stored);
-      }
-    } catch {
-      /* noop */
-    }
-  }, []);
-
-  const handleChange = (next: string) => {
-    setLocale(next);
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("matgo_locale", next);
-      } catch {
-        /* noop */
-      }
-    }
-  };
-
+  // Riktig i18n: locale + setLocale från LocaleProvider (byter UI direkt och
+  // persisterar). Visar bara de språk som faktiskt är implementerade (sv/en).
+  const { t, locale, setLocale } = useTranslation();
   const active = SUPPORTED_LOCALES.find((l) => l.code === locale) ?? SUPPORTED_LOCALES[0];
 
   return (
     <div className="p-6 flex items-center justify-between group">
       <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-lg">
-          {active.flag}
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
+          <Languages size={18} strokeWidth={1.8} />
         </div>
         <div>
-          <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.language")}</p>
-          <p className="text-[10px] text-zinc-500 font-medium">{t("profile.settings.languageSub")}</p>
+          <p className="font-semibold text-[14px]" style={{ color: "var(--text-primary)" }}>{t("profile.settings.language")}</p>
+          <p className="text-[12px]" style={{ color: "var(--text-secondary)" }}>{active.flag} {active.label}</p>
         </div>
       </div>
       <div className="relative">
         <select
           value={locale}
-          onChange={(e) => handleChange(e.target.value)}
-          className="appearance-none text-[11px] font-bold rounded-xl px-4 py-3 pr-8 cursor-pointer outline-none focus:border-gold-500/40 transition-all"
-          style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)", border: "1px solid var(--border-muted)" }}
+          onChange={(e) => setLocale(e.target.value as typeof locale)}
+          className="appearance-none text-[13px] font-semibold rounded-xl px-4 py-2.5 pr-8 cursor-pointer outline-none transition-all"
+          style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)", border: "1px solid var(--line-strong)" }}
           aria-label={t("profile.settings.languageAria")}
         >
           {SUPPORTED_LOCALES.map((l) => (
-            <option key={l.code} value={l.code} className="bg-zinc-900">
+            <option key={l.code} value={l.code}>
               {l.flag} {l.label}
             </option>
           ))}
         </select>
-        <ChevronRight size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-zinc-400" />
+        <ChevronRight size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rotate-90" style={{ color: "var(--text-secondary)" }} />
       </div>
     </div>
   );

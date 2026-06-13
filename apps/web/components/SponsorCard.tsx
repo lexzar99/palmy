@@ -1,7 +1,5 @@
 "use client";
 
-import SmartImage from "@/components/SmartImage";
-
 import { useRouter } from "next/navigation";
 import { ExternalLink, ChevronRight, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
@@ -51,88 +49,62 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
 
   return (
     <motion.div
-      whileHover={isInteractive ? { y: -3 } : undefined}
-      whileTap={isInteractive ? { scale: 0.98 } : undefined}
+      whileTap={isInteractive ? { scale: 0.99 } : undefined}
       transition={{ type: "spring", stiffness: 320, damping: 22 }}
       onClick={handleClick}
-      // Stora banner-kort (matchar referensbilden) — nästan full bredd på
-      // mobil med en liten peek av nästa kort, fast bredd på sm+.
-      className={`relative shrink-0 rounded-3xl overflow-hidden group w-[86vw] max-w-[460px] h-[200px] sm:w-[460px] sm:h-[230px] ${
+      // Full-bredds bannerkort: bilden visas i sitt NATURLIGA bildförhållande
+      // (height: auto) i stället för att croppas i en fast box — så in-bakad
+      // text på sponsorns bild aldrig klipps/zoomas bort på mobil. Bredden är
+      // ~full på mobil (liten peek av nästa), fast på sm+.
+      className={`relative shrink-0 rounded-2xl overflow-hidden group w-[88vw] max-w-[460px] sm:w-[460px] ${
         isInteractive ? "cursor-pointer" : "cursor-default"
       }`}
       style={{
-        backgroundColor: "#171513",
-        boxShadow:
-          "0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 20px -8px rgba(0,0,0,0.4), 0 3px 8px -3px rgba(234,181,69,0.15)",
+        backgroundColor: "var(--bg-deep)",
+        border: "1px solid var(--border-muted)",
       }}
     >
-      {/* Tunn gradient-ram med gold-tint upptill */}
-      <div
-        className="pointer-events-none absolute inset-0 rounded-3xl"
-        style={{
-          padding: 1,
-          background:
-            "linear-gradient(160deg, rgba(234,181,69,0.55), rgba(255,248,234,0.06) 40%, rgba(255,248,234,0.02))",
-          WebkitMask:
-            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          WebkitMaskComposite: "xor",
-          maskComposite: "exclude",
-        }}
-      />
-
-      <SmartImage
+      {/* Originalbild i full bredd, dynamisk höjd (ingen crop). Plain <img>
+          för att höjden ska följa bildens egna proportioner per enhet. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         src={sponsor.imageUrl}
         alt={sponsor.name}
-        sizes="(max-width: 768px) 86vw, 460px"
-        className="w-full h-full object-cover"
+        loading="lazy"
+        decoding="async"
+        className="block w-full h-auto"
       />
 
-      {/* Bottom gradient + content */}
+      {/* Namn-overlay (valfri, admin-styrd). Visas bara om sponsorn INTE redan
+          har in-bakad text → annars dubblerar den. Diskret guld-partner-chip
+          + namn nederst, ingen versal/italic. */}
       {showName && (
         <div
-          className="absolute inset-0 flex flex-col justify-end p-5 sm:p-6"
+          className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4 sm:p-5"
           style={{
             background:
-              "linear-gradient(to top, rgba(15,15,15,0.92) 0%, rgba(15,15,15,0.55) 38%, rgba(15,15,15,0) 70%)",
+              "linear-gradient(to top, rgba(15,15,15,0.88) 0%, rgba(15,15,15,0.45) 42%, rgba(15,15,15,0) 72%)",
           }}
         >
-          <div className="flex items-end justify-between gap-2">
-            <div className="min-w-0">
-              <div
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border mb-1.5 backdrop-blur-sm"
-                style={{
-                  backgroundColor: "rgba(234,181,69,0.20)",
-                  borderColor: "rgba(234,181,69,0.32)",
-                }}
-              >
-                <span className="w-1 h-1 rounded-full bg-gold-400 animate-pulse" />
-                <span className="text-[7px] font-black uppercase tracking-[0.22em] text-gold-300">
-                  Partner
-                </span>
-              </div>
-              <h3
-                className="text-xl sm:text-2xl font-black uppercase tracking-tight leading-[1.1] italic truncate"
-                style={{
-                  color: "white",
-                  textShadow: "0 2px 8px rgba(0,0,0,0.45)",
-                }}
-              >
-                {sponsor.name}
-              </h3>
+          <div className="min-w-0">
+            <div
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md mb-1.5"
+              style={{ backgroundColor: "rgba(234,181,69,0.22)" }}
+            >
+              <span className="text-[10px] font-semibold tracking-wide text-gold-300">Partner</span>
             </div>
-            {isInteractive && (
-              <div
-                className="w-9 h-9 rounded-full bg-gold-500 text-zinc-950 flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:rotate-[-8deg]"
-                style={{ boxShadow: "0 6px 14px -4px rgba(234,181,69,0.55)" }}
-              >
-                {sponsor.linkType === "EXTERNAL" ? (
-                  <ExternalLink size={13} />
-                ) : (
-                  <ArrowRight size={15} />
-                )}
-              </div>
-            )}
+            <h3
+              className="text-[18px] sm:text-[20px] font-bold tracking-tight leading-tight truncate"
+              style={{ color: "white", textShadow: "0 2px 8px rgba(0,0,0,0.4)" }}
+            >
+              {sponsor.name}
+            </h3>
           </div>
+          {isInteractive && (
+            <div className="w-9 h-9 rounded-full bg-gold-500 flex items-center justify-center shrink-0" style={{ color: "#141416" }}>
+              {sponsor.linkType === "EXTERNAL" ? <ExternalLink size={14} /> : <ArrowRight size={16} />}
+            </div>
+          )}
         </div>
       )}
     </motion.div>

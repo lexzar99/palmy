@@ -25,7 +25,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
 import AddressPullDown from "@/components/AddressPullDown";
-import LocaleSwitcher from "@/components/LocaleSwitcher";
 import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DpointsHomeCard from "@/components/DpointsHomeCard";
@@ -962,9 +961,33 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <div className="px-4 pt-2 pb-2.5">
-          {/* Rad 1: adressblock till vänster, segmentkontroll + ghost-ikoner
-              till höger. */}
-          <div className="flex items-center gap-2">
+          {/* Rad 0: delívera-wordmark (varumärkesnärvaro på mobil — desktop har
+              Navbar). Språkväljaren bor numera i Profil → Inställningar. */}
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[18px] font-extrabold tracking-tight lowercase leading-none" style={{ color: "var(--text-primary)" }}>
+              del<span style={{ color: "var(--gold-ink)" }}>ívera</span>
+            </span>
+            {/* Leverans/Hämtning — kompakt segmentkontroll, flyttad hit så
+                adressraden nedanför får full bredd (mer synlig adress). */}
+            <div className="shrink-0 p-0.5 rounded-full flex items-center" style={{ backgroundColor: "var(--bg-deep)" }}>
+              <button
+                onClick={() => toggleOrderType("DELIVERY")}
+                className="px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors"
+                style={{ backgroundColor: orderType === "DELIVERY" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "DELIVERY" ? "#141416" : "var(--text-secondary)" }}
+              >
+                {t("cart.deliveryType.delivery")}
+              </button>
+              <button
+                onClick={() => toggleOrderType("PICKUP")}
+                className="px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors"
+                style={{ backgroundColor: orderType === "PICKUP" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "PICKUP" ? "#141416" : "var(--text-secondary)" }}
+              >
+                {t("cart.deliveryType.pickup")}
+              </button>
+            </div>
+          </div>
+          {/* Rad 1: adressblock i full bredd (primärkontroll, nu mer synlig). */}
+          <div className="flex items-center">
             <div className="flex-1 min-w-0">
               <AddressPullDown
                 currentAddress={address}
@@ -974,26 +997,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                 cityName={detectedCityName}
                 onSelect={handleQuickAddressSelect}
               />
-            </div>
-            {/* Leverans/Hämtning — kompakt segmentkontroll */}
-            <div className="shrink-0 p-0.5 rounded-full flex items-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-              <button
-                onClick={() => toggleOrderType("DELIVERY")}
-                className="px-2.5 py-1.5 rounded-full text-[12px] font-semibold transition-colors"
-                style={{ backgroundColor: orderType === "DELIVERY" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "DELIVERY" ? "#141416" : "var(--text-secondary)" }}
-              >
-                {t("cart.deliveryType.delivery")}
-              </button>
-              <button
-                onClick={() => toggleOrderType("PICKUP")}
-                className="px-2.5 py-1.5 rounded-full text-[12px] font-semibold transition-colors"
-                style={{ backgroundColor: orderType === "PICKUP" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "PICKUP" ? "#141416" : "var(--text-secondary)" }}
-              >
-                {t("cart.deliveryType.pickup")}
-              </button>
-            </div>
-            <div className="flex items-center shrink-0">
-              <LocaleSwitcher buttonClassName="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95" iconSize={15} />
             </div>
           </div>
 
@@ -1079,7 +1082,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             <div
               ref={promoRailRef}
               onScroll={handlePromoScroll}
-              className="flex gap-3 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0"
+              className="flex items-start gap-3 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0"
               style={{ scrollSnapType: "x mandatory" }}
             >
               {promoCards.map((item) => (
@@ -1515,3 +1518,4 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     </div>
   );
 }
+
