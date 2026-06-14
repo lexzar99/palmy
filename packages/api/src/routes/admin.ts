@@ -1762,6 +1762,74 @@ router.delete('/brands/:id', requireSuperAdmin, async (req, res) => {
   }
 });
 
+// ── Support-anteckningar (delade) ───────────────────────────────────────────
+// Polymorf: en anteckning hänger på restaurang, order ELLER kund (telefon).
+// Super-admin-only i v1 (support är en plattformsroll; kund-anteckningar spänner
+// över restauranger så merchant-synlighet skulle läcka). Append + radera.
+
+// GET /api/admin/notes?restaurantId= | ?orderId= | ?customerPhone=
+router.get('/notes', requireSuperAdmin, async (req, res) => {
+  try {
+    const restaurantId = typeof req.query.restaurantId === 'string' ? req.query.restaurantId : undefined;
+    const orderId = typeof req.query.orderId === 'string' ? req.query.orderId : undefined;
+    const customerPhone = typeof req.query.customerPhone === 'string' ? req.query.customerPhone : undefined;
+    if (!restaurantId && !orderId && !customerPhone) {
+      res.status(400).json({ error: 'Ange restaurantId, orderId eller customerPhone' });
+      return;
+    }
+    const notes = await prisma.note.findMany({
+      where: { restaurantId, orderId, customerPhone },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    res.json(notes);
+  } catch (error: any) {
+    console.error('notes list error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte hämta anteckningar') });
+  }
+});
+
+// POST /api/admin/notes  body: { body, restaurantId?, orderId?, customerPhone? }
+router.post('/notes', requireSuperAdmin, async (req, res) => {
+  try {
+    const admin = (req as AuthRequest).admin;
+    const body = typeof req.body?.body === 'string' ? req.body.body.trim() : '';
+    if (!body) { res.status(400).json({ error: 'Tom anteckning' }); return; }
+    const restaurantId = req.body?.restaurantId ? String(req.body.restaurantId) : null;
+    const orderId = req.body?.orderId ? String(req.body.orderId) : null;
+    const customerPhone = req.body?.customerPhone ? String(req.body.customerPhone) : null;
+    if (!restaurantId && !orderId && !customerPhone) {
+      res.status(400).json({ error: 'Anteckningen måste kopplas till restaurang, order eller kund' });
+      return;
+    }
+    const note = await prisma.note.create({
+      data: {
+        body: body.slice(0, 4000),
+        authorId: admin?.id ?? null,
+        authorName: admin?.name || admin?.email || 'Okänd',
+        restaurantId, orderId, customerPhone,
+      },
+    });
+    await audit(req as AuthRequest, 'NOTE_CREATE', { resourceType: 'Note', resourceId: note.id, changes: { restaurantId, orderId, customerPhone } });
+    res.status(201).json(note);
+  } catch (error: any) {
+    console.error('note create error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte spara anteckning') });
+  }
+});
+
+// DELETE /api/admin/notes/:id
+router.delete('/notes/:id', requireSuperAdmin, async (req, res) => {
+  try {
+    await prisma.note.delete({ where: { id: req.params.id } });
+    await audit(req as AuthRequest, 'NOTE_DELETE', { resourceType: 'Note', resourceId: req.params.id, changes: {} });
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error('note delete error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte ta bort anteckning') });
+  }
+});
+
 // POST /api/admin/products
 router.post('/products', async (req, res) => {
   try {

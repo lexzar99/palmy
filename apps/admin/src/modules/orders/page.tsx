@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, Plus, ReceiptText, RefreshCw, Search, SlidersHorizontal, Trash2, UserRound } from "lucide-react";
 import { bulkRefundOrders, deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
 import { CustomerModal } from "@/modules/customers/page";
+import { NotesPanel } from "@/shared/components/notes-panel";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, orderTypeLabel } from "@/shared/utils/format";
 
@@ -545,6 +546,12 @@ function OrderDetailsModal({
                   <p className="card-label">Kundnotering</p>
                   <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{order.note}</p>
                 </div>
+              ) : null}
+
+              {/* Support-anteckningar: på ordern + på kunden (telefon). Super-admin-only. */}
+              <NotesPanel target={{ orderId: order.id }} title="Anteckningar på ordern" />
+              {order.customerPhone ? (
+                <NotesPanel target={{ customerPhone: order.customerPhone }} title="Anteckningar på kunden" />
               ) : null}
             </div>
           </div>

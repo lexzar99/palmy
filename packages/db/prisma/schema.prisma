@@ -777,6 +777,24 @@ model Brand {
   deals              Deal[]
 }
 
+// Support-anteckningar (delade, append). Polymorf koppling till restaurang,
+// order ELLER kund (telefon) — ingen FK, håller det enkelt/scope-fritt.
+// authorName snapshotas så den överlever att admin-kontot tas bort.
+model Note {
+  id            String   @id @default(cuid())
+  body          String
+  authorId      String?
+  authorName    String
+  restaurantId  String?
+  orderId       String?
+  customerPhone String?
+  createdAt     DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([orderId, createdAt])
+  @@index([customerPhone, createdAt])
+}
+
 model City {
   id                String       @id @default(cuid())
   name              String       @unique

@@ -17,6 +17,7 @@ import {
 } from "@/modules/restaurants/api";
 import { Badge, Button, EmptyState, Field, Input, MetricCard, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
+import { NotesPanel } from "@/shared/components/notes-panel";
 import GooglePlacesInput from "@/shared/components/google-places-input";
 import { useToast } from "@/shared/components/toast";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, restaurantTierLabel } from "@/shared/utils/format";
@@ -355,6 +356,10 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 </div>
               </Surface>
             )}
+            {/* Support-anteckningar på restaurangen (super-admin-only). */}
+            {!isCreate && restaurantId ? (
+              <NotesPanel target={{ restaurantId }} title="Support-anteckningar" />
+            ) : null}
           </div>
         </div>
       )}
