@@ -116,6 +116,92 @@ const PICKUP_STEP_DEFS: StepDef[] = [
 const TERMINAL_STATUSES = ["DELIVERED", "COMPLETED", "CANCELLED", "REJECTED"];
 const isTerminal = (s?: string | null) => !!s && TERMINAL_STATUSES.includes(s);
 
+// Leveransfotot finns kvar ~2 dygn (proofExpiresAt) och raderas sen permanent
+// på servern. Visa bara medan det fortfarande finns.
+const proofIsLive = (order: any): boolean => {
+  if (!order?.proofPhotoUrl) return false;
+  if (!order.proofExpiresAt) return true;
+  const exp = new Date(order.proofExpiresAt).getTime();
+  return Number.isFinite(exp) ? exp > Date.now() : true;
+};
+
+const paymentMethodLabel = (m?: string | null): string => {
+  if (m === "CASH") return "Kontant";
+  if (m === "ONLINE") return "Kort / online";
+  return m || "—";
+};
+
+const escapeHtml = (s: any): string =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+
+// Bygger ett snyggt, fristående HTML-kvitto från riktig orderdata (restaurangens
+// juridiska namn, org.nr, adress, kontakt). Ren HTML → ingen serverbelastning;
+// laddas ner som en fil och kan skrivas ut/sparas som PDF i webbläsaren.
+function buildReceiptHtml(order: any): string {
+  const items: any[] = order.items ?? [];
+  const rawSubtotal = items.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
+  const tip = Number(order.tipAmount) || 0;
+  const deliveryFee = Number(order.deliveryFee) || 0;
+  const total = Number(order.total) || 0;
+  const discount = Math.max(0, Math.round(rawSubtotal + deliveryFee - (total - tip)));
+  const created = order.createdAt ? new Date(order.createdAt) : new Date();
+  const dateStr = created.toLocaleString("sv-SE", { dateStyle: "long", timeStyle: "short" });
+  const legalName = order.restaurantLegalName || order.restaurantName || "Restaurang";
+  const addressLine = [order.restaurantAddress, [order.restaurantZip, order.restaurantCity].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+
+  const row = (label: string, value: string, opts?: { strong?: boolean; muted?: boolean; accent?: boolean }) =>
+    `<div style="display:flex;justify-content:space-between;gap:16px;padding:${opts?.strong ? "10px 0 0" : "3px 0"};${opts?.strong ? "border-top:1px solid #e7e3da;margin-top:8px;" : ""}">
+      <span style="${opts?.strong ? "font-weight:700;font-size:15px;" : "font-size:13px;"}color:${opts?.accent ? "#8A6512" : opts?.muted ? "#6b6b70" : "#111113"};">${escapeHtml(label)}</span>
+      <span style="${opts?.strong ? "font-weight:700;font-size:18px;color:#8A6512;" : "font-size:13px;color:#111113;"}font-variant-numeric:tabular-nums;">${escapeHtml(value)}</span>
+    </div>`;
+
+  const itemsHtml = items.map((it) => {
+    const extras = Array.isArray(it.selectedExtras) ? it.selectedExtras : [];
+    const extrasHtml = extras.length
+      ? `<div style="padding-left:22px;color:#6b6b70;font-size:12px;">${extras.map((e: any) => escapeHtml(e.extraName || e.name)).join("<br/>")}</div>`
+      : "";
+    const noteHtml = it.note ? `<div style="padding-left:22px;color:#6b6b70;font-size:12px;font-style:italic;">${escapeHtml(it.note)}</div>` : "";
+    return `<div style="display:flex;justify-content:space-between;gap:16px;margin-bottom:10px;">
+      <div style="flex:1;min-width:0;">
+        <div><span style="color:#8A6512;font-weight:700;font-size:12px;">${escapeHtml(it.quantity)}×</span> <span style="font-weight:600;font-size:14px;">${escapeHtml(it.productName)}</span></div>
+        ${extrasHtml}${noteHtml}
+      </div>
+      <div style="font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;">${escapeHtml(Number(it.subtotal).toFixed(0))} kr</div>
+    </div>`;
+  }).join("");
+
+  return `<!DOCTYPE html>
+<html lang="sv"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Kvitto ${escapeHtml(order.orderNumber || "")}</title></head>
+<body style="margin:0;background:#f4f4f2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#111113;">
+  <div style="max-width:520px;margin:24px auto;background:#fff;border:1px solid #e7e3da;border-radius:16px;overflow:hidden;">
+    <div style="padding:28px 28px 20px;border-bottom:1px solid #e7e3da;">
+      <div style="font-size:20px;font-weight:800;letter-spacing:-0.3px;">${escapeHtml(legalName)}</div>
+      ${order.restaurantOrgNr ? `<div style="font-size:12px;color:#6b6b70;margin-top:4px;">Org.nr ${escapeHtml(order.restaurantOrgNr)}</div>` : ""}
+      ${addressLine ? `<div style="font-size:12px;color:#6b6b70;margin-top:2px;">${escapeHtml(addressLine)}</div>` : ""}
+      <div style="font-size:12px;color:#6b6b70;margin-top:2px;">${[order.restaurantPhone, order.restaurantEmail].filter(Boolean).map(escapeHtml).join(" · ")}</div>
+    </div>
+    <div style="padding:20px 28px;border-bottom:1px solid #e7e3da;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#6b6b70;">Kvitto</span><span style="font-weight:700;">#${escapeHtml(order.orderNumber || "")}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span style="color:#6b6b70;">Datum</span><span>${escapeHtml(dateStr)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span style="color:#6b6b70;">Typ</span><span>${order.type === "DELIVERY" ? "Leverans" : "Avhämtning"}</span></div>
+    </div>
+    <div style="padding:22px 28px;">
+      ${itemsHtml}
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #e7e3da;">
+        ${row("Delsumma", rawSubtotal.toFixed(0) + " kr", { muted: true })}
+        ${discount > 0 ? row(order.appliedDealTitle || "Rabatt", "−" + discount.toFixed(0) + " kr", { accent: true }) : ""}
+        ${deliveryFee > 0 ? row("Leveransavgift", "+" + deliveryFee.toFixed(0) + " kr", { muted: true }) : ""}
+        ${tip > 0 ? row("Dricks", "+" + tip.toFixed(0) + " kr", { muted: true }) : ""}
+        ${row("Totalt", total.toFixed(0) + " kr", { strong: true })}
+      </div>
+      <div style="margin-top:14px;font-size:12px;color:#6b6b70;">Betalsätt: ${escapeHtml(paymentMethodLabel(order.paymentMethod))}</div>
+    </div>
+    <div style="padding:16px 28px 24px;text-align:center;font-size:11px;color:#9a9a9f;border-top:1px solid #e7e3da;">Tack för din beställning!</div>
+  </div>
+</body></html>`;
+}
+
 const OrderStatusPage = () => {
   const { t } = useTranslation();
   const statusLabel = (s: string) => t(`order.status.${s}.label`);
@@ -147,6 +233,11 @@ const OrderStatusPage = () => {
   const [likedItemIds, setLikedItemIds] = useState<string[]>([]);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewDone, setReviewDone] = useState(false);
+  // Kvitto-modal + nedladdningsräknare (max 2 ggr per order, lokalt).
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptDownloads, setReceiptDownloads] = useState(0);
+  // Förstora leveransfotot.
+  const [proofZoom, setProofZoom] = useState(false);
   // Web push: visas bara när webbläsaren stödjer push OCH servern har VAPID-
   // nycklar (annars null → raden renderas inte alls).
   const [pushAvailable, setPushAvailable] = useState(false);
@@ -168,6 +259,32 @@ const OrderStatusPage = () => {
     const ok = await subscribeOrderPush(orderId);
     setPushEnabled(ok);
     setPushBusy(false);
+  };
+
+  // Kvitto-nedladdningar räknas lokalt per order (max 2). Ingen serverbelastning.
+  const RECEIPT_MAX_DOWNLOADS = 2;
+  useEffect(() => {
+    if (!orderId) return;
+    try {
+      setReceiptDownloads(parseInt(localStorage.getItem(`receipt_dl_${orderId}`) || "0", 10) || 0);
+    } catch { /* ignore */ }
+  }, [orderId]);
+
+  const downloadReceipt = () => {
+    if (!order || !orderId || receiptDownloads >= RECEIPT_MAX_DOWNLOADS) return;
+    const html = buildReceiptHtml(order);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `kvitto-${order.orderNumber || orderId}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    const next = receiptDownloads + 1;
+    setReceiptDownloads(next);
+    try { localStorage.setItem(`receipt_dl_${orderId}`, String(next)); } catch { /* ignore */ }
   };
 
   const fetchOrder = useCallback(async (opts?: { silent?: boolean }) => {
@@ -245,6 +362,17 @@ const OrderStatusPage = () => {
     // Budets live-position (vi-levererar) → visa live-kartan i tracking.
     socket.on("courier:location", (d: any) => {
       if (typeof d?.lat === "number" && typeof d?.lng === "number") setCourierPos({ lat: d.lat, lng: d.lng });
+    });
+    // Leveransbevis (foto + hur maten lämnats) → merge in direkt utan poll.
+    socket.on("delivery:proof", (d: any) => {
+      if (d?.orderId !== orderId) return;
+      setOrder((prev: any) => prev ? {
+        ...prev,
+        proofMethod: d.proofMethod ?? prev.proofMethod,
+        proofMessage: d.proofMessage ?? prev.proofMessage,
+        proofPhotoUrl: d.proofPhotoUrl ?? prev.proofPhotoUrl,
+        proofExpiresAt: d.proofExpiresAt ?? prev.proofExpiresAt,
+      } : prev);
     });
 
     const interval = setInterval(() => fetchOrder({ silent: true }), 15000);
@@ -554,6 +682,31 @@ const OrderStatusPage = () => {
 
         {/* ShareInviteCard borttagen — referral-systemet avstängt för launch */}
 
+        {/* Leveransbevis: budets foto + hur maten lämnades. Visas bara medan
+            fotot finns kvar (~2 dygn) och raderas sen permanent på servern. */}
+        {proofIsLive(order) && (
+          <div className="mt-4 rounded-2xl p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Leveransbevis</h2>
+              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
+                {order.proofMethod === "LEFT_AT_DOOR" ? "Lämnad vid dörren" : "Lämnad i handen"}
+              </span>
+            </div>
+            <div className="flex gap-4">
+              <button type="button" onClick={() => setProofZoom(true)} className="shrink-0 overflow-hidden rounded-xl" style={{ border: "1px solid var(--border-muted)" }} title="Förstora">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={order.proofPhotoUrl} alt="Leveransfoto" className="h-24 w-24 object-cover transition hover:opacity-80" />
+              </button>
+              <div className="min-w-0 flex-1">
+                {order.proofMessage && (
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: "var(--text-primary)" }}>{order.proofMessage}</p>
+                )}
+                <p className="text-xs mt-2" style={{ color: "var(--text-secondary)" }}>Tryck på bilden för att förstora. Sparas i 2 dagar.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="mt-4 grid grid-cols-1 gap-4 items-start">
            {/* Kvitto — rena rader, tunna avdelare, guld bara på totalen */}
             <div className="rounded-2xl p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
@@ -611,6 +764,17 @@ const OrderStatusPage = () => {
                      <span className="text-2xl font-bold tracking-tight text-gold-600 tabular-nums">{order.total.toFixed(0)} kr</span>
                   </div>
               </div>
+
+              {/* Visa fullständigt kvitto (med restaurangens juridiska uppgifter)
+                  och ladda ner det som en fristående HTML-fil. */}
+              <button
+                type="button"
+                onClick={() => setShowReceipt(true)}
+                className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold transition-colors"
+                style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)", border: "1px solid var(--border-muted)" }}
+              >
+                <ShoppingBag size={15} /> Visa kvitto
+              </button>
            </div>
 
            {/* Info sidebar */}
@@ -831,6 +995,89 @@ const OrderStatusPage = () => {
                   {reviewSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Star size={16} /> {t("order.review.submit")}</>}
                 </button>
               </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Kvitto-modal: snyggt kvitto med restaurangens juridiska uppgifter +
+            nedladdning (max 2 ggr per order, klient-genererad HTML — ingen server). */}
+        <AnimatePresence>
+          {showReceipt && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.7)" }} onClick={() => setShowReceipt(false)}>
+              <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="w-full max-w-md max-h-[88vh] overflow-auto rounded-2xl border shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }} onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-6 pt-5 pb-3 sticky top-0" style={{ backgroundColor: "var(--bg-secondary)", borderBottom: "1px solid var(--border-muted)" }}>
+                  <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Kvitto</h2>
+                  <button onClick={() => setShowReceipt(false)} className="p-2" style={{ color: "var(--text-secondary)" }} aria-label="Stäng"><X size={20} /></button>
+                </div>
+                <div className="px-6 py-4 text-sm" style={{ color: "var(--text-primary)" }}>
+                  <div className="font-extrabold text-[17px] tracking-tight">{order.restaurantLegalName || order.restaurantName}</div>
+                  {order.restaurantOrgNr && <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>Org.nr {order.restaurantOrgNr}</div>}
+                  {(order.restaurantAddress || order.restaurantCity) && (
+                    <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{[order.restaurantAddress, [order.restaurantZip, order.restaurantCity].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</div>
+                  )}
+                  <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{[order.restaurantPhone, order.restaurantEmail].filter(Boolean).join(" · ")}</div>
+
+                  <div className="mt-4 pt-3 space-y-1" style={{ borderTop: "1px solid var(--border-muted)" }}>
+                    <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Kvitto</span><span className="font-bold">#{order.orderNumber}</span></div>
+                    <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Datum</span><span>{new Date(order.createdAt).toLocaleString("sv-SE", { dateStyle: "long", timeStyle: "short" })}</span></div>
+                    <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Betalsätt</span><span>{paymentMethodLabel(order.paymentMethod)}</span></div>
+                  </div>
+
+                  <div className="mt-4 pt-3 space-y-2" style={{ borderTop: "1px solid var(--border-muted)" }}>
+                    {(order.items ?? []).map((it: any) => (
+                      <div key={it.id} className="flex justify-between gap-4">
+                        <div className="min-w-0">
+                          <span className="text-gold-600 font-bold text-xs">{it.quantity}×</span> <span className="font-semibold">{it.productName}</span>
+                          {Array.isArray(it.selectedExtras) && it.selectedExtras.length > 0 && (
+                            <div className="pl-6 text-xs" style={{ color: "var(--text-secondary)" }}>{it.selectedExtras.map((e: any) => e.extraName || e.name).join(", ")}</div>
+                          )}
+                        </div>
+                        <span className="font-semibold tabular-nums whitespace-nowrap">{Number(it.subtotal).toFixed(0)} kr</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {(() => {
+                    const rawSubtotal = (order.items ?? []).reduce((s: number, it: any) => s + (Number(it.subtotal) || 0), 0);
+                    const tip = Number(order.tipAmount) || 0;
+                    const deliveryFee = Number(order.deliveryFee) || 0;
+                    const discount = Math.max(0, Math.round(rawSubtotal + deliveryFee - (order.total - tip)));
+                    return (
+                      <div className="mt-4 pt-3 space-y-1.5" style={{ borderTop: "1px solid var(--border-muted)" }}>
+                        <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Delsumma</span><span className="tabular-nums">{rawSubtotal.toFixed(0)} kr</span></div>
+                        {discount > 0 && <div className="flex justify-between text-[13px] text-emerald-600"><span>{order.appliedDealTitle || "Rabatt"}</span><span className="tabular-nums">−{discount.toFixed(0)} kr</span></div>}
+                        {deliveryFee > 0 && <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Leveransavgift</span><span className="tabular-nums">+{deliveryFee.toFixed(0)} kr</span></div>}
+                        {tip > 0 && <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Dricks</span><span className="tabular-nums">+{tip.toFixed(0)} kr</span></div>}
+                        <div className="flex justify-between items-baseline pt-2 mt-1" style={{ borderTop: "1px solid var(--border-muted)" }}>
+                          <span className="font-bold">Totalt</span>
+                          <span className="text-xl font-bold text-gold-600 tabular-nums">{order.total.toFixed(0)} kr</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="px-6 pb-5 pt-2 sticky bottom-0" style={{ backgroundColor: "var(--bg-secondary)", borderTop: "1px solid var(--border-muted)" }}>
+                  <button
+                    type="button"
+                    onClick={downloadReceipt}
+                    disabled={receiptDownloads >= RECEIPT_MAX_DOWNLOADS}
+                    className="w-full py-3 rounded-full font-bold text-sm bg-gold-500 text-zinc-950 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {receiptDownloads >= RECEIPT_MAX_DOWNLOADS ? "Nedladdningsgräns nådd (2/2)" : `Ladda ner kvitto (${receiptDownloads}/${RECEIPT_MAX_DOWNLOADS})`}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Lightbox: förstorat leveransfoto. */}
+        <AnimatePresence>
+          {proofZoom && order?.proofPhotoUrl && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[320] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.85)" }} onClick={() => setProofZoom(false)}>
+              <button onClick={() => setProofZoom(false)} className="absolute top-5 right-5 text-white/90 p-2" aria-label="Stäng"><X size={26} /></button>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <motion.img initial={{ scale: 0.92 }} animate={{ scale: 1 }} exit={{ scale: 0.92 }} src={order.proofPhotoUrl} alt="Leveransfoto" className="max-h-[86vh] max-w-full rounded-2xl object-contain" onClick={(e) => e.stopPropagation()} />
             </motion.div>
           )}
         </AnimatePresence>
