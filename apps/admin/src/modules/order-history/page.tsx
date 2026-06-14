@@ -341,7 +341,7 @@ export function OrderHistoryPage() {
         {orders.isLoading ? (
           <div className="surface-muted px-5 py-12 text-center text-sm text-[var(--text-secondary)]">Hämtar ordrar...</div>
         ) : visibleOrders.length === 0 ? (
-          <EmptyState title="Inga ordrar i den här perioden" description="Justera filtren ovan eller välj en bredare period." />
+          <EmptyState title="Inga ordrar i den här perioden" />
         ) : (
           <div className="table-shell">
             <table className="data-table">
@@ -385,7 +385,6 @@ export function OrderHistoryPage() {
         open={exportOpen}
         onClose={() => setExportOpen(false)}
         title="Exportera order-historik"
-        description="Välj fält och format. Snabb-exporten innehåller bara grunderna; markera fler för avancerad export."
         footer={
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex gap-2">
@@ -426,7 +425,7 @@ export function OrderHistoryPage() {
         open={wipeOpen}
         onClose={() => { setWipeOpen(false); setWipeResult(null); }}
         title="Rensa ordrar (TESTNING)"
-        description="Tar permanent bort ordrar från databasen. Detta kan inte ångras. Använd ENDAST under testning."
+        description="Kan inte ångras."
         footer={
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Button onClick={() => { setWipeOpen(false); setWipeResult(null); }}>Avbryt</Button>

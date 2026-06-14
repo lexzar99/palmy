@@ -59,7 +59,6 @@ function CreateCourierModal({ open, onClose }: { open: boolean; onClose: () => v
       open={open}
       onClose={onClose}
       title="Lägg till kurir"
-      description="Skapa ett kurir-konto. Kuriren loggar in i appen med e-post + lösenord."
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Avbryt</Button>
@@ -113,7 +112,6 @@ function ApproveModal({ app, open, onClose }: { app: CourierApplication | null; 
       open={open}
       onClose={onClose}
       title={app ? `Skapa konto åt ${app.name}` : "Skapa konto"}
-      description="Ansökans info fylls i automatiskt. Sätt ett lösenord och ge det till kuriren."
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Avbryt</Button>

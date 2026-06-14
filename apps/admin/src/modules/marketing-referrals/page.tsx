@@ -164,9 +164,6 @@ function PersonalDealCreateForm() {
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="font-black text-sm mb-1">Skapa personlig deal-mall</p>
-            <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
-              Mallen syns inte publikt — den tilldelas användare via referral-systemet.
-            </p>
           </div>
           <Button variant="primary" onClick={() => setOpen(true)}>
             + Ny mall
@@ -292,10 +289,6 @@ function PersonalDealCreateForm() {
           />
           <div className="flex-1">
             <span className="text-sm font-bold">Fri leverans</span>
-            <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
-              Stackbar — kombineras med procent/kr-rabatten ovan. Bocka av om
-              kunden bara ska ha subtotal-rabatt.
-            </p>
           </div>
         </label>
       </div>
@@ -614,13 +607,6 @@ function UnifiedMarketingTab({
 
   return (
     <div className="space-y-5">
-      <Surface className="px-6 py-5">
-        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          <strong>Välkomstrabatt</strong> — välj EN deal-mall som ges automatiskt
-          till nya användare vid registrering. Aktivera/avaktivera med toggeln nedan.
-        </p>
-      </Surface>
-
       {mutation.isError && (
         <Surface className="px-6 py-4">
           <div className="flex items-start gap-3">
@@ -642,7 +628,7 @@ function UnifiedMarketingTab({
         <ToggleRow
           icon={<Gift size={16} className="text-[var(--accent)]" />}
           title="Välkomstrabatt aktiv"
-          description="Slå PÅ för att nya kunder automatiskt får dealen vid registrering. Sparas direkt."
+          description=""
           value={active}
           onChange={handleToggleActive}
           disabled={mutation.isPending}
@@ -670,10 +656,6 @@ function UnifiedMarketingTab({
         {availableDeals.length === 0 && (
           <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
             <p className="font-bold mb-1">Inga personliga mallar finns</p>
-            <p style={{ color: "var(--text-secondary)" }}>
-              Skapa en mall ovan (t.ex. &quot;Welcome 25%&quot; med PERCENTAGE och 25). När den
-              finns dyker den upp i dropdownen.
-            </p>
           </div>
         )}
 

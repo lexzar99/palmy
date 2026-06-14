@@ -35,25 +35,39 @@ export const formatPercent = (value: number | null | undefined) => `${Number(val
 export const orderStatusLabel = (status: string | null | undefined) => {
   switch (status) {
     case "PENDING":
-      return "Pending";
+      return "Väntar";
     case "ACCEPTED":
-      return "Accepted";
+      return "Accepterad";
     case "PREPARING":
-      return "Preparing";
+      return "Tillagas";
     case "READY":
-      return "Ready";
+      return "Redo";
     case "DELIVERING":
-      return "Delivering";
+      return "Levereras";
     case "DELIVERED":
-      return "Delivered";
+      return "Levererad";
     case "DELIVERY_FAILED":
-      return "Failed";
+      return "Misslyckad";
     case "CANCELLED":
-      return "Cancelled";
+      return "Avbruten";
     case "REJECTED":
-      return "Rejected";
+      return "Nekad";
     default:
-      return status || "Unknown";
+      return status || "Okänd";
+  }
+};
+
+export const orderTypeLabel = (type: string | null | undefined) => {
+  switch (type) {
+    case "DELIVERY":
+      return "Leverans";
+    case "PICKUP":
+    case "TAKEAWAY":
+      return "Avhämtning";
+    case "DINE_IN":
+      return "Äta här";
+    default:
+      return type || "—";
   }
 };
 

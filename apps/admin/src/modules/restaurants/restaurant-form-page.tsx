@@ -514,7 +514,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <Field label="Beräknad (auto)"><Input value={form.etaCalculated != null ? `${form.etaCalculated} min` : "Default 40 min"} disabled /></Field>
                 <Field label="Override"><Input type="number" min={25} max={60} placeholder="t.ex. 35" value={form.etaOverride} onChange={(e) => set("etaOverride", e.target.value)} /></Field>
               </div>
-              <p className="mt-2 text-[11px] text-[var(--text-muted)]">Avhämtningstid räknas automatiskt som leveranstid − 5 min (clampad 5–25) och visas bara i avhämtningsläge.</p>
             </div>
             <Field label="Moms">
               <Select value={form.vatPercent} onChange={(e) => set("vatPercent", e.target.value)}>
@@ -537,7 +536,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             </Field>
             <Field label="Intern anteckning"><Textarea value={form.internalInfo} onChange={(e) => set("internalInfo", e.target.value)} /></Field>
             <Field label="Kundinfobanner">
-              <Textarea value={form.announcementText} onChange={(e) => set("announcementText", e.target.value)} placeholder="Vi har tillfälligt stängt — öppnar igen onsdag 12 juni." />
+              <Textarea value={form.announcementText} onChange={(e) => set("announcementText", e.target.value)} placeholder="Meddelande till kund" />
             </Field>
           </Surface>
         </div>

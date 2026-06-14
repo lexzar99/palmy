@@ -281,7 +281,6 @@ function CategoryEditorModal({
       open={open}
       onClose={onClose}
       title={section ? section.title : "Ny kategori"}
-      description="Bygg rails för web och appen med samma filterlogik och samma tidsschema."
       widthClassName="max-w-[1200px]"
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -337,14 +336,14 @@ function CategoryEditorModal({
             <Input
               value={form.subtitle}
               onChange={(event) => setForm((current) => ({ ...current, subtitle: event.target.value }))}
-              placeholder="Visas under rubriken på startsidan"
+              placeholder="Underrubrik"
             />
           </Field>
           <Field label="Subtitle (English) — valfri">
             <Input
               value={form.subtitleEn}
               onChange={(event) => setForm((current) => ({ ...current, subtitleEn: event.target.value }))}
-              placeholder="Shown below the heading"
+              placeholder="Subtitle"
             />
           </Field>
           <Field label="Status">
@@ -411,9 +410,6 @@ function CategoryEditorModal({
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Filterregler</p>
             <Filter size={16} className="text-[var(--accent-strong)]" />
           </div>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            Används för FILTER och HYBRID-mode. Tomt fält = ingen begränsning.
-          </p>
 
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <Field label="Sökterm">
@@ -535,9 +531,6 @@ function CategoryEditorModal({
               {form.scheduleEnabled ? "Aktivt" : "Alltid synlig"}
             </Badge>
           </div>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            Aktivera för att begränsa när kategorin visas (t.ex. fredagar 15–24).
-          </p>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button
@@ -583,9 +576,6 @@ function CategoryEditorModal({
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Manuella restauranger</p>
             <Badge tone="neutral">{form.manualRestaurantIds.length} valda</Badge>
           </div>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            Används för MANUAL och HYBRID. I FILTER-mode visas dessa inte.
-          </p>
 
           <div className="relative mt-4">
             <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
@@ -718,15 +708,9 @@ export function CategoriesPage() {
       <DiscountedRailToggle />
 
       <Surface className="px-6 py-6">
-        <p className="text-sm text-[var(--text-secondary)]">
-          <strong>FILTER:</strong> väljer restauranger automatiskt baserat på regler.{" "}
-          <strong>MANUAL:</strong> visar bara dem du själv valt.{" "}
-          <strong>HYBRID:</strong> dina val först, fyll på med filter-träffar.
-        </p>
-
         {sortedCategories.length === 0 ? (
           <div className="mt-6">
-            <EmptyState title="Inga kategorier ännu" description="Tryck Ny kategori för att skapa din första rail." />
+            <EmptyState title="Inga kategorier ännu" />
           </div>
         ) : (
           <div className="mt-6 grid gap-3">
@@ -827,9 +811,6 @@ function DiscountedRailToggle() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-black text-sm tracking-tight" style={{ color: "var(--text-primary)" }}>Rea & Rabatter</p>
-            <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
-              Sektionen med rabatterade rätter från flera restauranger som visas på hem-sidan.
-            </p>
           </div>
         </div>
         <Button

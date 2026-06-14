@@ -118,10 +118,6 @@ export function RestaurantDevicesPage() {
       <Surface className="flex flex-col gap-5 p-6">
         <div>
           <p className="eyebrow mb-1">Välj restaurang</p>
-          <p className="section-subtitle">
-            Para en platta med en restaurang via en engångskod. Plattan förblir
-            inloggad — bara du kan logga ut den här.
-          </p>
         </div>
         <CityRestaurantPicker value={restaurantId} onChange={setRestaurantId} />
       </Surface>
@@ -254,7 +250,6 @@ export function RestaurantDevicesPage() {
                           <Button
                             variant="secondary"
                             disabled={busy}
-                            title="Ta bort enheten — plattan kan sedan paras om till valfri restaurang"
                             onClick={() => {
                               if (window.confirm("Ta bort enheten helt? Plattan loggas ut och kan paras om med en ny kod (även till en annan restaurang).")) {
                                 deleteMutation.mutate(device.id);

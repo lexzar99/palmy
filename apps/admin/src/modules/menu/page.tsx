@@ -257,7 +257,6 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Promotion shortcut</p>
-              <p className="mt-2 text-sm text-[var(--text-secondary)]">Products no longer own discount logic. Use Deals as the source of truth and open a product-specific deal from here when needed.</p>
             </div>
             <Button variant="secondary" onClick={() => setPromotionModalOpen(true)} disabled={!product}>{productDeal ? "Redigera produktdeal" : "Skapa produktdeal"}</Button>
           </div>
@@ -294,7 +293,6 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             <button
               type="button"
               onClick={() => setForm((current) => ({ ...current, rewardable: !current.rewardable }))}
-              title="När på kan varan köpas med Dpoints. Kunden ser pris i både kr och poäng."
               className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.rewardable ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
             >
               ★ Köpbar med poäng (Dpoints)
@@ -302,7 +300,6 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             <button
               type="button"
               onClick={() => setForm((current) => ({ ...current, localPriceLocked: !current.localPriceLocked }))}
-              title="Kedja: när på skriver master→plats-synken aldrig över priset här — platsen håller sitt eget lokala pris."
               className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.localPriceLocked ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
             >
               🔒 Lås lokalt pris (kedja)
@@ -559,7 +556,6 @@ function ImportFromOtherModal({
       open={open}
       onClose={onClose}
       title={`Importera ${tab === "categories" ? "kategori" : tab === "products" ? "produkt" : "tillbehörsgrupp"}`}
-      description="Källan rörs inte. Kopian får nytt id i din restaurang."
     >
       <div className="grid gap-5">
         <CityRestaurantPicker
@@ -684,11 +680,6 @@ function R2MigrateButton() {
         open={open && !!finalResult}
         onClose={() => { if (!isApplying) { setOpen(false); setDryRun(null); setLiveResult(null); } }}
         title={liveResult ? "Migration klar" : "R2-migration (dry-run)"}
-        description={
-          liveResult
-            ? "Bilder har flyttats till R2 och databasen uppdaterad. Cloudinary-originalen rörs inte (du kan radera dem manuellt senare när du verifierat allt funkar)."
-            : "Skannar alla rader med imageUrl. Inget skrivs till databasen än — klicka Apply för att köra på riktigt."
-        }
         footer={
           <div className="flex justify-end gap-2">
             <Button onClick={() => { if (!isApplying) { setOpen(false); setDryRun(null); setLiveResult(null); } }} disabled={isApplying}>
@@ -850,7 +841,6 @@ function BulkImportButton({ restaurantId }: { restaurantId: string }) {
         open={open}
         onClose={() => { if (!isBusy) { setOpen(false); } }}
         title="Massimport av meny (YAML / JSON)"
-        description="Klistra in kategorier, produkter och pålägg. Förhandsvisa visar exakt vad som skapas/uppdateras — inget skrivs förrän du klickar Importera. Idempotent: kör om utan dubbletter."
         footer={
           <div className="flex justify-between gap-2">
             <Button onClick={() => setContent(BULK_IMPORT_TEMPLATE)} disabled={isBusy}>Infoga mall</Button>
@@ -874,7 +864,7 @@ function BulkImportButton({ restaurantId }: { restaurantId: string }) {
           <Textarea
             value={content}
             onChange={(e) => { setContent(e.target.value); setResult(null); }}
-            placeholder={"Klistra in YAML eller JSON här… (klicka \"Infoga mall\" för att börja)"}
+            placeholder="YAML eller JSON"
             rows={14}
             style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 }}
           />
@@ -983,7 +973,6 @@ function MenuSyncButton({ sourceRestaurantId, restaurants }: { sourceRestaurantI
         open={open}
         onClose={() => { if (!isBusy) setOpen(false); }}
         title="Synka meny till platser"
-        description={`Kopierar menyn från "${sourceName}" till valda platser. Förhandsvisa visar exakt vad som skapas/uppdateras — inget skrivs förrän du klickar Synka. Idempotent, och varje plats slutsålt-markeringar (dold/aktiv) bevaras.`}
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => previewMutation.mutate()} disabled={isBusy || targets.size === 0}>
@@ -1095,7 +1084,6 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
         open={open && !!dryRun}
         onClose={() => { setOpen(false); setDryRun(null); }}
         title="R2 auto-match"
-        description="Scannar bucket-prefixet och föreslår vilka bilder som ska kopplas till produkter och kategorier baserat på slug-konventionen."
         footer={
           <div className="flex justify-end gap-2">
             <Button onClick={() => { setOpen(false); setDryRun(null); }}>Avbryt</Button>
@@ -1144,7 +1132,7 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-[var(--text-secondary)]">Inga matchningar hittades. Kontrollera att bilderna ligger under prefixet ovan med rätt slug-namn.</p>
+              <p className="text-sm text-[var(--text-secondary)]">Inga matchningar hittades.</p>
             )}
             {error ? <p className="text-sm text-rose-400">{error}</p> : null}
           </div>
@@ -1197,7 +1185,6 @@ function R2PathsButton({ restaurantId }: { restaurantId: string }) {
         open={open}
         onClose={() => setOpen(false)}
         title="Bulk-upload mall"
-        description="Per sektion: kopiera mappen, döp dina filer enligt listan, dra in i R2-dashboarden. Klicka sen 'Matcha bilder från R2' så uppdateras databasen."
         footer={
           <div className="flex justify-end gap-2">
             <Button onClick={() => setOpen(false)}>Stäng</Button>

@@ -504,7 +504,7 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
                     <Field label="Max gratis-basepris (kr, valfritt)">
                       <Input type="number" min="1" step="1" value={draft.bogoMaxRewardPrice}
                         onChange={(e) => set("bogoMaxRewardPrice", e.target.value)}
-                        placeholder="t.ex. 15 — kunden betalar mellanskillnad vid dyrare val" />
+                        placeholder="t.ex. 15" />
                     </Field>
 
                     <div className="grid gap-3 md:grid-cols-2">
@@ -531,10 +531,6 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
                           onChange={(e) => set("bogoMaxRewardsPerOrder", e.target.value)}
                           placeholder="t.ex. 1 (cap) eller tom (skalär)"
                         />
-                        <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                          Tomt: kund får 1 gratis per kvalificerande artikel ("köp 2 pizzor → 2 gratis").
-                          <br />Sätt t.ex. <strong>1</strong> för att alltid bara ge 1 gratis oavsett cart-storlek.
-                        </p>
                       </Field>
                     </div>
                   </div>
@@ -548,7 +544,6 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
             <Surface className="px-6 py-6 grid gap-5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1">Hindrade tillval för gratisvaran</p>
-                <p className="text-xs text-[var(--text-muted)]">Bocka i tillval som kunden INTE ska kunna välja när hen plockar gratisvaran (t.ex. dyra storlekar som "Familjepizza" eller specifika tillbehör). Tillval som tillåts kostar fortfarande sitt vanliga pris.</p>
               </div>
               <div className="grid gap-4">
                 {rewardExtraGroups.map((group) => (

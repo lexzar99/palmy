@@ -211,7 +211,6 @@ export function AutomaticDealModal({
       open={open}
       onClose={onClose}
       title={initialDeal ? `Edit ${initialDeal.title}` : "New automatic deal"}
-      description="Deals is now the single admin workspace for automatic promotions. Product and category promos can live here without adding a second discount system."
       footer={
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -275,14 +274,6 @@ export function AutomaticDealModal({
         </div>
 
         <div className="space-y-4">
-          <div className="surface-muted px-4 py-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Rule summary</p>
-            <div className="mt-3 grid gap-2 text-sm text-[var(--text-secondary)]">
-              <div>Most specific automatic promo wins for display: product over category over restaurant.</div>
-              <div>Checkout-facing restaurant deals stay in this same section, but product/category targets are managed here too so admin doesn’t split the workflow.</div>
-            </div>
-          </div>
-
           {isItemScope ? (
             <div className="surface-muted px-4 py-4">
               <div className="flex items-center justify-between gap-3">

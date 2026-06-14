@@ -50,7 +50,6 @@ function ManageLocationsModal({ brand, allRestaurants, open, onClose }: {
       open={open}
       onClose={() => { if (!save.isPending) onClose(); }}
       title={`Platser i ${brand.name}`}
-      description="Bocka i restaurangerna som hör till kedjan. En restaurang kan bara tillhöra en kedja — bockar du i en som ligger i en annan kedja flyttas den hit."
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose} disabled={save.isPending}>Avbryt</Button>
@@ -106,7 +105,6 @@ function SyncModal({ brand, open, onClose }: { brand: BrandRecord; open: boolean
       open={open}
       onClose={() => { if (!busy) { setResult(null); onClose(); } }}
       title={`Synka ${brand.name} → alla platser`}
-      description="Kopierar master-platsens meny till kedjans övriga platser. Förhandsvisa visar exakt vad som skapas/uppdateras — inget skrivs förrän du klickar Synka. Lokala undantag bevaras: slutsålt, låst lokalt pris och plats-specifika erbjudanden rörs aldrig."
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={() => preview.mutate()} disabled={busy}>
@@ -254,14 +252,11 @@ export function BrandsPage() {
         title="Kedjor"
         actions={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={14} /> Skapa kedja</Button>}
       />
-      <p className="-mt-2 text-sm text-[var(--text-secondary)]">
-        Gruppera flera platser under ett varumärke, utse en master vars meny är källan, och synka till alla platser med en knapp. Varje plats behåller sina egna slutsålt-markeringar, låsta lokala priser och plats-specifika erbjudanden.
-      </p>
 
       {brands.isLoading ? (
         <div className="grid gap-3">{[0, 1].map((i) => <div key={i} className="metric-card animate-pulse" style={{ minHeight: 160 }} />)}</div>
       ) : list.length === 0 ? (
-        <EmptyState title="Inga kedjor än" description="Skapa en kedja, lägg till platser och utse en master för att börja synka menyer." action={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={14} /> Skapa kedja</Button>} />
+        <EmptyState title="Inga kedjor än" action={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={14} /> Skapa kedja</Button>} />
       ) : (
         <div className="grid gap-3">
           {list.map((b) => <BrandCard key={b.id} brand={b} allRestaurants={allRestaurants} />)}
@@ -272,7 +267,6 @@ export function BrandsPage() {
         open={createOpen}
         onClose={() => { if (!create.isPending) setCreateOpen(false); }}
         title="Skapa kedja"
-        description="Ge kedjan ett namn (t.ex. 'Max', 'Burger King'). Du lägger till platser och väljer master efteråt."
         footer={
           <div className="flex justify-end gap-2">
             <Button onClick={() => setCreateOpen(false)} disabled={create.isPending}>Avbryt</Button>

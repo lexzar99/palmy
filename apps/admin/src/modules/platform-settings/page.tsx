@@ -91,13 +91,6 @@ export function PlatformSettingsPage() {
         }
       />
 
-      <Surface className="px-6 py-5">
-        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Här hanterar du <strong>Delívera-företagets</strong> kontaktinfo som visas på <code>/kontakt</code> och <code>/om-oss</code> på web-sajten.
-          Inget med enskilda restauranger att göra — det här är plattformens egna uppgifter.
-        </p>
-      </Surface>
-
       {saveMutation.isError && (
         <Surface className="px-6 py-4">
           <div className="flex items-start gap-3">
@@ -120,9 +113,6 @@ export function PlatformSettingsPage() {
           <Briefcase size={18} className="text-[var(--accent)]" />
           <h2 className="text-base font-black uppercase tracking-tight">Företagsidentitet</h2>
         </div>
-        <p className="text-xs mb-5" style={{ color: "var(--text-secondary)" }}>
-          Visas i Terms, Privacy och support-flöden i web + RN-appen. Lämna tomt för fallback-värden (<code>Delívera AB</code>, <code>support@delivera.se</code>, osv).
-        </p>
 
         <div className="grid gap-5 md:grid-cols-2">
           <Field label="Företagsnamn">
@@ -224,9 +214,6 @@ export function PlatformSettingsPage() {
 
       <Surface className="px-6 py-6">
         <h2 className="text-base font-black uppercase tracking-tight mb-2">Om oss-text</h2>
-        <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
-          Texten som visas på <code>/om-oss</code>-sidan. Lämna tomt för att använda default-text om plattformen. Separera stycken med blankrader.
-        </p>
         <Textarea
           value={form.aboutBody || ""}
           onChange={(e) => setForm((p) => ({ ...p, aboutBody: e.target.value }))}
@@ -238,10 +225,6 @@ export function PlatformSettingsPage() {
       {/* A14 — Hero / brand CMS for the customer website */}
       <Surface className="px-6 py-6">
         <h2 className="text-base font-black uppercase tracking-tight mb-2">Hero på startsidan</h2>
-        <p className="text-xs mb-5" style={{ color: "var(--text-secondary)" }}>
-          Stora rubriken på kund-webbens startsida. Lämna fälten tomma för att använda default-texter (
-          <code>Hungrig? Vi fixar resten.</code>). Bilden visas till höger om texten.
-        </p>
         <div className="grid gap-5 md:grid-cols-2">
           <Field label="Rubrik">
             <Input

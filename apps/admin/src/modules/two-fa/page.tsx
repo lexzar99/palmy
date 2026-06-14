@@ -120,11 +120,6 @@ export function TwoFAPage() {
             <h2 className="section-title">
               {isEnabled ? "2FA är aktivt" : "2FA är avstängt"}
             </h2>
-            <p className="section-subtitle">
-              {isEnabled
-                ? "På nya enheter krävs en TOTP-kod (Google Authenticator) eller en recovery code. Trusted devices slipper prompt i 30 dagar."
-                : "Aktivera för extra säkerhet — kräver Google Authenticator, 1Password eller liknande app."}
-            </p>
           </div>
         </div>
       </Surface>
@@ -143,8 +138,7 @@ export function TwoFAPage() {
             <div>
               <h3 className="section-title">Spara dessa recovery codes nu</h3>
               <p className="section-subtitle">
-                10 engångskoder. Använd en istället för TOTP om du tappar telefonen.
-                <strong> Visas bara den här gången.</strong> Spara i lösenordshanterare eller skriv ut.
+                <strong>Visas bara den här gången.</strong>
               </p>
             </div>
           </div>
@@ -194,12 +188,6 @@ export function TwoFAPage() {
       {!isEnabled && !setupData && (
         <Surface className="px-6 py-6">
           <h3 className="section-title mb-3">Aktivera 2FA</h3>
-          <ol className="text-sm space-y-2 mb-5" style={{ color: "var(--text-secondary)" }}>
-            <li>1. Klicka <strong>Starta setup</strong></li>
-            <li>2. Scanna QR-koden i Google Authenticator (eller Authy/1Password)</li>
-            <li>3. Ange den 6-siffriga koden från appen för att bekräfta</li>
-            <li>4. Spara de 10 recovery codes du får — backup om du tappar telefonen</li>
-          </ol>
           <Button variant="primary" onClick={() => setupMut.mutate()} disabled={setupMut.isPending}>
             {setupMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
             Starta setup
@@ -303,9 +291,6 @@ export function TwoFAPage() {
                 <Monitor size={20} className="text-[var(--accent)] mt-0.5" />
                 <div>
                   <h3 className="section-title">Trusted devices</h3>
-                  <p className="section-subtitle">
-                    Enheter som slipper TOTP-prompt i 30 dagar. Revoka om du tappat eller sålt en.
-                  </p>
                 </div>
               </div>
               {(devices.data?.length || 0) > 0 && (
@@ -326,7 +311,7 @@ export function TwoFAPage() {
               <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Laddar…</p>
             ) : (devices.data?.length || 0) === 0 ? (
               <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                Inga trusted devices än. Vid första TOTP-verifierade login skapas en automatiskt.
+                Inga trusted devices än.
               </p>
             ) : (
               <div className="grid gap-2">
@@ -359,9 +344,6 @@ export function TwoFAPage() {
           {/* Disable 2FA */}
           <Surface className="px-6 py-6">
             <h3 className="section-title mb-3">Stäng av 2FA</h3>
-            <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
-              Kräver TOTP-kod så att en angripare som har session-cookien inte kan stänga av.
-            </p>
             <Field label="Ange aktuell 6-siffrig kod">
               <Input
                 value={disableCode}

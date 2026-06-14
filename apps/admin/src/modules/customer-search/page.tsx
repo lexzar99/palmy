@@ -39,12 +39,6 @@ export function CustomerSearchPage() {
       />
 
       <Surface className="px-6 py-5">
-        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Sök efter namn, e-post eller telefon. Returnerar upp till 50 träffar. Klicka en kund för att se orderhistorik och GDPR-export.
-        </p>
-      </Surface>
-
-      <Surface className="px-6 py-5">
         <Field label="Sökterm (minst 2 tecken)">
           <Input
             value={query}

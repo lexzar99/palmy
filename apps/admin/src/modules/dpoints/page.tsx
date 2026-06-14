@@ -131,9 +131,6 @@ function SettingsTab() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="font-semibold">Dpoints aktiverat</p>
-              <p className="text-sm text-[var(--text-secondary)]">
-                Master-knapp. När av tjänas/visas/löses inga poäng någonstans.
-              </p>
             </div>
             <Toggle checked={c.dpointsEnabled} onChange={(v) => save.mutate({ dpointsEnabled: v })} />
           </div>
@@ -192,13 +189,6 @@ function SettingsTab() {
               />
             </Field>
           </div>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Budkostnaden ({((c.dpointsCourierCost ?? 0) / 100).toFixed(0)} kr) läggs på i kassan när en order betalas <strong>enbart</strong> med poäng och levereras — poängen täcker maten men inte kuriren. Vid hämtning är den gratis. 0 = ingen budkostnad.
-          </p>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Vid taket ({c.dpointsMaxBalance || "—"} p) pausas intjäning tills kunden löst in poäng. Med {c.dpointsPerKr} p/kr intjänat och {c.dpointsValuePerKr} p = 1 kr värde ger 100 kr köp{" "}
-            {Math.round(100 * c.dpointsPerKr)} poäng, och {c.dpointsValuePerKr * 10} poäng motsvarar 10 kr.
-          </p>
           {save.isPending && <p className="text-sm text-[var(--text-secondary)]">Sparar…</p>}
         </div>
       </Surface>
@@ -229,9 +219,6 @@ function SponsorsTab() {
       <div className="flex items-center justify-between p-6">
         <div>
           <h2 className="text-lg font-semibold">Sponsorkort</h2>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Banner som visas för utloggade. Vid registrering får kunden bonuspoängen. Vi visar det senast skapade aktiva kortet.
-          </p>
         </div>
         <Button variant="primary" onClick={() => setEditing({ ...emptySponsor })}>
           <Plus size={16} /> Nytt kort
@@ -396,9 +383,6 @@ function RewardsTab() {
       <div className="flex items-center justify-between p-6">
         <div>
           <h2 className="text-lg font-semibold">Inlösen-belöningar</h2>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Kund löser in poäng → får en personlig kod (låst till kontot) som funkar i kassan.
-          </p>
         </div>
         <Button variant="primary" onClick={() => setEditing({ ...emptyReward })}>
           <Plus size={16} /> Ny belöning
@@ -580,9 +564,6 @@ function CampaignsTab() {
       <div className="flex items-center justify-between p-6">
         <div>
           <h2 className="text-lg font-semibold">Kampanjer & utmaningar</h2>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Multiplikator = extra poäng vid köp i ett fönster. Svit = fast bonus när kunden beställer X dagar/veckor i rad.
-          </p>
         </div>
         <Button variant="primary" onClick={() => setEditing({ ...emptyCampaign })}>
           <Plus size={16} /> Ny kampanj
@@ -784,7 +765,6 @@ function CustomersTab() {
       <Modal
         open={!!adjustId}
         title="Ge eller dra poäng"
-        description="Positivt = ge, negativt = dra tillbaka. Allt loggas i audit-loggen."
         onClose={() => setAdjustId(null)}
         footer={
           <div className="flex justify-end gap-2">

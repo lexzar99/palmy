@@ -91,9 +91,9 @@ function PopupPreview({ deal, overlay }: { deal: AutomaticDealRecord; overlay: P
               <p className="mt-1 text-lg font-black tracking-wider text-white">{code}</p>
             </div>
           ) : null}
-          <button type="button" className="mt-5 w-full rounded-2xl bg-[#f3bf57] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b]">{overlay.popupOkOnly ? "OK" : cta}</button>
+          <button type="button" disabled tabIndex={-1} style={{ pointerEvents: "none" }} className="mt-5 w-full rounded-2xl bg-[#f3bf57] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b]">{overlay.popupOkOnly ? "OK" : cta}</button>
           {!overlay.popupOkOnly ? (
-            <button type="button" className="mt-2 w-full rounded-2xl py-3 text-xs font-bold uppercase tracking-[0.2em] text-white/50">Inte just nu</button>
+            <button type="button" disabled tabIndex={-1} style={{ pointerEvents: "none" }} className="mt-2 w-full rounded-2xl py-3 text-xs font-bold uppercase tracking-[0.2em] text-white/50">Inte just nu</button>
           ) : null}
         </div>
       </div>
@@ -224,7 +224,6 @@ export function PopupDealModal({
       open={open}
       onClose={onClose}
       title={hasPopupContent ? `Redigera popup för ${deal.title}` : `Skicka popup för ${deal.title}`}
-      description="Popupen är kopplad till denna deal. Rabatten/villkoren kommer från själva dealen — här bestämmer du bara hur popupen presenteras för kunden."
       widthClassName="max-w-[1200px]"
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -259,9 +258,6 @@ export function PopupDealModal({
               {deal.isGlobal ? <Badge tone="neutral">Alla restauranger</Badge> : <Badge tone="neutral">{deal.restaurant?.name || "1 restaurang"}</Badge>}
               {deal.validUntil ? <Badge tone="neutral">t.o.m. {String(deal.validUntil).slice(0, 10)}</Badge> : null}
             </div>
-            <p className="mt-3 text-xs text-[var(--text-secondary)]">
-              För att ändra rabatt, restaurang eller giltighetsdatum — gå till Restaurant/Product/Category-fliken och redigera dealen där.
-            </p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
@@ -309,10 +305,6 @@ export function PopupDealModal({
                 {push.sendPush ? "Skicka push" : "Hoppa över push"}
               </Button>
             </div>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              När popupen sparas skickas en push-notis till alla användare med appen installerad.
-              Notisen lockar dem att öppna appen där popupen sedan visas.
-            </p>
             {push.sendPush ? (
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <Field label="Notis-rubrik">

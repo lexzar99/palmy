@@ -265,6 +265,7 @@ button {
 }
 
 .nav-link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -297,6 +298,18 @@ button {
 .nav-link-active {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.nav-link-active::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 .nav-link-active svg {
@@ -633,6 +646,59 @@ button {
   border: 1px solid var(--border-subtle);
   background: var(--bg-panel-strong);
   box-shadow: var(--shadow-lift);
+}
+
+/* ─────────────────────────────────────────────
+   Order status track — horizontal progress that
+   reads at a glance instead of a row of buttons
+   ───────────────────────────────────────────── */
+
+.order-track {
+  display: flex;
+  gap: 6px;
+}
+
+.order-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.order-step-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  transition: background 160ms ease;
+}
+
+.order-step-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.order-step.is-done .order-step-bar { background: var(--accent); }
+.order-step.is-now .order-step-bar { background: var(--accent-strong); }
+.order-step.is-done .order-step-label { color: var(--text-secondary); }
+.order-step.is-now .order-step-label { color: var(--text-primary); }
+
+.order-step.is-cancelled .order-step-bar { background: var(--danger); }
+.order-step.is-cancelled .order-step-label { color: var(--danger); }
+
+/* Generic key/value label used inside cards (replaces ad-hoc font-black eyebrows) */
+.card-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 /* ─────────────────────────────────────────────

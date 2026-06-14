@@ -233,33 +233,35 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           <span>Sök eller hoppa till…</span>
           <kbd>{isMac ? "⌘" : "Ctrl"}K</kbd>
         </button>
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="nav-link"
-          style={{ paddingLeft: 10, color: "var(--text-muted)" }}
-        >
-          {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
-          <span>{theme === "dark" ? "Ljust tema" : "Mörkt tema"}</span>
-        </button>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="nav-link"
-          style={{ paddingLeft: 10, color: "var(--text-muted)" }}
-        >
-          <LogOut size={14} />
-          <span>Logga ut</span>
-        </button>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="nav-link"
+            style={{ flex: 1, paddingLeft: 12, color: "var(--text-muted)" }}
+          >
+            {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+            <span>{theme === "dark" ? "Ljust" : "Mörkt"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="nav-link"
+            style={{ flex: 1, paddingLeft: 12, color: "var(--text-muted)" }}
+          >
+            <LogOut size={14} />
+            <span>Logga ut</span>
+          </button>
+        </div>
         <button
           type="button"
           onClick={handleLogoutEverywhere}
           className="nav-link"
-          style={{ paddingLeft: 10, color: "var(--text-muted)", fontSize: 11 }}
-          title="Invaliderar alla utfärdade JWT — använd när token är läckt eller laptop tappad."
+          style={{ paddingLeft: 12, color: "var(--text-muted)", fontSize: 11, minHeight: 32 }}
+          title="Loggar ut alla enheter och sessioner för detta konto."
         >
           <LogOut size={12} />
-          <span>Logga ut alla enheter</span>
+          <span>Logga ut överallt</span>
         </button>
       </div>
     </aside>

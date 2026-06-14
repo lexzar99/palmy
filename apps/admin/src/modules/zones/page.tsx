@@ -298,7 +298,6 @@ export function ZonesPage() {
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Restauranger i {selectedCity.name}</p>
                 <h3 className="mt-1.5 text-xl font-black tracking-[-0.02em]">Klicka en restaurang för att rita zoner</h3>
-                <p className="mt-1 text-sm text-[var(--text-secondary)]">Kartan centreras på restaurangens adress. Polygon eller cirkel-zoner med eget pris och min-order.</p>
               </div>
               <Badge tone="info">{selectedCity.restaurants.length} kopplade</Badge>
             </div>
@@ -307,7 +306,6 @@ export function ZonesPage() {
               <div className="rounded-2xl border border-dashed border-[var(--border-subtle)] px-6 py-12 text-center">
                 <Store size={28} className="mx-auto text-[var(--text-muted)] mb-3" />
                 <p className="text-sm font-bold text-[var(--text-secondary)]">Inga restauranger kopplade till {selectedCity.name} ännu.</p>
-                <p className="mt-1.5 text-xs text-[var(--text-muted)]">Använd "Koppla restauranger"-knappen nedan för att lägga till.</p>
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

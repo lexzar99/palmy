@@ -204,7 +204,6 @@ export function DealsPage() {
           <DealGrid
             deals={bogoDeals}
             emptyTitle="Inga BOGO-deals"
-            emptyDescription='BOGO = köp X, få 1 gratis. Tryck "Ny BOGO-deal" för att skapa.'
             renderCard={(deal) => (
               <DealCard
                 key={deal.id}
@@ -222,7 +221,6 @@ export function DealsPage() {
           <DealGrid
             deals={kampanjDeals}
             emptyTitle="Inga kampanjer"
-            emptyDescription='Kampanjer ger rabatt på restaurang, kategori eller produkt. Tryck "Ny kampanj".'
             renderCard={(deal) => {
               const discountLine =
                 deal.discountType === "PERCENTAGE" ? `-${deal.discountValue}%`
@@ -255,7 +253,7 @@ export function DealsPage() {
             {discounts.isLoading ? (
               <p className="text-sm text-[var(--text-secondary)] py-8 text-center">Laddar...</p>
             ) : (discounts.data || []).length === 0 ? (
-              <EmptyState title="Inga kupongkoder" description="Skapa din första kupong med knappen ovan." />
+              <EmptyState title="Inga kupongkoder" />
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {(discounts.data || []).map((record) => (

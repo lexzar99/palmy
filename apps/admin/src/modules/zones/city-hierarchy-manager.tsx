@@ -85,11 +85,6 @@ export function CityHierarchyManager() {
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Städer</p>
           <h3 className="mt-1.5 text-xl font-black tracking-[-0.02em]">Hantera städer och hierarki</h3>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Städer auto-skapas när du lägger till restauranger med Google Places-adresser.
-            Slå ihop förorter under en huvudstad (t.ex. Arlöv + Oxie under Malmö) så kunder ser hela storstadens utbud.
-            Manuell — Lund kan vara separat även om geografiskt nära Malmö.
-          </p>
         </div>
         <Badge tone="info">{allRoots.length} städer</Badge>
       </div>
@@ -100,7 +95,7 @@ export function CityHierarchyManager() {
           <div className="flex-1 text-xs">
             <p className="font-bold text-amber-700 dark:text-amber-300 mb-0.5">{orphans.length} fristående stad{orphans.length !== 1 ? "er" : ""} med få restauranger</p>
             <p className="text-amber-600/80 dark:text-amber-400/80">
-              {orphans.map((o) => o.name).join(", ")} har 0-1 restauranger var. Slå ihop med närmsta huvudstad om de hör samman geografiskt.
+              {orphans.map((o) => o.name).join(", ")}
             </p>
           </div>
         </div>
@@ -111,9 +106,6 @@ export function CityHierarchyManager() {
           <div className="rounded-2xl border border-dashed border-[var(--border-subtle)] px-6 py-12 text-center">
             <Building2 size={28} className="mx-auto text-[var(--text-muted)] mb-3" />
             <p className="text-sm font-bold text-[var(--text-secondary)]">Inga städer än</p>
-            <p className="mt-1.5 text-xs text-[var(--text-muted)]">
-              Lägg till en restaurang via Google Places autocomplete så skapas stadens automatiskt.
-            </p>
           </div>
         ) : (
           allRoots.map((root) => (
@@ -139,7 +131,6 @@ export function CityHierarchyManager() {
         open={!!mergeModal}
         onClose={() => setMergeModal(null)}
         title={mergeModal ? `Slå ihop ${mergeModal.child.name} under en huvudstad` : "Slå ihop"}
-        description="Restaurangerna behåller sin riktiga adress, men kunder ser hela huvudstadens utbud när de väljer adress i förorten."
       >
         {mergeModal && (
           <div className="space-y-2">
@@ -278,7 +269,6 @@ function AliasEditor({
       open={!!city}
       onClose={onClose}
       title={`Aliases för ${city.name}`}
-      description="Andra namn som Google Places kan returnera för denna stad. När en restaurang läggs till med ett alias-namn så binds den automatiskt till denna stad."
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Avbryt</Button>

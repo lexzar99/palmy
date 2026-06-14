@@ -47,7 +47,6 @@ function TierModal({ restaurant, open, onClose }: { restaurant: ControlCenterRes
       open={open}
       onClose={onClose}
       title={`${restaurant.name} — tier`}
-      description="Tier styr abonnemang och placering. Provisionen styrs separat av leveransmodellen."
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Avbryt</Button>
@@ -99,10 +98,6 @@ export function TiersPage() {
   return (
     <div className="page-stack">
       <PageHeader title="Tiers" />
-
-      <Surface className="px-5 py-4 text-sm text-[var(--text-secondary)]">
-        Tier = <strong>abonnemang + placering</strong> i kund-appen. Provisionen (10/20 %) är en separat axel som styrs av leveransmodellen.
-      </Surface>
 
       <Surface className="px-6 py-6">
         {restaurants.data.length === 0 ? (

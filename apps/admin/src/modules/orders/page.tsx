@@ -2,11 +2,51 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Loader2, ReceiptText, RefreshCw, Search, Trash2, UserRound, Wallet } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, Plus, ReceiptText, RefreshCw, Search, SlidersHorizontal, Trash2, UserRound } from "lucide-react";
 import { bulkRefundOrders, deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
 import { CustomerModal } from "@/modules/customers/page";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Surface, Tabs, Textarea } from "@/shared/components/ui";
-import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone } from "@/shared/utils/format";
+import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, orderTypeLabel } from "@/shared/utils/format";
+
+// Order-resans steg i ordning. Leverans har ett extra "Levereras"-steg;
+// avhämtning hoppar direkt från Redo till klar.
+const DELIVERY_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING", "DELIVERED"] as const;
+const PICKUP_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERED"] as const;
+const CANCEL_STATUSES = ["CANCELLED", "REJECTED", "DELIVERY_FAILED"];
+
+function stepLabel(status: string, isDelivery: boolean): string {
+  switch (status) {
+    case "PENDING": return "Mottagen";
+    case "ACCEPTED": return "Accepterad";
+    case "PREPARING": return "Tillagas";
+    case "READY": return "Redo";
+    case "DELIVERING": return "Levereras";
+    case "DELIVERED": return isDelivery ? "Levererad" : "Upphämtad";
+    default: return status;
+  }
+}
+
+// Nästa logiska steg + en handlingsvänlig etikett — driver den enda
+// primära knappen så admin slipper gissa bland sex likadana knappar.
+function nextAction(status: string, isDelivery: boolean): { status: string; label: string } | null {
+  switch (status) {
+    case "PENDING": return { status: "ACCEPTED", label: "Acceptera order" };
+    case "ACCEPTED": return { status: "PREPARING", label: "Markera som tillagas" };
+    case "PREPARING": return { status: "READY", label: "Markera som redo" };
+    case "READY": return isDelivery ? { status: "DELIVERING", label: "Skicka iväg" } : { status: "DELIVERED", label: "Markera upphämtad" };
+    case "DELIVERING": return { status: "DELIVERED", label: "Markera levererad" };
+    default: return null;
+  }
+}
+
+const ALL_STATUS_ACTIONS: Array<[string, string]> = [
+  ["ACCEPTED", "Accepterad"],
+  ["PREPARING", "Tillagas"],
+  ["READY", "Redo"],
+  ["DELIVERING", "Levereras"],
+  ["DELIVERED", "Levererad"],
+  ["CANCELLED", "Avbruten"],
+];
 
 const statusOptions = ["ALL", "PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERED", "CANCELLED"] as const;
 
@@ -68,6 +108,36 @@ function parseExtras(value: AdminOrder["items"][number]["selectedExtras"]) {
   }
 }
 
+function StatusTrack({ status, isDelivery }: { status: string; isDelivery: boolean }) {
+  const cancelled = CANCEL_STATUSES.includes(status);
+  const steps: readonly string[] = isDelivery ? DELIVERY_STEPS : PICKUP_STEPS;
+  const currentIdx = steps.indexOf(status);
+  // När en order är avbruten/nekad färgas hela spåret rött med en enda etikett.
+  if (cancelled) {
+    return (
+      <div className="order-track">
+        <div className="order-step is-cancelled">
+          <span className="order-step-bar" />
+          <span className="order-step-label">{orderStatusLabel(status)}</span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="order-track">
+      {steps.map((s, i) => {
+        const state = currentIdx >= 0 && i < currentIdx ? "is-done" : i === currentIdx ? "is-now" : "";
+        return (
+          <div key={s} className={`order-step ${state}`}>
+            <span className="order-step-bar" />
+            <span className="order-step-label">{stepLabel(s, isDelivery)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function OrderDetailsModal({
   orderId,
   open,
@@ -84,9 +154,9 @@ function OrderDetailsModal({
   const [refundAmount, setRefundAmount] = useState<number | "">("");
   const [refundReasonKey, setRefundReasonKey] = useState<string>("");
   const [refundReasonExtra, setRefundReasonExtra] = useState("");
-  // Återbetalnings-formuläret är ihopfällt by default — det är sällan-åtgärden
-  // och tog annars upp halva modalen vid varje öppning.
+  // Återbetalning + manuell statusändring är sällan-åtgärder → ihopfällda by default.
   const [showRefund, setShowRefund] = useState(false);
+  const [showStatusOverride, setShowStatusOverride] = useState(false);
 
   const orderQuery = useQuery({
     queryKey: orderDetailQueryKey(orderId),
@@ -103,10 +173,6 @@ function OrderDetailsModal({
     return extra ? `${cannedLabel} — ${extra}` : cannedLabel;
   }, [refundReasonKey, refundReasonExtra]);
 
-  // Fältet lämnas TOMT som default — "Återbetala hela beloppet"-knappen gör
-  // en full refund med ett klick utan att admin behöver skriva en siffra.
-  // Fyll bara i fältet för en DELVIS återbetalning.
-
   const statusMutation = useMutation({
     mutationFn: ({ status, nextEstimatedTime }: { status: string; nextEstimatedTime?: number | null }) =>
       updateOrderStatus(orderId!, status, nextEstimatedTime),
@@ -121,14 +187,9 @@ function OrderDetailsModal({
 
   const [refundSuccess, setRefundSuccess] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
-  // Stripe-refund returnerar status `pending` eller `succeeded` (Klarna är
-  // ofta `pending` först → blir `succeeded` inom 1-3 bankdagar). Vi visar
-  // status:n så admin förstår om pengarna är på väg eller redan framme.
   const [refundStatus, setRefundStatus] = useState<string | null>(null);
 
-  // Reset all transient state när admin byter order. Annars hängde
-  // refund-success-bannern kvar från föregående order och visades på
-  // en helt orelaterad/orefunderad order. Samma för error + form-inputs.
+  // Reset all transient state när admin byter order.
   useEffect(() => {
     setRefundSuccess(false);
     setRefundError(null);
@@ -138,6 +199,7 @@ function OrderDetailsModal({
     setRefundReasonExtra("");
     setEstimatedTime("");
     setShowRefund(false);
+    setShowStatusOverride(false);
   }, [orderId]);
 
   const refundMutation = useMutation({
@@ -169,81 +231,116 @@ function OrderDetailsModal({
   });
 
   const order = orderQuery.data;
+  const isDelivery = order?.type === "DELIVERY";
+  const next = order ? nextAction(order.status, isDelivery) : null;
+  const isCancelled = order ? CANCEL_STATUSES.includes(order.status) : false;
+  const isDone = order?.status === "DELIVERED";
+  const isLive = order ? ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(order.status) : false;
+
+  const applyStatus = (status: string) =>
+    statusMutation.mutate({ status, nextEstimatedTime: estimatedTime === "" ? null : Number(estimatedTime) });
 
   return (
     <Modal
       open={open}
       onClose={onClose}
+      widthClassName="max-w-[920px]"
       title={order ? `Order ${order.orderNumber}` : "Orderdetaljer"}
-      description={order ? `${order.restaurantName || "Okänd restaurang"} • ${formatDateTime(order.createdAt)}` : undefined}
+      description={order ? `${order.restaurantName || "Okänd restaurang"} · ${formatDateTime(order.createdAt)} · ${orderTypeLabel(order.type)}` : undefined}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button
             variant="danger"
             onClick={() => {
               if (!order) return;
-              const msg = `Radera order ${order.orderNumber} permanent?\n\nDetta kan INTE ångras. Order-historik försvinner från systemet.`;
-              if (window.confirm(msg)) deleteMutation.mutate();
+              if (window.confirm(`Radera order ${order.orderNumber} permanent? Detta kan inte ångras.`)) deleteMutation.mutate();
             }}
             disabled={deleteMutation.isPending || !order}
           >
             <Trash2 size={16} /> Radera
           </Button>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={onClose}>Stäng</Button>
-          </div>
+          <Button onClick={onClose}>Stäng</Button>
         </div>
       }
     >
       {orderQuery.isLoading || !order ? (
-        <div className="surface-muted px-5 py-5 text-sm text-[var(--text-secondary)]">Laddar orderdetaljer…</div>
+        <div className="surface-muted px-5 py-8 text-center text-sm text-[var(--text-secondary)]">Laddar order…</div>
       ) : (
-        <div className="space-y-6">
-          <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="space-y-5">
+          <StatusTrack status={order.status} isDelivery={isDelivery} />
+
+          <div className="grid gap-4 lg:grid-cols-[1.35fr_0.9fr]">
+            {/* ── Vänster: kund, artiklar, bud ── */}
             <div className="space-y-4">
               <div className="surface-muted px-5 py-5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={orderStatusTone(order.status) as "success" | "danger" | "warning" | "info" | "neutral"}>{orderStatusLabel(order.status)}</Badge>
-                  <Badge tone="neutral">{order.type}</Badge>
-                  {order.refundedAt ? <Badge tone="danger">Återbetald {formatCurrency(order.refundAmount || 0)}</Badge> : null}
-                </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="grid gap-5 sm:grid-cols-2">
                   <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Kund</p>
+                    <p className="card-label">Kund</p>
                     <div className="mt-2 flex items-center gap-2">
-                      <p className="text-lg font-black">{order.customerName}</p>
+                      <p className="text-[15px] font-semibold">{order.customerName}</p>
                       {order.userId && onViewCustomer ? (
                         <button
                           type="button"
                           onClick={() => onViewCustomer(order.userId!)}
-                          className="flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--accent-strong)] hover:bg-[var(--bg-hover)] transition-colors"
+                          className="inline-flex items-center gap-1 rounded-md border border-[var(--border-subtle)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
                         >
                           <UserRound size={11} /> Profil
                         </button>
                       ) : null}
                     </div>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">{order.customerPhone}</p>
-                    {order.customerEmail ? <p className="mt-1 text-sm text-[var(--text-secondary)]">{order.customerEmail}</p> : null}
+                    <p className="mt-1 text-[13px] text-[var(--text-secondary)]">{order.customerPhone}</p>
+                    {order.customerEmail ? <p className="text-[13px] text-[var(--text-secondary)]">{order.customerEmail}</p> : null}
                   </div>
                   <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Leverans / avhämtning</p>
-                    <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
-                      {order.type === "DELIVERY"
+                    <p className="card-label">{isDelivery ? "Leverans" : "Avhämtning"}</p>
+                    <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+                      {isDelivery
                         ? `${order.deliveryStreet || "Adress saknas"}${order.deliveryZip || order.deliveryCity ? `, ${order.deliveryZip || ""} ${order.deliveryCity || ""}` : ""}`
                         : "Avhämtning i restaurang"}
                     </p>
-                    {order.deliveryInstructions ? <p className="mt-2 text-sm text-[var(--text-secondary)]">{order.deliveryInstructions}</p> : null}
+                    {order.deliveryInstructions ? <p className="mt-1.5 text-[13px] text-[var(--text-muted)]">{order.deliveryInstructions}</p> : null}
                   </div>
+                </div>
+              </div>
+
+              <div className="surface-muted px-5 py-5">
+                <p className="card-label mb-1">Artiklar</p>
+                <div className="divide-y divide-[var(--border-subtle)]">
+                  {order.items.map((item) => {
+                    const extras = parseExtras(item.selectedExtras);
+                    return (
+                      <div key={item.id} className="flex items-start justify-between gap-4 py-3">
+                        <div className="min-w-0">
+                          <p className="text-[14px] font-semibold">{item.quantity}× {item.productName}</p>
+                          {item.note ? <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">{item.note}</p> : null}
+                          {extras.length > 0 ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {extras.map((extra, index) => (
+                                <span key={`${item.id}-${index}`} className="rounded-md bg-[var(--bg-hover)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">
+                                  + {extra.extraName || extra.name}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                        <p className="shrink-0 text-[14px] font-semibold tabular-nums">{formatCurrency(item.subtotal)}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-1 flex items-center justify-between border-t border-[var(--border-strong)] pt-3 text-[15px] font-bold">
+                  <span>Summa artiklar</span>
+                  <span className="tabular-nums">{formatCurrency(order.total - (order.deliveryFee || 0) + (order.discountAmount || 0))}</span>
                 </div>
               </div>
 
               {order.courier && (
                 <div className="surface-muted px-5 py-5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Bud</p>
-                  <div className="mt-3 flex items-center justify-between gap-2">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-base font-black">{order.courier.name || "Ej tilldelad"}</p>
-                      <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
+                      <p className="card-label">Bud</p>
+                      <p className="mt-2 text-[14px] font-semibold">{order.courier.name || "Ej tilldelad"}</p>
+                      <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">
                         {[order.courier.vehicle === "CAR" ? "Bil" : order.courier.vehicle === "BIKE" ? "Cykel" : null, order.courier.phone].filter(Boolean).join(" · ") || "—"}
                       </p>
                     </div>
@@ -254,136 +351,132 @@ function OrderDetailsModal({
                   {(order.courier.pickupMin != null || order.courier.deliverMin != null || order.courier.totalMin != null) && (
                     <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                       <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
-                        <p className="text-sm font-black tabular-nums">{order.courier.pickupMin != null ? `${order.courier.pickupMin} min` : "–"}</p>
-                        <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Till hämtning</p>
+                        <p className="text-[14px] font-semibold tabular-nums">{order.courier.pickupMin != null ? `${order.courier.pickupMin}m` : "–"}</p>
+                        <p className="mt-0.5 text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Till hämtning</p>
                       </div>
                       <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
-                        <p className="text-sm font-black tabular-nums">{order.courier.deliverMin != null ? `${order.courier.deliverMin} min` : "–"}</p>
-                        <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Hämtad→lev.</p>
+                        <p className="text-[14px] font-semibold tabular-nums">{order.courier.deliverMin != null ? `${order.courier.deliverMin}m` : "–"}</p>
+                        <p className="mt-0.5 text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Hämtad→lev.</p>
                       </div>
                       <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
-                        <p className="text-sm font-black tabular-nums">{order.courier.totalMin != null ? `${order.courier.totalMin} min` : "–"}</p>
-                        <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Totalt</p>
+                        <p className="text-[14px] font-semibold tabular-nums">{order.courier.totalMin != null ? `${order.courier.totalMin}m` : "–"}</p>
+                        <p className="mt-0.5 text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Totalt</p>
                       </div>
                     </div>
                   )}
                 </div>
               )}
-
-              <div className="surface-muted px-5 py-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Artiklar</p>
-                <div className="mt-4 grid gap-3">
-                  {order.items.map((item) => {
-                    const extras = parseExtras(item.selectedExtras);
-                    return (
-                      <div key={item.id} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-4 py-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="font-black">{item.quantity}x {item.productName}</p>
-                            {item.note ? <p className="mt-2 text-sm text-[var(--text-secondary)]">{item.note}</p> : null}
-                            {extras.length > 0 ? (
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {extras.map((extra, index) => (
-                                  <Badge key={`${item.id}-${index}`} tone="neutral">+ {extra.extraName || extra.name}</Badge>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
-                          <p className="font-black">{formatCurrency(item.subtotal)}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
             </div>
 
+            {/* ── Höger: hantera, betalning, återbetalning, notering ── */}
             <div className="space-y-4">
-              <div className="surface-muted px-5 py-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Statusåtgärder</p>
-                <Field label="Beräknad tid (min)">
-                  <Input type="number" value={estimatedTime} onChange={(event) => setEstimatedTime(event.target.value ? Number(event.target.value) : "")} placeholder={order.estimatedTime ? String(order.estimatedTime) : "Valfritt"} />
-                </Field>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  {[
-                    ["ACCEPTED", "Acceptera"],
-                    ["PREPARING", "Tillagas"],
-                    ["READY", "Redo"],
-                    ["DELIVERING", "Levereras"],
-                    ["DELIVERED", "Levererad"],
-                    ["CANCELLED", "Avbryt"],
-                  ].map(([status, label]) => (
-                    <Button
-                      key={status}
-                      variant={status === "CANCELLED" ? "danger" : "secondary"}
-                      onClick={() => statusMutation.mutate({ status, nextEstimatedTime: estimatedTime === "" ? null : Number(estimatedTime) })}
-                      disabled={statusMutation.isPending}
-                    >
-                      {statusMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null} {label}
-                    </Button>
-                  ))}
-                </div>
+              <div className="surface px-5 py-5">
+                <p className="card-label">Hantera order</p>
+                {isCancelled ? (
+                  <p className="mt-2 text-[13px] text-[var(--text-secondary)]">Ordern är {orderStatusLabel(order.status).toLowerCase()}.</p>
+                ) : isDone ? (
+                  <p className="mt-2 flex items-center gap-1.5 text-[13px] text-[var(--success)]"><CheckCircle2 size={14} /> Ordern är slutförd.</p>
+                ) : (
+                  <>
+                    <p className="mt-1.5 text-[13px] text-[var(--text-secondary)]">Just nu: {orderStatusLabel(order.status)}</p>
+                    {next && (
+                      <Button variant="primary" className="mt-3 w-full" onClick={() => applyStatus(next.status)} disabled={statusMutation.isPending}>
+                        {statusMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
+                        {next.label} <ArrowRight size={16} />
+                      </Button>
+                    )}
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowStatusOverride((v) => !v)}
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-[var(--border-subtle)] py-2.5 text-[13px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                >
+                  <SlidersHorizontal size={14} /> Ändra status
+                  <ChevronDown size={13} className={showStatusOverride ? "rotate-180 transition-transform" : "transition-transform"} />
+                </button>
+
+                {showStatusOverride && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {ALL_STATUS_ACTIONS.map(([status, label]) => (
+                      <Button
+                        key={status}
+                        variant={status === "CANCELLED" ? "danger" : "secondary"}
+                        className="text-[13px]"
+                        onClick={() => applyStatus(status)}
+                        disabled={statusMutation.isPending || status === order.status}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+
+                {isLive && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={estimatedTime}
+                      onChange={(event) => setEstimatedTime(event.target.value ? Number(event.target.value) : "")}
+                      placeholder={order.estimatedTime ? `${order.estimatedTime} min` : "Beräknad tid (min)"}
+                    />
+                    <Button onClick={() => applyStatus(order.status)} disabled={statusMutation.isPending || estimatedTime === ""}>Tid</Button>
+                  </div>
+                )}
               </div>
 
               <div className="surface-muted px-5 py-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Ekonomisk översikt</p>
-                <div className="mt-4 space-y-3 text-sm text-[var(--text-secondary)]">
-                  <div className="flex items-center justify-between"><span>Totalt</span><span className="font-black text-[var(--text-primary)]">{formatCurrency(order.total)}</span></div>
-                  <div className="flex items-center justify-between"><span>Leveransavgift</span><span>{formatCurrency(order.deliveryFee || 0)}</span></div>
-                  <div className="flex items-center justify-between"><span>Rabatt</span><span>{formatCurrency(order.discountAmount || 0)}</span></div>
-                  <div className="flex items-center justify-between"><span>Betalmetod</span><span>{order.paymentMethod || "-"}</span></div>
-                </div>
-              </div>
-
-              <div className="surface-muted px-5 py-5">
-                <div className="flex items-center gap-2 text-[var(--accent-strong)]">
-                  <Wallet size={16} />
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em]">Återbetalning</p>
+                <p className="card-label mb-2">Betalning</p>
+                <div className="space-y-2 text-[13px] text-[var(--text-secondary)]">
+                  <div className="flex items-center justify-between"><span>Leveransavgift</span><span className="tabular-nums">{formatCurrency(order.deliveryFee || 0)}</span></div>
+                  <div className="flex items-center justify-between"><span>Rabatt</span><span className="tabular-nums">{order.discountAmount ? `−${formatCurrency(order.discountAmount)}` : formatCurrency(0)}</span></div>
+                  <div className="flex items-center justify-between border-t border-[var(--border-strong)] pt-2.5 text-[15px] font-bold text-[var(--text-primary)]">
+                    <span>Totalt · {order.paymentMethod || "—"}</span>
+                    <span className="tabular-nums">{formatCurrency(order.total)}</span>
+                  </div>
                 </div>
                 {(order.pointsEarned || order.pointsSpent) ? (
-                  <div className="mt-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-4 py-3 text-[13px]">
-                    <p className="font-semibold text-[var(--text-primary)]">Dpoints på denna order</p>
-                    <div className="mt-1.5 space-y-0.5 text-[var(--text-secondary)]">
-                      {!!order.pointsEarned && (
-                        <p>Kund tjänade <strong>{order.pointsEarned} p</strong> {order.pointsReverted ? "(återtagna)" : "→ återtas vid återbetalning"}</p>
-                      )}
-                      {!!order.pointsSpent && (
-                        <p>Kund löste in <strong>{order.pointsSpent} p</strong> {order.pointsReverted ? "(återförda)" : "→ återförs vid återbetalning"}</p>
-                      )}
-                    </div>
+                  <div className="mt-3 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-3 py-2.5 text-[12.5px] text-[var(--text-secondary)]">
+                    {!!order.pointsEarned && (
+                      <p>Tjänade <strong className="text-[var(--text-primary)]">{order.pointsEarned} p</strong>{order.pointsReverted ? " (återtagna)" : ""}</p>
+                    )}
+                    {!!order.pointsSpent && (
+                      <p>Löste in <strong className="text-[var(--text-primary)]">{order.pointsSpent} p</strong>{order.pointsReverted ? " (återförda)" : ""}</p>
+                    )}
                   </div>
                 ) : null}
-                {order.refundedAt ? (
-                  <div className="mt-4 rounded-2xl border border-[rgba(48,199,143,0.2)] bg-[rgba(48,199,143,0.08)] px-4 py-3">
-                    <div className="flex items-center gap-2 text-sm text-[#c4ffeb]">
-                      <CheckCircle2 size={14} /> Återbetald {formatCurrency(order.refundAmount || 0)}
-                    </div>
-                  </div>
-                ) : showRefund ? (
-                  <div className="mt-4 grid gap-4">
-                    <Field label="Belopp för DELVIS återbetalning (kr)">
+              </div>
+
+              {/* ── Återbetalning ── */}
+              {order.refundedAt ? (
+                <div className="surface-muted flex items-center gap-2 px-5 py-4 text-[13px] text-[var(--success)]">
+                  <CheckCircle2 size={15} /> Återbetald {formatCurrency(order.refundAmount || 0)}
+                </div>
+              ) : showRefund ? (
+                <div className="surface-muted px-5 py-5">
+                  <p className="card-label mb-3">Återbetalning</p>
+                  <div className="grid gap-4">
+                    <Field label="Belopp (kr) — tomt = hela">
                       <Input
                         type="number"
                         value={refundAmount}
                         onChange={(event) => setRefundAmount(event.target.value ? Number(event.target.value) : "")}
                         placeholder={`Hela: ${order.total} kr`}
                       />
-                      <p className="mt-1.5 text-[10px] text-[var(--text-muted)]">
-                        Lämna tomt för full återbetalning — fyll bara i för delvis refund.
-                      </p>
                     </Field>
                     <Field label="Anledning">
                       <select
                         value={refundReasonKey}
                         onChange={(event) => setRefundReasonKey(event.target.value)}
-                        className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-4 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-strong)]"
+                        className="select"
                       >
                         <option value="">Välj anledning…</option>
                         {REFUND_REASONS.map((r) => (
                           <option key={r.value} value={r.value}>{r.label}</option>
                         ))}
                       </select>
-                      {(refundReasonKey === "other" || refundReasonKey) && (
+                      {refundReasonKey && (
                         <div className="mt-2">
                           <Textarea
                             value={refundReasonExtra}
@@ -394,37 +487,20 @@ function OrderDetailsModal({
                       )}
                     </Field>
                     {refundSuccess && (
-                      <div className="rounded-2xl border border-[rgba(48,199,143,0.2)] bg-[rgba(48,199,143,0.08)] px-4 py-3 text-sm text-[#c4ffeb] flex items-start gap-2">
-                        <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
-                        <div className="space-y-1">
-                          <p className="font-bold">
-                            Återbetalning skickad till Stripe
-                            {refundStatus && (
-                              <span className="ml-2 text-xs uppercase tracking-wider opacity-70">
-                                · {refundStatus}
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-xs opacity-80">
-                            {refundStatus === "succeeded"
-                              ? "Pengarna är redan tillbaka hos betalleverantören. Klarna/kort kan ändå ta 1-3 bankdagar att visa det för kunden."
-                              : "Stripe behandlar återbetalningen. Pengarna syns i kundens bank/Klarna inom 1-3 bankdagar. Verifiera i Stripe Dashboard om du vill bekräfta direkt."}
-                          </p>
-                        </div>
+                      <div className="flex items-center gap-2 rounded-[10px] border border-[rgba(74,222,128,0.18)] bg-[rgba(74,222,128,0.08)] px-3 py-2.5 text-[13px] text-[var(--success)]">
+                        <CheckCircle2 size={14} /> Återbetalning skickad{refundStatus ? ` · ${refundStatus}` : ""}
                       </div>
                     )}
                     {refundError && (
-                      <div className="rounded-2xl border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] px-4 py-3 text-sm text-rose-400 flex items-center gap-2">
+                      <div className="flex items-center gap-2 rounded-[10px] border border-[rgba(251,113,133,0.2)] bg-[rgba(251,113,133,0.08)] px-3 py-2.5 text-[13px] text-[var(--danger)]">
                         <AlertCircle size={14} /> {refundError}
                       </div>
                     )}
-                    <div className="grid gap-2.5">
-                      {/* Full återbetalning — ett klick, inget belopp behöver anges. */}
+                    <div className="grid gap-2">
                       <Button
                         variant="primary"
                         onClick={() => {
-                          const msg = `Återbetala HELA beloppet ${order.total} kr för order ${order.orderNumber}?\n\nPengarna går tillbaka till kundens Stripe-betalning. Detta kan inte ångras direkt — manuell justering krävs annars.`;
-                          if (!window.confirm(msg)) return;
+                          if (!window.confirm(`Återbetala hela beloppet ${order.total} kr för order ${order.orderNumber}?`)) return;
                           setRefundSuccess(false);
                           setRefundError(null);
                           refundMutation.mutate(null);
@@ -432,43 +508,42 @@ function OrderDetailsModal({
                         disabled={refundMutation.isPending}
                       >
                         {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
-                        {refundMutation.isPending ? "Återbetalar…" : `Återbetala hela beloppet (${order.total} kr)`}
+                        {refundMutation.isPending ? "Återbetalar…" : `Återbetala hela (${order.total} kr)`}
                       </Button>
-                      {/* Delvis återbetalning — bara när ett belopp angetts ovan. */}
                       {refundAmount !== "" && Number(refundAmount) > 0 && Number(refundAmount) < order.total && (
                         <Button
                           variant="secondary"
                           onClick={() => {
                             const amount = Number(refundAmount);
-                            const msg = `Återbetala ${amount} kr (delvis) för order ${order.orderNumber}?\n\nPengarna går tillbaka till kundens Stripe-betalning. Detta kan inte ångras direkt — manuell justering krävs annars.`;
-                            if (!window.confirm(msg)) return;
+                            if (!window.confirm(`Återbetala ${amount} kr (delvis) för order ${order.orderNumber}?`)) return;
                             setRefundSuccess(false);
                             setRefundError(null);
                             refundMutation.mutate(amount);
                           }}
                           disabled={refundMutation.isPending}
                         >
-                          {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
-                          {refundMutation.isPending ? "Återbetalar…" : `Återbetala ${Number(refundAmount)} kr (delvis)`}
+                          {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
+                          Återbetala {Number(refundAmount)} kr
                         </Button>
                       )}
                     </div>
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowRefund(true)}
-                    className="mt-4 w-full rounded-xl border border-[var(--border-subtle)] px-4 py-2.5 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-                  >
-                    Återbetala order…
-                  </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowRefund(true)}
+                  className="flex w-full items-center justify-between rounded-[14px] border border-[var(--border-subtle)] px-5 py-4 text-[13px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                >
+                  <span>Återbetala order</span>
+                  <Plus size={15} />
+                </button>
+              )}
 
               {order.note ? (
                 <div className="surface-muted px-5 py-5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Kundnotering</p>
-                  <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">{order.note}</p>
+                  <p className="card-label">Kundnotering</p>
+                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{order.note}</p>
                 </div>
               ) : null}
             </div>
@@ -543,11 +618,11 @@ export function OrdersPage() {
   }, [orders.data?.orders, search]);
 
   if (orders.isLoading) {
-    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar live-orderflöde…</Surface>;
+    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar ordrar…</Surface>;
   }
 
   if (orders.isError || !orders.data) {
-    return <ErrorPanel title="Kunde inte ladda ordrar" description="Order-flödet returnerade ingen giltig data." action={<Button onClick={() => void orders.refetch()}><RefreshCw size={14} /> Försök igen</Button>} />;
+    return <ErrorPanel title="Kunde inte ladda ordrar" action={<Button onClick={() => void orders.refetch()}><RefreshCw size={14} /> Försök igen</Button>} />;
   }
 
   const liveCount = orders.data.orders.filter((order) => ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(order.status)).length;
@@ -570,7 +645,7 @@ export function OrdersPage() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full max-w-xl">
             <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <Input className="pl-11" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sök på order, kund, telefon eller restaurang" />
+            <Input className="pl-11" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sök order, kund, telefon, restaurang" />
           </div>
           <Tabs value={status} onChange={(value) => setStatus(value)} options={statusOptions.map((item) => ({ value: item, label: item === "ALL" ? "Alla" : orderStatusLabel(item) }))} />
         </div>
@@ -595,8 +670,7 @@ export function OrdersPage() {
               disabled={bulkRefundMutation.isPending}
               onClick={() => {
                 const ids = Array.from(selectedIds);
-                const msg = `Massåterbetala ${ids.length} ordrar?\n\nVarje order refunderas till sin totalsumma via Stripe. Redan refunderade ordrar hoppas över.`;
-                if (!window.confirm(msg)) return;
+                if (!window.confirm(`Massåterbetala ${ids.length} ordrar? Redan refunderade hoppas över.`)) return;
                 setBulkResult(null);
                 bulkRefundMutation.mutate(ids);
               }}
@@ -682,7 +756,7 @@ export function OrdersPage() {
 
                   {/* Höger: total + tidpunkt */}
                   <div className="flex shrink-0 flex-col items-end gap-0.5">
-                    <span className="text-[15px] font-bold text-[var(--text-primary)]">{formatCurrency(order.total)}</span>
+                    <span className="text-[15px] font-bold text-[var(--text-primary)] tabular-nums">{formatCurrency(order.total)}</span>
                     <span className="text-[12px] text-[var(--text-muted)]">{formatDateTime(order.createdAt)}</span>
                   </div>
                 </div>

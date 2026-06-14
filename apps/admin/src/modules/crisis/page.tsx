@@ -87,9 +87,6 @@ export function CrisisPage() {
           </div>
           <div>
             <h2 className="text-base font-black uppercase tracking-tight">Verktyg för platsstörningar</h2>
-            <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-              Använd dessa när något brinner. Alla actions loggas i audit-log.
-            </p>
           </div>
         </div>
       </Surface>
@@ -100,9 +97,6 @@ export function CrisisPage() {
           <Power size={18} className="text-rose-500" />
           <h2 className="text-base font-black uppercase tracking-tight">Stäng ALLA restauranger</h2>
         </div>
-        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
-          Sätter <code>isOpen=false</code> på alla restauranger samtidigt. Använd vid plattform-wide kris (matförgiftning-spread, juldag, etc.).
-        </p>
         <Field label="Anledning (loggas)">
           <Input value={closeReason} onChange={(e) => setCloseReason(e.target.value)} placeholder="t.ex. Misstänkt matförgiftnings-utbrott" />
         </Field>
@@ -138,9 +132,6 @@ export function CrisisPage() {
           <Megaphone size={18} className="text-amber-500" />
           <h2 className="text-base font-black uppercase tracking-tight">Plattform-banner</h2>
         </div>
-        <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
-          Visas högst upp på web för alla kunder. Använd för underhåll, störningar, viktig info.
-        </p>
         <div className="grid gap-4">
           <Field label="Meddelande (tom = ingen banner)">
             <Textarea
@@ -224,9 +215,6 @@ function PlatformPauseControls() {
             <div>
               <div className="font-bold">Plattformen är pausad till {new Date(paused.until).toLocaleString("sv-SE")}</div>
               {paused.reason && <div className="text-xs text-amber-200/80 mt-1">{paused.reason}</div>}
-              <div className="text-[10px] text-[var(--text-muted)] mt-1">
-                Nya orderskapanden blockeras med HTTP 503. Auto-återställning vid utgång.
-              </div>
             </div>
           </div>
           <Button
@@ -241,10 +229,6 @@ function PlatformPauseControls() {
         </div>
       ) : (
         <>
-          <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
-            Stoppar nya orderskapanden globalt utan att stänga restauranger. Använd vid betalleverantörs-utfall
-            eller plattforms-incidenter. Auto-återupptar.
-          </p>
           <div className="grid gap-4 md:grid-cols-3">
             <Field label="Tid (minuter, 1-360)">
               <Input
@@ -307,9 +291,6 @@ function CityPauseControls() {
         <MapPin size={18} className="text-rose-500" />
         <h2 className="text-base font-black uppercase tracking-tight">Pausa en stad</h2>
       </div>
-      <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
-        Stänger alla restauranger i en specifik stad. Använd vid lokala leveransproblem eller stadsspecifika incidenter — så slipper du stänga ner hela plattformen.
-      </p>
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Välj stad">
           <Select value={cityId} onChange={(e) => setCityId(e.target.value)}>
@@ -412,9 +393,6 @@ function PerRestaurantCrisis() {
               <DollarSign size={16} className="text-amber-500" />
               <h3 className="text-sm font-black uppercase tracking-tight">Bulk-refund alla orders</h3>
             </div>
-            <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
-              Refunderar alla PAID-orders för restaurangen inom datumintervall. Använd vid matförgiftning, kvalitetsproblem.
-            </p>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <Field label="Från">
                 <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} max={toDate} />
@@ -447,9 +425,6 @@ function PerRestaurantCrisis() {
               <Ban size={16} className="text-rose-500" />
               <h3 className="text-sm font-black uppercase tracking-tight">Akut deaktivera restaurang</h3>
             </div>
-            <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
-              Stänger restaurangen + inaktiverar alla deals. Du får en JSON-datadump för avstämning. Använd vid avtalsbrott, fraud, försvunnen partner.
-            </p>
             <Field label="Anledning (loggas)">
               <Input value={deactivateReason} onChange={(e) => setDeactivateReason(e.target.value)} placeholder="Avtalsbrott, ej betalat 3 månader" />
             </Field>
