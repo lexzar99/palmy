@@ -1,213 +1,220 @@
 /**
- * Delivera brand-assets generator.
- * Renderar riktiga PNG:er via sharp (SVG → PNG). Palett = nuvarande design
- * (guld #F4D086/#E7B24B/#C28E2E + nära-svart + vit). Inga blåa toner.
+ * Delivera brand-assets — HTML → headless Chrome (INGEN sharp).
+ * SIMPLA, professionella ikoner: platta färger, hög kontrast, inga glow/gradient,
+ * rena fonts (ingen skrivstil). Ordet skrivs "Del í vera" (accent på i).
  *
- * Kör:  node Delivera-Brand-Assets/generate.js
+ * Färgregel (inga nya färger): guld #F4D086/#E7B24B/#C28E2E + brons #8A6512
+ * + svart/vit + cream. Ingen orange/blå.
  *
- * Output (i denna mapp):
- *   app-icons/{customer,business,courier,admin}/delivera-<app>-icon-01..10.png  (1024²)
- *   templates/  (upload-mallar med exakta px + safe-area)
- *   logos/      (Delivera-wordmark i olika behandlingar, transparent)
- *   banners/    (förslag på hemside-hero)
- *   README.md   (index över alla storlekar + användning)
+ * Per app — så man lätt ser skillnad:
+ *   customer (web+react) = LJUS  (svart text på cream)
+ *   business (flutter)   = MÖRK, brons
+ *   courier  (flutter)   = MÖRK, ljusguld
+ *   admin                = MÖRK, vit + guld-accent
+ *
+ * Kör:  node Delivera-Brand-Assets/generate.js   (kräver Google Chrome)
  */
 const fs = require('fs');
 const path = require('path');
-const sharp = require('/Users/jalle/testa/packages/api/node_modules/sharp');
+const { execFileSync } = require('child_process');
 
 const ROOT = __dirname;
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const TMP = path.join(ROOT, '.build');
+fs.mkdirSync(TMP, { recursive: true });
 const mkdir = (p) => fs.mkdirSync(path.join(ROOT, p), { recursive: true });
 
-const tasks = [];
-function render(svg, outRel, w, h) {
-  tasks.push(
-    sharp(Buffer.from(svg))
-      .resize(w, h, { fit: 'fill' })
-      .png()
-      .toFile(path.join(ROOT, outRel))
-      .then(() => outRel)
-  );
+let count = 0;
+function shot(html, outRel, w, h, transparent = false) {
+  const htmlFile = path.join(TMP, 'cur.html');
+  fs.writeFileSync(htmlFile, html);
+  const out = path.join(ROOT, outRel);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  execFileSync(CHROME, [
+    '--headless', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=1',
+    `--window-size=${w},${h}`,
+    ...(transparent ? ['--default-background-color=00000000'] : []),
+    `--screenshot=${out}`, htmlFile,
+  ], { stdio: 'ignore' });
+  count++;
 }
 
-// ── Per-app paletter (shades inom varumärket) ───────────────────────────────
+const page = (w, h, css, body) => `<!doctype html><html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:${w}px;height:${h}px;overflow:hidden}
+.canvas{width:${w}px;height:${h}px;position:relative;display:flex;align-items:center;justify-content:center}
+${css}
+</style></head><body><div class="canvas">${body}</div></body></html>`;
+
+// ── Per-app paletter (kund ljus, övriga mörka med olika nyans) ──────────────
 const APPS = {
-  customer: { label: 'Web + React (kund)', bg: '#0b0c0f', cream: '#FFF8EF', ink: '#0b0c0f', g: ['#F4D086', '#E7B24B', '#C28E2E'], accent: '#E7B24B', deep: '#8A6512', onLight: '#8A6512' },
-  business: { label: 'Business (Flutter)', bg: '#09090B', cream: '#F5F5F2', ink: '#09090B', g: ['#E7B24B', '#C28E2E', '#8A6512'], accent: '#C28E2E', deep: '#6E4F18', onLight: '#8A6512' },
-  courier:  { label: 'Courier (Flutter)',  bg: '#0b0c0f', cream: '#FFF8EF', ink: '#0b0c0f', g: ['#FBE7B0', '#F4D086', '#E7B24B'], accent: '#F4D086', deep: '#C28E2E', onLight: '#C28E2E' },
-  admin:    { label: 'Admin',              bg: '#08090b', cream: '#f6f7f9', ink: '#08090b', g: ['#FFFFFF', '#E4E4E7', '#9C9CA3'], accent: '#fafafa', deep: '#9C9CA3', onLight: '#111113' },
+  customer: { name: 'Web + React (kund)', tone: 'Ljus · svart text på cream',  bg: '#FBF6EC', word: '#17120a', iAcc: '#C28E2E' },
+  business: { name: 'Business (Flutter)', tone: 'Mörk · brons',                bg: '#100d08', word: '#C9962F', iAcc: '#F4D086' },
+  courier:  { name: 'Courier (Flutter)',  tone: 'Mörk · ljusguld',             bg: '#0a0a0b', word: '#F4D086', iAcc: '#FFFFFF' },
+  admin:    { name: 'Admin',              tone: 'Mörk · vit + guld',           bg: '#0a0a0a', word: '#F5F4F1', iAcc: '#C9A24A' },
 };
 
-const WORD = 'Delivera';
-const grad = (id, stops, x2 = 1, y2 = 1) =>
-  `<linearGradient id="${id}" x1="0" y1="0" x2="${x2}" y2="${y2}">` +
-  stops.map((c, i) => `<stop offset="${i / (stops.length - 1)}" stop-color="${c}"/>`).join('') +
-  `</linearGradient>`;
-const doc = (S, defs, body) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}"><defs>${defs}</defs>${body}</svg>`;
+// "Delívera" med accent-í. cap: 'title' | 'upper' | 'lower'
+const W = (cls = '', cap = 'title') => {
+  const map = { title: ['Del', 'í', 'vera'], upper: ['DEL', 'Í', 'VERA'], lower: ['del', 'í', 'vera'] };
+  const [a, i, b] = map[cap];
+  return `<span class="${cls}">${a}<span class="ii">${i}</span>${b}</span>`;
+};
 
-// Flertonings-hjälpare: dela ordet i färgade delar (centreras som helhet via
-// text-anchor=middle på <text>). Aldrig hela ordet i EN färg.
-const two = (a, ca, b, cb) => `<tspan fill="${ca}">${a}</tspan><tspan fill="${cb}">${b}</tspan>`;
-const alt = (word, colors) => word.split('').map((ch, i) => `<tspan fill="${colors[i % colors.length]}">${ch}</tspan>`).join('');
+// ── 10 SIMPLA designer (font/vikt/case/layout) — platt, hög kontrast ────────
+const S = 1024;
+const base = (P, fontCss, cap, extraCss = '', extraBody = '', col = false) => page(S, S,
+  `.canvas{background:${P.bg}${col ? ';flex-direction:column;gap:30px' : ''}}
+   .w{${fontCss};color:${P.word};white-space:nowrap}
+   .ii{color:${P.iAcc}}
+   ${extraCss}`,
+  `${W('w', cap)}${extraBody}`);
 
-// 10 ikon-stilar — ALLTID hela ordet "Delivera", inget stort D, olika typsnitt
-// och flertoning inom ordet. Varje returnerar en komplett SVG-sträng.
-const STYLES = [
-  // 1 — Tvåtonad split (Futura): ljus guld "Deli" + djup guld "vera", mörk
-  (S, P) => doc(S, '', `<rect width="${S}" height="${S}" rx="${S*0.22}" fill="${P.bg}"/>
-    <text x="${S/2}" y="${S*0.58}" font-family="Futura,Avenir Next" font-weight="800" font-size="${S*0.165}" text-anchor="middle">${two('Deli', P.g[0], 'vera', P.g[2])}</text>`),
-  // 2 — Gradientsvep (Avenir) över hela ordet, mörk
-  (S, P) => doc(S, grad('g', P.g, 1, 0.6), `<rect width="${S}" height="${S}" rx="${S*0.22}" fill="${P.bg}"/>
-    <text x="${S/2}" y="${S*0.58}" font-family="Avenir Next,Helvetica Neue" font-weight="800" font-size="${S*0.165}" fill="url(#g)" text-anchor="middle">Delivera</text>`),
-  // 3 — Accent-initial (Gill Sans): "D" accent, "elivera" cream, mörk
-  (S, P) => doc(S, '', `<rect width="${S}" height="${S}" rx="${S*0.22}" fill="${P.bg}"/>
-    <text x="${S/2}" y="${S*0.58}" font-family="Gill Sans,Optima,Avenir Next" font-weight="700" font-size="${S*0.165}" text-anchor="middle">${two('D', P.accent, 'elivera', P.cream)}</text>`),
-  // 4 — Alternerande bokstäver (Futura) i två toner, mörk
-  (S, P) => doc(S, '', `<rect width="${S}" height="${S}" rx="${S*0.22}" fill="${P.bg}"/>
-    <text x="${S/2}" y="${S*0.58}" font-family="Futura,Avenir Next" font-weight="800" font-size="${S*0.16}" text-anchor="middle">${alt('Delivera', [P.g[0], P.cream])}</text>`),
-  // 5 — Elegant serif tvåtonad + linje (Didot)
-  (S, P) => doc(S, '', `<rect width="${S}" height="${S}" rx="${S*0.22}" fill="${P.bg}"/>
-    <text x="${S/2}" y="${S*0.55}" font-family="Didot,Baskerville,Georgia" font-weight="600" font-size="${S*0.15}" letter-spacing="${S*0.004}" text-anchor="middle">${two('Deli', P.g[0], 'vera', P.deep)}</text>
-    <rect x="${S*0.2}" y="${S*0.62}" width="${S*0.6}" height="${S*0.012}" rx="${S*0.006}" fill="${P.deep}"/>`),
-  // 6 — Tvåtonad på cream (Avenir): onLight + deep
-  (S, P) => doc(S, '', `<rect width="${S}" height="${S}" rx="${S*0.22}" fill="${P.cream}"/>
-    <text x="${S/2}" y="${S*0.58}" font-family="Avenir Next,Futura" font-weight="800" font-size="${S*0.165}" text-anchor="middle">${two('Deli', P.onLight, 'vera', P.deep)}</text>`),
-  // 7 — Fyll + outline-mix (Futura): "Deli" fylld, "vera" kontur, mörk
-  (S, P) => doc(S, '', `<rect width="${S}" height="${S}" rx="${S*0.22}" fill="${P.bg}"/>
-    <text x="${S/2}" y="${S*0.58}" font-family="Futura,Avenir Next" font-weight="800" font-size="${S*0.165}" text-anchor="middle"><tspan fill="${P.accent}">Deli</tspan><tspan fill="none" stroke="${P.accent}" stroke-width="${S*0.006}">vera</tspan></text>`),
-  // 8 — Vänlig gemen tvåtonad + prick (Avenir), cream
-  (S, P) => doc(S, '', `<rect width="${S}" height="${S}" rx="${S*0.22}" fill="${P.cream}"/>
-    <text x="${S/2}" y="${S*0.58}" font-family="Avenir Next,Futura" font-weight="700" font-size="${S*0.165}" text-anchor="middle">${two('deli', P.onLight, 'vera', P.deep)}</text>
-    <circle cx="${S*0.5}" cy="${S*0.33}" r="${S*0.028}" fill="${P.accent}"/>`),
-  // 9 — Mono tvåtonad (Menlo) + >_
-  (S, P) => doc(S, '', `<rect width="${S}" height="${S}" rx="${S*0.22}" fill="${P.bg}"/>
-    <text x="${S*0.2}" y="${S*0.42}" font-family="Menlo,Courier New" font-weight="700" font-size="${S*0.075}" fill="${P.deep}">&gt;_</text>
-    <text x="${S/2}" y="${S*0.62}" font-family="Menlo,Courier New" font-weight="700" font-size="${S*0.115}" text-anchor="middle">${two('Deliv', P.accent, 'era', P.deep)}</text>`),
-  // 10 — Script gradient (Snell), mörk
-  (S, P) => doc(S, grad('g', P.g, 1, 0.4), `<rect width="${S}" height="${S}" rx="${S*0.22}" fill="${P.bg}"/>
-    <text x="${S/2}" y="${S*0.6}" font-family="Snell Roundhand,Apple Chancery,Georgia" font-weight="700" font-size="${S*0.2}" text-anchor="middle">${two('Deli', P.g[0], 'vera', P.g[2])}</text>`),
+const DESIGNS = [
+  { key: 'futura',        render: (P) => base(P, 'font:700 156px/1 "Futura","Avenir Next",sans-serif;letter-spacing:-3px', 'title') },
+  { key: 'avenir',        render: (P) => base(P, 'font:600 152px/1 "Avenir Next","Helvetica Neue",sans-serif;letter-spacing:-2px', 'title') },
+  { key: 'helvetica',     render: (P) => base(P, 'font:700 150px/1 "Helvetica Neue","Arial",sans-serif;letter-spacing:-4px', 'title') },
+  { key: 'versaler',      render: (P) => base(P, 'font:700 120px/1 "Futura","Avenir Next",sans-serif;letter-spacing:14px;padding-left:14px', 'upper') },
+  { key: 'gemena',        render: (P) => base(P, 'font:500 156px/1 "Avenir Next","Helvetica Neue",sans-serif;letter-spacing:-3px', 'lower') },
+  { key: 'optima',        render: (P) => base(P, 'font:700 150px/1 "Optima","Gill Sans",sans-serif;letter-spacing:0px', 'title') },
+  { key: 'underline',     render: (P) => base(P, 'font:700 150px/1 "Futura","Avenir Next",sans-serif;letter-spacing:-3px', 'title',
+      `.ul{width:560px;height:6px;border-radius:3px;background:${P.iAcc}}`, `<div class="ul"></div>`, true) },
+  { key: 'gillsans',      render: (P) => base(P, 'font:600 150px/1 "Gill Sans","Optima",sans-serif;letter-spacing:-1px', 'title') },
+  { key: 'serif',         render: (P) => base(P, 'font:600 150px/1 "Didot","Bodoni 72","Georgia",serif;letter-spacing:0px', 'title') },
+  { key: 'viktkontrast',  render: (P) => page(S, S,
+      `.canvas{background:${P.bg}}
+       .w{font-family:"Futura","Avenir Next",sans-serif;font-size:154px;letter-spacing:-3px;color:${P.word};white-space:nowrap}
+       .w .lt{font-weight:300}.w .hv{font-weight:800}.ii{color:${P.iAcc};font-weight:800}`,
+      `<span class="w"><span class="lt">Del</span><span class="ii">í</span><span class="hv">vera</span></span>`) },
 ];
 
-// ── App-ikoner: 10 stilar × 4 appar ─────────────────────────────────────────
+console.log('Genererar app-ikoner (10 × 4)…');
 for (const [appKey, P] of Object.entries(APPS)) {
   mkdir(`app-icons/${appKey}`);
-  STYLES.forEach((style, i) => {
+  DESIGNS.forEach((d, i) => {
     const n = String(i + 1).padStart(2, '0');
-    render(style(1024, P), `app-icons/${appKey}/delivera-${appKey}-icon-${n}.png`, 1024, 1024);
+    shot(d.render(P), `app-icons/${appKey}/delivera-${appKey}-${n}-${d.key}.png`, S, S);
   });
+  console.log(`  ✓ ${appKey} (${P.tone})`);
 }
 
-// ── Upload-mallar (guide med exakta px + safe-area) ─────────────────────────
+// ── Upload-mallar (guide med px + safe-area) — platt, inga effekter ──────────
+console.log('Genererar mallar…');
 mkdir('templates');
-const P = APPS.customer; // mallar i kund-guld
-function template(rel, w, h, title, sub, dark = false) {
-  const bg = dark ? P.bg : P.cream;
-  const fg = dark ? '#FFF8EF' : '#111113';
-  const muted = dark ? '#9C9CA3' : '#5C5C61';
-  const pad = Math.round(Math.min(w, h) * 0.06);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs>${grad('g', P.g)}</defs>
-    <rect width="${w}" height="${h}" fill="${bg}"/>
-    <rect x="${pad}" y="${pad}" width="${w - 2 * pad}" height="${h - 2 * pad}" rx="${pad * 0.5}" fill="none" stroke="${muted}" stroke-width="3" stroke-dasharray="14 12"/>
-    <text x="${w / 2}" y="${h / 2 - Math.min(w,h)*0.02}" font-family="Futura,Avenir Next" font-weight="800" font-size="${Math.min(w, h) * 0.085}" fill="${fg}" text-anchor="middle">${esc(title)}</text>
-    <text x="${w / 2}" y="${h / 2 + Math.min(w,h)*0.07}" font-family="Avenir Next,Helvetica Neue" font-weight="600" font-size="${Math.min(w, h) * 0.045}" fill="${muted}" text-anchor="middle">${esc(sub)}</text>
-    <text x="${w / 2}" y="${h / 2 + Math.min(w,h)*0.135}" font-family="Menlo" font-weight="700" font-size="${Math.min(w, h) * 0.04}" fill="url(#g)" text-anchor="middle">${w} × ${h} px</text>
-    <text x="${pad + 6}" y="${h - pad - 8}" font-family="Avenir Next" font-weight="800" font-size="${Math.min(w,h)*0.035}" fill="url(#g)">Delivera</text>
-  </svg>`;
-  render(svg, rel, w, h);
+function template(rel, w, h, title, sub) {
+  const m = Math.min(w, h);
+  const html = page(w, h,
+    `.canvas{background:#0d0c0a}
+     .frame{position:absolute;inset:${Math.round(m * 0.05)}px;border:3px dashed rgba(231,178,75,.5);border-radius:${Math.round(m * 0.04)}px}
+     .box{text-align:center;color:#F5F4F1;font-family:"Avenir Next",sans-serif}
+     .t{font:700 ${Math.round(m * 0.08)}px/1.15 "Futura","Avenir Next";letter-spacing:1px}
+     .s{margin-top:18px;font-size:${Math.round(m * 0.04)}px;color:#bdb097}
+     .px{margin-top:14px;font:700 ${Math.round(m * 0.04)}px "Menlo",monospace;color:#E7B24B}
+     .tag{position:absolute;left:${Math.round(m * 0.06)}px;bottom:${Math.round(m * 0.05)}px;font:700 ${Math.round(m * 0.038)}px "Futura";color:#E7B24B}
+     .tag .i{color:#C28E2E}`,
+    `<div class="frame"></div><div class="box"><div class="t">${title}</div><div class="s">${sub}</div><div class="px">${w} × ${h} px</div></div>
+     <div class="tag">Del<span class="i">í</span>vera</div>`);
+  shot(html, rel, w, h);
 }
-template('templates/restaurang-logga-mall-1024x1024.png', 1024, 1024, 'RESTAURANG-LOGGA', 'Kvadrat · centrera · enfärgad/transparent bakgrund', true);
-template('templates/restaurang-hero-mall-1600x500.png', 1600, 500, 'RESTAURANG HERO / BANNER', 'Håll motiv & text i mitten — kanter kan beskäras', true);
-template('templates/produktbild-mall-1000x1000.png', 1000, 1000, 'PRODUKTBILD', 'Maträtten centrerad · vit/enfärgad bakgrund', false);
-template('templates/kategoribild-mall-1000x1000.png', 1000, 1000, 'KATEGORIBILD', 'Representativ bild · samma format som produkt', false);
-template('templates/sponsorkort-mall-1200x675.png', 1200, 675, 'SPONSORKORT', 'Logga + kort budskap · visas i signup-rotationen', true);
-template('templates/deal-banner-mall-1200x500.png', 1200, 500, 'DEAL / KAMPANJ-BANNER', 'Visas på restaurangsidan när "Visa som banner" är på', true);
-template('templates/og-delning-mall-1200x630.png', 1200, 630, 'OG / SOCIAL DELNING', 'Förhandsvisning vid delning (Facebook/iMessage/X)', true);
+template('templates/restaurang-logga-mall-1024x1024.png', 1024, 1024, 'RESTAURANG-LOGGA', 'Kvadrat · centrera · enfärgad/transparent bakgrund');
+template('templates/restaurang-hero-mall-1600x500.png', 1600, 500, 'RESTAURANG HERO / BANNER', 'Håll motiv & text i mitten — kanter kan beskäras');
+template('templates/produktbild-mall-1000x1000.png', 1000, 1000, 'PRODUKTBILD', 'Maträtten centrerad · vit/enfärgad bakgrund');
+template('templates/kategoribild-mall-1000x1000.png', 1000, 1000, 'KATEGORIBILD', 'Representativ bild · samma format som produkt');
+template('templates/sponsorkort-mall-1200x675.png', 1200, 675, 'SPONSORKORT', 'Logga + kort budskap · signup-rotationen');
+template('templates/deal-banner-mall-1200x500.png', 1200, 500, 'DEAL / KAMPANJ-BANNER', 'Visas på restaurangsidan när "Visa som banner" är på');
+template('templates/og-delning-mall-1200x630.png', 1200, 630, 'OG / SOCIAL DELNING', 'Förhandsvisning vid delning (FB / iMessage / X)');
 
-// ── Logos / wordmarks (transparent bakgrund) ────────────────────────────────
+// ── Logos / wordmarks (transparent, platta) ─────────────────────────────────
+console.log('Genererar logos…');
 mkdir('logos');
-function wordmark(rel, w, h, fill, useGrad, sub) {
-  const fillRef = useGrad ? 'url(#g)' : fill;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs>${grad('g', P.g)}</defs>
-    <text x="${w / 2}" y="${h * 0.6}" font-family="Futura,Avenir Next" font-weight="800" font-size="${h * 0.5}" fill="${fillRef}" text-anchor="middle" textLength="${w * 0.86}" lengthAdjust="spacingAndGlyphs">Delivera</text>
-    ${sub ? `<text x="${w / 2}" y="${h * 0.85}" font-family="Avenir Next" font-weight="600" font-size="${h * 0.1}" letter-spacing="${h*0.03}" fill="${fill}" text-anchor="middle">${esc(sub)}</text>` : ''}
-  </svg>`;
-  render(svg, rel, w, h);
+function wordmark(rel, wordColor, iColor, sub) {
+  const w = 1200, h = 360;
+  const html = page(w, h,
+    `.canvas{background:transparent;flex-direction:column;gap:14px}
+     .w{font:700 180px/1 "Futura","Avenir Next",sans-serif;letter-spacing:-5px;color:${wordColor};white-space:nowrap}
+     .ii{color:${iColor}}
+     .s{font:600 32px "Avenir Next";letter-spacing:13px;color:#8A6512}`,
+    `${W('w')}${sub ? `<div class="s">${sub}</div>` : ''}`);
+  shot(html, rel, w, h, true);
 }
-wordmark('logos/delivera-wordmark-guld-transparent.png', 1200, 360, '#E7B24B', true, '');
-wordmark('logos/delivera-wordmark-svart-transparent.png', 1200, 360, '#111113', false, '');
-wordmark('logos/delivera-wordmark-vit-transparent.png', 1200, 360, '#FFFFFF', false, '');
-wordmark('logos/delivera-lockup-guld-tagline.png', 1200, 420, '#E7B24B', true, 'MAT · HEM · SNABBT');
+wordmark('logos/delivera-wordmark-guld-transparent.png', '#E7B24B', '#C28E2E', '');
+wordmark('logos/delivera-wordmark-svart-transparent.png', '#17120a', '#C28E2E', '');
+wordmark('logos/delivera-wordmark-vit-transparent.png', '#FFFFFF', '#E7B24B', '');
+wordmark('logos/delivera-lockup-guld-tagline.png', '#E7B24B', '#C28E2E', 'MAT · HEM · SNABBT');
 
-// ── Banner-förslag (hemside-hero) ───────────────────────────────────────────
+// ── Banner-förslag (hemside-hero 1600×500) — platta, inga effekter ──────────
+console.log('Genererar banners…');
 mkdir('banners');
 function banner(rel, headline, sub, variant) {
   const w = 1600, h = 500;
-  let bgRect, hl, slc, accent;
-  if (variant === 'dark') { bgRect = `<rect width="${w}" height="${h}" fill="${P.bg}"/>`; hl = '#FFF8EF'; slc = '#9C9CA3'; accent = 'url(#g)'; }
-  else if (variant === 'gradient') { bgRect = `<rect width="${w}" height="${h}" fill="url(#g)"/>`; hl = P.ink; slc = '#3a2f12'; accent = P.ink; }
-  else { bgRect = `<rect width="${w}" height="${h}" fill="${P.cream}"/>`; hl = '#111113'; slc = '#5C5C61'; accent = 'url(#g)'; }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs>${grad('g', P.g)}</defs>
-    ${bgRect}
-    <text x="90" y="220" font-family="Futura,Avenir Next" font-weight="800" font-size="92" fill="${hl}">${esc(headline)}</text>
-    <text x="92" y="225" font-family="Futura,Avenir Next" font-weight="800" font-size="92" fill="${accent}" opacity="0">${esc(headline)}</text>
-    <text x="90" y="300" font-family="Avenir Next,Helvetica Neue" font-weight="600" font-size="40" fill="${slc}">${esc(sub)}</text>
-    <rect x="90" y="345" width="300" height="78" rx="39" fill="${accent}"/>
-    <text x="240" y="395" font-family="Avenir Next" font-weight="800" font-size="34" fill="${variant==='gradient'?'#FFF8EF':P.ink}" text-anchor="middle">Beställ nu</text>
-    <text x="${w-90}" y="${h-50}" font-family="Futura" font-weight="800" font-size="44" fill="${accent}" text-anchor="end">Delivera</text>
-  </svg>`;
-  render(svg, rel, w, h);
+  let bg, hl, slc, btnbg, btnfg, mk;
+  if (variant === 'dark')      { bg = '#0c0b09'; hl = '#F5F4F1'; slc = '#b6a98f'; btnbg = '#E7B24B'; btnfg = '#15110a'; mk = '#E7B24B'; }
+  else if (variant === 'gold') { bg = '#E7B24B'; hl = '#15110a'; slc = '#4a3814'; btnbg = '#15110a'; btnfg = '#F4D086'; mk = '#15110a'; }
+  else                         { bg = '#FBF6EC'; hl = '#17120a'; slc = '#6b5c40'; btnbg = '#C28E2E'; btnfg = '#fff';   mk = '#C28E2E'; }
+  const html = page(w, h,
+    `.canvas{background:${bg};justify-content:flex-start}
+     .pad{padding:0 90px;width:100%}
+     .h{font:700 84px/1.06 "Futura","Avenir Next",sans-serif;letter-spacing:-2px;color:${hl};max-width:1060px}
+     .h .hi{color:${variant === 'gold' ? '#5a3e0a' : '#E7B24B'}}
+     .s{margin-top:22px;font:600 38px "Avenir Next";color:${slc}}
+     .btn{margin-top:34px;display:inline-block;padding:22px 46px;border-radius:14px;background:${btnbg};color:${btnfg};font:700 32px "Avenir Next"}
+     .mk{position:absolute;right:80px;bottom:60px;font:700 48px "Futura";color:${mk}}
+     .mk .i{color:${variant === 'gold' ? '#5a3e0a' : '#C28E2E'}}`,
+    `<div class="pad"><div class="h">${headline}</div><div class="s">${sub}</div><div class="btn">Beställ nu</div></div>
+     <div class="mk">Del<span class="i">í</span>vera</div>`);
+  shot(html, rel, w, h);
 }
-banner('banners/hero-forslag-1-mork.png', 'Hungrig? Delivera fixar resten.', 'Mat från dina favoriter — hemkört på minuter.', 'dark');
-banner('banners/hero-forslag-2-guld.png', 'Snabbare än suget.', 'Beställ. Luta dig tillbaka. Delivera är på väg.', 'gradient');
-banner('banners/hero-forslag-3-ljus.png', 'Din stad. Din mat. Delivera.', 'Hundratals restauranger, ett klick bort.', 'light');
+banner('banners/hero-forslag-1-mork.png', 'Hungrig? <span class="hi">Delívera</span> fixar resten.', 'Mat från dina favoriter — hemkört på minuter.', 'dark');
+banner('banners/hero-forslag-2-guld.png', 'Snabbare än suget.', 'Beställ. Luta dig tillbaka. Delívera är på väg.', 'gold');
+banner('banners/hero-forslag-3-ljus.png', 'Din stad. Din mat. <span class="hi">Delívera.</span>', 'Hundratals restauranger, ett klick bort.', 'light');
 
-// ── Kör allt + README ───────────────────────────────────────────────────────
-Promise.all(tasks).then((done) => {
-  const readme = `# Delivera — brand-assets
+// ── Galleri-sida + README ───────────────────────────────────────────────────
+const grid = (title, files) => `<h2>${title}</h2><div class="grid">` +
+  files.map((f) => `<figure><img src="${f}"><figcaption>${path.basename(f)}</figcaption></figure>`).join('') + `</div>`;
+const iconFiles = (app) => DESIGNS.map((d, i) => `app-icons/${app}/delivera-${app}-${String(i + 1).padStart(2, '0')}-${d.key}.png`);
+const tpl = fs.readdirSync(path.join(ROOT, 'templates')).map((f) => `templates/${f}`).sort();
+const lg = fs.readdirSync(path.join(ROOT, 'logos')).map((f) => `logos/${f}`).sort();
+const bn = fs.readdirSync(path.join(ROOT, 'banners')).map((f) => `banners/${f}`).sort();
+const gallery = `<!doctype html><html><head><meta charset="utf-8"><title>Delívera — brand assets</title><style>
+body{margin:0;background:#0c0c0c;color:#eee;font-family:"Avenir Next",system-ui,sans-serif;padding:48px}
+h1{font:700 42px "Futura";color:#E7B24B}h1 .i{color:#C28E2E}
+h2{margin:46px 0 16px;font-size:20px;color:#F4D086;border-bottom:1px solid #2a2418;padding-bottom:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:18px}
+figure{margin:0;background:#151515;border:1px solid #222;border-radius:14px;padding:12px;text-align:center}
+figure img{width:100%;border-radius:10px}
+figcaption{margin-top:8px;font-size:11px;color:#999;word-break:break-all}
+.lead{color:#b6a98f;max-width:760px;line-height:1.6}
+</style></head><body>
+<h1>Del<span class="i">í</span>vera — brand assets</h1>
+<p class="lead">Simpla, platta ikoner — hög kontrast, inga glow/gradient, rena fonts. Palett: guld/brons + svart/vit/cream (inga nya färger). Kund = ljus, övriga mörka med olika nyans.</p>
+${Object.entries(APPS).map(([k, p]) => grid(`App-ikoner — ${p.name} (${p.tone})`, iconFiles(k))).join('')}
+${grid('Upload-mallar', tpl)}
+${grid('Logos / wordmarks', lg)}
+${grid('Banner-förslag', bn)}
+</body></html>`;
+fs.writeFileSync(path.join(ROOT, 'index.html'), gallery);
 
-Genererat av \`generate.js\` (kör om: \`node Delivera-Brand-Assets/generate.js\`).
-Alla PNG:er bygger på **nuvarande palett**: guld \`#F4D086 / #E7B24B / #C28E2E\`
-(ink \`#8A6512\`) + nära-svart \`#08090b\` + vit. Inga blåa toner.
+fs.writeFileSync(path.join(ROOT, 'README.md'), `# Delívera — brand assets
 
-## App-ikoner (1024×1024) — 10 förslag per app
-Ord-märke "Delivera" i 10 stilar (olika typsnitt/layout/shade). En shade per app:
+HTML→headless-Chrome (\`node Delivera-Brand-Assets/generate.js\`). Öppna **index.html**
+för att se allt. Simpla, platta ikoner — hög kontrast, inga glow/gradient, rena fonts
+(ingen skrivstil). Ord-märke: **Delívera** (accent på i). Palett: guld
+\`#F4D086/#E7B24B/#C28E2E\` + brons \`#8A6512\` + svart/vit/cream. Inga nya färger.
 
-| App | Mapp | Shade |
+## App-ikoner (1024×1024) — 10 designer × 4 appar, lätt att skilja åt
+| App | Mapp | Nyans |
 |---|---|---|
-| Web + React (kund) | \`app-icons/customer/\` | Signatur-guld på mörk |
-| Business (Flutter) | \`app-icons/business/\` | Djup brons-guld |
-| Courier (Flutter) | \`app-icons/courier/\` | Ljusare/varmare guld |
-| Admin | \`app-icons/admin/\` | Monokrom (silver/vit) |
+| Web + React (kund) | \`app-icons/customer/\` | **Ljus** — svart text på cream |
+| Business (Flutter) | \`app-icons/business/\` | Mörk — brons |
+| Courier (Flutter) | \`app-icons/courier/\` | Mörk — ljusguld |
+| Admin | \`app-icons/admin/\` | Mörk — vit + guld-accent |
 
-Filnamn: \`delivera-<app>-icon-01..10.png\`. Stilar: 1 fetstil sans · 2 gradientpanel ·
-3 tvårads-stack · 4 elegant serif · 5 graverade versaler · 6 stort D + ord ·
-7 outline · 8 vänlig gemen (cream) · 9 mono/tech · 10 script.
+Designer (samma 10 per app): futura · avenir · helvetica · versaler · gemena ·
+optima · underline · gillsans · serif · viktkontrast. í i guldton som enda accent.
 
-## Upload-mallar (\`templates/\`)
-Guide-bilder med exakt px + safe-area (streckad ram = håll innehåll innanför).
-
-| Mall | Storlek | Används för (R2 / fält) |
-|---|---|---|
-| Restaurang-logga | 1024×1024 | \`Restaurant.imageUrl\` → \`{stad}/{rest}/logo.webp\` |
-| Restaurang-hero | 1600×500 | \`Restaurant.heroImageUrl\` → \`{stad}/{rest}/hero.webp\` |
-| Produktbild | 1000×1000 | \`Product.imageUrl\` → \`.../menu/{kat}/{prod}.webp\` |
-| Kategbackbild | 1000×1000 | \`Category.imageUrl\` → \`.../category/{kat}.webp\` |
-| Sponsorkort | 1200×675 | \`SponsorCard.imageUrl\` (signup-rotation) |
-| Deal-banner | 1200×500 | \`Deal.imageUrl\` (Visa som banner) |
-| OG / delning | 1200×630 | Social förhandsvisning |
-
-## Logos / wordmarks (\`logos/\`, transparent bakgrund)
-\`delivera-wordmark-guld/svart/vit-transparent.png\` (1200×360) +
-\`delivera-lockup-guld-tagline.png\` (1200×420).
-
-## Banner-förslag (\`banners/\`, 1600×500)
-3 hemside-hero-förslag: mörk, guld-gradient, ljus.
-
----
-Totalt genererade filer: **${done.length}**.
-`;
-  fs.writeFileSync(path.join(ROOT, 'README.md'), readme);
-  console.log(`✓ Genererade ${done.length} PNG:er + README.md`);
-}).catch((e) => { console.error('FEL:', e); process.exit(1); });
+## Mallar \`templates/\` · Logos \`logos/\` (transparent) · Banners \`banners/\`
+logga 1024² · hero 1600×500 · produkt/kategori 1000² · sponsorkort 1200×675 ·
+deal-banner 1200×500 · OG 1200×630. Wordmark guld/svart/vit + lockup. 3 hero-förslag.
+`);
+fs.rmSync(TMP, { recursive: true, force: true });
+console.log(`\n✓ Klart: ${count} PNG:er + index.html + README.md`);

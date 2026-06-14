@@ -1,42 +1,21 @@
-# Delivera — brand-assets
+# Delívera — brand assets
 
-Genererat av `generate.js` (kör om: `node Delivera-Brand-Assets/generate.js`).
-Alla PNG:er bygger på **nuvarande palett**: guld `#F4D086 / #E7B24B / #C28E2E`
-(ink `#8A6512`) + nära-svart `#08090b` + vit. Inga blåa toner.
+HTML→headless-Chrome (`node Delivera-Brand-Assets/generate.js`). Öppna **index.html**
+för att se allt. Simpla, platta ikoner — hög kontrast, inga glow/gradient, rena fonts
+(ingen skrivstil). Ord-märke: **Delívera** (accent på i). Palett: guld
+`#F4D086/#E7B24B/#C28E2E` + brons `#8A6512` + svart/vit/cream. Inga nya färger.
 
-## App-ikoner (1024×1024) — 10 förslag per app
-Ord-märke "Delivera" i 10 stilar (olika typsnitt/layout/shade). En shade per app:
-
-| App | Mapp | Shade |
+## App-ikoner (1024×1024) — 10 designer × 4 appar, lätt att skilja åt
+| App | Mapp | Nyans |
 |---|---|---|
-| Web + React (kund) | `app-icons/customer/` | Signatur-guld på mörk |
-| Business (Flutter) | `app-icons/business/` | Djup brons-guld |
-| Courier (Flutter) | `app-icons/courier/` | Ljusare/varmare guld |
-| Admin | `app-icons/admin/` | Monokrom (silver/vit) |
+| Web + React (kund) | `app-icons/customer/` | **Ljus** — svart text på cream |
+| Business (Flutter) | `app-icons/business/` | Mörk — brons |
+| Courier (Flutter) | `app-icons/courier/` | Mörk — ljusguld |
+| Admin | `app-icons/admin/` | Mörk — vit + guld-accent |
 
-Filnamn: `delivera-<app>-icon-01..10.png`. Stilar: 1 fetstil sans · 2 gradientpanel ·
-3 tvårads-stack · 4 elegant serif · 5 graverade versaler · 6 stort D + ord ·
-7 outline · 8 vänlig gemen (cream) · 9 mono/tech · 10 script.
+Designer (samma 10 per app): futura · avenir · helvetica · versaler · gemena ·
+optima · underline · gillsans · serif · viktkontrast. í i guldton som enda accent.
 
-## Upload-mallar (`templates/`)
-Guide-bilder med exakt px + safe-area (streckad ram = håll innehåll innanför).
-
-| Mall | Storlek | Används för (R2 / fält) |
-|---|---|---|
-| Restaurang-logga | 1024×1024 | `Restaurant.imageUrl` → `{stad}/{rest}/logo.webp` |
-| Restaurang-hero | 1600×500 | `Restaurant.heroImageUrl` → `{stad}/{rest}/hero.webp` |
-| Produktbild | 1000×1000 | `Product.imageUrl` → `.../menu/{kat}/{prod}.webp` |
-| Kategbackbild | 1000×1000 | `Category.imageUrl` → `.../category/{kat}.webp` |
-| Sponsorkort | 1200×675 | `SponsorCard.imageUrl` (signup-rotation) |
-| Deal-banner | 1200×500 | `Deal.imageUrl` (Visa som banner) |
-| OG / delning | 1200×630 | Social förhandsvisning |
-
-## Logos / wordmarks (`logos/`, transparent bakgrund)
-`delivera-wordmark-guld/svart/vit-transparent.png` (1200×360) +
-`delivera-lockup-guld-tagline.png` (1200×420).
-
-## Banner-förslag (`banners/`, 1600×500)
-3 hemside-hero-förslag: mörk, guld-gradient, ljus.
-
----
-Totalt genererade filer: **54**.
+## Mallar `templates/` · Logos `logos/` (transparent) · Banners `banners/`
+logga 1024² · hero 1600×500 · produkt/kategori 1000² · sponsorkort 1200×675 ·
+deal-banner 1200×500 · OG 1200×630. Wordmark guld/svart/vit + lockup. 3 hero-förslag.
