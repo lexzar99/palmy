@@ -8,6 +8,7 @@ import '../core/constants.dart';
 import '../core/location_service.dart';
 import '../core/models_api.dart';
 import '../core/notify.dart';
+import '../core/push_service.dart';
 import '../models/models.dart';
 
 /// Driftläge för kuriren: online/offline, tillgängliga uppdrag (polling),
@@ -102,6 +103,9 @@ class SessionProvider with ChangeNotifier {
     _setBusy(true);
     // Be om ljud/notis-behörighet kontextuellt när budet går online.
     unawaited(Notify.ensureInit());
+    // Registrera native push (FCM) så notiser når budet ÄVEN med appen stängd.
+    // Guardad — no-op om Firebase inte är konfigurerat.
+    unawaited(PushService.instance.init(_api));
     try {
       await _api.startSession();
       _epoch++;
@@ -241,10 +245,11 @@ class SessionProvider with ChangeNotifier {
     String deliveryId, {
     required ProofMethod method,
     String? photoDataUrl,
+    String? message,
   }) async {
     try {
       await _api.completeDelivery(deliveryId,
-          method: method, photoDataUrl: photoDataUrl);
+          method: method, photoDataUrl: photoDataUrl, message: message);
       _active = _active.where((a) => a.id != deliveryId).toList();
       await refreshHistory();
       notifyListeners();
@@ -253,6 +258,10 @@ class SessionProvider with ChangeNotifier {
       return _friendly(e);
     }
   }
+
+  /// Hämta full detalj för EN leverans (aktiv eller slutförd) — driver
+  /// detaljvyn när budet trycker på en order i historiken/aktiva listan.
+  Future<ActiveDelivery?> fetchDeliveryDetail(String id) => _api.getActive(id);
 
   // ── Historik ───────────────────────────────────────────────────────────────
   Future<void> refreshHistory() async {

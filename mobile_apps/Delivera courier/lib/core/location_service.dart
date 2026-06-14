@@ -16,6 +16,7 @@ class LocationService {
   StreamSubscription<Position>? _stream;
   Timer? _heartbeat;
   Position? _last;
+  DateTime? _lastSentAt;
 
   Position? get last => _last;
 
@@ -78,9 +79,15 @@ class LocationService {
       locationSettings: _settings(),
     ).listen((pos) {
       _last = pos;
+      // VIKTIGT: pinga direkt på varje rörelse-event. På iOS pausas
+      // Timer.periodic i bakgrunden — men positions-strömmen (background mode
+      // location) fortsätter leverera när budet rör sig, t.ex. medan appen är i
+      // Google Maps. Utan denna push skulle platsen då aldrig nå backend.
+      _push();
     }, onError: (_) {});
 
-    // Heartbeat: skicka senaste kända position regelbundet.
+    // Heartbeat: skicka senaste kända position regelbundet (täcker stillastående
+    // bud i förgrunden). Stream-pushen ovan täcker bakgrund + rörelse.
     _heartbeat = Timer.periodic(const Duration(seconds: 10), (_) => _push());
     // Skicka en direkt om vi redan har en fix.
     try {
@@ -92,10 +99,16 @@ class LocationService {
   Future<void> _push() async {
     final p = _last;
     if (p == null) return;
+    // Throttle: minst 5s mellan sändningar så stream-event + timer inte
+    // dubbelskickar. Backend uppdaterar ändå bara senaste positionen.
+    final now = DateTime.now();
+    if (_lastSentAt != null && now.difference(_lastSentAt!).inSeconds < 5) return;
+    _lastSentAt = now;
     try {
       await _api.sendLocation(p.latitude, p.longitude);
     } catch (_) {
       // Tyst — heartbeat försöker igen nästa intervall.
+      _lastSentAt = null; // tillåt nytt försök direkt vid fel
     }
   }
 

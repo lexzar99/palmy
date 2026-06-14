@@ -26,6 +26,17 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   final Set<int> _checked = {};
   String? _photoDataUrl;
   ProofMethod _method = ProofMethod.handed;
+  final TextEditingController _messageCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _messageCtrl.dispose();
+    super.dispose();
+  }
+
+  // Foto krävs när maten lämnas vid dörren (bevis); valfritt i hand.
+  bool get _canComplete =>
+      _method != ProofMethod.leftAtDoor || _photoDataUrl != null;
   // True medan _complete() själv sköter dialog + pop, så att null-grenen nedan
   // inte också poppar (skulle ge dubbel-pop och ta bort skärmen under).
   bool _completing = false;
@@ -75,6 +86,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                         delivery: delivery,
                         photoDataUrl: _photoDataUrl,
                         method: _method,
+                        messageController: _messageCtrl,
                         onMethod: (m) => setState(() => _method = m),
                         onPhoto: _takePhoto,
                         onRemovePhoto: () =>
@@ -84,6 +96,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               _ActionBar(
                 pickup: pickup,
                 allChecked: _checked.length >= delivery.items.length,
+                canComplete: _canComplete,
                 onPickedUp: () => _markPickedUp(delivery),
                 onComplete: () => _complete(delivery),
               ),
@@ -129,6 +142,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           delivery.id,
           method: _method,
           photoDataUrl: _photoDataUrl,
+          message: _messageCtrl.text,
         );
     if (!mounted) return;
     if (err != null) {
@@ -420,6 +434,7 @@ class _DeliverPhase extends StatelessWidget {
   final ActiveDelivery delivery;
   final String? photoDataUrl;
   final ProofMethod method;
+  final TextEditingController messageController;
   final ValueChanged<ProofMethod> onMethod;
   final VoidCallback onPhoto;
   final VoidCallback onRemovePhoto;
@@ -427,6 +442,7 @@ class _DeliverPhase extends StatelessWidget {
     required this.delivery,
     required this.photoDataUrl,
     required this.method,
+    required this.messageController,
     required this.onMethod,
     required this.onPhoto,
     required this.onRemovePhoto,
@@ -480,15 +496,18 @@ class _DeliverPhase extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        const AppSectionHeader(
-          eyebrow: 'Valfritt',
+        AppSectionHeader(
+          // Vid dörren = foto obligatoriskt (bevis). I hand = valfritt.
+          eyebrow: method == ProofMethod.leftAtDoor ? 'Obligatoriskt' : 'Valfritt',
           title: 'Leveransfoto',
-          subtitle: 'Ta ett foto som bevis, t.ex. vid dörren.',
+          subtitle: method == ProofMethod.leftAtDoor
+              ? 'Foto krävs när maten lämnas vid dörren.'
+              : 'Ta ett foto som bevis om du vill.',
         ),
         const SizedBox(height: 10),
         if (photoDataUrl == null)
           GhostButton(
-            label: 'Ta foto',
+            label: method == ProofMethod.leftAtDoor ? 'Ta foto (krävs)' : 'Ta foto',
             icon: Icons.camera_alt_outlined,
             onPressed: onPhoto,
           )
@@ -518,6 +537,28 @@ class _DeliverPhase extends StatelessWidget {
               ],
             ),
           ),
+        const SizedBox(height: 16),
+        const AppSectionHeader(
+          eyebrow: 'Valfritt',
+          title: 'Notering',
+          subtitle: 'Skriv något som landar hos support, t.ex. var du ställt maten.',
+        ),
+        const SizedBox(height: 10),
+        AppPanel(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          child: TextField(
+            controller: messageController,
+            minLines: 2,
+            maxLines: 4,
+            maxLength: 1000,
+            textInputAction: TextInputAction.newline,
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              counterText: '',
+              hintText: 'T.ex. "Ställd bakom blomkrukan till höger om dörren"',
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -574,11 +615,13 @@ class _MethodChip extends StatelessWidget {
 class _ActionBar extends StatelessWidget {
   final bool pickup;
   final bool allChecked;
+  final bool canComplete;
   final Future<void> Function() onPickedUp;
   final Future<void> Function() onComplete;
   const _ActionBar({
     required this.pickup,
     required this.allChecked,
+    required this.canComplete,
     required this.onPickedUp,
     required this.onComplete,
   });
@@ -601,9 +644,10 @@ class _ActionBar extends StatelessWidget {
               onConfirm: onPickedUp,
             )
           : SwipeToConfirm(
-              label: 'Svep — Levererad',
+              label: canComplete ? 'Svep — Levererad' : 'Ta foto vid dörren först',
               icon: Icons.check_rounded,
               color: AppTheme.success,
+              enabled: canComplete,
               onConfirm: onComplete,
             ),
     );

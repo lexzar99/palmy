@@ -7,9 +7,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 import 'core/api_client.dart';
 import 'core/constants.dart';
 import 'core/models_api.dart';
+import 'core/push_service.dart';
 import 'core/theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/session_provider.dart';
@@ -30,6 +33,15 @@ void main() async {
   // LocaleDataException på t.ex. Konto-skärmen).
   Intl.defaultLocale = 'sv_SE';
   await initializeDateFormatting('sv_SE', null);
+
+  // Registrera bakgrunds-push-handlern (krävs innan runApp). Guardad — gör
+  // ingenting om Firebase saknar config. Måste sättas tidigt så killad-app-
+  // notiser kan väcka isolatet.
+  try {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint('[push] kunde inte sätta bakgrundshandler: $e');
+  }
 
   final client = ApiClient.instance;
   final api = CourierApi(client);

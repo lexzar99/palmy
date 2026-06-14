@@ -114,7 +114,17 @@ class Job {
 
 class ActiveDelivery extends Job {
   final DeliveryStatus status;
-  final int acceptedAt;
+  final int acceptedAt; // epoch ms
+  // Tider + bevis (från backend) — driver detaljvyn "hur lång tid du tog på dig".
+  final int? pickedUpAt; // epoch ms
+  final int? deliveredAt; // epoch ms
+  final int? pickupMin; // accept → hämtad
+  final int? deliverMin; // hämtad → levererad
+  final int? totalMin; // accept → levererad (eller accept → nu, live)
+  final String? customerPhone;
+  final String? deliveryNote;
+  final String? proofMethod; // HANDED | LEFT_AT_DOOR
+  final String? proofMessage;
 
   const ActiveDelivery({
     required super.id,
@@ -135,6 +145,15 @@ class ActiveDelivery extends Job {
     required super.items,
     required this.status,
     required this.acceptedAt,
+    this.pickedUpAt,
+    this.deliveredAt,
+    this.pickupMin,
+    this.deliverMin,
+    this.totalMin,
+    this.customerPhone,
+    this.deliveryNote,
+    this.proofMethod,
+    this.proofMessage,
   });
 
   factory ActiveDelivery.fromJson(Map<String, dynamic> j) {
@@ -158,6 +177,15 @@ class ActiveDelivery extends Job {
       items: base.items,
       status: statusFrom(j['status'] as String?),
       acceptedAt: (j['acceptedAt'] as num?)?.toInt() ?? 0,
+      pickedUpAt: (j['pickedUpAt'] as num?)?.toInt(),
+      deliveredAt: (j['deliveredAt'] as num?)?.toInt(),
+      pickupMin: (j['pickupMin'] as num?)?.toInt(),
+      deliverMin: (j['deliverMin'] as num?)?.toInt(),
+      totalMin: (j['totalMin'] as num?)?.toInt(),
+      customerPhone: j['customerPhone'] as String?,
+      deliveryNote: j['deliveryNote'] as String?,
+      proofMethod: j['proofMethod'] as String?,
+      proofMessage: j['proofMessage'] as String?,
     );
   }
 }
@@ -169,6 +197,7 @@ class HistoryOrder {
   final DateTime deliveredAt;
   final double distanceKm;
   final double payout;
+  final int? totalMin; // hur lång tid leveransen tog (accept → levererad)
 
   const HistoryOrder({
     required this.id,
@@ -177,6 +206,7 @@ class HistoryOrder {
     required this.deliveredAt,
     required this.distanceKm,
     required this.payout,
+    this.totalMin,
   });
 
   factory HistoryOrder.fromJson(Map<String, dynamic> j) => HistoryOrder(
@@ -188,6 +218,7 @@ class HistoryOrder {
                 DateTime.now(),
         distanceKm: (j['distanceKm'] as num?)?.toDouble() ?? 0,
         payout: (j['payout'] as num?)?.toDouble() ?? 0,
+        totalMin: (j['totalMin'] as num?)?.toInt(),
       );
 }
 

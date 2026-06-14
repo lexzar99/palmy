@@ -10,6 +10,7 @@ import '../providers/auth_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/app_ui.dart';
+import 'delivery_detail_screen.dart';
 import '../widgets/courier_ui.dart';
 
 /// Konto: profil, dagens/historikens intjäning, tema och utloggning.
@@ -332,33 +333,46 @@ class _HistoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('#${order.orderNumber} · ${order.restaurantName}',
-                    style: theme.textTheme.titleSmall),
-                const SizedBox(height: 2),
-                Text(
-                  '${timeOfDay(order.deliveredAt)}  ·  ${km(order.distanceKm)}',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
+    final meta = [
+      timeOfDay(order.deliveredAt),
+      km(order.distanceKm),
+      if (order.totalMin != null) minutes(order.totalMin!),
+    ].join('  ·  ');
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => DeliveryDetailScreen(deliveryId: order.id),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('#${order.orderNumber} · ${order.restaurantName}',
+                      style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 2),
+                  Text(meta, style: theme.textTheme.bodySmall),
+                ],
+              ),
             ),
-          ),
-          Text(
-            kr(order.payout),
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: AppTheme.isDark(context)
-                  ? AppTheme.ember
-                  : AppTheme.emberDeep,
+            Text(
+              kr(order.payout),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: AppTheme.isDark(context)
+                    ? AppTheme.ember
+                    : AppTheme.emberDeep,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded,
+                size: 20, color: AppTheme.mutedColor(context)),
+          ],
+        ),
       ),
     );
   }

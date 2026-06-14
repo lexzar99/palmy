@@ -80,12 +80,22 @@ class CourierApi {
     String deliveryId, {
     required ProofMethod method,
     String? photoDataUrl,
+    String? message,
   }) {
     return _client.post('/api/courier/deliveries/$deliveryId/complete', data: {
       'method': method.api,
       if (photoDataUrl != null) 'photoDataUrl': photoDataUrl,
+      if (message != null && message.trim().isNotEmpty) 'message': message.trim(),
     });
   }
+
+  // ── Native push (FCM) ──────────────────────────────────────────────────────
+  Future<void> registerPush(String token, String platform) =>
+      _client.post('/api/courier/push/register',
+          data: {'token': token, 'platform': platform});
+
+  Future<void> unregisterPush() =>
+      _client.post('/api/courier/push/unregister');
 
   // ── Historik / intjäning ───────────────────────────────────────────────────
   Future<List<HistoryOrder>> getHistory() async {

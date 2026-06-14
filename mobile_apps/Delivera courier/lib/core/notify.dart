@@ -47,14 +47,25 @@ class Notify {
       await _local.initialize(
         const InitializationSettings(iOS: ios, android: android),
       );
+      final androidImpl = _local.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      // Kanal med custom-ljud (res/raw/new_order). Måste finnas innan en
+      // bakgrunds-FCM-notis kommer in — annars faller den tillbaka på default-ljud.
+      await androidImpl?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'new_order',
+          'Nya order',
+          description: 'Avisering med larmljud när nya leveranser dyker upp',
+          importance: Importance.high,
+          sound: RawResourceAndroidNotificationSound('new_order'),
+          playSound: true,
+        ),
+      );
       await _local
           .resolvePlatformSpecificImplementation<
               IOSFlutterLocalNotificationsPlugin>()
           ?.requestPermissions(alert: true, badge: true, sound: true);
-      await _local
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.requestNotificationsPermission();
+      await androidImpl?.requestNotificationsPermission();
     } catch (e) {
       debugPrint('Notify notif init: $e');
     }
@@ -79,16 +90,19 @@ class Notify {
   static Future<void> _showBanner(int count) async {
     try {
       const android = AndroidNotificationDetails(
-        'new_jobs',
-        'Nya uppdrag',
-        channelDescription: 'Avisering när nya leveranser dyker upp',
+        'new_order',
+        'Nya order',
+        channelDescription: 'Avisering med larmljud när nya leveranser dyker upp',
         importance: Importance.high,
         priority: Priority.high,
+        sound: RawResourceAndroidNotificationSound('new_order'),
+        playSound: true,
       );
       const ios = DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
+        sound: 'new_order.caf',
       );
       await _local.show(
         7001,
