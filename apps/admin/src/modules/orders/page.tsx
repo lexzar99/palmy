@@ -581,7 +581,10 @@ export function OrdersPage() {
   const orders = useQuery({
     queryKey: ordersQueryKey(status, page, ORDERS_PAGE_SIZE),
     queryFn: () => getOrders(status, page, ORDERS_PAGE_SIZE),
-    refetchInterval: 10_000,
+    // Realtid sköts av RealtimeSync (socket: order:new/order:updated → invalidate).
+    // Pollen är bara en fallback om en socket-händelse missas → 20s räcker och
+    // halverar den redundanta DB-lasten jämfört med 10s.
+    refetchInterval: 20_000,
   });
 
   const bulkRefundMutation = useMutation({

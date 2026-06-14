@@ -203,6 +203,9 @@ model Order {
   @@index([stripePaymentIntentId])
   @@index([userId])
   @@index([appliedDealId])
+  // Super-admin globala status-vyer (utan restaurantId) + abandoned-städning.
+  @@index([status, createdAt])
+  @@index([paymentStatus, createdAt])
 }
 
 // --- Kurir-domän (Fas 3) ---

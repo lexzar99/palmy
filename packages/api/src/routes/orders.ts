@@ -1965,7 +1965,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, userId: true, status: true, restaurant: { select: { selfDelivery: true } } },
+      select: { id: true, userId: true, status: true, restaurantId: true, restaurant: { select: { selfDelivery: true } } },
     });
     if (!order) return res.status(404).json({ error: 'Ordern hittades inte' });
     if (order.userId !== callerUserId) {
@@ -1992,6 +1992,10 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     // Notify any connected clients (restaurant, admin, customer mirrors).
     try {
       getIO()?.to(`order:${orderId}`).emit('order:status', { id: orderId, status: 'DELIVERED' });
+      // Även admin-rummet så order-listan uppdateras direkt (annars syns
+      // kund-mockens auto-DELIVERED först vid nästa poll).
+      getIO()?.to('admin-room').emit('order:updated', { id: orderId, status: 'DELIVERED' });
+      if (order.restaurantId) getIO()?.to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: orderId });
       void sendOrderStatusPush(orderId, 'DELIVERED');
     } catch {}
 
