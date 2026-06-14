@@ -242,7 +242,7 @@ export default function LiveOrderBanner() {
         exit={{ y: 80, opacity: 0 }}
         transition={{ type: "spring", stiffness: 260, damping: 28 }}
         className="fixed left-3 right-3 z-[90]"
-        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 9rem)" }}
+        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 6.25rem)" }}
       >
         <style>{`
           @keyframes lob-sweep {

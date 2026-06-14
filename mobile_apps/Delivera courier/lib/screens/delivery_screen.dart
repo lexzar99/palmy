@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../core/format.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../providers/session_provider.dart';
@@ -137,10 +136,11 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       messenger.showSnackBar(SnackBar(content: Text(err)));
       return;
     }
-    // Visa intjäning + tillbaka.
+    // Bekräftelse + tillbaka (ingen summa här — intjäning syns på Konto).
     await showDialog(
       context: context,
-      builder: (_) => _DeliveredDialog(payout: delivery.payout),
+      barrierColor: Colors.black.withOpacity(0.55),
+      builder: (_) => const _DeliveredDialog(),
     );
     navigator.pop();
   }
@@ -256,6 +256,9 @@ class _PickupPhase extends StatelessWidget {
           focusDropoff: false,
         ),
         const SizedBox(height: 14),
+        // Kundens namn tydligt — så budet kan säga "leverans till kund X".
+        _CustomerBanner(name: delivery.dropoffName),
+        const SizedBox(height: 12),
         AppPanel(
           child: AddressRow(
             icon: Icons.storefront_rounded,
@@ -292,6 +295,54 @@ class _PickupPhase extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Tydlig kund-banner i hämtningsfasen — budet ser direkt vem ordern går till.
+class _CustomerBanner extends StatelessWidget {
+  final String name;
+  const _CustomerBanner({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppPanel(
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppTheme.faintColor(context),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: AppTheme.borderColor(context)),
+            ),
+            child: Icon(Icons.person_rounded,
+                size: 22, color: AppTheme.mutedColor(context)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'LEVERANS TILL',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: AppTheme.mutedColor(context),
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  name.isEmpty ? 'Kund' : name,
+                  style: theme.textTheme.titleLarge,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -559,43 +610,56 @@ class _ActionBar extends StatelessWidget {
   }
 }
 
+/// Ren, monokrom bekräftelse efter levererad order. Ingen summa — bara att
+/// uppdraget är klart. Egen panel istället för Dialogens mörka standardyta.
 class _DeliveredDialog extends StatelessWidget {
-  final double payout;
-  const _DeliveredDialog({required this.payout});
+  const _DeliveredDialog();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Dialog(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(28, 34, 28, 24),
+        decoration: BoxDecoration(
+          color: AppTheme.panelColor(context),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: AppTheme.borderColor(context)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.30),
+              blurRadius: 30,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 72,
-              height: 72,
+              width: 84,
+              height: 84,
               decoration: BoxDecoration(
-                color: AppTheme.success.withOpacity(0.14),
+                color: AppTheme.success.withOpacity(0.12),
                 shape: BoxShape.circle,
+                border: Border.all(
+                    color: AppTheme.success.withOpacity(0.35), width: 2),
               ),
-              child: const Icon(Icons.check_circle_rounded,
-                  size: 40, color: AppTheme.success),
-            ),
-            const SizedBox(height: 18),
-            Text('Levererad!', style: theme.textTheme.headlineSmall),
-            const SizedBox(height: 6),
-            Text('Du tjänade', style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 2),
-            Text(
-              kr(payout),
-              style: theme.textTheme.displaySmall?.copyWith(
-                color: AppTheme.isDark(context)
-                    ? AppTheme.ember
-                    : AppTheme.emberDeep,
-              ),
+              child: const Icon(Icons.check_rounded,
+                  size: 44, color: AppTheme.success),
             ),
             const SizedBox(height: 22),
+            Text('Levererad', style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 6),
+            Text(
+              'Snyggt jobbat — uppdraget är klart.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 26),
             EmberButton(
               label: 'Klar',
               onPressed: () => Navigator.pop(context),

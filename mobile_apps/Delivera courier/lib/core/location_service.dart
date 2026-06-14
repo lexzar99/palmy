@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:geolocator/geolocator.dart';
 
@@ -19,14 +20,53 @@ class LocationService {
   Position? get last => _last;
 
   /// Be om behörighet. Returnerar true om vi får läsa positionen.
+  /// Försöker eskalera till "Alltid" så positionen kan delas i bakgrunden.
   Future<bool> ensurePermission() async {
     if (!await Geolocator.isLocationServiceEnabled()) return false;
     var perm = await Geolocator.checkPermission();
     if (perm == LocationPermission.denied) {
       perm = await Geolocator.requestPermission();
     }
+    if (perm == LocationPermission.deniedForever) return false;
+    // Eskalera till Always för bakgrundsdelning (iOS visar Always-prompten
+    // separat; whileInUse räcker för förgrundsdelning).
+    if (perm == LocationPermission.whileInUse) {
+      try {
+        perm = await Geolocator.requestPermission();
+      } catch (_) {}
+    }
     return perm == LocationPermission.always ||
         perm == LocationPermission.whileInUse;
+  }
+
+  /// Platsinställningar med bakgrundsstöd per plattform.
+  LocationSettings _settings() {
+    if (Platform.isIOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 25,
+        pauseLocationUpdatesAutomatically: false,
+        // Kräver UIBackgroundModes:location i Info.plist + Always-behörighet.
+        allowBackgroundLocationUpdates: true,
+        showBackgroundLocationIndicator: true,
+        activityType: ActivityType.otherNavigation,
+      );
+    }
+    if (Platform.isAndroid) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 25,
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'Delivera Courier är online',
+          notificationText: 'Din position delas medan du är online.',
+          enableWakeLock: true,
+        ),
+      );
+    }
+    return const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 25,
+    );
   }
 
   /// Starta positionsbevakning + heartbeat. Idempotent.
@@ -35,10 +75,7 @@ class LocationService {
     if (!await ensurePermission()) return;
 
     _stream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 25, // bara nya fixar var ~25 m
-      ),
+      locationSettings: _settings(),
     ).listen((pos) {
       _last = pos;
     }, onError: (_) {});

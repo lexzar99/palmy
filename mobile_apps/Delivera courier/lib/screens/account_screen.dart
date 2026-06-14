@@ -88,20 +88,15 @@ class _AccountScreenState extends State<AccountScreen> {
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppTheme.emberSoft, accent],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    color: AppTheme.faintColor(context),
                     borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppTheme.borderColor(context)),
                   ),
                   child: Center(
                     child: Text(
                       courier?.initials ?? '?',
-                      style: const TextStyle(
-                        color: AppTheme.ink,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
@@ -121,7 +116,7 @@ class _AccountScreenState extends State<AccountScreen> {
                         children: [
                           AppPill(
                             label: courier?.vehicle.label ?? '—',
-                            color: AppTheme.info,
+                            color: AppTheme.mutedColor(context),
                             icon: courier?.vehicle == VehicleType.car
                                 ? Icons.directions_car_rounded
                                 : Icons.pedal_bike_rounded,
@@ -129,8 +124,8 @@ class _AccountScreenState extends State<AccountScreen> {
                           const SizedBox(width: 8),
                           AppPill(
                             label: courier?.city ?? '—',
-                            color: accent,
-                            icon: Icons.place_rounded,
+                            color: AppTheme.mutedColor(context),
+                            icon: Icons.place_outlined,
                           ),
                         ],
                       ),
@@ -177,11 +172,12 @@ class _AccountScreenState extends State<AccountScreen> {
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      color: AppTheme.success.withOpacity(0.12),
+                      color: AppTheme.faintColor(context),
                       borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.borderColor(context)),
                     ),
-                    child: const Icon(Icons.date_range_rounded,
-                        color: AppTheme.success, size: 22),
+                    child: Icon(Icons.insights_rounded,
+                        color: AppTheme.mutedColor(context), size: 22),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -205,8 +201,7 @@ class _AccountScreenState extends State<AccountScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(kr(period.earned),
-                            style: theme.textTheme.headlineSmall
-                                ?.copyWith(color: AppTheme.success)),
+                            style: theme.textTheme.headlineSmall),
                         const SizedBox(height: 2),
                         Text('${period.count} leveranser',
                             style: theme.textTheme.bodyMedium),

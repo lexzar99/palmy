@@ -301,14 +301,13 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
         await widget.onConfirm();
       } finally {
         if (mounted) {
-          // Vänta tills snap-tillbaka faktiskt nått 0 INNAN vi släpper låset.
+          // Stoppa spinnern DIREKT när aktionen är klar — vänta inte på
+          // hem-animationen (om skärmen revs ned mitt i den kunde spinnern
+          // bli kvar och snurra). Tummen glider hem separat, och re-fire-låset
+          // (_confirmed) hålls tills den är hemma.
+          setState(() => _busy = false);
           await _animateTo(0.0, curve: Curves.easeInOut);
-          if (mounted) {
-            setState(() {
-              _busy = false;
-              _confirmed = false;
-            });
-          }
+          if (mounted) setState(() => _confirmed = false);
         }
       }
     } else {

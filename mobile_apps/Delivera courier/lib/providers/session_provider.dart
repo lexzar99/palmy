@@ -7,6 +7,7 @@ import '../core/api_client.dart';
 import '../core/constants.dart';
 import '../core/location_service.dart';
 import '../core/models_api.dart';
+import '../core/notify.dart';
 import '../models/models.dart';
 
 /// Driftläge för kuriren: online/offline, tillgängliga uppdrag (polling),
@@ -99,6 +100,8 @@ class SessionProvider with ChangeNotifier {
   // ── Online/offline ─────────────────────────────────────────────────────────
   Future<bool> goOnline() async {
     _setBusy(true);
+    // Be om ljud/notis-behörighet kontextuellt när budet går online.
+    unawaited(Notify.ensureInit());
     try {
       await _api.startSession();
       _epoch++;
@@ -158,7 +161,11 @@ class SessionProvider with ChangeNotifier {
       if (_disposed || !_online || _epoch != epoch) return;
       final beforeIds = _jobs.map((j) => j.id).toSet();
       final added = fresh.where((j) => !beforeIds.contains(j.id)).length;
-      if (added > 0 && _jobs.isNotEmpty) _newJobBadge += added;
+      // Larma bara på FAKTISKT nya uppdrag (inte vid första laddningen).
+      if (added > 0 && _jobs.isNotEmpty) {
+        _newJobBadge += added;
+        Notify.newJob(added);
+      }
       _jobs = fresh;
       _error = null;
       notifyListeners();
@@ -259,9 +266,10 @@ class SessionProvider with ChangeNotifier {
 
   // ── App-livscykel: pausa nätverk/GPS i bakgrunden ──────────────────────────
   void handleAppPaused() {
-    if (!_online) return;
-    _stopJobsPolling();
-    _location.stop();
+    // Behåll position + polling igång i bakgrunden medan budet är online —
+    // UIBackgroundModes:location håller appen vaken, så position fortsätter
+    // pingas och nya-uppdrag-notiser kan fortfarande avfyras. (Stoppas helt
+    // när budet går offline.)
   }
 
   void handleAppResumed() {

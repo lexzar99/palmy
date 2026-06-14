@@ -46,6 +46,14 @@
 	<!-- Plats: delas medan kuriren är online så restaurang/kund/admin ser var leveransen är. -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Delivera Courier delar din position medan du är online så att restaurangen, kunden och Delivera kan följa leveransen. Vi slutar dela när du går offline.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Delivera Courier delar din position även i bakgrunden medan du är online, så leveransen kan följas i realtid även när skärmen är släckt. Vi slutar dela när du går offline.</string>
+	<!-- Bakgrundsläge: håller positionsdelningen igång medan appen är i bakgrunden. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+	</array>
 	<!-- Kamera: valfritt leveransfoto som bevis vid överlämning. -->
 	<key>NSCameraUsageDescription</key>
 	<string>Delivera Courier använder kameran för att ta ett valfritt leveransfoto som bevis vid överlämning.</string>
