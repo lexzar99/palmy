@@ -67,6 +67,10 @@ export interface AdminOrder {
     pickupMin: number | null;
     deliverMin: number | null;
     totalMin: number | null;
+    // Leveransbevis: hur maten lämnades, kurirens notering, foto (TTL 2 dygn).
+    proofMethod?: string | null; // HANDED | LEFT_AT_DOOR
+    proofMessage?: string | null;
+    proofPhotoUrl?: string | null;
   } | null;
 }
 

@@ -109,6 +109,17 @@ function parseExtras(value: AdminOrder["items"][number]["selectedExtras"]) {
   }
 }
 
+// Kundens leveransinstruktion: kända enums → svenska, annars råtext (fritext).
+function deliveryInstructionLabel(value: string): string {
+  const map: Record<string, string> = {
+    RING_DOORBELL: "Ring på dörrklockan",
+    LEAVE_AT_DOOR: "Lämna utanför dörren",
+    MEET_OUTSIDE: "Möt mig utanför",
+    ENTER_CODE: "Portkod krävs",
+  };
+  return map[value] ?? value;
+}
+
 function StatusTrack({ status, isDelivery }: { status: string; isDelivery: boolean }) {
   const cancelled = CANCEL_STATUSES.includes(status);
   const steps: readonly string[] = isDelivery ? DELIVERY_STEPS : PICKUP_STEPS;
@@ -158,6 +169,8 @@ function OrderDetailsModal({
   // Återbetalning + manuell statusändring är sällan-åtgärder → ihopfällda by default.
   const [showRefund, setShowRefund] = useState(false);
   const [showStatusOverride, setShowStatusOverride] = useState(false);
+  // Förstora leveransfotot (lightbox).
+  const [proofZoom, setProofZoom] = useState(false);
 
   const orderQuery = useQuery({
     queryKey: orderDetailQueryKey(orderId),
@@ -242,6 +255,7 @@ function OrderDetailsModal({
     statusMutation.mutate({ status, nextEstimatedTime: estimatedTime === "" ? null : Number(estimatedTime) });
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -362,6 +376,53 @@ function OrderDetailsModal({
                       <div className="rounded-lg bg-[var(--bg-hover)] px-2 py-2">
                         <p className="text-[14px] font-semibold tabular-nums">{order.courier.totalMin != null ? `${order.courier.totalMin}m` : "–"}</p>
                         <p className="mt-0.5 text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Totalt</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Leveransbevis: foto (liten vy → förstora), leveranssätt, kundens
+                      instruktion och kurirens notering. Allt support behöver vid ett samtal. */}
+                  {(order.courier.proofMethod || order.courier.proofPhotoUrl || order.courier.proofMessage) && (
+                    <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="card-label">Leveransbevis</p>
+                        {order.courier.proofMethod && (
+                          <Badge tone={order.courier.proofMethod === "LEFT_AT_DOOR" ? "warning" : "success"}>
+                            {order.courier.proofMethod === "LEFT_AT_DOOR" ? "Lämnad vid dörren" : "Lämnad i handen"}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="mt-3 flex gap-3">
+                        {order.courier.proofPhotoUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => setProofZoom(true)}
+                            className="group relative shrink-0 overflow-hidden rounded-xl border border-[var(--border-subtle)]"
+                            title="Förstora foto"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={order.courier.proofPhotoUrl} alt="Leveransfoto" className="h-20 w-20 object-cover transition group-hover:opacity-80" />
+                            <span className="absolute bottom-1 right-1 rounded bg-black/55 px-1 py-0.5 text-[9px] text-white">Förstora</span>
+                          </button>
+                        ) : (
+                          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-dashed border-[var(--border-subtle)] text-[10px] text-[var(--text-muted)]">
+                            Inget foto
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1 space-y-2">
+                          {order.deliveryInstructions && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Kundens instruktion</p>
+                              <p className="text-[13px]">{deliveryInstructionLabel(order.deliveryInstructions)}</p>
+                            </div>
+                          )}
+                          {order.courier.proofMessage && (
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Kurirens notering</p>
+                              <p className="whitespace-pre-wrap text-[13px]">{order.courier.proofMessage}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -558,6 +619,15 @@ function OrderDetailsModal({
         </div>
       )}
     </Modal>
+
+    {/* Lightbox: förstorat leveransfoto. */}
+    <Modal open={proofZoom} onClose={() => setProofZoom(false)} widthClassName="max-w-[680px]" title="Leveransfoto">
+      {order?.courier?.proofPhotoUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={order.courier.proofPhotoUrl} alt="Leveransfoto" className="max-h-[72vh] w-full rounded-xl object-contain" />
+      )}
+    </Modal>
+    </>
   );
 }
 
