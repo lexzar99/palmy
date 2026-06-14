@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
+import '../firebase_options.dart';
 import 'models_api.dart';
 import 'notify.dart';
 
@@ -15,7 +16,7 @@ import 'notify.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (_) {
     /* ingen Firebase-config → no-op */
   }
@@ -47,7 +48,7 @@ class PushService {
     _inited = true;
 
     try {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
       _firebaseOk = true;
     } catch (e) {
       debugPrint('[push] Firebase ej konfigurerat — native push inaktiv: $e');
