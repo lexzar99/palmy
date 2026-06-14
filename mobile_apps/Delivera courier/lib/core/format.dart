@@ -31,5 +31,16 @@ String dayLabel(DateTime d) {
 /// "18:09" — tid på dygnet.
 String timeOfDay(DateTime d) => DateFormat('HH:mm').format(d);
 
+/// "8 jun" — kort datum (för datumintervall).
+String dateShort(DateTime d) => DateFormat('d MMM', 'sv_SE').format(d);
+
+/// "8 jun – 14 jun" eller "14 jun" om start = slut.
+String dateRangeLabel(DateTime start, DateTime end) {
+  final a = DateTime(start.year, start.month, start.day);
+  final b = DateTime(end.year, end.month, end.day);
+  if (a == b) return dateShort(a);
+  return '${dateShort(a)} – ${dateShort(b)}';
+}
+
 /// "11 min" — minuter.
 String minutes(num n) => '${n.round()} min';

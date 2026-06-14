@@ -42,25 +42,35 @@ class SessionProvider with ChangeNotifier {
   int get newJobBadge => _newJobBadge;
   bool get atActiveLimit => _active.length >= Constants.maxActive;
 
-  /// Dagens intjäning (kr) — summan av historikens leveranser idag.
-  double get earnedToday {
-    final now = DateTime.now();
-    return _history
-        .where((h) =>
-            h.deliveredAt.year == now.year &&
-            h.deliveredAt.month == now.month &&
-            h.deliveredAt.day == now.day)
-        .fold<double>(0, (s, h) => s + h.payout);
+  /// Intjäning (kr) + antal leveranser inom [startInclusive, endExclusive).
+  /// Räknas ur historiken (senaste 60 leveranserna från backend).
+  ({double earned, int count}) statsBetween(
+      DateTime startInclusive, DateTime endExclusive) {
+    double earned = 0;
+    int count = 0;
+    for (final h in _history) {
+      final t = h.deliveredAt;
+      if (!t.isBefore(startInclusive) && t.isBefore(endExclusive)) {
+        earned += h.payout;
+        count++;
+      }
+    }
+    return (earned: earned, count: count);
   }
 
-  int get deliveriesToday {
+  /// Idag (från midnatt till nu).
+  ({double earned, int count}) get statsToday {
     final now = DateTime.now();
-    return _history
-        .where((h) =>
-            h.deliveredAt.year == now.year &&
-            h.deliveredAt.month == now.month &&
-            h.deliveredAt.day == now.day)
-        .length;
+    final start = DateTime(now.year, now.month, now.day);
+    return statsBetween(start, start.add(const Duration(days: 1)));
+  }
+
+  /// Igår (hela gårdagen).
+  ({double earned, int count}) get statsYesterday {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day)
+        .subtract(const Duration(days: 1));
+    return statsBetween(start, start.add(const Duration(days: 1)));
   }
 
   // ── Bootstrap: läs serverns session-status + ev. återuppta online ──────────

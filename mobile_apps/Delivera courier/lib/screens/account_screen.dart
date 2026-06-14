@@ -22,6 +22,8 @@ class AccountScreen extends StatefulWidget {
 
 class _AccountScreenState extends State<AccountScreen> {
   String _version = '';
+  // Vald period för intjäning. Null = default (senaste 7 dagarna).
+  DateTimeRange? _period;
 
   @override
   void initState() {
@@ -33,6 +35,25 @@ class _AccountScreenState extends State<AccountScreen> {
     });
   }
 
+  /// Vald period, eller senaste 7 dagarna som default.
+  DateTimeRange get _effectiveRange {
+    if (_period != null) return _period!;
+    final now = DateTime.now();
+    final end = DateTime(now.year, now.month, now.day);
+    return DateTimeRange(start: end.subtract(const Duration(days: 6)), end: end);
+  }
+
+  Future<void> _pickPeriod() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 2),
+      lastDate: DateTime(now.year, now.month, now.day),
+      initialDateRange: _effectiveRange,
+    );
+    if (picked != null && mounted) setState(() => _period = picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -41,8 +62,14 @@ class _AccountScreenState extends State<AccountScreen> {
     final accent =
         AppTheme.isDark(context) ? AppTheme.ember : AppTheme.emberDeep;
 
-    final totalEarned =
-        session.history.fold<double>(0, (s, h) => s + h.payout);
+    final range = _effectiveRange;
+    final periodStart =
+        DateTime(range.start.year, range.start.month, range.start.day);
+    final periodEndEx = DateTime(range.end.year, range.end.month, range.end.day)
+        .add(const Duration(days: 1));
+    final period = session.statsBetween(periodStart, periodEndEx);
+    final yesterday = session.statsYesterday;
+    final today = session.statsToday;
 
     return RefreshIndicator(
       onRefresh: () => context.read<SessionProvider>().refreshHistory(),
@@ -114,29 +141,83 @@ class _AccountScreenState extends State<AccountScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          // Intjäning
+          // Intjäning — igår, idag och en vald period
           Row(
             children: [
               Expanded(
                 child: AppMetricCard(
-                  eyebrow: 'Idag',
-                  value: kr(session.earnedToday),
-                  label: '${session.deliveriesToday} leveranser',
-                  accent: accent,
-                  icon: Icons.today_rounded,
+                  eyebrow: 'Igår',
+                  value: kr(yesterday.earned),
+                  label: '${yesterday.count} leveranser',
+                  accent: AppTheme.mutedColor(context),
+                  icon: Icons.history_rounded,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: AppMetricCard(
-                  eyebrow: 'Totalt',
-                  value: kr(totalEarned),
-                  label: '${session.history.length} leveranser',
-                  accent: AppTheme.success,
-                  icon: Icons.account_balance_wallet_outlined,
+                  eyebrow: 'Idag',
+                  value: kr(today.earned),
+                  label: '${today.count} leveranser',
+                  accent: accent,
+                  icon: Icons.today_rounded,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          // Period — kuriren väljer datumintervall själv
+          InkWell(
+            onTap: _pickPeriod,
+            borderRadius: BorderRadius.circular(20),
+            child: AppPanel(
+              child: Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: AppTheme.success.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(Icons.date_range_rounded,
+                        color: AppTheme.success, size: 22),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text('PERIOD',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: AppTheme.mutedColor(context),
+                                )),
+                            const SizedBox(width: 8),
+                            Text(
+                              dateRangeLabel(range.start, range.end),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppTheme.mutedColor(context),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(kr(period.earned),
+                            style: theme.textTheme.headlineSmall
+                                ?.copyWith(color: AppTheme.success)),
+                        const SizedBox(height: 2),
+                        Text('${period.count} leveranser',
+                            style: theme.textTheme.bodyMedium),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.tune_rounded,
+                      size: 20, color: AppTheme.mutedColor(context)),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 24),
           // Historik

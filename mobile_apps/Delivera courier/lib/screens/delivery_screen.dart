@@ -10,6 +10,7 @@ import '../models/models.dart';
 import '../providers/session_provider.dart';
 import '../widgets/app_ui.dart';
 import '../widgets/courier_ui.dart';
+import '../widgets/delivery_map.dart';
 
 /// Leveransflöde i två faser:
 ///  1. EN_ROUTE_PICKUP — bocka av alla artiklar → svep "Hämtad".
@@ -247,6 +248,14 @@ class _PickupPhase extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
       children: [
+        DeliveryMap(
+          pickup: delivery.pickup,
+          dropoff: delivery.dropoff,
+          pickupAddress: delivery.pickupAddress,
+          dropoffAddress: delivery.dropoffAddress,
+          focusDropoff: false,
+        ),
+        const SizedBox(height: 14),
         AppPanel(
           child: AddressRow(
             icon: Icons.storefront_rounded,
@@ -378,6 +387,14 @@ class _DeliverPhase extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
       children: [
+        DeliveryMap(
+          pickup: delivery.pickup,
+          dropoff: delivery.dropoff,
+          pickupAddress: delivery.pickupAddress,
+          dropoffAddress: delivery.dropoffAddress,
+          focusDropoff: true,
+        ),
+        const SizedBox(height: 14),
         AppPanel(
           child: AddressRow(
             icon: Icons.flag_rounded,
