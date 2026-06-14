@@ -65,17 +65,24 @@ class SessionProvider with ChangeNotifier {
 
   // ── Bootstrap: läs serverns session-status + ev. återuppta online ──────────
   Future<void> bootstrap() async {
+    final epoch = _epoch;
+    bool online;
     try {
-      _online = await _api.getSession();
+      online = await _api.getSession();
     } catch (_) {
       final prefs = await SharedPreferences.getInstance();
-      _online = prefs.getBool(Constants.onlineFlagKey) ?? false;
+      online = prefs.getBool(Constants.onlineFlagKey) ?? false;
     }
+    // En utloggning/reset under bootstrap får inte återuppliva online-läget.
+    if (_disposed || _epoch != epoch) return;
+    _online = online;
     if (_online) {
       await _location.start();
+      if (_disposed || _epoch != epoch) return;
       _startJobsPolling();
     }
     await Future.wait([refreshActive(), refreshHistory()]);
+    if (_disposed || _epoch != epoch) return;
     notifyListeners();
   }
 
@@ -258,17 +265,20 @@ class SessionProvider with ChangeNotifier {
   /// Nollställ allt vid utloggning (även påtvingad 401). Stoppar timers/GPS,
   /// rensar listor och den persistade online-flaggan så nästa konto inte ärver.
   Future<void> reset() async {
+    // Synkron del först → stänger polling/GPS-fönstret omedelbart.
     _epoch++;
     _online = false;
-    _stopJobsPolling();
-    await _location.stop();
+    _busy = false;
+    _error = null;
+    _newJobBadge = 0;
     _jobs = [];
     _active = [];
     _history = [];
-    _newJobBadge = 0;
+    _stopJobsPolling();
+    if (!_disposed) notifyListeners();
+    await _location.stop();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(Constants.onlineFlagKey);
-    if (!_disposed) notifyListeners();
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

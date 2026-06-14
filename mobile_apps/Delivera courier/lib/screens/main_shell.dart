@@ -52,9 +52,8 @@ class _MainShellState extends State<MainShell>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _tabAnim.dispose();
-    // Skalet rivs när auth → utloggad (även påtvingad 401) → nollställ sessionen
-    // så nästa konto inte ärver online-läge/listor.
-    _session.reset();
+    // OBS: sessionen rivs vid auth-övergången (AuthProvider.onLoggedOut →
+    // session.reset()), INTE här — dispose fördröjs av AnimatedSwitcher.
     super.dispose();
   }
 

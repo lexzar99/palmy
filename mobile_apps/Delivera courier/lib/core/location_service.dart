@@ -63,9 +63,12 @@ class LocationService {
   }
 
   Future<void> stop() async {
-    await _stream?.cancel();
-    _stream = null;
+    // Stoppa heartbeat-timern FÖRST (synkront) så den inte hinner skicka en
+    // till position medan stream-avbrytningen await:as.
     _heartbeat?.cancel();
     _heartbeat = null;
+    final sub = _stream;
+    _stream = null;
+    await sub?.cancel();
   }
 }

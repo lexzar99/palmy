@@ -255,15 +255,29 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
   }
 
   @override
+  void didUpdateWidget(SwipeToConfirm old) {
+    super.didUpdateWidget(old);
+    // Aktionsbyte (ny label, t.ex. Hämtad → Levererad på samma återanvända
+    // State) eller inaktiverad → snäpp HEM direkt, så tummen aldrig startar
+    // nästa (mer destruktiva) aktion mitt i resan.
+    if (old.label != widget.label || (!widget.enabled && old.enabled)) {
+      _snap.stop();
+      _confirmed = false;
+      _snap.value = 0;
+      if (mounted) setState(() => _dx = 0);
+    }
+  }
+
+  @override
   void dispose() {
     _snap.dispose();
     super.dispose();
   }
 
-  void _animateTo(double targetFraction, {Curve curve = Curves.easeOut}) {
-    if (_maxDx <= 0) return;
+  Future<void> _animateTo(double targetFraction, {Curve curve = Curves.easeOut}) {
+    if (_maxDx <= 0) return Future.value();
     _snap.value = (_dx / _maxDx).clamp(0.0, 1.0);
-    _snap.animateTo(targetFraction.clamp(0.0, 1.0), curve: curve);
+    return _snap.animateTo(targetFraction.clamp(0.0, 1.0), curve: curve);
   }
 
   bool get _interactive => widget.enabled && !_busy && !_confirmed;
@@ -277,21 +291,24 @@ class _SwipeToConfirmState extends State<SwipeToConfirm>
   Future<void> _onDragEnd(DragEndDetails _) async {
     if (!_interactive) return;
     if (_dx >= _maxDx * 0.85) {
-      // Full → bekräfta.
+      // Full → bekräfta. _confirmed hålls true tills tummen är hemma igen, så
+      // ingen ny gest kan re-passera tröskeln och dubbel-avfyra.
       _confirmed = true;
       HapticFeedback.mediumImpact();
-      _animateTo(1.0);
       setState(() => _busy = true);
+      unawaited(_animateTo(1.0));
       try {
         await widget.onConfirm();
       } finally {
         if (mounted) {
-          // Återställ för ev. nästa användning.
-          _animateTo(0.0, curve: Curves.easeInOut);
-          setState(() {
-            _busy = false;
-            _confirmed = false;
-          });
+          // Vänta tills snap-tillbaka faktiskt nått 0 INNAN vi släpper låset.
+          await _animateTo(0.0, curve: Curves.easeInOut);
+          if (mounted) {
+            setState(() {
+              _busy = false;
+              _confirmed = false;
+            });
+          }
         }
       }
     } else {

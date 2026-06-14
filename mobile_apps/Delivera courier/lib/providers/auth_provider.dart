@@ -18,6 +18,11 @@ class AuthProvider with ChangeNotifier {
   CourierProfile? _courier;
   String? _error;
 
+  /// Anropas synkront vid utloggning (manuell ELLER påtvingad 401) så att
+  /// SessionProvider kan riva ner polling/GPS direkt — inte beroende av att
+  /// MainShell hinner disposas (vilket AnimatedSwitcher fördröjer ~360ms).
+  void Function()? onLoggedOut;
+
   AuthStatus get status => _status;
   CourierProfile? get courier => _courier;
   String? get error => _error;
@@ -58,6 +63,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> logout() async {
+    onLoggedOut?.call(); // riv ner sessionen direkt (polling/GPS/listor)
     await _client.clearToken();
     _courier = null;
     _set(AuthStatus.loggedOut);
@@ -66,6 +72,7 @@ class AuthProvider with ChangeNotifier {
   void _onUnauthorized() {
     // Token återkallad av admin (tokenVersion-bump) eller utgången.
     if (_status == AuthStatus.loggedIn) {
+      onLoggedOut?.call(); // stäng polling/GPS-fönstret omedelbart
       _client.clearToken();
       _courier = null;
       _set(AuthStatus.loggedOut);

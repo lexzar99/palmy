@@ -34,6 +34,9 @@ void main() async {
   final client = ApiClient.instance;
   final api = CourierApi(client);
   final auth = AuthProvider(api, client);
+  final session = SessionProvider(api);
+  // Vid utloggning (manuell eller påtvingad 401): riv ner sessionen direkt.
+  auth.onLoggedOut = () => session.reset();
   await auth.bootstrap();
 
   final prefs = await SharedPreferences.getInstance();
@@ -43,7 +46,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: auth),
-        ChangeNotifierProvider(create: (_) => SessionProvider(api)),
+        ChangeNotifierProvider.value(value: session),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: DeliveraCourierApp(onboardingSeen: onboardingSeen),
