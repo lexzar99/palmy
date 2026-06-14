@@ -1,0 +1,44 @@
+name: delivera_courier
+description: "Delivera Courier — leveransapp för bud (iOS + Android)."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  provider: ^6.1.2
+  dio: ^5.7.0
+  shared_preferences: ^2.3.2
+  flutter_secure_storage: ^9.2.2
+  intl: ^0.20.2
+  geolocator: ^13.0.1
+  url_launcher: ^6.3.1
+  image_picker: ^1.1.2
+  flutter_spinkit: ^5.2.1
+  package_info_plus: ^8.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#0C0B0C"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  min_sdk_android: 21
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icon/
