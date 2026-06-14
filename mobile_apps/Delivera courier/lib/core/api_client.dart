@@ -85,10 +85,11 @@ class ApiClient {
         case DioExceptionType.connectionError:
           return 'Ingen anslutning. Kontrollera internet.';
         default:
-          return error.response?.data is Map &&
-                  (error.response!.data as Map)['error'] != null
-              ? (error.response!.data as Map)['error'].toString()
-              : 'Något gick fel. Försök igen.';
+          final data = error.response?.data;
+          if (data is Map && data['error'] is String) {
+            return data['error'] as String;
+          }
+          return 'Något gick fel. Försök igen.';
       }
     }
     return 'Något gick fel. Försök igen.';

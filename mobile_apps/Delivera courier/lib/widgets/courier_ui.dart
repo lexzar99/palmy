@@ -146,9 +146,26 @@ class _CountdownPillState extends State<CountdownPill> {
   @override
   void initState() {
     super.initState();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _t?.cancel();
+    if (secondsLeft(widget.expiresAt) <= 0) return; // redan slut → ingen timer
     _t = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() {});
+      if (secondsLeft(widget.expiresAt) <= 0) {
+        _t?.cancel();
+        _t = null;
+      }
     });
+  }
+
+  @override
+  void didUpdateWidget(CountdownPill old) {
+    super.didUpdateWidget(old);
+    if (old.expiresAt != widget.expiresAt) _startTimer(); // ny deadline
   }
 
   @override
@@ -211,102 +228,207 @@ class SwipeToConfirm extends StatefulWidget {
   State<SwipeToConfirm> createState() => _SwipeToConfirmState();
 }
 
-class _SwipeToConfirmState extends State<SwipeToConfirm> {
-  double _dx = 0;
+class _SwipeToConfirmState extends State<SwipeToConfirm>
+    with SingleTickerProviderStateMixin {
+  // Gesture-ytan ligger på HELA spåret (statisk), inte på den rörliga tummen —
+  // det var roten till glitchen. Tummen ritas ovanpå med IgnorePointer.
+  late final AnimationController _snap;
+  double _dx = 0; // tummens position i px (0.._maxDx)
+  double _maxDx = 0;
   bool _busy = false;
-  static const double _thumb = 58;
+  bool _confirmed = false;
+
+  static const double _thumb = 56;
+  static const double _pad = 4;
   static const double _height = 64;
+
+  @override
+  void initState() {
+    super.initState();
+    _snap = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+    )..addListener(() {
+        // Snap-animationen driver _dx mellan start- och målfraktion.
+        setState(() => _dx = _snap.value * _maxDx);
+      });
+  }
+
+  @override
+  void dispose() {
+    _snap.dispose();
+    super.dispose();
+  }
+
+  void _animateTo(double targetFraction, {Curve curve = Curves.easeOut}) {
+    if (_maxDx <= 0) return;
+    _snap.value = (_dx / _maxDx).clamp(0.0, 1.0);
+    _snap.animateTo(targetFraction.clamp(0.0, 1.0), curve: curve);
+  }
+
+  bool get _interactive => widget.enabled && !_busy && !_confirmed;
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    if (!_interactive) return;
+    _snap.stop();
+    setState(() => _dx = (_dx + d.delta.dx).clamp(0.0, _maxDx));
+  }
+
+  Future<void> _onDragEnd(DragEndDetails _) async {
+    if (!_interactive) return;
+    if (_dx >= _maxDx * 0.85) {
+      // Full → bekräfta.
+      _confirmed = true;
+      HapticFeedback.mediumImpact();
+      _animateTo(1.0);
+      setState(() => _busy = true);
+      try {
+        await widget.onConfirm();
+      } finally {
+        if (mounted) {
+          // Återställ för ev. nästa användning.
+          _animateTo(0.0, curve: Curves.easeInOut);
+          setState(() {
+            _busy = false;
+            _confirmed = false;
+          });
+        }
+      }
+    } else {
+      _animateTo(0.0); // snäpp tillbaka
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final fg = AppTheme.isDark(context) ? AppTheme.ink : Colors.white;
     return LayoutBuilder(
       builder: (context, c) {
-        final maxDx = c.maxWidth - _thumb - 8;
-        final progress = maxDx <= 0 ? 0.0 : (_dx / maxDx).clamp(0.0, 1.0);
+        _maxDx = (c.maxWidth - _thumb - _pad * 2).clamp(0.0, double.infinity);
+        final progress = _maxDx <= 0 ? 0.0 : (_dx / _maxDx).clamp(0.0, 1.0);
         return Opacity(
           opacity: widget.enabled ? 1 : 0.5,
-          child: Container(
-            height: _height,
-            decoration: BoxDecoration(
-              color: widget.color.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: widget.color.withOpacity(0.30)),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                AnimatedOpacity(
-                  opacity: 1 - progress,
-                  duration: const Duration(milliseconds: 120),
-                  child: Text(
-                    widget.label,
-                    style: TextStyle(
-                      color: widget.color,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 4 + _dx,
-                  top: 3,
-                  child: GestureDetector(
-                    onHorizontalDragUpdate: widget.enabled && !_busy
-                        ? (d) => setState(() => _dx =
-                            (_dx + d.delta.dx).clamp(0.0, maxDx))
-                        : null,
-                    onHorizontalDragEnd: widget.enabled && !_busy
-                        ? (_) => _settle(maxDx)
-                        : null,
-                    child: Container(
-                      width: _thumb,
-                      height: _height - 6,
-                      decoration: BoxDecoration(
-                        color: widget.color,
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: Center(
-                        child: _busy
-                            ? SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                    color: fg, strokeWidth: 2.6),
-                              )
-                            : Icon(widget.icon, color: fg, size: 26),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragUpdate: _onDragUpdate,
+            onHorizontalDragEnd: _onDragEnd,
+            child: Container(
+              height: _height,
+              decoration: BoxDecoration(
+                color: widget.color.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: widget.color.withOpacity(0.30)),
+              ),
+              child: Stack(
+                children: [
+                  // Etikett tonas ut allteftersom man drar.
+                  Center(
+                    child: Opacity(
+                      opacity: (1 - progress * 1.6).clamp(0.0, 1.0),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 40),
+                        child: Text(
+                          widget.label,
+                          style: TextStyle(
+                            color: widget.color,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                  // Tummen — bara visuell (IgnorePointer), så gesten alltid
+                  // träffar det statiska spåret nedanför.
+                  Positioned(
+                    left: _pad + _dx,
+                    top: _pad,
+                    child: IgnorePointer(
+                      child: Container(
+                        width: _thumb,
+                        height: _height - _pad * 2,
+                        decoration: BoxDecoration(
+                          color: widget.color,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Center(
+                          child: _busy
+                              ? SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                      color: fg, strokeWidth: 2.6),
+                                )
+                              : Icon(widget.icon, color: fg, size: 26),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
       },
     );
   }
+}
 
-  Future<void> _settle(double maxDx) async {
-    if (_dx >= maxDx * 0.92) {
-      setState(() {
-        _dx = maxDx;
-        _busy = true;
-      });
-      HapticFeedback.mediumImpact();
-      try {
-        await widget.onConfirm();
-      } finally {
-        if (mounted) {
-          setState(() {
-            _busy = false;
-            _dx = 0;
-          });
-        }
-      }
-    } else {
-      setState(() => _dx = 0);
-    }
+/// Levera-ordmärke renderat nativt: "deli" i bläck/vit + "vera" i guld,
+/// med valfri versal undertext (t.ex. COURIER). Ersätter generiska
+/// gradient-ikonrutor — autentisk varumärkestypografi (Outfit).
+class DeliveraWordmark extends StatelessWidget {
+  final double fontSize;
+  final String? tagline;
+  final bool center;
+
+  const DeliveraWordmark({
+    super.key,
+    this.fontSize = 34,
+    this.tagline,
+    this.center = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final inkColor = isDark ? AppTheme.paper : AppTheme.ink;
+    final gold = isDark ? AppTheme.ember : AppTheme.emberDeep;
+    return Column(
+      crossAxisAlignment:
+          center ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text.rich(
+          TextSpan(
+            style: TextStyle(
+              fontFamily: AppTheme.displayFont,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -fontSize * 0.03,
+              height: 1.0,
+            ),
+            children: [
+              TextSpan(text: 'deli', style: TextStyle(color: inkColor)),
+              TextSpan(text: 'vera', style: TextStyle(color: gold)),
+            ],
+          ),
+        ),
+        if (tagline != null) ...[
+          SizedBox(height: fontSize * 0.16),
+          Text(
+            tagline!.toUpperCase(),
+            style: TextStyle(
+              fontFamily: AppTheme.displayFont,
+              fontSize: fontSize * 0.30,
+              fontWeight: FontWeight.w700,
+              letterSpacing: fontSize * 0.22,
+              color: gold,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }

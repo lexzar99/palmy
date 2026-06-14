@@ -43,22 +43,19 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     final session = context.read<SessionProvider>();
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final err = await session.acceptJob(widget.jobId);
+    final result = await session.acceptJob(widget.jobId);
     if (!mounted) return;
     setState(() => _accepting = false);
-    if (err != null) {
-      messenger.showSnackBar(SnackBar(content: Text(err)));
+    if (result.error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(result.error!)));
       navigator.pop();
       return;
     }
-    // Hämta den nyss skapade leveransen och gå direkt till leveransflödet.
-    final delivery = session.active
-        .where((a) => a.orderNumber == _job?.orderNumber)
-        .toList();
+    // Använd den auktoritativa leveransen från accept-svaret.
     navigator.pop();
-    if (delivery.isNotEmpty) {
+    if (result.delivery != null) {
       navigator.push(MaterialPageRoute(
-        builder: (_) => DeliveryScreen(deliveryId: delivery.first.id),
+        builder: (_) => DeliveryScreen(deliveryId: result.delivery!.id),
       ));
     }
   }

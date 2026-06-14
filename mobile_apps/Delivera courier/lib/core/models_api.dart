@@ -39,7 +39,8 @@ class CourierApi {
   Future<List<Job>> listJobs() async {
     final res = await _client.get('/api/courier/jobs');
     return ((res.data as List?) ?? [])
-        .map((e) => Job.fromJson(e as Map<String, dynamic>))
+        .whereType<Map<String, dynamic>>()
+        .map(Job.fromJson)
         .toList();
   }
 
@@ -53,7 +54,8 @@ class CourierApi {
   Future<List<ActiveDelivery>> listActive() async {
     final res = await _client.get('/api/courier/active');
     return ((res.data as List?) ?? [])
-        .map((e) => ActiveDelivery.fromJson(e as Map<String, dynamic>))
+        .whereType<Map<String, dynamic>>()
+        .map(ActiveDelivery.fromJson)
         .toList();
   }
 
@@ -89,7 +91,8 @@ class CourierApi {
   Future<List<HistoryOrder>> getHistory() async {
     final res = await _client.get('/api/courier/history');
     return ((res.data as List?) ?? [])
-        .map((e) => HistoryOrder.fromJson(e as Map<String, dynamic>))
+        .whereType<Map<String, dynamic>>()
+        .map(HistoryOrder.fromJson)
         .toList();
   }
 

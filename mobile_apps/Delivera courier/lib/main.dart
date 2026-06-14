@@ -1,6 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -22,6 +25,11 @@ void main() async {
   FlutterError.onError = (details) {
     debugPrint('FLUTTER ERROR: ${details.exceptionAsString()}');
   };
+
+  // Ladda locale-data INNAN något DateFormat/NumberFormat används (annars
+  // LocaleDataException på t.ex. Konto-skärmen).
+  Intl.defaultLocale = 'sv_SE';
+  await initializeDateFormatting('sv_SE', null);
 
   final client = ApiClient.instance;
   final api = CourierApi(client);
@@ -51,8 +59,33 @@ class DeliveraCourierApp extends StatefulWidget {
   State<DeliveraCourierApp> createState() => _DeliveraCourierAppState();
 }
 
-class _DeliveraCourierAppState extends State<DeliveraCourierApp> {
+class _DeliveraCourierAppState extends State<DeliveraCourierApp>
+    with WidgetsBindingObserver {
   late bool _onboardingSeen = widget.onboardingSeen;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Initial systembrightness (för "Följ systemet").
+    final b = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ThemeProvider>().updateSystemBrightness(b);
+    });
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    // Endast vid faktisk ändring — inte på varje rebuild.
+    final b = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    if (mounted) context.read<ThemeProvider>().updateSystemBrightness(b);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +95,13 @@ class _DeliveraCourierAppState extends State<DeliveraCourierApp> {
           title: 'Delivera Courier',
           debugShowCheckedModeBanner: false,
           theme: themeProvider.currentTheme,
+          locale: const Locale('sv', 'SE'),
+          supportedLocales: const [Locale('sv', 'SE'), Locale('en')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           scrollBehavior: const MaterialScrollBehavior().copyWith(
             dragDevices: {
               PointerDeviceKind.mouse,
@@ -70,14 +110,6 @@ class _DeliveraCourierAppState extends State<DeliveraCourierApp> {
               PointerDeviceKind.unknown,
             },
           ),
-          builder: (context, child) {
-            // Håll systemets ljus/mörker uppdaterad för "Följ systemet".
-            final brightness = MediaQuery.platformBrightnessOf(context);
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              themeProvider.updateSystemBrightness(brightness);
-            });
-            return child ?? const SizedBox.shrink();
-          },
           home: AnimatedSwitcher(
             duration: const Duration(milliseconds: 360),
             switchInCurve: Curves.easeOutCubic,

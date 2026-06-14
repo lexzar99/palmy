@@ -164,6 +164,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: bodyFont,
       colorScheme: scheme,
       primaryColor: ember,
       scaffoldBackgroundColor: Colors.transparent,
@@ -266,6 +267,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: bodyFont,
       colorScheme: scheme,
       primaryColor: emberDeep,
       scaffoldBackgroundColor: Colors.transparent,
@@ -337,7 +339,11 @@ class AppTheme {
     );
   }
 
-  /// Editorial typography — large hierarchies, generous spacing.
+  /// Levera-typografi: **Outfit** (geometrisk, rubriker/display/etiketter) +
+  /// **Inter** (brödtext). Stora hierarkier, stram letter-spacing.
+  static const String displayFont = 'Outfit';
+  static const String bodyFont = 'Inter';
+
   static TextTheme _buildTextTheme(TextTheme base, Brightness brightness) {
     final bodyColor = brightness == Brightness.dark ? paper : ink;
     final secondary =
@@ -345,6 +351,7 @@ class AppTheme {
 
     return base.copyWith(
       displayLarge: base.displayLarge?.copyWith(
+        fontFamily: displayFont,
         fontSize: 64,
         fontWeight: FontWeight.w800,
         color: bodyColor,
@@ -352,6 +359,7 @@ class AppTheme {
         height: 0.98,
       ),
       displayMedium: base.displayMedium?.copyWith(
+        fontFamily: displayFont,
         fontSize: 48,
         fontWeight: FontWeight.w800,
         color: bodyColor,
@@ -359,6 +367,7 @@ class AppTheme {
         height: 1.0,
       ),
       displaySmall: base.displaySmall?.copyWith(
+        fontFamily: displayFont,
         fontSize: 36,
         fontWeight: FontWeight.w700,
         color: bodyColor,
@@ -366,6 +375,7 @@ class AppTheme {
         height: 1.05,
       ),
       headlineLarge: base.headlineLarge?.copyWith(
+        fontFamily: displayFont,
         fontSize: 30,
         fontWeight: FontWeight.w700,
         color: bodyColor,
@@ -373,6 +383,7 @@ class AppTheme {
         height: 1.15,
       ),
       headlineMedium: base.headlineMedium?.copyWith(
+        fontFamily: displayFont,
         fontSize: 24,
         fontWeight: FontWeight.w700,
         color: bodyColor,
@@ -380,6 +391,7 @@ class AppTheme {
         height: 1.2,
       ),
       headlineSmall: base.headlineSmall?.copyWith(
+        fontFamily: displayFont,
         fontSize: 20,
         fontWeight: FontWeight.w700,
         color: bodyColor,
@@ -387,50 +399,59 @@ class AppTheme {
         height: 1.25,
       ),
       titleLarge: base.titleLarge?.copyWith(
+        fontFamily: displayFont,
         fontSize: 18,
         fontWeight: FontWeight.w700,
         color: bodyColor,
         letterSpacing: -0.2,
       ),
       titleMedium: base.titleMedium?.copyWith(
+        fontFamily: displayFont,
         fontSize: 15,
         fontWeight: FontWeight.w600,
         color: bodyColor,
       ),
       titleSmall: base.titleSmall?.copyWith(
+        fontFamily: displayFont,
         fontSize: 13,
         fontWeight: FontWeight.w600,
         color: bodyColor,
       ),
       bodyLarge: base.bodyLarge?.copyWith(
+        fontFamily: bodyFont,
         fontSize: 15,
         fontWeight: FontWeight.w500,
         color: bodyColor,
         height: 1.45,
       ),
       bodyMedium: base.bodyMedium?.copyWith(
+        fontFamily: bodyFont,
         fontSize: 13,
         fontWeight: FontWeight.w500,
         color: secondary,
         height: 1.45,
       ),
       bodySmall: base.bodySmall?.copyWith(
+        fontFamily: bodyFont,
         fontSize: 11,
         fontWeight: FontWeight.w500,
         color: secondary,
         height: 1.4,
       ),
       labelLarge: base.labelLarge?.copyWith(
+        fontFamily: displayFont,
         fontSize: 13,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.2,
       ),
       labelMedium: base.labelMedium?.copyWith(
+        fontFamily: displayFont,
         fontSize: 11,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.8,
       ),
       labelSmall: base.labelSmall?.copyWith(
+        fontFamily: displayFont,
         fontSize: 10,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.6,

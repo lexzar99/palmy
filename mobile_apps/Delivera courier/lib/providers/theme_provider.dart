@@ -110,7 +110,7 @@ class ThemeProvider with ChangeNotifier {
       case 'night shift':
         return ThemePreference.midnight;
       default:
-        return ThemePreference.light;
+        return ThemePreference.system;
     }
   }
 }

@@ -19,9 +19,10 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   int _index = 0;
   late final AnimationController _tabAnim;
+  late final SessionProvider _session;
 
   @override
   void initState() {
@@ -31,14 +32,29 @@ class _MainShellState extends State<MainShell>
       duration: const Duration(milliseconds: 300),
       value: 1,
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SessionProvider>().bootstrap();
-    });
+    _session = context.read<SessionProvider>();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _session.bootstrap());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Pausa polling + GPS i bakgrunden, återuppta i förgrunden.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _session.handleAppPaused();
+    } else if (state == AppLifecycleState.resumed) {
+      _session.handleAppResumed();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabAnim.dispose();
+    // Skalet rivs när auth → utloggad (även påtvingad 401) → nollställ sessionen
+    // så nästa konto inte ärver online-läge/listor.
+    _session.reset();
     super.dispose();
   }
 

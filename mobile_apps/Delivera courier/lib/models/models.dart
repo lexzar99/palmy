@@ -104,7 +104,8 @@ class Job {
         tip: (j['tip'] as num?)?.toDouble() ?? 0,
         expiresAt: (j['expiresAt'] as num?)?.toInt() ?? 0,
         items: ((j['items'] as List?) ?? [])
-            .map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
+            .whereType<Map<String, dynamic>>()
+            .map(OrderItem.fromJson)
             .toList(),
       );
 

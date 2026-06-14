@@ -27,6 +27,10 @@ class SessionProvider with ChangeNotifier {
 
   Timer? _jobsTimer;
   int _newJobBadge = 0; // antal nya uppdrag sedan senaste titt
+  // Bumpas vid varje online/offline-övergång. Ett svar från en äldre
+  // online-session får aldrig skriva in i ett nyare tillstånd.
+  int _epoch = 0;
+  bool _disposed = false;
 
   // ── Getters ────────────────────────────────────────────────────────────────
   bool get online => _online;
@@ -80,6 +84,7 @@ class SessionProvider with ChangeNotifier {
     _setBusy(true);
     try {
       await _api.startSession();
+      _epoch++;
       _online = true;
       await _persistOnline(true);
       await _location.start();
@@ -95,17 +100,19 @@ class SessionProvider with ChangeNotifier {
   }
 
   Future<void> goOffline() async {
+    _epoch++; // ogiltigförklara ev. inflygande refresh-svar direkt
     _setBusy(true);
+    _online = false;
+    _stopJobsPolling();
+    _jobs = [];
+    _newJobBadge = 0;
+    await _location.stop();
     try {
       await _api.stopSession();
     } catch (_) {
       // Lokalt offline ändå.
     }
-    _online = false;
     await _persistOnline(false);
-    await _location.stop();
-    _stopJobsPolling();
-    _jobs = [];
     _setBusy(false);
   }
 
@@ -127,8 +134,11 @@ class SessionProvider with ChangeNotifier {
 
   Future<void> refreshJobs() async {
     if (!_online) return;
+    final epoch = _epoch;
     try {
       final fresh = await _api.listJobs();
+      // Sessionen kan ha gått offline/online under flykten → kasta svaret.
+      if (_disposed || !_online || _epoch != epoch) return;
       final beforeIds = _jobs.map((j) => j.id).toSet();
       final added = fresh.where((j) => !beforeIds.contains(j.id)).length;
       if (added > 0 && _jobs.isNotEmpty) _newJobBadge += added;
@@ -158,7 +168,9 @@ class SessionProvider with ChangeNotifier {
   // ── Aktiva leveranser ──────────────────────────────────────────────────────
   Future<void> refreshActive() async {
     try {
-      _active = await _api.listActive();
+      final active = await _api.listActive();
+      if (_disposed) return;
+      _active = active;
       notifyListeners();
     } catch (_) {}
   }
@@ -170,19 +182,23 @@ class SessionProvider with ChangeNotifier {
     return null;
   }
 
-  /// Acceptera ett uppdrag. Returnerar felmeddelande vid problem, annars null.
-  Future<String?> acceptJob(String orderId) async {
+  /// Acceptera ett uppdrag. Returnerar den skapade leveransen + ev. fel.
+  Future<({ActiveDelivery? delivery, String? error})> acceptJob(
+      String orderId) async {
     if (atActiveLimit) {
-      return 'Du kan ha max ${Constants.maxActive} uppdrag samtidigt.';
+      return (
+        delivery: null,
+        error: 'Du kan ha max ${Constants.maxActive} uppdrag samtidigt.'
+      );
     }
     try {
       final delivery = await _api.acceptJob(orderId);
       _active = [..._active, delivery];
       _jobs = _jobs.where((j) => j.id != orderId).toList();
       notifyListeners();
-      return null;
+      return (delivery: delivery, error: null);
     } catch (e) {
-      return _friendly(e);
+      return (delivery: null, error: _friendly(e));
     }
   }
 
@@ -217,9 +233,42 @@ class SessionProvider with ChangeNotifier {
   // ── Historik ───────────────────────────────────────────────────────────────
   Future<void> refreshHistory() async {
     try {
-      _history = await _api.getHistory();
+      final history = await _api.getHistory();
+      if (_disposed) return;
+      _history = history;
       notifyListeners();
     } catch (_) {}
+  }
+
+  // ── App-livscykel: pausa nätverk/GPS i bakgrunden ──────────────────────────
+  void handleAppPaused() {
+    if (!_online) return;
+    _stopJobsPolling();
+    _location.stop();
+  }
+
+  void handleAppResumed() {
+    if (!_online) return;
+    _location.start();
+    _startJobsPolling();
+    refreshJobs();
+    refreshActive();
+  }
+
+  /// Nollställ allt vid utloggning (även påtvingad 401). Stoppar timers/GPS,
+  /// rensar listor och den persistade online-flaggan så nästa konto inte ärver.
+  Future<void> reset() async {
+    _epoch++;
+    _online = false;
+    _stopJobsPolling();
+    await _location.stop();
+    _jobs = [];
+    _active = [];
+    _history = [];
+    _newJobBadge = 0;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(Constants.onlineFlagKey);
+    if (!_disposed) notifyListeners();
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -227,11 +276,12 @@ class SessionProvider with ChangeNotifier {
 
   void _setBusy(bool v) {
     _busy = v;
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _stopJobsPolling();
     _location.stop();
     super.dispose();

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/app_ui.dart';
+import '../widgets/courier_ui.dart';
 
 /// Inloggning för bud. E-post + lösenord (konto skapat av Delivera-admin).
 class LoginScreen extends StatefulWidget {
@@ -45,8 +46,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent =
-        AppTheme.isDark(context) ? AppTheme.ember : AppTheme.emberDeep;
     return Scaffold(
       backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: true,
@@ -62,37 +61,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Container(
-                        width: 84,
-                        height: 84,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [AppTheme.emberSoft, accent],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: accent.withOpacity(0.34),
-                              blurRadius: 22,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'D',
-                            style: TextStyle(
-                              color: AppTheme.ink,
-                              fontSize: 40,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -2,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 28),
+                      const DeliveraWordmark(fontSize: 44, tagline: 'Courier'),
+                      const SizedBox(height: 36),
                       Text('Logga in', style: theme.textTheme.displaySmall),
                       const SizedBox(height: 8),
                       Text(

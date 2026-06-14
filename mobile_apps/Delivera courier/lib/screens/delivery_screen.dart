@@ -29,6 +29,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   // True medan _complete() själv sköter dialog + pop, så att null-grenen nedan
   // inte också poppar (skulle ge dubbel-pop och ta bort skärmen under).
   bool _completing = false;
+  // Latch så null-grenen bara schemalägger EN pop (annars en per rebuild).
+  bool _poppedForMissing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -37,8 +39,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
     if (delivery == null) {
       // Levererad/borttagen. Om _complete() pågår sköter den dialog + pop själv.
-      // Annars (t.ex. omfördelad av admin) poppar vi tillbaka.
-      if (!_completing) {
+      // Annars (t.ex. omfördelad av admin) poppar vi tillbaka — men bara EN gång.
+      if (!_completing && !_poppedForMissing) {
+        _poppedForMissing = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) Navigator.of(context).maybePop();
         });
