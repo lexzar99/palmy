@@ -227,6 +227,10 @@ model Courier {
   currentLng       Float?
   lastSeenAt       DateTime?
   tokenVersion     Int        @default(0)       // bump = återkalla session
+  // Native push (Flutter-appen): FCM-token funkar för både Android och iOS
+  // (FCM proxar iOS via APNs). Notiser når kuriren även när appen är helt stängd.
+  fcmToken         String?
+  fcmPlatform      String?    // "ios" | "android" — info/debug
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   deliveries        Delivery[]
@@ -265,6 +269,9 @@ model Delivery {
   tipOre        Int       @default(0)
   proofMethod   String?                          // HANDED | LEFT_AT_DOOR
   proofPhotoUrl String?
+  proofPhotoKey String?                           // R2-nyckel — behövs för att radera bilden efter 2 dygn
+  proofMessage  String?                           // kurirens valfria notering (hand/dörr) — speglas även som order-Note
+  proofExpiresAt DateTime?                         // när leveransbilden ska raderas permanent (≈ +2 dygn)
   acceptedAt    DateTime  @default(now())
   pickedUpAt    DateTime?
   deliveredAt   DateTime?
@@ -272,6 +279,7 @@ model Delivery {
   updatedAt     DateTime  @updatedAt
 
   @@index([courierId, status])
+  @@index([proofExpiresAt])
 }
 
 model CourierApplication {

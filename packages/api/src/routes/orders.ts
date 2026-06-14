@@ -1508,7 +1508,13 @@ router.get('/:id', async (req: Request, res: Response) => {
     const order: any = await cached('order:byid', req.params.id, 4000, () =>
       prisma.order.findUnique({
         where: { id: req.params.id },
-        include: { items: true, restaurant: true },
+        include: {
+          items: true,
+          restaurant: true,
+          // Leveransbevis för order-tracking: foto (TTL 2 dygn), leveranssätt,
+          // kurirens notering. proofExpiresAt → klienten döljer fotot när det gått ut.
+          delivery: { select: { proofMethod: true, proofMessage: true, proofPhotoUrl: true, proofExpiresAt: true } },
+        },
       })
     );
 
@@ -1619,6 +1625,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       total: order.total / 100,
       deliveryFee: order.deliveryFee / 100,
       discountAmount: order.discountAmount / 100,
+      tipAmount: (order.tipAmount ?? 0) / 100,
       paymentStatus: order.paymentStatus,
       paymentMethod: order.paymentMethod,
       appliedDealTitle: order.appliedDealTitle,
@@ -1644,6 +1651,11 @@ router.get('/:id', async (req: Request, res: Response) => {
       restaurantEmail: (order.restaurant as any)?.email || '',
       restaurantLegalName: (order.restaurant as any)?.legalName || '',
       restaurantOrgNr: (order.restaurant as any)?.organizationNumber || '',
+      // Leveransbevis (visas bara medan fotot finns kvar, ≈2 dygn).
+      proofMethod: (order as any).delivery?.proofMethod ?? null, // HANDED | LEFT_AT_DOOR
+      proofMessage: (order as any).delivery?.proofMessage ?? null,
+      proofPhotoUrl: (order as any).delivery?.proofPhotoUrl ?? null,
+      proofExpiresAt: (order as any).delivery?.proofExpiresAt ?? null,
       items: order.items.map((item: any) => ({
         id: item.id,
         productName: item.productName,

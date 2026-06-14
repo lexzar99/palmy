@@ -8,6 +8,11 @@ import { haversineKm } from '../utils/geo';
 import { authenticate, requireSuperAdmin, type AuthRequest } from '../middleware/auth';
 import { saveSubscription, removeSubscription, getVapidPublicKey } from '../lib/courierPush';
 import { sendOrderStatusPush } from '../lib/customerPush';
+import { registerCourierFcmToken, clearCourierFcmToken } from '../lib/courierFcm';
+import { uploadToR2, deleteFromR2, r2Enabled } from '../lib/r2';
+
+// Leveransbild sparas i 2 dygn och raderas sedan permanent (cleanup-jobbet).
+const PROOF_PHOTO_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 
 const ACTIVE_STATUSES = ['EN_ROUTE_PICKUP', 'PICKED_UP'];
 const AVAILABLE_ORDER_STATUSES = ['ACCEPTED', 'PREPARING', 'READY'];
@@ -67,13 +72,31 @@ function jobFromOrder(order: any, ratePerKm: number) {
 }
 
 function activeFromDelivery(d: any) {
+  const acceptedMs = d.acceptedAt?.getTime?.() ?? null;
+  const pickedUpMs = d.pickedUpAt?.getTime?.() ?? null;
+  const deliveredMs = d.deliveredAt?.getTime?.() ?? null;
+  // Förfluten tid: tagen→levererad om klar, annars tagen→nu (live).
+  const elapsedMs = acceptedMs ? (deliveredMs ?? Date.now()) - acceptedMs : null;
   return {
     ...jobFromOrder(d.order, d.ratePerKmOre || 0),
     id: d.id, // VIKTIGT: leverans-id (inte order-id) — detalj/picked-up/complete använder detta
+    orderId: d.orderId,
     payout: d.payOre / 100,
     distanceKm: d.distanceKm,
     status: d.status,
-    acceptedAt: d.acceptedAt?.getTime?.() ?? Date.now(),
+    customerPhone: d.order?.customerPhone ?? null,
+    deliveryNote: d.order?.deliveryNote ?? null,
+    deliveryInstructions: d.order?.deliveryInstructions ?? null,
+    proofMethod: d.proofMethod ?? null,
+    proofMessage: d.proofMessage ?? null,
+    proofPhotoUrl: d.proofPhotoUrl ?? null,
+    acceptedAt: acceptedMs ?? Date.now(),
+    pickedUpAt: pickedUpMs,
+    deliveredAt: deliveredMs,
+    // minuter (avrundat) — appen visar "hur lång tid du tog på dig".
+    pickupMin: acceptedMs && pickedUpMs ? Math.round((pickedUpMs - acceptedMs) / 60000) : null,
+    deliverMin: pickedUpMs && deliveredMs ? Math.round((deliveredMs - pickedUpMs) / 60000) : null,
+    totalMin: elapsedMs != null ? Math.round(elapsedMs / 60000) : null,
   };
 }
 
@@ -248,16 +271,98 @@ router.post('/deliveries/:id/picked-up', requireCourier, async (req: CourierRequ
 });
 
 router.post('/deliveries/:id/complete', requireCourier, async (req: CourierRequest, res) => {
-  const { method } = req.body || {};
-  const d = await prisma.delivery.findFirst({ where: { id: req.params.id, courierId: req.courier.id } });
+  const { method, photoDataUrl, message } = req.body || {};
+  const proofMethod = method === 'LEFT_AT_DOOR' ? 'LEFT_AT_DOOR' : 'HANDED';
+  const note = typeof message === 'string' ? message.trim().slice(0, 1000) : '';
+
+  const d = await prisma.delivery.findFirst({
+    where: { id: req.params.id, courierId: req.courier.id },
+    include: { order: { select: { id: true, orderNumber: true, customerName: true } } },
+  });
   if (!d) return res.status(404).json({ error: 'Leveransen hittades inte' });
+
+  // Foto är OBLIGATORISKT när maten lämnas vid dörren (bevis), valfritt i hand.
+  const hasPhoto = typeof photoDataUrl === 'string' && photoDataUrl.startsWith('data:image');
+  if (proofMethod === 'LEFT_AT_DOOR' && !hasPhoto) {
+    return res.status(400).json({ error: 'Ta ett foto när maten lämnas vid dörren' });
+  }
+
+  // Ladda upp ev. bild till R2 (kanonisk path under leverans-id). Sätt
+  // proofExpiresAt = +2 dygn → cleanup-jobbet raderar bilden permanent sen.
+  let proofPhotoUrl: string | null = null;
+  let proofPhotoKey: string | null = null;
+  let proofExpiresAt: Date | null = null;
+  if (hasPhoto && r2Enabled()) {
+    try {
+      const b64 = photoDataUrl.split(',')[1] || '';
+      const buf = Buffer.from(b64, 'base64');
+      if (buf.length > 0 && buf.length <= 6_000_000) {
+        const key = `delivery-proof/${d.id}.jpg`;
+        const up = await uploadToR2(key, buf, 'image/jpeg');
+        proofPhotoUrl = up.url;
+        proofPhotoKey = key;
+        proofExpiresAt = new Date(Date.now() + PROOF_PHOTO_TTL_MS);
+      }
+    } catch (e) {
+      console.warn('[courier] kunde inte ladda upp leveransbild:', (e as Error)?.message);
+      // Lämna-vid-dörren utan lyckad bilduppladdning → blockera inte leveransen,
+      // men kräv minst en notering så admin har något att gå på.
+    }
+  }
+
   await prisma.delivery.update({
     where: { id: d.id },
-    data: { status: 'DELIVERED', deliveredAt: new Date(), proofMethod: method === 'LEFT_AT_DOOR' ? 'LEFT_AT_DOOR' : 'HANDED' },
+    data: {
+      status: 'DELIVERED',
+      deliveredAt: new Date(),
+      proofMethod,
+      proofMessage: note || null,
+      proofPhotoUrl,
+      proofPhotoKey,
+      proofExpiresAt,
+    },
   });
   const order = await prisma.order.update({ where: { id: d.orderId }, data: { status: 'DELIVERED' } });
   emitOrderStatus(order);
-  res.json({ ok: true });
+
+  // Kurirens notering + leveranssätt landar som order-Note → syns i admin så att
+  // support direkt ser hur maten lämnats och vad kuriren skrivit.
+  try {
+    const where = proofMethod === 'LEFT_AT_DOOR' ? 'vid dörren' : 'i handen';
+    const parts = [`Levererad ${where} av kurir ${req.courier.name}.`];
+    if (note) parts.push(`Notering: ${note}`);
+    if (proofPhotoUrl) parts.push('Leveransfoto bifogat.');
+    await prisma.note.create({
+      data: {
+        body: parts.join(' '),
+        authorId: null,
+        authorName: `Kurir · ${req.courier.name}`,
+        orderId: d.orderId,
+      },
+    });
+  } catch (e) {
+    console.warn('[courier] kunde inte spara leverans-Note:', (e as Error)?.message);
+  }
+
+  // Notifiera kundens order-rum + admin om att bevis/foto finns (live-uppdatering
+  // av order-tracking-sidan och admin-modalen).
+  try {
+    const io = getIO();
+    const proof = {
+      orderId: d.orderId,
+      proofMethod,
+      proofMessage: note || null,
+      proofPhotoUrl,
+      proofExpiresAt: proofExpiresAt?.toISOString() ?? null,
+    };
+    io.to(`order:${d.orderId}`).emit('delivery:proof', proof);
+    io.to('admin-room').emit('order:updated', { orderId: d.orderId });
+    if (order.restaurantId) io.to(`admin-room:${order.restaurantId}`).emit('order:updated', { orderId: d.orderId });
+  } catch {
+    /* socket ej init — ignorera */
+  }
+
+  res.json({ ok: true, proofPhotoUrl });
 });
 
 router.post('/location', requireCourier, async (req: CourierRequest, res) => {
@@ -299,6 +404,25 @@ router.post('/push/unsubscribe', requireCourier, async (req: CourierRequest, res
   res.json({ ok: true });
 });
 
+// ---- Native push (FCM) för Flutter-appen --------------------------------
+// Registreras vid login/online och vid token-refresh. Notiser når kuriren
+// även när appen är HELT stängd (Android direkt, iOS via APNs).
+router.post('/push/register', requireCourier, async (req: CourierRequest, res) => {
+  try {
+    const { token, platform } = req.body || {};
+    if (!token || typeof token !== 'string') return res.status(400).json({ error: 'Token saknas' });
+    await registerCourierFcmToken(req.courier.id, token, platform);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: (e as Error)?.message || 'Kunde inte registrera token' });
+  }
+});
+
+router.post('/push/unregister', requireCourier, async (req: CourierRequest, res) => {
+  await clearCourierFcmToken(req.courier.id);
+  res.json({ ok: true });
+});
+
 router.get('/history', requireCourier, async (req: CourierRequest, res) => {
   const deliveries = await prisma.delivery.findMany({
     where: { courierId: req.courier.id, status: 'DELIVERED' },
@@ -307,14 +431,20 @@ router.get('/history', requireCourier, async (req: CourierRequest, res) => {
     take: 60,
   });
   res.json(
-    deliveries.map((d) => ({
-      id: d.id,
-      orderNumber: d.order.orderNumber,
-      restaurantName: d.order.restaurant?.name ?? 'Restaurang',
-      deliveredAt: (d.deliveredAt ?? d.updatedAt).toISOString(),
-      distanceKm: d.distanceKm,
-      payout: d.payOre / 100,
-    })),
+    deliveries.map((d) => {
+      const a = d.acceptedAt?.getTime?.() ?? null;
+      const del = d.deliveredAt?.getTime?.() ?? null;
+      return {
+        id: d.id,
+        orderNumber: d.order.orderNumber,
+        restaurantName: d.order.restaurant?.name ?? 'Restaurang',
+        deliveredAt: (d.deliveredAt ?? d.updatedAt).toISOString(),
+        distanceKm: d.distanceKm,
+        payout: d.payOre / 100,
+        // "hur lång tid du tog på dig" (accept → levererad), i minuter.
+        totalMin: a && del ? Math.round((del - a) / 60000) : null,
+      };
+    }),
   );
 });
 

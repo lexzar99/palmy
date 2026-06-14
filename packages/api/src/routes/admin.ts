@@ -672,6 +672,10 @@ router.get('/orders/:id', async (req, res) => {
           pickupMin: tMin(dlv.acceptedAt, dlv.pickedUpAt), // accept → hämtad
           deliverMin: tMin(dlv.pickedUpAt, dlv.deliveredAt), // hämtad → levererad
           totalMin: tMin(dlv.acceptedAt, dlv.deliveredAt), // accept → levererad
+          // Leveransbevis: hur maten lämnades, kurirens notering, foto (TTL 2 dygn).
+          proofMethod: dlv.proofMethod ?? null, // HANDED | LEFT_AT_DOOR
+          proofMessage: dlv.proofMessage ?? null,
+          proofPhotoUrl: dlv.proofPhotoUrl ?? null,
         }
       : null;
 

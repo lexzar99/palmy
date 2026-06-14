@@ -12,6 +12,7 @@
 // ---------------------------------------------------------------------------
 import webpush from 'web-push';
 import prisma from './prisma';
+import { sendCourierFcm } from './courierFcm';
 
 const PUBLIC_KEY = (process.env.VAPID_PUBLIC_KEY || '').trim();
 const PRIVATE_KEY = (process.env.VAPID_PRIVATE_KEY || '').trim();
@@ -132,7 +133,7 @@ export async function notifyCouriersOfNewJob(opts: {
   orderNumber?: string | null;
 }): Promise<void> {
   try {
-    if (!configured || !opts.restaurantId || opts.orderType !== 'DELIVERY') return;
+    if (!opts.restaurantId || opts.orderType !== 'DELIVERY') return;
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: opts.restaurantId },
@@ -146,16 +147,20 @@ export async function notifyCouriersOfNewJob(opts: {
       select: { id: true },
     });
     if (couriers.length === 0) return;
+    const courierIds = couriers.map((c) => c.id);
+    const title = 'Ny order 🛵';
+    const body = `${restaurant.name} — ny leverans i ${restaurant.city}`;
 
-    await sendToCourierIds(
-      couriers.map((c) => c.id),
-      {
-        title: 'Ny order 🛵',
-        body: `${restaurant.name} — ny leverans i ${restaurant.city}`,
-        tag: 'delivera-new-order',
-        url: '/',
-      },
-    );
+    // Web Push (PWA) + native FCM (Flutter-app) parallellt. Båda är no-op om
+    // de inte är konfigurerade — kuriren ser ordern via polling oavsett.
+    await Promise.all([
+      sendToCourierIds(courierIds, { title, body, tag: 'delivera-new-order', url: '/' }),
+      sendCourierFcm(courierIds, {
+        title,
+        body,
+        data: { type: 'NEW_JOB', city: restaurant.city, orderNumber: String(opts.orderNumber ?? '') },
+      }),
+    ]);
   } catch (e) {
     console.warn('[courierPush] notifyCouriersOfNewJob fel:', (e as Error)?.message);
   }

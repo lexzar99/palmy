@@ -690,6 +690,9 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       deliveryFee: fromOre(restaurant.deliveryFee),
       minOrderAmount: fromOre(restaurant.minOrderAmount),
       etaMinutes: restaurant.etaMinutes,
+      // Levereras maten av plattformen eller restaurangen själv? Flutter-
+      // order-appen byter förvald tillagningstid + knapp-etikett LIVE på detta.
+      selfDelivery: restaurant.selfDelivery ?? false,
     });
     getIO().emit('settings:updated', { isOpen: effectiveIsOpen });
 

@@ -1,4 +1,36 @@
 import prisma from './prisma';
+import { deleteFromR2 } from './r2';
+
+/**
+ * Radera leveransbevis-bilder vars TTL gått ut (≈ 2 dygn). Bilden tas bort
+ * permanent från R2 och fälten nollas på leveransen — själva leveransraden
+ * och kurirens order-Note ligger kvar (historiken bevaras, bara fotot rensas).
+ */
+export async function cleanupExpiredDeliveryProofs(): Promise<void> {
+  const now = new Date();
+  try {
+    const expired = await prisma.delivery.findMany({
+      where: { proofExpiresAt: { lt: now }, proofPhotoKey: { not: null } },
+      select: { id: true, proofPhotoKey: true },
+      take: 500,
+    });
+    if (expired.length === 0) return;
+    for (const d of expired) {
+      try {
+        if (d.proofPhotoKey) await deleteFromR2(d.proofPhotoKey);
+      } catch (e) {
+        console.warn('[cleanup] kunde inte radera leveransbild från R2:', (e as Error)?.message);
+        // Fortsätt ändå nolla fälten så vi inte fastnar i en loop på samma rad.
+      }
+      await prisma.delivery
+        .update({ where: { id: d.id }, data: { proofPhotoUrl: null, proofPhotoKey: null, proofExpiresAt: null } })
+        .catch(() => null);
+    }
+    console.log(`🧹 Raderade ${expired.length} utgångna leveransbevis-bilder.`);
+  } catch (error) {
+    console.error('❌ cleanupExpiredDeliveryProofs failed:', error);
+  }
+}
 
 /**
  * Daily cleanup job to remove expired or stale data.
@@ -36,6 +68,9 @@ export async function runDailyCleanup(): Promise<void> {
     if (deletedGroups.count > 0) {
       console.log(`✅ Deleted ${deletedGroups.count} abandoned group orders.`);
     }
+
+    // 4. Radera utgångna leveransbevis-bilder (≈2 dygn TTL).
+    await cleanupExpiredDeliveryProofs();
 
     console.log('✨ Cleanup complete.');
   } catch (error) {
