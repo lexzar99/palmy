@@ -26,6 +26,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   final Set<int> _checked = {};
   String? _photoDataUrl;
   ProofMethod _method = ProofMethod.handed;
+  // True medan _complete() själv sköter dialog + pop, så att null-grenen nedan
+  // inte också poppar (skulle ge dubbel-pop och ta bort skärmen under).
+  bool _completing = false;
 
   @override
   Widget build(BuildContext context) {
@@ -33,10 +36,13 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     final delivery = session.activeById(widget.deliveryId);
 
     if (delivery == null) {
-      // Levererad/borttagen → tillbaka.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) Navigator.of(context).maybePop();
-      });
+      // Levererad/borttagen. Om _complete() pågår sköter den dialog + pop själv.
+      // Annars (t.ex. omfördelad av admin) poppar vi tillbaka.
+      if (!_completing) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) Navigator.of(context).maybePop();
+        });
+      }
       return const Scaffold(
         backgroundColor: Colors.transparent,
         body: AppBackdrop(child: SizedBox.shrink()),
@@ -113,6 +119,9 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
   }
 
   Future<void> _complete(ActiveDelivery delivery) async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _completing = true);
     final err = await context.read<SessionProvider>().completeDelivery(
           delivery.id,
           method: _method,
@@ -120,8 +129,8 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         );
     if (!mounted) return;
     if (err != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(err)));
+      setState(() => _completing = false);
+      messenger.showSnackBar(SnackBar(content: Text(err)));
       return;
     }
     // Visa intjäning + tillbaka.
@@ -129,7 +138,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       context: context,
       builder: (_) => _DeliveredDialog(payout: delivery.payout),
     );
-    if (mounted) Navigator.of(context).pop();
+    navigator.pop();
   }
 }
 
