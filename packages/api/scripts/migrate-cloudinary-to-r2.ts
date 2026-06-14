@@ -2,13 +2,15 @@
  * CLI-wrapper runt lib/r2Migrate.ts. Använd när du föredrar att köra
  * migration från terminalen istället för admin-UI:t.
  *
- *   pnpm tsx scripts/migrate-cloudinary-to-r2.ts              # dry-run
- *   pnpm tsx scripts/migrate-cloudinary-to-r2.ts --apply      # på riktigt
- *   pnpm tsx scripts/migrate-cloudinary-to-r2.ts --apply --only=products
- *   pnpm tsx scripts/migrate-cloudinary-to-r2.ts --apply --restaurant=palmyra-pizzeria
+ * Kör FRÅN REPO-ROTEN med `railway run` (lånar Railway-env: R2_*, CLOUDINARY_*,
+ * DATABASE_URL). Använd pnpm-scriptet `migrate:r2` (kör via ts-node — tsx finns ej):
  *
- * Kör med `railway run` för att låna Railway-env utan lokal .env:
- *   railway run pnpm tsx scripts/migrate-cloudinary-to-r2.ts
+ *   railway run pnpm --filter api migrate:r2                       # dry-run
+ *   railway run pnpm --filter api migrate:r2 -- --apply           # på riktigt
+ *   railway run pnpm --filter api migrate:r2 -- --apply --only=products
+ *   railway run pnpm --filter api migrate:r2 -- --apply --restaurant=palmyra-pizzeria
+ *
+ * OBS: `--` krävs för att flaggorna ska nå scriptet (annars äter pnpm dem).
  */
 import 'dotenv/config';
 import prisma from '../src/lib/prisma';
