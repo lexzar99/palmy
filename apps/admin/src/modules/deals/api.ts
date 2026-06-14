@@ -34,6 +34,8 @@ export interface AutomaticDealRecord {
   restaurantId?: string | null;
   restaurant?: { id: string; name: string; slug: string } | null;
   applicableRestaurantIds?: string[];
+  // Kedje-scope: satt → dealen gäller alla platser i kedjan (expanderas server-side).
+  brandId?: string | null;
   triggerCategoryId?: string | null;
   triggerQuantity?: number | null;
   rewardCategoryId?: string | null;

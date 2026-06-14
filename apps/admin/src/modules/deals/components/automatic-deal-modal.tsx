@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Trash2 } from "lucide-react";
 import {
   createAutomaticDeal,
@@ -17,6 +17,7 @@ import {
 } from "@/modules/deals/api";
 import { Badge, Button, Field, Input, Modal, Select, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
+import { getBrands, brandsQueryKey } from "@/modules/brands/api";
 
 type Draft = {
   title: string;
@@ -24,6 +25,8 @@ type Draft = {
   badgeText: string;
   imageUrl: string;
   restaurantId: string;
+  // Kedje-scope. Satt → dealen gäller alla platser i kedjan (server-side expansion).
+  brandId: string;
   isGlobal: boolean;
   scopeType: DealScopeType;
   discountType: DealDiscountType;
@@ -46,6 +49,7 @@ const defaultDraft: Draft = {
   badgeText: "",
   imageUrl: "",
   restaurantId: "",
+  brandId: "",
   isGlobal: false,
   scopeType: "RESTAURANT",
   discountType: "PERCENTAGE",
@@ -70,7 +74,8 @@ const mapDealToDraft = (deal: AutomaticDealRecord): Draft => ({
   description: deal.description || "",
   badgeText: deal.badgeText || "",
   imageUrl: deal.imageUrl || "",
-  restaurantId: deal.restaurantId || deal.applicableRestaurantIds?.[0] || "",
+  restaurantId: deal.restaurantId || (deal.brandId ? "" : deal.applicableRestaurantIds?.[0] || ""),
+  brandId: deal.brandId || "",
   isGlobal: deal.isGlobal,
   scopeType: deal.scopeType,
   discountType: deal.discountType === "FIXED_PRICE" ? "FIXED_PRICE" : deal.discountType === "FIXED" ? "FIXED" : "PERCENTAGE",
@@ -111,6 +116,9 @@ export function AutomaticDealModal({
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft>(defaultDraft);
   const [error, setError] = useState<string | null>(null);
+  // Kedjor för "gäller hela kedjan"-scope. Bara meningsfullt för super-admin
+  // (merchant-deals är låsta till egen restaurang via restaurantLocked).
+  const brands = useQuery({ queryKey: brandsQueryKey, queryFn: getBrands, enabled: open && !restaurantLocked });
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -150,8 +158,11 @@ export function AutomaticDealModal({
         discountValue: draft.discountValue,
         minOrder: draft.scopeType === "MIN_ORDER" ? draft.minOrder : 0,
         targetIds: draft.targetIds,
-        restaurantId: draft.isGlobal ? null : draft.restaurantId || null,
-        isGlobal: draft.isGlobal,
+        // Kedje-scope vinner: server-side nollas restaurantId/isGlobal och
+        // applicableRestaurantIds expanderas till alla platser i kedjan.
+        brandId: draft.brandId || null,
+        restaurantId: draft.brandId ? null : draft.isGlobal ? null : draft.restaurantId || null,
+        isGlobal: draft.brandId ? false : draft.isGlobal,
         isActive: draft.isActive,
         showOnSite: draft.showOnSite,
         showAsBanner: draft.showAsBanner,
@@ -203,7 +214,7 @@ export function AutomaticDealModal({
 
   const canSave =
     draft.title.trim().length > 0 &&
-    (draft.isGlobal || restaurantLocked || draft.restaurantId.length > 0) &&
+    (draft.isGlobal || restaurantLocked || draft.brandId.length > 0 || draft.restaurantId.length > 0) &&
     (!isItemScope ? true : draft.targetIds.length > 0);
 
   return (
@@ -257,8 +268,9 @@ export function AutomaticDealModal({
             {draft.scopeType === "MIN_ORDER" ? <Field label="Minimum order"><Input type="number" value={draft.minOrder} onChange={(event) => setDraft((current) => ({ ...current, minOrder: Number(event.target.value) }))} /></Field> : null}
             {!restaurantLocked ? (
               <>
-                <Field label="Apply globally"><Select value={draft.isGlobal ? "yes" : "no"} onChange={(event) => setDraft((current) => ({ ...current, isGlobal: event.target.value === "yes" }))}><option value="no">No</option><option value="yes">Yes</option></Select></Field>
-                <Field label="Restaurant"><Select value={draft.restaurantId} onChange={(event) => setDraft((current) => ({ ...current, restaurantId: event.target.value }))} disabled={draft.isGlobal}><option value="">Select restaurant</option>{restaurants.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}</Select></Field>
+                <Field label="Kedja (alla platser)"><Select value={draft.brandId} onChange={(event) => setDraft((current) => ({ ...current, brandId: event.target.value, ...(event.target.value ? { isGlobal: false } : {}) }))} disabled={draft.isGlobal}><option value="">— Ingen kedja —</option>{(brands.data || []).map((brand) => <option key={brand.id} value={brand.id}>{brand.name} ({brand.locationCount} platser)</option>)}</Select></Field>
+                <Field label="Apply globally"><Select value={draft.isGlobal ? "yes" : "no"} onChange={(event) => setDraft((current) => ({ ...current, isGlobal: event.target.value === "yes", ...(event.target.value === "yes" ? { brandId: "" } : {}) }))} disabled={draft.brandId.length > 0}><option value="no">No</option><option value="yes">Yes</option></Select></Field>
+                <Field label="Restaurant"><Select value={draft.restaurantId} onChange={(event) => setDraft((current) => ({ ...current, restaurantId: event.target.value }))} disabled={draft.isGlobal || draft.brandId.length > 0}><option value="">{draft.brandId ? "Hela kedjan" : "Select restaurant"}</option>{restaurants.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}</Select></Field>
               </>
             ) : null}
             <div className="md:col-span-2"><Field label="Description"><Textarea value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></Field></div>

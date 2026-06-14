@@ -21,7 +21,7 @@ import { sanitizeError } from '../lib/errors';
 import { menuCacheBust } from './menu';
 import { bustCache } from '../lib/ttlCache';
 import { parseMenuImport, runMenuImport } from '../lib/menuImport';
-import { runMenuSync } from '../lib/menuSync';
+import { runMenuSyncSafe } from '../lib/menuSync';
 
 const router = Router();
 router.use(authenticate);
@@ -1604,7 +1604,7 @@ router.post('/menu/sync', async (req, res) => {
 
     const results = [];
     for (const targetId of targets) {
-      const result = await runMenuSync(prisma, sourceRestaurantId, targetId, apply);
+      const result = await runMenuSyncSafe(prisma, sourceRestaurantId, targetId, apply);
       results.push(result);
       if (apply && result.ok) {
         menuCacheBust(targetId);
@@ -1705,6 +1705,8 @@ router.put('/brands/:id/restaurants', requireSuperAdmin, async (req, res) => {
     const data: Record<string, unknown> = {};
     if (brand.masterRestaurantId && !ids.includes(brand.masterRestaurantId)) data.masterRestaurantId = null;
     if (Object.keys(data).length) await prisma.brand.update({ where: { id: brandId }, data });
+    // Räkna om kedje-scopade deals så nya platser ärver och borttagna tappar dem.
+    await resyncBrandDealScopes(brandId);
     await audit(req as AuthRequest, 'BRAND_MEMBERS_SET', { resourceType: 'Brand', resourceId: brandId, changes: { count: ids.length } });
     res.json({ ok: true, count: ids.length });
   } catch (error: any) {
@@ -1730,7 +1732,7 @@ router.post('/brands/:id/sync', requireSuperAdmin, async (req, res) => {
 
     const results = [];
     for (const targetId of targets) {
-      const result = await runMenuSync(prisma, brand.masterRestaurantId, targetId, apply);
+      const result = await runMenuSyncSafe(prisma, brand.masterRestaurantId, targetId, apply);
       results.push(result);
       if (apply && result.ok) {
         menuCacheBust(targetId);
@@ -2427,6 +2429,7 @@ const formatDealForAdmin = (deal: any) => ({
   comboProductIds: parseDealProductIds(deal.comboProductIds),
   targetIds: parseDealTargetIds(deal.comboProductIds),
   applicableRestaurantIds: parseJsonArray(deal.applicableRestaurantIds),
+  brandId: deal.brandId ?? null,
   triggerCategoryId: deal.triggerCategoryId ?? null,
   triggerQuantity: deal.triggerQuantity ?? 2,
   rewardCategoryId: deal.rewardCategoryId ?? null,
@@ -2497,6 +2500,29 @@ const deactivateConflictingDeals = async (params: {
   return {
     deactivated: toDeactivate.map((deal) => ({ id: deal.id, title: deal.title })),
   };
+};
+
+// Kedje-scopad deal → expandera till applicableRestaurantIds (alla nuvarande
+// platser i kedjan). Brand-deals lämnar restaurantId=null + isGlobal=false;
+// läsvägarna matchar via applicableRestaurantIds (contains) precis som en manuell
+// lista. Muterar `data` in-place. Anropas före deal.create/update.
+const applyBrandDealScope = async (data: Record<string, any>): Promise<void> => {
+  if (!data.brandId) return;
+  const members = await prisma.restaurant.findMany({
+    where: { brandId: String(data.brandId) },
+    select: { id: true },
+  });
+  data.applicableRestaurantIds = JSON.stringify(members.map((m) => m.id));
+  data.restaurantId = null;
+  data.isGlobal = false;
+};
+
+// Räkna om applicableRestaurantIds för ALLA brand-scopade deals i en kedja.
+// Anropas när medlemslistan ändras → nya platser ärver, borttagna tappar dealen.
+const resyncBrandDealScopes = async (brandId: string): Promise<void> => {
+  const members = await prisma.restaurant.findMany({ where: { brandId }, select: { id: true } });
+  const json = JSON.stringify(members.map((m) => m.id));
+  await prisma.deal.updateMany({ where: { brandId }, data: { applicableRestaurantIds: json } });
 };
 
 // Zod-schema för deal-input. Catches > 100% rabatt, negativ värde,
@@ -2677,7 +2703,14 @@ const normalizeDealInputForDb = (body: any) => {
     if (body.isGlobal) {
       next.restaurantId = null;
       next.applicableRestaurantIds = JSON.stringify([]);
+      next.brandId = null;
     }
+  }
+
+  // Kedje-scope: tom sträng → null. Själva expansionen till applicableRestaurantIds
+  // görs i route-handlern (applyBrandDealScope) eftersom den kräver DB-läsning.
+  if (body.brandId !== undefined) {
+    next.brandId = body.brandId ? String(body.brandId) : null;
   }
 
   if (body.triggerCategoryId !== undefined) {
@@ -2955,10 +2988,17 @@ router.post('/deals', async (req, res) => {
 
     const normalized = normalizeDealInputForDb(rest);
 
+    // Bara super-admin kan kedje-scopa en deal. Merchant-deals är alltid
+    // bundna till sin egen restaurang.
+    if (!isSuperAdmin(req as AuthRequest)) delete (normalized as any).brandId;
+
     // Ensure the deal is actually linked to the scoped restaurant if not global
     if (scopedRestaurantId) {
       normalized.restaurantId = scopedRestaurantId;
     }
+
+    // Kedje-scope expanderas sist så restaurantId=null + applicable=alla platser.
+    await applyBrandDealScope(normalized as any);
 
     await deactivateConflictingDeals({
       restaurantId: (normalized.restaurantId as string | null | undefined) || null,
@@ -3045,6 +3085,10 @@ router.patch('/deals/:id', async (req, res) => {
     }
 
     const normalizedData = normalizeDealInputForDb(data);
+
+    // Bara super-admin kan kedje-scopa. Expandera brand → applicableRestaurantIds.
+    if (!isSuperAdmin(req as AuthRequest)) delete (normalizedData as any).brandId;
+    await applyBrandDealScope(normalizedData as any);
 
     const deal = await prisma.deal.update({
       where: { id },

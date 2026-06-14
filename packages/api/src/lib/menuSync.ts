@@ -9,11 +9,18 @@
 //    att duplicera. `${slugify(namn)}-${målSlug}`.
 //  • LOKALA undantag bevaras: målets `isActive` skrivs ALDRIG över — en plats
 //    kan ha 86:at (slutsålt) en vara lokalt utan att master rör det.
-//  • Pris/beskrivning/flaggor/extras = master är sanningen.
+//  • Pris/beskrivning/flaggor/extras/RABATTER = master är sanningen, MEN en
+//    plats som låst sitt pris (localPriceLocked) styr då även sina rabatter
+//    lokalt (price + discount* skippas). rewardable är kedjepolicy → synkas alltid.
+//  • Atomiskt per plats: använd runMenuSyncSafe() som wrappar apply i en
+//    transaktion → en plats blir ALDRIG halvsynkad (allt-eller-inget per plats).
 //
 // apply=false → dry-run (räknar, skriver inget). apply=true → kör.
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient, Prisma } from '@prisma/client';
 import { slugify } from './slug';
+
+// Accepterar både full klient och en transaktions-klient (interaktiv tx).
+type Db = PrismaClient | Prisma.TransactionClient;
 
 export interface MenuSyncSummary {
   categoriesCreated: number;
@@ -36,8 +43,42 @@ export interface MenuSyncResult {
 
 const norm = (s: string) => s.trim().toLowerCase();
 
-export async function runMenuSync(
+const emptySummary = (): MenuSyncSummary => ({
+  categoriesCreated: 0, categoriesUpdated: 0,
+  productsCreated: 0, productsUpdated: 0, priceLocked: 0,
+  groupsCreated: 0, groupsReused: 0, links: 0,
+});
+
+/**
+ * Transaktionssäker wrapper. apply=true körs i en interaktiv transaktion så att
+ * en målplats antingen synkas HELT eller inte alls (ingen halvsynkad meny om
+ * något kraschar mitt i). Fångar fel per plats och returnerar ett ok:false-
+ * resultat i stället för att kasta — så anroparen kan rapportera vilka platser
+ * som lyckades och köra om de som inte gjorde det.
+ */
+export async function runMenuSyncSafe(
   prisma: PrismaClient,
+  sourceRestaurantId: string,
+  targetRestaurantId: string,
+  apply: boolean,
+): Promise<MenuSyncResult> {
+  if (!apply) return runMenuSync(prisma, sourceRestaurantId, targetRestaurantId, false);
+  try {
+    return await prisma.$transaction(
+      (tx) => runMenuSync(tx, sourceRestaurantId, targetRestaurantId, true),
+      { timeout: 30_000, maxWait: 10_000 },
+    );
+  } catch (err: any) {
+    return {
+      ok: false, dryRun: false, targetRestaurantId,
+      summary: emptySummary(),
+      warnings: [err?.message || 'Synk till plats misslyckades (transaktionen återställd)'],
+    };
+  }
+}
+
+export async function runMenuSync(
+  prisma: Db,
   sourceRestaurantId: string,
   targetRestaurantId: string,
   apply: boolean,
@@ -165,17 +206,28 @@ export async function runMenuSync(
 
       if (!apply || !catId) continue;
 
-      // Master är sanning för namn/beskrivning/flaggor. LOKALA undantag bevaras:
+      // Master är sanning för namn/beskrivning/flaggor/rabatter. LOKALA undantag bevaras:
       //  • isActive (slutsålt) — skickas ALDRIG i update.
-      //  • price — skippas om platsen låst sitt lokala pris (localPriceLocked).
+      //  • price + discount* — skippas om platsen låst sitt lokala pris (localPriceLocked).
+      //  • rewardable — kedjepolicy (dpoints-behörighet), synkas alltid.
       const dataCommon: any = {
         name: prod.name, description: prod.description,
         isVegan: prod.isVegan, isVegetarian: prod.isVegetarian, isGlutenFree: prod.isGlutenFree,
         displayMode: prod.displayMode, hideDescription: prod.hideDescription, position: pi,
+        rewardable: (prod as any).rewardable,
       };
-      // Lås på en BEFINTLIG produkt → behåll lokalt pris. Nya produkter ärver alltid masterns pris.
-      if (!(prodExists && existing?.localPriceLocked)) dataCommon.price = prod.price;
-      if (prodExists && existing?.localPriceLocked) summary.priceLocked++;
+      // Lås på en BEFINTLIG produkt → behåll lokalt pris OCH lokala rabatter.
+      // Nya produkter (och olåsta) ärver alltid masterns pris + rabatter.
+      const priceLocked = prodExists && existing?.localPriceLocked;
+      if (!priceLocked) {
+        dataCommon.price = prod.price;
+        dataCommon.discountActive = (prod as any).discountActive;
+        dataCommon.discountPercent = (prod as any).discountPercent;
+        dataCommon.discountPrice = (prod as any).discountPrice;
+        dataCommon.discountLabel = (prod as any).discountLabel;
+        dataCommon.discountImageUrl = (prod as any).discountImageUrl;
+      }
+      if (priceLocked) summary.priceLocked++;
       if (prodExists) {
         await prisma.product.update({ where: { id: existingPid! }, data: dataCommon });
         await prisma.productExtraGroup.deleteMany({ where: { productId: existingPid! } });
