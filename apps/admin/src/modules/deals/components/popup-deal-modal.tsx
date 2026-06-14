@@ -288,7 +288,7 @@ export function PopupDealModal({
               </select>
             </Field>
             <div className="md:col-span-2">
-              <ImageUploadField label="Hero-bild i popupen" value={overlay.imageUrl} onChange={(url) => update({ imageUrl: url })} />
+              <ImageUploadField label="Hero-bild i popupen" kind="misc" value={overlay.imageUrl} onChange={(url) => update({ imageUrl: url })} />
             </div>
           </div>
 

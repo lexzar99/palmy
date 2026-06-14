@@ -265,6 +265,7 @@ export function AutomaticDealModal({
             <div className="md:col-span-2">
               <ImageUploadField
                 label="Bannerbild (visas på restaurangsidan om 'Visa som banner' är på)"
+                kind="misc"
                 value={draft.imageUrl}
                 onChange={(url) => setDraft((current) => ({ ...current, imageUrl: url }))}
               />

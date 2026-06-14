@@ -8,19 +8,20 @@ import { Button, Input } from "@/shared/components/ui";
 const MAX_BYTES = 15 * 1024 * 1024;
 
 /**
- * Bildfält som laddar upp till R2 (Cloudflare) som default. Filen
- * konverteras till WebP på servern (sharp) och hamnar på en kanonisk path:
+ * Bildfält som ALLTID laddar upp till R2 (Cloudflare). Filen konverteras till
+ * WebP på servern (sharp) och hamnar på en kanonisk path:
  *   {city}/{restaurant}/hero.webp
  *   {city}/{restaurant}/logo.webp
- *   {city}/{restaurant}/main/{category}.webp
+ *   {city}/{restaurant}/category/{category}.webp
  *   {city}/{restaurant}/menu/{category}/{product}.webp
+ *   global/misc/{filnamn}-{ts}.webp   ← plattform-bilder (deals, sponsorer, hero)
  *
- * Falls back till POST /admin/upload (Cloudinary) bara om R2 inte är
- * konfigurerat på servern (503). Admin kan också klistra in en URL manuellt
- * — det fältet är kvar och fungerar oberoende.
+ * Cloudinary är borttaget. Saknar ett anropsställe `kind` defaultar vi till
+ * "misc" så bilden ändå hamnar i R2 (aldrig Cloudinary). Admin kan också
+ * klistra in en URL manuellt — det fältet är kvar och fungerar oberoende.
  *
- * Backend: packages/api/src/routes/upload.ts. Max raw-storlek 15 MB,
- * komprimeras till ~250 KB WebP.
+ * Backend: packages/api/src/routes/upload.ts (POST /api/admin/upload-r2).
+ * Max raw-storlek 15 MB, komprimeras till ~250 KB WebP.
  */
 export type ImageUploadKind = 'hero' | 'logo' | 'category' | 'product' | 'misc';
 
@@ -29,7 +30,7 @@ export function ImageUploadField({
   onChange,
   label = "Bild",
   placeholder = "https://...",
-  // R2-context. Om allt detta saknas faller upload tillbaka på Cloudinary.
+  // R2-context. Saknas `kind` defaultar uppladdningen till "misc" (R2).
   kind,
   restaurantId,
   categoryId,
@@ -61,38 +62,18 @@ export function ImageUploadField({
     }
     setUploading(true);
     try {
-      // misc-bilder (t.ex. sponsorkort) är plattform-nivå och saknar restaurang
-      // → tillåt R2 ändå. Övriga kinds kräver restaurang-kontext för path:en.
-      const useR2 = Boolean(kind) && (kind === "misc" || Boolean(restaurantId));
-      if (useR2) {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("kind", kind!);
-        if (restaurantId) fd.append("restaurantId", restaurantId);
-        if (categoryId) fd.append("categoryId", categoryId);
-        if (categorySlug) fd.append("categorySlug", categorySlug);
-        if (productId) fd.append("productId", productId);
-        try {
-          const response = await api.post<{ url: string; key: string }>(
-            "/api/admin/upload-r2",
-            fd,
-            { headers: { "Content-Type": "multipart/form-data" } },
-          );
-          onChange(response.data.url);
-          return;
-        } catch (err: any) {
-          // 503 = R2 inte konfigurerat → fall genom till Cloudinary
-          if (err?.response?.status !== 503) {
-            setError(err?.response?.data?.error || "R2-uppladdning misslyckades.");
-            return;
-          }
-        }
-      }
-      // Fallback: Cloudinary
+      // Allt går till R2. Saknas `kind` (vissa plattform-fält) → "misc", som
+      // är restaurang-löst och hamnar i global/misc/. Övriga kinds bär
+      // restaurang-kontext för den kanoniska path:en.
       const fd = new FormData();
       fd.append("file", file);
-      const response = await api.post<{ url: string; filename: string }>(
-        "/api/admin/upload",
+      fd.append("kind", kind || "misc");
+      if (restaurantId) fd.append("restaurantId", restaurantId);
+      if (categoryId) fd.append("categoryId", categoryId);
+      if (categorySlug) fd.append("categorySlug", categorySlug);
+      if (productId) fd.append("productId", productId);
+      const response = await api.post<{ url: string; key: string }>(
+        "/api/admin/upload-r2",
         fd,
         { headers: { "Content-Type": "multipart/form-data" } },
       );
@@ -106,7 +87,7 @@ export function ImageUploadField({
   };
 
   // Förkorta visning av base64-strängar och långa URLs så modalerna inte
-  // fylls med 100k+ tecken text. Cloudinary-URLer är OK att visa direkt.
+  // fylls med 100k+ tecken text. R2-URLer är OK att visa direkt.
   const isBase64 = value.startsWith("data:");
   const showShortened = isBase64 || value.length > 80;
   const displayLabel = isBase64 ? "Inline-bild (base64)" : value.length > 80 ? `${value.slice(0, 60)}…${value.slice(-12)}` : value;

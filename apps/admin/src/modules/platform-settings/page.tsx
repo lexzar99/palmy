@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Building2, Save, Check, Briefcase, AlertCircle } from "lucide-react";
 import { Button, Field, Input, PageHeader, Surface, Textarea } from "@/shared/components/ui";
+import { ImageUploadField } from "@/shared/components/image-upload";
 import {
   getPlatformSettings,
   platformSettingsQueryKey,
@@ -240,13 +241,12 @@ export function PlatformSettingsPage() {
               placeholder="Vi fixar resten."
             />
           </Field>
-          <Field label="Bild-URL (visas till höger)">
-            <Input
-              value={form.heroImageUrl || ""}
-              onChange={(e) => setForm((p) => ({ ...p, heroImageUrl: e.target.value }))}
-              placeholder="https://res.cloudinary.com/.../hero.png"
-            />
-          </Field>
+          <ImageUploadField
+            label="Hero-bild (visas till höger)"
+            kind="misc"
+            value={form.heroImageUrl || ""}
+            onChange={(url) => setForm((p) => ({ ...p, heroImageUrl: url }))}
+          />
           <Field label="CTA-knapptext (valfritt)">
             <Input
               value={form.heroCtaLabel || ""}

@@ -259,7 +259,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
             <Field label="Beskrivning (valfritt)">
               <Textarea value={draft.description} onChange={(e) => set("description", e.target.value)} placeholder="Beskriv erbjudandet för kunderna" />
             </Field>
-            <ImageUploadField label="Bannerbild (valfritt)" value={draft.imageUrl} onChange={(url) => set("imageUrl", url)} />
+            <ImageUploadField label="Bannerbild (valfritt)" kind="misc" value={draft.imageUrl} onChange={(url) => set("imageUrl", url)} />
           </Surface>
 
           {/* Deal type */}

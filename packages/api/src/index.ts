@@ -83,12 +83,15 @@ const ADMIN_URL = process.env.ADMIN_URL || 'http://localhost:3001';
 // Startup-loggning av miljöberoenden så vi ser direkt om något viktigt
 // saknas. Servern kraschar inte (admin kan jobba runt), men varningen
 // visar exakt vad som behöver konfigureras.
-const cloudinaryConfigured = Boolean(
-  process.env.CLOUDINARY_URL ||
-    (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
+const r2Configured = Boolean(
+  process.env.R2_ACCOUNT_ID &&
+    process.env.R2_ACCESS_KEY_ID &&
+    process.env.R2_SECRET_ACCESS_KEY &&
+    process.env.R2_BUCKET &&
+    process.env.R2_PUBLIC_BASE_URL,
 );
-if (!cloudinaryConfigured) {
-  console.warn('⚠️  Cloudinary saknas — bilduppladdning returnerar 503 tills CLOUDINARY_URL eller CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET är satt.');
+if (!r2Configured) {
+  console.warn('⚠️  R2 saknas — bilduppladdning returnerar 503 tills R2_ACCOUNT_ID/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET/R2_PUBLIC_BASE_URL är satta.');
 }
 const googleMapsConfigured = Boolean(process.env.GOOGLE_MAPS_API_KEY);
 if (!googleMapsConfigured) {
@@ -133,7 +136,7 @@ void initSocket(httpServer, {
 // CSP är en backend-API, så scripts/styles serveras inte härifrån — vi blockerar
 // allt utom det API:et självt behöver (own origin för felmeddelanden,
 // Stripe.js för card-element callbacks i webhooks, data: för base64-images i
-// receipt-rendering, Cloudinary CDN för bilder).
+// receipt-rendering, R2/CDN för bilder via https:-jokern i imgSrc).
 app.use(helmet({
   contentSecurityPolicy: {
     useDefaults: true,
@@ -144,12 +147,11 @@ app.use(helmet({
         "'self'",
         "https://api.stripe.com",
         "https://*.supabase.co",
-        "https://*.cloudinary.com",
         "wss:",
         "ws:",
       ],
       frameSrc: ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"],
-      imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://*.cloudinary.com", "https:"],
+      imgSrc: ["'self'", "data:", "https:"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'", "data:", "https:"],
       objectSrc: ["'none'"],

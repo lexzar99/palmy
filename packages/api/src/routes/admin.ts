@@ -3640,15 +3640,15 @@ router.get('/system/health', async (req, res) => {
       prisma.restaurantPayout.count({ where: { status: { in: ['DRAFT', 'APPROVED', 'HOLD'] } } }),
     ]);
 
-    const cloudinaryConfigured = Boolean(
-      process.env.CLOUDINARY_URL ||
-      (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
+    const r2Configured = Boolean(
+      process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY &&
+      process.env.R2_BUCKET && process.env.R2_PUBLIC_BASE_URL
     );
 
     const alerts: Array<{ level: 'info' | 'warning'; message: string }> = [];
     if (dbPing > 350) alerts.push({ level: 'warning', message: `Databasen svarar långsamt (${dbPing} ms).` });
     if (pendingOrders > 10) alerts.push({ level: 'warning', message: `${pendingOrders} ordrar väntar fortfarande på svar.` });
-    if (!cloudinaryConfigured) alerts.push({ level: 'warning', message: 'Bilduppladdning saknar komplett Cloudinary-konfiguration.' });
+    if (!r2Configured) alerts.push({ level: 'warning', message: 'Bilduppladdning saknar komplett R2-konfiguration.' });
     if (alerts.length === 0) alerts.push({ level: 'info', message: 'Inga driftvarningar just nu.' });
 
     res.json({
@@ -3671,7 +3671,7 @@ router.get('/system/health', async (req, res) => {
       services: {
         auth: true,
         realtime: true,
-        uploads: cloudinaryConfigured,
+        uploads: r2Configured,
       },
       timestamp: new Date(),
       alerts,
@@ -4929,8 +4929,8 @@ router.get('/health/services', authenticate, requireSuperAdmin, async (_req, res
     ? { status: 'up' }
     : { status: 'unconfigured' };
 
-  // Cloudinary
-  services.cloudinary = (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
+  // Cloudflare R2 (enda bilduppladdaren)
+  services.r2 = (process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET && process.env.R2_PUBLIC_BASE_URL)
     ? { status: 'up' }
     : { status: 'unconfigured' };
 

@@ -125,19 +125,20 @@ const SERVICES: ServiceDef[] = [
     limitNote: 'Free: ~5 000 errors/mån. Status = konfig-koll (Sentry räknar errors åt oss).',
   },
   {
-    key: 'cloudinary',
-    name: 'Cloudinary (bild-fallback)',
+    key: 'r2',
+    name: 'Cloudflare R2 (bildlagring)',
     category: 'Lagring',
-    envVars: ['CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET', 'CLOUDINARY_CLOUD_NAME'],
-    limitNote: 'Free: 25 credits/mån. Bild-fallback när R2 saknas.',
+    envVars: ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'R2_PUBLIC_BASE_URL'],
+    limitNote: 'Free: 10 GB lagring + 1M class-A ops/mån. Enda bilduppladdaren (Cloudinary borttaget).',
     healthCheck: async () => {
-      const key = process.env.CLOUDINARY_API_KEY;
-      const sec = process.env.CLOUDINARY_API_SECRET;
-      const cloud = process.env.CLOUDINARY_CLOUD_NAME;
-      if (!key || !sec || !cloud) return { ok: false, detail: 'ej konfigurerad' };
-      const auth = Buffer.from(`${key}:${sec}`).toString('base64');
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/ping`, { headers: { Authorization: `Basic ${auth}` } });
-      return { ok: res.ok, detail: `HTTP ${res.status}` };
+      const ok = Boolean(
+        process.env.R2_ACCOUNT_ID &&
+        process.env.R2_ACCESS_KEY_ID &&
+        process.env.R2_SECRET_ACCESS_KEY &&
+        process.env.R2_BUCKET &&
+        process.env.R2_PUBLIC_BASE_URL,
+      );
+      return { ok, detail: ok ? 'konfigurerad' : 'ej konfigurerad' };
     },
   },
   {

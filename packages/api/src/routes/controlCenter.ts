@@ -117,7 +117,7 @@ router.get('/control-center', async (req, res) => {
           verifyRateLimit: true,
           socketGuard: true,
           uploadGuard: true,
-          cloudinaryConfigured: Boolean(process.env.CLOUDINARY_URL || (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)),
+          r2Configured: Boolean(process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET && process.env.R2_PUBLIC_BASE_URL),
           aliasSync: false,
           notes: [
             'Adminlogin rate-limitad per IP + identifier',
@@ -581,7 +581,7 @@ router.get('/control-center', async (req, res) => {
         verifyRateLimit: true,
         socketGuard: true,
         uploadGuard: true,
-        cloudinaryConfigured: Boolean(process.env.CLOUDINARY_URL || (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)),
+        r2Configured: Boolean(process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY && process.env.R2_BUCKET && process.env.R2_PUBLIC_BASE_URL),
         aliasSync: false,
         notes: [
           'Adminlogin rate-limitad per IP + identifier',
