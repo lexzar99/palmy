@@ -40,20 +40,24 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
 
   Future<void> _accept() async {
     setState(() => _accepting = true);
-    final err = await context.read<SessionProvider>().acceptJob(widget.jobId);
+    final session = context.read<SessionProvider>();
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final err = await session.acceptJob(widget.jobId);
     if (!mounted) return;
     setState(() => _accepting = false);
     if (err != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
-      Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(content: Text(err)));
+      navigator.pop();
       return;
     }
     // Hämta den nyss skapade leveransen och gå direkt till leveransflödet.
-    final delivery =
-        context.read<SessionProvider>().active.where((a) => a.orderNumber == _job?.orderNumber).toList();
-    Navigator.of(context).pop();
+    final delivery = session.active
+        .where((a) => a.orderNumber == _job?.orderNumber)
+        .toList();
+    navigator.pop();
     if (delivery.isNotEmpty) {
-      Navigator.of(context).push(MaterialPageRoute(
+      navigator.push(MaterialPageRoute(
         builder: (_) => DeliveryScreen(deliveryId: delivery.first.id),
       ));
     }
