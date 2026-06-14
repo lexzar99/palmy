@@ -270,6 +270,10 @@ class _PickupPhase extends StatelessWidget {
           focusDropoff: false,
         ),
         const SizedBox(height: 14),
+        if (delivery.readyForPickup) ...[
+          const ReadyForPickupBanner(),
+          const SizedBox(height: 12),
+        ],
         // Kundens namn tydligt — så budet kan säga "leverans till kund X".
         _CustomerBanner(name: delivery.dropoffName),
         const SizedBox(height: 12),

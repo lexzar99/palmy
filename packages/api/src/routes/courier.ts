@@ -84,6 +84,10 @@ function activeFromDelivery(d: any) {
     payout: d.payOre / 100,
     distanceKm: d.distanceKm,
     status: d.status,
+    // Orderns egen status (PREPARING/READY/…) → kurir-appen visar "Maten är
+    // klar för hämtning" när restaurangen markerat READY.
+    orderStatus: d.order?.status ?? null,
+    readyForPickup: d.order?.status == 'READY',
     customerPhone: d.order?.customerPhone ?? null,
     deliveryNote: d.order?.deliveryNote ?? null,
     deliveryInstructions: d.order?.deliveryInstructions ?? null,

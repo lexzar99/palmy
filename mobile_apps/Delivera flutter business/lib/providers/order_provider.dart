@@ -188,33 +188,38 @@ class OrderProvider with ChangeNotifier {
   List<OrderModel> get pendingOrders =>
       _orders.where((o) => o.status == 'PENDING').toList();
 
-  // Active means ACCEPTED, PREPARING, READY (Wait for pickup)
-  // For Delivery, once it's DELIVERING it goes to history.
-  // For Pickup, READY is active until DELIVERED.
+  // En order räknas som "klar/historik" (lämnat Pågående) när:
+  //  - den nått terminal/överlämnat: DELIVERING (= budet HÄMTAT), DELIVERED, m.fl.
+  //  - ELLER avhämtning (PICKUP) markerats READY (kunden hämtar — restaurangen klar).
+  // VIKTIGT: leverans (DELIVERY) som är READY ("Klar för hämtning") är INTE klar —
+  // maten ligger och väntar på budet, så den ska stanna i Pågående tills budet
+  // hämtar (DELIVERING). Då — och först då — försvinner den till historik.
+  bool _isDone(OrderModel o) {
+    if (['DELIVERING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED']
+        .contains(o.status)) {
+      return true;
+    }
+    if (o.status == 'READY' && o.type != 'DELIVERY') return true;
+    return false;
+  }
+
+  // Active means ACCEPTED, PREPARING + leverans som väntar på upphämtning (READY).
   List<OrderModel> get activeOrders => _orders
-      .where((o) => (['ACCEPTED', 'PREPARING'].contains(o.status)))
+      .where((o) =>
+          ['ACCEPTED', 'PREPARING'].contains(o.status) ||
+          (o.status == 'READY' && o.type == 'DELIVERY'))
       .toList();
 
-  // FÖREGÅENDE ORDRAR på dashboard: ordrar som restaurangen aktivt jobbar
-  // på just nu (accepterat / tillagas). När ordern är på väg / klar /
-  // levererad / NEKAD / AVBRUTEN → flytta till historik (terminal-states).
-  // BUG-FIX: REJECTED och CANCELLED saknades tidigare i moveToHistory →
-  // nekade ordrar fastnade i "Föregående" istället för att hamna i historik.
+  // FÖREGÅENDE ORDRAR på dashboard ("Pågående"): allt restaurangen fortfarande
+  // har att göra med — accepterat / tillagas / klar-för-hämtning-leverans som
+  // väntar på budet. Försvinner till historik när den blir klar (_isDone).
   List<OrderModel> get recentOrders {
     final now = DateTime.now();
     final startOfToday = DateTime(now.year, now.month, now.day);
-    const moveToHistory = [
-      'DELIVERING',
-      'DELIVERED',
-      'COMPLETED',
-      'READY',
-      'REJECTED',
-      'CANCELLED',
-    ];
     return _orders
         .where((o) =>
             o.status != 'PENDING' &&
-            !moveToHistory.contains(o.status) &&
+            !_isDone(o) &&
             o.createdAt.isAfter(startOfToday))
         .toList();
   }
@@ -225,15 +230,7 @@ class OrderProvider with ChangeNotifier {
     final startOfToday = DateTime(now.year, now.month, now.day);
 
     return _orders.where((o) {
-      final isCompleted = [
-        'READY',
-        'DELIVERING',
-        'DELIVERED',
-        'COMPLETED',
-        'CANCELLED',
-        'REJECTED'
-      ].contains(o.status);
-      return isCompleted &&
+      return _isDone(o) &&
           o.createdAt.isAfter(startOfToday) &&
           !_isTestOrder(o);
     }).toList();
@@ -245,15 +242,7 @@ class OrderProvider with ChangeNotifier {
     final startOfToday = DateTime(now.year, now.month, now.day);
 
     return _orders.where((o) {
-      final isCompleted = [
-        'READY',
-        'DELIVERING',
-        'DELIVERED',
-        'COMPLETED',
-        'CANCELLED',
-        'REJECTED'
-      ].contains(o.status);
-      return isCompleted &&
+      return _isDone(o) &&
           o.createdAt.isAfter(startOfYesterday) &&
           o.createdAt.isBefore(startOfToday) &&
           !_isTestOrder(o);

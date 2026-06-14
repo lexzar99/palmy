@@ -12,7 +12,7 @@ import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTa
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
-import { notifyCouriersOfNewJob } from '../lib/courierPush';
+import { notifyCouriersOfNewJob, notifyCouriersOrderReady } from '../lib/courierPush';
 import { sendOrderStatusPush } from '../lib/customerPush';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
 import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
@@ -798,6 +798,17 @@ router.patch('/orders/:id/status', async (req, res) => {
     // blocka admin-svaret.
     if (status === 'ACCEPTED') {
       void notifyCouriersOfNewJob({
+        restaurantId: existing.restaurantId,
+        orderType: existing.type,
+        orderNumber: order.orderNumber,
+      });
+    }
+
+    // "Klar för hämtning" (READY) på en vi-levererar-order → notifiera budet
+    // (tilldelat eller alla i staden) att maten väntar. Fire-and-forget.
+    if (status === 'READY') {
+      void notifyCouriersOrderReady({
+        orderId: order.id,
         restaurantId: existing.restaurantId,
         orderType: existing.type,
         orderNumber: order.orderNumber,

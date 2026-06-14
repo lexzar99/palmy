@@ -94,6 +94,10 @@ class _ActiveCard extends StatelessWidget {
           Text(target, style: theme.textTheme.titleLarge),
           const SizedBox(height: 2),
           Text(addr, style: theme.textTheme.bodyMedium),
+          if (pickup && delivery.readyForPickup) ...[
+            const SizedBox(height: 12),
+            const ReadyForPickupBanner(),
+          ],
           const SizedBox(height: 14),
           Row(
             children: [

@@ -61,6 +61,17 @@ class Notify {
           playSound: true,
         ),
       );
+      // Diskret kanal för "klar för hämtning" — mjukt bell, ingen alarm-känsla.
+      await androidImpl?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'ready_pickup',
+          'Klar för hämtning',
+          description: 'Diskret avisering när maten är klar att hämta',
+          importance: Importance.defaultImportance,
+          sound: RawResourceAndroidNotificationSound('ready_bell'),
+          playSound: true,
+        ),
+      );
       await _local
           .resolvePlatformSpecificImplementation<
               IOSFlutterLocalNotificationsPlugin>()
@@ -84,6 +95,43 @@ class Notify {
       await _player.play(AssetSource('audio/new_job.wav'), volume: 1.0);
     } catch (e) {
       debugPrint('Notify play: $e');
+    }
+  }
+
+  /// Diskret "klar för hämtning"-signal: mjukt bell + lugn banner. Helt annat
+  /// ljud än ny-order-larmet — budet ska bara påminnas, inte skrämmas.
+  static Future<void> readyForPickup(String orderNumber) async {
+    await ensureInit();
+    try {
+      await _player.stop();
+      await _player.play(AssetSource('audio/ready_bell.wav'), volume: 0.6);
+    } catch (e) {
+      debugPrint('Notify ready play: $e');
+    }
+    try {
+      const android = AndroidNotificationDetails(
+        'ready_pickup',
+        'Klar för hämtning',
+        channelDescription: 'Diskret avisering när maten är klar att hämta',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+        sound: RawResourceAndroidNotificationSound('ready_bell'),
+        playSound: true,
+      );
+      const ios = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        sound: 'ready_bell.caf',
+      );
+      await _local.show(
+        7002,
+        'Maten är klar för hämtning',
+        '#$orderNumber väntar på dig',
+        const NotificationDetails(android: android, iOS: ios),
+      );
+    } catch (e) {
+      debugPrint('Notify ready banner: $e');
     }
   }
 

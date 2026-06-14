@@ -165,3 +165,62 @@ export async function notifyCouriersOfNewJob(opts: {
     console.warn('[courierPush] notifyCouriersOfNewJob fel:', (e as Error)?.message);
   }
 }
+
+/**
+ * Restaurangen markerade ordern "Klar för hämtning" (READY). Notifiera:
+ *  - det tilldelade budet (om någon redan accepterat) → "Maten är klar för hämtning"
+ *  - annars alla online-kurirer i staden → maten väntar, kom och hämta.
+ * Endast vi-levererar (self-leverans har inget bud). Fire-and-forget.
+ */
+export async function notifyCouriersOrderReady(opts: {
+  orderId: string;
+  restaurantId: string | null | undefined;
+  orderType: string | null | undefined;
+  orderNumber?: string | null;
+}): Promise<void> {
+  try {
+    if (!opts.restaurantId || opts.orderType !== 'DELIVERY') return;
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: opts.restaurantId },
+      select: { city: true, name: true, selfDelivery: true },
+    });
+    if (!restaurant || restaurant.selfDelivery || !restaurant.city) return;
+
+    const num = opts.orderNumber ? `#${opts.orderNumber} — ` : '';
+    const title = 'Maten är klar för hämtning 🛍️';
+
+    // Redan tilldelat bud (accepterat, på väg till hämtning)?
+    const delivery = await prisma.delivery.findUnique({
+      where: { orderId: opts.orderId },
+      select: { courierId: true, status: true },
+    });
+
+    if (delivery?.courierId && delivery.status === 'EN_ROUTE_PICKUP') {
+      const body = `${num}${restaurant.name} — maten väntar på dig`;
+      await Promise.all([
+        sendToCourierIds([delivery.courierId], { title, body, tag: 'delivera-ready' }),
+        sendCourierFcm([delivery.courierId], {
+          title,
+          body,
+          data: { type: 'ORDER_READY', orderId: opts.orderId },
+        }),
+      ]);
+      return;
+    }
+
+    // Inget bud än → väck alla online-kurirer i staden.
+    const couriers = await prisma.courier.findMany({
+      where: { online: true, isActive: true, city: restaurant.city },
+      select: { id: true },
+    });
+    if (couriers.length === 0) return;
+    const ids = couriers.map((c) => c.id);
+    const body = `${num}${restaurant.name} — klar för upphämtning i ${restaurant.city}`;
+    await Promise.all([
+      sendToCourierIds(ids, { title, body, tag: 'delivera-ready', url: '/' }),
+      sendCourierFcm(ids, { title, body, data: { type: 'ORDER_READY', orderId: opts.orderId } }),
+    ]);
+  } catch (e) {
+    console.warn('[courierPush] notifyCouriersOrderReady fel:', (e as Error)?.message);
+  }
+}

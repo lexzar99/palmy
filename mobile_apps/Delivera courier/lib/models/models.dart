@@ -125,6 +125,8 @@ class ActiveDelivery extends Job {
   final String? deliveryNote;
   final String? proofMethod; // HANDED | LEFT_AT_DOOR
   final String? proofMessage;
+  final String? orderStatus; // orderns egen status (PREPARING/READY/…)
+  final bool readyForPickup; // restaurangen markerat "Klar för hämtning"
 
   const ActiveDelivery({
     required super.id,
@@ -154,6 +156,8 @@ class ActiveDelivery extends Job {
     this.deliveryNote,
     this.proofMethod,
     this.proofMessage,
+    this.orderStatus,
+    this.readyForPickup = false,
   });
 
   factory ActiveDelivery.fromJson(Map<String, dynamic> j) {
@@ -186,6 +190,8 @@ class ActiveDelivery extends Job {
       deliveryNote: j['deliveryNote'] as String?,
       proofMethod: j['proofMethod'] as String?,
       proofMessage: j['proofMessage'] as String?,
+      orderStatus: j['orderStatus'] as String?,
+      readyForPickup: j['readyForPickup'] == true,
     );
   }
 }

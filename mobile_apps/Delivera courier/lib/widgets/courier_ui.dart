@@ -22,6 +22,38 @@ class Eyebrow extends StatelessWidget {
       );
 }
 
+/// "Maten är klar för hämtning"-banner — diskret, grön. Visas på pågående-
+/// kortet + i hämtningsfasen när restaurangen markerat ordern klar.
+class ReadyForPickupBanner extends StatelessWidget {
+  const ReadyForPickupBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const color = AppTheme.success;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.notifications_active_rounded, size: 17, color: color),
+          SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'Maten är klar för hämtning',
+              style: TextStyle(
+                  fontSize: 13.5, fontWeight: FontWeight.w800, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Rund ikon-knapp (bak/karta/ring) i appens platta stil.
 class CircleIconButton extends StatelessWidget {
   final IconData icon;
