@@ -33,6 +33,8 @@ class PushService {
   bool _inited = false;
   bool _firebaseOk = false;
   bool _permissionGranted = false;
+  bool _apnsOk = false;
+  bool _fcmOk = false;
   bool _registered = false;
   CourierApi? _api;
   String? _lastToken;
@@ -113,13 +115,17 @@ class PushService {
           apns = await messaging.getAPNSToken();
           tries++;
         }
+        _apnsOk = apns != null;
         if (apns == null) {
           debugPrint('[push] APNs-token aldrig klar — hoppar getToken (försöker igen senare)');
           return;
         }
+      } else {
+        _apnsOk = true;
       }
       final token = await messaging.getToken();
-      if (token != null && token != _lastToken) {
+      _fcmOk = token != null;
+      if (token != null) {
         _lastToken = token;
         await _register(token);
       }
@@ -147,6 +153,35 @@ class PushService {
     if (!_firebaseOk) return;
     if (_registered && _lastToken != null) return;
     await _syncToken();
+  }
+
+  // ── Diagnostik (driver push-status-kortet på Konto) ────────────────────────
+  bool get firebaseOk => _firebaseOk;
+  bool get permissionGranted => _permissionGranted;
+  bool get apnsOk => _apnsOk;
+  bool get fcmOk => _fcmOk;
+  bool get tokenRegistered => _registered && _lastToken != null;
+  bool get inited => _inited;
+
+  /// Tvinga ett nytt registreringsförsök (knapp "Registrera token igen").
+  /// Säkerställer att init körts, ber om behörighet, och syncar token.
+  Future<void> forceRegister(CourierApi api) async {
+    if (!_inited) {
+      await init(api);
+      return;
+    }
+    try {
+      _api = api;
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
+      _permissionGranted = settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+      _registered = false;
+      _lastToken = null;
+      await _syncToken();
+    } catch (e) {
+      debugPrint('[push] forceRegister-fel: $e');
+    }
   }
 
   /// Avregistrera token (vid logout). Best effort.

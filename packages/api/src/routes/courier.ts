@@ -8,7 +8,7 @@ import { haversineKm } from '../utils/geo';
 import { authenticate, requireSuperAdmin, type AuthRequest } from '../middleware/auth';
 import { saveSubscription, removeSubscription, getVapidPublicKey } from '../lib/courierPush';
 import { sendOrderStatusPush } from '../lib/customerPush';
-import { registerCourierFcmToken, clearCourierFcmToken } from '../lib/courierFcm';
+import { registerCourierFcmToken, clearCourierFcmToken, sendCourierFcm, isFcmConfigured } from '../lib/courierFcm';
 import { uploadToR2, deleteFromR2, r2Enabled } from '../lib/r2';
 
 // Leveransbild sparas i 2 dygn och raderas sedan permanent (cleanup-jobbet).
@@ -452,6 +452,36 @@ router.post('/push/register', requireCourier, async (req: CourierRequest, res) =
 router.post('/push/unregister', requireCourier, async (req: CourierRequest, res) => {
   await clearCourierFcmToken(req.courier.id);
   res.json({ ok: true });
+});
+
+// Diagnostik: är en FCM-token registrerad för budet + är FCM konfigurerat på
+// servern? Driver push-status-kortet i appen.
+router.get('/push/status', requireCourier, async (req: CourierRequest, res) => {
+  const c = await prisma.courier.findUnique({
+    where: { id: req.courier.id },
+    select: { fcmToken: true, fcmPlatform: true },
+  });
+  res.json({
+    hasToken: !!c?.fcmToken,
+    platform: c?.fcmPlatform ?? null,
+    fcmConfigured: isFcmConfigured(),
+  });
+});
+
+// Skicka en testnotis till BUDET SJÄLV (isolerar token+leverans från order-
+// flödet). Returnerar om token finns + om FCM-sändningen lyckades.
+router.post('/push/test', requireCourier, async (req: CourierRequest, res) => {
+  const c = await prisma.courier.findUnique({
+    where: { id: req.courier.id },
+    select: { fcmToken: true },
+  });
+  if (!c?.fcmToken) return res.json({ hasToken: false, sent: 0, fcmConfigured: isFcmConfigured() });
+  const sent = await sendCourierFcm([req.courier.id], {
+    title: 'Testnotis 🔔',
+    body: 'Push fungerar — du får notiser om nya ordrar.',
+    data: { type: 'TEST' },
+  });
+  res.json({ hasToken: true, sent, fcmConfigured: isFcmConfigured() });
 });
 
 router.get('/history', requireCourier, async (req: CourierRequest, res) => {

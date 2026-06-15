@@ -97,6 +97,18 @@ class CourierApi {
   Future<void> unregisterPush() =>
       _client.post('/api/courier/push/unregister');
 
+  Future<Map<String, dynamic>> pushStatus() async {
+    final res = await _client.get('/api/courier/push/status');
+    return (res.data as Map).cast<String, dynamic>();
+  }
+
+  /// Skicka en testnotis till budet självt. Returnerar serverns svar
+  /// ({ hasToken, sent, fcmConfigured }).
+  Future<Map<String, dynamic>> pushTest() async {
+    final res = await _client.post('/api/courier/push/test');
+    return (res.data as Map).cast<String, dynamic>();
+  }
+
   // ── Historik / intjäning ───────────────────────────────────────────────────
   Future<List<HistoryOrder>> getHistory() async {
     final res = await _client.get('/api/courier/history');

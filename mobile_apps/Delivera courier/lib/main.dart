@@ -61,6 +61,13 @@ void main() async {
   auth.onLoggedOut = () => session.reset();
   await auth.bootstrap();
 
+  // Registrera push-token redan vid start om budet är inloggat (inte bara vid
+  // online) — så token finns även om budet bara öppnar appen. Guardad/no-op
+  // utan Firebase. Ber om notis-behörighet kontextuellt.
+  if (auth.isAuthenticated) {
+    unawaited(PushService.instance.init(api));
+  }
+
   final prefs = await SharedPreferences.getInstance();
   final onboardingSeen = prefs.getBool(Constants.onboardingSeenKey) ?? false;
 

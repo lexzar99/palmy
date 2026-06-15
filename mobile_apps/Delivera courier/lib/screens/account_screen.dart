@@ -3,7 +3,10 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/api_client.dart';
 import '../core/format.dart';
+import '../core/models_api.dart';
+import '../core/push_service.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../providers/auth_provider.dart';
@@ -229,6 +232,11 @@ class _AccountScreenState extends State<AccountScreen> {
           else
             ..._groupedHistory(session.history),
           const SizedBox(height: 24),
+          // Push-diagnostik: visa status + testa direkt.
+          const AppSectionHeader(eyebrow: 'Notiser', title: 'Push-status'),
+          const SizedBox(height: 12),
+          const _PushDiagnosticCard(),
+          const SizedBox(height: 24),
           // Tema
           const AppSectionHeader(eyebrow: 'Utseende', title: 'Tema'),
           const SizedBox(height: 12),
@@ -434,5 +442,139 @@ class _ThemeSelector extends StatelessWidget {
       case ThemePreference.system:
         return 'System';
     }
+  }
+}
+
+/// Push-diagnostik: visar om notiser fungerar (behörighet + registrerad token)
+/// och låter budet skicka en testnotis till sig själv — så problem blir synliga
+/// och direkt testbara, oberoende av order-flödet.
+class _PushDiagnosticCard extends StatefulWidget {
+  const _PushDiagnosticCard();
+
+  @override
+  State<_PushDiagnosticCard> createState() => _PushDiagnosticCardState();
+}
+
+class _PushDiagnosticCardState extends State<_PushDiagnosticCard> {
+  final CourierApi _api = CourierApi(ApiClient.instance);
+  bool _loading = true;
+  bool _busy = false;
+  bool _hasToken = false;
+  bool _fcmConfigured = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _loading = true);
+    try {
+      final s = await _api.pushStatus();
+      if (!mounted) return;
+      setState(() {
+        _hasToken = s['hasToken'] == true;
+        _fcmConfigured = s['fcmConfigured'] == true;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _reregister() async {
+    setState(() => _busy = true);
+    await PushService.instance.forceRegister(_api);
+    // Token kommer asynkront (APNs) — vänta lite och hämta status igen.
+    await Future.delayed(const Duration(seconds: 3));
+    await _refresh();
+    if (mounted) setState(() => _busy = false);
+  }
+
+  Future<void> _test() async {
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final r = await _api.pushTest();
+      final hasToken = r['hasToken'] == true;
+      final sent = (r['sent'] as num?)?.toInt() ?? 0;
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text(!hasToken
+            ? 'Ingen token registrerad än — tryck "Registrera token igen".'
+            : sent > 0
+                ? 'Testnotis skickad — du bör se den om en sekund.'
+                : 'Token finns men sändningen misslyckades (kontrollera serverns FCM-konfig).'),
+      ));
+    } catch (_) {
+      if (mounted) messenger.showSnackBar(const SnackBar(content: Text('Kunde inte skicka testnotis.')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ps = PushService.instance;
+    return AppPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _row('Firebase initierat', ps.firebaseOk),
+          const SizedBox(height: 8),
+          _row('Notis-behörighet', ps.permissionGranted),
+          const SizedBox(height: 8),
+          _row('APNs-token (iOS)', ps.apnsOk),
+          const SizedBox(height: 8),
+          _row('FCM-token hämtad', ps.fcmOk),
+          const SizedBox(height: 8),
+          _row('Registrerad hos server', _hasToken, loading: _loading),
+          const SizedBox(height: 8),
+          _row('Server-FCM konfigurerad', _fcmConfigured, loading: _loading),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: GhostButton(
+                  label: 'Registrera token igen',
+                  icon: Icons.sync_rounded,
+                  onPressed: _busy ? null : _reregister,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GhostButton(
+                  label: 'Skicka testnotis',
+                  icon: Icons.notifications_active_rounded,
+                  onPressed: _busy || !_hasToken ? null : _test,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(String label, bool ok, {bool loading = false}) {
+    return Row(
+      children: [
+        if (loading)
+          const SizedBox(
+              width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+        else
+          Icon(ok ? Icons.check_circle_rounded : Icons.cancel_rounded,
+              size: 18, color: ok ? AppTheme.success : AppTheme.danger),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
+        if (!loading)
+          Text(ok ? 'OK' : 'Saknas',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: ok ? AppTheme.success : AppTheme.danger)),
+      ],
+    );
   }
 }
