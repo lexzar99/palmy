@@ -59,10 +59,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDQt74AwKanvm98-WqBqjz_Y7GWzP3k8W4',
-    appId: '1:256937527227:ios:5bfebd5a135800b8f9a69e',
+    appId: '1:256937527227:ios:6492c83978a9da9df9a69e',
     messagingSenderId: '256937527227',
     projectId: 'flutter-apn-e9c73',
     storageBucket: 'flutter-apn-e9c73.firebasestorage.app',
-    iosBundleId: 'se.delivera.courier',
+    iosBundleId: 'se.delivera.kurir',
   );
+
 }

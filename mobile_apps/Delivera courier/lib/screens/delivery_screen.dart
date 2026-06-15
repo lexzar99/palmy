@@ -11,6 +11,12 @@ import '../widgets/app_ui.dart';
 import '../widgets/courier_ui.dart';
 import '../widgets/delivery_map.dart';
 
+bool _hasCustomerNote(ActiveDelivery d) {
+  final i = d.deliveryInstructions?.trim() ?? '';
+  final n = d.deliveryNote?.trim() ?? '';
+  return i.isNotEmpty || n.isNotEmpty;
+}
+
 /// Leveransflöde i två faser:
 ///  1. EN_ROUTE_PICKUP — bocka av alla artiklar → svep "Hämtad".
 ///  2. PICKED_UP — kör till kund, valfritt foto → svep "Levererad" + metod.
@@ -276,6 +282,13 @@ class _PickupPhase extends StatelessWidget {
         ],
         // Kundens namn tydligt — så budet kan säga "leverans till kund X".
         _CustomerBanner(name: delivery.dropoffName),
+        if (_hasCustomerNote(delivery)) ...[
+          const SizedBox(height: 12),
+          CustomerNotePanel(
+            instructions: delivery.deliveryInstructions,
+            note: delivery.deliveryNote,
+          ),
+        ],
         const SizedBox(height: 12),
         AppPanel(
           child: AddressRow(
@@ -474,6 +487,13 @@ class _DeliverPhase extends StatelessWidget {
             address: delivery.dropoffAddress,
           ),
         ),
+        if (_hasCustomerNote(delivery)) ...[
+          const SizedBox(height: 12),
+          CustomerNotePanel(
+            instructions: delivery.deliveryInstructions,
+            note: delivery.deliveryNote,
+          ),
+        ],
         const SizedBox(height: 16),
         const AppSectionHeader(
             eyebrow: 'Överlämning', title: 'Hur levererades den?'),

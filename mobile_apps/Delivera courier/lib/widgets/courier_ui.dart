@@ -54,6 +54,52 @@ class ReadyForPickupBanner extends StatelessWidget {
   }
 }
 
+/// Kundens leveransnotering (instruktioner kunden skrev i kassan, t.ex.
+/// "Lämna vid dörren, portkod 1234"). Visas för budet i leveransflödet.
+/// Renderar inget om kunden inte lämnat någon notering.
+class CustomerNotePanel extends StatelessWidget {
+  final String? instructions;
+  final String? note;
+  const CustomerNotePanel({super.key, this.instructions, this.note});
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = <String>[];
+    final i = instructions?.trim();
+    final n = note?.trim();
+    if (i != null && i.isNotEmpty) parts.add(i);
+    if (n != null && n.isNotEmpty && n != i) parts.add(n);
+    if (parts.isEmpty) return const SizedBox.shrink();
+    final text = parts.join('\n');
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.info.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.info.withOpacity(0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.sticky_note_2_rounded, size: 16, color: AppTheme.info),
+              const SizedBox(width: 8),
+              Text('Kundens notering',
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(color: AppTheme.info, fontWeight: FontWeight.w800)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(text, style: theme.textTheme.bodyMedium),
+        ],
+      ),
+    );
+  }
+}
+
 /// Rund ikon-knapp (bak/karta/ring) i appens platta stil.
 class CircleIconButton extends StatelessWidget {
   final IconData icon;

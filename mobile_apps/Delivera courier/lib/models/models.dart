@@ -123,6 +123,7 @@ class ActiveDelivery extends Job {
   final int? totalMin; // accept → levererad (eller accept → nu, live)
   final String? customerPhone;
   final String? deliveryNote;
+  final String? deliveryInstructions; // kundens notering från kassan
   final String? proofMethod; // HANDED | LEFT_AT_DOOR
   final String? proofMessage;
   final String? orderStatus; // orderns egen status (PREPARING/READY/…)
@@ -154,6 +155,7 @@ class ActiveDelivery extends Job {
     this.totalMin,
     this.customerPhone,
     this.deliveryNote,
+    this.deliveryInstructions,
     this.proofMethod,
     this.proofMessage,
     this.orderStatus,
@@ -188,6 +190,7 @@ class ActiveDelivery extends Job {
       totalMin: (j['totalMin'] as num?)?.toInt(),
       customerPhone: j['customerPhone'] as String?,
       deliveryNote: j['deliveryNote'] as String?,
+      deliveryInstructions: j['deliveryInstructions'] as String?,
       proofMethod: j['proofMethod'] as String?,
       proofMessage: j['proofMessage'] as String?,
       orderStatus: j['orderStatus'] as String?,

@@ -81,6 +81,14 @@ class _DeliveryDetailScreenState extends State<DeliveryDetailScreen> {
                             address: d.dropoffAddress,
                           ),
                         ),
+                        if ((d.deliveryInstructions?.trim().isNotEmpty ?? false) ||
+                            (d.deliveryNote?.trim().isNotEmpty ?? false)) ...[
+                          const SizedBox(height: 10),
+                          CustomerNotePanel(
+                            instructions: d.deliveryInstructions,
+                            note: d.deliveryNote,
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         const AppSectionHeader(
                             eyebrow: 'Tider', title: 'Hur lång tid det tog'),
