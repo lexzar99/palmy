@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, Plus, ReceiptText, RefreshCw, Search, SlidersHorizontal, Trash2, UserRound } from "lucide-react";
 import { bulkRefundOrders, deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
@@ -162,6 +163,7 @@ export function OrderDetailsModal({
   onViewCustomer?: (customerId: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [estimatedTime, setEstimatedTime] = useState<number | "">("");
   const [refundAmount, setRefundAmount] = useState<number | "">("");
   const [refundReasonKey, setRefundReasonKey] = useState<string>("");
@@ -354,7 +356,18 @@ export function OrderDetailsModal({
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="card-label">Bud</p>
-                      <p className="mt-2 text-[14px] font-semibold">{order.courier.name || "Ej tilldelad"}</p>
+                      {order.courier.id ? (
+                        <button
+                          type="button"
+                          onClick={() => { const cid = order.courier?.id; if (cid) { onClose(); router.push(`/couriers/${cid}`); } }}
+                          className="mt-2 text-left text-[14px] font-semibold text-[var(--accent-strong)] transition-colors hover:underline"
+                          title="Visa kurirens profil"
+                        >
+                          {order.courier.name || "Ej tilldelad"}
+                        </button>
+                      ) : (
+                        <p className="mt-2 text-[14px] font-semibold">{order.courier.name || "Ej tilldelad"}</p>
+                      )}
                       <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">
                         {[order.courier.vehicle === "CAR" ? "Bil" : order.courier.vehicle === "BIKE" ? "Cykel" : null, order.courier.phone].filter(Boolean).join(" · ") || "—"}
                       </p>

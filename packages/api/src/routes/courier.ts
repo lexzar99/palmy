@@ -641,6 +641,65 @@ adminCourierRouter.get('/:id', async (req: AuthRequest, res) => {
   }
 });
 
+// GET /api/admin/couriers/:id/deliveries?from=ISO&to=ISO&status=DELIVERED
+// Utbetalningsunderlag: ALLA leveranser i ett valt tidsintervall (ingen 50-tak
+// som detaljvyn) → driver manuellt period-filter + Excel-export i admin. Datum-
+// intervallet filtrerar på leveranstidpunkten (deliveredAt) eftersom payout
+// gäller slutförda leveranser.
+adminCourierRouter.get('/:id/deliveries', async (req: AuthRequest, res) => {
+  try {
+    const courier = await prisma.courier.findUnique({ where: { id: req.params.id } });
+    if (!courier) return res.status(404).json({ error: 'Kurir hittades inte' });
+
+    const { from, to, status } = req.query;
+    const where: Record<string, unknown> = { courierId: courier.id };
+    if (status && status !== 'ALL') where.status = status as string;
+    if (from || to) {
+      const range: { gte?: Date; lte?: Date } = {};
+      if (from) range.gte = new Date(from as string);
+      if (to) range.lte = new Date(to as string);
+      where.deliveredAt = range;
+    }
+
+    const deliveries = await prisma.delivery.findMany({
+      where,
+      orderBy: { deliveredAt: 'desc' },
+      take: 2000, // skyddstak; ett intervall rymmer i praktiken långt färre
+      include: { order: { select: { orderNumber: true, type: true, restaurant: { select: { name: true } } } } },
+    });
+
+    const mins = (a: Date | null, b: Date | null) => (a && b ? (b.getTime() - a.getTime()) / 60000 : null);
+    const payoutSum = deliveries
+      .filter((d) => d.status === 'DELIVERED')
+      .reduce((s, d) => s + d.payOre, 0);
+
+    res.json({
+      deliveries: deliveries.map((d) => ({
+        id: d.id,
+        orderId: d.orderId,
+        orderNumber: d.order?.orderNumber ?? null,
+        restaurantName: d.order?.restaurant?.name ?? null,
+        type: d.order?.type ?? null,
+        status: d.status,
+        distanceKm: d.distanceKm,
+        ratePerKm: d.ratePerKmOre / 100,
+        payout: d.payOre / 100,
+        tip: d.tipOre / 100,
+        acceptedAt: d.acceptedAt,
+        pickedUpAt: d.pickedUpAt,
+        deliveredAt: d.deliveredAt,
+        pickupMin: mins(d.acceptedAt, d.pickedUpAt),
+        deliverMin: mins(d.pickedUpAt, d.deliveredAt),
+      })),
+      total: deliveries.length,
+      payoutSum: payoutSum / 100, // total utbetalning (kr) för DELIVERED i urvalet
+    });
+  } catch (e) {
+    console.error('Courier deliveries error:', e);
+    res.status(500).json({ error: 'Kunde inte hämta leveranser' });
+  }
+});
+
 adminCourierRouter.post('/', async (req: AuthRequest, res) => {
   try {
     const { name, email, password, phone, city, vehicle, personalNumber, address, payoutAccount, ratePerKm } = req.body || {};

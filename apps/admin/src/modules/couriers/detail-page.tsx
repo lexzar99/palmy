@@ -3,52 +3,79 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Bike, Car } from "lucide-react";
-import { courierDetailQueryKey, getCourierDetail, revokeCourier, type CourierDeliveryRow } from "@/modules/couriers/api";
+import { ArrowLeft, Bike, Car, Download } from "lucide-react";
+import {
+  courierDeliveriesQueryKey,
+  courierDetailQueryKey,
+  getCourierDeliveries,
+  getCourierDetail,
+  revokeCourier,
+  type CourierDeliveryExportRow,
+} from "@/modules/couriers/api";
 import { OrderDetailsModal } from "@/modules/orders/page";
-import { Badge, Button, EmptyState, ErrorPanel, LoadingPanel, MetricCard, PageHeader, Surface, Tabs } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Input, LoadingPanel, MetricCard, PageHeader, Surface, Tabs } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime } from "@/shared/utils/format";
 
 type Tab = "info" | "orders" | "login" | "stats";
 
-type PeriodKey = "all" | "today" | "7d" | "30d";
+type PeriodKey = "all" | "today" | "7d" | "30d" | "custom";
 
 const PERIODS: { value: PeriodKey; label: string }[] = [
   { value: "all", label: "Alla" },
   { value: "today", label: "Idag" },
   { value: "7d", label: "7 dagar" },
   { value: "30d", label: "30 dagar" },
+  { value: "custom", label: "Eget" },
 ];
 
-// Tidsstämpel att filtrera/sortera leveransen på: levererad om den finns, annars
-// accepterad (pågående). Returnerar ms, eller null om inget datum.
-const deliveryTime = (d: CourierDeliveryRow): number | null => {
-  const raw = d.deliveredAt ?? d.acceptedAt;
-  if (!raw) return null;
-  const t = new Date(raw).getTime();
-  return Number.isNaN(t) ? null : t;
-};
-
-// Nedre gräns (ms) för vald period. null = ingen gräns (Alla).
-const periodCutoff = (p: PeriodKey): number | null => {
-  if (p === "all") return null;
-  const now = new Date();
-  if (p === "today") {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return start.getTime();
+// {from,to} (ISO) för vald period. Presets snäpps till midnatt så query-nyckeln
+// är stabil inom dygnet (annars refetch-loop varje render). Öppet uppåt = nu.
+function rangeFor(period: PeriodKey, customFrom: string, customTo: string): { from?: string; to?: string } {
+  if (period === "custom") {
+    return {
+      from: customFrom ? new Date(customFrom).toISOString() : undefined,
+      to: customTo ? new Date(customTo).toISOString() : undefined,
+    };
   }
-  const days = p === "7d" ? 7 : 30;
-  return now.getTime() - days * 864e5;
-};
+  if (period === "all") return {};
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const daysBack = period === "today" ? 0 : period === "7d" ? 6 : 29;
+  return { from: new Date(midnight.getTime() - daysBack * 864e5).toISOString() };
+}
+
+// CSV för Excel: semikolon-separerat, UTF-8 BOM, CRLF, svenskt decimalkomma.
+function exportDeliveriesCsv(rows: CourierDeliveryExportRow[], courierName: string) {
+  const esc = (v: string | number | null | undefined) => `"${(v == null ? "" : String(v)).replace(/"/g, '""')}"`;
+  const kr = (n: number) => n.toFixed(2).replace(".", ",");
+  const dt = (s: string | null) => (s ? new Date(s).toLocaleString("sv-SE") : "");
+  const header = ["Ordernr", "Restaurang", "Status", "Distans (km)", "km-pris (kr)", "Utbetalning (kr)", "Dricks (kr)", "Accepterad", "Hämtad", "Levererad"];
+  const lines = rows.map((d) => [
+    d.orderNumber ?? "",
+    d.restaurantName ?? "",
+    d.status,
+    kr(d.distanceKm),
+    kr(d.ratePerKm),
+    kr(d.payout),
+    kr(d.tip),
+    dt(d.acceptedAt),
+    dt(d.pickedUpAt),
+    dt(d.deliveredAt),
+  ]);
+  const csv = [header, ...lines].map((r) => r.map(esc).join(";")).join("\r\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `kurir-${courierName.replace(/\s+/g, "-").toLowerCase()}-leveranser.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 const fmtMin = (m: number | null | undefined) =>
   m == null ? "–" : m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)}h ${Math.round(m % 60)}m`;
-
-const deliveryLabel = (s: string) =>
-  s === "DELIVERED" ? "Levererad" : s === "PICKED_UP" ? "Hämtad" : s === "EN_ROUTE_PICKUP" ? "På väg" : s === "FAILED" ? "Misslyckad" : s;
-
-const deliveryTone = (s: string): "success" | "info" | "warning" | "danger" | "neutral" =>
-  s === "DELIVERED" ? "success" : s === "PICKED_UP" ? "info" : s === "FAILED" ? "danger" : "warning";
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -63,7 +90,9 @@ export function CourierDetailPage({ id }: { id: string }) {
   const router = useRouter();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("info");
-  const [period, setPeriod] = useState<PeriodKey>("all");
+  const [period, setPeriod] = useState<PeriodKey>("30d");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   // Vald order → öppnar order-modalen (samma som på order-sidan).
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
 
@@ -73,24 +102,24 @@ export function CourierDetailPage({ id }: { id: string }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: courierDetailQueryKey(id) }),
   });
 
+  // Utbetalningsunderlag: levererade ordrar i valt intervall (ingen 50-tak).
+  const range = rangeFor(period, customFrom, customTo);
+  const deliveriesQ = useQuery({
+    queryKey: courierDeliveriesQueryKey(id, range.from ?? "", range.to ?? "", "DELIVERED"),
+    queryFn: () => getCourierDeliveries(id, { ...range, status: "DELIVERED" }),
+    enabled: tab === "orders",
+  });
+
   if (q.isLoading) return <LoadingPanel label="Laddar kurir…" />;
   if (q.isError || !q.data)
     return <ErrorPanel title="Kunde inte ladda kurir" action={<Button onClick={() => router.push("/couriers")}>Till kurirer</Button>} />;
 
   const { profile, session, stats, deliveries } = q.data;
   const Vehicle = profile.vehicle === "CAR" ? Car : Bike;
-  // Stats-fliken visar all-time-prestanda (oberoende av period-filtret).
+  // Stats-fliken visar all-time-prestanda från detaljvyns inbäddade lista.
   const completed = deliveries.filter((d) => d.status === "DELIVERED");
-  // Order-fliken: filtrera + sortera efter vald period (senaste först).
-  const cutoff = periodCutoff(period);
-  const periodDeliveries = deliveries
-    .filter((d) => {
-      if (cutoff == null) return true;
-      const t = deliveryTime(d);
-      return t != null && t >= cutoff;
-    })
-    .sort((a, b) => (deliveryTime(b) ?? 0) - (deliveryTime(a) ?? 0));
-  const periodEarnings = periodDeliveries.reduce((s, d) => s + (d.payout || 0), 0);
+  // Order-fliken: levererade i valt intervall (från det dedikerade endpointet).
+  const rows = deliveriesQ.data?.deliveries ?? [];
 
   return (
     <div className="page-stack">
@@ -139,8 +168,8 @@ export function CourierDetailPage({ id }: { id: string }) {
 
       {tab === "orders" && (
         <Surface className="px-6 py-6">
-          {/* Period-filter + summering för vald period. */}
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          {/* Utbetalningsunderlag: välj period (eller eget intervall) → exportera. */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex rounded-full border border-[var(--border-subtle)] p-1">
               {PERIODS.map((p) => (
                 <button
@@ -157,21 +186,46 @@ export function CourierDetailPage({ id }: { id: string }) {
                 </button>
               ))}
             </div>
-            <p className="text-sm text-[var(--text-secondary)]">
-              <span className="font-bold text-[var(--text-primary)]">{periodDeliveries.length}</span> leveranser ·{" "}
-              <span className="font-bold text-[var(--text-primary)]">{formatCurrency(periodEarnings)}</span> utbetalt
-            </p>
+            <Button
+              variant="secondary"
+              disabled={rows.length === 0}
+              onClick={() => exportDeliveriesCsv(rows, profile.name)}
+            >
+              <Download size={14} /> Exportera (Excel)
+            </Button>
           </div>
-          {periodDeliveries.length === 0 ? (
-            <EmptyState title={period === "all" ? "Inga leveranser än" : "Inga leveranser i vald period"} />
+
+          {period === "custom" && (
+            <div className="mb-4 flex flex-wrap items-end gap-3">
+              <label className="text-xs font-bold text-[var(--text-muted)]">
+                Från
+                <Input type="datetime-local" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="mt-1" />
+              </label>
+              <label className="text-xs font-bold text-[var(--text-muted)]">
+                Till
+                <Input type="datetime-local" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="mt-1" />
+              </label>
+            </div>
+          )}
+
+          {/* Summering för urvalet — direkt utbetalningsbelopp. */}
+          <p className="mb-4 text-sm text-[var(--text-secondary)]">
+            <span className="font-bold text-[var(--text-primary)]">{deliveriesQ.data?.total ?? 0}</span> levererade ·{" "}
+            <span className="font-bold text-[var(--text-primary)]">{formatCurrency(deliveriesQ.data?.payoutSum ?? 0)}</span> att betala ut
+          </p>
+
+          {deliveriesQ.isLoading ? (
+            <LoadingPanel label="Laddar leveranser…" />
+          ) : rows.length === 0 ? (
+            <EmptyState title="Inga levererade ordrar i vald period" />
           ) : (
             <div className="table-shell">
               <table className="data-table">
                 <thead>
-                  <tr><th>Order</th><th>Restaurang</th><th>Status</th><th>Hämtning</th><th>Leverans</th><th>Utbetalt</th><th>Datum &amp; tid</th></tr>
+                  <tr><th>Order</th><th>Restaurang</th><th>Distans</th><th>km-pris</th><th>Utbetalt</th><th>Levererad</th></tr>
                 </thead>
                 <tbody>
-                  {periodDeliveries.map((d) => (
+                  {rows.map((d) => (
                     <tr
                       key={d.id}
                       onClick={() => d.orderId && setActiveOrderId(d.orderId)}
@@ -180,11 +234,10 @@ export function CourierDetailPage({ id }: { id: string }) {
                     >
                       <td className="font-bold">{d.orderNumber ? `#${d.orderNumber}` : "–"}</td>
                       <td>{d.restaurantName || "–"}</td>
-                      <td><Badge tone={deliveryTone(d.status)}>{deliveryLabel(d.status)}</Badge></td>
-                      <td className="tabular-nums">{fmtMin(d.pickupMin)}</td>
-                      <td className="tabular-nums">{fmtMin(d.deliverMin)}</td>
+                      <td className="tabular-nums">{d.distanceKm.toFixed(1)} km</td>
+                      <td className="tabular-nums">{formatCurrency(d.ratePerKm)}/km</td>
                       <td className="tabular-nums">{formatCurrency(d.payout)}</td>
-                      <td className="text-[var(--text-muted)]">{d.deliveredAt ? formatDateTime(d.deliveredAt) : d.acceptedAt ? formatDateTime(d.acceptedAt) : "–"}</td>
+                      <td className="text-[var(--text-muted)]">{d.deliveredAt ? formatDateTime(d.deliveredAt) : "–"}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -94,6 +94,46 @@ export interface CourierDetail {
   deliveries: CourierDeliveryRow[];
 }
 
+// ── Utbetalningsunderlag: leveranser i ett tidsintervall (ingen 50-tak) ──────
+export interface CourierDeliveryExportRow {
+  id: string;
+  orderId: string | null;
+  orderNumber: string | null;
+  restaurantName: string | null;
+  type: string | null;
+  status: string;
+  distanceKm: number;
+  ratePerKm: number; // kr/km (fryst vid accept)
+  payout: number; // kr
+  tip: number; // kr
+  acceptedAt: string | null;
+  pickedUpAt: string | null;
+  deliveredAt: string | null;
+  pickupMin: number | null;
+  deliverMin: number | null;
+}
+
+export interface CourierDeliveriesResult {
+  deliveries: CourierDeliveryExportRow[];
+  total: number;
+  payoutSum: number; // total utbetalning (kr) för DELIVERED i urvalet
+}
+
+export const courierDeliveriesQueryKey = (id: string, from: string, to: string, status: string) =>
+  ["couriers", "deliveries", id, from, to, status] as const;
+
+export const getCourierDeliveries = (
+  id: string,
+  params: { from?: string; to?: string; status?: string },
+) => {
+  const q = new URLSearchParams();
+  if (params.from) q.set("from", params.from);
+  if (params.to) q.set("to", params.to);
+  if (params.status) q.set("status", params.status);
+  const qs = q.toString();
+  return apiGet<CourierDeliveriesResult>(`/admin/couriers/${id}/deliveries${qs ? `?${qs}` : ""}`);
+};
+
 export const couriersQueryKey = ["couriers", "list"] as const;
 export const courierDetailQueryKey = (id: string) => ["couriers", "detail", id] as const;
 export const getCourierDetail = (id: string) => apiGet<CourierDetail>(`/admin/couriers/${id}`);
