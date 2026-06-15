@@ -28,6 +28,7 @@ dependencies:
   latlong2: ^0.9.1
   audioplayers: ^6.4.0
   flutter_local_notifications: ^19.5.0
+  permission_handler: ^11.3.1
   # Native push (notiser även när appen är helt stängd). Inert tills Firebase
   # konfigurerats (flutterfire configure) — init är guardad, appen funkar ändå.
   firebase_core: ^3.6.0

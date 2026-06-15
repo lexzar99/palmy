@@ -92,7 +92,8 @@ class Notify {
   static Future<void> _playAlert() async {
     try {
       await _player.stop();
-      await _player.play(AssetSource('audio/new_job.wav'), volume: 1.0);
+      // Premium ny-order-signal (ljus stigande arpeggio).
+      await _player.play(AssetSource('audio/new_order.wav'), volume: 1.0);
     } catch (e) {
       debugPrint('Notify play: $e');
     }

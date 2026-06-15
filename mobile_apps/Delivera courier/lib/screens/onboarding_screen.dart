@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants.dart';
+import '../core/permissions.dart';
 import '../core/theme.dart';
 import '../widgets/app_ui.dart';
 import '../widgets/courier_ui.dart';
@@ -42,7 +43,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body:
           'Varje leverans visar din ersättning direkt. Följ dagens och historikens intjäning på Konto.',
     ),
+    _OnboardContent(
+      index: '04',
+      eyebrow: 'Behörigheter',
+      title: 'Tre saker\nappen behöver',
+      body:
+          'Notiser — så du hör direkt när en ny order kommer.\nPlats — så leveransen kan följas i realtid.\nKamera — för leveransfoto vid dörren.\n\nVi frågar härnäst. Du kan ändra allt i Inställningar.',
+    ),
   ];
+
+  bool _busy = false;
 
   Future<void> _finish() async {
     final prefs = await SharedPreferences.getInstance();
@@ -50,14 +60,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     widget.onDone();
   }
 
-  void _next() {
+  Future<void> _next() async {
     if (_page < _pages.length - 1) {
       _controller.nextPage(
         duration: const Duration(milliseconds: 360),
         curve: Curves.easeOutCubic,
       );
     } else {
-      _finish();
+      // Sista sidan: be om notiser/plats/kamera, sen in i appen.
+      if (_busy) return;
+      setState(() => _busy = true);
+      await Permissions.requestOnboarding();
+      if (!mounted) return;
+      await _finish();
     }
   }
 
@@ -121,11 +136,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
                 child: EmberButton(
-                  label: isLast ? 'Kom igång' : 'Nästa',
+                  label: _busy
+                      ? 'Begär åtkomst…'
+                      : (isLast ? 'Tillåt åtkomst' : 'Nästa'),
                   icon: isLast
-                      ? Icons.arrow_forward_rounded
+                      ? Icons.check_rounded
                       : Icons.arrow_forward_rounded,
-                  onPressed: _next,
+                  onPressed: _busy ? null : _next,
                 ),
               ),
             ],

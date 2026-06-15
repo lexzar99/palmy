@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -246,6 +247,14 @@ class SessionProvider with ChangeNotifier {
       notifyListeners();
       return (delivery: delivery, error: null);
     } catch (e) {
+      // Race-skydd: 409 = en annan kurir hann före (eller ordern drogs). Ta bort
+      // den ur listan direkt + hämta färska uppdrag, så samma order inte ligger
+      // kvar och går att trycka på igen.
+      if (e is DioException && e.response?.statusCode == 409) {
+        _jobs = _jobs.where((j) => j.id != orderId).toList();
+        notifyListeners();
+        unawaited(refreshJobs());
+      }
       return (delivery: null, error: _friendly(e));
     }
   }

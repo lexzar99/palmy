@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -22,8 +24,26 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Delivera Courier använder kameran för att ta ett valfritt leveransfoto som bevis vid överlämning.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Delivera Courier delar din position även i bakgrunden medan du är online, så leveransen kan följas i realtid även när skärmen är släckt. Vi slutar dela när du går offline.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Delivera Courier delar din position medan du är online så att restaurangen, kunden och Delivera kan följa leveransen. Vi slutar dela när du går offline.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Delivera Courier kan spara ett leveransfoto som bevis vid överlämning.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -39,29 +59,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-	<!-- Plats: delas medan kuriren är online så restaurang/kund/admin ser var leveransen är. -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Delivera Courier delar din position medan du är online så att restaurangen, kunden och Delivera kan följa leveransen. Vi slutar dela när du går offline.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Delivera Courier delar din position även i bakgrunden medan du är online, så leveransen kan följas i realtid även när skärmen är släckt. Vi slutar dela när du går offline.</string>
-	<!-- Bakgrundsläge: håller positionsdelningen igång medan appen är i bakgrunden. -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-		<string>fetch</string>
-		<string>remote-notification</string>
-	</array>
-	<!-- Kamera: valfritt leveransfoto som bevis vid överlämning. -->
-	<key>NSCameraUsageDescription</key>
-	<string>Delivera Courier använder kameran för att ta ett valfritt leveransfoto som bevis vid överlämning.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Delivera Courier kan spara ett leveransfoto som bevis vid överlämning.</string>
-	<!-- Export compliance: appen använder bara standardkryptering (HTTPS). -->
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 </dict>
 </plist>

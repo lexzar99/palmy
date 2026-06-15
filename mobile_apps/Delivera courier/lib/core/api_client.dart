@@ -73,7 +73,13 @@ class ApiClient {
       if (code == 401) return 'Sessionen har gått ut. Logga in igen.';
       if (code == 403) return 'Du saknar behörighet för detta.';
       if (code == 404) return 'Hittades inte längre.';
-      if (code == 409) return 'Uppdraget är inte längre tillgängligt.';
+      if (code == 409) {
+        // Visa serverns specifika 409-text om den finns (t.ex. "En annan kurir
+        // tog ordern") istället för en generisk rad.
+        final data = error.response?.data;
+        if (data is Map && data['error'] is String) return data['error'] as String;
+        return 'Uppdraget är inte längre tillgängligt.';
+      }
       if (code != null && code >= 500) {
         return 'Serverfel. Försök igen om en stund.';
       }
