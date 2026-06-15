@@ -39,6 +39,11 @@ class PushService {
   CourierApi? _api;
   String? _lastToken;
 
+  /// Krok som SessionProvider sätter → en NY-ORDER-push triggar en omedelbar
+  /// jobb-refresh så uppdraget dyker upp LIVE i Uppdrag (utan att budet behöver
+  /// dra-för-att-uppdatera). Pushen är realtid; pollingen är bara fallback.
+  void Function()? onNewJob;
+
   String get _platform => Platform.isIOS ? 'ios' : 'android';
 
   /// Kallas när budet går online (kontextuell behörighet). Idempotent.
@@ -92,7 +97,15 @@ class PushService {
           Notify.readyForPickup('');
         } else {
           Notify.newJob(1);
+          // Realtid: hämta jobblistan direkt så ordern syns LIVE i Uppdrag.
+          onNewJob?.call();
         }
+      });
+
+      // Tryck på notisen (appen i bakgrunden) → uppdatera jobblistan direkt så
+      // den är färsk när budet landar i appen.
+      FirebaseMessaging.onMessageOpenedApp.listen((msg) {
+        if (msg.data['type'] != 'ORDER_READY') onNewJob?.call();
       });
 
       // Token-refresh → registrera om hos backend.

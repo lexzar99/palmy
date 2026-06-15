@@ -15,7 +15,12 @@ import '../models/models.dart';
 /// Driftläge för kuriren: online/offline, tillgängliga uppdrag (polling),
 /// aktiva leveranser, accept/pickup/complete, historik och GPS-heartbeat.
 class SessionProvider with ChangeNotifier {
-  SessionProvider(this._api) : _location = LocationService(_api);
+  SessionProvider(this._api) : _location = LocationService(_api) {
+    // Låt en NY-ORDER-push trigga en omedelbar jobb-refresh (realtid). Sätts
+    // redan i konstruktorn så det funkar även när online-läget återställs via
+    // bootstrap (utan att goOnline körts). refreshJobs är guardad på _online.
+    PushService.instance.onNewJob = refreshJobs;
+  }
 
   final CourierApi _api;
   final LocationService _location;
@@ -341,6 +346,11 @@ class SessionProvider with ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    // Lossa push-kroken så en död provider inte anropas (men klobba inte en
+    // nyare providers krok om en sådan redan hunnit registrera sig).
+    if (PushService.instance.onNewJob == refreshJobs) {
+      PushService.instance.onNewJob = null;
+    }
     _stopJobsPolling();
     _location.stop();
     super.dispose();
