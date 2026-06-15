@@ -5010,7 +5010,7 @@ const safeJsonParse = (raw: string): unknown => {
   try { return JSON.parse(raw); } catch { return raw; }
 };
 
-// GET /api/admin/health/services — kollar Stripe/Twilio/APNs/Redis/DB
+// GET /api/admin/health/services — kollar Stripe/APNs/Redis/Supabase/R2/DB
 router.get('/health/services', authenticate, requireSuperAdmin, async (_req, res) => {
   const services: Record<string, { status: 'up' | 'down' | 'unconfigured'; latencyMs?: number; error?: string }> = {};
 
@@ -5042,11 +5042,6 @@ router.get('/health/services', authenticate, requireSuperAdmin, async (_req, res
   services.stripeWebhook = process.env.STRIPE_WEBHOOK_SECRET && process.env.STRIPE_WEBHOOK_SECRET.startsWith('whsec_')
     ? { status: 'up' }
     : { status: 'unconfigured', error: 'STRIPE_WEBHOOK_SECRET saknas eller är placeholder' };
-
-  // Twilio
-  services.twilio = (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
-    ? { status: 'up' }
-    : { status: 'unconfigured' };
 
   // APNs
   services.apns = (process.env.APNS_KEY_ID && process.env.APNS_TEAM_ID && process.env.APNS_BUNDLE_ID && process.env.APNS_KEY_P8)
