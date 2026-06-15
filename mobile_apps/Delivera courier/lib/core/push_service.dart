@@ -92,7 +92,24 @@ class PushService {
   Future<void> _syncToken() async {
     if (!_firebaseOk) return;
     try {
-      final token = await FirebaseMessaging.instance.getToken();
+      final messaging = FirebaseMessaging.instance;
+      // iOS: getToken() ger NULL om APNs-token inte hunnit bli klar (den kommer
+      // asynkront efter registerForRemoteNotifications). Vänta in den först,
+      // annars registreras aldrig FCM-token → ingen push. Upp till ~10s.
+      if (Platform.isIOS) {
+        var apns = await messaging.getAPNSToken();
+        var tries = 0;
+        while (apns == null && tries < 10) {
+          await Future.delayed(const Duration(seconds: 1));
+          apns = await messaging.getAPNSToken();
+          tries++;
+        }
+        if (apns == null) {
+          debugPrint('[push] APNs-token aldrig klar — hoppar getToken (försöker igen senare)');
+          return;
+        }
+      }
+      final token = await messaging.getToken();
       if (token != null && token != _lastToken) {
         _lastToken = token;
         await _register(token);
