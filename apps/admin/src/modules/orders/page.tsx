@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, Plus, ReceiptText, RefreshCw, Search, SlidersHorizontal, Trash2, UserRound } from "lucide-react";
 import { bulkRefundOrders, deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
@@ -631,6 +631,94 @@ export function OrderDetailsModal({
   );
 }
 
+const LIVE_STATUSES = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"];
+
+type OrderRowProps = {
+  order: AdminOrder;
+  isSelected: boolean;
+  nowMs: number;
+  onOpen: (id: string) => void;
+  onToggleSelect: (id: string, checked: boolean) => void;
+  onOpenCustomer: (userId: string) => void;
+};
+
+// Memo-iserad orderrad. Vid 70 ordrar var listan trög för att VARJE rad
+// renderades om dels på 30s-ticken (nowMs), dels vid varje markering. Nu:
+// • slutförda rader hoppar over nowMs-ticken (tid-i-status visas bara live),
+// • bara den togglade raden renderas om vid markering (stabila callbacks).
+function OrderRowBase({ order, isSelected, nowMs, onOpen, onToggleSelect, onOpenCustomer }: OrderRowProps) {
+  const isLive = LIVE_STATUSES.includes(order.status);
+  const tis = isLive ? formatTimeInStatus(order, nowMs) : null;
+  const ctxBadge = customerContextBadge(order.customerStats);
+  const isRefundable = !order.refundedAt && Boolean(order.stripePaymentIntentId) && order.stripePaymentIntentId !== "TEST_PAYMENT" && order.stripePaymentIntentId !== "FREE_PROMO";
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(order.id)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(order.id); } }}
+      className="surface-muted flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
+    >
+      {/* Checkbox — bara för återbetalningsbara ordrar */}
+      {isRefundable ? (
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => { e.stopPropagation(); onToggleSelect(order.id, e.target.checked); }}
+          className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent-strong)]"
+          aria-label={`Välj order ${order.orderNumber}`}
+        />
+      ) : (
+        <span className="inline-block h-4 w-4 shrink-0" aria-hidden />
+      )}
+
+      <div className="min-w-0 flex-1">
+        {/* Rad 1: ordernr · status · (tid om live) · risk-flagga · restaurang */}
+        <div className="flex items-center gap-2">
+          <span className="text-[15px] font-bold tracking-[-0.01em] text-[var(--text-primary)]">{order.orderNumber}</span>
+          <Badge tone={orderStatusTone(order.status) as "success" | "danger" | "warning" | "info" | "neutral"}>{orderStatusLabel(order.status)}</Badge>
+          {isLive && tis && <Badge tone={tis.tone}>{tis.label}</Badge>}
+          {ctxBadge && (ctxBadge.tone === "danger" || ctxBadge.tone === "warning") ? <Badge tone={ctxBadge.tone}>{ctxBadge.label}</Badge> : null}
+          {order.restaurantName ? <span className="truncate text-[13px] text-[var(--text-muted)]">{order.restaurantName}</span> : null}
+        </div>
+        {/* Rad 2: kund + antal artiklar (resten i modalen) */}
+        <div className="mt-1 flex items-center gap-1.5 text-[13px] text-[var(--text-secondary)]">
+          {order.userId ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onOpenCustomer(order.userId!); }}
+              className="truncate font-medium transition-colors hover:text-[var(--accent-strong)]"
+            >
+              {order.customerName}
+            </button>
+          ) : (
+            <span className="truncate font-medium">{order.customerName}</span>
+          )}
+          <span className="shrink-0 text-[var(--text-muted)]">· {order.items.length} art.</span>
+        </div>
+      </div>
+
+      {/* Höger: total + tidpunkt */}
+      <div className="flex shrink-0 flex-col items-end gap-0.5">
+        <span className="text-[15px] font-bold text-[var(--text-primary)] tabular-nums">{formatCurrency(order.total)}</span>
+        <span className="text-[12px] text-[var(--text-muted)]">{formatDateTime(order.createdAt)}</span>
+      </div>
+    </div>
+  );
+}
+
+const OrderRow = memo(OrderRowBase, (a, b) =>
+  a.order === b.order &&
+  a.isSelected === b.isSelected &&
+  a.onOpen === b.onOpen &&
+  a.onToggleSelect === b.onToggleSelect &&
+  a.onOpenCustomer === b.onOpenCustomer &&
+  // nowMs påverkar bara live-ordrar (tid-i-status-badgen) → slutförda rader
+  // behöver inte renderas om vid varje 30s-tick.
+  (LIVE_STATUSES.includes(a.order.status) ? a.nowMs === b.nowMs : true),
+);
+
 export function OrdersPage() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<(typeof statusOptions)[number]>("ALL");
@@ -683,6 +771,17 @@ export function OrdersPage() {
   });
 
   const totalPages = orders.data ? Math.max(1, Math.ceil(orders.data.total / ORDERS_PAGE_SIZE)) : 1;
+
+  // Stabila callbacks → OrderRow-memon kan hoppa över re-renders.
+  const openOrder = useCallback((id: string) => setActiveOrderId(id), []);
+  const openCustomer = useCallback((userId: string) => setActiveCustomerId(userId), []);
+  const toggleSelect = useCallback((id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  }, []);
 
   const filteredOrders = useMemo(() => {
     const list = orders.data?.orders || [];
@@ -772,76 +871,17 @@ export function OrdersPage() {
         ) : (
           <>
           <div className="mt-6 grid gap-3">
-            {filteredOrders.map((order) => {
-              const isSelected = selectedIds.has(order.id);
-              const tis = formatTimeInStatus(order, nowMs);
-              const ctxBadge = customerContextBadge(order.customerStats);
-              const isRefundable = !order.refundedAt && Boolean(order.stripePaymentIntentId) && order.stripePaymentIntentId !== "TEST_PAYMENT" && order.stripePaymentIntentId !== "FREE_PROMO";
-              const isLive = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(order.status);
-              return (
-                <div
-                  key={order.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setActiveOrderId(order.id)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveOrderId(order.id); } }}
-                  className="surface-muted flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
-                >
-                  {/* Checkbox — bara för återbetalningsbara ordrar */}
-                  {isRefundable ? (
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        setSelectedIds((prev) => {
-                          const next = new Set(prev);
-                          if (e.target.checked) next.add(order.id); else next.delete(order.id);
-                          return next;
-                        });
-                      }}
-                      className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent-strong)]"
-                      aria-label={`Välj order ${order.orderNumber}`}
-                    />
-                  ) : (
-                    <span className="inline-block h-4 w-4 shrink-0" aria-hidden />
-                  )}
-
-                  <div className="min-w-0 flex-1">
-                    {/* Rad 1: ordernr · status · (tid om live) · risk-flagga · restaurang */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-[15px] font-bold tracking-[-0.01em] text-[var(--text-primary)]">{order.orderNumber}</span>
-                      <Badge tone={orderStatusTone(order.status) as "success" | "danger" | "warning" | "info" | "neutral"}>{orderStatusLabel(order.status)}</Badge>
-                      {isLive && <Badge tone={tis.tone}>{tis.label}</Badge>}
-                      {ctxBadge && (ctxBadge.tone === "danger" || ctxBadge.tone === "warning") ? <Badge tone={ctxBadge.tone}>{ctxBadge.label}</Badge> : null}
-                      {order.restaurantName ? <span className="truncate text-[13px] text-[var(--text-muted)]">{order.restaurantName}</span> : null}
-                    </div>
-                    {/* Rad 2: kund + antal artiklar (resten i modalen) */}
-                    <div className="mt-1 flex items-center gap-1.5 text-[13px] text-[var(--text-secondary)]">
-                      {order.userId ? (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setActiveCustomerId(order.userId!); }}
-                          className="truncate font-medium transition-colors hover:text-[var(--accent-strong)]"
-                        >
-                          {order.customerName}
-                        </button>
-                      ) : (
-                        <span className="truncate font-medium">{order.customerName}</span>
-                      )}
-                      <span className="shrink-0 text-[var(--text-muted)]">· {order.items.length} art.</span>
-                    </div>
-                  </div>
-
-                  {/* Höger: total + tidpunkt */}
-                  <div className="flex shrink-0 flex-col items-end gap-0.5">
-                    <span className="text-[15px] font-bold text-[var(--text-primary)] tabular-nums">{formatCurrency(order.total)}</span>
-                    <span className="text-[12px] text-[var(--text-muted)]">{formatDateTime(order.createdAt)}</span>
-                  </div>
-                </div>
-              );
-            })}
+            {filteredOrders.map((order) => (
+              <OrderRow
+                key={order.id}
+                order={order}
+                isSelected={selectedIds.has(order.id)}
+                nowMs={nowMs}
+                onOpen={openOrder}
+                onToggleSelect={toggleSelect}
+                onOpenCustomer={openCustomer}
+              />
+            ))}
           </div>
 
           {/* Pagination — bara om mer än en sida */}
