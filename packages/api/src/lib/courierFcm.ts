@@ -166,6 +166,49 @@ async function sendToToken(accessToken: string, fcmToken: string, payload: Couri
   }
 }
 
+/**
+ * Diagnostik-sändning till EN kurir som returnerar EXAKT var/varför det
+ * failar (config / OAuth / FCM-svaret). Driver "Skicka testnotis" så felet
+ * blir synligt i appen istället för ett tyst sent=0.
+ */
+export async function sendTestFcm(courierId: string): Promise<{ ok: boolean; stage: string; status?: number; detail?: string }> {
+  if (!SA) return { ok: false, stage: 'config', detail: 'FCM_SERVICE_ACCOUNT_JSON saknas/ogiltig på servern' };
+  const c = await prisma.courier.findUnique({ where: { id: courierId }, select: { fcmToken: true } });
+  if (!c?.fcmToken) return { ok: false, stage: 'token', detail: 'Ingen FCM-token registrerad' };
+
+  const accessToken = await getAccessToken();
+  if (!accessToken) return { ok: false, stage: 'oauth', detail: 'Kunde inte hämta OAuth-token (kontrollera service-account private_key)' };
+
+  const message = {
+    message: {
+      token: c.fcmToken,
+      notification: { title: 'Testnotis 🔔', body: 'Push fungerar — du får notiser om nya ordrar.' },
+      data: { type: 'TEST' },
+      android: { priority: 'high', notification: { channel_id: 'new_order', sound: 'new_order', default_sound: false } },
+      apns: {
+        headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
+        payload: { aps: { alert: { title: 'Testnotis 🔔', body: 'Push fungerar — du får notiser om nya ordrar.' }, sound: 'new_order.caf' } },
+      },
+    },
+  };
+  try {
+    const res = await fetch(`https://fcm.googleapis.com/v1/projects/${SA.project_id}/messages:send`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(message),
+    });
+    if (res.ok) return { ok: true, stage: 'sent', status: res.status };
+    const body = await res.text().catch(() => '');
+    // 404 UNREGISTERED → token död.
+    if (res.status === 404 || res.status === 400) {
+      await prisma.courier.update({ where: { id: courierId }, data: { fcmToken: null } }).catch(() => null);
+    }
+    return { ok: false, stage: 'fcm', status: res.status, detail: body.slice(0, 300) };
+  } catch (e) {
+    return { ok: false, stage: 'fcm', detail: (e as Error)?.message };
+  }
+}
+
 /** Skicka native push till en uppsättning kurirer. Fire-and-forget. */
 export async function sendCourierFcm(courierIds: string[], payload: CourierPushPayload): Promise<number> {
   if (!SA || courierIds.length === 0) return 0;

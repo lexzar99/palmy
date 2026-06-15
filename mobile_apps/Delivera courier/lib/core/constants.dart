@@ -20,8 +20,9 @@ class Constants {
   /// Max antal samtidiga aktiva leveranser (matchar backend MAX_ACTIVE).
   static const int maxActive = 3;
 
-  /// Polling-intervall för tillgängliga uppdrag.
-  static const Duration jobsPollInterval = Duration(seconds: 15);
+  /// Polling-intervall för tillgängliga uppdrag. 10s = snabbare fallback för
+  /// in-app "klar för hämtning"-bannern; FCM-pushen är den primära (omedelbara).
+  static const Duration jobsPollInterval = Duration(seconds: 10);
 
   /// GPS-heartbeat-intervall när kuriren är online.
   static const Duration locationHeartbeat = Duration(seconds: 10);

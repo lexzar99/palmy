@@ -499,14 +499,22 @@ class _PushDiagnosticCardState extends State<_PushDiagnosticCard> {
       final r = await _api.pushTest();
       final hasToken = r['hasToken'] == true;
       final sent = (r['sent'] as num?)?.toInt() ?? 0;
+      final stage = r['stage']?.toString() ?? '';
+      final status = r['status']?.toString();
+      final detail = r['detail']?.toString();
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(
-        content: Text(!hasToken
-            ? 'Ingen token registrerad än — tryck "Registrera token igen".'
-            : sent > 0
-                ? 'Testnotis skickad — du bör se den om en sekund.'
-                : 'Token finns men sändningen misslyckades (kontrollera serverns FCM-konfig).'),
-      ));
+      String msg;
+      if (!hasToken) {
+        msg = 'Ingen token registrerad än — tryck "Registrera token igen".';
+      } else if (sent > 0) {
+        msg = 'Testnotis skickad — du bör se den om en sekund.';
+      } else {
+        // Visa exakt var det fastnade så det går att åtgärda.
+        msg = 'Sändning misslyckades (steg: $stage'
+            '${status != null && status != 'null' ? ' $status' : ''})'
+            '${detail != null && detail != 'null' ? ': $detail' : ''}';
+      }
+      messenger.showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 8)));
     } catch (_) {
       if (mounted) messenger.showSnackBar(const SnackBar(content: Text('Kunde inte skicka testnotis.')));
     } finally {
