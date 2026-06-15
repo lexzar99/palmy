@@ -167,10 +167,10 @@ export async function notifyCouriersOfNewJob(opts: {
     });
     if (couriers.length === 0) return;
     const courierIds = couriers.map((c) => c.id);
-    // Visa restaurang + ordernummer direkt, t.ex. "Ny order — Palmyra #1005".
-    const num = opts.orderNumber ? ` #${opts.orderNumber}` : '';
-    const title = `Ny order 🛵 — ${restaurant.name}`;
-    const body = `Order${num} · ny leverans i ${restaurant.city}`;
+    // Proffsigt, utan emoji + utan ordernummer: titel "Ny leverans – Lund",
+    // restaurangnamnet under.
+    const title = `Ny leverans – ${restaurant.city}`;
+    const body = restaurant.name;
 
     // Web Push (PWA) + native FCM (Flutter-app) parallellt. Båda är no-op om
     // de inte är konfigurerade — kuriren ser ordern via polling oavsett.
@@ -179,7 +179,7 @@ export async function notifyCouriersOfNewJob(opts: {
       sendCourierFcm(courierIds, {
         title,
         body,
-        data: { type: 'NEW_JOB', city: restaurant.city, orderNumber: String(opts.orderNumber ?? '') },
+        data: { type: 'NEW_JOB', city: restaurant.city },
       }),
     ]);
   } catch (e) {
@@ -207,9 +207,9 @@ export async function notifyCouriersOrderReady(opts: {
     });
     if (!restaurant || restaurant.selfDelivery || !restaurant.city) return;
 
-    const num = opts.orderNumber ? ` #${opts.orderNumber}` : '';
-    // Restaurang i titeln, ordernummer i texten, eget ljud (annan pitch).
-    const title = `Klar för upphämtning 🛍️ — ${restaurant.name}`;
+    // Proffsigt, utan emoji: "Restaurang – redo att hämtas".
+    const title = `${restaurant.name} – redo att hämtas`;
+    const body = 'Din leverans är klar för upphämtning';
     const READY_SOUND = { sound: 'ready_bell', androidChannel: 'ready_pickup' } as const;
 
     // Redan tilldelat bud (accepterat, på väg till hämtning)?
@@ -219,7 +219,6 @@ export async function notifyCouriersOrderReady(opts: {
     });
 
     if (delivery?.courierId && delivery.status === 'EN_ROUTE_PICKUP') {
-      const body = `Order${num} väntar på dig`;
       await Promise.all([
         sendToCourierIds([delivery.courierId], { title, body, tag: 'delivera-ready' }),
         sendCourierFcm([delivery.courierId], {
@@ -239,7 +238,6 @@ export async function notifyCouriersOrderReady(opts: {
     });
     if (couriers.length === 0) return;
     const ids = couriers.map((c) => c.id);
-    const body = `Order${num} klar för upphämtning i ${restaurant.city}`;
     await Promise.all([
       sendToCourierIds(ids, { title, body, tag: 'delivera-ready', url: '/' }),
       sendCourierFcm(ids, { title, body, data: { type: 'ORDER_READY', orderId: opts.orderId }, ...READY_SOUND }),

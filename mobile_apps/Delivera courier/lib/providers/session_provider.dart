@@ -201,24 +201,14 @@ class SessionProvider with ChangeNotifier {
 
   // ── Aktiva leveranser ──────────────────────────────────────────────────────
   // Leverans-id:n som redan signalerat "klar för hämtning" → bell spelas en gång.
-  final Set<String> _readyNotified = {};
-
   Future<void> refreshActive() async {
     try {
       final active = await _api.listActive();
       if (_disposed) return;
-      // Diskret bell + banner när en leverans NYSS blivit klar för hämtning
-      // (restaurangen markerade READY) och budet ännu inte hämtat den.
-      for (final a in active) {
-        if (a.readyForPickup && a.status == DeliveryStatus.enRoutePickup) {
-          if (_readyNotified.add(a.id)) {
-            Notify.readyForPickup(a.orderNumber);
-          }
-        } else {
-          // Inte längre redo/på-väg-till-hämtning → tillåt ny signal nästa gång.
-          _readyNotified.remove(a.id);
-        }
-      }
+      // OBS: vi spelar INTE längre "klar för hämtning"-signalen från pollingen —
+      // det gav en DUBBELNOTIS (FCM-pushen kom direkt, poll-notisen senare).
+      // FCM är enda källan; pollingen uppdaterar bara den visuella bannern på
+      // kortet (readyForPickup-flaggan).
       _active = active;
       notifyListeners();
     } catch (_) {}

@@ -16,7 +16,7 @@ const PROOF_PHOTO_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 
 const ACTIVE_STATUSES = ['EN_ROUTE_PICKUP', 'PICKED_UP'];
 const AVAILABLE_ORDER_STATUSES = ['ACCEPTED', 'PREPARING', 'READY'];
-const MAX_ACTIVE = 3;
+const MAX_ACTIVE = 6;
 
 interface CourierRequest extends Request {
   courier?: any;

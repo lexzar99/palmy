@@ -18,7 +18,7 @@ class Constants {
   static const String onboardingSeenKey = 'delivera_courier_onboarding_seen';
 
   /// Max antal samtidiga aktiva leveranser (matchar backend MAX_ACTIVE).
-  static const int maxActive = 3;
+  static const int maxActive = 6;
 
   /// Polling-intervall för tillgängliga uppdrag. 10s = snabbare fallback för
   /// in-app "klar för hämtning"-bannern; FCM-pushen är den primära (omedelbara).

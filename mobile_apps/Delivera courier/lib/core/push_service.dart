@@ -83,9 +83,16 @@ class PushService {
         sound: true,
       );
 
-      // Förgrunds-meddelanden: spela vårt larm + visa banner via local-notis.
+      // Förgrunds-meddelanden: rätt ljud per typ (ny order = larm + 3s-loop,
+      // redo för hämtning = diskret bell). iOS visar inte FCM-notisen i
+      // förgrunden av sig själv → vi spelar ljudet + visar banner via local-notis.
       FirebaseMessaging.onMessage.listen((msg) {
-        Notify.newJob(1);
+        final type = msg.data['type'];
+        if (type == 'ORDER_READY') {
+          Notify.readyForPickup('');
+        } else {
+          Notify.newJob(1);
+        }
       });
 
       // Token-refresh → registrera om hos backend.

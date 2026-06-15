@@ -136,7 +136,7 @@ class Notify {
 
   /// Diskret "klar för hämtning"-signal: mjukt bell + lugn banner. Helt annat
   /// ljud än ny-order-larmet — budet ska bara påminnas, inte skrämmas.
-  static Future<void> readyForPickup(String orderNumber) async {
+  static Future<void> readyForPickup([String restaurantName = '']) async {
     await ensureInit();
     try {
       // Avbryt ev. pågående 3s ny-order-loop och spela bell:en EN gång.
@@ -166,8 +166,10 @@ class Notify {
       );
       await _local.show(
         7002,
-        'Maten är klar för hämtning',
-        '#$orderNumber väntar på dig',
+        restaurantName.isNotEmpty
+            ? '$restaurantName – redo att hämtas'
+            : 'Redo att hämtas',
+        'Din leverans är klar för upphämtning',
         const NotificationDetails(android: android, iOS: ios),
       );
     } catch (e) {
