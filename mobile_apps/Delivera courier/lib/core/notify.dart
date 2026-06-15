@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -37,10 +39,13 @@ class Notify {
     }
 
     try {
+      // requestPermission: false — vi ber INTE om behörighet här (görs i
+      // onboarding + vid online via FirebaseMessaging). ensureInit kan därför
+      // köras redan i main() så kanalerna finns innan FÖRSTA stängd-app-notisen.
       const ios = DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestBadgePermission: true,
-        requestSoundPermission: true,
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
       );
       const android =
           AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -72,31 +77,61 @@ class Notify {
           playSound: true,
         ),
       );
-      await _local
-          .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin>()
-          ?.requestPermissions(alert: true, badge: true, sound: true);
-      await androidImpl?.requestNotificationsPermission();
     } catch (e) {
       debugPrint('Notify notif init: $e');
     }
   }
 
-  /// Nytt uppdrag: spela det pitchade larmet + visa en banner.
+  /// Be om notis-behörighet (Android 13+ POST_NOTIFICATIONS + iOS alert/sound).
+  /// Anropas kontextuellt (onboarding + vid online) — separat från ensureInit
+  /// så kanalerna kan skapas vid start utan att prompta för tidigt.
+  static Future<void> requestPermission() async {
+    await ensureInit();
+    try {
+      await _local
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+      await _local
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+    } catch (e) {
+      debugPrint('Notify requestPermission: $e');
+    }
+  }
+
+  static Timer? _alertStopTimer;
+  static bool _alerting = false;
+
+  /// Nytt uppdrag: spela premium-signalen PÅ LOOP i ~3 sekunder + visa banner.
   static Future<void> newJob(int count) async {
     await ensureInit();
-    _playAlert();
+    await _playRepeating();
     await _showBanner(count);
   }
 
-  static Future<void> _playAlert() async {
+  /// Spela ny-order-signalen upprepat i ~3 s. DEDUPE: kommer fler ordrar inom
+  /// fönstret startas INGEN ny överlappande uppspelning (annars ljud-kaos vid
+  /// många ordrar) — det pågående 3s-larmet täcker dem; bannern visar antalet.
+  static Future<void> _playRepeating() async {
+    if (_alerting) return; // ett 3s-larm pågår redan
+    _alerting = true;
     try {
       await _player.stop();
-      // Premium ny-order-signal (ljus stigande arpeggio).
+      await _player.setReleaseMode(ReleaseMode.loop);
       await _player.play(AssetSource('audio/new_order.wav'), volume: 1.0);
     } catch (e) {
       debugPrint('Notify play: $e');
     }
+    _alertStopTimer?.cancel();
+    _alertStopTimer = Timer(const Duration(seconds: 3), () async {
+      _alerting = false;
+      try {
+        await _player.stop();
+        await _player.setReleaseMode(ReleaseMode.stop);
+      } catch (_) {}
+    });
   }
 
   /// Diskret "klar för hämtning"-signal: mjukt bell + lugn banner. Helt annat
@@ -104,7 +139,11 @@ class Notify {
   static Future<void> readyForPickup(String orderNumber) async {
     await ensureInit();
     try {
+      // Avbryt ev. pågående 3s ny-order-loop och spela bell:en EN gång.
+      _alertStopTimer?.cancel();
+      _alerting = false;
       await _player.stop();
+      await _player.setReleaseMode(ReleaseMode.stop);
       await _player.play(AssetSource('audio/ready_bell.wav'), volume: 0.6);
     } catch (e) {
       debugPrint('Notify ready play: $e');

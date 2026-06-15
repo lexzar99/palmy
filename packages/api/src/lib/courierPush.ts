@@ -162,7 +162,7 @@ export async function notifyCouriersOfNewJob(opts: {
     if (!restaurant || restaurant.selfDelivery || !restaurant.city) return;
 
     const couriers = await prisma.courier.findMany({
-      where: { online: true, isActive: true, city: restaurant.city },
+      where: { online: true, isActive: true, city: { equals: restaurant.city, mode: 'insensitive' } },
       select: { id: true },
     });
     if (couriers.length === 0) return;
@@ -234,7 +234,7 @@ export async function notifyCouriersOrderReady(opts: {
 
     // Inget bud än → väck alla online-kurirer i staden.
     const couriers = await prisma.courier.findMany({
-      where: { online: true, isActive: true, city: restaurant.city },
+      where: { online: true, isActive: true, city: { equals: restaurant.city, mode: 'insensitive' } },
       select: { id: true },
     });
     if (couriers.length === 0) return;

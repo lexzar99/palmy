@@ -32,6 +32,8 @@ class PushService {
 
   bool _inited = false;
   bool _firebaseOk = false;
+  bool _permissionGranted = false;
+  bool _registered = false;
   CourierApi? _api;
   String? _lastToken;
 
@@ -64,7 +66,14 @@ class PushService {
       await Notify.ensureInit();
 
       final messaging = FirebaseMessaging.instance;
-      await messaging.requestPermission(alert: true, badge: true, sound: true);
+      final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
+      _permissionGranted = settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+      if (!_permissionGranted) {
+        debugPrint('[push] notis-behörighet ej beviljad: ${settings.authorizationStatus}');
+        // Avbryt inte helt — token kan fås om budet aktiverar notiser senare;
+        // resync vid resume/online försöker igen.
+      }
       // iOS: visa även i förgrunden (banner + ljud).
       await messaging.setForegroundNotificationPresentationOptions(
         alert: true,
@@ -122,9 +131,22 @@ class PushService {
   Future<void> _register(String token) async {
     try {
       await _api?.registerPush(token, _platform);
+      _registered = true;
     } catch (e) {
       debugPrint('[push] register-fel: $e');
+      // Markera som oregistrerad så resync (resume/online) försöker igen.
+      _registered = false;
+      _lastToken = null;
     }
+  }
+
+  /// Retry-krok: körs vid app-resume + varje goOnline. Om token ännu inte är
+  /// registrerad (APNs var långsam, nätfel, eller behörighet beviljades sent)
+  /// görs ett nytt försök. Billig no-op när allt redan är klart.
+  Future<void> resyncIfNeeded() async {
+    if (!_firebaseOk) return;
+    if (_registered && _lastToken != null) return;
+    await _syncToken();
   }
 
   /// Avregistrera token (vid logout). Best effort.

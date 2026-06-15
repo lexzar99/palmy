@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ import 'firebase_options.dart';
 import 'core/api_client.dart';
 import 'core/constants.dart';
 import 'core/models_api.dart';
+import 'core/notify.dart';
 import 'core/push_service.dart';
 import 'core/theme.dart';
 import 'providers/auth_provider.dart';
@@ -45,6 +47,11 @@ void main() async {
   } catch (e) {
     debugPrint('[push] Firebase-init i main misslyckades: $e');
   }
+
+  // Skapa notis-kanalerna (med custom-ljud) redan vid start — annars saknas de
+  // när en stängd-app-FCM-notis kommer in innan budet hunnit gå online, och
+  // ljudet faller tillbaka på default. Promptar INTE (behörighet sker separat).
+  unawaited(Notify.ensureInit());
 
   final client = ApiClient.instance;
   final api = CourierApi(client);

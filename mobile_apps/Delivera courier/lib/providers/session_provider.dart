@@ -316,6 +316,9 @@ class SessionProvider with ChangeNotifier {
     _startJobsPolling();
     refreshJobs();
     refreshActive();
+    // Försök registrera push-token igen om den inte hann bli klar (APNs långsam
+    // vid första online, nätfel m.m.) — annars uteblir notiser tyst.
+    unawaited(PushService.instance.resyncIfNeeded());
   }
 
   /// Nollställ allt vid utloggning (även påtvingad 401). Stoppar timers/GPS,
