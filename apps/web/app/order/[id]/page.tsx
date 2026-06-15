@@ -933,67 +933,76 @@ const OrderStatusPage = () => {
            </div>
         </div>
 
-        {/* Review Modal */}
+        {/* Recensionsmodal — på tema (platt, vit yta, sparsam guld). */}
         <AnimatePresence>
           {showReview && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center px-6 pb-8 sm:pb-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.7)" }}>
-               <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm space-y-5 rounded-2xl border p-6 sm:p-7 shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.review.title")}</h2>
-                  <button onClick={dismissReview} className="p-2 transition-colors" style={{ color: "var(--text-secondary)" }} aria-label={t("order.review.dismissAria")}><X size={20} /></button>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.6)" }} onClick={dismissReview}>
+               <motion.div initial={{ scale: 0.96, y: 24 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 24 }} transition={{ type: "spring", stiffness: 320, damping: 30 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-sm overflow-hidden rounded-3xl shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                {/* Rubrik */}
+                <div className="flex items-start justify-between gap-3 px-6 pt-6">
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.review.title")}</h2>
+                    <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>{t("order.review.prompt", { restaurant: order.restaurantName })}</p>
+                  </div>
+                  <button onClick={dismissReview} className="-mr-1.5 -mt-1.5 rounded-full p-2 transition-colors hover:bg-black/5" style={{ color: "var(--text-secondary)" }} aria-label={t("order.review.dismissAria")}><X size={18} /></button>
                 </div>
-                <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>{t("order.review.prompt", { restaurant: order.restaurantName })}</p>
-                <div className="flex items-center justify-center gap-3">
+                {/* Betyg */}
+                <div className="flex items-center justify-center gap-2.5 px-6 pt-6">
                   {[1,2,3,4,5].map(s => (
-                    <button key={s} onClick={() => setReviewRating(s)} className="transition-all active:scale-90 hover:scale-110">
-                      <Star size={34} className={s <= reviewRating ? 'text-gold-500 fill-gold-500' : ''} style={s <= reviewRating ? undefined : { color: "var(--text-secondary)", opacity: 0.35 }} />
+                    <button key={s} type="button" onClick={() => setReviewRating(s)} className="transition-transform active:scale-90 hover:scale-110" aria-label={`${s}/5`}>
+                      <Star size={36} strokeWidth={1.5} className={s <= reviewRating ? 'fill-[var(--color-gold-500)] text-[var(--color-gold-500)]' : ''} style={s <= reviewRating ? undefined : { color: "var(--line-strong)" }} />
                     </button>
                   ))}
                 </div>
-                <textarea
-                  value={reviewText}
-                  onChange={e => setReviewText(e.target.value)}
-                  placeholder={t("order.review.placeholder")}
-                  rows={3}
-                   className="w-full rounded-2xl py-4 px-5 text-sm outline-none focus:ring-2 focus:ring-gold-500/40 resize-none placeholder:text-zinc-400"
-                   style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-                />
-                {/* Lika rätter — visa beställda items som väljbara taggar.
-                    Toggleas in/ut likedItemIds. Visas på reviews-sidan som
-                    "Gillade: {namn}, {namn}". */}
-                {(order.items || []).length > 0 ? (
-                  <div className="grid gap-2">
-                    <p className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>{t("order.review.likedTitle")}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {order.items.map((item: any) => {
-                        const id = item.productId || item.id;
-                        const active = likedItemIds.includes(id);
-                        return (
-                          <button
-                            key={id}
-                            type="button"
-                            onClick={() => setLikedItemIds((current) => active ? current.filter((x) => x !== id) : [...current, id])}
-                            className="px-3 py-2 rounded-full text-[11px] font-bold transition-all"
-                            style={{
-                              backgroundColor: active ? "var(--accent-strong, #f3bf57)" : "var(--bg-deep)",
-                              color: active ? "#11151b" : "var(--text-primary)",
-                              border: "1px solid var(--border-muted)",
-                            }}
-                          >
-                            {active ? "♥ " : ""}{item.productName}
-                          </button>
-                        );
-                      })}
+                <div className="space-y-4 px-6 pt-6">
+                  <textarea
+                    value={reviewText}
+                    onChange={e => setReviewText(e.target.value)}
+                    placeholder={t("order.review.placeholder")}
+                    rows={3}
+                    className="w-full rounded-2xl py-3.5 px-4 text-sm outline-none transition-shadow focus:ring-2 focus:ring-[var(--color-gold-500)]/35 resize-none"
+                    style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                  />
+                  {/* Lika rätter — beställda items som väljbara taggar (♥). Visas på
+                      reviews-sidan som "Gillade: {namn}". Aktiv = mjuk guldyta. */}
+                  {(order.items || []).length > 0 ? (
+                    <div className="grid gap-2">
+                      <p className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>{t("order.review.likedTitle")}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {order.items.map((item: any) => {
+                          const id = item.productId || item.id;
+                          const active = likedItemIds.includes(id);
+                          return (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => setLikedItemIds((current) => active ? current.filter((x) => x !== id) : [...current, id])}
+                              className="px-3 py-2 rounded-full text-[11px] font-bold transition-all"
+                              style={{
+                                backgroundColor: active ? "var(--gold-soft)" : "var(--bg-deep)",
+                                color: active ? "var(--gold-ink)" : "var(--text-secondary)",
+                                border: `1px solid ${active ? "var(--color-gold-500)" : "var(--border-muted)"}`,
+                              }}
+                            >
+                              {active ? "♥ " : ""}{item.productName}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ) : null}
-                <button
-                  onClick={submitReview}
-                  disabled={!reviewRating || reviewSubmitting}
-                  className="w-full py-4 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-2.5"
-                >
-                  {reviewSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Star size={16} /> {t("order.review.submit")}</>}
-                </button>
+                  ) : null}
+                </div>
+                {/* Skicka */}
+                <div className="px-6 pb-6 pt-6">
+                  <button
+                    onClick={submitReview}
+                    disabled={!reviewRating || reviewSubmitting}
+                    className="w-full py-4 rounded-full font-bold text-sm active:scale-[0.98] transition-all disabled:opacity-40 disabled:active:scale-100 flex items-center justify-center gap-2.5"
+                    style={{ backgroundColor: "var(--color-gold-500)", color: "var(--text-primary)" }}
+                  >
+                    {reviewSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Star size={16} className="fill-current" /> {t("order.review.submit")}</>}
+                  </button>
+                </div>
               </motion.div>
             </motion.div>
           )}

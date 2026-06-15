@@ -3,14 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
 
+import '../core/map_tiles.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import 'courier_ui.dart';
 
-/// Inbäddad kartöversikt restaurang → kund. Samma moderna look som webben
-/// (CARTO Voyager-tiles) och samma RIKTIGA körrutt via OSRM — inte fågelvägen.
-/// Ingen API-nyckel, funkar iOS/Android/web. Statisk preview — tryck för att
-/// navigera i systemets kart-app.
+/// Inbäddad kartöversikt restaurang → kund. Interaktiv (panorera + zooma) med
+/// satellit som standard och en växel till den moderna street-vyn (CARTO
+/// Voyager). Riktig körrutt via OSRM — inte fågelvägen. Nyckelfri, iOS/Android.
 class DeliveryMap extends StatefulWidget {
   final LatLng pickup;
   final LatLng dropoff;
@@ -34,7 +34,10 @@ class DeliveryMap extends StatefulWidget {
 }
 
 class _DeliveryMapState extends State<DeliveryMap> {
+  final MapController _controller = MapController();
   List<ll.LatLng>? _route; // riktig körrutt (OSRM); null tills hämtad
+  bool _satellite = true; // satellit som standard (kan växlas)
+  bool _ready = false; // kartan klar → säkert att animera kamera
 
   bool get _hasPickup => widget.pickup.isValid;
   bool get _hasDropoff => widget.dropoff.isValid;
@@ -78,10 +81,36 @@ class _DeliveryMapState extends State<DeliveryMap> {
                   (c[1] as num).toDouble(), (c[0] as num).toDouble()))
               .toList();
         });
+        _recenter();
       }
     } catch (_) {
       // Tyst — fallback-linjen ritas ändå.
     }
+  }
+
+  List<ll.LatLng> get _ends {
+    final p = ll.LatLng(widget.pickup.lat, widget.pickup.lng);
+    final d = ll.LatLng(widget.dropoff.lat, widget.dropoff.lng);
+    return <ll.LatLng>[if (_hasPickup) p, if (_hasDropoff) d];
+  }
+
+  /// Re-centrera kameran så hela rutten (restaurang → kund) ryms igen — för
+  /// budet som zoomat/pannat bort. Använder route-punkterna om de finns.
+  void _recenter() {
+    if (!_ready) return;
+    final pts = _route ?? _ends;
+    if (pts.isEmpty) return;
+    if (pts.length == 1) {
+      _controller.move(pts.first, 15);
+      return;
+    }
+    _controller.fitCamera(
+      CameraFit.coordinates(
+        coordinates: pts,
+        padding: const EdgeInsets.all(40),
+        maxZoom: 16,
+      ),
+    );
   }
 
   @override
@@ -90,7 +119,7 @@ class _DeliveryMapState extends State<DeliveryMap> {
 
     final p = ll.LatLng(widget.pickup.lat, widget.pickup.lng);
     final d = ll.LatLng(widget.dropoff.lat, widget.dropoff.lng);
-    final ends = <ll.LatLng>[if (_hasPickup) p, if (_hasDropoff) d];
+    final ends = _ends;
     final line = _route ?? ends; // riktig rutt om hämtad, annars rak linje
     final focus = (widget.focusDropoff && _hasDropoff) ? d : (_hasPickup ? p : d);
     final navAddress = widget.focusDropoff ? widget.dropoffAddress : widget.pickupAddress;
@@ -102,6 +131,7 @@ class _DeliveryMapState extends State<DeliveryMap> {
         child: Stack(
           children: [
             FlutterMap(
+              mapController: _controller,
               options: MapOptions(
                 initialCenter: focus,
                 initialZoom: 14,
@@ -112,17 +142,38 @@ class _DeliveryMapState extends State<DeliveryMap> {
                         maxZoom: 16,
                       )
                     : null,
-                interactionOptions:
-                    const InteractionOptions(flags: InteractiveFlag.none),
+                // Interaktiv: panorera + zooma (pinch/dubbeltryck/scroll), men
+                // ingen rotation — norr hålls uppåt så rutten är lätt att läsa.
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.drag |
+                      InteractiveFlag.pinchZoom |
+                      InteractiveFlag.doubleTapZoom |
+                      InteractiveFlag.scrollWheelZoom |
+                      InteractiveFlag.flingAnimation,
+                ),
+                onMapReady: () {
+                  _ready = true;
+                  _recenter();
+                },
               ),
               children: [
-                TileLayer(
-                  // CARTO Voyager — samma moderna basemap som webb-trackingen.
-                  urlTemplate:
-                      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-                  subdomains: const ['a', 'b', 'c', 'd'],
-                  userAgentPackageName: 'se.delivera.courier',
-                ),
+                if (_satellite) ...[
+                  TileLayer(
+                    urlTemplate: MapTiles.satelliteUrl,
+                    userAgentPackageName: MapTiles.userAgent,
+                  ),
+                  // Gatu-/platsetiketter ovanpå satelliten så adresser går att läsa.
+                  TileLayer(
+                    urlTemplate: MapTiles.labelsUrl,
+                    subdomains: MapTiles.cartoSubdomains,
+                    userAgentPackageName: MapTiles.userAgent,
+                  ),
+                ] else
+                  TileLayer(
+                    urlTemplate: MapTiles.voyagerUrl,
+                    subdomains: MapTiles.cartoSubdomains,
+                    userAgentPackageName: MapTiles.userAgent,
+                  ),
                 if (line.length > 1)
                   PolylineLayer(
                     polylines: [
@@ -161,18 +212,66 @@ class _DeliveryMapState extends State<DeliveryMap> {
                 ),
               ],
             ),
-            Positioned.fill(
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(onTap: () => MapsLauncher.open(navAddress)),
+            // Lager-växel (satellit ↔ karta) uppe till höger.
+            Positioned(
+              right: 10,
+              top: 10,
+              child: _MapControlButton(
+                icon: _satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
+                tooltip: _satellite ? 'Kartvy' : 'Satellit',
+                onTap: () => setState(() => _satellite = !_satellite),
               ),
             ),
+            // Re-centrera + navigera nere till höger.
             Positioned(
               right: 10,
               bottom: 10,
-              child: _NavChip(onTap: () => MapsLauncher.open(navAddress)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _MapControlButton(
+                    icon: Icons.center_focus_strong_rounded,
+                    tooltip: 'Centrera',
+                    onTap: _recenter,
+                  ),
+                  const SizedBox(width: 8),
+                  _NavChip(onTap: () => MapsLauncher.open(navAddress)),
+                ],
+              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Rund kontrollknapp på kartan (lager-växel, centrera).
+class _MapControlButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _MapControlButton(
+      {required this.icon, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTheme.panelColor(context),
+      borderRadius: BorderRadius.circular(12),
+      elevation: 2,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Tooltip(
+          message: tooltip,
+          child: Padding(
+            padding: const EdgeInsets.all(9),
+            child: Icon(icon,
+                size: 19,
+                color:
+                    AppTheme.isDark(context) ? AppTheme.paper : AppTheme.ink),
+          ),
         ),
       ),
     );

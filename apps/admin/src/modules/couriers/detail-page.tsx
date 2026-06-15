@@ -4,11 +4,42 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Bike, Car } from "lucide-react";
-import { courierDetailQueryKey, getCourierDetail, revokeCourier } from "@/modules/couriers/api";
+import { courierDetailQueryKey, getCourierDetail, revokeCourier, type CourierDeliveryRow } from "@/modules/couriers/api";
+import { OrderDetailsModal } from "@/modules/orders/page";
 import { Badge, Button, EmptyState, ErrorPanel, LoadingPanel, MetricCard, PageHeader, Surface, Tabs } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime } from "@/shared/utils/format";
 
 type Tab = "info" | "orders" | "login" | "stats";
+
+type PeriodKey = "all" | "today" | "7d" | "30d";
+
+const PERIODS: { value: PeriodKey; label: string }[] = [
+  { value: "all", label: "Alla" },
+  { value: "today", label: "Idag" },
+  { value: "7d", label: "7 dagar" },
+  { value: "30d", label: "30 dagar" },
+];
+
+// Tidsstämpel att filtrera/sortera leveransen på: levererad om den finns, annars
+// accepterad (pågående). Returnerar ms, eller null om inget datum.
+const deliveryTime = (d: CourierDeliveryRow): number | null => {
+  const raw = d.deliveredAt ?? d.acceptedAt;
+  if (!raw) return null;
+  const t = new Date(raw).getTime();
+  return Number.isNaN(t) ? null : t;
+};
+
+// Nedre gräns (ms) för vald period. null = ingen gräns (Alla).
+const periodCutoff = (p: PeriodKey): number | null => {
+  if (p === "all") return null;
+  const now = new Date();
+  if (p === "today") {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return start.getTime();
+  }
+  const days = p === "7d" ? 7 : 30;
+  return now.getTime() - days * 864e5;
+};
 
 const fmtMin = (m: number | null | undefined) =>
   m == null ? "–" : m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)}h ${Math.round(m % 60)}m`;
@@ -32,6 +63,9 @@ export function CourierDetailPage({ id }: { id: string }) {
   const router = useRouter();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("info");
+  const [period, setPeriod] = useState<PeriodKey>("all");
+  // Vald order → öppnar order-modalen (samma som på order-sidan).
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
 
   const q = useQuery({ queryKey: courierDetailQueryKey(id), queryFn: () => getCourierDetail(id) });
   const revoke = useMutation({
@@ -45,7 +79,18 @@ export function CourierDetailPage({ id }: { id: string }) {
 
   const { profile, session, stats, deliveries } = q.data;
   const Vehicle = profile.vehicle === "CAR" ? Car : Bike;
+  // Stats-fliken visar all-time-prestanda (oberoende av period-filtret).
   const completed = deliveries.filter((d) => d.status === "DELIVERED");
+  // Order-fliken: filtrera + sortera efter vald period (senaste först).
+  const cutoff = periodCutoff(period);
+  const periodDeliveries = deliveries
+    .filter((d) => {
+      if (cutoff == null) return true;
+      const t = deliveryTime(d);
+      return t != null && t >= cutoff;
+    })
+    .sort((a, b) => (deliveryTime(b) ?? 0) - (deliveryTime(a) ?? 0));
+  const periodEarnings = periodDeliveries.reduce((s, d) => s + (d.payout || 0), 0);
 
   return (
     <div className="page-stack">
@@ -94,17 +139,45 @@ export function CourierDetailPage({ id }: { id: string }) {
 
       {tab === "orders" && (
         <Surface className="px-6 py-6">
-          {deliveries.length === 0 ? (
-            <EmptyState title="Inga leveranser än" />
+          {/* Period-filter + summering för vald period. */}
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex rounded-full border border-[var(--border-subtle)] p-1">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => setPeriod(p.value)}
+                  className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
+                    period === p.value
+                      ? "bg-[var(--text-primary)] text-[var(--bg-primary)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-sm text-[var(--text-secondary)]">
+              <span className="font-bold text-[var(--text-primary)]">{periodDeliveries.length}</span> leveranser ·{" "}
+              <span className="font-bold text-[var(--text-primary)]">{formatCurrency(periodEarnings)}</span> utbetalt
+            </p>
+          </div>
+          {periodDeliveries.length === 0 ? (
+            <EmptyState title={period === "all" ? "Inga leveranser än" : "Inga leveranser i vald period"} />
           ) : (
             <div className="table-shell">
               <table className="data-table">
                 <thead>
-                  <tr><th>Order</th><th>Restaurang</th><th>Status</th><th>Hämtning</th><th>Leverans</th><th>Utbetalt</th><th>Datum</th></tr>
+                  <tr><th>Order</th><th>Restaurang</th><th>Status</th><th>Hämtning</th><th>Leverans</th><th>Utbetalt</th><th>Datum &amp; tid</th></tr>
                 </thead>
                 <tbody>
-                  {deliveries.map((d) => (
-                    <tr key={d.id}>
+                  {periodDeliveries.map((d) => (
+                    <tr
+                      key={d.id}
+                      onClick={() => d.orderId && setActiveOrderId(d.orderId)}
+                      className={d.orderId ? "cursor-pointer transition-colors hover:bg-[var(--surface-hover,rgba(17,17,19,0.03))]" : ""}
+                      title={d.orderId ? "Öppna order" : undefined}
+                    >
                       <td className="font-bold">{d.orderNumber ? `#${d.orderNumber}` : "–"}</td>
                       <td>{d.restaurantName || "–"}</td>
                       <td><Badge tone={deliveryTone(d.status)}>{deliveryLabel(d.status)}</Badge></td>
@@ -173,7 +246,12 @@ export function CourierDetailPage({ id }: { id: string }) {
                   </thead>
                   <tbody>
                     {completed.map((d) => (
-                      <tr key={d.id}>
+                      <tr
+                        key={d.id}
+                        onClick={() => d.orderId && setActiveOrderId(d.orderId)}
+                        className={d.orderId ? "cursor-pointer transition-colors hover:bg-[var(--surface-hover,rgba(17,17,19,0.03))]" : ""}
+                        title={d.orderId ? "Öppna order" : undefined}
+                      >
                         <td className="font-bold">{d.orderNumber ? `#${d.orderNumber}` : "–"}</td>
                         <td className="tabular-nums">{fmtMin(d.pickupMin)}</td>
                         <td className="tabular-nums">{fmtMin(d.deliverMin)}</td>
@@ -187,6 +265,14 @@ export function CourierDetailPage({ id }: { id: string }) {
           </Surface>
         </>
       )}
+
+      {/* Order-modal — öppnas när man klickar på en leverans (samma modal som
+          order-sidan: status, items, kund, återbetalning m.m.). */}
+      <OrderDetailsModal
+        orderId={activeOrderId}
+        open={activeOrderId != null}
+        onClose={() => setActiveOrderId(null)}
+      />
     </div>
   );
 }

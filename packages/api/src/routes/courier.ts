@@ -621,6 +621,7 @@ adminCourierRouter.get('/:id', async (req: AuthRequest, res) => {
       },
       deliveries: deliveries.map((d) => ({
         id: d.id,
+        orderId: d.orderId,
         orderNumber: d.order?.orderNumber ?? null,
         restaurantName: d.order?.restaurant?.name ?? null,
         type: d.order?.type ?? null,

@@ -150,7 +150,7 @@ function StatusTrack({ status, isDelivery }: { status: string; isDelivery: boole
   );
 }
 
-function OrderDetailsModal({
+export function OrderDetailsModal({
   orderId,
   open,
   onClose,

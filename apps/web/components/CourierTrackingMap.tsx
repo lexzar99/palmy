@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
+import { MAP_TILES } from "@/lib/mapTiles";
 
 type LL = { lat: number; lng: number };
 
@@ -31,7 +32,7 @@ function CourierTrackingMap({ pickup, dropoff, courier }: { pickup?: LL | null; 
       LRef.current = L;
       const center = pickup ?? dropoff ?? courier ?? { lat: 55.7047, lng: 13.191 };
       const map = L.map(ref.current, { zoomControl: false, attributionControl: false }).setView([center.lat, center.lng], 14);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", { maxZoom: 20, subdomains: "abcd" }).addTo(map);
+      L.tileLayer(MAP_TILES.voyager.url, { maxZoom: MAP_TILES.voyager.maxZoom, subdomains: MAP_TILES.voyager.subdomains }).addTo(map);
       mapRef.current = map;
 
       const pinIcon = (bg: string, glyph = "") =>
@@ -78,7 +79,53 @@ function CourierTrackingMap({ pickup, dropoff, courier }: { pickup?: LL | null; 
     upsertCourier(L, map, courierMarkerRef, courier);
   }, [courier?.lat, courier?.lng]);
 
-  return <div ref={ref} style={{ height: 300, width: "100%" }} />;
+  // Re-centrera: passa in hela rutten + budet igen — för kunden som zoomat/
+  // pannat bort. Räknar bounds från aktuella props vid klick.
+  const recenter = () => {
+    const L = LRef.current;
+    const map = mapRef.current;
+    if (!L || !map) return;
+    const pts: [number, number][] = [];
+    if (pickup) pts.push([pickup.lat, pickup.lng]);
+    if (dropoff) pts.push([dropoff.lat, dropoff.lng]);
+    if (courier) pts.push([courier.lat, courier.lng]);
+    if (pts.length === 1) map.setView(pts[0], 15, { animate: true });
+    else if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.3), { animate: true });
+  };
+
+  return (
+    <div style={{ position: "relative", height: 300, width: "100%" }}>
+      <div ref={ref} style={{ height: "100%", width: "100%" }} />
+      <button
+        type="button"
+        onClick={recenter}
+        aria-label="Centrera kartan"
+        title="Centrera kartan"
+        style={{
+          position: "absolute",
+          right: 12,
+          bottom: 12,
+          zIndex: 1000,
+          width: 40,
+          height: 40,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 12,
+          border: "1px solid rgba(12,11,12,.12)",
+          background: "#fff",
+          boxShadow: "0 2px 8px rgba(0,0,0,.18)",
+          cursor: "pointer",
+          color: "#0C0B0C",
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+        </svg>
+      </button>
+    </div>
+  );
 }
 
 // Skapar budpricken en gång och flyttar den sedan (setLatLng) — försvinner aldrig.

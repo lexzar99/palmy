@@ -43,6 +43,7 @@ export interface CreateCourierPayload {
 
 export interface CourierDeliveryRow {
   id: string;
+  orderId: string | null;
   orderNumber: string | null;
   restaurantName: string | null;
   type: string | null;

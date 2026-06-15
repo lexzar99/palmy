@@ -50,9 +50,11 @@ export function loadLeaflet(): Promise<any> {
   return leafletPromise;
 }
 
-// Rena CARTO-basemaps som matchar ljust/mörkt tema (keyless).
-export const CARTO_LIGHT = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-export const CARTO_DARK = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-export const CARTO_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+// Tile-URL:erna bor numera i ETT ställe (lib/mapTiles.ts) så hela webben byter
+// kart-tjänst på en rad. Re-exporteras här för bakåtkompatibilitet.
+import { MAP_TILES, CARTO_ATTRIBUTION as ATTR, DEFAULT_MAP_CENTER as CENTER } from "./mapTiles";
 
-export const DEFAULT_MAP_CENTER = { lat: 55.7047, lng: 13.1910 };
+export const CARTO_LIGHT = MAP_TILES.light.url;
+export const CARTO_DARK = MAP_TILES.dark.url;
+export const CARTO_ATTRIBUTION = ATTR;
+export const DEFAULT_MAP_CENTER = CENTER;
