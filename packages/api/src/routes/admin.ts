@@ -726,7 +726,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     const existing = await prisma.order.findUnique({
       where: { id: req.params.id },
-      select: { id: true, restaurantId: true, userId: true, customerPhone: true, type: true, liveActivityToken: true },
+      select: { id: true, status: true, restaurantId: true, userId: true, customerPhone: true, type: true, liveActivityToken: true },
     });
 
     if (!existing) {
@@ -792,11 +792,14 @@ router.patch('/orders/:id/status', async (req, res) => {
     // även med stängd flik. Best effort, blockar aldrig.
     void sendOrderStatusPush(order.id, customerStatus);
 
-    // Ny tillgänglig order → web-push till online-kurirer i restaurangens stad
-    // så de notifieras ÄVEN med appen helt stängd. Endast vi-levererar (self-
-    // leverans gate:as bort inne i helpern). Fire-and-forget — får aldrig
-    // blocka admin-svaret.
-    if (status === 'ACCEPTED') {
+    // Ny tillgänglig order → push till online-kurirer i restaurangens stad så de
+    // notifieras (med ny-order-ljudet) ÄVEN med appen helt stängd. Triggas vid
+    // PREPARING: det är där restaurangen FAKTISKT accepterar i Flutter-appen
+    // (den hoppar över ACCEPTED). Vi tar även ACCEPTED för ev. andra flöden.
+    // Endast vi-levererar + DELIVERY (gate:as i helpern). Fire-and-forget.
+    // Bara vid FÖRSTA accepten (från PENDING) så ACCEPTED→PREPARING inte
+    // dubbel-notifierar.
+    if ((status === 'PREPARING' || status === 'ACCEPTED') && existing.status === 'PENDING') {
       void notifyCouriersOfNewJob({
         restaurantId: existing.restaurantId,
         orderType: existing.type,

@@ -189,9 +189,33 @@ router.get('/jobs', requireCourier, async (req: CourierRequest, res) => {
       },
       include: { restaurant: true, items: true },
       orderBy: { createdAt: 'asc' },
-      take: 20,
+      take: 40,
     });
-    res.json(orders.map((o) => jobFromOrder(o, courier.ratePerKm)));
+
+    // Sortera uppdragen på BÅDE pris och närhet: bäst betalda + närmaste
+    // hämtning först. Poäng = (ersättning + dricks) − straff·(avstånd från
+    // kurirens nuvarande position till restaurangen). Saknas kurir-position
+    // faller vi tillbaka på högsta ersättning. Närhet bryter jämna pris-lägen.
+    const DISTANCE_PENALTY_PER_KM = 6; // kr/km — balanserar ~typiska ersättningar
+    const here = (typeof courier.currentLat === 'number' && typeof courier.currentLng === 'number')
+      ? { lat: courier.currentLat as number, lng: courier.currentLng as number }
+      : null;
+    const scored = orders.map((o) => {
+      const job = jobFromOrder(o, courier.ratePerKm);
+      const r = o.restaurant as any;
+      const pickupDistKm = (here && r?.latitude != null && r?.longitude != null)
+        ? Math.round(haversineKm(here.lat, here.lng, r.latitude, r.longitude) * 10) / 10
+        : null;
+      const value = (job.payout ?? 0) + (job.tip ?? 0);
+      const score = pickupDistKm != null ? value - DISTANCE_PENALTY_PER_KM * pickupDistKm : value;
+      return { job: { ...job, pickupDistanceKm: pickupDistKm }, score, value, dist: pickupDistKm ?? Infinity };
+    });
+    scored.sort((a, b) =>
+      b.score - a.score || // bäst poäng (pris vägt mot avstånd) först
+      a.dist - b.dist || // sen närmast
+      b.value - a.value, // sen dyrast
+    );
+    res.json(scored.map((s) => s.job).slice(0, 20));
   } catch (e) {
     console.error('Courier jobs error:', e);
     res.status(500).json({ error: 'Kunde inte hämta uppdrag' });
@@ -239,7 +263,8 @@ router.post('/jobs/:orderId/accept', requireCourier, async (req: CourierRequest,
       include: { restaurant: true, items: true, delivery: true },
     });
     if (!order || order.delivery || !AVAILABLE_ORDER_STATUSES.includes(order.status) || order.restaurant?.selfDelivery) {
-      return res.status(409).json({ error: 'Ordern är inte längre tillgänglig' });
+      // En annan kurir hann acceptera (eller ordern drogs tillbaka).
+      return res.status(409).json({ error: 'En annan kurir tog ordern', code: 'TAKEN' });
     }
     const distanceKm = distanceKmOf(order.restaurant, order);
     const payOre = Math.round(distanceKm * courier.ratePerKm);
@@ -258,7 +283,9 @@ router.post('/jobs/:orderId/accept', requireCourier, async (req: CourierRequest,
     });
     res.json(activeFromDelivery(delivery));
   } catch (e: any) {
-    if (e?.code === 'P2002') return res.status(409).json({ error: 'Ordern togs precis av någon annan' });
+    // DB-race: Delivery.orderId är unik → bara EN kurir kan skapa leveransen.
+    // Den som hann först (bäst connection) vinner; resten får TAKEN.
+    if (e?.code === 'P2002') return res.status(409).json({ error: 'En annan kurir tog ordern', code: 'TAKEN' });
     console.error('Courier accept error:', e);
     res.status(500).json({ error: 'Kunde inte acceptera ordern' });
   }
