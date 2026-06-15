@@ -127,13 +127,32 @@ async function sendToCourierIds(courierIds: string[], payload: PushPayload): Pro
  * inte är konfigurerad. Fire-and-forget från anroparen — får aldrig blocka
  * order-flödet.
  */
+// Dedup: en order ska bara ge EN ny-order-notis även om status sätts till både
+// ACCEPTED och PREPARING. Minne räcker (notisen är tidskänslig, inte kritisk).
+const newJobNotified = new Map<string, number>();
+const NEW_JOB_DEDUP_MS = 90_000;
+
 export async function notifyCouriersOfNewJob(opts: {
+  orderId?: string | null;
   restaurantId: string | null | undefined;
   orderType: string | null | undefined;
   orderNumber?: string | null;
 }): Promise<void> {
   try {
     if (!opts.restaurantId || opts.orderType !== 'DELIVERY') return;
+
+    // Dedup per order (90s) — hindrar dubbel-notis vid ACCEPTED→PREPARING.
+    const key = opts.orderId || opts.orderNumber;
+    if (key) {
+      const now = Date.now();
+      const last = newJobNotified.get(key);
+      if (last && now - last < NEW_JOB_DEDUP_MS) return;
+      newJobNotified.set(key, now);
+      // Lätt städning så mappen inte växer obegränsat.
+      if (newJobNotified.size > 500) {
+        for (const [k, t] of newJobNotified) if (now - t > NEW_JOB_DEDUP_MS) newJobNotified.delete(k);
+      }
+    }
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: opts.restaurantId },
@@ -148,8 +167,10 @@ export async function notifyCouriersOfNewJob(opts: {
     });
     if (couriers.length === 0) return;
     const courierIds = couriers.map((c) => c.id);
-    const title = 'Ny order 🛵';
-    const body = `${restaurant.name} — ny leverans i ${restaurant.city}`;
+    // Visa restaurang + ordernummer direkt, t.ex. "Ny order — Palmyra #1005".
+    const num = opts.orderNumber ? ` #${opts.orderNumber}` : '';
+    const title = `Ny order 🛵 — ${restaurant.name}`;
+    const body = `Order${num} · ny leverans i ${restaurant.city}`;
 
     // Web Push (PWA) + native FCM (Flutter-app) parallellt. Båda är no-op om
     // de inte är konfigurerade — kuriren ser ordern via polling oavsett.
@@ -186,8 +207,10 @@ export async function notifyCouriersOrderReady(opts: {
     });
     if (!restaurant || restaurant.selfDelivery || !restaurant.city) return;
 
-    const num = opts.orderNumber ? `#${opts.orderNumber} — ` : '';
-    const title = 'Maten är klar för hämtning 🛍️';
+    const num = opts.orderNumber ? ` #${opts.orderNumber}` : '';
+    // Restaurang i titeln, ordernummer i texten, eget ljud (annan pitch).
+    const title = `Klar för upphämtning 🛍️ — ${restaurant.name}`;
+    const READY_SOUND = { sound: 'ready_bell', androidChannel: 'ready_pickup' } as const;
 
     // Redan tilldelat bud (accepterat, på väg till hämtning)?
     const delivery = await prisma.delivery.findUnique({
@@ -196,13 +219,14 @@ export async function notifyCouriersOrderReady(opts: {
     });
 
     if (delivery?.courierId && delivery.status === 'EN_ROUTE_PICKUP') {
-      const body = `${num}${restaurant.name} — maten väntar på dig`;
+      const body = `Order${num} väntar på dig`;
       await Promise.all([
         sendToCourierIds([delivery.courierId], { title, body, tag: 'delivera-ready' }),
         sendCourierFcm([delivery.courierId], {
           title,
           body,
           data: { type: 'ORDER_READY', orderId: opts.orderId },
+          ...READY_SOUND,
         }),
       ]);
       return;
@@ -215,10 +239,10 @@ export async function notifyCouriersOrderReady(opts: {
     });
     if (couriers.length === 0) return;
     const ids = couriers.map((c) => c.id);
-    const body = `${num}${restaurant.name} — klar för upphämtning i ${restaurant.city}`;
+    const body = `Order${num} klar för upphämtning i ${restaurant.city}`;
     await Promise.all([
       sendToCourierIds(ids, { title, body, tag: 'delivera-ready', url: '/' }),
-      sendCourierFcm(ids, { title, body, data: { type: 'ORDER_READY', orderId: opts.orderId } }),
+      sendCourierFcm(ids, { title, body, data: { type: 'ORDER_READY', orderId: opts.orderId }, ...READY_SOUND }),
     ]);
   } catch (e) {
     console.warn('[courierPush] notifyCouriersOrderReady fel:', (e as Error)?.message);

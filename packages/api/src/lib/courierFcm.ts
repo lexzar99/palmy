@@ -111,10 +111,16 @@ export interface CourierPushPayload {
   body: string;
   /** Extra data som appen kan agera på (t.ex. { type: 'NEW_JOB', orderId }). */
   data?: Record<string, string>;
+  /** Ljud-basnamn: 'new_order' (default) eller 'ready_bell'. iOS lägger på .caf. */
+  sound?: string;
+  /** Android-notiskanal: 'new_order' (default) eller 'ready_pickup'. */
+  androidChannel?: string;
 }
 
 async function sendToToken(accessToken: string, fcmToken: string, payload: CourierPushPayload): Promise<'ok' | 'dead' | 'error'> {
   if (!SA) return 'error';
+  const sound = payload.sound || 'new_order';
+  const channel = payload.androidChannel || 'new_order';
   const message = {
     message: {
       token: fcmToken,
@@ -123,17 +129,20 @@ async function sendToToken(accessToken: string, fcmToken: string, payload: Couri
       android: {
         priority: 'high',
         notification: {
-          channel_id: 'new_order',
-          sound: 'new_order',
+          channel_id: channel,
+          sound,
           default_sound: false,
         },
       },
       apns: {
-        headers: { 'apns-priority': '10' },
+        // apns-push-type: alert + priority 10 = visa DIREKT. INGEN
+        // content-available (det gjorde notisen till en tyst bakgrunds-push
+        // som iOS strypte/fördröjde — orsaken till delayen).
+        headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
         payload: {
           aps: {
-            sound: 'new_order.caf',
-            'content-available': 1,
+            alert: { title: payload.title, body: payload.body },
+            sound: `${sound}.caf`,
           },
         },
       },

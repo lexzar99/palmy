@@ -797,10 +797,12 @@ router.patch('/orders/:id/status', async (req, res) => {
     // PREPARING: det är där restaurangen FAKTISKT accepterar i Flutter-appen
     // (den hoppar över ACCEPTED). Vi tar även ACCEPTED för ev. andra flöden.
     // Endast vi-levererar + DELIVERY (gate:as i helpern). Fire-and-forget.
-    // Bara vid FÖRSTA accepten (från PENDING) så ACCEPTED→PREPARING inte
-    // dubbel-notifierar.
-    if ((status === 'PREPARING' || status === 'ACCEPTED') && existing.status === 'PENDING') {
+    // Triggas vid PREPARING (Flutter-appen accepterar dit) ELLER ACCEPTED.
+    // Dubbel-notis vid ACCEPTED→PREPARING hindras av dedup INNE i helpern (90s),
+    // så vi behöver ingen strikt PENDING-guard som riskerade att blocka helt.
+    if (status === 'PREPARING' || status === 'ACCEPTED') {
       void notifyCouriersOfNewJob({
+        orderId: order.id,
         restaurantId: existing.restaurantId,
         orderType: existing.type,
         orderNumber: order.orderNumber,
