@@ -48,7 +48,11 @@ class PushService {
     _inited = true;
 
     try {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      // Firebase initieras redan i main(); init bara om det inte gjorts (annars
+      // kastar Firebase.initializeApp [core/duplicate-app]).
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      }
       _firebaseOk = true;
     } catch (e) {
       debugPrint('[push] Firebase ej konfigurerat — native push inaktiv: $e');

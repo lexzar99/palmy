@@ -7,8 +7,10 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
+import 'firebase_options.dart';
 import 'core/api_client.dart';
 import 'core/constants.dart';
 import 'core/models_api.dart';
@@ -34,13 +36,14 @@ void main() async {
   Intl.defaultLocale = 'sv_SE';
   await initializeDateFormatting('sv_SE', null);
 
-  // Registrera bakgrunds-push-handlern (krävs innan runApp). Guardad — gör
-  // ingenting om Firebase saknar config. Måste sättas tidigt så killad-app-
-  // notiser kan väcka isolatet.
+  // Initiera Firebase TIDIGT (innan bakgrunds-push-handlern registreras —
+  // annars kraschar onBackgroundMessage på iOS för att default-appen saknas).
+  // Guardat: utan config kör appen vidare utan push.
   try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   } catch (e) {
-    debugPrint('[push] kunde inte sätta bakgrundshandler: $e');
+    debugPrint('[push] Firebase-init i main misslyckades: $e');
   }
 
   final client = ApiClient.instance;

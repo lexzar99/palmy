@@ -21,6 +21,14 @@ android {
     // Firebase + flera native-paket kräver minst 27.x
     ndkVersion = "27.0.12077973"
 
+    // Lint kraschar i :android_id:lintVitalAnalyzeRelease (UnsatisfiedLinkError i
+    // AWT/headless-miljö) och blockerar release-APK:n. Vi behöver inte lint för
+    // att bygga en installerbar APK → stäng av den för release-bygget.
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
