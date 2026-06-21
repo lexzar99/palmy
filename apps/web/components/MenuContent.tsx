@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef, type ReactNode } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus } from "lucide-react";
+import { Search, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, Utensils } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import dynamic from "next/dynamic";
 import FloatingCartButton from "@/components/FloatingCartButton";
@@ -152,6 +152,7 @@ function CompactCard({ product, onClick, disabled }: { product: any; onClick: ()
   const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
   const hasImage = Boolean(product.imageUrl) && !imgFailed;
+  const showDescription = Boolean(product.description) && !product.hideDescription;
   const discountPct = original != null && original > final ? Math.round((1 - final / original) * 100) : 0;
   return (
     <button
@@ -162,8 +163,12 @@ function CompactCard({ product, onClick, disabled }: { product: any; onClick: ()
       className={`group relative w-full text-left flex flex-col rounded-xl overflow-hidden transition-opacity ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:opacity-70 cursor-pointer"}`}
       style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
     >
-      {hasImage ? (
-        <div className="relative w-full aspect-[4/3] overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+      {/* Bild-yta — ALLTID samma kvadratiska höjd. Riktig bild om den laddar,
+          annars en ren neutral platta med en dämpad bestick-ikon → alla kort
+          får exakt samma höjd, 2-up jämnt. Flytande plus + rabatt-badge ligger
+          alltid på bild-ytan (oavsett bild eller platta). */}
+      <div className="relative w-full aspect-square overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+        {hasImage ? (
           <Image
             src={product.imageUrl}
             alt={product.name}
@@ -172,52 +177,40 @@ function CompactCard({ product, onClick, disabled }: { product: any; onClick: ()
             className="object-cover"
             onError={() => setImgFailed(true)}
           />
-          <span
-            aria-hidden="true"
-            className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full grid place-items-center"
-            style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--line-strong)", boxShadow: "0 1px 4px rgba(20,20,22,0.12)" }}
-          >
-            <Plus size={15} strokeWidth={2.2} />
+        ) : (
+          <div className="absolute inset-0 grid place-items-center">
+            <Utensils size={26} strokeWidth={1.6} style={{ color: "var(--text-secondary)", opacity: 0.45 }} />
+          </div>
+        )}
+        <span
+          aria-hidden="true"
+          className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full grid place-items-center"
+          style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--line-strong)", boxShadow: "0 1px 4px rgba(20,20,22,0.12)" }}
+        >
+          <Plus size={15} strokeWidth={2.2} />
+        </span>
+        {discountPct > 0 && (
+          <span className="absolute left-1.5 top-1.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
+            −{discountPct} %
           </span>
-          {discountPct > 0 && (
-            <span className="absolute left-1.5 top-1.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
-              −{discountPct} %
-            </span>
-          )}
-        </div>
-      ) : null}
+        )}
+      </div>
       <div className="flex-1 min-w-0 flex flex-col gap-1 px-3 py-2.5">
-        <div className="flex items-start gap-2">
-          <h3 className="m-0 flex-1 min-w-0 text-[14px] font-semibold leading-snug line-clamp-2" style={{ color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
-            {product.name}
-          </h3>
-          {!hasImage && (
-            <span
-              aria-hidden="true"
-              className="shrink-0 w-7 h-7 rounded-full grid place-items-center"
-              style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--line-strong)", boxShadow: "0 1px 4px rgba(20,20,22,0.12)" }}
-            >
-              <Plus size={14} strokeWidth={2.2} />
-            </span>
-          )}
-        </div>
-        {product.description && !product.hideDescription && (
-          <p className="m-0 text-[12px] leading-snug line-clamp-2" style={{ color: "var(--text-secondary)" }}>
+        <h3 className="m-0 text-[14px] font-semibold leading-snug line-clamp-1" style={{ color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
+          {product.name}
+        </h3>
+        {showDescription && (
+          <p className="m-0 text-[11.5px] leading-tight line-clamp-2" style={{ color: "var(--text-secondary)" }}>
             {product.description}
           </p>
         )}
-        <div className="mt-auto flex items-center gap-2 flex-wrap">
+        <div className="mt-auto flex items-center gap-2 flex-wrap pt-0.5">
           <span className="text-[14px] font-semibold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
             {final} kr
           </span>
           {original != null && original !== final && (
             <span className="text-[12.5px] line-through" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
               {original} kr
-            </span>
-          )}
-          {!hasImage && discountPct > 0 && (
-            <span className="text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>
-              −{discountPct} %
             </span>
           )}
           <DpointsBadge priceKr={final} rewardable={!!product.rewardable} />

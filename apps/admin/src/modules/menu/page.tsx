@@ -285,17 +285,10 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="card-label">Rabatt</p>
-            <button
-              type="button"
-              onClick={() => setForm((current) => ({ ...current, discountActive: !current.discountActive }))}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.discountActive ? toggleOnClass : toggleOffClass}`}
-            >
-              {form.discountActive ? <Check size={13} strokeWidth={3} /> : null}
-              Rabatt aktiv
-            </button>
+            <TogglePill active={form.discountActive} onClick={() => setForm((current) => ({ ...current, discountActive: !current.discountActive }))}>Rabatt aktiv</TogglePill>
           </div>
           {form.discountActive ? (
-            <div className="mt-4 grid items-end gap-4 md:grid-cols-2">
+            <div className="mt-3 grid items-end gap-4 md:grid-cols-2">
               <Field label="Rabatt %">
                 <Input
                   type="number"
@@ -320,7 +313,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             </div>
             <Button variant="secondary" onClick={() => setPromotionModalOpen(true)} disabled={!product}>{productDeal ? "Redigera produktdeal" : "Skapa produktdeal"}</Button>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {product ? (productDeal ? <Badge tone="neutral">Direkt produktdeal</Badge> : <Badge tone="neutral">Ingen produktdeal</Badge>) : <Badge tone="neutral">Spara produkten först</Badge>}
             {relatedCategoryDeals.length > 0 ? <Badge tone="neutral">{relatedCategoryDeals.length} kategorideal gäller</Badge> : null}
             {restaurantWideDeals.length > 0 ? <Badge tone="neutral">{restaurantWideDeals.length} restaurangbreda deal</Badge> : null}
@@ -416,7 +409,7 @@ function TogglePill({ active, onClick, children }: { active: boolean; onClick: (
 // ─────────────────────────────────────────────────────────────────────────
 function BulkRow({ label, enabled, onToggle, children }: { label: string; enabled: boolean; onToggle: () => void; children: ReactNode }) {
   return (
-    <div className="surface-muted px-4 py-3">
+    <div className="surface-muted px-4 py-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="card-label">{label}</p>
         <TogglePill active={enabled} onClick={onToggle}>Skriv över</TogglePill>
@@ -480,7 +473,7 @@ function BulkEditModal({ open, count, extraGroups, onClose, onApply }: { open: b
         </div>
       }
     >
-      <div className="grid gap-3">
+      <div className="grid gap-4">
         <BulkRow label="Visningsläge i menyn" enabled={on.displayMode} onToggle={() => setOn((c) => ({ ...c, displayMode: !c.displayMode }))}>
           <TogglePill active={displayMode === "FULL"} onClick={() => setDisplayMode("FULL")}>Hel bredd</TogglePill>
           <TogglePill active={displayMode === "COMPACT"} onClick={() => setDisplayMode("COMPACT")}>Halv bredd</TogglePill>
@@ -610,26 +603,29 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
         >Radera</Button>
       ) : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara"}</Button></div></div>}
     >
-      <div className="grid gap-5">
-        <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-4">
+        <div className="grid gap-4 md:grid-cols-2">
           <Field label="Namn"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
           <Field label="Typ"><Select value={type} onChange={(event) => setType(event.target.value)}><option value="CHECKBOX">Checkbox</option><option value="RADIO">Radio</option></Select></Field>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Min antal"><Input type="number" value={minSelections} onChange={(event) => setMinSelections(Number(event.target.value))} /></Field>
           <Field label="Max antal"><Input type="number" value={maxSelections} onChange={(event) => setMaxSelections(Number(event.target.value))} /></Field>
           <Field label="Visningsstil"><Select value={displayStyle} onChange={(event) => setDisplayStyle(event.target.value === "BOX_IMAGE" ? "BOX_IMAGE" : "LIST")}><option value="LIST">Lista</option><option value="BOX_IMAGE">Bildrutor</option></Select></Field>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <TogglePill active={required} onClick={() => setRequired((current) => !current)}>Obligatorisk</TogglePill>
-          <TogglePill active={allowQuantity} onClick={() => setAllowQuantity((current) => !current)}>Antal per val</TogglePill>
+        <div className="surface-muted px-4 py-4">
+          <p className="card-label">Inställningar</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <TogglePill active={required} onClick={() => setRequired((current) => !current)}>Obligatorisk</TogglePill>
+            <TogglePill active={allowQuantity} onClick={() => setAllowQuantity((current) => !current)}>Antal per val</TogglePill>
+          </div>
         </div>
 
-        <div className="grid gap-2">
-          <p className="field-label">Kategorier</p>
-          <div className="flex flex-wrap gap-2">
+        <div className="surface-muted px-4 py-4">
+          <p className="card-label">Kategorier</p>
+          <div className="mt-3 flex flex-wrap gap-2">
             {categories.map((category) => (
               <TogglePill key={category.id} active={categoryIds.includes(category.id)} onClick={() => toggleCategory(category.id)}>{category.name}</TogglePill>
             ))}
@@ -638,12 +634,12 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
 
         <div className="grid gap-2">
           <div className="flex items-center justify-between gap-3">
-            <p className="field-label">Tillval</p>
+            <p className="card-label">Tillval</p>
             <Button variant="secondary" onClick={() => setExtras((current) => [...current, { name: "", priceAddon: 0, isDefault: false, imageUrl: null }])}>Lägg till rad</Button>
           </div>
           <div className="grid gap-2">
             {extras.map((extra, index) => (
-              <div key={index} className="surface-muted grid gap-2 px-3 py-3">
+              <div key={index} className="surface-muted grid gap-2 px-4 py-4">
                 <div className="grid gap-2 md:grid-cols-[1fr_110px_130px_auto]">
                   <Input value={extra.name} onChange={(event) => updateExtra(index, "name", event.target.value)} placeholder="Namn" />
                   <Input type="number" value={extra.priceAddon} onChange={(event) => updateExtra(index, "priceAddon", Number(event.target.value))} placeholder="Pris" />
@@ -769,7 +765,7 @@ function ImportFromOtherModal({
           </Field>
         ) : null}
 
-        {error && <p className="text-sm text-rose-400">{error}</p>}
+        {error && <p className="text-sm font-semibold text-[var(--text-primary)]">{error}</p>}
 
         {sourceRestaurantId ? (
           isLoading ? (
@@ -840,7 +836,7 @@ function BulkImportButton({ restaurantId }: { restaurantId: string }) {
   const [result, setResult] = useState<MenuImportResult | null>(null);
 
   const extractError = (e: any): string =>
-    e?.response?.data?.error || e?.message || "Okänt fel — kolla nätverk eller serverloggar.";
+    e?.response?.data?.error || e?.message || "Okänt fel, kolla nätverk eller serverloggar.";
 
   const previewMutation = useMutation({ meta: { toast: false },
     mutationFn: () => menuBulkImport({ restaurantId, content, apply: false }),
@@ -923,15 +919,15 @@ function BulkImportButton({ restaurantId }: { restaurantId: string }) {
               </div>
 
               {result.dryRun ? (
-                <p className="text-xs text-[var(--text-secondary)]">Förhandsvisning — inget har skrivits. Klicka <b>Importera</b> för att köra.</p>
+                <p className="text-xs text-[var(--text-secondary)]">Förhandsvisning, inget har skrivits. Klicka <b>Importera</b> för att köra.</p>
               ) : (
-                <p className="text-xs text-emerald-400">✓ Importen är klar och menyn uppdaterad.</p>
+                <p className="text-xs font-semibold text-[var(--text-primary)]">Importen är klar och menyn uppdaterad.</p>
               )}
 
               {result.warnings.length > 0 ? (
                 <div>
-                  <p className="mb-1 text-[11px] font-black uppercase tracking-widest text-amber-400">Varningar ({result.warnings.length})</p>
-                  <div className="surface-muted max-h-40 overflow-y-auto px-3 py-2 text-xs text-amber-300">
+                  <p className="mb-1 text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">Varningar ({result.warnings.length})</p>
+                  <div className="surface-muted max-h-40 overflow-y-auto px-3 py-2 text-xs text-[var(--text-secondary)]">
                     {result.warnings.map((w, i) => <div key={i} className="border-b border-[var(--border-subtle)] py-1 last:border-0">{w}</div>)}
                   </div>
                 </div>
@@ -947,7 +943,7 @@ function BulkImportButton({ restaurantId }: { restaurantId: string }) {
               ) : null}
 
               {result.errors.length > 0 ? (
-                <div className="surface-muted px-3 py-2 text-xs text-rose-400">
+                <div className="surface-muted px-3 py-2 text-xs font-semibold text-[var(--text-primary)]">
                   {result.errors.map((er, i) => <div key={i}>{er}</div>)}
                 </div>
               ) : null}
@@ -1051,8 +1047,8 @@ function MenuSyncButton({ sourceRestaurantId, restaurants }: { sourceRestaurantI
                   </div>
                 );
               })}
-              <p className={`text-xs ${result.dryRun ? "text-[var(--text-secondary)]" : "text-emerald-400"}`}>
-                {result.dryRun ? "Förhandsvisning — inget har skrivits. Klicka Synka för att köra." : "✓ Synken är klar; platsernas menyer uppdaterade."}
+              <p className={`text-xs ${result.dryRun ? "text-[var(--text-secondary)]" : "font-semibold text-[var(--text-primary)]"}`}>
+                {result.dryRun ? "Förhandsvisning, inget har skrivits. Klicka Synka för att köra." : "Synken är klar, platsernas menyer uppdaterade."}
               </p>
             </div>
           ) : null}
@@ -1168,7 +1164,7 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
             ) : (
               <p className="text-sm text-[var(--text-secondary)]">Inga matchningar hittades.</p>
             )}
-            {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+            {error ? <p className="text-sm font-semibold text-[var(--text-primary)]">{error}</p> : null}
           </div>
         ) : null}
       </Modal>
@@ -1230,7 +1226,7 @@ function R2PathsButton({ restaurantId }: { restaurantId: string }) {
             <Loader2 size={24} className="animate-spin" />
           </div>
         ) : query.error ? (
-          <p className="text-sm text-rose-400">Kunde inte ladda mall. Försök igen.</p>
+          <p className="text-sm font-semibold text-[var(--text-primary)]">Kunde inte ladda mall. Försök igen.</p>
         ) : query.data ? (
           <div className="grid gap-4">
             <div className="surface-muted px-4 py-3 text-[11px]">
@@ -1259,7 +1255,7 @@ function R2PathsButton({ restaurantId }: { restaurantId: string }) {
             {query.data.categories.length ? (
               <div>
                 <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">
-                  Kategorier — produkter ({totalProducts})
+                  Kategorier, produkter ({totalProducts})
                 </p>
                 <div className="grid gap-3">
                   {query.data.categories.map((c) => (
@@ -1449,6 +1445,33 @@ function ProductRow({
   );
 }
 
+// Kompakt tillvalsrad — samma monokroma format som ProductRow. Namn + en liten
+// meta-rad ({n} val · typ · obligatorisk · kopplade produkter), och till höger en
+// duplicera-knapp. Hela raden (utom knappen) öppnar gruppmodalen.
+function ExtraGroupRow({ group, busy, onOpen, onDuplicate }: { group: ExtraGroupRecord; busy: boolean; onOpen: () => void; onDuplicate: () => void }) {
+  const typeLabel = group.type === "RADIO" ? "radio" : "checkbox";
+  const usage = group._count?.productGroups ?? 0;
+  const meta = [
+    `${group.extras.length} val`,
+    typeLabel,
+    group.required ? "obligatorisk" : null,
+    `${usage} kopplade`,
+  ].filter(Boolean).join(" · ");
+  return (
+    <div className="surface-muted flex w-full items-center gap-3 px-3 py-2">
+      <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 flex-col text-left">
+        <span className="truncate text-[14px] font-semibold tracking-[-0.01em]">{group.name}</span>
+        <span className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">{meta}</span>
+      </button>
+      <div className="flex shrink-0 items-center gap-1">
+        <RowIconButton label="Duplicera tillvalsgrupp" onClick={onDuplicate} disabled={busy}>
+          <Copy size={14} />
+        </RowIconButton>
+      </div>
+    </div>
+  );
+}
+
 export function MenuPage() {
   const searchParams = useSearchParams();
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
@@ -1526,10 +1549,18 @@ export function MenuPage() {
   const products = useQuery({ queryKey: menuProductsQueryKey(activeRestaurantId), queryFn: () => getProducts(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
   const groups = useQuery({ queryKey: menuGroupsQueryKey(activeRestaurantId), queryFn: () => getExtraGroups(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
 
+  // Kategorier i sin position-ordning (för omsorteringspilarna + produktsektionerna
+  // + själva listan). Sorteras lokalt på position så optimistiska omsorteringar
+  // syns direkt även innan refetch.
+  const sortedCategories = useMemo(
+    () => [...(categories.data || [])].sort((a, b) => a.position - b.position),
+    [categories.data],
+  );
+
   const filteredCategories = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
-    return (categories.data || []).filter((category) => !lowerQuery || `${category.name} ${category.description || ""}`.toLowerCase().includes(lowerQuery));
-  }, [categories.data, query]);
+    return sortedCategories.filter((category) => !lowerQuery || `${category.name} ${category.description || ""}`.toLowerCase().includes(lowerQuery));
+  }, [sortedCategories, query]);
 
   const filteredProducts = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
@@ -1540,12 +1571,6 @@ export function MenuPage() {
     const lowerQuery = query.trim().toLowerCase();
     return (groups.data || []).filter((group) => !lowerQuery || group.name.toLowerCase().includes(lowerQuery));
   }, [groups.data, query]);
-
-  // Kategorier i sin position-ordning (för omsorteringspilarna + produktsektionerna).
-  const sortedCategories = useMemo(
-    () => [...(categories.data || [])].sort((a, b) => a.position - b.position),
-    [categories.data],
-  );
 
   // Produkter grupperade per kategori, var och en internt sorterad på position.
   // Driver den kompakta sektionsvyn när man inte söker. Produkter vars kategori
@@ -1620,8 +1645,16 @@ export function MenuPage() {
     }
   };
 
-  // Flytta en produkt upp/ner inom sin kategori. Räknar fram den nya ordningen av
-  // id:n lokalt, skickar hela ordningen till backend, busta sen produkt-cachen.
+  // Flytta en produkt upp/ner inom SIN kategori.
+  //
+  // Roten till att pilarna tidigare "snappade tillbaka": nyskapade produkter får
+  // alla position 0 (backend-default), så den lokala position-sorteringen blir en
+  // no-op och den synliga ordningen styrs av API:ts categoryId-asc-fallback. Utan
+  // optimistisk uppdatering syntes inget förrän servern svarat, och då kunde de
+  // lika positionerna ge tillbaka samma ordning. Fixen: skriv om cachen direkt med
+  // nya, distinkta position-värden (index inom kategorin) så raden flyttas synligt
+  // på en gång, och skicka exakt den kategorins id-lista i ny ordning till backend.
+  // Omsorteringen stannar alltid inom kategorin — vi rör bara den kategorins ids.
   const moveProduct = async (categoryProducts: ProductRecord[], index: number, direction: -1 | 1) => {
     if (reorderBusy) return;
     const target = index + direction;
@@ -1629,18 +1662,32 @@ export function MenuPage() {
     const ordered = [...categoryProducts];
     const [moved] = ordered.splice(index, 1);
     ordered.splice(target, 0, moved);
+    const orderedIds = ordered.map((p) => p.id);
+    const newPositionById = new Map(orderedIds.map((id, position) => [id, position]));
+    const key = menuProductsQueryKey(activeRestaurantId);
+
+    // Optimistisk cache-skrivning: ge de berörda produkterna distinkta positioner
+    // efter den nya ordningen. productSections sorterar sen deterministiskt på
+    // position, så raden flyttas direkt.
+    const previous = bulkQueryClient.getQueryData<ProductRecord[]>(key);
+    bulkQueryClient.setQueryData<ProductRecord[]>(key, (current) =>
+      (current || []).map((p) => (newPositionById.has(p.id) ? { ...p, position: newPositionById.get(p.id)! } : p)),
+    );
+
     setReorderBusy(true);
     try {
-      await reorderProducts(ordered.map((p) => p.id));
-      await bulkQueryClient.invalidateQueries({ queryKey: menuProductsQueryKey(activeRestaurantId) });
+      await reorderProducts(orderedIds);
+      await bulkQueryClient.invalidateQueries({ queryKey: key });
     } catch {
+      if (previous) bulkQueryClient.setQueryData(key, previous);
       showBulkToast({ type: "error", message: "Kunde inte spara ordningen" });
     } finally {
       setReorderBusy(false);
     }
   };
 
-  // Flytta en kategori upp/ner i den globala ordningen.
+  // Flytta en kategori upp/ner i den globala ordningen. Samma optimistiska
+  // omskrivning som för produkter så pilen flyttar raden direkt.
   const moveCategory = async (orderedCategories: CategoryRecord[], index: number, direction: -1 | 1) => {
     if (reorderBusy) return;
     const target = index + direction;
@@ -1648,11 +1695,21 @@ export function MenuPage() {
     const ordered = [...orderedCategories];
     const [moved] = ordered.splice(index, 1);
     ordered.splice(target, 0, moved);
+    const orderedIds = ordered.map((c) => c.id);
+    const newPositionById = new Map(orderedIds.map((id, position) => [id, position]));
+    const key = menuCategoriesQueryKey(activeRestaurantId);
+
+    const previous = bulkQueryClient.getQueryData<CategoryRecord[]>(key);
+    bulkQueryClient.setQueryData<CategoryRecord[]>(key, (current) =>
+      (current || []).map((c) => (newPositionById.has(c.id) ? { ...c, position: newPositionById.get(c.id)! } : c)),
+    );
+
     setReorderBusy(true);
     try {
-      await reorderCategories(ordered.map((c) => c.id));
-      await bulkQueryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(activeRestaurantId) });
+      await reorderCategories(orderedIds);
+      await bulkQueryClient.invalidateQueries({ queryKey: key });
     } catch {
+      if (previous) bulkQueryClient.setQueryData(key, previous);
       showBulkToast({ type: "error", message: "Kunde inte spara ordningen" });
     } finally {
       setReorderBusy(false);
@@ -1919,30 +1976,13 @@ export function MenuPage() {
         {tab === "extras" ? (
           <div className="mt-5 grid gap-2">
             {filteredGroups.length === 0 ? <EmptyState title="Inga tillvalsgrupper hittades" /> : filteredGroups.map((group) => (
-              <div key={group.id} className="surface-muted flex w-full items-start gap-3 px-5 py-5">
-                <button type="button" onClick={() => { setActiveGroup(group); setGroupModalOpen(true); }} className="min-w-0 flex-1 text-left">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-base font-semibold tracking-[-0.01em]">{group.name}</p>
-                        <Badge tone="neutral">{group.type}</Badge>
-                        {group.required ? <Badge tone="neutral">Obligatorisk</Badge> : null}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {group.extras.map((extra, index) => <Badge key={`${group.id}-${index}`} tone="neutral">{extra.name} {extra.priceAddon ? `+ ${formatCurrency(extra.priceAddon)}` : ""}</Badge>)}
-                      </div>
-                    </div>
-                    <div className="text-right text-sm text-[var(--text-secondary)]">
-                      <div>Min {group.minSelections}</div>
-                      <div>Max {group.maxSelections}</div>
-                      <div>{group._count?.productGroups || 0} kopplade produkter</div>
-                    </div>
-                  </div>
-                </button>
-                <Button variant="secondary" disabled={reorderBusy} onClick={() => void handleDuplicateGroup(group.id)}>
-                  <Copy size={13} /> Duplicera
-                </Button>
-              </div>
+              <ExtraGroupRow
+                key={group.id}
+                group={group}
+                busy={reorderBusy}
+                onOpen={() => { setActiveGroup(group); setGroupModalOpen(true); }}
+                onDuplicate={() => void handleDuplicateGroup(group.id)}
+              />
             ))}
           </div>
         ) : null}

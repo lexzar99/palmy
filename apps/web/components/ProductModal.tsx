@@ -117,6 +117,9 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
             extraId: extra.id,
             name: extra.name,
             price: extra.priceAddon,
+            // Förvalda tillval startar på 1 så antals-steppern (allowQuantity)
+            // visar 1 direkt i stället för 0. Ofarligt för icke-antal-grupper.
+            quantity: 1,
           });
         }
       });
