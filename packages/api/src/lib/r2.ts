@@ -131,6 +131,7 @@ export type R2PathArgs =
   | { kind: 'logo'; city: string; restaurant: string; ext?: string }
   | { kind: 'category'; city: string; restaurant: string; category: string; ext?: string }
   | { kind: 'product'; city: string; restaurant: string; category: string; product: string; ext?: string }
+  | { kind: 'extra'; city: string; restaurant: string; name: string; ext?: string }
   | { kind: 'misc'; city?: string; restaurant?: string; filename: string };
 
 export function buildR2Key(args: R2PathArgs): string {
@@ -146,6 +147,8 @@ export function buildR2Key(args: R2PathArgs): string {
       return `${city}/${rest}/category/${slugifyPathSegment(args.category)}.${ext}`;
     case 'product':
       return `${city}/${rest}/menu/${slugifyPathSegment(args.category)}/${slugifyPathSegment(args.product)}.${ext}`;
+    case 'extra':
+      return `${city}/${rest}/menu/extras/${slugifyPathSegment(args.name)}.${ext}`;
     case 'misc':
       return `${city}/${rest ? `${rest}/` : ''}misc/${args.filename}`;
   }

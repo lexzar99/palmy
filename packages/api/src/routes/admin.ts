@@ -2050,6 +2050,52 @@ router.delete('/products/:id', async (req, res) => {
 // EXTRA GRUPPER (scoped by restaurantId)
 // =====================
 
+/**
+ * Synka en extra-grupps kategori-kopplingar (idempotent add/remove-toggle).
+ *
+ * En "kategori-koppling" betyder att gruppen är länkad till ALLA produkter i
+ * kategorin via ProductExtraGroup. Vi resolvar restaurangens kategorier + deras
+ * produkter och, för varje kategori:
+ *   - id i `categoryIds` (kryssad)   → createMany(skipDuplicates) på dess produkter
+ *   - id EJ i `categoryIds` (avkryssad) → deleteMany på dess produkters länkar
+ *
+ * Rör bara den scopade restaurangens kategorier. Hoppar helt över om
+ * `categoryIds` inte är en array (PATCH som utelämnar fältet ska inte radera).
+ */
+async function syncExtraGroupCategories(
+  groupId: string,
+  categoryIds: unknown,
+  restaurantId: string | null,
+): Promise<void> {
+  if (!Array.isArray(categoryIds)) return;
+  if (!restaurantId) return;
+
+  const checked = new Set<string>(categoryIds.map((id) => String(id)));
+  const categories = await prisma.category.findMany({
+    where: { restaurantId },
+    select: { id: true, products: { select: { id: true } } },
+  });
+
+  for (const cat of categories) {
+    if (checked.has(cat.id)) {
+      if (cat.products.length > 0) {
+        await prisma.productExtraGroup.createMany({
+          data: cat.products.map((p) => ({
+            productId: p.id,
+            extraGroupId: groupId,
+            position: 999,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    } else {
+      await prisma.productExtraGroup.deleteMany({
+        where: { extraGroupId: groupId, product: { categoryId: cat.id } },
+      });
+    }
+  }
+}
+
 // GET /api/admin/extra-groups
 router.get('/extra-groups', async (req, res) => {
   try {
@@ -2071,13 +2117,33 @@ router.get('/extra-groups', async (req, res) => {
         : {},
       include: {
         extras: { orderBy: { position: 'asc' } },
+        productGroups: { select: { productId: true } },
         _count: { select: { productGroups: true } },
       },
     });
-    res.json(groups.map((g) => ({
-      ...g,
-      extras: g.extras.map((e) => ({ ...e, priceAddon: e.priceAddon / 100 })),
-    })));
+
+    // En kategori räknas som "kopplad" till en grupp om VARJE produkt i
+    // kategorin (inom den scopade restaurangen) är länkad till gruppen.
+    // Hämta restaurangens kategorier + deras produkt-id en gång.
+    const scopedCategories = scopedRestaurantId
+      ? await prisma.category.findMany({
+          where: { restaurantId: scopedRestaurantId },
+          select: { id: true, products: { select: { id: true } } },
+        })
+      : [];
+
+    res.json(groups.map((g) => {
+      const linkedProductIds = new Set(g.productGroups.map((pg) => pg.productId));
+      const categoryIds = scopedCategories
+        .filter((c) => c.products.length > 0 && c.products.every((p) => linkedProductIds.has(p.id)))
+        .map((c) => c.id);
+      const { productGroups: _productGroups, ...rest } = g;
+      return {
+        ...rest,
+        categoryIds,
+        extras: g.extras.map((e) => ({ ...e, priceAddon: e.priceAddon / 100 })),
+      };
+    }));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }
@@ -2114,24 +2180,8 @@ router.post('/extra-groups', async (req, res) => {
       include: { extras: true },
     });
 
-    // Optional bulk linking: attach this group to all products in the selected categories.
-    if (Array.isArray(categoryIds) && categoryIds.length > 0) {
-      const products = await prisma.product.findMany({
-        where: { categoryId: { in: categoryIds } },
-        select: { id: true },
-      });
-
-      if (products.length > 0) {
-        await prisma.productExtraGroup.createMany({
-          data: products.map((p) => ({
-            productId: p.id,
-            extraGroupId: group.id,
-            position: 999,
-          })),
-          
-        });
-      }
-    }
+    // Synka kategori-kopplingarna (idempotent add/remove-toggle).
+    await syncExtraGroupCategories(group.id, categoryIds, scopedRestaurantId);
 
     await audit(req as AuthRequest, 'EXTRA_GROUP_CREATE', {
       resourceType: 'ExtraGroup',
@@ -2192,23 +2242,10 @@ router.patch('/extra-groups/:id', async (req, res) => {
       include: { extras: true },
     });
 
-    if (Array.isArray(categoryIds) && categoryIds.length > 0) {
-      const products = await prisma.product.findMany({
-        where: { categoryId: { in: categoryIds } },
-        select: { id: true },
-      });
-
-      if (products.length > 0) {
-        await prisma.productExtraGroup.createMany({
-          data: products.map((p) => ({
-            productId: p.id,
-            extraGroupId: group.id,
-            position: 999,
-          })),
-          
-        });
-      }
-    }
+    // Synka kategori-kopplingarna (idempotent add/remove-toggle). Om klienten
+    // helt utelämnar categoryIds (inte en array) hoppar vi över — annars skulle
+    // en partiell uppdatering radera alla länkar.
+    await syncExtraGroupCategories(group.id, categoryIds, group.restaurantId);
 
     await audit(req as AuthRequest, 'EXTRA_GROUP_UPDATE', {
       resourceType: 'ExtraGroup',

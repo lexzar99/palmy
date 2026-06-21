@@ -39,6 +39,7 @@ export interface ExtraGroupRecord {
   restaurantId?: string | null;
   displayStyle?: string;
   allowQuantity?: boolean;
+  categoryIds?: string[];
   extras: ExtraRecord[];
   _count?: { productGroups: number };
 }

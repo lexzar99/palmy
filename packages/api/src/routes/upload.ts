@@ -71,7 +71,7 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
       res.status(400).json({ error: 'Ingen fil uppladdad' });
       return;
     }
-    const kind = String(req.body.kind || 'misc') as 'hero' | 'logo' | 'category' | 'product' | 'misc';
+    const kind = String(req.body.kind || 'misc') as 'hero' | 'logo' | 'category' | 'product' | 'extra' | 'misc';
     const restaurantId = req.body.restaurantId ? String(req.body.restaurantId) : null;
     const categoryId = req.body.categoryId ? String(req.body.categoryId) : null;
     const productId = req.body.productId ? String(req.body.productId) : null;
@@ -135,6 +135,11 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
       key = buildR2Key({ kind: 'logo', city: citySlug!, restaurant: restaurantSlug! });
     } else if (kind === 'category') {
       key = buildR2Key({ kind: 'category', city: citySlug!, restaurant: restaurantSlug!, category: categorySlug! });
+    } else if (kind === 'extra') {
+      // Per-option (Extra) bild: namnet kommer via fileBaseName (extra-namnet),
+      // annars filens originalnamn. Kanonisk path → R2-matchning + template-import.
+      const extraBase = String(req.body.fileBaseName || req.file.originalname || 'extra').replace(/\.[a-z0-9]+$/i, '');
+      key = buildR2Key({ kind: 'extra', city: citySlug!, restaurant: restaurantSlug!, name: slugifyPathSegment(extraBase) || 'extra' });
     } else {
       key = buildR2Key({ kind: 'product', city: citySlug!, restaurant: restaurantSlug!, category: categorySlug!, product: productSlug! });
     }

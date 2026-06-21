@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Search, Tags, Upload } from "lucide-react";
+import { Check, Loader2, Plus, Search, Tags, Upload } from "lucide-react";
 import { dealsQueryKey, getAutomaticDeals, type AutomaticDealRecord, type DealProductRef, type DealRestaurantRef } from "@/modules/deals/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
 import {
@@ -388,6 +388,22 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
   );
 }
 
+// Enhetlig på/av-pill: aktiv = ifylld blå med bock, inaktiv = ren kontur.
+// Används för alla on/off-kontroller i tillvalsmodalen så läget aldrig är otydligt.
+function TogglePill({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12px] font-semibold transition-colors ${active ? "border-[rgba(94,166,255,0.55)] bg-[rgba(94,166,255,0.18)] text-[#d4e7ff]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
+    >
+      {active ? <Check size={13} strokeWidth={3} /> : null}
+      {children}
+    </button>
+  );
+}
+
 function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { open: boolean; restaurantId: string; group: ExtraGroupRecord | null; categories: CategoryRecord[]; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
@@ -412,7 +428,7 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
       setDisplayStyle(group.displayStyle === "BOX_IMAGE" ? "BOX_IMAGE" : "LIST");
       setAllowQuantity(group.allowQuantity ?? false);
       setExtras(group.extras.length ? group.extras.map((extra) => ({ name: extra.name, priceAddon: extra.priceAddon, isDefault: extra.isDefault || false, imageUrl: extra.imageUrl ?? null })) : [{ name: "", priceAddon: 0, isDefault: false, imageUrl: null }]);
-      setCategoryIds([]);
+      setCategoryIds(group.categoryIds ?? []);
     } else {
       setName("");
       setType("CHECKBOX");
@@ -488,54 +504,53 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
         >Radera</Button>
       ) : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara"}</Button></div></div>}
     >
-      <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Namn"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
-        <Field label="Type"><Select value={type} onChange={(event) => setType(event.target.value)}><option value="CHECKBOX">Checkbox</option><option value="RADIO">Radio</option></Select></Field>
-        <Field label="Obligatorisk"><Select value={required ? "yes" : "no"} onChange={(event) => setRequired(event.target.value === "yes")}><option value="no">Nej</option><option value="yes">Ja</option></Select></Field>
-        <Field label="Min selections"><Input type="number" value={minSelections} onChange={(event) => setMinSelections(Number(event.target.value))} /></Field>
-        <Field label="Max selections"><Input type="number" value={maxSelections} onChange={(event) => setMaxSelections(Number(event.target.value))} /></Field>
-        <Field label="Visningsstil"><Select value={displayStyle} onChange={(event) => setDisplayStyle(event.target.value === "BOX_IMAGE" ? "BOX_IMAGE" : "LIST")}><option value="LIST">Lista</option><option value="BOX_IMAGE">Bildrutor</option></Select></Field>
-        <div className="md:col-span-2 surface-muted px-4 py-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Antal per val</p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setAllowQuantity((current) => !current)}
-              className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${allowQuantity ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
-            >
-              Tillåt antal per val
-            </button>
-          </div>
-          <p className="mt-2 text-[12px] text-[var(--text-secondary)]">Kunden kan välja flera av samma, t.ex. 3 dippar.</p>
+      <div className="grid gap-5">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Namn"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
+          <Field label="Typ"><Select value={type} onChange={(event) => setType(event.target.value)}><option value="CHECKBOX">Checkbox</option><option value="RADIO">Radio</option></Select></Field>
         </div>
-        <div className="md:col-span-2 surface-muted px-4 py-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Attach to categories</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Min antal"><Input type="number" value={minSelections} onChange={(event) => setMinSelections(Number(event.target.value))} /></Field>
+          <Field label="Max antal"><Input type="number" value={maxSelections} onChange={(event) => setMaxSelections(Number(event.target.value))} /></Field>
+          <Field label="Visningsstil"><Select value={displayStyle} onChange={(event) => setDisplayStyle(event.target.value === "BOX_IMAGE" ? "BOX_IMAGE" : "LIST")}><option value="LIST">Lista</option><option value="BOX_IMAGE">Bildrutor</option></Select></Field>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <TogglePill active={required} onClick={() => setRequired((current) => !current)}>Obligatorisk</TogglePill>
+          <TogglePill active={allowQuantity} onClick={() => setAllowQuantity((current) => !current)}>Antal per val</TogglePill>
+        </div>
+
+        <div className="grid gap-2">
+          <p className="field-label">Kategorier</p>
+          <div className="flex flex-wrap gap-2">
             {categories.map((category) => (
-              <button key={category.id} type="button" onClick={() => toggleCategory(category.id)} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] ${categoryIds.includes(category.id) ? "border-[rgba(94,166,255,0.24)] bg-[rgba(94,166,255,0.1)] text-[#d4e7ff]" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>{category.name}</button>
+              <TogglePill key={category.id} active={categoryIds.includes(category.id)} onClick={() => toggleCategory(category.id)}>{category.name}</TogglePill>
             ))}
           </div>
         </div>
-        <div className="md:col-span-2 surface-muted px-4 py-4">
+
+        <div className="grid gap-2">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Extras</p>
+            <p className="field-label">Tillval</p>
             <Button variant="secondary" onClick={() => setExtras((current) => [...current, { name: "", priceAddon: 0, isDefault: false, imageUrl: null }])}>Lägg till rad</Button>
           </div>
-          <div className="mt-4 grid gap-3">
+          <div className="grid gap-2">
             {extras.map((extra, index) => (
-              <div key={index} className="grid gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-4 py-4">
-                <div className="grid gap-3 md:grid-cols-[1fr_140px_140px_auto]">
-                  <Input value={extra.name} onChange={(event) => updateExtra(index, "name", event.target.value)} placeholder="Extra name" />
-                  <Input type="number" value={extra.priceAddon} onChange={(event) => updateExtra(index, "priceAddon", Number(event.target.value))} placeholder="0" />
-                  <Select value={extra.isDefault ? "yes" : "no"} onChange={(event) => updateExtra(index, "isDefault", event.target.value === "yes")}><option value="no">Optional</option><option value="yes">Default</option></Select>
-                  <Button variant="danger" onClick={() => setExtras((current) => current.filter((_, currentIndex) => currentIndex !== index))}>Remove</Button>
+              <div key={index} className="grid gap-2 rounded-xl border border-[var(--border-subtle)] px-3 py-3">
+                <div className="grid gap-2 md:grid-cols-[1fr_120px_130px_auto]">
+                  <Input value={extra.name} onChange={(event) => updateExtra(index, "name", event.target.value)} placeholder="Namn" />
+                  <Input type="number" value={extra.priceAddon} onChange={(event) => updateExtra(index, "priceAddon", Number(event.target.value))} placeholder="Pris" />
+                  <Select value={extra.isDefault ? "yes" : "no"} onChange={(event) => updateExtra(index, "isDefault", event.target.value === "yes")}><option value="no">Valfri</option><option value="yes">Förvald</option></Select>
+                  <Button variant="danger" onClick={() => setExtras((current) => current.filter((_, currentIndex) => currentIndex !== index))}>Ta bort</Button>
                 </div>
                 {displayStyle === "BOX_IMAGE" ? (
                   <ImageUploadField
                     label="Bild"
                     value={extra.imageUrl || ""}
                     onChange={(url) => updateExtra(index, "imageUrl", url || null)}
-                    kind="misc"
+                    kind="extra"
+                    fileBaseName={extra.name}
                     restaurantId={restaurantId}
                   />
                 ) : null}

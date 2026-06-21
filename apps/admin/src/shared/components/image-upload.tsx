@@ -23,7 +23,7 @@ const MAX_BYTES = 15 * 1024 * 1024;
  * Backend: packages/api/src/routes/upload.ts (POST /api/admin/upload-r2).
  * Max raw-storlek 15 MB, komprimeras till ~250 KB WebP.
  */
-export type ImageUploadKind = 'hero' | 'logo' | 'category' | 'product' | 'misc';
+export type ImageUploadKind = 'hero' | 'logo' | 'category' | 'product' | 'extra' | 'misc';
 
 export function ImageUploadField({
   value,
@@ -36,6 +36,7 @@ export function ImageUploadField({
   categoryId,
   categorySlug,
   productId,
+  fileBaseName,
 }: {
   value: string;
   onChange: (url: string) => void;
@@ -47,6 +48,8 @@ export function ImageUploadField({
   categoryId?: string | null;
   categorySlug?: string | null;
   productId?: string | null;
+  // Basnamn för filen i R2-path:en (t.ex. tillvalsnamnet för kind="extra").
+  fileBaseName?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -72,6 +75,7 @@ export function ImageUploadField({
       if (categoryId) fd.append("categoryId", categoryId);
       if (categorySlug) fd.append("categorySlug", categorySlug);
       if (productId) fd.append("productId", productId);
+      if (fileBaseName) fd.append("fileBaseName", fileBaseName);
       const response = await api.post<{ url: string; key: string }>(
         "/api/admin/upload-r2",
         fd,
