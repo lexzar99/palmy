@@ -201,6 +201,11 @@ function CompactCard({ product, onClick, disabled }: { product: any; onClick: ()
             </span>
           )}
         </div>
+        {product.description && !product.hideDescription && (
+          <p className="m-0 text-[12px] leading-snug line-clamp-2" style={{ color: "var(--text-secondary)" }}>
+            {product.description}
+          </p>
+        )}
         <div className="mt-auto flex items-center gap-2 flex-wrap">
           <span className="text-[14px] font-semibold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
             {final} kr

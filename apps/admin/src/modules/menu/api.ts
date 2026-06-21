@@ -175,6 +175,19 @@ export interface MenuSyncResponse {
 export const menuSync = (payload: { sourceRestaurantId: string; targetRestaurantIds: string[]; apply: boolean }) =>
   apiPost<MenuSyncResponse>("/admin/menu/sync", payload, { timeout: 5 * 60 * 1000 });
 
+// Omsortering — skickar hela den nya ordningen av id:n. Backend sätter position
+// efter index i listan. Produkter sorteras inom sin kategori, kategorier globalt.
+export const reorderProducts = (ids: string[]) =>
+  apiPost<{ success: boolean }>("/admin/products/reorder", { ids });
+export const reorderCategories = (ids: string[]) =>
+  apiPost<{ success: boolean }>("/admin/categories/reorder", { ids });
+
+// Duplicera — backend skapar en kopia ("(kopia)") med nytt id och returnerar den.
+export const duplicateProduct = (id: string) =>
+  apiPost<ProductRecord>(`/admin/products/${id}/duplicate`, {});
+export const duplicateExtraGroup = (id: string) =>
+  apiPost<ExtraGroupRecord>(`/admin/extra-groups/${id}/duplicate`, {});
+
 // Copy/import — nya id genereras, källan rörs inte.
 export const copyCategory = (sourceId: string, targetRestaurantId: string) =>
   apiPost<CategoryRecord>(`/admin/categories/${sourceId}/copy`, { targetRestaurantId });

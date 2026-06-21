@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Plus, Search, Tags, Upload } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Loader2, Plus, Search, Tags, Upload } from "lucide-react";
 import { dealsQueryKey, getAutomaticDeals, type AutomaticDealRecord, type DealProductRef, type DealRestaurantRef } from "@/modules/deals/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
 import {
@@ -16,6 +16,8 @@ import {
   deleteCategory,
   deleteExtraGroup,
   deleteProduct,
+  duplicateExtraGroup,
+  duplicateProduct,
   getCategories,
   getExtraGroups,
   getMenuRestaurants,
@@ -24,6 +26,8 @@ import {
   menuGroupsQueryKey,
   menuProductsQueryKey,
   menuRestaurantsQueryKey,
+  reorderCategories,
+  reorderProducts,
   r2AutoMatch,
   menuBulkImport,
   menuSync,
@@ -402,6 +406,107 @@ function TogglePill({ active, onClick, children }: { active: boolean; onClick: (
       {active ? <Check size={13} strokeWidth={3} /> : null}
       {children}
     </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// BulkEditModal — skriv över valda fält på alla markerade produkter på en gång.
+// Varje rad har en "Skriv över"-toggle (inkludera fältet?) + värdekontrollen.
+// Bara påslagna fält hamnar i payloaden, så orörda inställningar lämnas ifred.
+// ─────────────────────────────────────────────────────────────────────────
+function BulkRow({ label, enabled, onToggle, children }: { label: string; enabled: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <div className="surface-muted px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="card-label">{label}</p>
+        <TogglePill active={enabled} onClick={onToggle}>Skriv över</TogglePill>
+      </div>
+      {enabled ? <div className="mt-3 flex flex-wrap gap-2">{children}</div> : null}
+    </div>
+  );
+}
+
+function BulkEditModal({ open, count, extraGroups, onClose, onApply }: { open: boolean; count: number; extraGroups: ExtraGroupRecord[]; onClose: () => void; onApply: (payload: Record<string, unknown>) => void }) {
+  // En "enabled"-flagga per fält + själva värdet. Bara enabled-fält skickas.
+  const [on, setOn] = useState({ displayMode: false, localPriceLocked: false, rewardable: false, diet: false, extraGroups: false });
+  const [displayMode, setDisplayMode] = useState<"FULL" | "COMPACT">("FULL");
+  const [localPriceLocked, setLocalPriceLocked] = useState(false);
+  const [rewardable, setRewardable] = useState(false);
+  const [isVegan, setIsVegan] = useState(false);
+  const [isVegetarian, setIsVegetarian] = useState(false);
+  const [isGlutenFree, setIsGlutenFree] = useState(false);
+  const [extraGroupIds, setExtraGroupIds] = useState<string[]>([]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!open) return;
+    setOn({ displayMode: false, localPriceLocked: false, rewardable: false, diet: false, extraGroups: false });
+    setDisplayMode("FULL");
+    setLocalPriceLocked(false);
+    setRewardable(false);
+    setIsVegan(false);
+    setIsVegetarian(false);
+    setIsGlutenFree(false);
+    setExtraGroupIds([]);
+  }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const toggleGroup = (id: string) => setExtraGroupIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  const anyEnabled = on.displayMode || on.localPriceLocked || on.rewardable || on.diet || on.extraGroups;
+
+  const apply = () => {
+    const payload: Record<string, unknown> = {};
+    if (on.displayMode) payload.displayMode = displayMode;
+    if (on.localPriceLocked) payload.localPriceLocked = localPriceLocked;
+    if (on.rewardable) payload.rewardable = rewardable;
+    if (on.diet) {
+      payload.isVegan = isVegan;
+      payload.isVegetarian = isVegetarian;
+      payload.isGlutenFree = isGlutenFree;
+    }
+    if (on.extraGroups) payload.extraGroupIds = extraGroupIds;
+    onApply(payload);
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Ändra ${count} produkter`}
+      footer={
+        <div className="flex items-center justify-end gap-2">
+          <Button onClick={onClose}>Avbryt</Button>
+          <Button variant="primary" disabled={!anyEnabled} onClick={apply}>Använd</Button>
+        </div>
+      }
+    >
+      <div className="grid gap-3">
+        <BulkRow label="Visningsläge i menyn" enabled={on.displayMode} onToggle={() => setOn((c) => ({ ...c, displayMode: !c.displayMode }))}>
+          <TogglePill active={displayMode === "FULL"} onClick={() => setDisplayMode("FULL")}>Hel bredd</TogglePill>
+          <TogglePill active={displayMode === "COMPACT"} onClick={() => setDisplayMode("COMPACT")}>Halv bredd</TogglePill>
+        </BulkRow>
+        <BulkRow label="Lås lokalt pris" enabled={on.localPriceLocked} onToggle={() => setOn((c) => ({ ...c, localPriceLocked: !c.localPriceLocked }))}>
+          <TogglePill active={localPriceLocked} onClick={() => setLocalPriceLocked((v) => !v)}>{localPriceLocked ? "På" : "Av"}</TogglePill>
+        </BulkRow>
+        <BulkRow label="Köpbar med Dpoints" enabled={on.rewardable} onToggle={() => setOn((c) => ({ ...c, rewardable: !c.rewardable }))}>
+          <TogglePill active={rewardable} onClick={() => setRewardable((v) => !v)}>{rewardable ? "På" : "Av"}</TogglePill>
+        </BulkRow>
+        <BulkRow label="Kostflaggor" enabled={on.diet} onToggle={() => setOn((c) => ({ ...c, diet: !c.diet }))}>
+          <TogglePill active={isVegan} onClick={() => setIsVegan((v) => !v)}>Vegansk</TogglePill>
+          <TogglePill active={isVegetarian} onClick={() => setIsVegetarian((v) => !v)}>Vegetarisk</TogglePill>
+          <TogglePill active={isGlutenFree} onClick={() => setIsGlutenFree((v) => !v)}>Glutenfri</TogglePill>
+        </BulkRow>
+        <BulkRow label="Tillvalsgrupper" enabled={on.extraGroups} onToggle={() => setOn((c) => ({ ...c, extraGroups: !c.extraGroups }))}>
+          {extraGroups.length === 0 ? (
+            <p className="text-[13px] text-[var(--text-secondary)]">Inga tillvalsgrupper finns.</p>
+          ) : (
+            extraGroups.map((group) => (
+              <TogglePill key={group.id} active={extraGroupIds.includes(group.id)} onClick={() => toggleGroup(group.id)}>{group.name}</TogglePill>
+            ))
+          )}
+        </BulkRow>
+      </div>
+    </Modal>
   );
 }
 
@@ -1254,6 +1359,96 @@ function _R2Section({ title, subtitle, folder, rows, onCopy, empty, compact }: {
   );
 }
 
+// Liten monokrom ikonknapp för listraderna (pilar + duplicera). Inaktiv =
+// dämpad, hover = full kontrast. Disabled-läget tar bort hover + pekare.
+function RowIconButton({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled?: boolean; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={(event) => { event.stopPropagation(); onClick(); }}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-subtle)] text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-[var(--border-subtle)] disabled:hover:text-[var(--text-secondary)]"
+    >
+      {children}
+    </button>
+  );
+}
+
+// Kompakt produktrad: kryssruta, namn + statusprick, liten meta, pris, och till
+// höger duplicera + upp/ner-pilar. Hela raden (utom kontrollerna) öppnar modalen.
+function ProductRow({
+  product,
+  index,
+  total,
+  selected,
+  busy,
+  canReorder,
+  onToggleSelect,
+  onOpen,
+  onMove,
+  onDuplicate,
+}: {
+  product: ProductRecord;
+  index: number;
+  total: number;
+  selected: boolean;
+  busy: boolean;
+  canReorder: boolean;
+  onToggleSelect: () => void;
+  onOpen: () => void;
+  onMove: (direction: -1 | 1) => void;
+  onDuplicate: () => void;
+}) {
+  const active = product.isActive !== false;
+  return (
+    <div className="surface-muted flex w-full items-center gap-3 px-3 py-2">
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={onToggleSelect}
+        onClick={(event) => event.stopPropagation()}
+        aria-label={`Markera ${product.name}`}
+        className="h-4 w-4 shrink-0 accent-[var(--accent)]"
+      />
+      <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <span
+          aria-hidden
+          className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? "bg-[var(--accent)]" : "bg-[var(--border-strong)]"}`}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline gap-2">
+            <span className="truncate text-[14px] font-semibold tracking-[-0.01em]">{product.name}</span>
+            {!active ? <span className="shrink-0 text-[11px] text-[var(--text-muted)]">dold</span> : null}
+          </span>
+          {product.extraGroups.length > 0 ? (
+            <span className="mt-0.5 block truncate text-[11px] text-[var(--text-muted)]">
+              {product.extraGroups.length} tillvalsgrupper
+            </span>
+          ) : null}
+        </span>
+        <span className="shrink-0 text-[14px] font-semibold tabular-nums">{formatCurrency(product.price)}</span>
+      </button>
+      <div className="flex shrink-0 items-center gap-1">
+        <RowIconButton label="Duplicera produkt" onClick={onDuplicate} disabled={busy}>
+          <Copy size={14} />
+        </RowIconButton>
+        {canReorder ? (
+          <>
+            <RowIconButton label="Flytta upp" onClick={() => onMove(-1)} disabled={busy || index === 0}>
+              <ChevronUp size={15} />
+            </RowIconButton>
+            <RowIconButton label="Flytta ner" onClick={() => onMove(1)} disabled={busy || index === total - 1}>
+              <ChevronDown size={15} />
+            </RowIconButton>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function MenuPage() {
   const searchParams = useSearchParams();
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
@@ -1276,6 +1471,8 @@ export function MenuPage() {
   const [bulkPct, setBulkPct] = useState("");
   const [bulkCategoryId, setBulkCategoryId] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [reorderBusy, setReorderBusy] = useState(false);
 
   const toggleSelected = (id: string) =>
     setSelectedIds((prev) => {
@@ -1344,6 +1541,39 @@ export function MenuPage() {
     return (groups.data || []).filter((group) => !lowerQuery || group.name.toLowerCase().includes(lowerQuery));
   }, [groups.data, query]);
 
+  // Kategorier i sin position-ordning (för omsorteringspilarna + produktsektionerna).
+  const sortedCategories = useMemo(
+    () => [...(categories.data || [])].sort((a, b) => a.position - b.position),
+    [categories.data],
+  );
+
+  // Produkter grupperade per kategori, var och en internt sorterad på position.
+  // Driver den kompakta sektionsvyn när man inte söker. Produkter vars kategori
+  // saknas i listan (t.ex. global kategori) hamnar i en "Övrigt"-sektion sist.
+  const productSections = useMemo(() => {
+    const byCategory = new Map<string, ProductRecord[]>();
+    for (const product of products.data || []) {
+      const list = byCategory.get(product.categoryId) || [];
+      list.push(product);
+      byCategory.set(product.categoryId, list);
+    }
+    const sections = sortedCategories
+      .map((category) => ({
+        id: category.id,
+        name: category.name,
+        products: (byCategory.get(category.id) || []).sort((a, b) => a.position - b.position),
+      }))
+      .filter((section) => section.products.length > 0);
+    const known = new Set(sortedCategories.map((category) => category.id));
+    const orphans = (products.data || []).filter((product) => !known.has(product.categoryId)).sort((a, b) => a.position - b.position);
+    if (orphans.length > 0) {
+      sections.push({ id: "__other__", name: orphans[0]?.category.name || "Övrigt", products: orphans });
+    }
+    return sections;
+  }, [products.data, sortedCategories]);
+
+  const isSearching = query.trim().length > 0;
+
   // Rensa bulk-urvalet när man byter restaurang eller flik — annars kan ett
   // gammalt urval råka träffa fel produkter.
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -1387,6 +1617,75 @@ export function MenuPage() {
       setSelectedIds(new Set());
       setBulkPct("");
       setBulkCategoryId("");
+    }
+  };
+
+  // Flytta en produkt upp/ner inom sin kategori. Räknar fram den nya ordningen av
+  // id:n lokalt, skickar hela ordningen till backend, busta sen produkt-cachen.
+  const moveProduct = async (categoryProducts: ProductRecord[], index: number, direction: -1 | 1) => {
+    if (reorderBusy) return;
+    const target = index + direction;
+    if (target < 0 || target >= categoryProducts.length) return;
+    const ordered = [...categoryProducts];
+    const [moved] = ordered.splice(index, 1);
+    ordered.splice(target, 0, moved);
+    setReorderBusy(true);
+    try {
+      await reorderProducts(ordered.map((p) => p.id));
+      await bulkQueryClient.invalidateQueries({ queryKey: menuProductsQueryKey(activeRestaurantId) });
+    } catch {
+      showBulkToast({ type: "error", message: "Kunde inte spara ordningen" });
+    } finally {
+      setReorderBusy(false);
+    }
+  };
+
+  // Flytta en kategori upp/ner i den globala ordningen.
+  const moveCategory = async (orderedCategories: CategoryRecord[], index: number, direction: -1 | 1) => {
+    if (reorderBusy) return;
+    const target = index + direction;
+    if (target < 0 || target >= orderedCategories.length) return;
+    const ordered = [...orderedCategories];
+    const [moved] = ordered.splice(index, 1);
+    ordered.splice(target, 0, moved);
+    setReorderBusy(true);
+    try {
+      await reorderCategories(ordered.map((c) => c.id));
+      await bulkQueryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(activeRestaurantId) });
+    } catch {
+      showBulkToast({ type: "error", message: "Kunde inte spara ordningen" });
+    } finally {
+      setReorderBusy(false);
+    }
+  };
+
+  // Duplicera en produkt → backend skapar "(kopia)", busta produkt-cachen.
+  const handleDuplicateProduct = async (id: string) => {
+    if (reorderBusy) return;
+    setReorderBusy(true);
+    try {
+      await duplicateProduct(id);
+      await bulkQueryClient.invalidateQueries({ queryKey: menuProductsQueryKey(activeRestaurantId) });
+      showBulkToast({ type: "success", message: "Produkt duplicerad" });
+    } catch {
+      showBulkToast({ type: "error", message: "Kunde inte duplicera produkten" });
+    } finally {
+      setReorderBusy(false);
+    }
+  };
+
+  // Duplicera en tillvalsgrupp → busta grupp-cachen.
+  const handleDuplicateGroup = async (id: string) => {
+    if (reorderBusy) return;
+    setReorderBusy(true);
+    try {
+      await duplicateExtraGroup(id);
+      await bulkQueryClient.invalidateQueries({ queryKey: menuGroupsQueryKey(activeRestaurantId) });
+      showBulkToast({ type: "success", message: "Tillvalsgrupp duplicerad" });
+    } catch {
+      showBulkToast({ type: "error", message: "Kunde inte duplicera gruppen" });
+    } finally {
+      setReorderBusy(false);
     }
   };
 
@@ -1464,20 +1763,28 @@ export function MenuPage() {
 
         {tab === "categories" ? (
           <div className="mt-5 grid gap-2">
-            {filteredCategories.length === 0 ? <EmptyState title="Inga kategorier hittades" /> : filteredCategories.map((category) => (
-              <button key={category.id} type="button" onClick={() => { setActiveCategory(category); setCategoryModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-base font-semibold tracking-[-0.01em]">{category.name}</p>
-                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{category.description || "Ingen beskrivning"}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
+            {filteredCategories.length === 0 ? <EmptyState title="Inga kategorier hittades" /> : filteredCategories.map((category) => {
+              // Pilarna sorterar i den fulla position-ordningen, inte i den
+              // sök-filtrerade listan, så positionerna förblir konsekventa.
+              const orderIndex = sortedCategories.findIndex((entry) => entry.id === category.id);
+              return (
+                <div key={category.id} className="surface-muted flex w-full items-center gap-3 px-4 py-3">
+                  <button type="button" onClick={() => { setActiveCategory(category); setCategoryModalOpen(true); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em]">{category.name}</span>
                     <StatusBadge active={category.isActive !== false} />
                     <Badge tone="neutral">{category._count?.products || 0} produkter</Badge>
+                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <RowIconButton label="Flytta upp" onClick={() => void moveCategory(sortedCategories, orderIndex, -1)} disabled={reorderBusy || isSearching || orderIndex <= 0}>
+                      <ChevronUp size={15} />
+                    </RowIconButton>
+                    <RowIconButton label="Flytta ner" onClick={() => void moveCategory(sortedCategories, orderIndex, 1)} disabled={reorderBusy || isSearching || orderIndex === sortedCategories.length - 1}>
+                      <ChevronDown size={15} />
+                    </RowIconButton>
                   </div>
                 </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
         ) : null}
 
@@ -1546,69 +1853,96 @@ export function MenuPage() {
                   <Button variant="secondary" disabled={bulkBusy} onClick={() => void runBulk(() => ({ isActive: false }), "produkter dolda")}>
                     Dölj
                   </Button>
-                  <Button variant="secondary" disabled={bulkBusy} onClick={() => setSelectedIds(new Set())}>
-                    Avmarkera
+                  <Button variant="secondary" disabled={bulkBusy} onClick={() => setBulkEditOpen(true)}>
+                    Ändra
                   </Button>
+                  <button
+                    type="button"
+                    disabled={bulkBusy}
+                    onClick={() => setSelectedIds(new Set())}
+                    className="text-[12px] font-semibold text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-50"
+                  >
+                    Rensa
+                  </button>
                 </div>
               </div>
             )}
-            {filteredProducts.length === 0 ? <EmptyState title="Inga produkter hittades" /> : filteredProducts.map((product) => (
-              <div key={product.id} className="surface-muted flex w-full items-start gap-3 px-4 py-4">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(product.id)}
-                  onChange={() => toggleSelected(product.id)}
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label={`Markera ${product.name}`}
-                  className="mt-1.5 h-4 w-4 shrink-0 accent-[var(--accent)]"
-                />
-                <button type="button" onClick={() => { setActiveProduct(product); setProductModalOpen(true); }} className="min-w-0 flex-1 text-left">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-base font-semibold tracking-[-0.01em]">{product.name}</p>
-                        <StatusBadge active={product.isActive !== false} />
-                      </div>
-                      <p className="mt-1.5 text-sm text-[var(--text-secondary)]">{product.category.name} • {product.description || "Ingen beskrivning"}</p>
-                      {product.extraGroups.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {product.extraGroups.map((group) => <Badge key={group.id} tone="neutral">{group.name}</Badge>)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-base font-semibold">{formatCurrency(product.price)}</p>
-                      <p className="mt-1 text-[12px] text-[var(--text-muted)]">Position {product.position}</p>
-                    </div>
-                  </div>
-                </button>
-              </div>
-            ))}
+            {/* Sökning = platt filtrerad lista (pilarna döljs). Annars grupperat
+                per kategori med kompakta rader + omsorteringspilar inom sektionen. */}
+            {isSearching ? (
+              filteredProducts.length === 0 ? (
+                <EmptyState title="Inga produkter hittades" />
+              ) : (
+                filteredProducts.map((product) => (
+                  <ProductRow
+                    key={product.id}
+                    product={product}
+                    index={0}
+                    total={1}
+                    busy={reorderBusy}
+                    canReorder={false}
+                    selected={selectedIds.has(product.id)}
+                    onToggleSelect={() => toggleSelected(product.id)}
+                    onOpen={() => { setActiveProduct(product); setProductModalOpen(true); }}
+                    onMove={() => {}}
+                    onDuplicate={() => void handleDuplicateProduct(product.id)}
+                  />
+                ))
+              )
+            ) : productSections.length === 0 ? (
+              <EmptyState title="Inga produkter hittades" />
+            ) : (
+              productSections.map((section) => (
+                <div key={section.id} className="grid gap-1.5">
+                  <p className="px-1 pt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">{section.name}</p>
+                  {section.products.map((product, productIndex) => (
+                    <ProductRow
+                      key={product.id}
+                      product={product}
+                      index={productIndex}
+                      total={section.products.length}
+                      busy={reorderBusy}
+                      canReorder
+                      selected={selectedIds.has(product.id)}
+                      onToggleSelect={() => toggleSelected(product.id)}
+                      onOpen={() => { setActiveProduct(product); setProductModalOpen(true); }}
+                      onMove={(direction) => void moveProduct(section.products, productIndex, direction)}
+                      onDuplicate={() => void handleDuplicateProduct(product.id)}
+                    />
+                  ))}
+                </div>
+              ))
+            )}
           </div>
         ) : null}
 
         {tab === "extras" ? (
           <div className="mt-5 grid gap-2">
             {filteredGroups.length === 0 ? <EmptyState title="Inga tillvalsgrupper hittades" /> : filteredGroups.map((group) => (
-              <button key={group.id} type="button" onClick={() => { setActiveGroup(group); setGroupModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-semibold tracking-[-0.01em]">{group.name}</p>
-                      <Badge tone="neutral">{group.type}</Badge>
-                      {group.required ? <Badge tone="neutral">Obligatorisk</Badge> : null}
+              <div key={group.id} className="surface-muted flex w-full items-start gap-3 px-5 py-5">
+                <button type="button" onClick={() => { setActiveGroup(group); setGroupModalOpen(true); }} className="min-w-0 flex-1 text-left">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-base font-semibold tracking-[-0.01em]">{group.name}</p>
+                        <Badge tone="neutral">{group.type}</Badge>
+                        {group.required ? <Badge tone="neutral">Obligatorisk</Badge> : null}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {group.extras.map((extra, index) => <Badge key={`${group.id}-${index}`} tone="neutral">{extra.name} {extra.priceAddon ? `+ ${formatCurrency(extra.priceAddon)}` : ""}</Badge>)}
+                      </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {group.extras.map((extra, index) => <Badge key={`${group.id}-${index}`} tone="neutral">{extra.name} {extra.priceAddon ? `+ ${formatCurrency(extra.priceAddon)}` : ""}</Badge>)}
+                    <div className="text-right text-sm text-[var(--text-secondary)]">
+                      <div>Min {group.minSelections}</div>
+                      <div>Max {group.maxSelections}</div>
+                      <div>{group._count?.productGroups || 0} kopplade produkter</div>
                     </div>
                   </div>
-                  <div className="text-right text-sm text-[var(--text-secondary)]">
-                    <div>Min {group.minSelections}</div>
-                    <div>Max {group.maxSelections}</div>
-                    <div>{group._count?.productGroups || 0} kopplade produkter</div>
-                  </div>
-                </div>
-              </button>
+                </button>
+                <Button variant="secondary" disabled={reorderBusy} onClick={() => void handleDuplicateGroup(group.id)}>
+                  <Copy size={13} /> Duplicera
+                </Button>
+              </div>
             ))}
           </div>
         ) : null}
@@ -1625,6 +1959,16 @@ export function MenuPage() {
             currentRestaurantId={activeRestaurantId}
             tab={tab}
             currentCategories={categories.data || []}
+          />
+          <BulkEditModal
+            open={bulkEditOpen}
+            count={selectedIds.size}
+            extraGroups={groups.data || []}
+            onClose={() => setBulkEditOpen(false)}
+            onApply={(payload) => {
+              setBulkEditOpen(false);
+              void runBulk(() => payload, "produkter uppdaterade");
+            }}
           />
         </>
       ) : null}

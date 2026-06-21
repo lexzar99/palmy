@@ -2046,6 +2046,210 @@ router.delete('/products/:id', async (req, res) => {
   }
 });
 
+// POST /api/admin/products/reorder
+// body: { ids: string[] } — sätter position = index för varje produkt-id i
+// listans ordning. Persisterar drag/pil-omordning inom en kategori. Scope:
+// varje produkt måste tillhöra anroparens restaurang (icke-super-admin).
+router.post('/products/reorder', async (req, res) => {
+  try {
+    const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.map((x: unknown) => String(x)) : [];
+    if (ids.length === 0) {
+      res.status(400).json({ error: 'ids krävs (array av produkt-id)' });
+      return;
+    }
+
+    const products = await prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, category: { select: { restaurantId: true } } },
+    });
+    if (products.length !== ids.length) {
+      res.status(404).json({ error: 'En eller flera produkter hittades inte' });
+      return;
+    }
+
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      if (products.some((p) => p.category.restaurantId !== rid)) {
+        res.status(403).json({ error: 'Du kan bara omordna produkter för din restaurang' });
+        return;
+      }
+    }
+
+    await prisma.$transaction(
+      ids.map((id, index) =>
+        prisma.product.update({ where: { id }, data: { position: index } }),
+      ),
+    );
+
+    const restaurantId = products[0]?.category.restaurantId ?? null;
+    await audit(req as AuthRequest, 'PRODUCT_REORDER', {
+      resourceType: 'Product',
+      resourceId: null,
+      changes: { ids },
+    });
+    broadcastMenuChange(restaurantId, { kind: 'product', reordered: true });
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error('Error reordering products:', error);
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/admin/categories/reorder
+// body: { ids: string[] } — sätter position = index för varje kategori-id i
+// listans ordning. Scope: varje kategori måste tillhöra anroparens restaurang.
+router.post('/categories/reorder', async (req, res) => {
+  try {
+    const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.map((x: unknown) => String(x)) : [];
+    if (ids.length === 0) {
+      res.status(400).json({ error: 'ids krävs (array av kategori-id)' });
+      return;
+    }
+
+    const categories = await prisma.category.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, restaurantId: true },
+    });
+    if (categories.length !== ids.length) {
+      res.status(404).json({ error: 'En eller flera kategorier hittades inte' });
+      return;
+    }
+
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      if (categories.some((c) => c.restaurantId !== rid)) {
+        res.status(403).json({ error: 'Du kan bara omordna kategorier för din restaurang' });
+        return;
+      }
+    }
+
+    await prisma.$transaction(
+      ids.map((id, index) =>
+        prisma.category.update({ where: { id }, data: { position: index } }),
+      ),
+    );
+
+    const restaurantId = categories[0]?.restaurantId ?? null;
+    await audit(req as AuthRequest, 'CATEGORY_REORDER', {
+      resourceType: 'Category',
+      resourceId: null,
+      changes: { ids },
+    });
+    broadcastMenuChange(restaurantId, { kind: 'category', reordered: true });
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error('Error reordering categories:', error);
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/admin/products/:id/duplicate
+// Duplicerar en produkt inom SAMMA kategori (samma restaurang). Namn får
+// suffixet " (kopia)", position = original + 1, och extra-grupp-länkarna
+// återskapas mot samma grupper. Scope-kontroll mot anroparens restaurang.
+router.post('/products/:id/duplicate', async (req, res) => {
+  try {
+    const source = await prisma.product.findUnique({
+      where: { id: req.params.id },
+      include: {
+        category: { select: { restaurantId: true, restaurant: { select: { slug: true } } } },
+        extraGroups: { orderBy: { position: 'asc' }, select: { extraGroupId: true, position: true } },
+      },
+    });
+    if (!source) {
+      res.status(404).json({ error: 'Produkt hittades inte' });
+      return;
+    }
+
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      if (source.category.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara duplicera produkter för din restaurang' });
+        return;
+      }
+    }
+
+    const name = `${source.name} (kopia)`;
+    const slug = await uniqueMenuSlug(
+      name,
+      source.category.restaurant?.slug ?? source.category.restaurantId ?? 'r',
+      async (s) => !(await prisma.product.findUnique({ where: { slug: s }, select: { id: true } })),
+    );
+
+    const copy = await prisma.product.create({
+      data: {
+        name,
+        slug,
+        description: source.description,
+        price: source.price,
+        categoryId: source.categoryId,
+        imageUrl: source.imageUrl,
+        isActive: source.isActive,
+        isVegan: source.isVegan,
+        isVegetarian: source.isVegetarian,
+        isGlutenFree: source.isGlutenFree,
+        position: source.position + 1,
+        displayMode: source.displayMode,
+        hideDescription: source.hideDescription,
+        discountPercent: source.discountPercent,
+        discountPrice: source.discountPrice,
+        discountImageUrl: source.discountImageUrl,
+        discountLabel: source.discountLabel,
+        discountActive: source.discountActive,
+        rewardable: source.rewardable,
+        localPriceLocked: source.localPriceLocked,
+        ...(source.extraGroups.length > 0 ? {
+          extraGroups: {
+            create: source.extraGroups.map((peg, i) => ({
+              extraGroupId: peg.extraGroupId,
+              position: peg.position ?? i,
+            })),
+          },
+        } : {}),
+      },
+      include: {
+        category: { select: { name: true, restaurantId: true } },
+        extraGroups: {
+          include: {
+            extraGroup: {
+              include: { extras: { orderBy: { position: 'asc' } } },
+            },
+          },
+        },
+      },
+    });
+
+    await audit(req as AuthRequest, 'PRODUCT_DUPLICATE', {
+      resourceType: 'Product',
+      resourceId: copy.id,
+      changes: { sourceId: source.id, categoryId: source.categoryId },
+    });
+    broadcastMenuChange(source.category.restaurantId ?? null, { kind: 'product', productId: copy.id, created: true });
+
+    res.status(201).json({
+      ...copy,
+      price: copy.price / 100,
+      discountPrice: copy.discountPrice != null ? copy.discountPrice / 100 : null,
+      extraGroups: copy.extraGroups.map((peg) => ({
+        id: peg.extraGroup.id,
+        name: peg.extraGroup.name,
+        type: peg.extraGroup.type,
+        required: peg.extraGroup.required,
+        extras: peg.extraGroup.extras.map((e) => ({
+          ...e,
+          priceAddon: e.priceAddon / 100,
+        })),
+      })),
+    });
+  } catch (error: any) {
+    console.error('Error duplicating product:', error);
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
 // =====================
 // EXTRA GRUPPER (scoped by restaurantId)
 // =====================
@@ -2315,6 +2519,72 @@ router.delete('/extra-groups/:id', async (req, res) => {
     });
     res.json({ success: true });
   } catch {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/admin/extra-groups/:id/duplicate
+// Duplicerar en tillbehörsgrupp inom SAMMA restaurang. Namn får suffixet
+// " (kopia)", och alla extras återskapas. Scope-kontroll mot anroparens
+// restaurang (globala grupper utan restaurantId får bara super-admin röra).
+router.post('/extra-groups/:id/duplicate', async (req, res) => {
+  try {
+    const source = await prisma.extraGroup.findUnique({
+      where: { id: req.params.id },
+      include: { extras: { orderBy: { position: 'asc' } } },
+    });
+    if (!source) {
+      res.status(404).json({ error: 'Tillbehörsgrupp hittades inte' });
+      return;
+    }
+
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      if (source.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara duplicera tillbehörsgrupper för din restaurang' });
+        return;
+      }
+    }
+
+    const copy = await prisma.extraGroup.create({
+      data: {
+        name: `${source.name} (kopia)`,
+        description: source.description,
+        type: source.type,
+        required: source.required,
+        minSelections: source.minSelections,
+        maxSelections: source.maxSelections,
+        displayStyle: source.displayStyle,
+        allowQuantity: source.allowQuantity,
+        position: source.position,
+        restaurantId: source.restaurantId,
+        extras: {
+          create: source.extras.map((e, i) => ({
+            name: e.name,
+            priceAddon: e.priceAddon,
+            imageUrl: e.imageUrl,
+            isDefault: e.isDefault,
+            isActive: e.isActive,
+            position: e.position ?? i,
+          })),
+        },
+      },
+      include: { extras: { orderBy: { position: 'asc' } } },
+    });
+
+    await audit(req as AuthRequest, 'EXTRA_GROUP_DUPLICATE', {
+      resourceType: 'ExtraGroup',
+      resourceId: copy.id,
+      changes: { sourceId: source.id },
+    });
+
+    res.status(201).json({
+      ...copy,
+      extras: copy.extras.map((e) => ({ ...e, priceAddon: e.priceAddon / 100 })),
+    });
+  } catch (error: any) {
+    console.error('Error duplicating extra-group:', error);
     res.status(500).json({ error: 'Serverfel' });
   }
 });
