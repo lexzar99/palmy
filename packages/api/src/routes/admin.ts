@@ -2097,12 +2097,15 @@ router.post('/extra-groups', async (req, res) => {
         ...rest,
         restaurantId: scopedRestaurantId,
         type: rest.type || 'CHECKBOX',
+        displayStyle: rest.displayStyle || 'LIST',
+        allowQuantity: rest.allowQuantity ?? false,
         ...(extras && extras.length > 0 ? {
           extras: {
             create: extras.map((e: any, i: number) => ({
               name: e.name,
               priceAddon: Math.round(Number(e.priceAddon || 0) * 100),
               isDefault: e.isDefault || false,
+              imageUrl: e.imageUrl ?? null,
               position: i,
             })),
           },
@@ -2169,6 +2172,10 @@ router.patch('/extra-groups/:id', async (req, res) => {
       where: { id: req.params.id },
       data: {
         ...rest,
+        // Bara sätt nya fälten om klienten skickar dem (partial update); fall
+        // tillbaka på defaults när nyckeln finns men är null/odefinierad.
+        ...(rest.displayStyle !== undefined ? { displayStyle: rest.displayStyle || 'LIST' } : {}),
+        ...(rest.allowQuantity !== undefined ? { allowQuantity: rest.allowQuantity ?? false } : {}),
         ...(extras !== undefined ? {
           extras: {
             deleteMany: {},
@@ -2176,6 +2183,7 @@ router.patch('/extra-groups/:id', async (req, res) => {
               name: e.name,
               priceAddon: Math.round((e.priceAddon || 0) * 100),
               isDefault: e.isDefault || false,
+              imageUrl: e.imageUrl ?? null,
               position: i,
             })),
           },

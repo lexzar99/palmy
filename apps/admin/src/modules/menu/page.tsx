@@ -25,7 +25,6 @@ import {
   menuProductsQueryKey,
   menuRestaurantsQueryKey,
   r2AutoMatch,
-  r2Migrate,
   menuBulkImport,
   menuSync,
   type MenuSyncResponse,
@@ -38,7 +37,6 @@ import {
   type ExtraGroupRecord,
   type ProductRecord,
   type R2AutoMatchResult,
-  type R2MigrateResult,
   type R2PathsTemplate,
   type RestaurantRef,
 } from "@/modules/menu/api";
@@ -128,7 +126,7 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
 
 function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, restaurants, products, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; restaurants: DealRestaurantRef[]; products: DealProductRef[]; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, rewardable: false, localPriceLocked: false, extraGroupIds: [] as string[] });
+  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, rewardable: false, localPriceLocked: false, discountActive: false, discountPercent: 0, extraGroupIds: [] as string[] });
   const [promotionModalOpen, setPromotionModalOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -151,6 +149,8 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             hideDescription: product.hideDescription ?? false,
             rewardable: product.rewardable ?? false,
             localPriceLocked: (product as any).localPriceLocked ?? false,
+            discountActive: product.discountActive ?? false,
+            discountPercent: product.discountPercent ?? 0,
             extraGroupIds: product.extraGroups.map((group) => group.id),
           }
         : {
@@ -168,6 +168,8 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             hideDescription: false,
             rewardable: false,
             localPriceLocked: false,
+            discountActive: false,
+            discountPercent: 0,
             extraGroupIds: [],
           },
     );
@@ -176,7 +178,14 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
 
   const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
-      const payload = { ...form, restaurantId };
+      // Backend kräver discountPercent 1-95 när satt; percent 0 eller toggle av = rensa rabatten.
+      const discountOn = form.discountActive && form.discountPercent > 0;
+      const payload = {
+        ...form,
+        discountActive: discountOn,
+        discountPercent: discountOn ? Math.min(95, Math.max(1, Math.round(form.discountPercent))) : null,
+        restaurantId,
+      };
       if (product) {
         return updateProduct(product.id, payload);
       }
@@ -253,6 +262,36 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
         />
         <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
         <div className="md:col-span-2"><Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
+        <div className="md:col-span-2 surface-muted px-4 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Rabatt</p>
+            <button
+              type="button"
+              onClick={() => setForm((current) => ({ ...current, discountActive: !current.discountActive }))}
+              className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.discountActive ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
+            >
+              Rabatt aktiv
+            </button>
+          </div>
+          {form.discountActive ? (
+            <div className="mt-4 grid items-end gap-4 md:grid-cols-2">
+              <Field label="Rabatt %">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={form.discountPercent}
+                  onChange={(event) => setForm((current) => ({ ...current, discountPercent: Math.min(100, Math.max(0, Number(event.target.value))) }))}
+                />
+              </Field>
+              <p className="pb-2.5 text-[13px] text-[var(--text-secondary)]">
+                {form.discountPercent > 0
+                  ? `${form.price} kr → ${(form.price * (1 - form.discountPercent / 100)).toFixed(2)} kr`
+                  : "Sätt en procent över 0 för att aktivera rabatten."}
+              </p>
+            </div>
+          ) : null}
+        </div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -356,7 +395,9 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
   const [required, setRequired] = useState(false);
   const [minSelections, setMinSelections] = useState(0);
   const [maxSelections, setMaxSelections] = useState(1);
-  const [extras, setExtras] = useState<Array<{ name: string; priceAddon: number; isDefault: boolean }>>([{ name: "", priceAddon: 0, isDefault: false }]);
+  const [displayStyle, setDisplayStyle] = useState<"LIST" | "BOX_IMAGE">("LIST");
+  const [allowQuantity, setAllowQuantity] = useState(false);
+  const [extras, setExtras] = useState<Array<{ name: string; priceAddon: number; isDefault: boolean; imageUrl: string | null }>>([{ name: "", priceAddon: 0, isDefault: false, imageUrl: null }]);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -368,7 +409,9 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
       setRequired(group.required);
       setMinSelections(group.minSelections || 0);
       setMaxSelections(group.maxSelections || 1);
-      setExtras(group.extras.length ? group.extras.map((extra) => ({ name: extra.name, priceAddon: extra.priceAddon, isDefault: extra.isDefault || false })) : [{ name: "", priceAddon: 0, isDefault: false }]);
+      setDisplayStyle(group.displayStyle === "BOX_IMAGE" ? "BOX_IMAGE" : "LIST");
+      setAllowQuantity(group.allowQuantity ?? false);
+      setExtras(group.extras.length ? group.extras.map((extra) => ({ name: extra.name, priceAddon: extra.priceAddon, isDefault: extra.isDefault || false, imageUrl: extra.imageUrl ?? null })) : [{ name: "", priceAddon: 0, isDefault: false, imageUrl: null }]);
       setCategoryIds([]);
     } else {
       setName("");
@@ -376,7 +419,9 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
       setRequired(false);
       setMinSelections(0);
       setMaxSelections(1);
-      setExtras([{ name: "", priceAddon: 0, isDefault: false }]);
+      setDisplayStyle("LIST");
+      setAllowQuantity(false);
+      setExtras([{ name: "", priceAddon: 0, isDefault: false, imageUrl: null }]);
       setCategoryIds([]);
     }
   }, [group, open]);
@@ -390,9 +435,11 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
         required,
         minSelections,
         maxSelections,
+        displayStyle,
+        allowQuantity,
         restaurantId,
         categoryIds,
-        extras: extras.filter((extra) => extra.name.trim()).map((extra) => ({ ...extra, priceAddon: Number(extra.priceAddon || 0) })),
+        extras: extras.filter((extra) => extra.name.trim()).map((extra) => ({ ...extra, priceAddon: Number(extra.priceAddon || 0), imageUrl: extra.imageUrl ?? null })),
       };
       if (group) {
         return updateExtraGroup(group.id, payload);
@@ -419,7 +466,7 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
     },
   });
 
-  const updateExtra = (index: number, field: "name" | "priceAddon" | "isDefault", value: string | number | boolean) => {
+  const updateExtra = (index: number, field: "name" | "priceAddon" | "isDefault" | "imageUrl", value: string | number | boolean | null) => {
     setExtras((current) => current.map((extra, currentIndex) => (currentIndex === index ? { ...extra, [field]: value } : extra)));
   };
 
@@ -447,6 +494,20 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
         <Field label="Obligatorisk"><Select value={required ? "yes" : "no"} onChange={(event) => setRequired(event.target.value === "yes")}><option value="no">Nej</option><option value="yes">Ja</option></Select></Field>
         <Field label="Min selections"><Input type="number" value={minSelections} onChange={(event) => setMinSelections(Number(event.target.value))} /></Field>
         <Field label="Max selections"><Input type="number" value={maxSelections} onChange={(event) => setMaxSelections(Number(event.target.value))} /></Field>
+        <Field label="Visningsstil"><Select value={displayStyle} onChange={(event) => setDisplayStyle(event.target.value === "BOX_IMAGE" ? "BOX_IMAGE" : "LIST")}><option value="LIST">Lista</option><option value="BOX_IMAGE">Bildrutor</option></Select></Field>
+        <div className="md:col-span-2 surface-muted px-4 py-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Antal per val</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAllowQuantity((current) => !current)}
+              className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${allowQuantity ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
+            >
+              Tillåt antal per val
+            </button>
+          </div>
+          <p className="mt-2 text-[12px] text-[var(--text-secondary)]">Kunden kan välja flera av samma, t.ex. 3 dippar.</p>
+        </div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Attach to categories</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -458,15 +519,26 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Extras</p>
-            <Button variant="secondary" onClick={() => setExtras((current) => [...current, { name: "", priceAddon: 0, isDefault: false }])}>Lägg till rad</Button>
+            <Button variant="secondary" onClick={() => setExtras((current) => [...current, { name: "", priceAddon: 0, isDefault: false, imageUrl: null }])}>Lägg till rad</Button>
           </div>
           <div className="mt-4 grid gap-3">
             {extras.map((extra, index) => (
-              <div key={index} className="grid gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-4 py-4 md:grid-cols-[1fr_140px_140px_auto]">
-                <Input value={extra.name} onChange={(event) => updateExtra(index, "name", event.target.value)} placeholder="Extra name" />
-                <Input type="number" value={extra.priceAddon} onChange={(event) => updateExtra(index, "priceAddon", Number(event.target.value))} placeholder="0" />
-                <Select value={extra.isDefault ? "yes" : "no"} onChange={(event) => updateExtra(index, "isDefault", event.target.value === "yes")}><option value="no">Optional</option><option value="yes">Default</option></Select>
-                <Button variant="danger" onClick={() => setExtras((current) => current.filter((_, currentIndex) => currentIndex !== index))}>Remove</Button>
+              <div key={index} className="grid gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-4 py-4">
+                <div className="grid gap-3 md:grid-cols-[1fr_140px_140px_auto]">
+                  <Input value={extra.name} onChange={(event) => updateExtra(index, "name", event.target.value)} placeholder="Extra name" />
+                  <Input type="number" value={extra.priceAddon} onChange={(event) => updateExtra(index, "priceAddon", Number(event.target.value))} placeholder="0" />
+                  <Select value={extra.isDefault ? "yes" : "no"} onChange={(event) => updateExtra(index, "isDefault", event.target.value === "yes")}><option value="no">Optional</option><option value="yes">Default</option></Select>
+                  <Button variant="danger" onClick={() => setExtras((current) => current.filter((_, currentIndex) => currentIndex !== index))}>Remove</Button>
+                </div>
+                {displayStyle === "BOX_IMAGE" ? (
+                  <ImageUploadField
+                    label="Bild"
+                    value={extra.imageUrl || ""}
+                    onChange={(url) => updateExtra(index, "imageUrl", url || null)}
+                    kind="misc"
+                    restaurantId={restaurantId}
+                  />
+                ) : null}
               </div>
             ))}
           </div>
@@ -604,166 +676,6 @@ function ImportFromOtherModal({
         ) : null}
       </div>
     </Modal>
-  );
-}
-
-/**
- * R2 Migrate-knapp: triggar migration från Cloudinary → R2 SERVER-SIDE.
- * Använder Railway-env-varsen så admin inte behöver hantera secrets själv.
- * Default = dry-run; admin ser exempel + statistik innan confirm.
- */
-function R2MigrateButton() {
-  const queryClient = useQueryClient();
-  const { showToast } = useToast();
-  const [open, setOpen] = useState(false);
-  const [dryRun, setDryRun] = useState<R2MigrateResult | null>(null);
-  const [liveResult, setLiveResult] = useState<R2MigrateResult | null>(null);
-
-  const extractError = (e: any): string => {
-    if (e?.code === 'ECONNABORTED' || /timeout/i.test(e?.message || '')) {
-      return 'Tidsgränsen för request:en passerades. Migrationen kan ha startat på servern — kontrollera resultatet om en stund.';
-    }
-    if (e?.response?.status === 401 || e?.response?.status === 403) {
-      return 'Saknar behörighet — logga in som superadmin.';
-    }
-    if (e?.response?.status === 503) {
-      return e?.response?.data?.error || 'R2 är inte konfigurerat på servern.';
-    }
-    if (e?.response?.data?.error) return e.response.data.error;
-    if (e?.message) return e.message;
-    return 'Okänt fel — kolla nätverk eller serverloggar.';
-  };
-
-  const dryMutation = useMutation({ meta: { toast: false },
-    mutationFn: () => r2Migrate({ apply: false }),
-    onSuccess: (data) => {
-      setDryRun(data);
-      setLiveResult(null);
-      setOpen(true);
-      if (!data.configured) {
-        showToast({ type: 'error', message: 'R2 är inte konfigurerat på servern' });
-      }
-    },
-    onError: (e) => {
-      showToast({ type: 'error', message: `Dry-run misslyckades: ${extractError(e)}` });
-    },
-  });
-
-  const applyMutation = useMutation({ meta: { toast: false },
-    mutationFn: () => r2Migrate({ apply: true }),
-    onSuccess: async (data) => {
-      setLiveResult(data);
-      // Cache invalidation — alla bild-URL:er har bytts i DB
-      await queryClient.invalidateQueries({ queryKey: ["menu"] });
-      showToast({
-        type: data.failed > 0 ? 'info' : 'success',
-        message: `Migration klar: ${data.migrated} flyttade, ${data.failed} fel`,
-      });
-    },
-    onError: (e) => {
-      showToast({ type: 'error', message: `Migration misslyckades: ${extractError(e)}` });
-    },
-  });
-
-  const error = (dryMutation.error as any)?.response?.data?.error || (applyMutation.error as any)?.response?.data?.error;
-  const isApplying = applyMutation.isPending;
-  const finalResult = liveResult || dryRun;
-
-  return (
-    <>
-      <Button variant="secondary" onClick={() => dryMutation.mutate()} disabled={dryMutation.isPending}>
-        {dryMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
-        Migrera till R2
-      </Button>
-
-      <Modal
-        open={open && !!finalResult}
-        onClose={() => { if (!isApplying) { setOpen(false); setDryRun(null); setLiveResult(null); } }}
-        title={liveResult ? "Migration klar" : "R2-migration (dry-run)"}
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => { if (!isApplying) { setOpen(false); setDryRun(null); setLiveResult(null); } }} disabled={isApplying}>
-              {liveResult ? "Stäng" : "Avbryt"}
-            </Button>
-            {!liveResult ? (
-              <Button variant="primary" onClick={() => applyMutation.mutate()} disabled={isApplying || !finalResult || finalResult.migrated === 0}>
-                {isApplying ? <Loader2 size={14} className="animate-spin" /> : null}
-                {isApplying ? "Migrerar…" : `Migrera ${finalResult?.migrated || 0} bilder`}
-              </Button>
-            ) : null}
-          </div>
-        }
-      >
-        {finalResult ? (
-          <div className="grid gap-4">
-            {!finalResult.configured ? (
-              <div className="surface-muted px-4 py-3 text-sm text-rose-400">
-                R2 är inte konfigurerat på servern. Sätt R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET och R2_PUBLIC_BASE_URL på Railway och redeploy.
-              </div>
-            ) : null}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <div className="surface-muted px-3 py-3 text-center">
-                <div className="text-2xl font-black">{finalResult.scanned}</div>
-                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Skannade</div>
-              </div>
-              <div className="surface-muted px-3 py-3 text-center">
-                <div className="text-2xl font-black">{finalResult.migrated}</div>
-                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">{liveResult ? "Migrerade" : "Kommer migreras"}</div>
-              </div>
-              <div className="surface-muted px-3 py-3 text-center">
-                <div className="text-2xl font-black">{finalResult.alreadyR2}</div>
-                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Redan i R2</div>
-              </div>
-              <div className="surface-muted px-3 py-3 text-center">
-                <div className="text-2xl font-black">{finalResult.skippedNoUrl}</div>
-                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Saknar URL</div>
-              </div>
-              <div className="surface-muted px-3 py-3 text-center">
-                <div className={`text-2xl font-black ${finalResult.failed > 0 ? "text-rose-400" : ""}`}>{finalResult.failed}</div>
-                <div className="mt-1 text-[10px] uppercase tracking-widest text-[var(--text-secondary)]">Misslyckade</div>
-              </div>
-            </div>
-            {finalResult.migratedExamples.length > 0 ? (
-              <div>
-                <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">
-                  {liveResult ? "Exempel på vad som flyttades" : "Exempel på vad som KOMMER flyttas"}
-                </p>
-                <div className="surface-muted max-h-64 overflow-y-auto px-3 py-2 text-xs">
-                  {finalResult.migratedExamples.map((u, i) => (
-                    <div key={i} className="border-b border-[var(--border-subtle)] py-1.5 last:border-b-0">
-                      <div className="font-semibold">{u.label}</div>
-                      <code className="break-all text-[10px] text-[var(--text-muted)]">→ {u.to}</code>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {finalResult.failedExamples.length > 0 ? (
-              <div>
-                <p className="mb-2 text-[11px] font-black uppercase tracking-widest text-rose-400">Misslyckade nedladdningar</p>
-                <div className="surface-muted max-h-56 overflow-y-auto px-3 py-2 text-xs">
-                  {finalResult.failedExamples.map((f, i) => (
-                    <div key={i} className="border-b border-[var(--border-subtle)] py-2 last:border-b-0">
-                      <div className="font-semibold">{f.label}</div>
-                      <code className="mt-0.5 block break-all text-[10px] text-rose-400">{f.error}</code>
-                      <a
-                        href={f.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-0.5 block break-all text-[10px] text-[var(--text-muted)] hover:underline"
-                      >
-                        {f.url}
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {error ? <p className="text-sm text-rose-400">{error}</p> : null}
-          </div>
-        ) : null}
-      </Modal>
-    </>
   );
 }
 
@@ -1488,7 +1400,6 @@ export function MenuPage() {
         title="Meny"
         actions={
           <>
-            <R2MigrateButton />
             {activeRestaurantId ? (
               <>
                 <BulkImportButton restaurantId={activeRestaurantId} />

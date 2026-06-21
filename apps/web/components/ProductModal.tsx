@@ -150,6 +150,54 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
     }
   };
 
+  // ── Antal-tillval (allowQuantity-grupper) ────────────────────────────────
+  // Räknar gruppens "fyllnad": för antal-grupper summan av kvantiteter, annars
+  // antalet valda. Används för min/max + räknaren i headern.
+  const groupSelectedCount = (group: any) =>
+    selectedExtras
+      .filter((e) => e.groupId === group.id)
+      .reduce((n, e) => n + (group.allowQuantity ? (e.quantity ?? 1) : 1), 0);
+  const getQty = (extraId: string) => selectedExtras.find((e) => e.extraId === extraId)?.quantity ?? 0;
+  const setExtraQty = (group: any, extra: any, delta: number) => {
+    setSelectionError(null);
+    setSelectedExtras((prev) => {
+      const cur = prev.find((e) => e.extraId === extra.id)?.quantity ?? 0;
+      const otherTotal = prev
+        .filter((e) => e.groupId === group.id && e.extraId !== extra.id)
+        .reduce((n, e) => n + (e.quantity ?? 1), 0);
+      let next = cur + delta;
+      if (next < 0) next = 0;
+      const max = group.maxSelections || 99;
+      if (otherTotal + next > max) next = Math.max(0, max - otherTotal);
+      const without = prev.filter((e) => e.extraId !== extra.id);
+      if (next <= 0) return without;
+      return [...without, { groupId: group.id, groupName: group.name, extraId: extra.id, name: extra.name, price: extra.priceAddon, quantity: next }];
+    });
+  };
+  const renderStepper = (group: any, extra: any) => {
+    const qty = getQty(extra.id);
+    return (
+      <div className="flex items-center gap-2 select-none shrink-0">
+        <button
+          type="button"
+          aria-label="−"
+          onClick={(e) => { e.stopPropagation(); setExtraQty(group, extra, -1); }}
+          disabled={qty <= 0}
+          className="w-7 h-7 rounded-full grid place-items-center text-[16px] leading-none disabled:opacity-30 transition-opacity active:opacity-60"
+          style={{ border: "1.5px solid var(--line-strong)", color: "var(--text-primary)" }}
+        >−</button>
+        <span className="min-w-[16px] text-center text-[14px] font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>{qty}</span>
+        <button
+          type="button"
+          aria-label="+"
+          onClick={(e) => { e.stopPropagation(); setExtraQty(group, extra, +1); }}
+          className="w-7 h-7 rounded-full grid place-items-center text-[16px] leading-none transition-opacity active:opacity-60"
+          style={{ border: "1.5px solid var(--text-primary)", color: "var(--text-primary)" }}
+        >+</button>
+      </div>
+    );
+  };
+
   // Effektivt pris: använd salePrice/discountPrice om produkten är på deal,
   // annars ordinarie pris. Detta matchar exakt det pris som visas i menyn
   // så modalen och listan aldrig divergerar (tidigare bug: list visade
@@ -175,7 +223,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
     return product.price;
   })();
 
-  const extrasPrice = selectedExtras.reduce((sum, e) => sum + e.price, 0);
+  const extrasPrice = selectedExtras.reduce((sum, e) => sum + e.price * (e.quantity ?? 1), 0);
   const totalPrice = (effectiveBasePrice + extrasPrice) * quantity;
   // Dpoints: kostnad i poäng för hela raden + om kunden kan betala med poäng.
   const dpointsUnitCost = Math.round((effectiveBasePrice + extrasPrice) * (dpoints?.valuePerKr ?? 10));
@@ -194,7 +242,11 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const handleAddToCart = () => {
     for (const group of filteredExtraGroups || []) {
       const selectedInGroup = selectedExtras.filter((extra) => extra.groupId === group.id);
-      if (group.required && selectedInGroup.length === 0) {
+      // Antal-grupper räknas på summan av kvantiteter, annars antalet valda.
+      const cnt = group.allowQuantity
+        ? selectedInGroup.reduce((n: number, e: any) => n + (e.quantity ?? 1), 0)
+        : selectedInGroup.length;
+      if (group.required && cnt === 0) {
         // En obligatorisk grupp kan ha ALLA sina extras blockerade av BOGO.
         // Då kan kunden inte uppfylla kravet — vi hoppar över valideringen
         // för att inte fastna i ett ogiltigt tillstånd.
@@ -202,11 +254,11 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         setSelectionError(t("product.error.pickOne", { group: group.name.toLowerCase() }));
         return;
       }
-      if (selectedInGroup.length < (group.minSelections || 0) && group.extras.length > 0) {
+      if (cnt < (group.minSelections || 0) && group.extras.length > 0) {
         setSelectionError(t("product.error.minSelections", { group: group.name, n: group.minSelections }));
         return;
       }
-      if (selectedInGroup.length > (group.maxSelections || 99)) {
+      if (cnt > (group.maxSelections || 99)) {
         setSelectionError(t("product.error.maxSelections", { group: group.name, n: group.maxSelections }));
         return;
       }
@@ -286,7 +338,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6"
+      className="fixed inset-0 z-[200] flex items-stretch justify-center bg-black/40 p-0"
       onClick={onClose}
     >
       <motion.div
@@ -298,82 +350,79 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
-        className="w-full max-w-md rounded-t-2xl sm:rounded-2xl overflow-hidden relative flex flex-col max-h-[92vh]"
+        className="w-full h-[100dvh] rounded-none overflow-hidden relative flex flex-col sm:max-w-xl"
         onClick={(e) => e.stopPropagation()}
         style={{ backgroundColor: "var(--bg-secondary)" }}
       >
-        {/* ── Produktbild (endast giltig, laddbar bild): kompakt 144px-band
-            överst. Bildlösa/trasiga produkter hoppar direkt till headern. ── */}
-        {hasModalImage ? (
-          <div className="relative flex-shrink-0 w-full h-36 overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={product.imageUrl}
-              alt={product.name}
-              className="w-full h-full object-cover"
-              loading="eager"
-              decoding="async"
-              onError={() => setImgFailed(true)}
-            />
-          </div>
-        ) : null}
+        {/* ── Flytande stäng-knapp: alltid nåbar medan man skrollar. ──────── */}
+        <button
+          onClick={onClose}
+          aria-label={t("common.close")}
+          className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full grid place-items-center bg-black/40 text-white transition-opacity active:opacity-70"
+        >
+          <X size={20} strokeWidth={2} />
+        </button>
 
-        {/* ── Header: drag-handle (mobil) + namn + pris + X. ──────────────── */}
-        <div className="flex-shrink-0 px-5 pt-3 pb-4" style={{ borderBottom: "1px solid var(--border-muted)" }}>
-          <div className="sm:hidden mx-auto mb-3 w-10 h-1 rounded-full" style={{ backgroundColor: "var(--line-strong)" }} />
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              {bogoFreeFromDealId ? (
-                <span className="inline-block mb-1.5 rounded-md px-2 py-0.5 bg-gold-500 text-[12px] font-semibold" style={{ color: "#141416" }}>
-                  {t("product.freeVia", { deal: bogoDealTitle || "BOGO" })}
-                </span>
-              ) : null}
-              <h2 className="m-0 text-[17px] font-bold tracking-tight leading-snug" style={{ color: "var(--text-primary)" }}>
-                {product.name}
-              </h2>
-              <div className="mt-1 flex items-baseline gap-2 flex-wrap" style={{ fontVariantNumeric: "tabular-nums" }}>
-                <span className="text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>
-                  {effectiveBasePrice} kr
-                </span>
-                {hasDiscount && (
-                  <span className="text-[13px] line-through" style={{ color: "var(--text-secondary)" }}>
-                    {product.price} kr
-                  </span>
-                )}
-                {discountPct > 0 && (
-                  <span className="text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>
-                    −{discountPct} %
-                  </span>
-                )}
-                {/* Dpoints — "eller X poäng" för rewardable varor (göms om Dpoints är av) */}
-                {!bogoFreeFromDealId && !!product.rewardable && !!dpoints?.enabled && dpointsBasePoints > 0 && (
-                  <span className="text-[12.5px] font-medium" style={{ color: "var(--gold-ink)" }}>
-                    {t("menu.orPoints", { points: nf(dpointsBasePoints) })}
-                  </span>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              aria-label={t("common.close")}
-              className="shrink-0 -mr-1.5 w-9 h-9 rounded-full flex items-center justify-center transition-opacity hover:opacity-70"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              <X size={20} strokeWidth={2} />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Scrollbar yta: beskrivning + tillval + önskemål ─────────────── */}
+        {/* ── Skrollbar yta: bild + namn/pris + beskrivning + tillval + önskemål.
+            Bilden ligger som första barn så den skrollar bort med innehållet. ── */}
         <div className="flex-1 overflow-y-auto no-scrollbar" style={{ overscrollBehavior: "contain" }}>
-          {(product.description || (dpoints?.enabled && (dpoints?.balance ?? 0) > 0) || product.isVegan || product.isVegetarian || product.isGlutenFree) && (
-            <div className="px-5 pt-4">
-              {product.description ? (
-                <p className="m-0 text-[13.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                  {product.description}
-                </p>
-              ) : null}
+          {/* Produktbild (endast giltig, laddbar bild): kompakt 208px-band,
+              kant-till-kant. Bildlösa/trasiga produkter hoppar direkt till titeln. */}
+          {hasModalImage ? (
+            <div className="relative w-full h-52 overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                className="w-full h-52 object-cover"
+                loading="eager"
+                decoding="async"
+                onError={() => setImgFailed(true)}
+              />
+            </div>
+          ) : null}
 
+          {/* ── Namn + pris (+ "eller X poäng") under bilden. ─────────────── */}
+          <div className="px-5 pt-4" style={{ borderBottom: "1px solid var(--border-muted)", paddingBottom: "16px" }}>
+            {bogoFreeFromDealId ? (
+              <span className="inline-block mb-1.5 rounded-md px-2 py-0.5 bg-gold-500 text-[12px] font-semibold" style={{ color: "#141416" }}>
+                {t("product.freeVia", { deal: bogoDealTitle || "BOGO" })}
+              </span>
+            ) : null}
+            <h2 className="m-0 text-[17px] font-bold tracking-tight leading-snug" style={{ color: "var(--text-primary)" }}>
+              {product.name}
+            </h2>
+            <div className="mt-1 flex items-baseline gap-2 flex-wrap" style={{ fontVariantNumeric: "tabular-nums" }}>
+              <span className="text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                {effectiveBasePrice} kr
+              </span>
+              {hasDiscount && (
+                <span className="text-[13px] line-through" style={{ color: "var(--text-secondary)" }}>
+                  {product.price} kr
+                </span>
+              )}
+              {discountPct > 0 && (
+                <span className="text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>
+                  −{discountPct} %
+                </span>
+              )}
+              {/* Dpoints — "eller X poäng" för rewardable varor (göms om Dpoints är av) */}
+              {!bogoFreeFromDealId && !!product.rewardable && !!dpoints?.enabled && dpointsBasePoints > 0 && (
+                <span className="text-[12.5px] font-medium" style={{ color: "var(--gold-ink)" }}>
+                  {t("menu.orPoints", { points: nf(dpointsBasePoints) })}
+                </span>
+              )}
+            </div>
+            {/* Full produktbeskrivning under priset — aldrig trunkerad. */}
+            {product.description ? (
+              <p className="m-0 mt-3 text-[13.5px] leading-relaxed whitespace-pre-line" style={{ color: "var(--text-secondary)" }}>
+                {product.description}
+              </p>
+            ) : null}
+          </div>
+
+          {((dpoints?.enabled && (dpoints?.balance ?? 0) > 0) || product.isVegan || product.isVegetarian || product.isGlutenFree) && (
+            <div className="px-5 pt-4">
               {dpoints?.enabled && (dpoints?.balance ?? 0) > 0 && (
                 <p className="m-0 mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
                   <Coins size={13} strokeWidth={1.8} />
@@ -407,68 +456,99 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
           {/* Tillvalsgrupper — rena rader med hairline-separatorer */}
           <div className="px-5">
             {[...filteredExtraGroups].sort((a, b) => (a.position || 0) - (b.position || 0)).map((group) => {
-              const selectionCount = selectedExtras.filter((e) => e.groupId === group.id).length;
               const isRadio = group.type === "RADIO";
+              const isBox = group.displayStyle === "BOX_IMAGE";
+              const isQty = !!group.allowQuantity;
+              const selectionCount = groupSelectedCount(group);
               return (
                 <section key={group.id} className="mt-5">
-                  <div className="flex items-baseline gap-2 mb-1">
+                  <div className="flex items-baseline gap-2 mb-2">
                     <h3 className="m-0 text-[14.5px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
                       {group.name}
                     </h3>
                     <span className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
                       {group.required ? t("product.required") : t("product.optional")}
                     </span>
-                    {group.maxSelections > 1 && (
+                    {(group.maxSelections > 1 || isQty) && (
                       <span className="ml-auto text-[12px] font-medium" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
                         {selectionCount} / {group.maxSelections}
                       </span>
                     )}
                   </div>
 
-                  <div style={{ borderTop: "1px solid var(--border-muted)" }}>
-                    {group.extras.map((extra: any) => {
-                      const isSelected = selectedExtras.some((e) => e.extraId === extra.id);
-                      return (
-                        <button
-                          key={extra.id}
-                          type="button"
-                          onClick={() => handleToggleExtra(group, extra)}
-                          className="w-full flex items-center justify-between gap-3 py-3 text-left transition-opacity active:opacity-70"
-                          style={{ borderBottom: "1px solid var(--border-muted)" }}
-                        >
-                          <span className="flex items-center gap-3 min-w-0">
-                            {isRadio ? (
-                              <span
-                                aria-hidden="true"
-                                className="w-[18px] h-[18px] rounded-full shrink-0 grid place-items-center transition-colors"
-                                style={{ border: `1.5px solid ${isSelected ? "var(--text-primary)" : "var(--line-strong)"}` }}
-                              >
-                                {isSelected && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--text-primary)" }} />}
-                              </span>
-                            ) : (
-                              <span
-                                aria-hidden="true"
-                                className="w-[18px] h-[18px] rounded-[5px] shrink-0 grid place-items-center transition-colors"
-                                style={isSelected
-                                  ? { backgroundColor: "var(--text-primary)", border: "1.5px solid var(--text-primary)" }
-                                  : { border: "1.5px solid var(--line-strong)" }}
-                              >
-                                {isSelected && <Check size={12} strokeWidth={3} style={{ color: "var(--bg-secondary)" }} />}
-                              </span>
+                  {isBox ? (
+                    /* ── BOX_IMAGE: bild-kort i rutnät (à la McDonald's) ── */
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {group.extras.map((extra: any) => {
+                        const isSelected = selectedExtras.some((e) => e.extraId === extra.id);
+                        return (
+                          <div
+                            key={extra.id}
+                            className="rounded-2xl overflow-hidden flex flex-col transition-colors"
+                            style={{ border: `1.5px solid ${isSelected ? "var(--gold-500, #E7B24B)" : "var(--border-muted)"}`, backgroundColor: "var(--bg-secondary)" }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => { if (!isQty) handleToggleExtra(group, extra); else setExtraQty(group, extra, getQty(extra.id) > 0 ? 0 : 1 - getQty(extra.id)); }}
+                              className="flex flex-col items-center gap-1 px-2 pt-3 pb-2 text-center transition-opacity active:opacity-70"
+                            >
+                              {extra.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={extra.imageUrl} alt={extra.name} className="w-16 h-16 object-contain" loading="lazy" decoding="async" />
+                              ) : (
+                                <div className="w-16 h-16 rounded-xl" style={{ backgroundColor: "var(--bg-deep)" }} />
+                              )}
+                              <span className="text-[12px] font-medium leading-tight line-clamp-2" style={{ color: "var(--text-primary)" }}>{extra.name}</span>
+                              {extra.priceAddon > 0 && (
+                                <span className="text-[11px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>+{extra.priceAddon} kr</span>
+                              )}
+                            </button>
+                            {isQty && (
+                              <div className="flex items-center justify-center pb-2.5 pt-0.5">{renderStepper(group, extra)}</div>
                             )}
-                            <span className="text-[14px] font-medium truncate" style={{ color: "var(--text-primary)" }}>
-                              {extra.name}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* ── LIST: rader (radio/checkbox eller antal-stepper) ── */
+                    <div style={{ borderTop: "1px solid var(--border-muted)" }}>
+                      {group.extras.map((extra: any) => {
+                        const isSelected = selectedExtras.some((e) => e.extraId === extra.id);
+                        const inner = (
+                          <>
+                            <span className="flex items-center gap-3 min-w-0">
+                              {isQty ? null : isRadio ? (
+                                <span aria-hidden="true" className="w-[18px] h-[18px] rounded-full shrink-0 grid place-items-center transition-colors"
+                                  style={{ border: `1.5px solid ${isSelected ? "var(--text-primary)" : "var(--line-strong)"}` }}>
+                                  {isSelected && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--text-primary)" }} />}
+                                </span>
+                              ) : (
+                                <span aria-hidden="true" className="w-[18px] h-[18px] rounded-[5px] shrink-0 grid place-items-center transition-colors"
+                                  style={isSelected ? { backgroundColor: "var(--text-primary)", border: "1.5px solid var(--text-primary)" } : { border: "1.5px solid var(--line-strong)" }}>
+                                  {isSelected && <Check size={12} strokeWidth={3} style={{ color: "var(--bg-secondary)" }} />}
+                                </span>
+                              )}
+                              <span className="text-[14px] font-medium truncate" style={{ color: "var(--text-primary)" }}>{extra.name}</span>
                             </span>
-                          </span>
-                          {extra.priceAddon > 0 && (
-                            <span className="shrink-0 text-[13px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-                              +{extra.priceAddon} kr
+                            <span className="flex items-center gap-3 shrink-0">
+                              {extra.priceAddon > 0 && (
+                                <span className="text-[13px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>+{extra.priceAddon} kr</span>
+                              )}
+                              {isQty && renderStepper(group, extra)}
                             </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                          </>
+                        );
+                        return isQty ? (
+                          <div key={extra.id} className="w-full flex items-center justify-between gap-3 py-3" style={{ borderBottom: "1px solid var(--border-muted)" }}>{inner}</div>
+                        ) : (
+                          <button key={extra.id} type="button" onClick={() => handleToggleExtra(group, extra)}
+                            className="w-full flex items-center justify-between gap-3 py-3 text-left transition-opacity active:opacity-70"
+                            style={{ borderBottom: "1px solid var(--border-muted)" }}>{inner}</button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </section>
               );
             })}

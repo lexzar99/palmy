@@ -78,6 +78,12 @@ model ExtraGroup {
   required      Boolean             @default(false)
   minSelections Int                 @default(0)
   maxSelections Int                 @default(99)
+  // Visningsstil i produktmodalen: "LIST" (radio/checkbox-rader) eller
+  // "BOX_IMAGE" (bild-kort som McDonald's "Välj tillbehör"). Sätts i admin.
+  displayStyle  String              @default("LIST")
+  // Tillåt att samma tillval beställs i ett ANTAL (stepper per option), t.ex.
+  // "20 nuggets → 3 dippar". Summan bunden av min/maxSelections. Admin-toggle.
+  allowQuantity Boolean             @default(false)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   position      Int                 @default(0)
@@ -102,6 +108,8 @@ model Extra {
   id           String     @id @default(cuid())
   name         String
   priceAddon   Int        @default(0)
+  // R2-bild för "BOX_IMAGE"-grupper (bild-kort i produktmodalen). null = ingen.
+  imageUrl     String?
   extraGroupId String
   isDefault    Boolean    @default(false)
   isActive     Boolean    @default(true)

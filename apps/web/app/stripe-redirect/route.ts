@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0a0908">
   <meta name="robots" content="noindex, nofollow">
-  <title>Tillbaka till FoodGo</title>
+  <title>Tillbaka till Delivera</title>
 
   <!-- iOS försöker öppna foodgo:// direkt. Detta är det mest pålitliga
        sättet att triggera ett custom URL-scheme från Safari utan
@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
     </div>
 
     <p class="help">
-      Tryck på knappen nedan för att följa din beställning i FoodGo-appen.
+      Tryck på knappen nedan för att följa din beställning i Delivera-appen.
       ${orderId ? "Restaurangen har redan fått ordern." : ""}
     </p>
 

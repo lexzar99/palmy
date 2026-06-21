@@ -15,6 +15,7 @@ export interface CartItem {
     extraId: string;
     name: string;
     price: number;
+    quantity?: number; // Antal av detta tillval (allowQuantity-grupper); default 1
   }[];
   note?: string;
   bogoFreeFromDealId?: string; // Satt om raden är en BOGO-gratisvara
@@ -114,7 +115,7 @@ export const useCartStore = create<CartStore>()(
       getTotal: () => {
         const items = get().items;
         return items.reduce((total, item) => {
-          const itemExtrasTotal = item.extras.reduce((sum, extra) => sum + extra.price, 0);
+          const itemExtrasTotal = item.extras.reduce((sum, extra) => sum + extra.price * (extra.quantity ?? 1), 0);
           return total + ((item.price + itemExtrasTotal) * item.quantity);
         }, 0);
       },

@@ -94,6 +94,7 @@ const OrderItemSchema = z.object({
     extraId: z.string(),
     extraName: z.string(),
     priceAddon: z.number(),
+    quantity: z.number().int().min(1).max(500).optional(),
   })),
   // Klienten flaggar items som "BOGO-gratis" så backend kan verifiera
   // att kunden inte smugglar fler gratis-varor än vad dealen tillåter.
@@ -529,6 +530,7 @@ router.post('/', async (req: Request, res: Response) => {
               extraId: selected.extraId,
               extraName: selected.extraName,
               priceAddon: selected.priceAddon,
+              quantity: selected.quantity ?? 1,
             };
           }
           throw new OrderValidationError(`Ogiltigt tillval för ${product.name}`);
@@ -543,6 +545,7 @@ router.post('/', async (req: Request, res: Response) => {
               extraId: selected.extraId,
               extraName: selected.extraName,
               priceAddon: selected.priceAddon,
+              quantity: selected.quantity ?? 1,
             };
           }
           throw new OrderValidationError(`Tillvalet ${selected.extraName} finns inte längre`);
@@ -554,6 +557,7 @@ router.post('/', async (req: Request, res: Response) => {
           extraId: extra.id,
           extraName: extra.name,
           priceAddon: extra.priceAddon / 100,
+          quantity: selected.quantity ?? 1,
           groupRequired: group.required || group.minSelections > 0,
         };
       });
@@ -565,10 +569,15 @@ router.post('/', async (req: Request, res: Response) => {
           const minSel = group.minSelections ?? 0;
           const maxSel = group.maxSelections ?? 99;
           const selectedInGroup = validatedExtras.filter((selected) => selected.groupId === group.id);
-          if (selectedInGroup.length < minSel) {
+          // allowQuantity-grupper: kunden får beställa samma val flera gånger, så
+          // gränserna mäts mot SUMMAN av kvantiteter (inte antal distinkta val).
+          const totalInGroup = (group as any).allowQuantity
+            ? selectedInGroup.reduce((n, sel) => n + ((sel as any).quantity ?? 1), 0)
+            : selectedInGroup.length;
+          if (totalInGroup < minSel) {
             throw new OrderValidationError(`${product.name} kräver minst ${minSel} val i ${group.name.toLowerCase()}`);
           }
-          if (selectedInGroup.length > maxSel) {
+          if (totalInGroup > maxSel) {
             throw new OrderValidationError(`${product.name} tillåter högst ${maxSel} val i ${group.name.toLowerCase()}`);
           }
           if (group.required && selectedInGroup.length === 0) {
@@ -580,7 +589,7 @@ router.post('/', async (req: Request, res: Response) => {
         }
       }
 
-      const extrasTotal = validatedExtras.reduce((sum, e) => sum + Math.round(e.priceAddon * 100), 0);
+      const extrasTotal = validatedExtras.reduce((sum, e) => sum + Math.round(e.priceAddon * 100) * ((e as any).quantity ?? 1), 0);
       const fullItemOre = (product.price + extrasTotal) * item.quantity;
       // Rabattpris (öre) för POÄNG-kostnaden så den matchar vad kunden ser i
       // appen (rabattpris i poäng). Kontant-subtotalen använder fortsatt

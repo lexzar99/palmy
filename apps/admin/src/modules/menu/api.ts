@@ -26,6 +26,7 @@ export interface ExtraRecord {
   priceAddon: number;
   isDefault?: boolean;
   position?: number;
+  imageUrl?: string | null;
 }
 
 export interface ExtraGroupRecord {
@@ -36,6 +37,8 @@ export interface ExtraGroupRecord {
   minSelections: number;
   maxSelections: number;
   restaurantId?: string | null;
+  displayStyle?: string;
+  allowQuantity?: boolean;
   extras: ExtraRecord[];
   _count?: { productGroups: number };
 }
@@ -58,6 +61,10 @@ export interface ProductRecord {
   // Dpoints: köpbar med poäng.
   rewardable?: boolean;
   localPriceLocked?: boolean;
+  // Produkt-egen rabatt (skild från produktdeals). discountPrice är i kr efter list-API:ts /100.
+  discountActive?: boolean;
+  discountPercent?: number | null;
+  discountPrice?: number | null;
   category: { name: string; restaurantId?: string | null };
   extraGroups: Array<{
     id: string;
@@ -117,23 +124,6 @@ export const r2AutoMatch = (restaurantId: string, dryRun: boolean) =>
 
 export const r2ListImages = (prefix: string) =>
   apiGet<Array<{ key: string; url: string; size: number; lastModified?: string }>>(`/admin/images/list?prefix=${encodeURIComponent(prefix)}`);
-
-export type R2MigrateResult = {
-  scanned: number;
-  alreadyR2: number;
-  migrated: number;
-  failed: number;
-  skippedNoUrl: number;
-  failedExamples: Array<{ label: string; url: string; error: string }>;
-  migratedExamples: Array<{ label: string; from: string; to: string }>;
-  dryRun: boolean;
-  configured: boolean;
-};
-
-export const r2Migrate = (payload: { apply: boolean; only?: 'restaurants' | 'categories' | 'products'; restaurantSlug?: string; maxItems?: number }) =>
-  // Migration kan ta minuter när det är på riktigt — bumpa timeout till 10 min.
-  // Default axios = ingen timeout, men proxy-layers kan dö mycket tidigare.
-  apiPost<R2MigrateResult>("/admin/images/migrate", payload, { timeout: 10 * 60 * 1000 });
 
 export type R2PathsTemplate = {
   restaurant: { name: string; slug: string };

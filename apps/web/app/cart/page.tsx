@@ -1450,6 +1450,7 @@ export default function CartPage() {
           extraId: e.extraId,
           extraName: e.name,
           priceAddon: e.price,
+          quantity: e.quantity ?? 1,
         })),
         note: i.note,
         paidWithPoints: i.paidWithPoints || undefined,
@@ -2282,7 +2283,7 @@ export default function CartPage() {
                     <h3 className="text-[14.5px] font-semibold leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>{item.name}</h3>
                     {item.extras.length > 0 && (
                       <p className="text-[12px] truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                        {item.extras.map(e => e.name).join(" · ")}
+                        {item.extras.map(e => (e.quantity ?? 1) > 1 ? `${e.name} ×${e.quantity}` : e.name).join(" · ")}
                       </p>
                     )}
                   </button>

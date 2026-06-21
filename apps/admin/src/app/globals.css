@@ -202,16 +202,11 @@ button {
 }
 
 .sidebar-brand-mark {
-  display: grid;
-  place-items: center;
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  background: var(--accent);
-  color: var(--accent-fg);
-  font-weight: 800;
-  font-size: 15px;
-  letter-spacing: -0.02em;
+  object-fit: cover;
+  display: block;
 }
 
 .sidebar-brand-text {

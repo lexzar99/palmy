@@ -80,6 +80,10 @@ model ExtraGroup {
   required      Boolean             @default(false)
   minSelections Int                 @default(0)
   maxSelections Int                 @default(99)
+  // "LIST" (radio/checkbox-rader) eller "BOX_IMAGE" (bild-kort). Admin-satt.
+  displayStyle  String              @default("LIST")
+  // Tillåt antal per option (stepper), summan bunden av min/maxSelections.
+  allowQuantity Boolean             @default(false)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   position      Int                 @default(0)
@@ -104,6 +108,8 @@ model Extra {
   id           String     @id @default(cuid())
   name         String
   priceAddon   Int        @default(0)
+  // R2-bild för BOX_IMAGE-grupper (bild-kort i produktmodalen).
+  imageUrl     String?
   extraGroupId String
   isDefault    Boolean    @default(false)
   isActive     Boolean    @default(true)

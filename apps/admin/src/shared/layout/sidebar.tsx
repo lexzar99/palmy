@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -176,7 +177,14 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (
     <aside className="sidebar-shell">
       <Link href="/dashboard" className="sidebar-brand">
-        <div className="sidebar-brand-mark">D</div>
+        <Image
+          src="/delivera-admin-icon.png"
+          alt="Delívera"
+          width={32}
+          height={32}
+          className="sidebar-brand-mark"
+          priority
+        />
         <span className="sidebar-brand-text">Delívera.</span>
       </Link>
 
