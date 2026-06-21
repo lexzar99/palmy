@@ -37,6 +37,7 @@ export function ImageUploadField({
   categorySlug,
   productId,
   fileBaseName,
+  uploadOnly = false,
 }: {
   value: string;
   onChange: (url: string) => void;
@@ -50,6 +51,8 @@ export function ImageUploadField({
   productId?: string | null;
   // Basnamn för filen i R2-path:en (t.ex. tillvalsnamnet för kind="extra").
   fileBaseName?: string;
+  // Bara uppladdning: göm det manuella URL-fältet, visa enbart knapp + preview.
+  uploadOnly?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -121,13 +124,13 @@ export function ImageUploadField({
             {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
             {uploading ? "Laddar upp..." : "Ladda upp bild"}
           </Button>
-          <span className="text-xs text-[var(--text-secondary)]">eller klistra in URL nedan (max 5 MB)</span>
+          {!uploadOnly ? <span className="text-xs text-[var(--text-secondary)]">eller klistra in URL nedan (max 5 MB)</span> : null}
         </div>
       )}
       {/* URL-fältet visas bara när vi inte har en base64/lång inline-bild,
           så användaren inte tappar bort sig i ett ändlöst textfält. För
-          base64 finns Byt/Ta bort-knapparna ovan. */}
-      {!showShortened || !value ? (
+          base64 finns Byt/Ta bort-knapparna ovan. uploadOnly döljer det helt. */}
+      {!uploadOnly && (!showShortened || !value) ? (
         <Input
           type="text"
           value={value}

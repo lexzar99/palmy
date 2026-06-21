@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
@@ -140,6 +140,124 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
       )}
     </button>
   );
+}
+
+/**
+ * CompactCard — halv-bredds produktkort (displayMode COMPACT). Två per rad på
+ * mobil: bild överst, namn + pris under. Samma deal/rabatt/dpoints-logik som
+ * UniformCard men i en kompakt box istället för full-bredds rad.
+ */
+function CompactCard({ product, onClick, disabled }: { product: any; onClick: () => void; disabled: boolean }) {
+  const { final, original } = getDisplayPrice(product);
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
+  const hasImage = Boolean(product.imageUrl) && !imgFailed;
+  const discountPct = original != null && original > final ? Math.round((1 - final / original) * 100) : 0;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-disabled={disabled}
+      className={`group relative w-full text-left flex flex-col rounded-xl overflow-hidden transition-opacity ${disabled ? "opacity-50 grayscale cursor-not-allowed" : "active:opacity-70 cursor-pointer"}`}
+      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+    >
+      {hasImage ? (
+        <div className="relative w-full aspect-[4/3] overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+          <Image
+            src={product.imageUrl}
+            alt={product.name}
+            fill
+            sizes="(max-width: 640px) 50vw, 280px"
+            className="object-cover"
+            onError={() => setImgFailed(true)}
+          />
+          <span
+            aria-hidden="true"
+            className="absolute right-1.5 bottom-1.5 w-7 h-7 rounded-full grid place-items-center"
+            style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--line-strong)", boxShadow: "0 1px 4px rgba(20,20,22,0.12)" }}
+          >
+            <Plus size={15} strokeWidth={2.2} />
+          </span>
+          {discountPct > 0 && (
+            <span className="absolute left-1.5 top-1.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
+              −{discountPct} %
+            </span>
+          )}
+        </div>
+      ) : null}
+      <div className="flex-1 min-w-0 flex flex-col gap-1 px-3 py-2.5">
+        <div className="flex items-start gap-2">
+          <h3 className="m-0 flex-1 min-w-0 text-[14px] font-semibold leading-snug line-clamp-2" style={{ color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
+            {product.name}
+          </h3>
+          {!hasImage && (
+            <span
+              aria-hidden="true"
+              className="shrink-0 w-7 h-7 rounded-full grid place-items-center"
+              style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--line-strong)", boxShadow: "0 1px 4px rgba(20,20,22,0.12)" }}
+            >
+              <Plus size={14} strokeWidth={2.2} />
+            </span>
+          )}
+        </div>
+        <div className="mt-auto flex items-center gap-2 flex-wrap">
+          <span className="text-[14px] font-semibold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
+            {final} kr
+          </span>
+          {original != null && original !== final && (
+            <span className="text-[12.5px] line-through" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+              {original} kr
+            </span>
+          )}
+          {!hasImage && discountPct > 0 && (
+            <span className="text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>
+              −{discountPct} %
+            </span>
+          )}
+          <DpointsBadge priceKr={final} rewardable={!!product.rewardable} />
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/**
+ * Renderar en kategoris produkter: FULL = full-bredds rad (UniformCard),
+ * COMPACT = halv-bredd (CompactCard) där intilliggande COMPACT-produkter
+ * paras ihop till ett 2-kolumns rutnät. Bevarar produktordningen.
+ */
+function renderCategoryProducts(
+  products: any[],
+  onOpen: (p: any) => void,
+  disabled: boolean,
+): ReactNode[] {
+  const rows: ReactNode[] = [];
+  let i = 0;
+  while (i < products.length) {
+    const p = products[i];
+    if (p.displayMode === "COMPACT") {
+      // Samla alla efterföljande COMPACT-produkter i en sammanhängande grupp.
+      const group: any[] = [];
+      while (i < products.length && products[i].displayMode === "COMPACT") {
+        group.push(products[i]);
+        i++;
+      }
+      rows.push(
+        <div key={`compact-${group[0].id}`} className="grid grid-cols-2 gap-3 py-3">
+          {group.map((cp) => (
+            <CompactCard key={cp.id} product={cp} onClick={() => onOpen(cp)} disabled={disabled} />
+          ))}
+        </div>,
+      );
+    } else {
+      rows.push(
+        <UniformCard key={p.id} product={p} onClick={() => onOpen(p)} disabled={disabled} />,
+      );
+      i++;
+    }
+  }
+  return rows;
 }
 
 const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initialData = null }: MenuContentProps) => {
@@ -942,16 +1060,14 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                      </span>
                    </div>
                    {/* Full-width lista med hårfina avdelare (Foodora-stil) — inga
-                       kort-i-kort, ren bakgrund hela vägen ut till kanten. */}
+                       kort-i-kort, ren bakgrund hela vägen ut till kanten. FULL =
+                       full-bredds rad, COMPACT = halv-bredd (2 per rad). */}
                    <div style={{ borderTop: "1px solid var(--border-muted)" }}>
-                     {cat.products.map((p: any) => (
-                       <UniformCard
-                         key={p.id}
-                         product={p}
-                         onClick={() => handleOpenProduct(p)}
-                         disabled={!restaurant?.isOpen || zoneAvailable === false}
-                       />
-                     ))}
+                     {renderCategoryProducts(
+                       cat.products,
+                       handleOpenProduct,
+                       !restaurant?.isOpen || zoneAvailable === false,
+                     )}
                    </div>
                  </section>
                ))}

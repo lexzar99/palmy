@@ -97,6 +97,8 @@ export const messages: Record<Locale, Messages> = {
     "product.pickMax": "Välj max {n}",
     "product.pickExactly": "Välj exakt {n}",
     "product.pickAtLeast": "Välj minst {n}",
+    "product.showMore": "Visa mer ({n})",
+    "product.showLess": "Visa mindre",
 
     // ── Cart ──────────────────────────────────────────────────────────────
     "cart.title": "Din kasse",
@@ -313,6 +315,8 @@ export const messages: Record<Locale, Messages> = {
     "product.pickMax": "Pick up to {n}",
     "product.pickExactly": "Pick exactly {n}",
     "product.pickAtLeast": "Pick at least {n}",
+    "product.showMore": "Show more ({n})",
+    "product.showLess": "Show less",
 
     // ── Cart ──────────────────────────────────────────────────────────────
     "cart.title": "Your cart",

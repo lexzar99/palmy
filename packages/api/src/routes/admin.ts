@@ -2051,13 +2051,22 @@ router.delete('/products/:id', async (req, res) => {
 // =====================
 
 /**
- * Synka en extra-grupps kategori-kopplingar (idempotent add/remove-toggle).
+ * Synka en extra-grupps kategori-kopplingar (icke-destruktiv diff).
  *
  * En "kategori-koppling" betyder att gruppen är länkad till ALLA produkter i
- * kategorin via ProductExtraGroup. Vi resolvar restaurangens kategorier + deras
- * produkter och, för varje kategori:
- *   - id i `categoryIds` (kryssad)   → createMany(skipDuplicates) på dess produkter
- *   - id EJ i `categoryIds` (avkryssad) → deleteMany på dess produkters länkar
+ * kategorin via ProductExtraGroup — exakt samma definition som GET /extra-groups
+ * använder för att räkna fram `categoryIds`. Eftersom grupper oftast länkas till
+ * enskilda produkter (inte hela kategorier) returnerar GET ofta en TOM
+ * categoryIds. Vi får därför ALDRIG radera en kategori bara för att den saknas i
+ * inkommande lista — det skulle radera individuella länkar och få gruppen att
+ * försvinna från produkten.
+ *
+ * Vi diffar mot nuläget:
+ *   - toAdd    = inkommande `categoryIds` (kryssade) → createMany(skipDuplicates)
+ *                på kategorins produkter.
+ *   - toRemove = kategorier som TIDIGARE var fullt kopplade (currentlyAssigned)
+ *                men som nu är avkryssade → deleteMany på just de kategorierna.
+ *   - Kategorier som inte var fullt kopplade rörs aldrig.
  *
  * Rör bara den scopade restaurangens kategorier. Hoppar helt över om
  * `categoryIds` inte är en array (PATCH som utelämnar fältet ska inte radera).
@@ -2071,13 +2080,30 @@ async function syncExtraGroupCategories(
   if (!restaurantId) return;
 
   const checked = new Set<string>(categoryIds.map((id) => String(id)));
+
   const categories = await prisma.category.findMany({
     where: { restaurantId },
     select: { id: true, products: { select: { id: true } } },
   });
 
+  // Gruppens nuvarande produkt-länkar (samma datakälla som GET:s productGroups).
+  const linked = await prisma.productExtraGroup.findMany({
+    where: { extraGroupId: groupId },
+    select: { productId: true },
+  });
+  const linkedProductIds = new Set(linked.map((pg) => pg.productId));
+
+  // currentlyAssigned = kategorier som har >=1 produkt OCH där VARJE produkt är
+  // länkad till gruppen. Identisk definition som GET /extra-groups (rad ~2138).
+  const currentlyAssigned = new Set(
+    categories
+      .filter((c) => c.products.length > 0 && c.products.every((p) => linkedProductIds.has(p.id)))
+      .map((c) => c.id),
+  );
+
   for (const cat of categories) {
     if (checked.has(cat.id)) {
+      // toAdd: länka alla kategorins produkter (skipDuplicates gör det idempotent).
       if (cat.products.length > 0) {
         await prisma.productExtraGroup.createMany({
           data: cat.products.map((p) => ({
@@ -2088,7 +2114,9 @@ async function syncExtraGroupCategories(
           skipDuplicates: true,
         });
       }
-    } else {
+    } else if (currentlyAssigned.has(cat.id)) {
+      // toRemove: bara kategorier som var FULLT kopplade och nu uttryckligen
+      // avkryssats. Kategorier som bara hade enstaka/partiella länkar rörs ej.
       await prisma.productExtraGroup.deleteMany({
         where: { extraGroupId: groupId, product: { categoryId: cat.id } },
       });

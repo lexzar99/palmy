@@ -57,6 +57,17 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const [imgFailed, setImgFailed] = useState(false);
   const hasModalImage = typeof product.imageUrl === "string" && product.imageUrl.trim() !== "" && !imgFailed;
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  // Per-grupp utfällning: långa, ej-obligatoriska list-grupper visar bara de
+  // första 4 raderna tills kunden trycker "Visa mer". Set håller utfällda id:n.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const toggleGroupExpanded = (groupId: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const buyWithPointsRef = useRef(false);
   const [dpoints, setDpoints] = useState<DpointsMe | null>(null);
@@ -460,6 +471,12 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
               const isBox = group.displayStyle === "BOX_IMAGE";
               const isQty = !!group.allowQuantity;
               const selectionCount = groupSelectedCount(group);
+              // Kompakt visning: ej-obligatoriska list-grupper (ej box) med fler
+              // än 4 alternativ visar bara de 4 första tills "Visa mer" trycks.
+              const isCollapsible = !group.required && !isBox && group.extras.length > 4;
+              const isExpanded = expandedGroups.has(group.id);
+              const visibleExtras = isCollapsible && !isExpanded ? group.extras.slice(0, 4) : group.extras;
+              const hiddenCount = group.extras.length - 4;
               return (
                 <section key={group.id} className="mt-5">
                   <div className="flex items-baseline gap-2 mb-2">
@@ -513,7 +530,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                   ) : (
                     /* ── LIST: rader (radio/checkbox eller antal-stepper) ── */
                     <div style={{ borderTop: "1px solid var(--border-muted)" }}>
-                      {group.extras.map((extra: any) => {
+                      {visibleExtras.map((extra: any) => {
                         const isSelected = selectedExtras.some((e) => e.extraId === extra.id);
                         const inner = (
                           <>
@@ -547,6 +564,16 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                             style={{ borderBottom: "1px solid var(--border-muted)" }}>{inner}</button>
                         );
                       })}
+                      {isCollapsible && (
+                        <button
+                          type="button"
+                          onClick={() => toggleGroupExpanded(group.id)}
+                          className="w-full text-left py-3 text-[13px] font-semibold transition-opacity active:opacity-70"
+                          style={{ color: "var(--gold-ink)" }}
+                        >
+                          {isExpanded ? t("product.showLess") : t("product.showMore", { n: hiddenCount })}
+                        </button>
+                      )}
                     </div>
                   )}
                 </section>

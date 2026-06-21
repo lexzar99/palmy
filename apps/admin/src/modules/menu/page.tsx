@@ -49,14 +49,36 @@ import { formatCurrency } from "@/shared/utils/format";
 
 type MenuTab = "categories" | "products" | "extras";
 
+// Enhetlig monokrom på/av-stil för alla toggle-kontroller i menyeditorn. Aktiv =
+// ifylld accent (vit/silver) med kontrast-text, inaktiv = ren kontur. Ingen
+// dekorfärg, så valt läge alltid läses lika över hela editorn.
+const toggleOnClass = "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]";
+const toggleOffClass = "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]";
+
+// Monokrom status-badge för listraderna. Aktiv = subtil ifylld neutral, dold =
+// dämpad kontur. Ingen grön/röd — status läses på text + fyllnad, inte färg.
+function StatusBadge({ active }: { active: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-[7px] border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.06em] ${
+        active
+          ? "border-transparent bg-[var(--accent-soft)] text-[var(--text-primary)]"
+          : "border-[var(--border-subtle)] text-[var(--text-muted)]"
+      }`}
+    >
+      {active ? "Aktiv" : "Dold"}
+    </span>
+  );
+}
+
 function CategoryModal({ open, restaurantId, category, onClose }: { open: boolean; restaurantId: string; category: CategoryRecord | null; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", imageUrl: "", position: 0, isActive: true });
+  const [form, setForm] = useState({ name: "", description: "", position: 0, isActive: true });
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open) return;
-    setForm(category ? { name: category.name, description: category.description || "", imageUrl: category.imageUrl || "", position: category.position, isActive: category.isActive ?? true } : { name: "", description: "", imageUrl: "", position: 0, isActive: true });
+    setForm(category ? { name: category.name, description: category.description || "", position: category.position, isActive: category.isActive ?? true } : { name: "", description: "", position: 0, isActive: true });
   }, [category, open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -106,19 +128,13 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
         </div>
       }
     >
-      <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Namn"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
-        <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
-        <ImageUploadField
-          label="Bild"
-          value={form.imageUrl}
-          onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))}
-          kind="category"
-          restaurantId={restaurantId}
-          categoryId={category?.id || null}
-        />
-        <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
-        <div className="md:col-span-2"><Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
+      <div className="grid gap-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Namn"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
+          <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
+        </div>
+        <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></Select></Field>
+        <Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field>
       </div>
     </Modal>
   );
@@ -260,16 +276,17 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
           categoryId={form.categoryId || null}
           productId={product?.id || null}
         />
-        <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
+        <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></Select></Field>
         <div className="md:col-span-2"><Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Rabatt</p>
+            <p className="card-label">Rabatt</p>
             <button
               type="button"
               onClick={() => setForm((current) => ({ ...current, discountActive: !current.discountActive }))}
-              className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.discountActive ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.discountActive ? toggleOnClass : toggleOffClass}`}
             >
+              {form.discountActive ? <Check size={13} strokeWidth={3} /> : null}
               Rabatt aktiv
             </button>
           </div>
@@ -295,73 +312,57 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Promotion shortcut</p>
+              <p className="card-label">Kampanjgenväg</p>
             </div>
             <Button variant="secondary" onClick={() => setPromotionModalOpen(true)} disabled={!product}>{productDeal ? "Redigera produktdeal" : "Skapa produktdeal"}</Button>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            {product ? (productDeal ? <Badge tone="warning">Direkt produktdeal</Badge> : <Badge tone="neutral">Ingen produktdeal</Badge>) : <Badge tone="neutral">Spara produkten först</Badge>}
-            {relatedCategoryDeals.length > 0 ? <Badge tone="info">{relatedCategoryDeals.length} category deal(s) apply</Badge> : null}
-            {restaurantWideDeals.length > 0 ? <Badge tone="neutral">{restaurantWideDeals.length} restaurant-wide deal(s)</Badge> : null}
+            {product ? (productDeal ? <Badge tone="neutral">Direkt produktdeal</Badge> : <Badge tone="neutral">Ingen produktdeal</Badge>) : <Badge tone="neutral">Spara produkten först</Badge>}
+            {relatedCategoryDeals.length > 0 ? <Badge tone="neutral">{relatedCategoryDeals.length} kategorideal gäller</Badge> : null}
+            {restaurantWideDeals.length > 0 ? <Badge tone="neutral">{restaurantWideDeals.length} restaurangbreda deal</Badge> : null}
           </div>
         </div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Visningsläge i menyn</p>
-            </div>
-          </div>
+          <p className="card-label">Visningsläge i menyn</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {(["FULL", "COMPACT"] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
                 onClick={() => setForm((current) => ({ ...current, displayMode: mode }))}
-                className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.displayMode === mode ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.displayMode === mode ? toggleOnClass : toggleOffClass}`}
               >
+                {form.displayMode === mode ? <Check size={13} strokeWidth={3} /> : null}
                 {mode === "FULL" ? "Full bredd (1-per-rad)" : "Halv bredd (2-per-rad)"}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => setForm((current) => ({ ...current, hideDescription: !current.hideDescription }))}
-              className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.hideDescription ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
-            >
-              Dölj beskrivning i menyn
-            </button>
-            <button
-              type="button"
-              onClick={() => setForm((current) => ({ ...current, rewardable: !current.rewardable }))}
-              className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.rewardable ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
-            >
-              ★ Köpbar med poäng (Dpoints)
-            </button>
-            <button
-              type="button"
-              onClick={() => setForm((current) => ({ ...current, localPriceLocked: !current.localPriceLocked }))}
-              className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form.localPriceLocked ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
-            >
-              🔒 Lås lokalt pris (kedja)
-            </button>
           </div>
         </div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Dietary flags</p>
+          <p className="card-label">Alternativ</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {[
+            <TogglePill active={form.hideDescription} onClick={() => setForm((current) => ({ ...current, hideDescription: !current.hideDescription }))}>Dölj beskrivning i menyn</TogglePill>
+            <TogglePill active={form.rewardable} onClick={() => setForm((current) => ({ ...current, rewardable: !current.rewardable }))}>★ Köpbar med poäng (Dpoints)</TogglePill>
+            <TogglePill active={form.localPriceLocked} onClick={() => setForm((current) => ({ ...current, localPriceLocked: !current.localPriceLocked }))}>🔒 Lås lokalt pris (kedja)</TogglePill>
+          </div>
+        </div>
+        <div className="md:col-span-2 surface-muted px-4 py-4">
+          <p className="card-label">Kostflaggor</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {([
               ["isVegan", "Vegan"],
               ["isVegetarian", "Vegetarian"],
-              ["isGlutenFree", "Gluten free"],
-            ].map(([key, label]) => (
-              <button key={key} type="button" onClick={() => setForm((current) => ({ ...current, [key]: !current[key as keyof typeof current] }))} className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form[key as keyof typeof form] ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}>{label}</button>
+              ["isGlutenFree", "Glutenfri"],
+            ] as const).map(([key, label]) => (
+              <TogglePill key={key} active={Boolean(form[key])} onClick={() => setForm((current) => ({ ...current, [key]: !current[key] }))}>{label}</TogglePill>
             ))}
           </div>
         </div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Extra groups</p>
+          <p className="card-label">Tillvalsgrupper</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {extraGroups.map((group) => (
-              <button key={group.id} type="button" onClick={() => toggleExtraGroup(group.id)} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] ${form.extraGroupIds.includes(group.id) ? "border-[rgba(94,166,255,0.24)] bg-[rgba(94,166,255,0.1)] text-[#d4e7ff]" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>{group.name}</button>
+              <TogglePill key={group.id} active={form.extraGroupIds.includes(group.id)} onClick={() => toggleExtraGroup(group.id)}>{group.name}</TogglePill>
             ))}
           </div>
         </div>
@@ -388,7 +389,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
   );
 }
 
-// Enhetlig på/av-pill: aktiv = ifylld blå med bock, inaktiv = ren kontur.
+// Enhetlig på/av-pill: aktiv = ifylld monokrom med bock, inaktiv = ren kontur.
 // Används för alla on/off-kontroller i tillvalsmodalen så läget aldrig är otydligt.
 function TogglePill({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
@@ -396,7 +397,7 @@ function TogglePill({ active, onClick, children }: { active: boolean; onClick: (
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12px] font-semibold transition-colors ${active ? "border-[rgba(94,166,255,0.55)] bg-[rgba(94,166,255,0.18)] text-[#d4e7ff]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12px] font-semibold transition-colors ${active ? toggleOnClass : toggleOffClass}`}
     >
       {active ? <Check size={13} strokeWidth={3} /> : null}
       {children}
@@ -537,8 +538,8 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
           </div>
           <div className="grid gap-2">
             {extras.map((extra, index) => (
-              <div key={index} className="grid gap-2 rounded-xl border border-[var(--border-subtle)] px-3 py-3">
-                <div className="grid gap-2 md:grid-cols-[1fr_120px_130px_auto]">
+              <div key={index} className="surface-muted grid gap-2 px-3 py-3">
+                <div className="grid gap-2 md:grid-cols-[1fr_110px_130px_auto]">
                   <Input value={extra.name} onChange={(event) => updateExtra(index, "name", event.target.value)} placeholder="Namn" />
                   <Input type="number" value={extra.priceAddon} onChange={(event) => updateExtra(index, "priceAddon", Number(event.target.value))} placeholder="Pris" />
                   <Select value={extra.isDefault ? "yes" : "no"} onChange={(event) => updateExtra(index, "isDefault", event.target.value === "yes")}><option value="no">Valfri</option><option value="yes">Förvald</option></Select>
@@ -552,6 +553,7 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
                     kind="extra"
                     fileBaseName={extra.name}
                     restaurantId={restaurantId}
+                    uploadOnly
                   />
                 ) : null}
               </div>
@@ -1470,7 +1472,7 @@ export function MenuPage() {
                     <p className="mt-2 text-sm text-[var(--text-secondary)]">{category.description || "Ingen beskrivning"}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge tone={category.isActive === false ? "danger" : "success"}>{category.isActive === false ? "Dold" : "Aktiv"}</Badge>
+                    <StatusBadge active={category.isActive !== false} />
                     <Badge tone="neutral">{category._count?.products || 0} produkter</Badge>
                   </div>
                 </div>
@@ -1565,12 +1567,12 @@ export function MenuPage() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-base font-semibold tracking-[-0.01em]">{product.name}</p>
-                        <Badge tone={product.isActive === false ? "danger" : "success"}>{product.isActive === false ? "Dold" : "Aktiv"}</Badge>
+                        <StatusBadge active={product.isActive !== false} />
                       </div>
                       <p className="mt-1.5 text-sm text-[var(--text-secondary)]">{product.category.name} • {product.description || "Ingen beskrivning"}</p>
                       {product.extraGroups.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {product.extraGroups.map((group) => <Badge key={group.id} tone="info">{group.name}</Badge>)}
+                          {product.extraGroups.map((group) => <Badge key={group.id} tone="neutral">{group.name}</Badge>)}
                         </div>
                       )}
                     </div>
@@ -1594,10 +1596,10 @@ export function MenuPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-base font-semibold tracking-[-0.01em]">{group.name}</p>
                       <Badge tone="neutral">{group.type}</Badge>
-                      {group.required ? <Badge tone="warning">Obligatorisk</Badge> : null}
+                      {group.required ? <Badge tone="neutral">Obligatorisk</Badge> : null}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {group.extras.map((extra, index) => <Badge key={`${group.id}-${index}`} tone="info">{extra.name} {extra.priceAddon ? `+ ${formatCurrency(extra.priceAddon)}` : ""}</Badge>)}
+                      {group.extras.map((extra, index) => <Badge key={`${group.id}-${index}`} tone="neutral">{extra.name} {extra.priceAddon ? `+ ${formatCurrency(extra.priceAddon)}` : ""}</Badge>)}
                     </div>
                   </div>
                   <div className="text-right text-sm text-[var(--text-secondary)]">

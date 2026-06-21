@@ -75,17 +75,20 @@ export default function PreviouslyOrderedBar({ restaurantId, restaurantSlug }: P
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mb-4 flex items-center gap-3 p-3 rounded-2xl border shadow-sm"
-      style={{ backgroundColor: "var(--bg-secondary)", borderColor: "rgba(234,181,69,0.22)", boxShadow: "var(--card-shadow)" }}
+      className="mb-4 flex items-center gap-3 p-3 rounded-xl"
+      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
     >
-      <div className="w-9 h-9 rounded-xl bg-gold-500/10 text-gold-500 flex items-center justify-center shrink-0">
-        <Clock size={16} />
+      <div
+        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+        style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
+      >
+        <Clock size={16} strokeWidth={1.8} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[9px] font-black uppercase tracking-[0.25em] text-gold-500">
+        <div className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
           Du beställde här senast
         </div>
-        <div className="text-[11px] font-bold truncate" style={{ color: "var(--text-primary)" }}>
+        <div className="text-[13px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>
           {summary.itemCount} {summary.itemCount === 1 ? "rätt" : "rätter"} · {summary.total} kr
           {summary.items?.length ? ` · ${summary.items.map((i) => i.name).slice(0, 2).join(", ")}${summary.items.length > 2 ? "…" : ""}` : ""}
         </div>
@@ -93,15 +96,16 @@ export default function PreviouslyOrderedBar({ restaurantId, restaurantSlug }: P
       <button
         onClick={handleReorder}
         disabled={loading}
-        className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gold-500 text-zinc-950 text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all disabled:opacity-60"
+        className="shrink-0 flex items-center gap-1.5 px-3.5 h-9 rounded-xl bg-gold-500 text-[13px] font-semibold transition-opacity active:opacity-90 disabled:opacity-60"
+        style={{ color: "#141416" }}
       >
         {loading ? (
           <>
-            <ShoppingBag size={12} /> Laddar
+            <ShoppingBag size={14} strokeWidth={1.8} /> Laddar
           </>
         ) : (
           <>
-            Beställ igen <ArrowRight size={12} />
+            Beställ igen <ArrowRight size={14} strokeWidth={1.8} />
           </>
         )}
       </button>
