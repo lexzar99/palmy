@@ -688,6 +688,7 @@ function ImportFromOtherModal({
   const [targetCategoryId, setTargetCategoryId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open) {
       setSourceRestaurantId("");
@@ -695,6 +696,7 @@ function ImportFromOtherModal({
       setError(null);
     }
   }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const sourceCategories = useQuery({
     queryKey: ["import", "categories", sourceRestaurantId],
@@ -1514,7 +1516,6 @@ export function MenuPage() {
   // den första restaurangen → city-bytet blir omöjligt.
   const didAutoSelectRef = useRef(false);
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     // Läs URL-param OCH applicera den i ett enda effekt-pass. Tidigare fanns
     // två separata effekter (sätt pendingRouteRestaurantId → sätt activeRestaurantId).
@@ -1543,7 +1544,6 @@ export function MenuPage() {
       didAutoSelectRef.current = true;
     }
   }, [searchParams, activeRestaurantId, restaurants.data]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const categories = useQuery({ queryKey: menuCategoriesQueryKey(activeRestaurantId), queryFn: () => getCategories(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
   const products = useQuery({ queryKey: menuProductsQueryKey(activeRestaurantId), queryFn: () => getProducts(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
@@ -1601,13 +1601,11 @@ export function MenuPage() {
 
   // Rensa bulk-urvalet när man byter restaurang eller flik — annars kan ett
   // gammalt urval råka träffa fel produkter.
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setSelectedIds(new Set());
     setBulkPct("");
     setBulkCategoryId("");
   }, [activeRestaurantId, tab]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const allFilteredSelected = filteredProducts.length > 0 && filteredProducts.every((p) => selectedIds.has(p.id));
 
@@ -1746,7 +1744,6 @@ export function MenuPage() {
     }
   };
 
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!pendingRouteProductId || !products.data?.length) return;
     const product = products.data.find((entry) => entry.id === pendingRouteProductId);
@@ -1756,7 +1753,6 @@ export function MenuPage() {
     setProductModalOpen(true);
     setPendingRouteProductId(null);
   }, [pendingRouteProductId, products.data]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
 
   if (restaurants.isLoading) {
