@@ -932,9 +932,10 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <div className="px-4 py-2.5 flex items-center justify-between">
-          <span className="text-[18px] font-extrabold tracking-tight lowercase leading-none" style={{ color: "var(--text-primary)" }}>
-            del<span style={{ color: "var(--gold-ink)" }}>ívera</span>
-          </span>
+          {/* Nya brand-lockupen (bett-D + Delívera-wordmark), samma som desktop-navbaren. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/delivera-lockup.png" alt="Delívera" style={{ height: 26, width: "auto" }} />
+
           <div className="shrink-0 p-0.5 rounded-full flex items-center" style={{ backgroundColor: "var(--bg-deep)" }}>
             <button
               onClick={() => toggleOrderType("DELIVERY")}

@@ -64,9 +64,10 @@ const Navbar = () => {
 
   const logo = (
     <Link href="/" className="flex items-center" aria-label="Delívera — startsidan">
-      <span className="text-[21px] font-extrabold tracking-tight leading-none" style={{ color: "var(--text-primary)" }}>
-        delí<span style={{ color: "var(--gold-ink)" }}>vera</span>
-      </span>
+      {/* Nya brand-lockupen (bett-D + Delívera-wordmark). Ersätter den gamla
+          text-logotypen. Höjd-styrd, bredd auto. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/delivera-lockup.png" alt="Delívera" style={{ height: 30, width: "auto" }} />
     </Link>
   );
 
