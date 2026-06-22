@@ -1184,8 +1184,12 @@ router.post('/', async (req: Request, res: Response) => {
         deliveryStreet: data.deliveryStreet || null,
         deliveryCity: data.deliveryCity || null,
         deliveryZip: data.deliveryZip || null,
-        deliveryLatitude: data.deliveryLatitude ?? null,
-        deliveryLongitude: data.deliveryLongitude ?? null,
+        // Fallback till zon-koordinaterna: data.lat/lng = kundens adress-koords
+        // (appen skickar dem för zon-koll men inte alltid deliveryLatitude/Longitude
+        // separat). Utan detta saknar ordern kund-koordinater → order-tracking-kartan
+        // kan inte rita kundens pin + rutten från restaurangen.
+        deliveryLatitude: data.deliveryLatitude ?? data.lat ?? null,
+        deliveryLongitude: data.deliveryLongitude ?? data.lng ?? null,
         deliveryNote: data.deliveryNote || null,
         deliveryInstructions: data.deliveryInstructions || null,
         note: data.note || null,
