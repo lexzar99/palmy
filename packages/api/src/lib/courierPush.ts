@@ -218,7 +218,13 @@ export async function notifyCouriersOrderReady(opts: {
       select: { courierId: true, status: true },
     });
 
-    if (delivery?.courierId && delivery.status === 'EN_ROUTE_PICKUP') {
+    // ENDAST det tilldelade budet får "klar för hämtning". Tidigare väcktes ALLA
+    // online-kurirer i staden när inget bud var tilldelat — det spammade kurirer
+    // som inte tagit ordern. Jobb-tillgänglighet hanteras separat av
+    // notifyCouriersOfNewJob. Ett bud som accepterar en order som REDAN är READY
+    // notifieras istället vid accept (se routes/courier.ts), så signalen aldrig
+    // går till någon som inte äger leveransen.
+    if (delivery?.courierId) {
       await Promise.all([
         sendToCourierIds([delivery.courierId], { title, body, tag: 'delivera-ready' }),
         sendCourierFcm([delivery.courierId], {
@@ -228,20 +234,7 @@ export async function notifyCouriersOrderReady(opts: {
           ...READY_SOUND,
         }),
       ]);
-      return;
     }
-
-    // Inget bud än → väck alla online-kurirer i staden.
-    const couriers = await prisma.courier.findMany({
-      where: { online: true, isActive: true, city: { equals: restaurant.city, mode: 'insensitive' } },
-      select: { id: true },
-    });
-    if (couriers.length === 0) return;
-    const ids = couriers.map((c) => c.id);
-    await Promise.all([
-      sendToCourierIds(ids, { title, body, tag: 'delivera-ready', url: '/' }),
-      sendCourierFcm(ids, { title, body, data: { type: 'ORDER_READY', orderId: opts.orderId }, ...READY_SOUND }),
-    ]);
   } catch (e) {
     console.warn('[courierPush] notifyCouriersOrderReady fel:', (e as Error)?.message);
   }

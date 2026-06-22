@@ -30,12 +30,16 @@ export default async function OmOssPage() {
             <>
               <p>
                 Delívera är en <span style={{ color: "var(--text-primary)" }} className="font-medium">beställningsplattform</span> som
-                kopplar samman dig med lokala restauranger. Vi lagar ingen mat själva — vi gör det enkelt för dig att hitta
+                kopplar samman dig med lokala restauranger. Vi lagar ingen mat själva, vi gör det enkelt för dig att hitta
                 restaurangerna och för dem att nå dig snabbt.
               </p>
               <p>
                 Varje restaurang har sin egen meny, sina egna erbjudanden och sina egna öppettider. Vi sköter beställningen,
-                betalningen och spårningen så att köken kan fokusera på det de är bäst på — maten.
+                betalningen och spårningen så att köken kan fokusera på det de är bäst på, maten.
+              </p>
+              <p>
+                Leveransen sköts antingen av restaurangen själv eller av Delíveras egna bud, beroende på område. Du samlar
+                Dpoints på varje betald order och kan lösa in dem mot produkter och rabatter.
               </p>
               <p>
                 Snabb leverans, trygg betalning via Stripe och support när du behöver den. Det är vad Delívera finns till för.
@@ -44,7 +48,7 @@ export default async function OmOssPage() {
           )}
         </div>
 
-        {/* Företagsuppgifter — juridiskt namn, orgnr, adress och support hämtas
+        {/* Företagsuppgifter: juridiskt namn, orgnr, adress och support hämtas
             live från admin (Plattform-inställningar → GET /api/settings). */}
         <div className="mt-16 md:mt-20 p-8 md:p-10 rounded-[2rem] shadow-sm max-w-3xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
           <div className="flex items-center gap-3 mb-6">

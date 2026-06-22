@@ -6,7 +6,7 @@ import { JWT_SECRET } from '../lib/config';
 import { getIO } from '../lib/socket';
 import { haversineKm } from '../utils/geo';
 import { authenticate, requireSuperAdmin, type AuthRequest } from '../middleware/auth';
-import { saveSubscription, removeSubscription, getVapidPublicKey } from '../lib/courierPush';
+import { saveSubscription, removeSubscription, getVapidPublicKey, notifyCouriersOrderReady } from '../lib/courierPush';
 import { sendOrderStatusPush } from '../lib/customerPush';
 import { registerCourierFcmToken, clearCourierFcmToken, sendCourierFcm, sendTestFcm, isFcmConfigured } from '../lib/courierFcm';
 import { uploadToR2, deleteFromR2, r2Enabled } from '../lib/r2';
@@ -281,6 +281,17 @@ router.post('/jobs/:orderId/accept', requireCourier, async (req: CourierRequest,
       },
       include: { order: { include: { restaurant: true, items: true } } },
     });
+    // Om ordern redan var "klar för hämtning" när budet accepterade → notifiera
+    // budet direkt (helpern hittar nu den tilldelade leveransen och träffar bara
+    // detta bud). Annars hade de missat klar-signalen som gick ut före accept.
+    if (order.status === 'READY') {
+      void notifyCouriersOrderReady({
+        orderId: order.id,
+        restaurantId: order.restaurantId,
+        orderType: order.type,
+        orderNumber: order.orderNumber,
+      });
+    }
     res.json(activeFromDelivery(delivery));
   } catch (e: any) {
     // DB-race: Delivery.orderId är unik → bara EN kurir kan skapa leveransen.

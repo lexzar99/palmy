@@ -297,12 +297,15 @@ export function startStripeReconciliation(): void {
     console.log('[stripe-reconcile] Ingen webhook konfigurerad — reconciliation är PRIMARY för payment-sync');
   }
 
-  // Kolla pending payments varje 60 sek
+  // Kolla pending payments varje 15 sek (backup; appen finaliserar normalt
+  // direkt via /payments/confirm på 1-2 sek, så detta är bara skyddsnät vid
+  // nät-fel). 15s är snabbt utan att hamra Stripe — minAge-guarden (60s) gör
+  // ändå att en order måste vara minst 60s gammal innan pollern rör den.
   setInterval(() => {
     reconcilePendingPayments().catch((err) =>
       console.error('[stripe-reconcile] reconcilePendingPayments error:', err),
     );
-  }, 60_000);
+  }, 15_000);
 
   // Refund-sync varje 10 min
   setInterval(() => {

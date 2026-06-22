@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
 import { isPointInZone, pointInPolygon, haversineKm, findDeliveryZone, DeliveryZone } from '../utils/geo';
 import { getEffectiveZoneEta } from '../lib/restaurantZoneEta';
+import { getDpointsSettings, resolveDpointsCourierFeeOre } from '../lib/dpoints';
 import { resolveOrCreateCity, getCityFamilyIds } from '../lib/cityResolver';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { cached, bustCache } from '../lib/ttlCache';
@@ -340,6 +341,9 @@ router.post('/validate-location', async (req, res) => {
       }
     });
 
+    // Dpoints budkostnad-tariff (km-baserad) — hämtas en gång per cache-miss.
+    const dpSettings = await getDpointsSettings();
+
     const matchedCities: any[] = [];
 
     for (const city of cities) {
@@ -368,6 +372,14 @@ router.post('/validate-location', async (req, res) => {
           // getEffectiveZoneEta applicerar snap till 5-min-intervall.
           const effectiveEta = getEffectiveZoneEta(rZone as any, r.etaMinutes ?? undefined);
 
+          // Budkostnad (öre) för poäng-ENBART leverans till denna adress.
+          // Samma haversine + km-tariff som orders.ts → klienten kan visa exakt
+          // belopp och det matchar serverns order-total.
+          const dpointsCourierFee =
+            typeof r.latitude === 'number' && typeof r.longitude === 'number'
+              ? resolveDpointsCourierFeeOre(haversineKm(lat, lng, r.latitude, r.longitude), dpSettings)
+              : (dpSettings.dpointsCourierCost ?? 0);
+
           return {
             ...r,
             // Skriv över restaurangens default deliveryFee/minOrderAmount med
@@ -376,6 +388,7 @@ router.post('/validate-location', async (req, res) => {
             // bakåtkompat med klienter som läser fältet direkt.
             deliveryFee: rZone.fee,
             minOrderAmount: rZone.minOrder,
+            dpointsCourierFee,
             etaMinutes: effectiveEta,
             matchedZone: {
               id: rZone.id,

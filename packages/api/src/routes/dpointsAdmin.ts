@@ -37,6 +37,7 @@ router.get('/config', async (_req, res) => {
     dpointsCardOnHome: row.dpointsCardOnHome ?? true,
     dpointsMaxBalance: row.dpointsMaxBalance ?? 2000,
     dpointsCourierCost: row.dpointsCourierCost ?? 0,
+    dpointsCourierTiers: row.dpointsCourierTiers ?? '[]',
   });
 });
 
@@ -50,6 +51,21 @@ router.patch('/config', requireSuperAdmin, async (req, res) => {
     if (req.body?.dpointsCardOnHome !== undefined) data.dpointsCardOnHome = !!req.body.dpointsCardOnHome;
     if (req.body?.dpointsMaxBalance !== undefined) data.dpointsMaxBalance = Math.max(0, Math.round(Number(req.body.dpointsMaxBalance) || 0));
     if (req.body?.dpointsCourierCost !== undefined) data.dpointsCourierCost = Math.max(0, Math.round(Number(req.body.dpointsCourierCost) || 0));
+    // Km-baserad budkostnad-tariff: sanera + sortera innan lagring (JSON-sträng).
+    if (req.body?.dpointsCourierTiers !== undefined) {
+      try {
+        const raw = typeof req.body.dpointsCourierTiers === 'string'
+          ? JSON.parse(req.body.dpointsCourierTiers)
+          : req.body.dpointsCourierTiers;
+        const clean = Array.isArray(raw)
+          ? raw
+              .map((t: any) => ({ maxKm: Number(t?.maxKm), feeKr: Number(t?.feeKr) }))
+              .filter((t: any) => Number.isFinite(t.maxKm) && t.maxKm > 0 && Number.isFinite(t.feeKr) && t.feeKr >= 0)
+              .sort((a: any, b: any) => a.maxKm - b.maxKm)
+          : [];
+        data.dpointsCourierTiers = JSON.stringify(clean);
+      } catch { /* ogiltig JSON ignoreras */ }
+    }
 
     const updated = await prisma.restaurantSettings.upsert({
       where: { id: 'settings' },
@@ -64,6 +80,7 @@ router.patch('/config', requireSuperAdmin, async (req, res) => {
       dpointsCardOnHome: (updated as any).dpointsCardOnHome,
       dpointsMaxBalance: (updated as any).dpointsMaxBalance,
       dpointsCourierCost: (updated as any).dpointsCourierCost,
+      dpointsCourierTiers: (updated as any).dpointsCourierTiers,
     });
   } catch (e: any) {
     console.error('[dpoints config] error:', e?.message);

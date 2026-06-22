@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import { getCompanyInfo } from "@/lib/companyInfo";
 import PrivacyContent from "./PrivacyContent";
+
+export const metadata: Metadata = {
+  title: "Integritetspolicy | Delívera",
+  description: "Hur Delívera behandlar dina personuppgifter enligt GDPR.",
+};
 
 export default async function PrivacyPage() {
   const info = await getCompanyInfo();

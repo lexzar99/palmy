@@ -105,6 +105,52 @@ export function DpointsPage() {
 }
 
 // ── Inställningar + nyckeltal ───────────────────────────────────────────────
+// Km-tariff-editor: rader med "≤ km" + "kr". Avstånd över sista nivån använder
+// sista avgiften; tom tariff faller tillbaka till den platta budkostnaden.
+function CourierTierEditor({ value, onSave, busy }: { value: string; onSave: (json: string) => void; busy?: boolean }) {
+  const initial = (() => {
+    try {
+      const a = JSON.parse(value || "[]");
+      return Array.isArray(a) ? a.map((t: any) => ({ maxKm: Number(t.maxKm) || 0, feeKr: Number(t.feeKr) || 0 })) : [];
+    } catch {
+      return [];
+    }
+  })();
+  const [rows, setRows] = useState<{ maxKm: number; feeKr: number }[]>(initial);
+
+  const update = (i: number, key: "maxKm" | "feeKr", v: number) =>
+    setRows((r) => r.map((row, idx) => (idx === i ? { ...row, [key]: v } : row)));
+  const add = () => setRows((r) => [...r, { maxKm: 0, feeKr: 0 }]);
+  const remove = (i: number) => setRows((r) => r.filter((_, idx) => idx !== i));
+  const save = () => {
+    const clean = rows
+      .map((t) => ({ maxKm: Number(t.maxKm), feeKr: Number(t.feeKr) }))
+      .filter((t) => t.maxKm > 0 && t.feeKr >= 0)
+      .sort((a, b) => a.maxKm - b.maxKm);
+    onSave(JSON.stringify(clean));
+    setRows(clean);
+  };
+
+  return (
+    <div className="grid gap-2">
+      {rows.map((row, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <Input type="number" min="0" value={row.maxKm} onChange={(e) => update(i, "maxKm", Number(e.target.value))} placeholder="t.ex. 3" />
+          <span className="text-sm text-[var(--text-secondary)]">km</span>
+          <Input type="number" min="0" value={row.feeKr} onChange={(e) => update(i, "feeKr", Number(e.target.value))} placeholder="t.ex. 60" />
+          <span className="text-sm text-[var(--text-secondary)]">kr</span>
+          <Button variant="danger" type="button" onClick={() => remove(i)}><Trash2 size={14} /></Button>
+        </div>
+      ))}
+      <div className="flex items-center gap-2">
+        <Button variant="secondary" type="button" onClick={add}><Plus size={14} /> Lägg till nivå</Button>
+        <Button variant="primary" type="button" onClick={save} disabled={busy}>Spara tariff</Button>
+      </div>
+      <p className="text-xs text-[var(--text-secondary)]">Upp till angivna km kostar avgiften. Avstånd över sista nivån använder sista avgiften. Tom tariff använder den platta budkostnaden ovan.</p>
+    </div>
+  );
+}
+
 function SettingsTab() {
   const qc = useQueryClient();
   const config = useQuery({ queryKey: dpointsKeys.config, queryFn: getConfig });
@@ -175,7 +221,7 @@ function SettingsTab() {
                 }}
               />
             </Field>
-            <Field label="Budkostnad vid poäng-köp (kr) — endast leverans">
+            <Field label="Platt budkostnad (kr) — fallback om ingen km-tariff satt">
               <Input
                 type="number"
                 min="0"
@@ -189,6 +235,13 @@ function SettingsTab() {
               />
             </Field>
           </div>
+          <Field label="Km-tariff för budkostnad (poäng-köp, endast leverans)">
+            <CourierTierEditor
+              value={c.dpointsCourierTiers ?? "[]"}
+              busy={save.isPending}
+              onSave={(json) => save.mutate({ dpointsCourierTiers: json })}
+            />
+          </Field>
           {save.isPending && <p className="text-sm text-[var(--text-secondary)]">Sparar…</p>}
         </div>
       </Surface>

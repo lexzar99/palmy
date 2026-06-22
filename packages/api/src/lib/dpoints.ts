@@ -30,7 +30,8 @@ export interface DpointsSettings {
   dpointsPerKr: number;
   dpointsValuePerKr: number;
   dpointsMaxBalance: number;
-  dpointsCourierCost: number; // öre — budkostnad på poäng-ENBART order vid leverans
+  dpointsCourierCost: number; // öre — platt budkostnad (fallback) på poäng-ENBART order vid leverans
+  dpointsCourierTiers: string; // JSON-array [{ maxKm, feeKr }] — km-baserad tariff
 }
 
 export async function getDpointsSettings(): Promise<DpointsSettings> {
@@ -41,7 +42,42 @@ export async function getDpointsSettings(): Promise<DpointsSettings> {
     dpointsValuePerKr: row.dpointsValuePerKr ?? 10,
     dpointsMaxBalance: row.dpointsMaxBalance ?? 2000,
     dpointsCourierCost: row.dpointsCourierCost ?? 0,
+    dpointsCourierTiers: row.dpointsCourierTiers ?? '[]',
   };
+}
+
+// ── Budkostnad: km-baserad tariff (poäng-ENBART leverans) ────────────────────
+
+export interface CourierTier {
+  maxKm: number;
+  feeKr: number;
+}
+
+/** Parsa + sanera tariff-JSON till en sorterad (lågt→högt km) lista. */
+export function parseCourierTiers(raw: unknown): CourierTier[] {
+  try {
+    const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((t: any) => ({ maxKm: Number(t?.maxKm), feeKr: Number(t?.feeKr) }))
+      .filter((t) => Number.isFinite(t.maxKm) && t.maxKm > 0 && Number.isFinite(t.feeKr) && t.feeKr >= 0)
+      .sort((a, b) => a.maxKm - b.maxKm);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Budkostnad (öre) för en poäng-ENBART LEVERANS-order, km-baserad global tariff.
+ * Tom tariff → fallback till platta dpointsCourierCost. Distans bortom sista
+ * tier:n → sista tier:ns avgift. Hämtning anropar aldrig denna (alltid gratis).
+ */
+export function resolveDpointsCourierFeeOre(distanceKm: number, settings: DpointsSettings): number {
+  const tiers = parseCourierTiers(settings.dpointsCourierTiers);
+  if (tiers.length === 0) return settings.dpointsCourierCost ?? 0;
+  const d = Number.isFinite(distanceKm) && distanceKm > 0 ? distanceKm : 0;
+  const tier = tiers.find((t) => d <= t.maxKm) ?? tiers[tiers.length - 1];
+  return Math.round(tier.feeKr * 100);
 }
 
 // ── Tidszon-nycklar (Europe/Stockholm) ───────────────────────────────────────

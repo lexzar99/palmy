@@ -6,7 +6,8 @@ export interface DpointsConfig {
   dpointsValuePerKr: number;
   dpointsCardOnHome: boolean;
   dpointsMaxBalance: number;
-  dpointsCourierCost: number; // öre — budkostnad på poäng-enbart order vid leverans
+  dpointsCourierCost: number; // öre — platt budkostnad (fallback) på poäng-enbart order vid leverans
+  dpointsCourierTiers: string; // JSON-array [{ maxKm, feeKr }] — km-baserad tariff
 }
 
 export interface DpointsOverview {

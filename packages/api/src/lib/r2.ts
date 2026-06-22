@@ -159,6 +159,21 @@ export function r2KeyToPublicUrl(key: string): string {
 }
 
 /**
+ * Omvänd mappning: publik URL → R2-nyckel. Returnerar null om URL:en inte
+ * pekar in i VÅR bucket (t.ex. en extern URL eller base64). Strippar en
+ * eventuell `?v=`-cache-bust-query. Används för att kunna radera en gammal
+ * bild som låg på en annan kanonisk nyckel vid byte.
+ */
+export function r2UrlToKey(url: string): string | null {
+  if (!url) return null;
+  const base = `${r2PublicBase()}/`;
+  if (!url.startsWith(base)) return null;
+  const rest = url.slice(base.length);
+  const key = rest.split('?')[0].split('#')[0];
+  return key || null;
+}
+
+/**
  * Publik URL med en cache-busting-version (`?v=…`).
  *
  * Pathen i R2 är KANONISK ({stad}/{restaurang}/logo.webp) och objektet skrivs

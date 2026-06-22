@@ -684,6 +684,10 @@ model RestaurantSettings {
   // leverans (poängen täcker maten men inte kuriren). Vid hämtning = gratis.
   // Global, sätts i admin → Dpoints. 0 = ingen budkostnad.
   dpointsCourierCost  Int       @default(0)
+  // Km-baserad budkostnad-tariff (poäng-ENBART leverans). JSON-array
+  // [{ "maxKm": 1, "feeKr": 39 }, ...] sorterad lågt→högt. Tom = fall tillbaka
+  // till dpointsCourierCost (platt). Bortom sista tier:n gäller sista avgiften.
+  dpointsCourierTiers String    @default("[]")
 }
 
 model OrderDraft {

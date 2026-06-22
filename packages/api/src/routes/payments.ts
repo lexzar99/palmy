@@ -275,12 +275,23 @@ router.post('/confirm', createIntentLimiter, async (req, res) => {
       res.json({ status: order.status, paymentStatus: 'PAID', alreadyPaid: true });
       return;
     }
-    if (!order.stripePaymentIntentId) {
+    // Pre-payment-flödet (appen) skapar ordern UTAN stripePaymentIntentId —
+    // webhooken skulle satt den. Webhooken finns inte i prod, så klienten skickar
+    // med paymentIntentId direkt så vi kan finalisera DIREKT (annars hänger ordern
+    // i "Väntar på betalning" tills reconcile-pollern kör om ~60s). Säkerhet: en
+    // klient-skickad intent MÅSTE peka på just denna order via metadata.orderId.
+    const bodyIntentId = typeof req.body?.paymentIntentId === 'string' ? req.body.paymentIntentId : null;
+    const intentId = order.stripePaymentIntentId || bodyIntentId;
+    if (!intentId) {
       res.status(409).json({ error: 'Ordern saknar en kopplad betalning' });
       return;
     }
 
-    const intent = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
+    const intent = await stripe.paymentIntents.retrieve(intentId);
+    if (!order.stripePaymentIntentId && intent.metadata?.orderId !== order.id) {
+      res.status(403).json({ error: 'Betalningen matchar inte ordern' });
+      return;
+    }
 
     if (intent.status === 'succeeded') {
       const result = await applyPaymentSuccess(order.id, intent);

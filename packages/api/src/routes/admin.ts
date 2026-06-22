@@ -13,6 +13,7 @@ import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { notifyCouriersOfNewJob, notifyCouriersOrderReady } from '../lib/courierPush';
+import { isTestOrder } from '../lib/testOrderDetection';
 import { sendOrderStatusPush } from '../lib/customerPush';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
 import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
@@ -726,7 +727,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     const existing = await prisma.order.findUnique({
       where: { id: req.params.id },
-      select: { id: true, status: true, restaurantId: true, userId: true, customerPhone: true, type: true, liveActivityToken: true },
+      select: { id: true, status: true, restaurantId: true, userId: true, customerPhone: true, customerName: true, type: true, liveActivityToken: true, discountCode: true, stripePaymentIntentId: true, restaurant: { select: { selfDelivery: true } } },
     });
 
     if (!existing) {
@@ -744,8 +745,18 @@ router.patch('/orders/:id/status', async (req, res) => {
     // customer sees "PÅ VÄG" for 10-15 minutes then auto-transitions to "LEVERERAD"
     const isPreparingTransition = status === 'PREPARING';
     const isDeliveringTransition = status === 'DELIVERING';
-    const dbStatus = isDeliveringTransition ? 'DELIVERED' : status;
-    const customerStatus = status; // Always send the requested status to the customer
+    // Test-order i VI-LEVERERAR-flödet (platform-delivery): vid READY finns inget
+    // riktigt bud som kan hämta, så ordern skulle hänga för evigt i kurir-kön.
+    // Auto-slutför den direkt (DELIVERED) så den försvinner ur aktiv-vyn. Gäller
+    // bara DELIVERY + icke-self-delivery + test-markörer. Hämtning + self-delivery
+    // + riktiga ordrar påverkas inte.
+    const isTestDeliveryReady =
+      status === 'READY' &&
+      existing.type === 'DELIVERY' &&
+      !existing.restaurant?.selfDelivery &&
+      isTestOrder(existing);
+    const dbStatus = (isDeliveringTransition || isTestDeliveryReady) ? 'DELIVERED' : status;
+    const customerStatus = isTestDeliveryReady ? 'DELIVERED' : status; // Always send the requested status to the customer
 
     const order = await prisma.order.update({
       where: { id: req.params.id },
@@ -811,7 +822,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     // "Klar för hämtning" (READY) på en vi-levererar-order → notifiera budet
     // (tilldelat eller alla i staden) att maten väntar. Fire-and-forget.
-    if (status === 'READY') {
+    if (status === 'READY' && !isTestDeliveryReady) {
       void notifyCouriersOrderReady({
         orderId: order.id,
         restaurantId: existing.restaurantId,

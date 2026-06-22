@@ -279,6 +279,10 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
           restaurantId={restaurantId}
           categoryId={form.categoryId || null}
           productId={product?.id || null}
+          // För NYA produkter (inget id än) bygger backend bild-path:en på namnet,
+          // så du kan lägga bilden direkt när du skapar produkten. Kräver att
+          // Namn + Kategori är ifyllda först.
+          fileBaseName={form.name}
         />
         <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></Select></Field>
         <div className="md:col-span-2"><Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>

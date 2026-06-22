@@ -106,6 +106,12 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
       const prod = await prisma.product.findUnique({ where: { id: productId }, select: { slug: true, name: true } });
       if (prod) productSlug = prod.slug || slugifyPathSegment(prod.name);
     }
+    // Ny produkt (inget id än): bygg path:en på det inskrivna NAMNET (fileBaseName)
+    // så att en bild kan laddas upp REDAN när produkten skapas, innan den sparats.
+    // Kategorin kommer via categoryId/categorySlug som vanligt.
+    if (!productSlug && kind === 'product' && req.body.fileBaseName) {
+      productSlug = slugifyPathSegment(String(req.body.fileBaseName));
+    }
     // Virtuella kategorier utan DB-rad (t.ex. "Erbjudanden"-tilen) skickar en
     // explicit categorySlug i stället för categoryId → path:en byggs på den.
     if (!categorySlug && req.body.categorySlug) {

@@ -86,6 +86,16 @@ router.get('/', async (_req, res) => {
         // Budkostnad (öre) på poäng-ENBART order vid leverans. Web visar den som
         // egen kassa-rad och inkluderar i totalen (vid hämtning = 0).
         courierCost: (settings as any).dpointsCourierCost ?? 0,
+        // Km-baserad budkostnad-tariff (poäng-ENBART leverans): [{ maxKm, feeKr }].
+        // Klienten räknar fram avgiften från leveransavståndet. Tom = platt courierCost.
+        courierTiers: (() => {
+          try {
+            const arr = JSON.parse((settings as any).dpointsCourierTiers ?? '[]');
+            return Array.isArray(arr) ? arr : [];
+          } catch {
+            return [];
+          }
+        })(),
       },
       // Plattform-banner (visas i web när satt och inte expirerad)
       banner: (() => {

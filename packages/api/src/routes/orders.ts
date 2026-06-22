@@ -18,7 +18,8 @@ import { JWT_SECRET } from '../lib/config';
 import { cached } from '../lib/ttlCache';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
-import { getDpointsSettings, awardOrderPointsIfNotAwarded } from '../lib/dpoints';
+import { getDpointsSettings, awardOrderPointsIfNotAwarded, resolveDpointsCourierFeeOre } from '../lib/dpoints';
+import { haversineKm } from '../utils/geo';
 import supabaseAdmin from '../lib/supabase';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
@@ -516,6 +517,13 @@ router.post('/', async (req: Request, res: Response) => {
           {
             ...peg.extraGroup,
             extraMap: new Map(peg.extraGroup.extras.map((extra) => [extra.id, extra])),
+            // PER-PRODUKT-ordning: ProductExtraGroup.position (peg.position) — exakt
+            // samma nyckel som meny-queryn ordnar grupperna på (orderBy position).
+            // INTE extraGroup.position (global) som grupperar t.ex. alla "Pizza"
+            // för sig och alla "Sås" för sig → fel ordning på kombo-produkter.
+            groupPosition: (peg as any).position ?? 0,
+            // Tillvalens egen ordning i gruppen = Extra.position (samma som menyn).
+            extraOrder: new Map(peg.extraGroup.extras.map((extra: any) => [extra.id, extra.position ?? 0])),
           },
         ]),
       );
@@ -560,6 +568,22 @@ router.post('/', async (req: Request, res: Response) => {
           quantity: selected.quantity ?? 1,
           groupRequired: group.required || group.minSelections > 0,
         };
+      });
+
+      // Lagra tillvalen i EXAKT samma ordning som produktmodalen visar dem:
+      // grupper på PER-PRODUKT-ordning (ProductExtraGroup.position = peg.position,
+      // samma som meny-queryn), tillval inom en grupp på Extra.position. Tidigare
+      // sorterade vi på extraGroup.position (global) vilket bröt kombo-produkter
+      // (alla pizzor först, alla såser sen) — nu blir det pizza1, sås1, pizza2, sås2.
+      validatedExtras.sort((a, b) => {
+        const ga = groupMap.get(a.groupId) as any;
+        const gb = groupMap.get(b.groupId) as any;
+        const gpa = ga?.groupPosition ?? 0;
+        const gpb = gb?.groupPosition ?? 0;
+        if (gpa !== gpb) return gpa - gpb;
+        const ea = ga?.extraOrder?.get(a.extraId) ?? 0;
+        const eb = gb?.extraOrder?.get(b.extraId) ?? 0;
+        return ea - eb;
       });
 
       if (!confirmedPayment) {
@@ -640,7 +664,16 @@ router.post('/', async (req: Request, res: Response) => {
     // betalt. Vid HÄMTNING finns ingen kurir → ingen budkostnad (gratis).
     const isPointsOnlyOrder = pointsToSpend > 0 && subtotal === 0;
     if (isPointsOnlyOrder && data.type === 'DELIVERY') {
-      deliveryFee = dpSettings.dpointsCourierCost ?? 0;
+      // Km-baserad budkostnad: avstånd restaurang → kund via haversine, slå upp
+      // i den globala tariffen (fallback platt dpointsCourierCost om tom).
+      const rLat = (restaurant as any).latitude;
+      const rLng = (restaurant as any).longitude;
+      const distKm =
+        typeof data.lat === 'number' && typeof data.lng === 'number' &&
+        typeof rLat === 'number' && typeof rLng === 'number'
+          ? haversineKm(data.lat, data.lng, rLat, rLng)
+          : 0;
+      deliveryFee = resolveDpointsCourierFeeOre(distKm, dpSettings);
     }
 
     // Min-order-validering flyttad nedåt — den behöver veta om en rabatt
