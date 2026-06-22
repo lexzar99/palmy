@@ -102,11 +102,12 @@ const DELIVERY_STEP_DEFS: StepDef[] = [
   { label: "På väg", reached: (s) => ["DELIVERING", "DELIVERED", "COMPLETED"].includes(s) },
   { label: "Levererad", reached: (s) => ["DELIVERED", "COMPLETED"].includes(s) },
 ];
+// Avhämtning slutar vid "Klar för avhämtning" (sista steget) — speglar RN-appen.
+// Ingen "Hämtad"-status efter, kunden hämtar själv när det står klart.
 const PICKUP_STEP_DEFS: StepDef[] = [
-  { label: "Granskas", reached: () => true },
+  { label: "Mottagen", reached: () => true },
   { label: "Lagar maten", reached: (s) => ["PREPARING", "READY", "DELIVERED", "COMPLETED"].includes(s) },
-  { label: "Redo", reached: (s) => ["READY", "DELIVERED", "COMPLETED"].includes(s) },
-  { label: "Hämtad", reached: (s) => ["DELIVERED", "COMPLETED"].includes(s) },
+  { label: "Klar för avhämtning", reached: (s) => ["READY", "DELIVERED", "COMPLETED"].includes(s) },
 ];
 
 // Avslutade lägen är "sticky": en redan levererad/avbruten order får ALDRIG
@@ -613,41 +614,43 @@ const OrderStatusPage = () => {
           {/* Steg — robust tracker: nod + halv-connectors per steg.
               Vid "På väg" glider en liten bud-ikon fram och tillbaka ovanför
               det aktiva steget (CSS-only, respekterar reduced motion). */}
+          {/* Segmenterad progress (ticket-design): klara = ink, aktivt = guld
+              (mjuk andning), kommande = hårfin linje. Speglar RN-appen. */}
           {!isRejected && (
-            <div className="border-t px-4 pb-6 pt-6" style={{ borderColor: "var(--border-muted)" }}>
+            <div className="border-t px-5 pb-6 pt-5" style={{ borderColor: "var(--border-muted)" }}>
               <style>{`
-                @keyframes courierGlide { 0%, 100% { transform: translateX(-7px); } 50% { transform: translateX(7px); } }
-                .courier-glide { animation: courierGlide 4s ease-in-out infinite; }
-                @media (prefers-reduced-motion: reduce) { .courier-glide { animation: none; } }
+                @keyframes segBreathe { 0%,100% { opacity:1 } 50% { opacity:.82 } }
+                .seg-active { animation: segBreathe 1.8s ease-in-out infinite; }
+                @media (prefers-reduced-motion: reduce) { .seg-active { animation: none; } }
               `}</style>
-              <div className="flex items-start">
-                {stepDefs.map((step, idx) => {
-                  const isDone = currentIdx >= idx;
-                  const isActive = currentIdx === idx && !isCompleted;
-                  const last = idx === stepDefs.length - 1;
+              <div className="flex gap-1.5" role="img" aria-label={`Steg ${currentIdx + 1} av ${stepDefs.length}: ${stepDefs[currentIdx]?.label ?? ""}`}>
+                {stepDefs.map((_, idx) => {
+                  const state = isCompleted ? "done" : idx < currentIdx ? "done" : idx === currentIdx ? "active" : "todo";
                   return (
-                    <div key={step.label} className="flex flex-1 flex-col items-center">
-                      <div className="flex w-full items-center">
-                        <div className={`h-0.5 flex-1 rounded-full ${idx === 0 ? "opacity-0" : isDone ? "bg-gold-500" : ""}`} style={idx !== 0 && !isDone ? { backgroundColor: "var(--border-muted)" } : undefined} />
-                        <div className="relative">
-                          {isActive && currentStatus === "DELIVERING" && (
-                            <span className="courier-glide absolute -top-5 left-1/2 -ml-[7px]" aria-hidden="true">
-                              <Truck size={14} strokeWidth={2} style={{ color: "var(--gold-ink)" }} />
-                            </span>
-                          )}
-                        <div
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-500 ${isActive ? "scale-110 border-gold-500 bg-gold-500" : isDone ? "border-gold-500 bg-gold-500" : ""}`}
-                          style={!isDone && !isActive ? { borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" } : undefined}
-                        >
-                          {isDone && !isActive ? <Check size={14} className="text-zinc-950" strokeWidth={4} /> : isActive ? <span className="h-2 w-2 animate-pulse rounded-full bg-zinc-950" /> : <span className="h-1.5 w-1.5 rounded-full bg-current opacity-50" />}
-                        </div>
-                        </div>
-                        <div className={`h-0.5 flex-1 rounded-full ${last ? "opacity-0" : currentIdx > idx ? "bg-gold-500" : ""}`} style={!last && currentIdx <= idx ? { backgroundColor: "var(--border-muted)" } : undefined} />
-                      </div>
-                      <span className={`mt-2.5 text-center text-[11px] font-bold ${isActive ? "text-gold-600" : ""}`} style={!isActive ? { color: "var(--text-secondary)", opacity: isDone ? 1 : 0.55 } : undefined}>{step.label}</span>
-                    </div>
+                    <div
+                      key={idx}
+                      className={`h-[5px] flex-1 rounded-full ${state === "active" ? "seg-active" : ""}`}
+                      style={{ backgroundColor: state === "done" ? "var(--text-primary)" : state === "active" ? "var(--color-gold-500)" : "var(--border-muted)" }}
+                    />
                   );
                 })}
+              </div>
+              <div className="mt-2 flex">
+                {stepDefs.map((step, idx) => (
+                  <span
+                    key={idx}
+                    className="truncate text-[10.5px]"
+                    style={{
+                      flex: idx === stepDefs.length - 1 ? 1.4 : 1,
+                      textAlign: idx === stepDefs.length - 1 ? "right" : "left",
+                      color: idx === currentIdx ? "var(--gold-ink)" : "var(--text-secondary)",
+                      fontWeight: idx === currentIdx ? 700 : 500,
+                      opacity: idx <= currentIdx ? 1 : 0.6,
+                    }}
+                  >
+                    {step.label}
+                  </span>
+                ))}
               </div>
             </div>
           )}
@@ -770,10 +773,13 @@ const OrderStatusPage = () => {
               <button
                 type="button"
                 onClick={() => setShowReceipt(true)}
-                className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold transition-colors"
-                style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)", border: "1px solid var(--border-muted)" }}
+                className="mt-5 w-full inline-flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm font-bold transition-colors"
+                style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--border-muted)" }}
               >
-                <ShoppingBag size={15} /> Visa kvitto
+                <ShoppingBag size={16} /> Ladda ner kvitto
+                <span className="ml-auto text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                  {receiptDownloads >= RECEIPT_MAX_DOWNLOADS ? "Max nått" : `PDF · ${RECEIPT_MAX_DOWNLOADS - receiptDownloads} kvar`}
+                </span>
               </button>
            </div>
 
@@ -844,9 +850,9 @@ const OrderStatusPage = () => {
                     ) : (
                        order.restaurantAddress && (
                           <div className="flex items-start gap-3.5">
-                             <MapPin className="text-emerald-500 mt-0.5 shrink-0" size={16} />
+                             <MapPin className="text-gold-500 mt-0.5 shrink-0" size={16} />
                               <div className="min-w-0 flex-1">
-                                 <div className="text-[10px] font-bold mb-0.5 text-emerald-600">{t("order.pickupAt")}</div>
+                                 <div className="text-[10px] font-bold mb-0.5 text-gold-600">{t("order.pickupAt")}</div>
                                  {/* Tappable pickup address — opens in maps */}
                                  <a
                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([order.restaurantAddress, order.restaurantZip, order.restaurantCity].filter(Boolean).join(", "))}`}
@@ -854,7 +860,7 @@ const OrderStatusPage = () => {
                                    rel="noreferrer"
                                    className="group block"
                                  >
-                                   <div className="text-sm font-semibold leading-snug group-hover:text-emerald-600 transition-colors" style={{ color: "var(--text-primary)" }}>{order.restaurantAddress}</div>
+                                   <div className="text-sm font-semibold leading-snug group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{order.restaurantAddress}</div>
                                    <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{order.restaurantZip} {order.restaurantCity}</div>
                                  </a>
                               </div>
