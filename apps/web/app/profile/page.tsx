@@ -235,22 +235,16 @@ function ProfileContent() {
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    // "orders" tas bort som tab — om gammal länk pekar dit, fall till overview
-    if (tab === "orders") {
+    // "orders" + "addresses" är borttagna flikar — gamla länkar faller till overview.
+    if (tab === "orders" || tab === "addresses") {
       setActiveTab("overview");
-    } else if (tab && ["overview", "settings", "deals", "addresses"].includes(tab)) {
+    } else if (tab && ["overview", "settings", "deals"].includes(tab)) {
       setActiveTab(tab as any);
     }
   }, [searchParams]);
 
   // Saved addresses state
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
-  const [newAddrLabel, setNewAddrLabel] = useState("Hem");
-  const [newAddrStreet, setNewAddrStreet] = useState("");
-  const [newAddrCity, setNewAddrCity] = useState("");
-  const [newAddrZip, setNewAddrZip] = useState("");
-  const [newAddrNote, setNewAddrNote] = useState("");
-  const [addrSaving, setAddrSaving] = useState(false);
 
   // Auth: inloggning sker på dedikerade /login-sidan (inte inline här).
   const [isLoggingOut, setIsLoggingOut] = useState(false); // To fix logout bug
@@ -909,10 +903,8 @@ function ProfileContent() {
           {[
             { id: "overview", icon: User, label: t("profile.tabs.home") },
             { id: "deals", icon: Sparkles, label: t("profile.tabs.deals") },
-            // "Ordrar"-fliken är borttagen från profilen — finns nu som egen
-            // tab i bottom-nav (/orders) och i top-navbaren, för att undvika
-            // dubbel-navigation och för att fungera utan login.
-            { id: "addresses", icon: MapPin, label: t("profile.tabs.addresses") },
+            // "Ordrar"- och "Adresser"-flikarna är borttagna från profilen —
+            // ordrar finns i bottom-nav (/orders); adress hanteras på startsidan.
             { id: "settings", icon: Settings, label: t("profile.tabs.settings") },
           ].map((tab) => (
             <button
@@ -1266,110 +1258,6 @@ function ProfileContent() {
           )}
 
 
-          {/* Addresses Tab */}
-          {activeTab === "addresses" && (
-            <motion.div key="addr" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
-              {/* Existing Addresses */}
-              {savedAddresses.length === 0 ? (
-                <div className="py-16 text-center">
-                  <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-                    <MapPin size={28} className="text-[color:var(--text-secondary)]" />
-                  </div>
-                  <p className="text-lg font-bold tracking-tight mb-1.5" style={{ color: "var(--text-primary)" }}>{t("profile.addresses.empty.title")}</p>
-                  <p className="text-sm max-w-xs mx-auto" style={{ color: "var(--text-secondary)" }}>{t("profile.addresses.empty.sub")}</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {savedAddresses.map(addr => (
-                    <div key={addr.id} className="rounded-2xl p-6 flex items-center justify-between group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm ${addr.isDefault ? 'bg-gold-500/10 text-gold-600 border border-gold-500/20' : 'bg-[color:var(--bg-deep)] text-[color:var(--text-secondary)]'}`}>
-                          {addr.label === 'Hem' ? <Home size={18} /> : addr.label === 'Jobb' ? <Briefcase size={18} /> : <MapPin size={18} />}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{addr.label === 'Hem' ? t("profile.addresses.label.home") : addr.label === 'Jobb' ? t("profile.addresses.label.work") : addr.label}</p>
-                            {addr.isDefault && <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md">{t("profile.addresses.default")}</span>}
-                          </div>
-                          <p className="text-[10px] text-[color:var(--text-secondary)] font-bold mt-0.5">{addr.street}, {addr.zip} {addr.city}</p>
-                          {addr.note && <p className="text-[9px] text-[color:var(--text-secondary)] mt-1 opacity-70">{addr.note}</p>}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        {!addr.isDefault && (
-                          <button
-                            onClick={async () => {
-                              try {
-                                await axios.patch(`/api/platform/profile/addresses/${addr.id}`, { isDefault: true });
-                                fetchData();
-                              } catch (err) {
-                                console.warn("Failed to set default address:", err);
-                              }
-                            }}
-                            className="p-2 bg-[color:var(--bg-deep)] rounded-lg text-[color:var(--text-secondary)] transition-colors"
-                            title={t("profile.addresses.makeDefault")}
-                          >
-                            <Check size={14} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            setAddressToDelete(addr);
-                            setDeleteAddressModalOpen(true);
-                          }}
-                          className="p-2 bg-[color:var(--bg-deep)] rounded-lg text-[color:var(--text-secondary)] hover:text-rose-500 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add New Address */}
-              <div className="rounded-2xl p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                <h3 className="text-sm font-bold flex items-center gap-3" style={{ color: "var(--text-primary)" }}>
-                  <Plus size={16} style={{ color: "var(--text-secondary)" }} /> {t("profile.addresses.add")}
-                </h3>
-                <div className="flex gap-2">
-                  {['Hem', 'Jobb', 'Annat'].map(l => (
-                    <button key={l} type="button" onClick={() => setNewAddrLabel(l)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[12px] font-medium border transition-all ${
-                      newAddrLabel === l ? 'bg-gold-500/10 border-gold-500/30 text-gold-600' : 'bg-[color:var(--bg-deep)] border-[color:var(--border-muted)] text-[color:var(--text-secondary)]'
-                    }`}>
-                      {l === 'Hem' ? <Home size={12} /> : l === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
-                      {l === 'Hem' ? t("profile.addresses.label.home") : l === 'Jobb' ? t("profile.addresses.label.work") : t("profile.addresses.label.other")}
-                    </button>
-                  ))}
-                </div>
-                <input value={newAddrStreet} onChange={e => setNewAddrStreet(e.target.value)} placeholder={t("profile.addresses.streetPlaceholder")} className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
-                <div className="grid grid-cols-2 gap-3">
-                  <input value={newAddrCity} onChange={e => setNewAddrCity(e.target.value)} placeholder={t("profile.addresses.cityPlaceholder")} className="rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
-                  <input value={newAddrZip} onChange={e => setNewAddrZip(e.target.value)} placeholder={t("profile.addresses.zipPlaceholder")} className="rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
-                </div>
-                <input value={newAddrNote} onChange={e => setNewAddrNote(e.target.value)} placeholder={t("profile.addresses.notePlaceholder")} className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
-                <button
-                  onClick={async () => {
-                    if (!newAddrStreet || !newAddrCity || !newAddrZip) return;
-                    setAddrSaving(true);
-                    try {
-                      await axios.post(`/api/platform/profile/addresses`, {
-                        label: newAddrLabel, street: newAddrStreet, city: newAddrCity, zip: newAddrZip, note: newAddrNote || undefined, isDefault: savedAddresses.length === 0,
-                      });
-                      setNewAddrStreet(''); setNewAddrCity(''); setNewAddrZip(''); setNewAddrNote('');
-                      fetchData();
-                    } catch (err: any) {
-                      alert(err.response?.data?.error || t("profile.addresses.saveError"));
-                    } finally { setAddrSaving(false); }
-                  }}
-                  disabled={addrSaving || !newAddrStreet || !newAddrCity || !newAddrZip}
-                  className="w-full py-5 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-[11px] active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-3"
-                >
-                  {addrSaving ? <Loader2 size={16} className="animate-spin" /> : <><Plus size={16} /> {t("profile.addresses.save")}</>}
-                </button>
-              </div>
-            </motion.div>
-          )}
 
 
           {/* Edit form */}

@@ -2325,6 +2325,8 @@ export default function CartPage() {
                                   <Check size={15} strokeWidth={2.5} className="shrink-0" style={{ color: "var(--success-ink)" }} />
                                 ) : null}
                               </div>
+                              {/* Liten ostörande hint: adressen byts på startsidan, ej här. */}
+                              <p className="px-4 pb-2 text-[11px]" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.addressChangeHint")}</p>
                               {addressZoneStatus === "error" && <p className="px-4 pb-2.5 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.zoneNotCoveredHome")}</p>}
                             </>
                           ) : null;
@@ -2338,19 +2340,21 @@ export default function CartPage() {
                                 <span className="flex-1 min-w-0 text-[14.5px] font-medium break-words" style={{ color: "var(--text-primary)" }}>{value}</span>
                               </div>
                             ) : null;
+                            // INLOGGAD: namn/telefon/epost hopfällt (klick för att se).
+                            // Leveransadressen visas ALLTID läs-bart nedan (som för gäst).
                             return (
-                              <div className="rounded-xl overflow-hidden px-4" style={{ border: "1px solid var(--border-muted)", backgroundColor: "#fff" }}>
-                                <CartCollapsibleRow first label={t("cart.yourInfo.title")} icon={<UserIcon size={15} style={{ color: "var(--text-secondary)" }} />}>
-                                  <div className="pt-0.5">
-                                    {readRow(t("cart.fields.name"), formData.customerName)}
-                                    {readRow(t("cart.fields.phone"), formData.customerPhone)}
-                                    {readRow(t("cart.fields.email"), formData.customerEmail)}
-                                    {orderType === "DELIVERY" && readRow(t("cart.fields.address"), addressInput)}
-                                  </div>
-                                </CartCollapsibleRow>
-                                {orderType === "DELIVERY" && addressZoneStatus === "error" && (
-                                  <p className="pb-3 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.zoneNotCoveredHome")}</p>
-                                )}
+                              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "#fff" }}>
+                                <div className="px-4">
+                                  <CartCollapsibleRow first label={t("cart.yourInfo.title")} icon={<UserIcon size={15} style={{ color: "var(--text-secondary)" }} />}>
+                                    <div className="pt-0.5">
+                                      {readRow(t("cart.fields.name"), formData.customerName)}
+                                      {readRow(t("cart.fields.phone"), formData.customerPhone)}
+                                      {readRow(t("cart.fields.email"), formData.customerEmail)}
+                                    </div>
+                                  </CartCollapsibleRow>
+                                </div>
+                                {orderType === "DELIVERY" && hair}
+                                {addressDisplay}
                               </div>
                             );
                           }
