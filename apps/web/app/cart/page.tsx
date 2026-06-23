@@ -2321,10 +2321,11 @@ export default function CartPage() {
           <div className="lg:sticky lg:top-24">
              <AnimatePresence mode="wait">
                {adyenOrderId ? (
-                  <motion.div key="adyen" id="adyen-payment" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} className="p-5 sm:p-7 rounded-2xl relative" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                     <div className="mb-5 flex items-center gap-2 text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                        <CreditCard size={16} /> Betalning
+                  <motion.div key="adyen" id="adyen-payment" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} className="p-5 sm:p-7 rounded-2xl relative" style={{ backgroundColor: "#1c1c1e", border: "1px solid rgba(255,255,255,0.10)" }}>
+                     <div className="mb-1 flex items-center gap-2 text-[15px] font-semibold" style={{ color: "#fafafa" }}>
+                        <CreditCard size={16} style={{ color: "#a1a1aa" }} /> Betalning
                      </div>
+                     <p className="mb-5 text-[12px]" style={{ color: "#8a8a90" }}>Säkert betalningssteg</p>
                      <AdyenDropin
                        orderId={adyenOrderId}
                        returnUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/cart`}
@@ -2332,10 +2333,10 @@ export default function CartPage() {
                        onFailed={() => setError("Betalningen gick inte igenom. Kontrollera kortuppgifterna eller välj ett annat betalsätt.")}
                        onError={(m) => setError(m)}
                      />
-                     <p className="mt-4 text-center text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                     <p className="mt-4 text-center text-[12px] leading-relaxed" style={{ color: "#8a8a90" }}>
                         Säker betalning. Dina kortuppgifter skickas krypterat och sparas aldrig hos oss.
                      </p>
-                     <button type="button" onClick={() => { setAdyenOrderId(null); paymentInFlightRef.current = false; }} className="mt-3 w-full text-[13px] font-medium transition-colors" style={{ color: "var(--text-secondary)" }}>
+                     <button type="button" onClick={() => { setAdyenOrderId(null); paymentInFlightRef.current = false; }} className="mt-3 w-full text-[13px] font-medium transition-colors" style={{ color: "#a1a1aa" }}>
                         Tillbaka
                      </button>
                   </motion.div>

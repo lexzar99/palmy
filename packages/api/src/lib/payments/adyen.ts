@@ -75,6 +75,9 @@ export const adyenProvider: PaymentProvider = {
       channel: 'Web' as any,
       shopperEmail: order.customerEmail ?? undefined,
       lineItems: buildLineItems(order),
+      // Bara de metoder vi vill visa. 'klarna' = EN Klarna-rad (inte alla varianter);
+      // detta tystar även "you support X but not configured"-varningarna.
+      allowedPaymentMethods: ['scheme', 'klarna', 'swish', 'applepay', 'googlepay'],
       metadata: { orderId: order.id },
     } as any);
     return {

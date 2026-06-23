@@ -108,7 +108,17 @@ export default function AdyenDropin({ orderId, returnUrl, onCompleted, onFailed,
             openFirstPaymentMethod: false,
             paymentMethodComponents: [Card, Klarna, Swish, ApplePay, GooglePay],
             paymentMethodsConfiguration: {
-              card: { hasHolderName: true, holderNameRequired: true },
+              card: {
+                hasHolderName: true,
+                holderNameRequired: true,
+                // Kortnummer/CVC ligger i Adyens iframes (PCI). Deras textfärg styrs
+                // via styles-config, inte CSS från sidan. Vit text på mörk yta.
+                styles: {
+                  base: { color: "#fafafa", fontSize: "16px", fontFamily: "Inter, sans-serif", placeholderColor: "#6b6b70" },
+                  placeholder: { color: "#6b6b70" },
+                  error: { color: "#fb7185" },
+                },
+              },
             },
           }).mount(containerRef.current);
           setPhase("ready");

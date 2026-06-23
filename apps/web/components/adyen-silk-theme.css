@@ -1,43 +1,56 @@
-/* Delivera "Silk" tema för Adyen Web Drop-in v6.
+/* Delivera betalnings-tema för Adyen Web Drop-in v6 — MÖRKT/monokromt.
    Importeras EFTER @adyen/adyen-web/styles/adyen.css. Scopad till .delivera-adyen.
-   Variabelnamnen är verifierade mot @adyen/adyen-web@6.40.0 (styles/adyen.css).
-   Tokens matchar apps/web/app/globals.css (guld #E7B24B, Inter, flat). */
+   Mörkgrå yta + vit text "endast vid betalning" (signalerar betalningssteget).
+   Variabelnamn verifierade mot @adyen/adyen-web@6.40.0. */
 
 .delivera-adyen {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* Text: mjuk-svart, inte rent svart */
-  --adyen-sdk-color-label-primary: #111113;
-  --adyen-sdk-color-label-secondary: #5c5c61;
-  --adyen-sdk-color-label-highlight: #8a6512; /* gold-ink: guld som läsbar text */
-  --adyen-sdk-color-label-critical: #dc2626;
+  /* Text: vit/ljus på mörk yta */
+  --adyen-sdk-color-label-primary: #fafafa;
+  --adyen-sdk-color-label-secondary: #a1a1aa;
+  --adyen-sdk-color-label-disabled: #6b6b70;
+  --adyen-sdk-color-label-highlight: #fafafa;
+  --adyen-sdk-color-label-critical: #fb7185;
 
-  /* Ytor: platt vitt */
-  --adyen-sdk-color-background-primary: #ffffff;
-  --adyen-sdk-color-background-secondary: #fbf4e4; /* vald metod-rad: svag guldton (gold-soft) */
-  --adyen-sdk-color-outline-primary: rgba(17, 17, 19, 0.14); /* --line-strong */
-  --adyen-sdk-color-outline-primary-active: #e7b24b; /* guld-fokus på inputs */
+  /* Ytor: mörkgrått, platt */
+  --adyen-sdk-color-background-primary: #1c1c1e;
+  --adyen-sdk-color-background-secondary: rgba(255, 255, 255, 0.06); /* vald metod-rad */
+  --adyen-sdk-color-outline-primary: rgba(255, 255, 255, 0.12);       /* kanter */
+  --adyen-sdk-color-outline-primary-active: rgba(255, 255, 255, 0.55); /* vald/fokus */
 
-  /* PRIMÄR PAY-KNAPP → guld med mörk text (verifierade button-tokens) */
-  --adyen-sdk-color-background-always-dark: #e7b24b;
-  --adyen-sdk-color-background-always-dark-active: #c28e2e; /* gold-600, nedtryckt */
-  --adyen-sdk-color-background-inverse-primary-hover: #c28e2e; /* hover */
-  --adyen-sdk-color-label-on-color: #141416; /* mörk text på guld (kontrast) */
+  /* PRIMÄR PAY-KNAPP → vit med mörk text (sticker ut mot mörk yta) */
+  --adyen-sdk-color-background-always-dark: #fafafa;
+  --adyen-sdk-color-background-always-dark-active: #e5e5e5;
+  --adyen-sdk-color-background-inverse-primary-hover: #e5e5e5;
+  --adyen-sdk-color-label-on-color: #1c1c1e;
 
-  /* Radier ~12-14px */
+  /* Radier */
   --adyen-sdk-border-radius-s: 8px;
-  --adyen-sdk-border-radius-m: 12px;
-  --adyen-sdk-border-radius-l: 14px;
+  --adyen-sdk-border-radius-m: 10px;
+  --adyen-sdk-border-radius-l: 10px;
 
-  /* Guld-fokusring istället för blå glow */
-  --adyen-sdk-focus-ring-color: rgba(231, 178, 75, 0.5);
+  --adyen-sdk-focus-ring-color: rgba(255, 255, 255, 0.4);
 }
 
-/* FLAT: döda residual-skugga/glow Adyen lägger på metod-rader + knapp. */
+/* FLAT: döda skugga/glow på rader + knapp */
 .delivera-adyen .adyen-checkout__payment-method,
 .delivera-adyen .adyen-checkout__button {
   box-shadow: none !important;
 }
-.delivera-adyen .adyen-checkout__button:focus-visible {
-  box-shadow: 0 0 0 3px var(--adyen-sdk-focus-ring-color) !important;
+
+/* Icke-iframe-inputs (t.ex. kortinnehavare) → mörka */
+.delivera-adyen .adyen-checkout__input {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #fafafa !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+.delivera-adyen .adyen-checkout__input::placeholder { color: #6b6b70 !important; }
+
+/* Metod-loggor → monokromt vita (Adyen visar färgade brand-loggor som standard).
+   grayscale tar bort färgen, brightness(0)+invert(1) gör dem vita. Även Swish. */
+.delivera-adyen .adyen-checkout__payment-method__image,
+.delivera-adyen .adyen-checkout__payment-method__image__wrapper img,
+.delivera-adyen img.adyen-checkout__payment-method__image {
+  filter: grayscale(1) brightness(0) invert(1) !important;
 }
