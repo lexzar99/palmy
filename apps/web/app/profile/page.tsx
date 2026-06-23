@@ -82,7 +82,7 @@ function CountryPicker({
       >
         <span className="text-lg">{selected.flag}</span>
         <span className="text-sm">{selected.code}</span>
-        <ChevronRight size={14} className={`text-zinc-400 transition-transform ${open ? "rotate-90" : ""}`} />
+        <ChevronRight size={14} className={`text-[color:var(--text-secondary)] transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
       <AnimatePresence>
         {open && (
@@ -107,7 +107,7 @@ function CountryPicker({
             </div>
             <div className="max-h-72 overflow-auto">
               {filtered.length === 0 ? (
-                <div className="px-4 py-6 text-center text-xs text-zinc-400">{t("profile.country.empty")}</div>
+                <div className="px-4 py-6 text-center text-xs text-[color:var(--text-secondary)]">{t("profile.country.empty")}</div>
               ) : (
                 filtered.map((c) => (
                   <button
@@ -122,9 +122,9 @@ function CountryPicker({
                     <span className="text-xl">{c.flag}</span>
                     <div className="flex-1">
                       <div className="font-bold text-xs">{c.country}</div>
-                      <div className="text-zinc-400 text-[10px]">{c.code}</div>
+                      <div className="text-[color:var(--text-secondary)] text-[10px]">{c.code}</div>
                     </div>
-                    {value === c.code && <Check size={14} className="text-gold-500" />}
+                    {value === c.code && <Check size={14} style={{ color: "var(--text-primary)" }} />}
                   </button>
                 ))
               )}
@@ -157,7 +157,7 @@ function LanguagePickerRow() {
   return (
     <div className="p-6 flex items-center justify-between group">
       <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
           <Languages size={18} strokeWidth={1.8} />
         </div>
         <div>
@@ -731,7 +731,7 @@ function ProfileContent() {
           <div className="text-center space-y-3">
             <div className="w-16 h-16 bg-[var(--bg-deep)] rounded-2xl flex items-center justify-center text-[var(--text-secondary)] mx-auto"><Phone size={28} /></div>
             <h2 className="text-[22px] font-bold tracking-tight">{t("profile.addPhone.title")}</h2>
-            <p className="text-zinc-500 text-sm leading-relaxed">
+            <p className="text-[color:var(--text-secondary)] text-sm leading-relaxed">
               {t("profile.addPhone.sub")}
             </p>
           </div>
@@ -745,7 +745,7 @@ function ProfileContent() {
                 value={addPhoneNum}
                 onChange={e => setAddPhoneNum(e.target.value)}
                 placeholder={t("profile.addPhone.placeholder")}
-                className="flex-1 rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-400 outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]"
+                className="flex-1 rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]"
                 style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
               />
             </div>
@@ -808,21 +808,22 @@ function ProfileContent() {
         {(user.oauthProvider === "apple" || user.oauthProvider === "supabase") &&
           (!user.firstName || !user.lastName) && (
             <div
-              className="mt-4 p-4 rounded-2xl border"
+              className="mt-4 p-4 rounded-2xl"
               style={{
-                backgroundColor: "rgba(234,181,69,0.08)",
-                borderColor: "rgba(234,181,69,0.30)",
+                backgroundColor: "var(--bg-secondary)",
+                border: "1px solid var(--border-muted)",
+                boxShadow: "var(--card-shadow)",
               }}
             >
               <div className="flex items-start gap-3">
                 <div
                   className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}
+                  style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
                 >
                   <User size={17} strokeWidth={2} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-[14px] font-semibold tracking-tight text-gold-700">
+                  <h3 className="text-[14px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
                     {t("profile.appleNoName.title")}
                   </h3>
                   <p
@@ -841,7 +842,8 @@ function ProfileContent() {
                         href="https://appleid.apple.com/account/manage"
                         target="_blank"
                         rel="noreferrer"
-                        className="text-gold-600 underline font-bold"
+                        className="underline font-bold"
+                        style={{ color: "var(--text-primary)" }}
                       >
                         {t("profile.appleNoName.step1Link")}
                       </a>
@@ -936,7 +938,7 @@ function ProfileContent() {
                    vid app-öppning. */}
                {availableDeals.length > 0 ? (
                  <div className="space-y-3">
-                   <p className="text-[12px] font-medium text-zinc-500 px-2">{t("profile.deals.availableTitle")}</p>
+                   <p className="text-[12px] font-medium text-[color:var(--text-secondary)] px-2">{t("profile.deals.availableTitle")}</p>
                    {availableDeals.map((deal: any) => {
                      const isClaiming = claimingId === deal.id;
                      return (
@@ -963,12 +965,12 @@ function ProfileContent() {
                                {deal.popupHeadline || deal.title}
                              </h3>
                              {deal.popupBody || deal.description ? (
-                               <p className="mt-1.5 text-xs font-bold leading-5 text-zinc-500">{deal.popupBody || deal.description}</p>
+                               <p className="mt-1.5 text-xs font-bold leading-5 text-[color:var(--text-secondary)]">{deal.popupBody || deal.description}</p>
                              ) : null}
                            </div>
                          </div>
                          <div className="mt-4 flex items-center justify-between gap-3">
-                           <div className="text-[12px] font-medium text-zinc-500">
+                           <div className="text-[12px] font-medium text-[color:var(--text-secondary)]">
                              {deal.discountType === "PERCENTAGE" ? t("profile.deals.discountPct", { value: deal.discountValue }) : t("profile.deals.discountKr", { value: deal.discountValue })}
                              {deal.minOrder > 0 ? ` • ${t("profile.deals.minOrder", { amount: deal.minOrder })}` : ""}
                            </div>
@@ -1002,7 +1004,7 @@ function ProfileContent() {
                {/* Claimade + globala deals (från popup-builder och broadcast) */}
                {claimedDeals.length > 0 ? (
                  <div className="space-y-3">
-                   <p className="text-[12px] font-medium text-zinc-500 px-2">{t("profile.deals.savedTitle")}</p>
+                   <p className="text-[12px] font-medium text-[color:var(--text-secondary)] px-2">{t("profile.deals.savedTitle")}</p>
                    {claimedDeals.map((deal: any) => {
                      const isClaimed = deal._kind === 'CLAIMED';
                      // Tag som visar typ av deal: Personlig (CustomerDeal),
@@ -1032,7 +1034,7 @@ function ProfileContent() {
                                {deal.popupHeadline || deal.title}
                              </h3>
                              {deal.popupBody || deal.description ? (
-                               <p className="mt-2 text-xs font-bold leading-5 text-zinc-500">{deal.popupBody || deal.description}</p>
+                               <p className="mt-2 text-xs font-bold leading-5 text-[color:var(--text-secondary)]">{deal.popupBody || deal.description}</p>
                              ) : null}
                            </div>
                            <div className="w-10 h-10 bg-gold-500 text-zinc-950 rounded-xl flex items-center justify-center shrink-0">
@@ -1041,7 +1043,7 @@ function ProfileContent() {
                          </div>
                          {deal.popupCode ? (
                            <div className="p-3 rounded-2xl flex items-center justify-between mb-3" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                             <div className="text-[12px] font-medium text-zinc-400">
+                             <div className="text-[12px] font-medium text-[color:var(--text-secondary)]">
                                {t("profile.deals.codeLabel")}: <span className="select-all" style={{ color: "var(--text-primary)" }}>{deal.popupCode}</span>
                              </div>
                              <button
@@ -1052,7 +1054,7 @@ function ProfileContent() {
                              </button>
                            </div>
                          ) : null}
-                         <div className="flex items-center justify-between text-[12px] font-medium text-zinc-400">
+                         <div className="flex items-center justify-between text-[12px] font-medium text-[color:var(--text-secondary)]">
                            <div>{deal.discountType === "PERCENTAGE" ? t("profile.deals.discountPct", { value: deal.discountValue }) : t("profile.deals.discountKr", { value: deal.discountValue })} {deal.minOrder > 0 ? `• ${t("profile.deals.minOrder", { amount: deal.minOrder })}` : ""}</div>
                            <div>{t("profile.deals.validUntil", { date: deal.validUntil ? new Date(deal.validUntil).toLocaleDateString("sv-SE") : t("profile.deals.validUntilNever") })}</div>
                          </div>
@@ -1066,14 +1068,14 @@ function ProfileContent() {
                {deals.length === 0 && claimedDeals.length === 0 ? (
                  <div className="py-16 text-center">
                     <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-                      <Tag size={28} className="text-gold-500/70" />
+                      <Tag size={28} className="text-[color:var(--text-secondary)]" />
                     </div>
                     <p className="text-lg font-bold tracking-tight mb-1.5" style={{ color: "var(--text-primary)" }}>{t("profile.deals.empty.title")}</p>
                     <p className="text-sm max-w-xs mx-auto" style={{ color: "var(--text-secondary)" }}>{t("profile.deals.empty.sub")}</p>
                  </div>
                ) : deals.length > 0 ? (
                  <div className="space-y-3">
-                   <p className="text-[12px] font-medium text-zinc-500 px-2">{t("profile.deals.personalCodes")}</p>
+                   <p className="text-[12px] font-medium text-[color:var(--text-secondary)] px-2">{t("profile.deals.personalCodes")}</p>
                    {deals.map((deal: any) => (
                    <div key={deal.id} className="p-8 rounded-2xl bg-gold-500/5 border border-gold-500/10 shadow-sm relative overflow-hidden group">
                       <div className="absolute top-0 right-0 w-24 h-24 bg-transparent" />
@@ -1088,7 +1090,7 @@ function ProfileContent() {
                       </div>
 
                       <div className="p-4 rounded-2xl flex items-center justify-between mb-6" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                         <div className="text-[12px] font-medium text-zinc-400">{t("profile.deals.codeLabel")}: <span className="select-all" style={{ color: "var(--text-primary)" }}>{deal.code}</span></div>
+                         <div className="text-[12px] font-medium text-[color:var(--text-secondary)]">{t("profile.deals.codeLabel")}: <span className="select-all" style={{ color: "var(--text-primary)" }}>{deal.code}</span></div>
                          <button
                             onClick={() => { navigator.clipboard.writeText(deal.code); }}
                             className="text-[12px] font-medium text-gold-600 hover:text-gold-700 transition-colors"
@@ -1097,7 +1099,7 @@ function ProfileContent() {
                           </button>
                       </div>
 
-                      <div className="flex items-center justify-between text-[12px] font-medium text-zinc-400">
+                      <div className="flex items-center justify-between text-[12px] font-medium text-[color:var(--text-secondary)]">
                          <div>{t("profile.deals.minOrderRow", { amount: deal.campaign.minOrder })}</div>
                          <div>{t("profile.deals.validUntil", { date: deal.campaign.validUntil ? new Date(deal.campaign.validUntil).toLocaleDateString("sv-SE") : t("profile.deals.validUntilNever") })}</div>
                       </div>
@@ -1114,9 +1116,9 @@ function ProfileContent() {
               <DpointsPanel />
               <div className="rounded-2xl p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                 <div className="flex items-center gap-4">
-                  <Phone size={16} className="text-zinc-400 shrink-0" />
+                  <Phone size={16} className="text-[color:var(--text-secondary)] shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[12px] font-medium text-zinc-400">{t("profile.overview.phone")}</p>
+                    <p className="text-[12px] font-medium text-[color:var(--text-secondary)]">{t("profile.overview.phone")}</p>
                     <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.phone || t("profile.overview.notSet")}</p>
                   </div>
                   {user.isVerified ? (
@@ -1137,20 +1139,20 @@ function ProfileContent() {
                   )}
                 </div>
                 <div className="flex items-center gap-4">
-                  <Mail size={16} className="text-zinc-400 shrink-0" />
+                  <Mail size={16} className="text-[color:var(--text-secondary)] shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[12px] font-medium text-zinc-400">{t("profile.overview.email")}</p>
+                    <p className="text-[12px] font-medium text-[color:var(--text-secondary)]">{t("profile.overview.email")}</p>
                     <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.email || t("profile.overview.notSet")}</p>
                   </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-2xl p-6 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                  <p className="text-[12px] font-medium text-zinc-400 mb-1">{t("profile.overview.ordersCount")}</p>
+                  <p className="text-[12px] font-medium text-[color:var(--text-secondary)] mb-1">{t("profile.overview.ordersCount")}</p>
                   <p className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>{orders.length}</p>
                 </div>
                 <div className="rounded-2xl p-6 shadow-sm" style={{ backgroundColor: user.isVerified ? "var(--bg-secondary)" : "var(--bg-secondary)", border: user.isVerified ? "1px solid rgba(5,150,105,0.1)" : "1px solid var(--border-muted)" }}>
-                  <p className="text-[12px] font-medium text-zinc-400 mb-1">{t("profile.overview.status")}</p>
+                  <p className="text-[12px] font-medium text-[color:var(--text-secondary)] mb-1">{t("profile.overview.status")}</p>
                   <p className={`text-[14px] font-semibold ${user.isVerified ? "text-emerald-600" : "text-rose-500"}`}>
                     {user.isVerified ? t("profile.overview.statusVerified") : t("profile.overview.statusUnverified")}
                   </p>
@@ -1173,7 +1175,7 @@ function ProfileContent() {
                     <p className="text-[10px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>{t("orders.subtitle")}</p>
                   </div>
                 </div>
-                <ChevronRight size={18} className="text-zinc-400 group-hover:text-gold-500 transition-colors" />
+                <ChevronRight size={18} className="text-[color:var(--text-secondary)] transition-colors" />
               </Link>
 
               {/* Referral-kort borttaget — referral-systemet avstängt för
@@ -1213,11 +1215,11 @@ function ProfileContent() {
                       </div>
                       <div>
                         <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.push")}</p>
-                        <p className="text-[10px] text-zinc-500 font-medium">{t("profile.settings.pushSub")}</p>
+                        <p className="text-[10px] text-[color:var(--text-secondary)] font-medium">{t("profile.settings.pushSub")}</p>
                       </div>
                     </div>
-                    <div className="w-12 h-6 bg-zinc-800 rounded-full relative cursor-pointer opacity-50">
-                       <div className="absolute left-1 top-1 w-4 h-4 bg-zinc-600 rounded-full" />
+                    <div className="w-12 h-6 bg-[color:var(--line-strong)] rounded-full relative cursor-pointer opacity-50">
+                       <div className="absolute left-1 top-1 w-4 h-4 bg-[color:var(--text-secondary)] rounded-full" />
                     </div>
                   </div>
                   {/*
@@ -1231,7 +1233,7 @@ function ProfileContent() {
               </div>
 
               <div className="space-y-2">
-                <div className="px-4 text-[12px] font-medium text-zinc-400 mb-2">{t("profile.settings.section.account")}</div>
+                <div className="px-4 text-[12px] font-medium text-[color:var(--text-secondary)] mb-2">{t("profile.settings.section.account")}</div>
                 <div className="rounded-2xl shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                   <button
                     onClick={() => setDeleteAccountModalOpen(true)}
@@ -1243,7 +1245,7 @@ function ProfileContent() {
                       </div>
                       <div>
                         <p className="font-bold text-sm text-rose-500">{t("profile.settings.deleteAccount")}</p>
-                        <p className="text-[10px] text-zinc-400 font-medium">{t("profile.settings.deleteAccountSub")}</p>
+                        <p className="text-[10px] text-[color:var(--text-secondary)] font-medium">{t("profile.settings.deleteAccountSub")}</p>
                       </div>
                     </div>
                   </button>
@@ -1270,7 +1272,7 @@ function ProfileContent() {
               {savedAddresses.length === 0 ? (
                 <div className="py-16 text-center">
                   <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-                    <MapPin size={28} className="text-gold-500/70" />
+                    <MapPin size={28} className="text-[color:var(--text-secondary)]" />
                   </div>
                   <p className="text-lg font-bold tracking-tight mb-1.5" style={{ color: "var(--text-primary)" }}>{t("profile.addresses.empty.title")}</p>
                   <p className="text-sm max-w-xs mx-auto" style={{ color: "var(--text-secondary)" }}>{t("profile.addresses.empty.sub")}</p>
@@ -1280,7 +1282,7 @@ function ProfileContent() {
                   {savedAddresses.map(addr => (
                     <div key={addr.id} className="rounded-2xl p-6 flex items-center justify-between group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                       <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm ${addr.isDefault ? 'bg-gold-500/10 text-gold-600 border border-gold-500/20' : 'bg-[color:var(--bg-deep)] text-zinc-400'}`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm ${addr.isDefault ? 'bg-gold-500/10 text-gold-600 border border-gold-500/20' : 'bg-[color:var(--bg-deep)] text-[color:var(--text-secondary)]'}`}>
                           {addr.label === 'Hem' ? <Home size={18} /> : addr.label === 'Jobb' ? <Briefcase size={18} /> : <MapPin size={18} />}
                         </div>
                         <div>
@@ -1288,8 +1290,8 @@ function ProfileContent() {
                             <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{addr.label === 'Hem' ? t("profile.addresses.label.home") : addr.label === 'Jobb' ? t("profile.addresses.label.work") : addr.label}</p>
                             {addr.isDefault && <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md">{t("profile.addresses.default")}</span>}
                           </div>
-                          <p className="text-[10px] text-zinc-400 font-bold mt-0.5">{addr.street}, {addr.zip} {addr.city}</p>
-                          {addr.note && <p className="text-[9px] text-zinc-400 mt-1 opacity-70">{addr.note}</p>}
+                          <p className="text-[10px] text-[color:var(--text-secondary)] font-bold mt-0.5">{addr.street}, {addr.zip} {addr.city}</p>
+                          {addr.note && <p className="text-[9px] text-[color:var(--text-secondary)] mt-1 opacity-70">{addr.note}</p>}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -1303,7 +1305,7 @@ function ProfileContent() {
                                 console.warn("Failed to set default address:", err);
                               }
                             }}
-                            className="p-2 bg-[color:var(--bg-deep)] rounded-lg text-zinc-500 hover:text-gold-500 transition-colors"
+                            className="p-2 bg-[color:var(--bg-deep)] rounded-lg text-[color:var(--text-secondary)] transition-colors"
                             title={t("profile.addresses.makeDefault")}
                           >
                             <Check size={14} />
@@ -1314,7 +1316,7 @@ function ProfileContent() {
                             setAddressToDelete(addr);
                             setDeleteAddressModalOpen(true);
                           }}
-                          className="p-2 bg-[color:var(--bg-deep)] rounded-lg text-zinc-500 hover:text-rose-500 transition-colors"
+                          className="p-2 bg-[color:var(--bg-deep)] rounded-lg text-[color:var(--text-secondary)] hover:text-rose-500 transition-colors"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -1327,24 +1329,24 @@ function ProfileContent() {
               {/* Add New Address */}
               <div className="rounded-2xl p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                 <h3 className="text-sm font-bold flex items-center gap-3" style={{ color: "var(--text-primary)" }}>
-                  <Plus size={16} className="text-gold-600" /> {t("profile.addresses.add")}
+                  <Plus size={16} style={{ color: "var(--text-secondary)" }} /> {t("profile.addresses.add")}
                 </h3>
                 <div className="flex gap-2">
                   {['Hem', 'Jobb', 'Annat'].map(l => (
                     <button key={l} type="button" onClick={() => setNewAddrLabel(l)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[12px] font-medium border transition-all ${
-                      newAddrLabel === l ? 'bg-gold-500/10 border-gold-500/30 text-gold-600' : 'bg-[color:var(--bg-deep)] border-[color:var(--border-muted)] text-zinc-400'
+                      newAddrLabel === l ? 'bg-gold-500/10 border-gold-500/30 text-gold-600' : 'bg-[color:var(--bg-deep)] border-[color:var(--border-muted)] text-[color:var(--text-secondary)]'
                     }`}>
                       {l === 'Hem' ? <Home size={12} /> : l === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
                       {l === 'Hem' ? t("profile.addresses.label.home") : l === 'Jobb' ? t("profile.addresses.label.work") : t("profile.addresses.label.other")}
                     </button>
                   ))}
                 </div>
-                <input value={newAddrStreet} onChange={e => setNewAddrStreet(e.target.value)} placeholder={t("profile.addresses.streetPlaceholder")} className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
+                <input value={newAddrStreet} onChange={e => setNewAddrStreet(e.target.value)} placeholder={t("profile.addresses.streetPlaceholder")} className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 <div className="grid grid-cols-2 gap-3">
-                  <input value={newAddrCity} onChange={e => setNewAddrCity(e.target.value)} placeholder={t("profile.addresses.cityPlaceholder")} className="rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
-                  <input value={newAddrZip} onChange={e => setNewAddrZip(e.target.value)} placeholder={t("profile.addresses.zipPlaceholder")} className="rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
+                  <input value={newAddrCity} onChange={e => setNewAddrCity(e.target.value)} placeholder={t("profile.addresses.cityPlaceholder")} className="rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
+                  <input value={newAddrZip} onChange={e => setNewAddrZip(e.target.value)} placeholder={t("profile.addresses.zipPlaceholder")} className="rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
-                <input value={newAddrNote} onChange={e => setNewAddrNote(e.target.value)} placeholder={t("profile.addresses.notePlaceholder")} className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
+                <input value={newAddrNote} onChange={e => setNewAddrNote(e.target.value)} placeholder={t("profile.addresses.notePlaceholder")} className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 <button
                   onClick={async () => {
                     if (!newAddrStreet || !newAddrCity || !newAddrZip) return;
@@ -1380,22 +1382,22 @@ function ProfileContent() {
               style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
             >
               <div className="flex items-center gap-3 mb-2">
-                <button type="button" onClick={() => setIsEditing(false)} className="p-2 text-zinc-400 hover:text-zinc-500 rounded-xl">
+                <button type="button" onClick={() => setIsEditing(false)} className="p-2 text-[color:var(--text-secondary)] hover:text-[color:var(--text-secondary)] rounded-xl">
                   <ArrowLeft size={18} />
                 </button>
                 <h3 className="text-[17px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("profile.editForm.title")}</h3>
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="text-[12px] font-medium text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.name")}</label>
+                  <label className="text-[12px] font-medium text-[color:var(--text-secondary)] ml-1 mb-1 block">{t("profile.editForm.name")}</label>
                   <input value={editName} onChange={e => setEditName(e.target.value)} className="w-full rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
-                  <label className="text-[12px] font-medium text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.email")}</label>
+                  <label className="text-[12px] font-medium text-[color:var(--text-secondary)] ml-1 mb-1 block">{t("profile.editForm.email")}</label>
                   <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder={t("auth.emailPlaceholder")} className="w-full rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
-                  <label className="text-[12px] font-medium text-zinc-400 ml-1 mb-1 block">{t("profile.editForm.phoneLocked")}</label>
+                  <label className="text-[12px] font-medium text-[color:var(--text-secondary)] ml-1 mb-1 block">{t("profile.editForm.phoneLocked")}</label>
                   <input disabled value={user.phone || t("profile.overview.notSet")} className="w-full rounded-2xl py-4 px-6 font-bold cursor-not-allowed opacity-50" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }} />
                 </div>
               </div>
