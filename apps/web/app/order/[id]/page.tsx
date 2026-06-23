@@ -490,7 +490,7 @@ const OrderStatusPage = () => {
     // Skeleton som matchar sidans faktiska layout (paritet med övriga sidor —
     // ingen blockerande spinner). Status-kort → kvitto → info-kort.
     return (
-      <div className="min-h-screen pb-28 pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="min-h-screen pb-[calc(env(safe-area-inset-bottom,0px)+7rem)] pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24 md:pb-16" style={{ backgroundColor: "var(--bg-primary)" }}>
         <div className="mx-auto max-w-2xl px-4">
           <div className="flex items-center justify-between py-3">
             <div className="skeleton h-9 w-28 rounded-full" />
@@ -562,7 +562,7 @@ const OrderStatusPage = () => {
     : stepDefs.reduce((acc, d, i) => (d.reached(currentStatus) ? i : acc), 0);
 
   return (
-    <div className="min-h-screen pb-28 pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="min-h-screen pb-[calc(env(safe-area-inset-bottom,0px)+7rem)] pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24 md:pb-16" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="mx-auto max-w-2xl px-4">
 
         {/* Top bar */}
@@ -1071,7 +1071,7 @@ const OrderStatusPage = () => {
                     );
                   })()}
                 </div>
-                <div className="px-6 pb-5 pt-2 sticky bottom-0" style={{ backgroundColor: "var(--bg-secondary)", borderTop: "1px solid var(--border-muted)" }}>
+                <div className="px-6 pt-2 sticky bottom-0" style={{ backgroundColor: "var(--bg-secondary)", borderTop: "1px solid var(--border-muted)", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}>
                   <button
                     type="button"
                     onClick={downloadReceipt}
