@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { Clock, ChevronRight } from "lucide-react";
+import { Clock, ChevronRight, MessageSquare } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { readOrderHistory, removeOrderFromHistory, type StoredOrderRef } from "@/lib/orderHistory";
 import { cacheOrdersList, getCachedOrdersList } from "@/lib/offlineOrders";
-import MobileFooterLinks from "@/components/MobileFooterLinks";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 type FetchedOrder = StoredOrderRef & {
@@ -180,10 +179,16 @@ export default function OrdersPage() {
     <div className="min-h-screen md:pt-20 pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <div className="mx-auto max-w-2xl md:max-w-4xl lg:max-w-5xl 2xl:max-w-[1400px] px-4 sm:px-6 lg:px-10 pt-8">
         <header className="mb-8 md:mb-10">
-          
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>
-            {t("orders.title")} {t("orders.titleAccent")}
-          </h1>
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+              {t("orders.title")} {t("orders.titleAccent")}
+            </h1>
+            {/* Kontakt uppe till höger (flyttad hit från botten): ikon + text. */}
+            <Link href="/contact" className="flex items-center gap-2 h-10 px-3.5 rounded-2xl shrink-0 active:scale-95 transition-all" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}>
+              <MessageSquare size={17} style={{ color: "var(--text-secondary)" }} />
+              <span className="text-[13.5px] font-semibold">{t("nav.contact")}</span>
+            </Link>
+          </div>
           {showingOffline && (
             <p className="mb-2 inline-flex items-center gap-2 rounded-md px-2.5 py-1 text-[12.5px] font-medium" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
               Offline — visar senast sparade ordrar
@@ -314,10 +319,6 @@ export default function OrdersPage() {
           </div>
         )}
 
-        {/* Om oss + Kontakt — mobil-knappar */}
-        <div className="mt-10">
-          <MobileFooterLinks />
-        </div>
       </div>
     </div>
   );

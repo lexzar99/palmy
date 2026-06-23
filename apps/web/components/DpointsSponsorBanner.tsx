@@ -31,7 +31,8 @@ export default function DpointsSponsorBanner({ onRegister }: { onRegister?: () =
       className="block w-full overflow-hidden rounded-2xl p-4 text-left transition active:scale-[0.99]"
       style={{
         backgroundColor: "var(--bg-secondary)",
-        border: "1px solid color-mix(in srgb, var(--gold-ink) 28%, transparent)",
+        border: "1px solid var(--border-muted)",
+        boxShadow: "var(--card-shadow)",
       }}
     >
       <div className="flex items-center gap-3.5">
@@ -64,8 +65,8 @@ export default function DpointsSponsorBanner({ onRegister }: { onRegister?: () =
         </div>
       </div>
       <div
-        className="mt-3.5 flex items-center justify-center gap-1.5 h-10 rounded-xl text-[14px] font-semibold"
-        style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}
+        className="mt-3.5 flex items-center justify-center gap-1.5 h-11 rounded-xl text-[14px] font-semibold"
+        style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#141416" }}
       >
         {card.ctaLabel || `Skapa konto & få ${card.bonusPoints} Dpoints`}
       </div>

@@ -91,9 +91,8 @@ export default function RootLayout({
             <Navbar />
           </div>
           <main>{children}</main>
-          {/* MobileFooterLinks renderas inom enskilda sidor istället (typ
-              HomePage) så den hamnar närmare content och inte gömd långt ner
-              vid bottom-nav. */}
+          {/* Kontakt nås nu via ikonen uppe till höger (beställningssidan) och
+              "Information"-knappen i profilen → ingen global footer-länk. */}
           <LiveOrderBanner />
           <BottomNav />
           <CookieConsent />

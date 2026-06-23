@@ -7,7 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
   Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2, Sparkles, Ticket, Tag,
-  Star, RotateCcw, Home, Briefcase, Plus, Trash2, Scale, Gift, Languages, MessageSquare, Info, FileText
+  Home, Briefcase, Plus, Trash2, Gift, Languages, Info
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -22,7 +22,6 @@ import {
 } from "@/lib/platformSessionClient";
 import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
-import CollapsibleRow from "@/components/CollapsibleRow";
 // ReferralCard import removed — referral UI is disabled platform-wide.
 // Backend redeem-code endpoint stays intact for legacy URLs.
 import { useToast } from "@/components/Toast";
@@ -231,7 +230,6 @@ function ProfileContent() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals" | "addresses">("overview");
   const [hasVisited, setHasVisited] = useState(false);
-  const [reorderingId, setReorderingId] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -631,13 +629,15 @@ function ProfileContent() {
   // ─── Not logged in ────────────────────────────────────────────────────────
   if (!hasPlatformSession || !user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-start px-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] md:pt-20 pb-28" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 py-20 pb-28" style={{ backgroundColor: "var(--bg-primary)" }}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-3.5">
 
-          {/* Header — kompakt */}
+          {/* Header — kompakt. Delivera-lockupen (samma som startskärmen) i
+              stället för en generisk lås-ikon. */}
           <div className="text-center space-y-2">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-[var(--text-secondary)] mx-auto bg-[var(--bg-deep)] border border-[var(--border-muted)]">
-              <Lock size={22} />
+            <div className="flex justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/delivera-lockup.png" alt="Delívera" style={{ height: 30, width: "auto" }} />
             </div>
             <h1 className="text-[22px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
               {hasVisited ? t("auth.welcomeBack.title.welcome") : t("auth.welcomeBack.title.create")}{" "}
@@ -669,47 +669,24 @@ function ProfileContent() {
             </button>
           </div>
 
-          {/* Beställningar & support — flyttad NER hit (i tomma utrymmet) så
-              login-formuläret syns direkt. Order-historik ligger lokalt; man
-              ser sina ordrar utan att logga in. Support sker via lagd order. */}
+          {/* Information — Om oss, Kontakt och policy bakom EN knapp som leder
+              till en sida där du väljer. (Beställningar & support ligger nu i
+              bottom-naven, så det kortet är borttaget här.) */}
           <Link
-            href="/orders"
-            className="mt-2 w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl transition-all active:scale-[0.99]"
+            href="/more"
+            className="mt-2 w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl transition-all active:scale-[0.99]"
             style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
           >
             <span className="flex items-center gap-3">
               <span className="w-9 h-9 rounded-xl bg-[var(--bg-deep)] text-[var(--text-secondary)] flex items-center justify-center shrink-0">
-                <History size={18} />
+                <Info size={18} />
               </span>
               <span className="text-[14px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
-                {t("profile.ordersSupport")}
+                {t("profile.menu.info")}
               </span>
             </span>
             <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
           </Link>
-
-          {/* Viktiga sidor — Om oss + policys, alltid nåbara (även utan konto).
-              Hämtar juridiskt namn/orgnr/e-post från admin via /api/settings. */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            {[
-              { href: "/about", label: t("nav.about") },
-              { href: "/contact", label: t("nav.contact") },
-              { href: "/privacy", label: t("profile.settings.privacy") },
-              { href: "/terms", label: t("profile.settings.termsLong") },
-            ].map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="flex items-center justify-between gap-2 px-4 py-3 rounded-2xl transition-all active:scale-[0.99]"
-                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
-              >
-                <span className="text-[12.5px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>
-                  {l.label}
-                </span>
-                <ChevronRight size={14} className="text-zinc-500 shrink-0" />
-              </Link>
-            ))}
-          </div>
 
           {/* Språkval — nåbart även utloggad (standard svenska). */}
           <div className="flex items-center justify-center gap-2 pt-2">
@@ -806,15 +783,9 @@ function ProfileContent() {
               )}
             </div>
           </div>
-          {/* Kontakt flyttad hit (uppe till höger) + utloggning. Monokroma ikoner. */}
-          <div className="flex items-center gap-2 shrink-0">
-            <Link href="/contact" aria-label={t("nav.contact")} className="p-3 rounded-2xl transition-all active:scale-95" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
-              <MessageSquare size={20} />
-            </Link>
-            <button onClick={handleLogout} aria-label={t("profile.logout")} className="p-3 rounded-2xl transition-all active:scale-95 hover:text-rose-500" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
-              <LogOut size={20} />
-            </button>
-          </div>
+          <button onClick={handleLogout} aria-label={t("profile.logout")} className="p-3 rounded-2xl transition-all active:scale-95 hover:text-rose-500 shrink-0" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
+            <LogOut size={20} />
+          </button>
         </div>
 
         {/*
@@ -1268,94 +1239,18 @@ function ProfileContent() {
                 </div>
               </div>
 
-              {/* Information & villkor — Om oss, Kontakt och policy samlade i EN
-                  knapp (samma kollaps-mönster som kassan). */}
-              <div className="rounded-2xl px-4" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                <CollapsibleRow first label={t("profile.menu.info")} icon={<Info size={16} style={{ color: "var(--text-secondary)" }} />}>
-                  <div className="-mt-1">
-                    {[
-                      { href: "/about", label: t("nav.about"), icon: Info },
-                      { href: "/contact", label: t("nav.contact"), icon: MessageSquare },
-                      { href: "/privacy", label: t("profile.settings.privacy"), icon: Lock },
-                      { href: "/terms", label: t("profile.settings.termsLong"), icon: FileText },
-                    ].map((l) => {
-                      const LinkIcon = l.icon;
-                      return (
-                        <Link key={l.href} href={l.href} className="flex items-center justify-between py-2.5 active:opacity-70">
-                          <span className="flex items-center gap-3 min-w-0">
-                            <LinkIcon size={15} style={{ color: "var(--text-secondary)" }} />
-                            <span className="text-[14px] font-medium truncate" style={{ color: "var(--text-primary)" }}>{l.label}</span>
-                          </span>
-                          <ChevronRight size={15} style={{ color: "var(--text-secondary)" }} />
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </CollapsibleRow>
-              </div>
+              {/* Information — Om oss, Kontakt och policy bakom EN knapp som tar
+                  dig till en sida där du väljer (monokromt, ingen guld). */}
+              <Link href="/more" className="flex items-center justify-between rounded-2xl px-5 min-h-[56px] active:scale-[0.99] transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                <span className="flex items-center gap-3 min-w-0">
+                  <Info size={17} style={{ color: "var(--text-secondary)" }} />
+                  <span className="text-[15px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{t("profile.menu.info")}</span>
+                </span>
+                <ChevronRight size={16} style={{ color: "var(--text-secondary)" }} />
+              </Link>
             </motion.div>
           )}
 
-          {/* Orders */}
-          {activeTab === "orders" && (
-            <motion.div key="ord" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              {orders.length === 0 ? (
-                <div className="py-20 text-center opacity-30">
-                  <History size={48} className="mx-auto mb-4" />
-                  <p className="font-bold text-sm">{t("profile.orders.empty")}</p>
-                </div>
-              ) : orders.map((order) => (
-                <div key={order.id} className="bg-[color:var(--bg-secondary)] border border-[color:var(--border-muted)] rounded-2xl p-6 hover:bg-black/[0.025] transition-all group">
-                  <Link href={`/order/${order.id}`} className="flex justify-between items-center">
-                    <div>
-                      <p className="font-bold text-sm">{order.restaurant?.name || t("profile.orders.fallbackName")}</p>
-                      <p className="text-[10px] text-zinc-500 font-bold mt-1">
-                        {new Date(order.createdAt).toLocaleDateString("sv-SE")}
-                        {order.rating && (
-                          <span className="ml-3 inline-flex items-center gap-1 text-gold-500">
-                            <Star size={10} className="fill-gold-500" /> {order.rating}/5
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <p className="text-xl font-bold text-gold-500">{(order.total || 0).toFixed(0)} kr</p>
-                      <ChevronRight size={16} className="text-zinc-500 group-hover:text-gold-500 transition-colors" />
-                    </div>
-                  </Link>
-                  <div className="mt-4 flex gap-3">
-                    <button
-                      onClick={async () => {
-                        setReorderingId(order.id);
-                        try {
-                          const res = await axios.get(`/api/platform/profile/orders/${order.id}/reorder`);
-                           const data = res.data;
-                           const cartStore = useCartStore.getState();
-                           cartStore.clearCart();
-                          for (const item of data.items) {
-                             cartStore.addItem(item);
-                          }
-                          if (data.unavailableItems?.length) {
-                             alert(t("profile.orders.unavailableItems", { count: data.unavailableItems.length, items: data.unavailableItems.join(', ') }));
-                          }
-                          router.push('/cart');
-                        } catch (err: any) {
-                          alert(err.response?.data?.error || t("profile.orders.reorderError"));
-                        } finally {
-                          setReorderingId(null);
-                        }
-                      }}
-                      disabled={reorderingId === order.id}
-                      className="flex items-center gap-2 px-5 py-3 bg-gold-500/10 border border-gold-500/20 rounded-xl text-[12px] font-medium text-gold-600 hover:bg-gold-500/20 active:scale-95 transition-all disabled:opacity-50"
-                    >
-                      {reorderingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
-                      {t("profile.orders.reorder")}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </motion.div>
-          )}
 
           {/* Addresses Tab */}
           {activeTab === "addresses" && (
