@@ -1009,11 +1009,12 @@ function ProfileContent() {
                      const isClaimed = deal._kind === 'CLAIMED';
                      // Tag som visar typ av deal: Personlig (CustomerDeal),
                      // Restaurang (deal.restaurantId satt) eller Global.
+                     const neutralTone = "bg-[color:var(--bg-deep)] text-[color:var(--text-secondary)] border-[color:var(--border-muted)]";
                      const dealKind: { label: string; tone: string } = deal.restaurantId
-                       ? { label: t("profile.deals.kind.restaurant"), tone: "bg-sky-500/10 text-sky-400 border-sky-500/30" }
+                       ? { label: t("profile.deals.kind.restaurant"), tone: neutralTone }
                        : isClaimed
-                         ? { label: t("profile.deals.kind.personal"), tone: "bg-purple-500/10 text-purple-400 border-purple-500/30" }
-                         : { label: t("profile.deals.kind.global"), tone: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" };
+                         ? { label: t("profile.deals.kind.personal"), tone: neutralTone }
+                         : { label: t("profile.deals.kind.global"), tone: neutralTone };
                      return (
                        <Link
                          href={`/deals/${deal.id}`}
@@ -1210,7 +1211,7 @@ function ProfileContent() {
                 <div className="rounded-2xl divide-y divide-[color:var(--border-muted)]" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                   <div className="p-6 flex items-center justify-between group">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-xl bg-[color:var(--bg-deep)] text-[color:var(--text-secondary)] flex items-center justify-center">
                         <Bell size={18} />
                       </div>
                       <div>
