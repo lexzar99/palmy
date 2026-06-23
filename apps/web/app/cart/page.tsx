@@ -5,7 +5,6 @@ import Link from "next/link";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { fetchDpointsMe } from "@/lib/dpoints";
-import EmptyState from "@/components/EmptyState";
 import AdyenDropin from "@/components/AdyenDropin";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -40,8 +39,7 @@ import { useCartStore } from "@/store/cartStore";
 import AddressModal from "@/components/AddressModal";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/components/LiveOrderBanner";
-// Stripe borttaget — betalning sker via Mollie (provider-neutralt backend-lager).
-import DealSpotlight from "@/components/DealSpotlight";
+// Stripe borttaget — betalning sker via Adyen (provider-neutralt backend-lager).
 import ProductModal from "@/components/ProductModal";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
@@ -113,30 +111,8 @@ function dealTypeLabel(type: string, t: (key: string, vars?: Record<string, stri
   return t("cart.dealType.fallback");
 }
 
-// Betalning sker via Mollie hostad checkout (redirect), ingen klient-SDK
-// laddas på cart-sidan. Provider-väljaren bor i backend (PAYMENT_PROVIDER).
-
-// Varukorgs-thumbnail: visar produktbilden om den finns OCH laddar. Saknas
-// bilden — eller är URL:en trasig (onError) — visar vi antalet i stället för
-// en ful brutet-bild-ikon.
-function CartItemThumb({ imageUrl, quantity, name }: { imageUrl?: string | null; quantity: number; name: string }) {
-  const [imgError, setImgError] = useState(false);
-  const showImage = Boolean(imageUrl) && !imgError;
-  if (!showImage) {
-    return (
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-gold-600 font-bold italic text-sm shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid rgba(231,178,75,0.18)" }}>
-        {quantity}×
-      </div>
-    );
-  }
-  const src = imageUrl!.startsWith("/") ? `${API_URL}${imageUrl}` : imageUrl!;
-  return (
-    <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-      <img src={src} alt={name} loading="lazy" className="w-full h-full object-cover" onError={() => setImgError(true)} />
-      <span className="absolute bottom-0 right-0 px-1.5 py-0.5 text-[10px] font-bold italic text-zinc-950 bg-gold-500 rounded-tl-lg leading-none">{quantity}×</span>
-    </div>
-  );
-}
+// Betalning sker via Adyen Web Drop-in (inline på kassan, se AdyenDropin).
+// Provider-väljaren bor i backend (PAYMENT_PROVIDER).
 
 /**
  * CartCollapsibleRow — kollapsad länkrad (mockup): "Rabattkod ›" / "Dricks ·
@@ -284,7 +260,6 @@ export default function CartPage() {
     minOrderKr: number;
   } | null>(null);
   const [showBogoPicker, setShowBogoPicker] = useState(false);
-  const [showDealsModal, setShowDealsModal] = useState(false);
   const [deliveryCheck, setDeliveryCheck] = useState<any>(null);
   const [checkingDelivery, setCheckingDelivery] = useState(false);
 
@@ -1762,34 +1737,15 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
-        {/* Tom varukorg — line-art-kasse som ritas upp vid mount och sedan
-            svävar mjukt; skugg-ellipsen andas i motfas. Ingen emoji, inga
-            guldeffekter — bara en lugn, omsorgsfull detalj. */}
-        <style>{`
-          @keyframes cartBagDraw { from { stroke-dashoffset: 260; } to { stroke-dashoffset: 0; } }
-          @keyframes cartBagFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-          @keyframes cartShadowBreathe { 0%, 100% { transform: scaleX(1); opacity: 0.5; } 50% { transform: scaleX(0.82); opacity: 0.3; } }
-          .cart-empty-bag path, .cart-empty-bag circle { stroke-dasharray: 260; animation: cartBagDraw 1.1s ease-out forwards; }
-          .cart-empty-float { animation: cartBagFloat 5s ease-in-out 1.2s infinite; }
-          .cart-empty-shadow { transform-origin: center; animation: cartShadowBreathe 5s ease-in-out 1.2s infinite; }
-          @media (prefers-reduced-motion: reduce) {
-            .cart-empty-bag path, .cart-empty-bag circle { animation: none; stroke-dashoffset: 0; }
-            .cart-empty-float, .cart-empty-shadow { animation: none; }
-          }
-        `}</style>
+        {/* Tom varukorg — lugn, statisk monokrom ikon. Ingen emoji, inga
+            guldeffekter, ingen animation. Simpelhet före effekt. */}
         <div className="flex flex-col items-center">
-          <div className="cart-empty-float">
-            <svg className="cart-empty-bag" width="88" height="88" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-              <path d="M14 22h36l-3.2 30a4 4 0 0 1-4 3.6H21.2a4 4 0 0 1-4-3.6L14 22z" stroke="var(--color-gold-500, #E7B24B)" strokeWidth="2" strokeLinejoin="round" fill="none" />
-              <path d="M23 28v-9a9 9 0 0 1 18 0v9" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" fill="none" />
-              <circle cx="26" cy="40" r="1.4" fill="var(--gold-ink)" stroke="var(--gold-ink)" strokeWidth="0.5" />
-              <circle cx="38" cy="40" r="1.4" fill="var(--gold-ink)" stroke="var(--gold-ink)" strokeWidth="0.5" />
-              <path d="M26 46c2 2.4 10 2.4 12 0" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" fill="none" />
-            </svg>
+          <div
+            className="flex h-20 w-20 items-center justify-center rounded-2xl"
+            style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
+          >
+            <ShoppingBag size={32} strokeWidth={1.6} style={{ color: "var(--text-secondary)" }} />
           </div>
-          <svg className="cart-empty-shadow mt-2" width="72" height="10" viewBox="0 0 72 10" aria-hidden="true">
-            <ellipse cx="36" cy="5" rx="30" ry="4" fill="var(--gold-soft)" />
-          </svg>
           <h2 className="mt-6 text-[17px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
             {t("cart.empty.titlePrefix")} {t("cart.empty.titleAccent")}
           </h2>
@@ -1798,7 +1754,7 @@ export default function CartPage() {
           </p>
           <Link
             href="/"
-            className="mt-6 h-11 px-5 rounded-xl flex items-center text-[14.5px] font-semibold transition-all active:scale-95"
+            className="mt-6 h-11 px-5 rounded-xl flex items-center text-[14.5px] font-semibold transition-all active:scale-95 hover:opacity-70"
             style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
           >
             {t("cart.empty.cta")}
@@ -2726,35 +2682,6 @@ export default function CartPage() {
           </div>
         </div>
       </div>
-
-      {/* Modern Deals Modal */}
-      <AnimatePresence>
-        {showDealsModal && (
-           <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setShowDealsModal(false)} style={{ backgroundColor: "rgba(23,21,19,0.95)" }}>
-             <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }} className="w-full max-w-sm glass-panel p-7 rounded-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }} onClick={e => e.stopPropagation()}>
-                <button onClick={() => setShowDealsModal(false)} className="absolute top-8 right-8 p-2 hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}><X size={24}/></button>
-                <h2 className="text-2xl font-bold uppercase italic tracking-tight mb-8" style={{ color: "var(--text-primary)" }}>{t("cart.dealsModal.titlePrefix")} <span className="text-gold-gradient">{t("cart.dealsModal.titleAccent")}</span></h2>
-                <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar">
-                   {personalDeals.map(deal => {
-                     const isEligible = subtotal >= deal.campaign.minOrder;
-                     return (
-                        <button key={deal.id} disabled={!isEligible} onClick={() => { setSelectedPersonalDeal(deal); setSelectedAccountDealId(null); setShowDealsModal(false); }} className={`w-full text-left p-6 rounded-[2.2rem] border transition-all group ${isEligible ? "active:scale-[0.98]" : "opacity-30 grayscale"}`} style={{ backgroundColor: "var(--bg-deep)", borderColor: isEligible ? "rgba(231,178,75,0.2)" : "var(--border-muted)" }}>
-                           <div className="flex items-center justify-between mb-4">
-                              <div className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{deal.campaign.title}</div>
-                              {isEligible && <div className="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-md text-[8px] font-bold uppercase">{t("cart.dealsModal.ready")}</div>}
-                           </div>
-                           <div className="text-2xl font-bold italic uppercase tracking-tighter leading-[1.15] mb-2 group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>
-                              {deal.campaign.discountType === "PERCENTAGE" ? t("cart.dealsModal.percentDiscount", { value: deal.campaign.discountValue }) : t("cart.dealsModal.amountDiscount", { value: deal.campaign.discountValue })}
-                           </div>
-                           <div className="text-[9px] font-bold" style={{ color: "var(--text-secondary)" }}>{t("cart.dealsModal.minOrder", { min: deal.campaign.minOrder })}</div>
-                        </button>
-                     );
-                   })}
-                </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Cart item edit */}
       <AnimatePresence>
