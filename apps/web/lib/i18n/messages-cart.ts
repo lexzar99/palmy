@@ -109,7 +109,9 @@ export const cartPagePending = {
     "cart.errors.zoneCheckFailed": "Kunde inte verifiera om vi levererar till din adress. Försök igen om en stund — om problemet kvarstår, välj avhämtning istället.",
     "cart.errors.addressNotFound": "Kunde inte hitta din adress. Försök skriva gatunamn + nummer (t.ex. \"Storgatan 5, Malmö\") och välj förslaget som visas, eller välj avhämtning.",
     "cart.errors.zoneNotCoveredInline": "Restaurangen levererar inte till denna adress.",
+    "cart.errors.zoneNotCoveredHome": "Vi levererar inte till din adress. Byt adress på startsidan.",
     "cart.errors.zoneSummary": "Restaurangen levererar inte till den angivna adressen. Ändra adressen ovan.",
+    "cart.yourInfo.title": "Dina uppgifter",
   },
   en: {
     // Deal helpers
@@ -215,6 +217,8 @@ export const cartPagePending = {
     "cart.errors.zoneCheckFailed": "Couldn't verify whether we deliver to your address. Try again shortly — if the problem persists, choose pickup instead.",
     "cart.errors.addressNotFound": "We couldn't find your address. Try entering the street name + number (e.g. \"Storgatan 5, Malmö\") and pick the suggestion that appears, or choose pickup.",
     "cart.errors.zoneNotCoveredInline": "The restaurant doesn't deliver to this address.",
+    "cart.errors.zoneNotCoveredHome": "We don't deliver to your address. Change it on the home page.",
     "cart.errors.zoneSummary": "The restaurant doesn't deliver to the given address. Change the address above.",
+    "cart.yourInfo.title": "Your details",
   },
 };

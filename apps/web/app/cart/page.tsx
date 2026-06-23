@@ -36,7 +36,6 @@ import {
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
-import AddressModal from "@/components/AddressModal";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/components/LiveOrderBanner";
 // Stripe borttaget — betalning sker via Adyen (provider-neutralt backend-lager).
@@ -289,6 +288,18 @@ export default function CartPage() {
     let d = { deliveryStreet: "", deliveryZip: "", deliveryCity: "" };
     if (typeof window !== "undefined") {
       try { const raw = localStorage.getItem("platform_delivery"); if (raw) d = { ...d, ...JSON.parse(raw) }; } catch { /* ignore */ }
+      // Startsidans adress-grind är sanningen men skriver bara platform_address
+      // (inte platform_delivery). Saknas gata → härled gata/zip/stad ur den så
+      // payload + zon-check funkar utan att kunden anger adressen på nytt.
+      if (!d.deliveryStreet) {
+        try {
+          const stored = localStorage.getItem("platform_delivery_address") || localStorage.getItem("platform_address") || "";
+          if (stored) {
+            const p = parseStoredAddress(stored);
+            d = { deliveryStreet: p.street, deliveryZip: p.zip, deliveryCity: p.city || localStorage.getItem("platform_city") || "" };
+          }
+        } catch { /* ignore */ }
+      }
     }
     return {
       customerName: savedName,
@@ -336,7 +347,10 @@ export default function CartPage() {
   const [quickAddresses, setQuickAddresses] = useState<QuickAddress[]>([]);
 
   const [promoCodeInput, setPromoCodeInput] = useState("");
-  const [addressInput, setAddressInput] = useState("");
+  const [addressInput, setAddressInput] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem("platform_delivery_address") || localStorage.getItem("platform_address") || "";
+  });
   const [predictions, setPredictions] = useState<any[]>([]);
   const [addressLoading, setAddressLoading] = useState(false);
   const [addressZoneStatus, setAddressZoneStatus] = useState<"ok" | "error" | "checking" | null>(null);
@@ -425,41 +439,9 @@ export default function CartPage() {
     loadQuickAddresses();
   }, [loadQuickAddresses]);
 
-  // Adress-modal (karta + nål) i kassan. Ersätter den inline-autocomplete:n —
-  // visar bara vald adress + "Ändra" som öppnar modalen. Zone-check körs efter.
-  const [showCartAddressModal, setShowCartAddressModal] = useState(false);
-  const handleCartAddressConfirm = (
-    addr: string,
-    type: "DELIVERY" | "PICKUP",
-    coords?: { lat: number; lng: number },
-    postalCode?: string,
-    city?: string,
-  ) => {
-    setShowCartAddressModal(false);
-    if (typeof window !== "undefined") localStorage.setItem("platform_order_type", type);
-    setOrderType(type);
-    if (type === "PICKUP") {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("platform_pickup_city", city || addr);
-        localStorage.setItem("platform_address", city || addr);
-      }
-      return;
-    }
-    // DELIVERY
-    setAddressInput(addr);
-    const street = addr.split(",")[0].trim();
-    setFormData((prev) => ({ ...prev, deliveryStreet: street, deliveryZip: postalCode || prev.deliveryZip, deliveryCity: city || prev.deliveryCity }));
-    if (typeof window !== "undefined") {
-      localStorage.setItem("platform_address", addr);
-      if (city) localStorage.setItem("platform_city", city);
-      if (coords) localStorage.setItem("platform_coords", JSON.stringify(coords));
-    }
-    if (coords) {
-      setQuickAddresses(rememberQuickAddress({ street, zip: postalCode || undefined, city: city || undefined, latitude: coords.lat, longitude: coords.lng }));
-      checkDeliverySpecific(coords.lat, coords.lng); // zon-check som vanligt
-    }
-  };
-
+  // Leveransadressen sätts på startsidans adress-grind och är sanningen. I
+  // kassan visas den bara (läs-bart) — vill kunden byta gör de det på hem-sidan.
+  // Zon-check körs här på de sparade koordinaterna.
   const checkDeliverySpecific = async (lat: number, lng: number) => {
     if (!currentRestaurantId) return;
     setCheckingDelivery(true);
@@ -1528,13 +1510,13 @@ export default function CartPage() {
       setError(t("cart.errors.namePhoneRequired"));
       return;
     }
+    // E-post är frivilligt — gäster anger bara namn + telefon. Inloggade har den
+    // förifylld ur profilen. Backend skickar shopperEmail som valfritt till Adyen.
+    // Anges en e-post måste den vara giltig; tom tillåts och skickas som undefined.
     if (!isTestFlow) {
-      // Email krävs FÖRE Stripe öppnas — Klarna/Apple Pay m.fl. rejectar
-      // server-side utan email och kunden får en obegriplig error mitt-flow.
-      // Bättre att fånga upp här med tydligt meddelande.
       const emailValue = formData.customerEmail.trim();
-      if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
-        setError(t("cart.errors.emailRequired"));
+      if (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+        setError(t("cart.errors.invalidEmail"));
         return;
       }
     }
@@ -1737,15 +1719,34 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
-        {/* Tom varukorg — lugn, statisk monokrom ikon. Ingen emoji, inga
-            guldeffekter, ingen animation. Simpelhet före effekt. */}
+        {/* Tom varukorg — line-art-kasse som ritas upp vid mount och sedan
+            svävar mjukt; skugg-ellipsen andas i motfas. Ingen emoji,
+            bara en lugn, omsorgsfull detalj. */}
+        <style>{`
+          @keyframes cartBagDraw { from { stroke-dashoffset: 260; } to { stroke-dashoffset: 0; } }
+          @keyframes cartBagFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+          @keyframes cartShadowBreathe { 0%, 100% { transform: scaleX(1); opacity: 0.5; } 50% { transform: scaleX(0.82); opacity: 0.3; } }
+          .cart-empty-bag path, .cart-empty-bag circle { stroke-dasharray: 260; animation: cartBagDraw 1.1s ease-out forwards; }
+          .cart-empty-float { animation: cartBagFloat 5s ease-in-out 1.2s infinite; }
+          .cart-empty-shadow { transform-origin: center; animation: cartShadowBreathe 5s ease-in-out 1.2s infinite; }
+          @media (prefers-reduced-motion: reduce) {
+            .cart-empty-bag path, .cart-empty-bag circle { animation: none; stroke-dashoffset: 0; }
+            .cart-empty-float, .cart-empty-shadow { animation: none; }
+          }
+        `}</style>
         <div className="flex flex-col items-center">
-          <div
-            className="flex h-20 w-20 items-center justify-center rounded-2xl"
-            style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
-          >
-            <ShoppingBag size={32} strokeWidth={1.6} style={{ color: "var(--text-secondary)" }} />
+          <div className="cart-empty-float">
+            <svg className="cart-empty-bag" width="88" height="88" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+              <path d="M14 22h36l-3.2 30a4 4 0 0 1-4 3.6H21.2a4 4 0 0 1-4-3.6L14 22z" stroke="var(--color-gold-500, #E7B24B)" strokeWidth="2" strokeLinejoin="round" fill="none" />
+              <path d="M23 28v-9a9 9 0 0 1 18 0v9" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" fill="none" />
+              <circle cx="26" cy="40" r="1.4" fill="var(--gold-ink)" stroke="var(--gold-ink)" strokeWidth="0.5" />
+              <circle cx="38" cy="40" r="1.4" fill="var(--gold-ink)" stroke="var(--gold-ink)" strokeWidth="0.5" />
+              <path d="M26 46c2 2.4 10 2.4 12 0" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" fill="none" />
+            </svg>
           </div>
+          <svg className="cart-empty-shadow mt-2" width="72" height="10" viewBox="0 0 72 10" aria-hidden="true">
+            <ellipse cx="36" cy="5" rx="30" ry="4" fill="var(--gold-soft)" />
+          </svg>
           <h2 className="mt-6 text-[17px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
             {t("cart.empty.titlePrefix")} {t("cart.empty.titleAccent")}
           </h2>
@@ -1754,7 +1755,7 @@ export default function CartPage() {
           </p>
           <Link
             href="/"
-            className="mt-6 h-11 px-5 rounded-xl flex items-center text-[14.5px] font-semibold transition-all active:scale-95 hover:opacity-70"
+            className="mt-6 h-11 px-5 rounded-xl flex items-center text-[14.5px] font-semibold transition-all active:scale-95"
             style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
           >
             {t("cart.empty.cta")}
@@ -2324,19 +2325,62 @@ export default function CartPage() {
 
                        <div className="space-y-2.5">
                         {(() => {
-                          const nameTouched = formData.customerName.length > 0;
-                          const phoneTouched = formData.customerPhone.length > 0;
-                          const emailTouched = formData.customerEmail.length > 0;
-                          const nameInvalid = nameTouched && formData.customerName.trim().length < 2;
-                          const phoneDigits = formData.customerPhone.replace(/\D/g, '');
-                          const phoneInvalid = phoneTouched && phoneDigits.length < 8;
-                          const emailInvalid = emailTouched && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail);
                           const hair = <div style={{ height: 1, backgroundColor: "var(--border-muted)" }} />;
                           const lbl = (bad: boolean) => ({ width: 74, flexShrink: 0, fontSize: 13, fontWeight: 500 as const, whiteSpace: "nowrap" as const, color: bad ? "#C0392B" : "var(--text-secondary)" });
                           const inputCls = "flex-1 h-full bg-transparent outline-none text-[16px] sm:text-[15px] font-medium";
                           const inputStyle = { color: "var(--text-primary)", border: "none" as const };
-                          // Grupperad lista: etikett som grå prefix, kantlösa fält, hårlinjer
-                          // mellan rader. Läser som ETT rent objekt, inte fem boxar.
+
+                          // Läs-bar leveransadress. Sätts på startsidans grind och är
+                          // sanningen → går INTE att ändra här (byts på hem-sidan).
+                          // Zon-status visas så täckningen syns.
+                          const addressDisplay = orderType === "DELIVERY" ? (
+                            <>
+                              <div className="relative flex items-center min-h-[52px] px-4">
+                                {addressZoneStatus && <span className="absolute left-0 top-0 bottom-0" style={{ width: 3, backgroundColor: addressZoneStatus === "ok" ? "var(--success-ink)" : addressZoneStatus === "error" ? "#C0392B" : "var(--text-secondary)" }} />}
+                                <MapPin size={15} className="shrink-0 mr-2.5" style={{ color: "var(--text-secondary)" }} />
+                                <span className="flex-1 min-w-0 text-[15px] font-medium truncate" style={{ color: addressInput ? "var(--text-primary)" : "var(--text-secondary)" }}>{addressInput || t("cart.fields.addressPlaceholderFull")}</span>
+                                {(checkingDelivery || addressZoneStatus === "checking") ? (
+                                  <Loader2 size={14} className="animate-spin shrink-0" style={{ color: "var(--text-secondary)" }} />
+                                ) : addressZoneStatus === "ok" ? (
+                                  <Check size={15} strokeWidth={2.5} className="shrink-0" style={{ color: "var(--success-ink)" }} />
+                                ) : null}
+                              </div>
+                              {addressZoneStatus === "error" && <p className="px-4 pb-2.5 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.zoneNotCoveredHome")}</p>}
+                            </>
+                          ) : null;
+
+                          // INLOGGAD: uppgifterna är redan kända → visa dem hopfällda
+                          // och läs-bara (klicka för att se), som rabattkod-raden.
+                          if (user) {
+                            const readRow = (label: string, value: string) => value ? (
+                              <div className="flex items-baseline gap-3 py-1.5">
+                                <span style={{ width: 74, flexShrink: 0, fontSize: 13, fontWeight: 500, color: "var(--text-secondary)" }}>{label}</span>
+                                <span className="flex-1 min-w-0 text-[14.5px] font-medium break-words" style={{ color: "var(--text-primary)" }}>{value}</span>
+                              </div>
+                            ) : null;
+                            return (
+                              <div className="rounded-xl overflow-hidden px-4" style={{ border: "1px solid var(--border-muted)", backgroundColor: "#fff" }}>
+                                <CartCollapsibleRow first label={t("cart.yourInfo.title")} icon={<UserIcon size={15} style={{ color: "var(--text-secondary)" }} />}>
+                                  <div className="pt-0.5">
+                                    {readRow(t("cart.fields.name"), formData.customerName)}
+                                    {readRow(t("cart.fields.phone"), formData.customerPhone)}
+                                    {readRow(t("cart.fields.email"), formData.customerEmail)}
+                                    {orderType === "DELIVERY" && readRow(t("cart.fields.address"), addressInput)}
+                                  </div>
+                                </CartCollapsibleRow>
+                                {orderType === "DELIVERY" && addressZoneStatus === "error" && (
+                                  <p className="pb-3 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.zoneNotCoveredHome")}</p>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          // GÄST: öppet formulär, endast namn + telefon. Ingen e-post,
+                          // ingen portkod. Adressen visas läs-bart (från startsidan).
+                          const nameTouched = formData.customerName.length > 0;
+                          const phoneTouched = formData.customerPhone.length > 0;
+                          const nameInvalid = nameTouched && formData.customerName.trim().length < 2;
+                          const phoneInvalid = phoneTouched && formData.customerPhone.replace(/\D/g, '').length < 8;
                           return (
                             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "#fff" }}>
                               <div className="flex items-center min-h-[52px] px-4">
@@ -2350,42 +2394,8 @@ export default function CartPage() {
                                 <input value={formData.customerPhone} onChange={e => setFormData({ ...formData, customerPhone: e.target.value })} type="tel" inputMode="tel" autoComplete="tel" className={inputCls} style={inputStyle} placeholder="070 000 00 00" />
                               </div>
                               {phoneInvalid && <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.phoneTooShort")}</p>}
-                              {hair}
-                              <div className="flex items-center min-h-[52px] px-4">
-                                <span style={lbl(emailInvalid)}>{t("cart.fields.email")}</span>
-                                <input value={formData.customerEmail} onChange={e => setFormData({ ...formData, customerEmail: e.target.value })} type="email" inputMode="email" autoComplete="email" required className={inputCls} style={inputStyle} placeholder={t("cart.fields.emailPlaceholderReceipt")} />
-                              </div>
-                              {emailInvalid && <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.invalidEmail")}</p>}
-                              {orderType === 'DELIVERY' && (<>
-                                {hair}
-                                <button type="button" onClick={() => setShowCartAddressModal(true)} className="relative w-full flex items-center min-h-[52px] px-4 text-left active:bg-black/[0.02]">
-                                  {addressZoneStatus && <span className="absolute left-0 top-0 bottom-0" style={{ width: 3, backgroundColor: addressZoneStatus === "ok" ? "var(--success-ink)" : addressZoneStatus === "error" ? "#C0392B" : "var(--text-secondary)" }} />}
-                                  <MapPin size={15} className="shrink-0 mr-2.5" style={{ color: "var(--text-secondary)" }} />
-                                  <span className="flex-1 min-w-0 text-[15px] font-medium truncate" style={{ color: addressInput ? "var(--text-primary)" : "var(--text-secondary)" }}>{addressInput || t("cart.fields.addressPlaceholderFull")}</span>
-                                  {(checkingDelivery || addressZoneStatus === "checking") ? (
-                                    <Loader2 size={14} className="animate-spin shrink-0 mr-1.5" style={{ color: "var(--text-secondary)" }} />
-                                  ) : addressZoneStatus === "ok" ? (
-                                    <Check size={15} strokeWidth={2.5} className="shrink-0 mr-1.5" style={{ color: "var(--success-ink)" }} />
-                                  ) : null}
-                                  <span className="text-[13px] font-medium shrink-0" style={{ color: "var(--text-secondary)" }}>{t("common.edit")}</span>
-                                  <ChevronRight size={15} className="shrink-0 -mr-1" style={{ color: "var(--text-secondary)" }} />
-                                </button>
-                                {addressZoneStatus === "error" && <p className="px-4 pb-2.5 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.zoneNotCoveredInline")}</p>}
-                                {addressInput && addressZoneStatus !== "error" && (<>
-                                  {hair}
-                                  <div className="flex items-center min-h-[52px] px-4">
-                                    <span style={lbl(false)}>{t("cart.fields.instructions")}</span>
-                                    <input
-                                      value={formData.deliveryInstructions}
-                                      onChange={e => setFormData({ ...formData, deliveryInstructions: e.target.value })}
-                                      autoComplete="off"
-                                      className={inputCls}
-                                      style={inputStyle}
-                                      placeholder={t("cart.fields.instructionsPlaceholder")}
-                                    />
-                                  </div>
-                                </>)}
-                              </>)}
+                              {orderType === "DELIVERY" && hair}
+                              {addressDisplay}
                             </div>
                           );
                         })()}
@@ -2727,14 +2737,6 @@ export default function CartPage() {
         )}
       </AnimatePresence>
 
-      {/* Adress-modal (karta + nål) — öppnas från "Ändra" i kassan. */}
-      <AddressModal
-        isOpen={showCartAddressModal}
-        onClose={() => setShowCartAddressModal(false)}
-        onConfirm={handleCartAddressConfirm}
-        orderType={orderType}
-        setOrderType={setOrderType}
-      />
     </div>
   );
 }
