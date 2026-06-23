@@ -2331,7 +2331,7 @@ export default function CartPage() {
                           const phoneInvalid = phoneTouched && phoneDigits.length < 8;
                           const emailInvalid = emailTouched && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail);
                           const hair = <div style={{ height: 1, backgroundColor: "var(--border-muted)" }} />;
-                          const lbl = (bad: boolean) => ({ width: 74, flexShrink: 0, fontSize: 13, fontWeight: 500 as const, color: bad ? "#C0392B" : "var(--text-secondary)" });
+                          const lbl = (bad: boolean) => ({ width: 74, flexShrink: 0, fontSize: 13, fontWeight: 500 as const, whiteSpace: "nowrap" as const, color: bad ? "#C0392B" : "var(--text-secondary)" });
                           const inputCls = "flex-1 h-full bg-transparent outline-none text-[16px] sm:text-[15px] font-medium";
                           const inputStyle = { color: "var(--text-primary)", border: "none" as const };
                           // Grupperad lista: etikett som grå prefix, kantlösa fält, hårlinjer
@@ -2370,6 +2370,20 @@ export default function CartPage() {
                                   <ChevronRight size={15} className="shrink-0 -mr-1" style={{ color: "var(--text-secondary)" }} />
                                 </button>
                                 {addressZoneStatus === "error" && <p className="px-4 pb-2.5 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.zoneNotCoveredInline")}</p>}
+                                {addressInput && addressZoneStatus !== "error" && (<>
+                                  {hair}
+                                  <div className="flex items-center min-h-[52px] px-4">
+                                    <span style={lbl(false)}>{t("cart.fields.instructions")}</span>
+                                    <input
+                                      value={formData.deliveryInstructions}
+                                      onChange={e => setFormData({ ...formData, deliveryInstructions: e.target.value })}
+                                      autoComplete="off"
+                                      className={inputCls}
+                                      style={inputStyle}
+                                      placeholder={t("cart.fields.instructionsPlaceholder")}
+                                    />
+                                  </div>
+                                </>)}
                               </>)}
                             </div>
                           );
