@@ -154,6 +154,10 @@ model Order {
   userDealId            String?
   userDealAmountKr      Int?
   stripePaymentIntentId String?
+  // Provider-neutral betalning. paymentProvider = aktiv PSP vid order-tid.
+  // Legacy-ordrar (Stripe) defaultar till "stripe"; nya skapas som "mollie".
+  paymentProvider       String      @default("stripe")
+  molliePaymentId       String?
   // 32-byte slumpad access-token för att tillåta gäst-bookmark/redirect-
   // åtkomst till order-tracking utan auth. Sätts vid order-skapande och
   // returneras till klienten EN gång. Användbar i 30 min (kollas i GET-
@@ -207,6 +211,7 @@ model Order {
   @@index([restaurantId, status, createdAt])
   @@index([customerPhone])
   @@index([stripePaymentIntentId])
+  @@index([molliePaymentId])
   @@index([userId])
   @@index([appliedDealId])
   // Super-admin globala status-vyer (utan restaurantId) + abandoned-städning.

@@ -38,7 +38,10 @@ import adminRoutes from './routes/admin';
 import controlCenterRoutes from './routes/controlCenter';
 import authRoutes from './routes/auth';
 import terminalRoutes from './routes/terminal';
+// STAGED MIGRATION: Stripe (RN-appen) + Mollie (webben) körs SAMTIDIGT tills
+// RN-appen migrerats. Web-kassan → Mollie /create; RN → Stripe /create-intent.
 import paymentRoutes from './routes/payments';
+import paymentsRoutes from './routes/paymentsMollie';
 import discountRoutes from './routes/discount';
 import settingsRoutes from './routes/settings';
 import dealsRoutes from './routes/deals';
@@ -64,6 +67,7 @@ import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrap
 import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
 import { startStripeReconciliation } from './lib/stripeReconcile';
+import { startPaymentReconciliation } from './lib/payments/reconcile';
 import { startLiveActivityFinalizer } from './lib/liveActivityFinalize';
 import { logApnsBootStatus } from './lib/liveActivityPush';
 import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
@@ -169,7 +173,8 @@ app.use(compression());
 // men före routes så vi får request-ID i alla downstream calls)
 app.use(requestLogger);
 
-// Stripe webhooks need raw body
+// Stripe webhooks need raw body (RN-appens Stripe-flöde). Mollies webhook är
+// form-encoded (id=tr_…) och hanteras av den globala express.urlencoded nedan.
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -278,7 +283,8 @@ app.use('/api/terminal/pair', adminLoginLimiter);
 app.use('/api/terminal', terminalRoutes);
 app.use('/api/account', referralsRoutes);
 app.use('/api/public', referralsPublic);
-app.use('/api/payments', paymentRoutes);
+app.use('/api/payments', paymentRoutes); // Stripe (RN: /create-intent, /confirm) — kvar tills RN migrerats
+app.use('/api/payments', paymentsRoutes); // Mollie (web: /create, /status, /webhooks/mollie)
 app.use('/api/discount', discountRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/deals', dealsRoutes);
@@ -402,9 +408,11 @@ const PORT = Number(process.env.PORT || 4000);
     runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Early run error:', err));
     runDailyCleanup().catch(err => console.error('[Cleanup] Early run error:', err));
 
-    // Stripe reconciliation — polling-loop som ersätter webhook tills den är
-    // konfigurerad. Pollar pending payments var 60 sek och refunds var 10 min.
+    // Betal-reconciliation — båda providers samtidigt under migreringen.
+    // Stripe-reconcile rör bara ordrar med stripePaymentIntentId; Mollie-
+    // reconcile bara paymentProvider='mollie'. De överlappar aldrig.
     startStripeReconciliation();
+    startPaymentReconciliation();
     
     // Schedule daily jobs
     setInterval(() => {

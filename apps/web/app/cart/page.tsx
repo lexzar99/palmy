@@ -39,9 +39,7 @@ import { useCartStore } from "@/store/cartStore";
 import AddressModal from "@/components/AddressModal";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/components/LiveOrderBanner";
-import { loadStripe } from "@stripe/stripe-js";
-import { Elements } from "@stripe/react-stripe-js";
-import StripeCheckout from "@/components/StripeCheckout";
+// Stripe borttaget — betalning sker via Mollie (provider-neutralt backend-lager).
 import DealSpotlight from "@/components/DealSpotlight";
 import ProductModal from "@/components/ProductModal";
 import { saveOrderToHistory } from "@/lib/orderHistory";
@@ -114,39 +112,8 @@ function dealTypeLabel(type: string, t: (key: string, vars?: Record<string, stri
   return t("cart.dealType.fallback");
 }
 
-// Stripe-key måste vara satt i prod. Tidigare fallback till "pk_test_placeholder"
-// betydde att en miss-deployad Vercel-build laddade Stripe med skräp-key →
-// PaymentElement renderade tyst inget, "Betala X kr nu"-knappen gjorde inget
-// vid klick. Nu: logga loud och returnera null så vi kan visa en tydlig
-// felvy istället för en frozen checkout.
-const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-const stripeKeyMissing =
-  !STRIPE_PUBLISHABLE_KEY || !STRIPE_PUBLISHABLE_KEY.startsWith("pk_");
-
-if (stripeKeyMissing && typeof window !== "undefined") {
-  console.error(
-    "[stripe] NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY saknas eller är ogiltig — betalning kommer inte fungera. Sätt env-var i Vercel.",
-  );
-}
-
-// LAT Stripe-laddning: tidigare kallades loadStripe() på modul-nivå, vilket
-// triggade js.stripe.com-skriptet så fort cart-modulen evaluerades — och Next
-// PREFETCHAR cart-routen via <Link href="/cart"> i bottomnav redan på hemsidan.
-// Resultat: Stripe.js laddades (och kunde faila p.g.a. adblock/nät) på sidor
-// som inte ens har en betalning → "Failed to load Stripe.js" i Sentry på "/".
-// Nu skapas promisen FÖRST när betalningen faktiskt visas, och ett load-fel
-// SVÄLJS (→ null) så det aldrig blir en ofångad rejection.
-let _stripePromise: Promise<import("@stripe/stripe-js").Stripe | null> | null = null;
-const getStripePromise = () => {
-  if (stripeKeyMissing) return null;
-  if (!_stripePromise) {
-    _stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY as string).catch((err) => {
-      console.warn("[stripe] kunde inte ladda Stripe.js (adblock/nät?)", err);
-      return null;
-    });
-  }
-  return _stripePromise;
-};
+// Betalning sker via Mollie hostad checkout (redirect), ingen klient-SDK
+// laddas på cart-sidan. Provider-väljaren bor i backend (PAYMENT_PROVIDER).
 
 // Varukorgs-thumbnail: visar produktbilden om den finns OCH laddar. Saknas
 // bilden — eller är URL:en trasig (onError) — visar vi antalet i stället för
@@ -299,9 +266,6 @@ export default function CartPage() {
   // togs bort). Tidigare nollades bogoChoice tyst → kund såg sin gratis-vara
   // försvinna utan förklaring → tror appen är trasig.
   const [bogoLostNotice, setBogoLostNotice] = useState<string | null>(null);
-  // Ref till payment-sektionen så vi kan scrolla DIT när Stripe öppnas
-  // istället för till body-botten (vilket overshootade på korta viewports).
-  const paymentSectionRef = useRef<HTMLDivElement | null>(null);
   // Lagrar senast checkade coords så vi inte hammrar validate-location när
   // status är "error" (out-of-zone) men ingen ny adress valts. Nollställs
   // i handleAddressSelect så ny adress alltid triggar färsk check.
@@ -318,11 +282,6 @@ export default function CartPage() {
   } | null>(null);
   const [showBogoPicker, setShowBogoPicker] = useState(false);
   const [showDealsModal, setShowDealsModal] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
-  // Auktoritativ summa + rabatt från servern (create-intent) → kassan visar
-  // exakt vad som dras, även vid server-applicerad rabatt.
-  const [serverCharge, setServerCharge] = useState<{ total: number; discount: number } | null>(null);
   const [deliveryCheck, setDeliveryCheck] = useState<any>(null);
   const [checkingDelivery, setCheckingDelivery] = useState(false);
 
@@ -1340,59 +1299,27 @@ export default function CartPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const redirectStatus = params.get("redirect_status");
-    const paymentIntent = params.get("payment_intent");
-    const paymentSuccess = params.get("payment_success");
+    const mollieReturn = params.get("mollie_return");
     const storedOrderId = localStorage.getItem("pending_order_id");
 
-    // Triggar om något av Stripe:s signaler finns — eller vår egen flag
-    // (payment_success=true) om Stripe-paramen saknas av någon anledning.
-    const cameFromStripeRedirect = !!(redirectStatus || paymentIntent || paymentSuccess === "true");
-    if (!cameFromStripeRedirect || !storedOrderId) return;
+    // Mollie redirectar tillbaka hit efter checkout. Redirect är INTE bevis på
+    // betalning — order-tracking-sidan (/order/{id}) pollar backend och visar
+    // rätt status när webhook/reconcile finaliserat. Vi routar dit direkt med
+    // access-token + phone som auth-bevis så gäster kommer åt ordern.
+    if (!mollieReturn || !storedOrderId) return;
 
-    const routeToOrder = () => {
-      // Inkludera access-token + phone som auth-bevis i URL:n så order-
-      // tracking-sidan kan läsa ordern utan inloggning. Båda är fallbacks
-      // mot varandra (server accepterar antingen).
-      const storedToken = localStorage.getItem("pending_order_token") || "";
-      const phone = (formData.customerPhone || "").trim();
-      const qs = new URLSearchParams();
-      if (storedToken) qs.set("token", storedToken);
-      if (phone) qs.set("phone", phone);
-      const url = qs.toString() ? `/order/${storedOrderId}?${qs.toString()}` : `/order/${storedOrderId}`;
-      clearCart();
-      localStorage.removeItem("pending_order_id");
-      localStorage.removeItem("pending_order_token");
-      router.replace(url);
-    };
-
-    if (redirectStatus === "failed" || redirectStatus === "requires_payment_method") {
-      // Kunden avbröt / banken nekade. Tidigare behöll vi pending_order_id
-      // för retry-på-samma-order, men det gjorde att den fastnade som
-      // "Pågående beställning" på hemskärmen (AWAITING_PAYMENT). Nu abandonar
-      // vi ordern (backend reverterar UserDeal + raderar) och rensar
-      // localStorage. Retry skapar en ny order — minimal DB-skräp eftersom
-      // cleanup-cronen ändå tar tag i abandonade ordrar inom 5 min.
-      paymentInFlightRef.current = false;
-      void abandonPendingOrder(storedOrderId);
-      try {
-        localStorage.removeItem("pending_order_id");
-        localStorage.removeItem("pending_order_token");
-      } catch { /* noop */ }
-      setError(
-        redirectStatus === "requires_payment_method"
-          ? t("cart.errors.paymentCancelled")
-          : t("cart.errors.paymentFailed"),
-      );
-      window.history.replaceState({}, "", window.location.pathname);
-      return;
-    }
-
-    // succeeded / processing / requires_action / inget redirectStatus
-    // (men payment_success=true) → routa till order-tracking. /order/{id}
-    // pollar backend så kunden får rätt status även om webhook ej hunnit
-    // bekräfta än.
-    routeToOrder();
+    paymentInFlightRef.current = false;
+    const storedToken = localStorage.getItem("pending_order_token") || "";
+    const phone = (formData.customerPhone || "").trim();
+    const qs = new URLSearchParams();
+    if (storedToken) qs.set("token", storedToken);
+    if (phone) qs.set("phone", phone);
+    const url = qs.toString() ? `/order/${storedOrderId}?${qs.toString()}` : `/order/${storedOrderId}`;
+    clearCart();
+    localStorage.removeItem("pending_order_id");
+    localStorage.removeItem("pending_order_token");
+    window.history.replaceState({}, "", window.location.pathname);
+    router.replace(url);
   }, []);
 
   const buildOrderPayload = (paymentIntentId?: string) => {
@@ -1565,53 +1492,9 @@ export default function CartPage() {
     return () => window.removeEventListener("pagehide", onPageHide);
   }, [formData.customerPhone]);
 
-  // Called by StripeCheckout after payment succeeds — navigate to the pre-created order
-  const handlePaymentSuccess = useCallback(async (_paymentIntentId: string) => {
-    // Betalningen lyckades — pagehide ska inte abandona längre.
-    paymentInFlightRef.current = false;
-    const orderId = pendingOrderId || localStorage.getItem("pending_order_id");
-    if (!orderId) {
-      // Fallback: shouldn't happen in normal flow
-      setError(t("cart.errors.paymentSucceededOrderMissing"));
-      return;
-    }
-    // Spara i lokal order-history så kunden (även icke-inloggad) kan hitta
-    // ordern senare via /orders-sidan. phone används som ownership-bevis
-    // mot backend (GET /api/orders/:id?phone=...).
-    saveOrderToHistory({
-      id: orderId,
-      phone: formData.customerPhone,
-      createdAt: new Date().toISOString(),
-      restaurantName: cartRestaurantSlug ? cartRestaurantSlug : null,
-      restaurantSlug: cartRestaurantSlug ?? null,
-      total: total,
-    });
-    // Inkludera access-token + phone i tracking-URL:n så gäster kan se
-    // ordern utan inloggning. Tokenen returnerades av POST /api/orders.
-    const storedToken = typeof window !== "undefined" ? localStorage.getItem("pending_order_token") : null;
-    const trackQs = new URLSearchParams();
-    if (storedToken) trackQs.set("token", storedToken);
-    if (formData.customerPhone) trackQs.set("phone", formData.customerPhone);
-    const trackUrl = trackQs.toString() ? `/order/${orderId}?${trackQs.toString()}` : `/order/${orderId}`;
-    clearCart();
-    localStorage.removeItem("pending_order_id");
-    localStorage.removeItem("pending_order_token");
-    rememberActiveOrder(orderId, { token: storedToken, phone: formData.customerPhone });
-
-    // SNABB bekräftelse: kortbetalningen är redan 'succeeded' i Stripe, så be
-    // backend finalisera NU (AWAITING_PAYMENT → PENDING + notifiera restaurangen)
-    // istället för att vänta upp till en minut på reconcile-loopen. Detta gör
-    // att ordern når köket inom ~1-2s OCH att LiveOrderBanner (som döljer
-    // AWAITING_PAYMENT) dyker upp direkt. Icke-blockerande: timeout + catch så
-    // navigeringen aldrig fastnar — reconcile-loopen är kvar som backup.
-    try {
-      await axios.post(`${API_URL}/api/payments/confirm`, { orderId }, { timeout: 6000 });
-    } catch (confirmErr) {
-      console.warn("[cart] snabb betalnings-bekräftelse misslyckades, faller tillbaka på reconcile", confirmErr);
-    }
-
-    router.push(trackUrl);
-  }, [pendingOrderId, clearCart, router, formData.customerPhone, cartRestaurantSlug, total]);
+  // (Stripe-eran: handlePaymentSuccess fanns här och anropade /payments/confirm.
+  //  Med Mollie finaliserar webhook/reconcile ordern; klienten routar bara till
+  //  /order/{id} via redirect-recovery-effekten ovan.)
 
   // Persist guest name/phone/email across sessions
   useEffect(() => {
@@ -1810,25 +1693,22 @@ export default function CartPage() {
       if (orderToken) localStorage.setItem("pending_order_token", orderToken);
       setPendingOrderId(orderId);
 
-      // Step 2: Create payment intent linked to this order
-      const intentRes = await axios.post(`${API_URL}/api/payments/create-intent`, {
-        amount: total,
+      // Step 2: Skapa Mollie-betalning + redirecta till hostad checkout.
+      // returnUrl = tillbaka till kassan med en flagga; redirect-recovery-
+      // effekten routar då till order-tracking som pollar backend tills PAID.
+      // paymentInFlight hindrar pagehide från att abandona ordern under redirect.
+      paymentInFlightRef.current = true;
+      const payRes = await axios.post(`${API_URL}/api/payments/create`, {
         orderId,
-      }, {
-        headers: { "Idempotency-Key": `intent-${idempotencyKey.current}` },
+        returnUrl: `${window.location.origin}/cart?mollie_return=1`,
       });
-
-      setClientSecret(intentRes.data.clientSecret);
-      if (typeof intentRes.data.total === "number") {
-        setServerCharge({ total: intentRes.data.total, discount: intentRes.data.discountAmount ?? 0 });
+      if (payRes.data?.checkoutUrl) {
+        window.location.href = payRes.data.checkoutUrl;
+        return;
       }
-      setShowPayment(true);
-      // Scrolla till payment-sektionen (inte document.body.scrollHeight som
-      // tidigare — den overshootade förbi formuläret på korta viewports och
-      // kunden såg en tom area utan att förstå att Stripe-form fanns ovanför).
-      setTimeout(() => {
-        paymentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 100);
+      // Inget checkoutUrl (oväntat) → låt ordern städas av cleanup, visa fel.
+      paymentInFlightRef.current = false;
+      throw new Error(t("cart.errors.paymentUnavailable"));
     } catch (err: any) {
       setError(err.response?.data?.error || t("cart.errors.paymentUnavailable"));
     } finally {
@@ -2433,47 +2313,7 @@ export default function CartPage() {
               ogillade). Sticky-positionen följer dokumentscrollen istället. */}
           <div className="lg:sticky lg:top-24">
              <AnimatePresence mode="wait">
-               {showPayment && clientSecret && getStripePromise() ? (
-                  <motion.div ref={paymentSectionRef} key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-7 rounded-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                     <div className="flex items-center gap-3 text-gold-500 text-[13px] font-medium mb-10">
-                        <CreditCard size={18} /> {t("cart.payment.title")}
-                     </div>
-                     {serverCharge && serverCharge.discount > 0 && (
-                       <div className="rounded-2xl p-4 mb-6 border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-                         <div className="flex items-center justify-between text-sm" style={{ color: "var(--text-secondary)" }}>
-                           <span>Rabatt</span>
-                           <span className="font-black text-gold-600">-{serverCharge.discount.toFixed(0)} {t("common.sek")}</span>
-                         </div>
-                         <div className="flex items-center justify-between mt-1 text-base font-bold" style={{ color: "var(--text-primary)" }}>
-                           <span>Att betala</span>
-                           <span>{serverCharge.total.toFixed(0)} {t("common.sek")}</span>
-                         </div>
-                       </div>
-                     )}
-                     <div className="rounded-2xl p-6 mb-10 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                        <Elements stripe={getStripePromise()} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#111113', colorBackground: '#ffffff', colorText: '#141416', colorDanger: '#ef4444', borderRadius: '12px', fontFamily: 'Inter, sans-serif' } } }}>
-                           <StripeCheckout
-                            amount={serverCharge?.total ?? total}
-                            onSuccess={handlePaymentSuccess}
-                            onSubmitStart={() => { paymentInFlightRef.current = true; }}
-                          />
-                        </Elements>
-                     </div>
-                     <button onClick={() => setShowPayment(false)} className="w-full text-[13px] font-medium hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}>{t("cart.payment.backToDetails")}</button>
-                  </motion.div>
-                ) : showPayment && stripeKeyMissing ? (
-                  <motion.div key="stripe-missing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 rounded-2xl border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-                     <div className="flex items-center gap-3 text-rose-500 text-[13px] font-medium mb-6">
-                        <AlertCircle size={18} /> {t("cart.payment.missingTitle")}
-                     </div>
-                     <p className="text-sm font-bold leading-relaxed mb-6" style={{ color: "var(--text-primary)" }}>
-                        {t("cart.payment.missingBody")}
-                     </p>
-                     <button onClick={() => setShowPayment(false)} className="text-[13px] font-medium text-gold-500 hover:text-gold-600">
-                        {t("cart.payment.back")}
-                     </button>
-                  </motion.div>
-                ) : (
+               {(
                   <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-4 sm:p-5 rounded-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                       <div className="flex gap-1.5 p-1 rounded-xl mb-4" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          {(['DELIVERY', 'PICKUP'] as const).map(type => (
