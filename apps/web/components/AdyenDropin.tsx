@@ -38,7 +38,10 @@ export default function AdyenDropin({ orderId, returnUrl, onCompleted, onFailed,
 
     (async () => {
       try {
-        const { AdyenCheckout, Dropin } = await import("@adyen/adyen-web");
+        // v6: Drop-in inkluderar INTE metod-komponenterna automatiskt — vi måste
+        // importera klasserna och passa dem i paymentMethodComponents, annars
+        // renderas de inte (konsolen varnar "you support X but not configured").
+        const { AdyenCheckout, Dropin, Card, Klarna, Swish, ApplePay, GooglePay } = await import("@adyen/adyen-web");
 
         const url = new URL(window.location.href);
         const redirectResult = url.searchParams.get("redirectResult");
@@ -99,7 +102,12 @@ export default function AdyenDropin({ orderId, returnUrl, onCompleted, onFailed,
           setPhase("redirect");
           await checkout.submitDetails({ details: { redirectResult } });
         } else {
-          dropin = new Dropin(checkout, {}).mount(containerRef.current);
+          dropin = new Dropin(checkout, {
+            paymentMethodComponents: [Card, Klarna, Swish, ApplePay, GooglePay],
+            paymentMethodsConfiguration: {
+              card: { hasHolderName: true, holderNameRequired: true },
+            },
+          }).mount(containerRef.current);
           setPhase("ready");
         }
       } catch (e: any) {
