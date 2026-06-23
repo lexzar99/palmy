@@ -13,7 +13,6 @@ import {
   Store,
   Truck,
   Lock,
-  ChevronRight,
   Trash2,
   Plus,
   Minus,
@@ -182,7 +181,10 @@ export default function CartPage() {
   const [user, setUser] = useState<any>(null);
   const [orderType, setOrderType] = useState<"PICKUP" | "DELIVERY">(() => {
     if (typeof window === "undefined") return "DELIVERY";
-    const stored = localStorage.getItem("cart_order_type");
+    // Startsidans grind är sanningen för leverans/avhämtning. Läs dess
+    // platform_order_type först (faller tillbaka på cart_order_type för bakåt-
+    // kompat) så valet syns direkt utan att blinka fel typ vid kall laddning.
+    const stored = localStorage.getItem("platform_order_type") || localStorage.getItem("cart_order_type");
     return stored === "PICKUP" ? "PICKUP" : "DELIVERY";
   });
   // Komplettering till minimum är INTE förvald — kunden ska aktivt välja att
@@ -287,18 +289,19 @@ export default function CartPage() {
     // Återställ senast valda leveransadress så den inte nollas vid navigering.
     let d = { deliveryStreet: "", deliveryZip: "", deliveryCity: "" };
     if (typeof window !== "undefined") {
-      try { const raw = localStorage.getItem("platform_delivery"); if (raw) d = { ...d, ...JSON.parse(raw) }; } catch { /* ignore */ }
-      // Startsidans adress-grind är sanningen men skriver bara platform_address
-      // (inte platform_delivery). Saknas gata → härled gata/zip/stad ur den så
-      // payload + zon-check funkar utan att kunden anger adressen på nytt.
+      // Startsidans adress-grind är ENDA sanningen. Härled gata/zip/stad ur dess
+      // display-sträng (platform_delivery_address/platform_address) så att ett
+      // adressbyte på hem-sidan alltid slår igenom här. Legacy platform_delivery
+      // (skrevs av den gamla kassa-editorn) används bara om grinden saknas helt.
+      try {
+        const stored = localStorage.getItem("platform_delivery_address") || localStorage.getItem("platform_address") || "";
+        if (stored) {
+          const p = parseStoredAddress(stored);
+          d = { deliveryStreet: p.street, deliveryZip: p.zip, deliveryCity: p.city || localStorage.getItem("platform_delivery_city") || localStorage.getItem("platform_city") || "" };
+        }
+      } catch { /* ignore */ }
       if (!d.deliveryStreet) {
-        try {
-          const stored = localStorage.getItem("platform_delivery_address") || localStorage.getItem("platform_address") || "";
-          if (stored) {
-            const p = parseStoredAddress(stored);
-            d = { deliveryStreet: p.street, deliveryZip: p.zip, deliveryCity: p.city || localStorage.getItem("platform_city") || "" };
-          }
-        } catch { /* ignore */ }
+        try { const raw = localStorage.getItem("platform_delivery"); if (raw) d = { ...d, ...JSON.parse(raw) }; } catch { /* ignore */ }
       }
     }
     return {
@@ -314,18 +317,10 @@ export default function CartPage() {
   });
 
 
-  // Persistera vald leveransadress → överlever navigering tills kund ändrar den.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const { deliveryStreet, deliveryZip, deliveryCity } = formData;
-    if (deliveryStreet || deliveryZip || deliveryCity) {
-      localStorage.setItem("platform_delivery", JSON.stringify({ deliveryStreet, deliveryZip, deliveryCity }));
-    } else {
-      // Kund tog bort adressen → rensa även sparad coords så den inte återställs.
-      localStorage.removeItem("platform_delivery");
-      localStorage.removeItem("platform_coords");
-    }
-  }, [formData.deliveryStreet, formData.deliveryZip, formData.deliveryCity]);
+  // Adressen ägs nu av startsidans grind (platform_delivery_address + coords).
+  // Kassan skriver INTE längre platform_delivery — annars kunde en gammal
+  // cart-skriven adress skugga grinden eller råka rensa coords. Legacy-nyckeln
+  // läses bara som engångs-fallback i formData-initieringen ovan.
 
   // Vid retur till kassan: kör om zon-check från sparade coords så adressen
   // inte ser "ej validerad" ut efter navigering.
@@ -1033,10 +1028,15 @@ export default function CartPage() {
   // Auto-fill address from localStorage and run zone check
   const initialZoneCheckDone = useRef(false);
   useEffect(() => {
-    const storedAddress = localStorage.getItem("platform_address");
+    // Leveransadressen läses ur platform_delivery_address (grindens kanoniska
+    // leverans-nyckel). platform_address kan vara överskriven med pickup-staden,
+    // så den används bara som fallback — annars kunde pickup-staden visas som
+    // leveransadress efter en toggle.
+    const storedDelivery = localStorage.getItem("platform_delivery_address");
+    const storedAddress = storedDelivery || localStorage.getItem("platform_address");
     const storedType = localStorage.getItem("platform_order_type");
     const storedCoords = localStorage.getItem("platform_coords");
-    
+
     if (storedType === "PICKUP" || storedType === "DELIVERY") {
       setOrderType(storedType as "PICKUP" | "DELIVERY");
     }
@@ -1045,7 +1045,9 @@ export default function CartPage() {
       const { street, zip, city, clean } = parseStoredAddress(storedAddress);
       const cachedQuickAddress = findQuickAddressByText(clean) ?? findQuickAddressByText(storedAddress);
 
-      if (clean !== storedAddress) localStorage.setItem("platform_address", clean);
+      // Normalisera bara den nyckel vi faktiskt läste, så pickup-stadens
+      // platform_address inte skrivs över med en leveransgata.
+      if (clean !== storedAddress) localStorage.setItem(storedDelivery ? "platform_delivery_address" : "platform_address", clean);
       setAddressInput(clean);
 
       setFormData(prev => ({
@@ -1324,7 +1326,7 @@ export default function CartPage() {
       type: orderType,
       customerName: formData.customerName,
       customerPhone: formData.customerPhone,
-      customerEmail: formData.customerEmail || undefined,
+      customerEmail: formData.customerEmail.trim() || undefined,
       deliveryStreet: orderType === "DELIVERY" ? formData.deliveryStreet : undefined,
       deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
       deliveryCity: orderType === "DELIVERY" ? (formData.deliveryCity || undefined) : undefined,
