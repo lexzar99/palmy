@@ -55,7 +55,12 @@ const BottomNav = () => {
         backgroundColor: "var(--bg-primary)",
         borderTop: "1px solid var(--border-muted)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        transform: hidden ? "translateY(110%)" : "translateY(0)",
+        // iOS Safari: ett position:fixed-element MED transform (även identitets-
+        // translateY(0)) fästs mot LAYOUT-viewporten, inte visual-viewporten, och
+        // släpar därför efter när det nedre verktygsfältet dras in vid scroll →
+        // glipa under navet. Vi sätter transform ENDAST när baren göms (slide-
+        // animationen). Synlig = ingen transform → navet följer visual-viewporten.
+        transform: hidden ? "translateY(110%)" : undefined,
         opacity: hidden ? 0 : 1,
       }}
       aria-hidden={hidden}
