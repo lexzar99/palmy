@@ -2354,123 +2354,75 @@ export default function CartPage() {
                   </motion.div>
                ) : (
                   <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-4 sm:p-5 rounded-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                      <div className="flex gap-1.5 p-1 rounded-xl mb-4" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                         {(['DELIVERY', 'PICKUP'] as const).map(type => (
-                            <button key={type} type="button" onClick={() => { setOrderType(type); localStorage.setItem("cart_order_type", type); }} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${orderType === type ? 'bg-gold-500 text-[#141416]' : 'text-zinc-500'}`}>
+                      <div className="flex mb-4 rounded-[10px] overflow-hidden" style={{ border: "1px solid var(--line-strong)" }}>
+                         {(['DELIVERY', 'PICKUP'] as const).map((type, i) => {
+                            const active = orderType === type;
+                            return (
+                            <button key={type} type="button" onClick={() => { setOrderType(type); localStorage.setItem("cart_order_type", type); }}
+                              className="relative flex-1 flex items-center justify-center gap-2 h-11 text-[14px] transition-colors"
+                              style={{ color: active ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: active ? 600 : 500, borderLeft: i === 1 ? "1px solid var(--line-strong)" : undefined }}>
                                {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
                                {type === 'DELIVERY' ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
+                               {active && <span className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)" }} />}
                             </button>
-                         ))}
+                            );
+                         })}
                       </div>
 
 
                        <div className="space-y-2.5">
                         {(() => {
-                          // Inline-validering: vi flagga fält som har varit "rört" och nu är ogiltigt.
-                          // Definieras inline för att inte behöva nya useState.
                           const nameTouched = formData.customerName.length > 0;
                           const phoneTouched = formData.customerPhone.length > 0;
                           const emailTouched = formData.customerEmail.length > 0;
                           const nameInvalid = nameTouched && formData.customerName.trim().length < 2;
-                          // Telefon: minst 8 siffror (svenska mobilnr utan landkod är 9-10 siffror, +46 ger fler)
                           const phoneDigits = formData.customerPhone.replace(/\D/g, '');
                           const phoneInvalid = phoneTouched && phoneDigits.length < 8;
                           const emailInvalid = emailTouched && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail);
-                          const errorBorder = "border-rose-500/60 focus:border-rose-500/80";
-                          const okBorder = "focus:border-gold-500/40";
+                          const hair = <div style={{ height: 1, backgroundColor: "var(--border-muted)" }} />;
+                          const lbl = (bad: boolean) => ({ width: 74, flexShrink: 0, fontSize: 13, fontWeight: 500 as const, color: bad ? "#C0392B" : "var(--text-secondary)" });
+                          const inputCls = "flex-1 h-full bg-transparent outline-none text-[16px] sm:text-[15px] font-medium";
+                          const inputStyle = { color: "var(--text-primary)", border: "none" as const };
+                          // Grupperad lista: etikett som grå prefix, kantlösa fält, hårlinjer
+                          // mellan rader. Läser som ETT rent objekt, inte fem boxar.
                           return (
-                            <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                           <div className="space-y-1.5">
-                              <label className="text-[12.5px] font-medium ml-1" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.name")}</label>
-                              <input
-                                value={formData.customerName}
-                                onChange={e => setFormData({...formData, customerName: e.target.value})}
-                                autoComplete="name"
-                                aria-invalid={nameInvalid || undefined}
-                                className={`w-full border rounded-xl px-3.5 h-11 text-base sm:text-[14px] font-medium placeholder:text-zinc-400 outline-none transition-all ${nameInvalid ? errorBorder : okBorder}`}
-                                style={{ backgroundColor: "var(--bg-deep)", borderColor: nameInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
-                                placeholder={t("cart.fields.namePlaceholder")}
-                              />
-                              {nameInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">{t("cart.errors.nameTooShort")}</p>}
-                           </div>
-                           <div className="space-y-1.5">
-                              <label className="text-[12.5px] font-medium ml-1" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.phone")}</label>
-                              <input
-                                value={formData.customerPhone}
-                                onChange={e => setFormData({...formData, customerPhone: e.target.value})}
-                                type="tel"
-                                autoComplete="tel"
-                                inputMode="tel"
-                                aria-invalid={phoneInvalid || undefined}
-                                className={`w-full border rounded-xl px-3.5 h-11 text-base sm:text-[14px] font-medium placeholder:text-zinc-400 outline-none transition-all ${phoneInvalid ? errorBorder : okBorder}`}
-                                style={{ backgroundColor: "var(--bg-deep)", borderColor: phoneInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
-                                placeholder="+46 70 000 00 00"
-                              />
-                              {phoneInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">{t("cart.errors.phoneTooShort")}</p>}
-                           </div>
-                        </div>
-                        <div className="space-y-1.5">
-                           <label className="text-[12.5px] font-medium ml-1" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.email")}</label>
-                           <input
-                             value={formData.customerEmail}
-                             onChange={e => setFormData({...formData, customerEmail: e.target.value})}
-                             type="email"
-                             autoComplete="email"
-                             inputMode="email"
-                             aria-invalid={emailInvalid || undefined}
-                             className={`w-full border rounded-xl px-3.5 h-11 text-base sm:text-[14px] font-medium placeholder:text-zinc-400 outline-none transition-all ${emailInvalid ? errorBorder : okBorder}`}
-                             style={{ backgroundColor: "var(--bg-deep)", borderColor: emailInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
-                             placeholder={t("cart.fields.emailPlaceholderReceipt")}
-                             required
-                           />
-                           {emailInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">{t("cart.errors.invalidEmail")}</p>}
-                        </div>
-                            </>
+                            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "#fff" }}>
+                              <div className="flex items-center min-h-[52px] px-4">
+                                <span style={lbl(nameInvalid)}>{t("cart.fields.name")}</span>
+                                <input value={formData.customerName} onChange={e => setFormData({ ...formData, customerName: e.target.value })} autoComplete="name" className={inputCls} style={inputStyle} placeholder={t("cart.fields.namePlaceholder")} />
+                              </div>
+                              {nameInvalid && <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.nameTooShort")}</p>}
+                              {hair}
+                              <div className="flex items-center min-h-[52px] px-4">
+                                <span style={lbl(phoneInvalid)}>{t("cart.fields.phone")}</span>
+                                <input value={formData.customerPhone} onChange={e => setFormData({ ...formData, customerPhone: e.target.value })} type="tel" inputMode="tel" autoComplete="tel" className={inputCls} style={inputStyle} placeholder="070 000 00 00" />
+                              </div>
+                              {phoneInvalid && <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.phoneTooShort")}</p>}
+                              {hair}
+                              <div className="flex items-center min-h-[52px] px-4">
+                                <span style={lbl(emailInvalid)}>{t("cart.fields.email")}</span>
+                                <input value={formData.customerEmail} onChange={e => setFormData({ ...formData, customerEmail: e.target.value })} type="email" inputMode="email" autoComplete="email" required className={inputCls} style={inputStyle} placeholder={t("cart.fields.emailPlaceholderReceipt")} />
+                              </div>
+                              {emailInvalid && <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.invalidEmail")}</p>}
+                              {orderType === 'DELIVERY' && (<>
+                                {hair}
+                                <button type="button" onClick={() => setShowCartAddressModal(true)} className="relative w-full flex items-center min-h-[52px] px-4 text-left active:bg-black/[0.02]">
+                                  {addressZoneStatus && <span className="absolute left-0 top-0 bottom-0" style={{ width: 3, backgroundColor: addressZoneStatus === "ok" ? "var(--success-ink)" : addressZoneStatus === "error" ? "#C0392B" : "var(--text-secondary)" }} />}
+                                  <MapPin size={15} className="shrink-0 mr-2.5" style={{ color: "var(--text-secondary)" }} />
+                                  <span className="flex-1 min-w-0 text-[15px] font-medium truncate" style={{ color: addressInput ? "var(--text-primary)" : "var(--text-secondary)" }}>{addressInput || t("cart.fields.addressPlaceholderFull")}</span>
+                                  {(checkingDelivery || addressZoneStatus === "checking") ? (
+                                    <Loader2 size={14} className="animate-spin shrink-0 mr-1.5" style={{ color: "var(--text-secondary)" }} />
+                                  ) : addressZoneStatus === "ok" ? (
+                                    <Check size={15} strokeWidth={2.5} className="shrink-0 mr-1.5" style={{ color: "var(--success-ink)" }} />
+                                  ) : null}
+                                  <span className="text-[13px] font-medium shrink-0" style={{ color: "var(--text-secondary)" }}>{t("common.edit")}</span>
+                                  <ChevronRight size={15} className="shrink-0 -mr-1" style={{ color: "var(--text-secondary)" }} />
+                                </button>
+                                {addressZoneStatus === "error" && <p className="px-4 pb-2.5 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.zoneNotCoveredInline")}</p>}
+                              </>)}
+                            </div>
                           );
                         })()}
-
-                        {orderType === 'DELIVERY' && (
-                           <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                              {/* Sparade adresser visas inte här — man byter via
-                                  kart-modalen ("Ändra"). */}
-                              {/* Kompakt adress — visar bara vald adress. "Ändra"
-                                  öppnar kart-modalen (nål + sök). Zon-check körs efter. */}
-                              <div className="space-y-1.5">
-                                 <label className="text-[12.5px] font-medium ml-1" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.address")}</label>
-                                 <button
-                                   type="button"
-                                   onClick={() => setShowCartAddressModal(true)}
-                                   className="w-full flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left transition-all active:scale-[0.99]"
-                                   style={{
-                                     backgroundColor: "var(--bg-deep)",
-                                     borderColor:
-                                       addressZoneStatus === "error" ? "rgba(244,63,94,0.6)"
-                                       : addressZoneStatus === "ok" ? "rgba(16,185,129,0.4)"
-                                       : "var(--border-muted)",
-                                   }}
-                                 >
-                                   <MapPin className="text-gold-500 shrink-0" size={17} />
-                                   <span className="flex-1 min-w-0 text-[14px] font-semibold truncate" style={{ color: addressInput ? "var(--text-primary)" : "var(--text-secondary)" }}>
-                                     {addressInput || t("cart.fields.addressPlaceholderFull")}
-                                   </span>
-                                   {(checkingDelivery || addressZoneStatus === "checking") ? (
-                                     <Loader2 className="text-gold-500 animate-spin shrink-0" size={16} />
-                                   ) : addressZoneStatus === "ok" ? (
-                                     <span className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
-                                       <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                                     </span>
-                                   ) : null}
-                                   <span className="text-[13px] font-medium text-gold-600 shrink-0">{t("common.edit")}</span>
-                                   <ChevronRight size={15} className="text-gold-500/70 shrink-0 -ml-1" />
-                                 </button>
-                                {addressZoneStatus === "error" && (
-                                  <p className="text-[10px] font-bold text-rose-400 ml-3 mt-1">{t("cart.errors.zoneNotCoveredInline")}</p>
-                                )}
-                             </div>
-
-                          </div>
-                        )}
 
                         {/* ── Mobile only: extras (desktop shows these in left column) ── */}
                         <div className="lg:hidden space-y-4">

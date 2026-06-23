@@ -67,7 +67,7 @@ const BottomNav = () => {
       <span
         aria-hidden="true"
         className="pointer-events-none absolute left-0 right-0 top-full"
-        style={{ height: "120px", backgroundColor: "var(--bg-primary)" }}
+        style={{ height: "100vh", backgroundColor: "var(--bg-primary)" }}
       />
       {navItems.map((item) => {
         const Icon = item.icon;
