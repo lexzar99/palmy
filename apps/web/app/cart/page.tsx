@@ -1325,6 +1325,18 @@ export default function CartPage() {
     if (storedToken) qs.set("token", storedToken);
     if (phone) qs.set("phone", phone);
     const url = qs.toString() ? `/order/${orderId}?${qs.toString()}` : `/order/${orderId}`;
+    // Spara i lokal order-historik + registrera aktiv order så /orders OCH
+    // LiveOrderBanner ser ordern. Gäster har inget konto — detta är källan.
+    // (Tappades vid Stripe→Adyen-omskrivningen, därav "ingen banner/historik".)
+    saveOrderToHistory({
+      id: orderId,
+      phone: formData.customerPhone,
+      createdAt: new Date().toISOString(),
+      restaurantName: cartRestaurantSlug ?? null,
+      restaurantSlug: cartRestaurantSlug ?? null,
+      total: total,
+    });
+    rememberActiveOrder(orderId, { token: storedToken || undefined, phone: formData.customerPhone });
     clearCart();
     try {
       localStorage.removeItem("pending_order_id");
