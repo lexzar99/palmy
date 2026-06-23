@@ -22,6 +22,7 @@ import {
 } from "@/lib/platformSessionClient";
 import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
+import SocialAuthButton from "@/components/SocialAuthButton";
 // ReferralCard import removed — referral UI is disabled platform-wide.
 // Backend redeem-code endpoint stays intact for legacy URLs.
 import { useToast } from "@/components/Toast";
@@ -648,14 +649,13 @@ function ProfileContent() {
           {/* Dpoints sponsor-banner — driver registrering (göms om inget aktivt kort) */}
           <DpointsSponsorBanner onRegister={() => router.push("/register")} />
 
-          {/* Logga in / Skapa konto — leder till dedikerade sidor. Login-
-              formuläret bor på /login (inte inline här) → profilsidan slipper
-              den tunga OAuth/form-logiken och dess glitchar. */}
+          {/* Logga in / Skapa konto (e-post) — leder till dedikerade sidor. */}
           <div className="space-y-3 pt-1">
             <button
               type="button"
               onClick={() => router.push("/login")}
-              className="w-full py-4 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-sm active:scale-95 transition-all"
+              className="w-full py-4 bg-gold-500 rounded-2xl font-bold text-sm active:scale-95 transition-all"
+              style={{ color: "#141416" }}
             >
               {t("auth.submitLogin")}
             </button>
@@ -667,6 +667,17 @@ function ProfileContent() {
             >
               {t("auth.createFree")}
             </button>
+          </div>
+
+          {/* Eller logga in direkt med Apple/Google (samma som login-skärmen). */}
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
+            <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>{t("auth.orWithSocial")}</span>
+            <div className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
+          </div>
+          <div className="flex flex-col gap-2.5">
+            <SocialAuthButton provider="apple" />
+            <SocialAuthButton provider="google" />
           </div>
 
           {/* Information — Om oss, Kontakt och policy bakom EN knapp som leder

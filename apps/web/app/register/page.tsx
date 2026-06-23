@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { API_URL } from "@/lib/api";
 import { persistPlatformSession } from "@/lib/platformSessionClient";
 import { useToast } from "@/components/Toast";
+import SocialAuthButton from "@/components/SocialAuthButton";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -235,6 +236,17 @@ function RegisterContent() {
               <p className="text-[14.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                 {t("auth.register.subSaveHistory")}
               </p>
+            </div>
+
+            {/* Socialt — välj att skapa konto direkt med Apple/Google */}
+            <div className="flex flex-col gap-2.5">
+              <SocialAuthButton provider="apple" />
+              <SocialAuthButton provider="google" />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
+              <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>{t("auth.orWithSocial")}</span>
+              <div className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
             </div>
 
             <form onSubmit={handleRegister} className="space-y-3.5" noValidate>
