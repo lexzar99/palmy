@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import axios from "axios";
-import { Home, Heart, ShoppingBag, User } from "lucide-react";
+import { Home, Heart, ShoppingBag, Receipt, User } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -45,6 +45,7 @@ const BottomNav = () => {
     { href: "/", label: t("nav.home"), icon: Home },
     { href: "/discover", label: t("nav.favorites"), icon: Heart },
     { href: "/cart", label: t("nav.cart"), icon: ShoppingBag, count: itemCount },
+    { href: "/orders", label: t("nav.myOrders"), icon: Receipt },
     { href: "/profile", label: t("nav.profile"), icon: User },
   ];
 
@@ -87,17 +88,17 @@ const BottomNav = () => {
             aria-current={isActive ? "page" : undefined}
             className="relative flex-1 touch-manipulation"
           >
-            <div className="flex h-[56px] flex-col items-center justify-center gap-1">
+            <div className="flex h-[56px] flex-col items-center justify-center gap-1 px-0.5">
               {/* Aktiv ikon fylls med varumärkesguldet — guld markerar "här är du". */}
               <Icon
-                size={21}
+                size={20}
                 strokeWidth={isActive ? 2.2 : 1.8}
                 fill={isActive ? "var(--color-gold-500, #E7B24B)" : "none"}
                 className="shrink-0 transition-colors duration-150"
                 style={{ color: isActive ? "var(--color-gold-500, #E7B24B)" : "var(--text-secondary)" }}
               />
               <span
-                className={`text-[11px] leading-none transition-colors duration-150 ${isActive ? "font-semibold" : "font-medium"}`}
+                className={`max-w-full truncate text-[10.5px] leading-none transition-colors duration-150 ${isActive ? "font-semibold" : "font-medium"}`}
                 style={{ color: isActive ? "var(--text-primary)" : "var(--text-secondary)" }}
               >
                 {item.label}

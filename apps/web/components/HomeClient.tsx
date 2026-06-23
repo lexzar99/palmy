@@ -936,21 +936,24 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/delivera-lockup.png" alt="Delívera" style={{ height: 26, width: "auto" }} />
 
-          <div className="shrink-0 p-0.5 rounded-full flex items-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-            <button
-              onClick={() => toggleOrderType("DELIVERY")}
-              className="px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors"
-              style={{ backgroundColor: orderType === "DELIVERY" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "DELIVERY" ? "#141416" : "var(--text-secondary)" }}
-            >
-              {t("cart.deliveryType.delivery")}
-            </button>
-            <button
-              onClick={() => toggleOrderType("PICKUP")}
-              className="px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors"
-              style={{ backgroundColor: orderType === "PICKUP" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "PICKUP" ? "#141416" : "var(--text-secondary)" }}
-            >
-              {t("cart.deliveryType.pickup")}
-            </button>
+          {/* Segmenterad kontroll, samma som kassan: monokrom text, boxad ram,
+              guld 2px-linje under aktivt segment (ingen guld-fyllning). */}
+          <div className="shrink-0 flex rounded-[10px] overflow-hidden" style={{ border: "1px solid var(--line-strong)" }}>
+            {(["DELIVERY", "PICKUP"] as const).map((type, i) => {
+              const active = orderType === type;
+              return (
+                <button
+                  key={type}
+                  onClick={() => toggleOrderType(type)}
+                  className="relative flex items-center justify-center gap-1.5 px-3.5 h-9 text-[12.5px] transition-colors"
+                  style={{ color: active ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: active ? 600 : 500, borderLeft: i === 1 ? "1px solid var(--line-strong)" : undefined }}
+                >
+                  {type === "DELIVERY" ? <Truck size={13} /> : <Store size={13} />}
+                  {type === "DELIVERY" ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
+                  {active && <span className="absolute left-2.5 right-2.5 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)" }} />}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Phone, MapPin, Mail } from "lucide-react";
+import { Phone, MapPin, Mail, ArrowRight } from "lucide-react";
 import { API_URL } from "@/lib/api";
 
 export const metadata: Metadata = {
@@ -54,29 +54,29 @@ export default async function ContactPage() {
 
   return (
     <div className="min-h-screen md:pt-20" style={{ backgroundColor: "var(--bg-primary)" }}>
-      <div className="pt-20 pb-24 px-6 max-w-5xl mx-auto">
-        <div className="mb-16 max-w-2xl">
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-6 leading-tight" style={{ color: "var(--text-primary)" }}>
-            Kontakta <span className="text-gold-500">oss</span>
+      <div className="pt-[calc(env(safe-area-inset-top,0px)+4.5rem)] md:pt-12 pb-[calc(env(safe-area-inset-bottom,0px)+7rem)] md:pb-24 px-5 sm:px-6 max-w-4xl mx-auto">
+        <div className="mb-8 max-w-2xl">
+          <h1 className="text-[28px] sm:text-4xl font-bold tracking-tight mb-3" style={{ color: "var(--text-primary)" }}>
+            Kontakta oss
           </h1>
-          <p className="text-lg leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+          <p className="text-[15px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
             Har du frågor om en beställning, ett samarbete eller plattformen? Hör av dig så hjälper vi dig.
           </p>
         </div>
 
         {cards.length > 0 ? (
-          <div className={`grid grid-cols-1 ${cards.length > 1 ? "md:grid-cols-2" : ""} ${cards.length > 2 ? "lg:grid-cols-3" : ""} gap-8 mb-16`}>
+          <div className={`grid grid-cols-1 ${cards.length > 1 ? "sm:grid-cols-2" : ""} ${cards.length > 2 ? "lg:grid-cols-3" : ""} gap-3 sm:gap-4 mb-6`}>
             {cards.map((item) => {
               const Icon = item.icon;
               const inner = (
-                <div className="p-8 rounded-3xl transition-all group h-full shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                  <div className="w-12 h-12 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500 mb-6 group-hover:bg-gold-500 group-hover:text-zinc-950 transition-all">
-                    <Icon size={24} />
+                <div className="p-5 rounded-2xl h-full transition-all active:scale-[0.99]" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                    <Icon size={20} style={{ color: "var(--text-secondary)" }} />
                   </div>
-                  <div className="text-[10px] uppercase font-black tracking-widest mb-2 text-zinc-400">{item.title}</div>
-                  <div className="text-xl font-black mb-1 whitespace-pre-line" style={{ color: "var(--text-primary)" }}>{item.value}</div>
+                  <div className="text-[11px] uppercase font-semibold tracking-wider mb-1.5" style={{ color: "var(--text-secondary)" }}>{item.title}</div>
+                  <div className="text-[16px] font-semibold mb-0.5 whitespace-pre-line break-words" style={{ color: "var(--text-primary)" }}>{item.value}</div>
                   {item.sub && (
-                    <div className="text-sm" style={{ color: "var(--text-secondary)" }}>{item.sub}</div>
+                    <div className="text-[13px]" style={{ color: "var(--text-secondary)" }}>{item.sub}</div>
                   )}
                 </div>
               );
@@ -90,23 +90,24 @@ export default async function ContactPage() {
             })}
           </div>
         ) : (
-          <div className="p-10 rounded-3xl shadow-sm mb-16" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-            <p className="text-base font-bold" style={{ color: "var(--text-secondary)" }}>
+          <div className="p-6 rounded-2xl mb-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+            <p className="text-[14px] font-medium" style={{ color: "var(--text-secondary)" }}>
               Kontaktuppgifter saknas just nu. Lägg in dem via Företagsinställningar i admin-panelen.
             </p>
           </div>
         )}
 
-        <div className="rounded-[2rem] p-10 text-center shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-          <div className="text-3xl font-black uppercase tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>
-            Vill du <span className="text-gold-500">beställa</span>?
+        <div className="rounded-2xl p-6 sm:p-8 text-center" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+          <div className="text-[18px] font-bold tracking-tight mb-1.5" style={{ color: "var(--text-primary)" }}>
+            Vill du beställa?
           </div>
-          <p className="mb-8" style={{ color: "var(--text-secondary)" }}>Utforska våra anslutna restauranger och beställ direkt.</p>
+          <p className="mb-5 text-[14px]" style={{ color: "var(--text-secondary)" }}>Utforska våra anslutna restauranger och beställ direkt.</p>
           <Link
             href="/"
-            className="inline-flex items-center gap-3 px-10 py-5 bg-gold-500 hover:bg-gold-400 text-zinc-950 font-black rounded-2xl transition-all uppercase tracking-widest shadow-xl shadow-gold-500/10"
+            className="inline-flex items-center gap-2 px-6 h-[52px] rounded-xl text-[15.5px] font-semibold transition-all active:scale-[0.99] bg-gold-500"
+            style={{ color: "#141416" }}
           >
-            Hitta restauranger →
+            Hitta restauranger <ArrowRight size={18} />
           </Link>
         </div>
       </div>
