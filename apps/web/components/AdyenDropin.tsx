@@ -57,7 +57,7 @@ export default function AdyenDropin({ orderId, returnUrl, onCompleted, onFailed,
           });
           const data = await res.json();
           if (!data?.session?.id || !data?.session?.sessionData) {
-            throw new Error(data?.error || "Kunde inte starta betalningen");
+            throw new Error(data?.details || data?.error || "Kunde inte starta betalningen");
           }
           session = data.session;
           try {

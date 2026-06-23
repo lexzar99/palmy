@@ -112,8 +112,11 @@ router.post('/create', createLimiter, async (req, res) => {
       discountAmount: (order.discountAmount ?? 0) / 100,
     });
   } catch (err: any) {
-    console.error('[payments/create] error:', err?.message || err);
-    res.status(500).json({ error: 'Kunde inte initiera betalning' });
+    const msg = err?.message || String(err);
+    console.error('[payments/create] error:', msg);
+    // Surfacea felmeddelandet under uppsättning (test) så env-/konfig-problem syns
+    // direkt i klienten (t.ex. "ADYEN_API_KEY saknas", "Invalid Merchant Account").
+    res.status(500).json({ error: 'Kunde inte initiera betalning', details: msg });
   }
 });
 
