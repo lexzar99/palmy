@@ -114,9 +114,9 @@ export default function AdyenDropin({ orderId, returnUrl, onCompleted, onFailed,
                 // Kortnummer/CVC ligger i Adyens iframes (PCI). Deras textfärg styrs
                 // via styles-config, inte CSS från sidan. Vit text på mörk yta.
                 styles: {
-                  base: { color: "#fafafa", fontSize: "16px", fontFamily: "Inter, sans-serif" },
-                  placeholder: { color: "#6b6b70" },
-                  error: { color: "#fb7185" },
+                  base: { color: "#111113", fontSize: "16px", fontFamily: "Inter, sans-serif" },
+                  placeholder: { color: "#9a9aa0" },
+                  error: { color: "#dc2626" },
                 },
               },
             },
@@ -144,7 +144,7 @@ export default function AdyenDropin({ orderId, returnUrl, onCompleted, onFailed,
         <div className="flex items-center justify-center py-10">
           <div
             className="h-7 w-7 animate-spin rounded-full"
-            style={{ border: "2px solid rgba(17,17,19,0.12)", borderTopColor: "#E7B24B" }}
+            style={{ border: "2px solid rgba(17,17,19,0.12)", borderTopColor: "#111113" }}
           />
         </div>
       )}
@@ -158,7 +158,7 @@ export default function AdyenDropin({ orderId, returnUrl, onCompleted, onFailed,
         >
           <div
             className="h-7 w-7 animate-spin rounded-full"
-            style={{ border: "2px solid rgba(17,17,19,0.12)", borderTopColor: "#E7B24B" }}
+            style={{ border: "2px solid rgba(17,17,19,0.12)", borderTopColor: "#111113" }}
           />
           <p style={{ fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 15, color: "#111113" }}>
             Verifierar betalningen

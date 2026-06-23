@@ -131,6 +131,10 @@ export async function finalizePaymentSuccess(
     if (updatedOrder.restaurantId) {
       getIO().to(`admin-room:${updatedOrder.restaurantId}`).emit('order:new', orderForSocket);
     }
+    // Notifiera kundens order-rum så LiveOrderBanner dyker upp DIREKT när
+    // ordern flippar AWAITING_PAYMENT → PENDING (annars väntar bannern på sin
+    // 15s-poll innan den syns). Bannern lyssnar på 'order:status' i order:{id}.
+    getIO().to(`order:${order.id}`).emit('order:status', { orderId: order.id, status: updatedOrder.status });
     // Discount/deal usage-increment — idempotent på order-nivå.
     await incrementDiscountUsageIfNotCounted(order.id);
   }
