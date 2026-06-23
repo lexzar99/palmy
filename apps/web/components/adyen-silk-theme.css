@@ -54,3 +54,9 @@
 .delivera-adyen img.adyen-checkout__payment-method__image {
   filter: grayscale(1) brightness(0) invert(1) !important;
 }
+
+/* Pay-knappens text ska aldrig spilla utanför knappen (Klarnas långa namn). */
+.delivera-adyen .adyen-checkout__button__text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

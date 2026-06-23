@@ -114,7 +114,7 @@ export default function AdyenDropin({ orderId, returnUrl, onCompleted, onFailed,
                 // Kortnummer/CVC ligger i Adyens iframes (PCI). Deras textfärg styrs
                 // via styles-config, inte CSS från sidan. Vit text på mörk yta.
                 styles: {
-                  base: { color: "#fafafa", fontSize: "16px", fontFamily: "Inter, sans-serif", placeholderColor: "#6b6b70" },
+                  base: { color: "#fafafa", fontSize: "16px", fontFamily: "Inter, sans-serif" },
                   placeholder: { color: "#6b6b70" },
                   error: { color: "#fb7185" },
                 },
