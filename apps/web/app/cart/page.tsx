@@ -1957,8 +1957,8 @@ export default function CartPage() {
       <div
         className={`rounded-2xl border px-4 py-3 ${extraClass}`}
         style={{
-          background: topUpToMinimum ? "rgba(231,178,75,0.08)" : "rgba(239,68,68,0.08)",
-          borderColor: topUpToMinimum ? "rgba(231,178,75,0.30)" : "rgba(239,68,68,0.30)",
+          background: topUpToMinimum ? "var(--bg-deep)" : "rgba(239,68,68,0.08)",
+          borderColor: topUpToMinimum ? "var(--border-muted)" : "rgba(239,68,68,0.30)",
         }}
       >
         {(() => {
@@ -1968,14 +1968,15 @@ export default function CartPage() {
           return (
             <>
               <div className="flex items-center justify-between gap-2 mb-2">
-                <p className={`text-[13px] font-medium ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>
+                <p className="text-[13px] font-medium" style={{ color: topUpToMinimum ? "var(--text-primary)" : "#E11D48" }}>
                   {topUpToMinimum ? t("cart.minOrder.banner.topUp", { amount: gapToEffective }) : t("cart.minOrder.banner.short", { amount: gapToEffective })}
                 </p>
-                <span className={`text-[10px] font-bold ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>{subtotal.toFixed(0)} / {minOrder.toFixed(0)} {t("common.kr")}</span>
+                <span className="text-[10px] font-bold" style={{ color: topUpToMinimum ? "var(--text-secondary)" : "#E11D48" }}>{subtotal.toFixed(0)} / {minOrder.toFixed(0)} {t("common.kr")}</span>
               </div>
-              <div className="h-1.5 w-full rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.07)" }}>
+              <div className="h-1.5 w-full rounded-full overflow-hidden mb-3" style={{ background: "var(--border-muted)" }}>
                 <motion.div
-                  className={`h-full rounded-full ${topUpToMinimum ? "bg-gold-500" : "bg-rose-500"}`}
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: topUpToMinimum ? "var(--text-primary)" : "#E11D48" }}
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
                   transition={{ duration: 0.5, ease: "easeOut" }}
@@ -2228,7 +2229,7 @@ export default function CartPage() {
                     <UserIcon size={16} className="text-zinc-400 shrink-0" />
                     <p className="text-[10px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
                       {t("cart.guest.banner")}{" "}
-                      <Link href="/profile" className="text-gold-400 hover:text-gold-300 underline">{t("cart.guest.loginLink")}</Link>{" "}
+                      <Link href="/profile" className="underline hover:opacity-70" style={{ color: "var(--text-primary)" }}>{t("cart.guest.loginLink")}</Link>{" "}
                       {t("cart.guest.bannerSuffix")}
                     </p>
                   </div>
@@ -2633,7 +2634,7 @@ export default function CartPage() {
                           <UserIcon size={16} className="text-zinc-400 shrink-0" />
                           <p className="text-[10px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
                             {t("cart.guest.banner")}{" "}
-                            <Link href="/profile" className="text-gold-400 hover:text-gold-300 underline">{t("cart.guest.loginLink")}</Link>{" "}
+                            <Link href="/profile" className="underline hover:opacity-70" style={{ color: "var(--text-primary)" }}>{t("cart.guest.loginLink")}</Link>{" "}
                             {t("cart.guest.bannerSuffix")}
                           </p>
                         </div>
