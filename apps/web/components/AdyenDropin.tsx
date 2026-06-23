@@ -108,6 +108,12 @@ export default function AdyenDropin({ orderId, returnUrl, onCompleted, onFailed,
             openFirstPaymentMethod: false,
             paymentMethodComponents: [Card, Klarna, Swish, ApplePay, GooglePay],
             paymentMethodsConfiguration: {
+              // Korta Klarnas långa namn till "Klarna" — sätter både rad-etiketten
+              // och redirect-knappen ("Fortsätt till Klarna"). displayName läser
+              // props.name först (verifierat mot adyen-web v6-källan).
+              klarna: { name: "Klarna" },
+              klarna_account: { name: "Klarna" },
+              klarna_paynow: { name: "Klarna" },
               card: {
                 hasHolderName: true,
                 holderNameRequired: true,
