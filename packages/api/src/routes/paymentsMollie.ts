@@ -57,7 +57,7 @@ function toOrderForPayment(order: any): OrderForPayment {
 // POST /api/payments/create
 router.post('/create', createLimiter, async (req, res) => {
   try {
-    const { orderId, returnUrl } = req.body || {};
+    const { orderId, returnUrl, channel } = req.body || {};
     if (!orderId || typeof orderId !== 'string') {
       res.status(400).json({ error: 'orderId krävs' });
       return;
@@ -66,6 +66,10 @@ router.post('/create', createLimiter, async (req, res) => {
       res.status(400).json({ error: 'returnUrl krävs' });
       return;
     }
+    // Adyen-kanal från klienten: native appen skickar 'iOS'/'Android', webben
+    // utelämnar (→ 'Web'). Måste matcha SDK:n annars failar /sessions/setup.
+    const adyenChannel: 'Web' | 'iOS' | 'Android' =
+      channel === 'iOS' || channel === 'Android' ? channel : 'Web';
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
@@ -89,6 +93,7 @@ router.post('/create', createLimiter, async (req, res) => {
       order: toOrderForPayment(order),
       returnUrl,
       webhookUrl: publicWebhookUrl(),
+      channel: adyenChannel,
     });
 
     // Länka PSP-referensen på ordern (provider-specifik kolumn) så webhook/reconcile hittar den.

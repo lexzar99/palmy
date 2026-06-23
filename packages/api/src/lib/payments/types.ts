@@ -32,6 +32,10 @@ export interface CreatePaymentArgs {
   returnUrl: string;
   /** Publik https-URL för async-notifieringar. Utelämnas i lokal dev (PSP:n når ej localhost). */
   webhookUrl?: string;
+  /** Adyen-kanal: 'Web' (webb-Drop-in) | 'iOS' | 'Android' (native SDK). Sessionen
+   *  MÅSTE skapas med samma kanal som klienten använder — annars failar setup
+   *  (native iOS-SDK mot en Web-session → AdyenNetworking EmptyErrorResponse). */
+  channel?: 'Web' | 'iOS' | 'Android';
 }
 
 export interface CreatePaymentResult {

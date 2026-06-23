@@ -64,7 +64,7 @@ function buildLineItems(order: OrderForPayment): any[] {
 export const adyenProvider: PaymentProvider = {
   name: 'adyen',
 
-  async createPayment({ order, returnUrl }: CreatePaymentArgs): Promise<CreatePaymentResult> {
+  async createPayment({ order, returnUrl, channel }: CreatePaymentArgs): Promise<CreatePaymentResult> {
     const res = await checkout().PaymentsApi.sessions({
       merchantAccount: merchantAccount(),
       amount: { currency: CURRENCY, value: order.total }, // öre direkt, INGEN /100
@@ -72,7 +72,9 @@ export const adyenProvider: PaymentProvider = {
       returnUrl, // Drop-in behöver den för redirect-metoder (Swish/Klarna)
       countryCode: 'SE',
       shopperLocale: 'sv-SE',
-      channel: 'Web' as any,
+      // Kanalen MÅSTE matcha klienten: 'Web' för webb-Drop-in, 'iOS'/'Android' för
+      // native SDK. Default 'Web' (bakåtkompatibelt med webben som inte skickar fält).
+      channel: (channel || 'Web') as any,
       shopperEmail: order.customerEmail ?? undefined,
       lineItems: buildLineItems(order),
       // Bara de metoder vi vill visa. 'klarna' = EN Klarna-rad (inte alla varianter);
