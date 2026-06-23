@@ -7,7 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
   Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2, Sparkles, Ticket, Tag,
-  Star, RotateCcw, Home, Briefcase, Plus, Trash2, Scale, Gift, Languages
+  Star, RotateCcw, Home, Briefcase, Plus, Trash2, Scale, Gift, Languages, MessageSquare, Info, FileText
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -22,7 +22,7 @@ import {
 } from "@/lib/platformSessionClient";
 import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
-import MobileFooterLinks from "@/components/MobileFooterLinks";
+import CollapsibleRow from "@/components/CollapsibleRow";
 // ReferralCard import removed — referral UI is disabled platform-wide.
 // Backend redeem-code endpoint stays intact for legacy URLs.
 import { useToast } from "@/components/Toast";
@@ -636,12 +636,12 @@ function ProfileContent() {
 
           {/* Header — kompakt */}
           <div className="text-center space-y-2">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-gold-500 mx-auto bg-gold-500/10 border border-gold-500/20">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-[var(--text-secondary)] mx-auto bg-[var(--bg-deep)] border border-[var(--border-muted)]">
               <Lock size={22} />
             </div>
             <h1 className="text-[22px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
               {hasVisited ? t("auth.welcomeBack.title.welcome") : t("auth.welcomeBack.title.create")}{" "}
-              <span className="text-gold-500">{hasVisited ? t("auth.welcomeBack.title.welcomeAccent") : t("auth.welcomeBack.title.createAccent")}</span>
+              <span style={{ color: "var(--text-primary)" }}>{hasVisited ? t("auth.welcomeBack.title.welcomeAccent") : t("auth.welcomeBack.title.createAccent")}</span>
             </h1>
           </div>
 
@@ -675,17 +675,17 @@ function ProfileContent() {
           <Link
             href="/orders"
             className="mt-2 w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl transition-all active:scale-[0.99]"
-            style={{ backgroundColor: "rgba(231,178,75,0.08)", border: "1px solid rgba(231,178,75,0.28)" }}
+            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
           >
             <span className="flex items-center gap-3">
-              <span className="w-9 h-9 rounded-xl bg-gold-500/15 text-gold-600 flex items-center justify-center shrink-0">
+              <span className="w-9 h-9 rounded-xl bg-[var(--bg-deep)] text-[var(--text-secondary)] flex items-center justify-center shrink-0">
                 <History size={18} />
               </span>
               <span className="text-[14px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
                 {t("profile.ordersSupport")}
               </span>
             </span>
-            <ChevronRight size={18} className="text-gold-500" />
+            <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
           </Link>
 
           {/* Viktiga sidor — Om oss + policys, alltid nåbara (även utan konto).
@@ -741,7 +741,7 @@ function ProfileContent() {
       <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
         <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-8">
           <div className="text-center space-y-3">
-            <div className="w-16 h-16 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500 mx-auto"><Phone size={28} /></div>
+            <div className="w-16 h-16 bg-[var(--bg-deep)] rounded-2xl flex items-center justify-center text-[var(--text-secondary)] mx-auto"><Phone size={28} /></div>
             <h2 className="text-[22px] font-bold tracking-tight">{t("profile.addPhone.title")}</h2>
             <p className="text-zinc-500 text-sm leading-relaxed">
               {t("profile.addPhone.sub")}
@@ -783,16 +783,16 @@ function ProfileContent() {
 
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-gold-gradient rounded-xl flex items-center justify-center text-zinc-950 font-bold text-xl shadow-lg">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-14 h-14 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 overflow-hidden" style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-primary)" }}>
               {user.image ? (
                 <img src={user.image} alt="" className="w-full h-full rounded-xl object-cover" />
               ) : (
                 user.name?.charAt(0)?.toUpperCase() || "U"
               )}
             </div>
-            <div>
-              <h1 className="text-[20px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{user.name}</h1>
+            <div className="min-w-0">
+              <h1 className="text-[20px] font-bold tracking-tight truncate" style={{ color: "var(--text-primary)" }}>{user.name}</h1>
               {user.isVerified ? (
                 <div className="flex items-center gap-1.5 mt-1 text-emerald-600">
                   <ShieldCheck size={14} />
@@ -806,9 +806,15 @@ function ProfileContent() {
               )}
             </div>
           </div>
-          <button onClick={handleLogout} className="p-3 text-zinc-400 hover:text-rose-500 rounded-2xl transition-all" style={{ backgroundColor: "var(--bg-deep)" }}>
-            <LogOut size={20} />
-          </button>
+          {/* Kontakt flyttad hit (uppe till höger) + utloggning. Monokroma ikoner. */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href="/contact" aria-label={t("nav.contact")} className="p-3 rounded-2xl transition-all active:scale-95" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
+              <MessageSquare size={20} />
+            </Link>
+            <button onClick={handleLogout} aria-label={t("profile.logout")} className="p-3 rounded-2xl transition-all active:scale-95 hover:text-rose-500" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
+              <LogOut size={20} />
+            </button>
+          </div>
         </div>
 
         {/*
@@ -928,7 +934,10 @@ function ProfileContent() {
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id as any); setIsEditing(false); }}
-              className={`flex flex-col items-center gap-1.5 py-4 rounded-2xl transition-all ${activeTab === tab.id ? "bg-gold-500/10 text-gold-600" : "text-zinc-400 hover:text-zinc-500"}`}
+              className={`flex flex-col items-center gap-1.5 py-4 rounded-2xl transition-all ${activeTab === tab.id ? "" : "hover:opacity-80"}`}
+              style={activeTab === tab.id
+                ? { backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }
+                : { color: "var(--text-secondary)" }}
             >
               <tab.icon size={18} />
               <span className="text-[8px] font-bold">{tab.label}</span>
@@ -1085,7 +1094,7 @@ function ProfileContent() {
                    <p className="text-[12px] font-medium text-zinc-500 px-2">{t("profile.deals.personalCodes")}</p>
                    {deals.map((deal: any) => (
                    <div key={deal.id} className="p-8 rounded-2xl bg-gold-500/5 border border-gold-500/10 shadow-sm relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/5 blur-2xl group-hover:bg-gold-500/10 transition-all" />
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-transparent" />
                       <div className="flex items-start justify-between mb-6">
                          <div className="flex-1 pr-4">
                             <div className="text-[12px] font-medium text-gold-600 mb-1">{deal.campaign.title}</div>
@@ -1174,7 +1183,7 @@ function ProfileContent() {
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-11 h-11 rounded-2xl bg-gold-500/10 text-gold-600 flex items-center justify-center">
+                  <div className="w-11 h-11 rounded-2xl bg-[var(--bg-deep)] text-[var(--text-secondary)] flex items-center justify-center">
                     <History size={20} />
                   </div>
                   <div>
@@ -1198,10 +1207,10 @@ function ProfileContent() {
                 <div className="rounded-2xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="w-full flex items-center justify-between p-6 hover:bg-gold-500/5 transition-all text-left rounded-2xl"
+                    className="w-full flex items-center justify-between p-6 hover:bg-black/[0.025] transition-all text-left rounded-2xl"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-gold-500/10 text-gold-500 rounded-xl flex items-center justify-center"><Settings size={18} /></div>
+                      <div className="w-10 h-10 bg-[var(--bg-deep)] text-[var(--text-secondary)] rounded-xl flex items-center justify-center"><Settings size={18} /></div>
                       <div>
                         <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>{t("profile.settings.editProfile")}</p>
                         <p className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.editProfileSub")}</p>
@@ -1259,41 +1268,30 @@ function ProfileContent() {
                 </div>
               </div>
 
-              {/* Juridiskt */}
-              <div className="space-y-2">
-                <div className="px-4 text-[12px] font-medium mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.legal2")}</div>
-                <div className="rounded-2xl shadow-sm divide-y" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", borderColor: "var(--border-muted)" }}>
-                  <Link
-                    href="/terms"
-                    className="w-full text-left p-6 flex items-center justify-between hover:bg-gold-500/5 transition-all rounded-t-[2.5rem]"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-gold-500/10 text-gold-500 flex items-center justify-center">
-                        <ShieldCheck size={18} />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.termsLong")}</p>
-                        <p className="text-[10px] font-medium" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.termsSub")}</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
-                  </Link>
-                  <Link
-                    href="/privacy"
-                    className="w-full text-left p-6 flex items-center justify-between hover:bg-gold-500/5 transition-all rounded-b-[2.5rem]"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-gold-500/10 text-gold-500 flex items-center justify-center">
-                        <Lock size={18} />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.privacy")}</p>
-                        <p className="text-[10px] font-medium" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.privacySub")}</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
-                  </Link>
-                </div>
+              {/* Information & villkor — Om oss, Kontakt och policy samlade i EN
+                  knapp (samma kollaps-mönster som kassan). */}
+              <div className="rounded-2xl px-4" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                <CollapsibleRow first label={t("profile.menu.info")} icon={<Info size={16} style={{ color: "var(--text-secondary)" }} />}>
+                  <div className="-mt-1">
+                    {[
+                      { href: "/about", label: t("nav.about"), icon: Info },
+                      { href: "/contact", label: t("nav.contact"), icon: MessageSquare },
+                      { href: "/privacy", label: t("profile.settings.privacy"), icon: Lock },
+                      { href: "/terms", label: t("profile.settings.termsLong"), icon: FileText },
+                    ].map((l) => {
+                      const LinkIcon = l.icon;
+                      return (
+                        <Link key={l.href} href={l.href} className="flex items-center justify-between py-2.5 active:opacity-70">
+                          <span className="flex items-center gap-3 min-w-0">
+                            <LinkIcon size={15} style={{ color: "var(--text-secondary)" }} />
+                            <span className="text-[14px] font-medium truncate" style={{ color: "var(--text-primary)" }}>{l.label}</span>
+                          </span>
+                          <ChevronRight size={15} style={{ color: "var(--text-secondary)" }} />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </CollapsibleRow>
               </div>
             </motion.div>
           )}
@@ -1307,7 +1305,7 @@ function ProfileContent() {
                   <p className="font-bold text-sm">{t("profile.orders.empty")}</p>
                 </div>
               ) : orders.map((order) => (
-                <div key={order.id} className="bg-[color:var(--bg-secondary)] border border-[color:var(--border-muted)] rounded-2xl p-6 hover:bg-gold-500/5 transition-all group">
+                <div key={order.id} className="bg-[color:var(--bg-secondary)] border border-[color:var(--border-muted)] rounded-2xl p-6 hover:bg-black/[0.025] transition-all group">
                   <Link href={`/order/${order.id}`} className="flex justify-between items-center">
                     <div>
                       <p className="font-bold text-sm">{order.restaurant?.name || t("profile.orders.fallbackName")}</p>
@@ -1506,10 +1504,6 @@ function ProfileContent() {
           )}
         </AnimatePresence>
 
-        {/* Om oss + Kontakt — mobil-knappar längst ner */}
-        <div className="mt-10">
-          <MobileFooterLinks />
-        </div>
       </div>
     </div>
 
