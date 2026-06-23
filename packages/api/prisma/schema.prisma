@@ -155,9 +155,11 @@ model Order {
   userDealAmountKr      Int?
   stripePaymentIntentId String?
   // Provider-neutral betalning. paymentProvider = aktiv PSP vid order-tid.
-  // Legacy-ordrar (Stripe) defaultar till "stripe"; nya skapas som "mollie".
+  // Legacy-ordrar (Stripe) defaultar till "stripe"; nya skapas som "adyen".
   paymentProvider       String      @default("stripe")
   molliePaymentId       String?
+  adyenSessionId        String?     // sätts vid /sessions (reconcile-uppslag)
+  adyenPspReference     String?     // backfillas av AUTHORISATION-webhooken (för refund)
   // 32-byte slumpad access-token för att tillåta gäst-bookmark/redirect-
   // åtkomst till order-tracking utan auth. Sätts vid order-skapande och
   // returneras till klienten EN gång. Användbar i 30 min (kollas i GET-
@@ -212,6 +214,7 @@ model Order {
   @@index([customerPhone])
   @@index([stripePaymentIntentId])
   @@index([molliePaymentId])
+  @@index([adyenPspReference])
   @@index([userId])
   @@index([appliedDealId])
   // Super-admin globala status-vyer (utan restaurantId) + abandoned-städning.

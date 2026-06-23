@@ -1,0 +1,43 @@
+/* Delivera "Silk" tema för Adyen Web Drop-in v6.
+   Importeras EFTER @adyen/adyen-web/styles/adyen.css. Scopad till .delivera-adyen.
+   Variabelnamnen är verifierade mot @adyen/adyen-web@6.40.0 (styles/adyen.css).
+   Tokens matchar apps/web/app/globals.css (guld #E7B24B, Inter, flat). */
+
+.delivera-adyen {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Text: mjuk-svart, inte rent svart */
+  --adyen-sdk-color-label-primary: #111113;
+  --adyen-sdk-color-label-secondary: #5c5c61;
+  --adyen-sdk-color-label-highlight: #8a6512; /* gold-ink: guld som läsbar text */
+  --adyen-sdk-color-label-critical: #dc2626;
+
+  /* Ytor: platt vitt */
+  --adyen-sdk-color-background-primary: #ffffff;
+  --adyen-sdk-color-background-secondary: #fbf4e4; /* vald metod-rad: svag guldton (gold-soft) */
+  --adyen-sdk-color-outline-primary: rgba(17, 17, 19, 0.14); /* --line-strong */
+  --adyen-sdk-color-outline-primary-active: #e7b24b; /* guld-fokus på inputs */
+
+  /* PRIMÄR PAY-KNAPP → guld med mörk text (verifierade button-tokens) */
+  --adyen-sdk-color-background-always-dark: #e7b24b;
+  --adyen-sdk-color-background-always-dark-active: #c28e2e; /* gold-600, nedtryckt */
+  --adyen-sdk-color-background-inverse-primary-hover: #c28e2e; /* hover */
+  --adyen-sdk-color-label-on-color: #141416; /* mörk text på guld (kontrast) */
+
+  /* Radier ~12-14px */
+  --adyen-sdk-border-radius-s: 8px;
+  --adyen-sdk-border-radius-m: 12px;
+  --adyen-sdk-border-radius-l: 14px;
+
+  /* Guld-fokusring istället för blå glow */
+  --adyen-sdk-focus-ring-color: rgba(231, 178, 75, 0.5);
+}
+
+/* FLAT: döda residual-skugga/glow Adyen lägger på metod-rader + knapp. */
+.delivera-adyen .adyen-checkout__payment-method,
+.delivera-adyen .adyen-checkout__button {
+  box-shadow: none !important;
+}
+.delivera-adyen .adyen-checkout__button:focus-visible {
+  box-shadow: 0 0 0 3px var(--adyen-sdk-focus-ring-color) !important;
+}

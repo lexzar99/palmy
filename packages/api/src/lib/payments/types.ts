@@ -35,10 +35,12 @@ export interface CreatePaymentArgs {
 }
 
 export interface CreatePaymentResult {
-  /** PSP-betalningens ID som länkas på ordern. */
+  /** PSP-referensen som länkas på ordern (Mollie: payment-id, Adyen: session-id). */
   paymentRef: string;
-  /** Hostad checkout att redirecta/öppna. Saknas om providern är helt embedded. */
+  /** Hostad checkout att redirecta/öppna (Mollie). Saknas för embeddade providers. */
   checkoutUrl?: string;
+  /** Embeddade providers (Adyen sessions): blob som klientens SDK monterar. Ömsesidigt uteslutande med checkoutUrl. */
+  session?: { id: string; sessionData: string };
 }
 
 export type RemotePaymentState = 'paid' | 'failed' | 'canceled' | 'expired' | 'open' | 'pending';

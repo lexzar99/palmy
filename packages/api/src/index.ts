@@ -176,6 +176,8 @@ app.use(requestLogger);
 // Stripe webhooks need raw body (RN-appens Stripe-flöde). Mollies webhook är
 // form-encoded (id=tr_…) och hanteras av den globala express.urlencoded nedan.
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+// Adyen-webhooken kräver rå body för HMAC-verifiering (annars konsumerar express.json den).
+app.use('/api/payments/webhooks/adyen', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Cookie-parser — för admin_token (HttpOnly) som middleware/auth.ts läser

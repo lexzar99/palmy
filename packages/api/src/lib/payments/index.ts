@@ -4,19 +4,21 @@
  */
 import type { PaymentProvider } from './types';
 import { mollieProvider } from './mollie';
+import { adyenProvider } from './adyen';
 
 export type { PaymentProvider } from './types';
 export type { OrderForPayment } from './types';
 
 export function getPaymentProvider(): PaymentProvider {
-  const name = (process.env.PAYMENT_PROVIDER || 'mollie').toLowerCase();
+  const name = (process.env.PAYMENT_PROVIDER || 'adyen').toLowerCase();
   switch (name) {
+    case 'adyen':
+      return adyenProvider;
     case 'mollie':
-      return mollieProvider;
-    // case 'adyen': return adyenProvider;   // byggs när Adyen-kontot finns
-    // case 'stripe': return stripeProvider; // gammal Stripe-kod ligger kvar, bortkommenterad
+      return mollieProvider; // ligger kvar inaktiv, behålls för jämförelse/återgång
+    // case 'stripe': return stripeProvider; // gammal Stripe-kod ligger kvar (RN), provider-stub ej byggd
     default:
-      console.warn(`[payments] okänd PAYMENT_PROVIDER "${name}" — faller tillbaka på mollie`);
-      return mollieProvider;
+      console.warn(`[payments] okänd PAYMENT_PROVIDER "${name}" — faller tillbaka på adyen`);
+      return adyenProvider;
   }
 }

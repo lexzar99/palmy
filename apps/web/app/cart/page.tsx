@@ -6,6 +6,7 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import { fetchDpointsMe } from "@/lib/dpoints";
 import EmptyState from "@/components/EmptyState";
+import AdyenDropin from "@/components/AdyenDropin";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
@@ -224,6 +225,8 @@ export default function CartPage() {
   useEffect(() => setMounted(true), []);
   const [error, setError] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  // När satt: visa Adyen Drop-in inline för denna order (komponenten hämtar sessionen).
+  const [adyenOrderId, setAdyenOrderId] = useState<string | null>(null);
   const idempotencyKey = useRef<string>(
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
@@ -1299,28 +1302,39 @@ export default function CartPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const mollieReturn = params.get("mollie_return");
+    const redirectResult = params.get("redirectResult");
     const storedOrderId = localStorage.getItem("pending_order_id");
 
-    // Mollie redirectar tillbaka hit efter checkout. Redirect är INTE bevis på
-    // betalning — order-tracking-sidan (/order/{id}) pollar backend och visar
-    // rätt status när webhook/reconcile finaliserat. Vi routar dit direkt med
-    // access-token + phone som auth-bevis så gäster kommer åt ordern.
-    if (!mollieReturn || !storedOrderId) return;
-
+    // Adyen redirect-metod (Swish/Klarna) returnerade hit med ?redirectResult.
+    // Montera Drop-in i resume-läge (den läser sessionen ur sessionStorage och
+    // kör submitDetails). När den är klar routar onCompleted till order-tracking.
+    if (!redirectResult || !storedOrderId) return;
     paymentInFlightRef.current = false;
-    const storedToken = localStorage.getItem("pending_order_token") || "";
+    setAdyenOrderId(storedOrderId);
+  }, []);
+
+  // Efter att Adyen-betalningen slutförts (kort: direkt; Swish/Klarna: efter
+  // redirect-retur). Redirect är inte bevis på betalning, order-tracking-sidan
+  // pollar backend och visar rätt status när webhooken finaliserat. Token+phone
+  // som auth-bevis så gäster kommer åt ordern.
+  const goToOrderTracking = (orderId: string) => {
+    paymentInFlightRef.current = false;
+    const storedToken = (typeof window !== "undefined" && localStorage.getItem("pending_order_token")) || "";
     const phone = (formData.customerPhone || "").trim();
     const qs = new URLSearchParams();
     if (storedToken) qs.set("token", storedToken);
     if (phone) qs.set("phone", phone);
-    const url = qs.toString() ? `/order/${storedOrderId}?${qs.toString()}` : `/order/${storedOrderId}`;
+    const url = qs.toString() ? `/order/${orderId}?${qs.toString()}` : `/order/${orderId}`;
     clearCart();
-    localStorage.removeItem("pending_order_id");
-    localStorage.removeItem("pending_order_token");
-    window.history.replaceState({}, "", window.location.pathname);
+    try {
+      localStorage.removeItem("pending_order_id");
+      localStorage.removeItem("pending_order_token");
+      sessionStorage.removeItem("adyen.session");
+    } catch {
+      /* noop */
+    }
     router.replace(url);
-  }, []);
+  };
 
   const buildOrderPayload = (paymentIntentId?: string) => {
     // Bake in dricks-anteckning till note/deliveryInstructions enligt RN-mönstret —
@@ -1693,22 +1707,15 @@ export default function CartPage() {
       if (orderToken) localStorage.setItem("pending_order_token", orderToken);
       setPendingOrderId(orderId);
 
-      // Step 2: Skapa Mollie-betalning + redirecta till hostad checkout.
-      // returnUrl = tillbaka till kassan med en flagga; redirect-recovery-
-      // effekten routar då till order-tracking som pollar backend tills PAID.
-      // paymentInFlight hindrar pagehide från att abandona ordern under redirect.
+      // Step 2: Visa Adyen Drop-in inline. Komponenten hämtar sessionen via
+      // backend /create och monterar betalningen på sidan (ingen full redirect
+      // för kort). Redirect-metoder (Swish/Klarna) återvänder via ?redirectResult.
+      // paymentInFlight hindrar pagehide från att abandona ordern under flödet.
       paymentInFlightRef.current = true;
-      const payRes = await axios.post(`${API_URL}/api/payments/create`, {
-        orderId,
-        returnUrl: `${window.location.origin}/cart?mollie_return=1`,
-      });
-      if (payRes.data?.checkoutUrl) {
-        window.location.href = payRes.data.checkoutUrl;
-        return;
-      }
-      // Inget checkoutUrl (oväntat) → låt ordern städas av cleanup, visa fel.
-      paymentInFlightRef.current = false;
-      throw new Error(t("cart.errors.paymentUnavailable"));
+      setAdyenOrderId(orderId);
+      setTimeout(() => {
+        document.getElementById("adyen-payment")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
     } catch (err: any) {
       setError(err.response?.data?.error || t("cart.errors.paymentUnavailable"));
     } finally {
@@ -2313,7 +2320,26 @@ export default function CartPage() {
               ogillade). Sticky-positionen följer dokumentscrollen istället. */}
           <div className="lg:sticky lg:top-24">
              <AnimatePresence mode="wait">
-               {(
+               {adyenOrderId ? (
+                  <motion.div key="adyen" id="adyen-payment" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} className="p-5 sm:p-7 rounded-2xl relative" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                     <div className="mb-5 flex items-center gap-2 text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+                        <CreditCard size={16} /> Betalning
+                     </div>
+                     <AdyenDropin
+                       orderId={adyenOrderId}
+                       returnUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/cart`}
+                       onCompleted={() => goToOrderTracking(adyenOrderId)}
+                       onFailed={() => setError("Betalningen gick inte igenom. Kontrollera kortuppgifterna eller välj ett annat betalsätt.")}
+                       onError={(m) => setError(m)}
+                     />
+                     <p className="mt-4 text-center text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                        Säker betalning. Dina kortuppgifter skickas krypterat och sparas aldrig hos oss.
+                     </p>
+                     <button type="button" onClick={() => { setAdyenOrderId(null); paymentInFlightRef.current = false; }} className="mt-3 w-full text-[13px] font-medium transition-colors" style={{ color: "var(--text-secondary)" }}>
+                        Tillbaka
+                     </button>
+                  </motion.div>
+               ) : (
                   <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-4 sm:p-5 rounded-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                       <div className="flex gap-1.5 p-1 rounded-xl mb-4" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          {(['DELIVERY', 'PICKUP'] as const).map(type => (

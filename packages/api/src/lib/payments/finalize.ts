@@ -35,7 +35,8 @@ export type FinalizeSuccessInput = {
 function refColumn(provider: PaymentProviderName, ref: string) {
   if (provider === 'mollie') return { molliePaymentId: ref };
   if (provider === 'stripe') return { stripePaymentIntentId: ref };
-  return {}; // adyen: pspReference-kolumn läggs till när vi bygger Adyen
+  if (provider === 'adyen') return { adyenPspReference: ref }; // pspReference (för refund)
+  return {};
 }
 
 /**

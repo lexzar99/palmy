@@ -10,9 +10,13 @@ import { getPaymentProvider } from './index';
 import { finalizePaymentSuccess, finalizePaymentFailed } from './finalize';
 
 /** PSP-referensen för en order beror på providern. */
-function refOf(order: { molliePaymentId: string | null; stripePaymentIntentId: string | null }, providerName: string) {
+function refOf(
+  order: { molliePaymentId: string | null; stripePaymentIntentId: string | null; adyenSessionId: string | null },
+  providerName: string,
+) {
   if (providerName === 'mollie') return order.molliePaymentId;
   if (providerName === 'stripe') return order.stripePaymentIntentId;
+  if (providerName === 'adyen') return order.adyenSessionId; // Adyen finaliserar via webhook; getRemoteStatus = 'pending'
   return null;
 }
 
@@ -28,7 +32,7 @@ export async function reconcilePendingPayments(): Promise<void> {
       paymentProvider: provider.name,
       createdAt: { lt: minAge, gt: maxAge },
     },
-    select: { id: true, orderNumber: true, molliePaymentId: true, stripePaymentIntentId: true },
+    select: { id: true, orderNumber: true, molliePaymentId: true, stripePaymentIntentId: true, adyenSessionId: true },
     take: 50,
   });
   if (pending.length === 0) return;

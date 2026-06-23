@@ -16,6 +16,7 @@ import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { getPaymentProvider, type OrderForPayment } from '../lib/payments';
 import { finalizePaymentSuccess, finalizePaymentFailed } from '../lib/payments/finalize';
+import { verifyAdyenHmac } from '../lib/payments/adyen';
 
 const router = Router();
 
@@ -90,16 +91,23 @@ router.post('/create', createLimiter, async (req, res) => {
       webhookUrl: publicWebhookUrl(),
     });
 
-    // Länka PSP-betalningen på ordern så webhook/reconcile hittar den.
+    // Länka PSP-referensen på ordern (provider-specifik kolumn) så webhook/reconcile hittar den.
+    const refData =
+      provider.name === 'adyen'
+        ? { adyenSessionId: result.paymentRef }
+        : provider.name === 'mollie'
+          ? { molliePaymentId: result.paymentRef }
+          : {};
     await prisma.order.update({
       where: { id: order.id },
-      data: { paymentProvider: provider.name, molliePaymentId: result.paymentRef },
+      data: { paymentProvider: provider.name, ...refData },
     }).catch((e: any) => console.error('[payments/create] kunde inte länka order:', e?.message));
 
     res.json({
       provider: provider.name,
       paymentRef: result.paymentRef,
-      checkoutUrl: result.checkoutUrl,
+      checkoutUrl: result.checkoutUrl, // Mollie: redirect-URL
+      session: result.session, // Adyen: { id, sessionData } för Drop-in
       total: order.total / 100,
       discountAmount: (order.discountAmount ?? 0) / 100,
     });
@@ -137,6 +145,57 @@ router.post('/webhooks/mollie', async (req, res) => {
   res.status(200).json({ received: true });
 });
 
+// POST /api/payments/webhooks/adyen — Adyen standard-webhook (HMAC-signerad JSON).
+// Sanningskällan för Adyen. Rå body monteras i index.ts före express.json.
+router.post('/webhooks/adyen', async (req, res) => {
+  let body: any;
+  try {
+    body = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString('utf8')) : req.body;
+  } catch {
+    res.status(200).send('[accepted]');
+    return;
+  }
+  const items = body?.notificationItems;
+  if (!Array.isArray(items)) {
+    res.status(200).send('[accepted]');
+    return;
+  }
+  for (const wrap of items) {
+    const item = wrap?.NotificationRequestItem;
+    if (!item) continue;
+    // HMAC: avvisa förfalskade/manipulerade items (men svara ändå [accepted] på slutet).
+    if (!verifyAdyenHmac(item)) {
+      console.warn('[adyen webhook] HMAC-mismatch — hoppar item', item?.pspReference);
+      continue;
+    }
+    try {
+      const order = await prisma.order.findFirst({
+        where: { orderNumber: item.merchantReference },
+        select: { id: true },
+      });
+      if (!order) continue;
+      const success = item.success === 'true' || item.success === true;
+      const psp = item.pspReference as string;
+      const amountOre = item?.amount?.value ?? 0;
+      if (item.eventCode === 'AUTHORISATION') {
+        if (success) {
+          // ref=psp → finalize skriver adyenPspReference (för framtida refund).
+          await finalizePaymentSuccess(order.id, { provider: 'adyen', ref: psp, amountReceivedOre: amountOre });
+        } else {
+          await finalizePaymentFailed(order.id, { provider: 'adyen', ref: psp, reason: 'refused' });
+        }
+      } else if (item.eventCode === 'CANCELLATION' || item.eventCode === 'EXPIRE') {
+        await finalizePaymentFailed(order.id, { provider: 'adyen', ref: psp, reason: String(item.eventCode).toLowerCase() });
+      }
+      // REFUND / REFUND_FAILED: kan kopplas till refund-statusspårning senare.
+    } catch (e: any) {
+      console.error('[adyen webhook] item-fel:', e?.message);
+    }
+  }
+  // Adyen kräver EXAKT detta svar, annars retryas webhooken.
+  res.status(200).send('[accepted]');
+});
+
 // GET /api/payments/status/:orderId — klient pollar efter redirect.
 router.get('/status/:orderId', async (req, res) => {
   const order = await prisma.order.findUnique({
@@ -160,14 +219,15 @@ router.post('/refund', authenticate, requireSuperAdmin, async (req, res) => {
     }
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, molliePaymentId: true, total: true, paymentStatus: true },
+      select: { id: true, molliePaymentId: true, adyenPspReference: true, total: true },
     });
-    if (!order || !order.molliePaymentId) {
+    const provider = getPaymentProvider();
+    const ref = provider.name === 'adyen' ? order?.adyenPspReference : order?.molliePaymentId;
+    if (!order || !ref) {
       res.status(404).json({ error: 'Order eller betalning hittades inte' });
       return;
     }
-    const provider = getPaymentProvider();
-    const { refundRef } = await provider.refund(order.molliePaymentId, typeof amountOre === 'number' ? amountOre : undefined);
+    const { refundRef } = await provider.refund(ref, typeof amountOre === 'number' ? amountOre : undefined);
     await prisma.order.update({
       where: { id: order.id },
       data: {
