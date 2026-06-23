@@ -1814,11 +1814,7 @@ export default function CartPage() {
   // min-order-bannern. Nu EN definition per block — samma state/handlers,
   // bara olika placering i layouten.
   const renderAccountDeals = () => accountDeals.length > 0 && (
-    <div className="space-y-2.5">
-      <p className="text-[13px] font-medium mb-1" style={{ color: "var(--text-secondary)" }}>
-        <Gift size={11} className="inline mr-1.5 text-gold-500" />
-        {t("cart.discount.rewardsTitle")}
-      </p>
+    <div className="space-y-2">
       {accountDeals.map((d) => {
         const min = d.minOrderKr ?? 0;
         const meetsMin = subtotal >= min;
@@ -1834,62 +1830,61 @@ export default function CartPage() {
               if (isActive) { setSelectedAccountDealId(null); }
               else { setSelectedAccountDealId(d.id); setSelectedPersonalDeal(null); setPromoCodeInput(""); }
             }}
-            className={`w-full flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition-all text-left ${disabled ? "opacity-40 cursor-not-allowed" : "hover:brightness-110 active:scale-[0.98]"}`}
+            className={`w-full flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-all text-left ${disabled ? "opacity-40 cursor-not-allowed" : "active:scale-[0.99]"}`}
             style={{
-              backgroundColor: isActive ? "rgba(231,178,75,0.18)" : "var(--bg-deep)",
-              borderColor: isActive ? "rgba(231,178,75,0.5)" : "var(--border-muted)",
+              backgroundColor: isActive ? "var(--gold-soft)" : "var(--bg-deep)",
+              borderColor: isActive ? "rgba(231,178,75,0.45)" : "var(--border-muted)",
             }}
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all ${isActive ? "bg-gold-500 text-zinc-950" : "bg-gold-500/10 text-gold-500"}`}>
-                {isActive ? <Check size={16} strokeWidth={3} /> : <Gift size={16} />}
-              </div>
+            <div className="flex items-center gap-2.5 min-w-0">
+              {isActive ? <Check size={16} strokeWidth={2.5} style={{ color: "var(--gold-ink)" }} className="shrink-0" /> : <Gift size={16} style={{ color: "var(--text-secondary)" }} className="shrink-0" />}
               <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-gold-500 truncate">
+                <p className="text-[13px] font-medium truncate" style={{ color: isActive ? "var(--gold-ink)" : "var(--text-primary)" }}>
                   {isActive ? t("cart.discount.activeReward") : t("cart.discount.useReward", { type: dealTypeLabel(d.type, t), label: formatDealLabel(d, t) })}
                 </p>
                 {!meetsMin && min > 0 && (
-                  <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                  <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
                     {t("cart.discount.minOrderRequired", { min })}
                   </p>
                 )}
                 {blockedByPromo && meetsMin && (
-                  <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                  <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
                     {t("cart.discount.blockedByPromo")}
                   </p>
                 )}
               </div>
             </div>
-            <span className="text-[11px] font-bold text-gold-500 shrink-0">
-              -{computeDealAmountKr(d, subtotal, deliveryFee)} {t("common.kr")}
+            <span className="text-[12px] font-medium shrink-0" style={{ color: isActive ? "var(--gold-ink)" : "var(--text-secondary)" }}>
+              −{computeDealAmountKr(d, subtotal, deliveryFee)} {t("common.kr")}
             </span>
           </button>
         );
       })}
-      <div className="flex items-center gap-3 pt-1">
+      <div className="flex items-center gap-3 pt-0.5">
         <div className="flex-1 h-px" style={{ background: "var(--border-muted)" }} />
-        <span className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{t("cart.discount.or")}</span>
+        <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>{t("cart.discount.or")}</span>
         <div className="flex-1 h-px" style={{ background: "var(--border-muted)" }} />
       </div>
     </div>
   );
 
   const renderPromoInput = () => (
-    <div className={`relative group flex items-center transition-all ${selectedAccountDealId ? "opacity-40 pointer-events-none" : ""}`}>
-      <Tag size={16} className="absolute left-6 text-gold-500/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
+    <div className={`relative flex items-center transition-all ${selectedAccountDealId ? "opacity-40 pointer-events-none" : ""}`}>
+      <Tag size={15} className="absolute left-4 pointer-events-none" style={{ color: "var(--text-secondary)" }} />
       <input
         value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput}
         onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); }}
         disabled={!!selectedAccountDealId}
-        className="w-full border rounded-2xl py-5 pl-14 pr-24 text-[13px] font-semibold placeholder:text-zinc-400 outline-none transition-all disabled:cursor-not-allowed"
-        style={{ backgroundColor: "var(--bg-deep)", borderColor: selectedPersonalDeal ? "rgba(16,185,129,0.4)" : "var(--border-muted)", color: selectedPersonalDeal ? "#34d399" : "var(--text-primary)" }}
+        className="w-full border rounded-xl h-12 pl-11 pr-24 text-[14px] font-medium outline-none transition-all disabled:cursor-not-allowed"
+        style={{ backgroundColor: "var(--bg-deep)", borderColor: selectedPersonalDeal ? "rgba(231,178,75,0.45)" : "var(--border-muted)", color: selectedPersonalDeal ? "var(--gold-ink)" : "var(--text-primary)" }}
         placeholder={selectedAccountDealId ? t("cart.discount.promoBlockedByReward") : selectedPersonalDeal ? t("cart.discount.promoApplied") : t("cart.discount.promoPlaceholder")}
       />
       <button
         type="button"
         disabled={!!selectedAccountDealId}
         onClick={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCodeInput(""); } : handleApplyPromo}
-        className={`absolute right-3 px-6 py-3 rounded-xl text-[13px] font-medium transition-all disabled:cursor-not-allowed ${selectedPersonalDeal ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20" : "bg-gold-500/10 text-gold-600 hover:bg-gold-500 hover:text-zinc-950"}`}
+        className="absolute right-2 px-4 h-9 rounded-lg text-[13px] font-medium transition-all disabled:cursor-not-allowed active:scale-95"
+        style={selectedPersonalDeal ? { color: "#C0392B" } : { color: "var(--text-primary)" }}
       >
         {selectedPersonalDeal ? t("cart.discount.promoRemove") : t("cart.discount.promoCheck")}
       </button>
@@ -2062,7 +2057,7 @@ export default function CartPage() {
                   : t("cart.deliveryType.pickup")}
               </p>
            </div>
-           <Link href={cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/menu"} className="text-[13.5px] font-semibold text-gold-600 hover:text-gold-700 transition-colors flex items-center gap-1.5 mb-1 group shrink-0 ml-3">
+           <Link href={cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/menu"} className="text-[13.5px] font-semibold transition-colors flex items-center gap-1.5 mb-1 group shrink-0 ml-3 hover:opacity-70" style={{ color: "var(--text-primary)" }}>
               {t("cart.addMore")} <Plus size={14} className="group-hover:rotate-90 transition-transform" />
            </Link>
         </div>
@@ -2116,13 +2111,13 @@ export default function CartPage() {
 
         {/* Login prompt — soft, not blocking (guest can still order) */}
         {!user && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl mb-6 border border-gold-500/20 bg-gold-500/5 px-4 py-3 flex items-center gap-3">
-            <UserIcon size={15} className="text-gold-500 shrink-0" />
-            <p className="flex-1 text-[10px] font-bold text-zinc-500 leading-snug">
-              <span className="text-gold-600 font-bold">{t("cart.loginPrompt.cta")}</span> {t("cart.loginPrompt.body")}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl mb-6 border px-4 py-3 flex items-center gap-3" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)" }}>
+            <UserIcon size={15} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+            <p className="flex-1 text-[10px] font-bold leading-snug" style={{ color: "var(--text-secondary)" }}>
+              <span className="font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.loginPrompt.cta")}</span> {t("cart.loginPrompt.body")}
             </p>
             <div className="flex gap-2 shrink-0">
-              <Link href="/profile" className="px-3 py-1.5 bg-gold-500 text-zinc-950 rounded-xl font-bold text-[9px] active:scale-95 transition-all">
+              <Link href="/profile" className="px-3 py-1.5 rounded-xl font-bold text-[9px] active:scale-95 transition-all" style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-primary)" }}>
                 {t("cart.loginPrompt.cta")}
               </Link>
               <Link href="/register" className="px-3 py-1.5 border rounded-xl font-bold text-[9px] active:scale-95 transition-all" style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>
@@ -2151,10 +2146,10 @@ export default function CartPage() {
                   <div className="flex items-center gap-1.5 px-2 py-1 rounded-full shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                     <button
                       onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }}
-                      className="w-6 h-6 rounded-full flex items-center justify-center hover:text-gold-600 active:scale-90 transition-all" style={{ color: "var(--text-secondary)" }}
-                      aria-label="Minska antal"
+                      className="w-6 h-6 rounded-full flex items-center justify-center active:scale-90 transition-all hover:opacity-100" style={{ color: "var(--text-secondary)" }}
+                      aria-label={item.quantity === 1 ? "Ta bort" : "Minska antal"}
                     >
-                      <Minus size={13} strokeWidth={2.5} />
+                      {item.quantity === 1 ? <Trash2 size={13} strokeWidth={2.2} /> : <Minus size={13} strokeWidth={2.5} />}
                     </button>
                     <span className="text-[13px] font-bold w-3 text-center" style={{ color: "var(--text-primary)" }}>{item.quantity}</span>
                     <button
@@ -2165,7 +2160,7 @@ export default function CartPage() {
                         }
                         updateQuantity(item.cartItemId, 1);
                       }}
-                      className="w-6 h-6 rounded-full flex items-center justify-center hover:text-gold-600 active:scale-90 transition-all" style={{ color: "var(--text-secondary)" }}
+                      className="w-6 h-6 rounded-full flex items-center justify-center active:scale-90 transition-all hover:opacity-70" style={{ color: "var(--text-primary)" }}
                       aria-label="Öka antal"
                     >
                       <Plus size={13} strokeWidth={2.5} />
@@ -2227,17 +2222,17 @@ export default function CartPage() {
                   {orderType === 'DELIVERY' && !isPointsOnlyOrder && (
                     <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
                       <span>{t("cart.summary.deliveryFee")}</span>
-                      <span className="text-gold-500">{addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${deliveryFee.toFixed(0)} ${t("common.sek")}`}</span>
+                      <span style={{ color: "var(--text-primary)" }}>{addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${deliveryFee.toFixed(0)} ${t("common.sek")}`}</span>
                     </div>
                   )}
                   {orderType === 'DELIVERY' && isPointsOnlyOrder && (
                     <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
                       <span>{t("cart.summary.courierCost")}</span>
-                      <span className="text-gold-500">{courierCostKr.toFixed(0)} {t("common.sek")}</span>
+                      <span style={{ color: "var(--text-primary)" }}>{courierCostKr.toFixed(0)} {t("common.sek")}</span>
                     </div>
                   )}
-                  {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-semibold text-gold-500"><span>{t("cart.summary.tip")}</span><span>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
-                  {minOrderTopUp > 0 && <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span className="text-gold-500">+{minOrderTopUp.toFixed(0)} {t("common.sek")}</span></div>}
+                  {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.tip")}</span><span style={{ color: "var(--text-primary)" }}>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
+                  {minOrderTopUp > 0 && <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span style={{ color: "var(--text-primary)" }}>+{minOrderTopUp.toFixed(0)} {t("common.sek")}</span></div>}
                   {finalDiscount > 0 && (
                     <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                       <span>{t("cart.summary.discount")}</span>
@@ -2437,23 +2432,22 @@ export default function CartPage() {
                          initial={{ opacity: 0, y: 6 }}
                          animate={{ opacity: 1, y: 0 }}
                          onClick={() => setShowBogoPicker(true)}
-                         className="mt-6 w-full rounded-2xl border px-4 py-3.5 text-left transition-all hover:brightness-[1.04] active:scale-[0.99]"
+                         className="mt-6 w-full rounded-2xl border px-4 py-3.5 text-left transition-all hover:brightness-[0.99] active:scale-[0.99]"
                          style={{
-                           background: "linear-gradient(150deg, rgba(231,178,75,0.14) 0%, rgba(231,178,75,0.05) 100%)",
-                           borderColor: "var(--color-gold-500, #E7B24B)",
-                           boxShadow: "0 2px 16px rgba(200,154,60,0.18)",
+                           background: "var(--gold-soft)",
+                           borderColor: "rgba(231,178,75,0.22)",
                          }}
                        >
                          <div className="flex items-center justify-between gap-2">
                            <div className="flex items-center gap-3 min-w-0">
                              <span
                                className="shrink-0 w-9 h-9 rounded-xl grid place-items-center"
-                               style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", boxShadow: "0 2px 8px rgba(200,154,60,0.3)" }}
+                               style={{ backgroundColor: "rgba(231,178,75,0.16)" }}
                              >
-                               <Gift size={17} className="text-zinc-900" strokeWidth={2.3} />
+                               <Gift size={17} strokeWidth={2.3} style={{ color: "var(--gold-ink)" }} />
                              </span>
                              <div className="min-w-0">
-                               <p className="text-[12.5px] font-semibold text-gold-600">
+                               <p className="text-[12.5px] font-semibold" style={{ color: "var(--gold-ink)" }}>
                                  {bogoPickedCount > 0
                                    ? (bogoPicksRemaining === 1
                                        ? t("cart.bogo.pickMoreOne")
@@ -2472,8 +2466,8 @@ export default function CartPage() {
                              </div>
                            </div>
                            <span
-                             className="shrink-0 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-medium"
-                             style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e" }}
+                             className="shrink-0 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-semibold"
+                             style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-primary)" }}
                            >
                              {t("cart.bogo.choose")} <ArrowRight size={12} strokeWidth={3} />
                            </span>
@@ -2524,17 +2518,18 @@ export default function CartPage() {
                          initial={{ opacity: 0, y: 6 }}
                          animate={{ opacity: 1, y: 0 }}
                          className="mt-6 rounded-2xl border px-4 py-3"
-                         style={{ background: "rgba(234,181,69,0.08)", borderColor: "rgba(234,181,69,0.22)" }}
+                         style={{ background: "var(--bg-deep)", borderColor: "var(--border-muted)" }}
                        >
                          <div className="flex items-center justify-between gap-2 mb-2">
-                           <p className="text-[13px] font-medium text-gold-500">
+                           <p className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>
                              {t("cart.dealNudge.remaining", { amount: dealNudge.missing.toFixed(0), reward: formatDealReward(dealNudge.deal) })}
                            </p>
-                           <Tag size={12} className="text-gold-500 shrink-0" />
+                           <Tag size={12} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
                          </div>
-                         <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+                         <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--border-muted)" }}>
                            <motion.div
-                             className="h-full rounded-full bg-gold-500"
+                             className="h-full rounded-full"
+                             style={{ backgroundColor: "var(--text-primary)" }}
                              initial={{ width: 0 }}
                              animate={{ width: `${Math.min((subtotal / dealNudge.deal.minOrder) * 100, 100)}%` }}
                              transition={{ duration: 0.5, ease: "easeOut" }}
@@ -2561,7 +2556,7 @@ export default function CartPage() {
                         {orderType === 'DELIVERY' && !isPointsOnlyOrder && (
                           <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
                             <span>{t("cart.summary.deliveryFee")}</span>
-                            <span className="text-gold-500">
+                            <span style={{ color: "var(--text-primary)" }}>
                               {addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${deliveryFee.toFixed(0)} ${t("common.sek")}`}
                             </span>
                           </div>
@@ -2569,11 +2564,11 @@ export default function CartPage() {
                         {orderType === 'DELIVERY' && isPointsOnlyOrder && (
                           <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
                             <span>{t("cart.summary.courierCost")}</span>
-                            <span className="text-gold-500">{courierCostKr.toFixed(0)} {t("common.sek")}</span>
+                            <span style={{ color: "var(--text-primary)" }}>{courierCostKr.toFixed(0)} {t("common.sek")}</span>
                           </div>
                         )}
-                        {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-semibold text-gold-500"><span>{t("cart.summary.tip")}</span><span>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
-                        {minOrderTopUp > 0 && <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span className="text-gold-500">+{minOrderTopUp.toFixed(0)} {t("common.sek")}</span></div>}
+                        {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.tip")}</span><span style={{ color: "var(--text-primary)" }}>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
+                        {minOrderTopUp > 0 && <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span style={{ color: "var(--text-primary)" }}>+{minOrderTopUp.toFixed(0)} {t("common.sek")}</span></div>}
                         {(() => {
                           // Display-källan ska matcha vad som FAKTISKT appliceras
                           // på totalen. Tidigare visades bogoPreview-raden så
