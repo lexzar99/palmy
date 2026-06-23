@@ -148,7 +148,7 @@ function CartCollapsibleRow({
           <span className="text-[14.5px] font-semibold" style={{ color: "var(--text-primary)" }}>{label}</span>
         </span>
         <span className="flex items-center gap-2 shrink-0">
-          {hint && <span className="text-[13px] font-medium" style={{ color: "var(--gold-ink)" }}>{hint}</span>}
+          {hint && <span className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{hint}</span>}
           <ChevronDown size={16} strokeWidth={2} className="transition-transform" style={{ color: "var(--text-secondary)", transform: open ? "rotate(180deg)" : "none" }} />
         </span>
       </button>
@@ -838,6 +838,12 @@ export default function CartPage() {
         const t = Math.ceil(Math.max(0, subtotal + effectiveDeliveryFee + minOrderTopUp + effectiveTip - finalDiscount));
         return items.some((i) => i.paidWithPoints) && t < 5 ? 5 : t;
       })();
+
+  // Moms enligt restaurangens EGEN momssats (aldrig hårdkodad). Totalen är
+  // momsinklusive → vi extraherar andelen. Raden visas när restaurangen har
+  // en momssats satt (vilket den alltid har i prod via restaurang-API:t).
+  const vatPercent = restaurantSettings.vatPercent;
+  const vatAmount = typeof vatPercent === "number" ? total * vatPercent / (100 + vatPercent) : 0;
 
   const fetchContext = useCallback(async () => {
     try {
@@ -1873,7 +1879,7 @@ export default function CartPage() {
               onClick={() => { setShowCustomTipInput(false); setCustomTipText(""); setTipAmount(amt); }}
               className="py-2.5 rounded-xl text-[13px] font-semibold border transition-all active:scale-95"
               style={isActive
-                ? { backgroundColor: "var(--color-gold-500, #E7B24B)", borderColor: "var(--color-gold-500, #E7B24B)", color: "#141416" }
+                ? { backgroundColor: "var(--text-primary)", borderColor: "var(--text-primary)", color: "var(--bg-primary)" }
                 : { backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
             >
               {amt === 0 ? t("cart.tip.none") : `+${amt}`}
@@ -2069,24 +2075,6 @@ export default function CartPage() {
           )}
         </AnimatePresence>
 
-        {/* Login prompt — soft, not blocking (guest can still order) */}
-        {!user && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl mb-6 border px-4 py-3 flex items-center gap-3" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)" }}>
-            <UserIcon size={15} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-            <p className="flex-1 text-[10px] font-bold leading-snug" style={{ color: "var(--text-secondary)" }}>
-              <span className="font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.loginPrompt.cta")}</span> {t("cart.loginPrompt.body")}
-            </p>
-            <div className="flex gap-2 shrink-0">
-              <Link href="/profile" className="px-3 py-1.5 rounded-xl font-bold text-[9px] active:scale-95 transition-all" style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-primary)" }}>
-                {t("cart.loginPrompt.cta")}
-              </Link>
-              <Link href="/register" className="px-3 py-1.5 border rounded-xl font-bold text-[9px] active:scale-95 transition-all" style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>
-                {t("cart.loginPrompt.account")}
-              </Link>
-            </div>
-          </motion.div>
-        )}
-
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_480px] gap-4 lg:gap-8 items-start">
           {/* Cart items list — kompakta en-rad-kort. Vänster kolumn växer
               med tillgänglig bredd; höger sidebar har fast bredd och blir
@@ -2214,12 +2202,12 @@ export default function CartPage() {
                       <span>{t("cart.summary.discountPendingMin", { defaultValue: "Aktiveras vid {{amount}} kr", amount: (selectedAccountDeal.minOrderKr ?? 0).toFixed(0) })}</span>
                     </div>
                   )}
-                  {restaurantSettings.vatPercent ? (
+                  {typeof vatPercent === "number" && (
                     <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                      <span>{t("cart.summary.vat", { percent: restaurantSettings.vatPercent })}</span>
-                      <span>{(total * restaurantSettings.vatPercent / (100 + restaurantSettings.vatPercent)).toFixed(0)} {t("common.sek")}</span>
+                      <span>{t("cart.summary.vat", { percent: vatPercent })}</span>
+                      <span>{vatAmount.toFixed(0)} {t("common.sek")}</span>
                     </div>
-                  ) : null}
+                  )}
                   <div className="flex justify-between items-center mt-5 pt-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
                     <span className="text-[16px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
                     <span className="text-[20px] font-bold" style={{ color: "var(--gold-ink)", fontVariantNumeric: "tabular-nums" }}>{total.toFixed(0)} {t("common.sek")}</span>
@@ -2235,16 +2223,6 @@ export default function CartPage() {
                       <Link href="/profile" className="underline hover:opacity-70" style={{ color: "var(--text-primary)" }}>{t("cart.guest.loginLink")}</Link>{" "}
                       {t("cart.guest.bannerSuffix")}
                     </p>
-                  </div>
-                )}
-
-                {/* Zone status */}
-                {addressZoneStatus === "error" && orderType === "DELIVERY" && (
-                  <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center shrink-0">
-                      <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="white" strokeWidth="1.8" strokeLinecap="round"/></svg>
-                    </div>
-                    <p className="text-[10px] font-bold text-rose-400 leading-snug">{t("cart.errors.zoneSummary")}</p>
                   </div>
                 )}
 
@@ -2626,19 +2604,17 @@ export default function CartPage() {
                           }
                           return null;
                         })()}
-                        {restaurantSettings.vatPercent ? (
+                        {typeof vatPercent === "number" && (
                           <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                            <span>{t("cart.summary.vat", { percent: restaurantSettings.vatPercent })}</span>
-                            <span>{(total * restaurantSettings.vatPercent / (100 + restaurantSettings.vatPercent)).toFixed(0)} {t("common.sek")}</span>
+                            <span>{t("cart.summary.vat", { percent: vatPercent })}</span>
+                            <span>{vatAmount.toFixed(0)} {t("common.sek")}</span>
                           </div>
-                        ) : null}
+                        )}
                         <div className="flex justify-between items-center mt-6">
                            <span className="text-[16px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
                            <span className="text-[22px] font-bold tracking-tight leading-none" style={{ color: "var(--gold-ink)", fontVariantNumeric: "tabular-nums" }}>{total.toFixed(0)} <span className="text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span></span>
                         </div>
                      </div>
-
-                    {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">{error}</motion.div>}
 
                       {/* Guest info banner — not blocking, just informative */}
                       {!user && (
@@ -2654,17 +2630,8 @@ export default function CartPage() {
                         </div>{/* end lg:hidden mobile-only extras */}
                      </div>{/* end space-y-8 */}
 
-                     {/* Mobile: zone error + checkout (desktop has these in left column) */}
+                     {/* Mobile: checkout (desktop has this in left column) */}
                      <div className="lg:hidden">
-                       {addressZoneStatus === "error" && orderType === "DELIVERY" && (
-                         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3">
-                           <div className="w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center shrink-0">
-                             <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="white" strokeWidth="1.8" strokeLinecap="round"/></svg>
-                           </div>
-                           <p className="text-[10px] font-bold text-rose-400 leading-snug">{t("cart.errors.zoneSummary")}</p>
-                         </motion.div>
-                       )}
-
                        {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">{error}</motion.div>}
 
                        {/* Sticky på mobil: knappen följer med ovanför bottennaven
