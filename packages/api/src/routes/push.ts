@@ -17,8 +17,9 @@ const router = Router();
 
 router.get('/public-key', (_req, res) => {
   const key = getVapidPublicKey();
-  if (!key) return res.status(404).json({ error: 'Push är inte konfigurerat' });
-  res.json({ key });
+  // 200 med key:null (inte 404) när VAPID saknas — klienten tolkar null som
+  // "push avstängt" och visar ingen toggle, utan att skräpa ned konsolen med 404.
+  res.json({ key: key || null });
 });
 
 router.post('/subscribe', (req, res) => {

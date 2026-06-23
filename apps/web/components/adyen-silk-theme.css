@@ -55,6 +55,7 @@
    Dölj Adyens färgade brand-loggor + kort-badges, injicera rena monokroma
    SVG-ikoner per metod via ::before på metod-namnet. Modernt och enhetligt. */
 .delivera-adyen .adyen-checkout__payment-method__image,
+.delivera-adyen .adyen-checkout__payment-method__image__wrapper,
 .delivera-adyen .adyen-checkout__payment-method__brands {
   display: none !important;
 }
