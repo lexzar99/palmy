@@ -103,6 +103,9 @@ export default function AdyenDropin({ orderId, returnUrl, onCompleted, onFailed,
           await checkout.submitDetails({ details: { redirectResult } });
         } else {
           dropin = new Dropin(checkout, {
+            // Öppna INTE första metoden automatiskt → alla metoder visas som en
+            // lista (kort/Klarna/Swish), ingen förvald, så kunden ser alla val.
+            openFirstPaymentMethod: false,
             paymentMethodComponents: [Card, Klarna, Swish, ApplePay, GooglePay],
             paymentMethodsConfiguration: {
               card: { hasHolderName: true, holderNameRequired: true },
