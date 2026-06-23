@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import axios from "axios";
 import { Home, Heart, ShoppingBag, User } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
@@ -97,15 +98,22 @@ const BottomNav = () => {
                 {item.label}
               </span>
             </div>
-            {/* Cart-antal */}
-            {item.count !== undefined && item.count > 0 && (
-              <span
-                className="absolute top-1.5 right-[calc(50%-20px)] z-20 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
-                style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#141416" }}
-              >
-                {item.count}
-              </span>
-            )}
+            {/* Cart-antal — springer till vid varje ändring (wow vid "lägg till"). */}
+            <AnimatePresence>
+              {item.count !== undefined && item.count > 0 && (
+                <motion.span
+                  key={item.count}
+                  initial={{ scale: 0.4, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.4, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 700, damping: 18 }}
+                  className="absolute top-1.5 right-[calc(50%-20px)] z-20 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+                  style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#141416" }}
+                >
+                  {item.count}
+                </motion.span>
+              )}
+            </AnimatePresence>
             {/* Dpoints-saldo på Profil */}
             {item.href === "/profile" && dpoints?.enabled && dpoints.balance > 0 && (
               <span

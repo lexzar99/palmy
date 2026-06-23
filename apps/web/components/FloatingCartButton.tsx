@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ShoppingBag } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
@@ -35,7 +35,23 @@ const FloatingCartButton = () => {
         style={{ color: "#141416", boxShadow: "0 2px 12px rgba(20,20,22,0.18)" }}
       >
         <span className="flex items-center gap-2.5 min-w-0">
-          <ShoppingBag size={16} strokeWidth={2} className="shrink-0" />
+          <span className="relative shrink-0">
+            <ShoppingBag size={16} strokeWidth={2} />
+            {/* Antals-chip springer till vid varje "lägg till" — den lilla wow-känslan. */}
+            <AnimatePresence>
+              <motion.span
+                key={count}
+                initial={{ scale: 0.3, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.3, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 700, damping: 18 }}
+                className="absolute -top-2 -right-2 min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold flex items-center justify-center"
+                style={{ backgroundColor: "#141416", color: "var(--color-gold-500, #E7B24B)" }}
+              >
+                {count}
+              </motion.span>
+            </AnimatePresence>
+          </span>
           <span className="text-[15px] font-semibold truncate">{t("menu.viewCart")}</span>
         </span>
         <span className="text-[15px] font-semibold shrink-0" style={{ fontVariantNumeric: "tabular-nums" }}>
