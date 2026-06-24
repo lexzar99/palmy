@@ -2,8 +2,36 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
+import supabaseAdmin from '../lib/supabase';
 
 const router = Router();
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const normPhone = (p?: string | null) => (p || '').replace(/[^\d]/g, '');
+
+// Radera även Supabase-auth-användaren när admin tar bort en kund — annars blir
+// det en orphan (Google- eller telefon-användare) som blockerar framtida signup
+// med samma nummer/e-post ("user with this number already exists"). Best-effort.
+async function deleteSupabaseAuthUser(u: { id: string; email: string | null; phone: string | null; oauthId: string | null }) {
+  if (!supabaseAdmin) return;
+  try {
+    // Supabase-uid finns antingen som vår User.id (authenticateUser-skapad) eller
+    // som oauthId (oauth-token-skapad). Annars: slå upp via e-post/telefon.
+    let sbId: string | null = UUID_RE.test(u.id) ? u.id : (u.oauthId && UUID_RE.test(u.oauthId) ? u.oauthId : null);
+    if (!sbId && (u.email || u.phone)) {
+      const { data } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
+      const match = ((data?.users as any[]) || []).find(
+        (su: any) =>
+          (u.email && su.email?.toLowerCase() === u.email.toLowerCase()) ||
+          (u.phone && su.phone && normPhone(su.phone) === normPhone(u.phone)),
+      );
+      sbId = match?.id ?? null;
+    }
+    if (sbId) await supabaseAdmin.auth.admin.deleteUser(sbId);
+  } catch (e: any) {
+    console.error('[delete customer] Supabase cascade failed:', e?.message);
+  }
+}
 
 // GET /api/customers - List all users with order summary + fraud signals
 router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
@@ -156,6 +184,13 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
 router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const id = req.params.id;
+    // Cascade: radera Supabase-auth-användaren först (frigör nummer/e-post) så
+    // ingen orphan blockerar framtida signup. Hämta identifierare innan vi nullar.
+    const before = await (prisma as any).user.findUnique({
+      where: { id },
+      select: { id: true, email: true, phone: true, oauthId: true },
+    });
+    if (before) await deleteSupabaseAuthUser(before);
     // Cast to any because Railway's Docker build can sometimes serve a stale
     // Prisma client where the freshly-added `deletedAt` field hasn't been
     // re-generated into the typings yet — the SQL `prisma db push` on start

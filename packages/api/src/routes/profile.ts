@@ -4,8 +4,11 @@ import prisma from '../lib/prisma';
 import { authenticateUser } from './auth';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { maybeAwardReviewPoints } from '../lib/dpoints';
+import supabaseAdmin from '../lib/supabase';
 
 const router = Router();
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // GET /api/profile
 // Helper: build a full name from first + last (or fallback to existing).
@@ -105,27 +108,38 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
       return [withPlus, withPlus.slice(1)];
     };
 
-    // Merga in ev. orphan guest-user med samma telefon
+    // Slå ihop ett befintligt konto med samma telefon in i det inloggade kontot
+    // (permanent koppling). Sker om det andra kontot är gäst-likt ELLER ett rent
+    // telefon-konto (telefon-OTP utan e-post). Ett annat RIKTIGT konto (med
+    // e-post/OAuth) vägrar vi att kapa. Soft-deletar det gamla (undviker FK-krångel)
+    // + flyttar ordrar/poäng + frigör Supabase-telefon-användaren.
     const existingWithPhone = await (prisma as any).user.findFirst({
-      where: { phone: { in: phoneVariants(phone) } },
+      where: { phone: { in: phoneVariants(phone) }, deletedAt: null },
     });
     if (existingWithPhone && existingWithPhone.id !== req.user.id) {
-      const isGuestLike = !existingWithPhone.oauthId
-        && !existingWithPhone.email
-        && !existingWithPhone.password;
-      if (!isGuestLike) {
+      const isGuestLike = !existingWithPhone.oauthId && !existingWithPhone.email && !existingWithPhone.password;
+      const isPhoneOnly = !existingWithPhone.email && !existingWithPhone.password
+        && (existingWithPhone.oauthProvider === 'phone' || !existingWithPhone.oauthProvider);
+      if (!isGuestLike && !isPhoneOnly) {
         return res.status(409).json({
           error: 'Detta telefonnummer är redan kopplat till ett annat konto',
         });
       }
       await (prisma as any).$transaction([
-        (prisma as any).order.updateMany({
-          where: { userId: existingWithPhone.id },
-          data: { userId: req.user.id },
+        (prisma as any).order.updateMany({ where: { userId: existingWithPhone.id }, data: { userId: req.user.id } }),
+        (prisma as any).pointsTransaction.updateMany({ where: { userId: existingWithPhone.id }, data: { userId: req.user.id } }),
+        (prisma as any).user.update({ where: { id: req.user.id }, data: { pointsBalance: { increment: existingWithPhone.pointsBalance || 0 } } }),
+        (prisma as any).user.update({
+          where: { id: existingWithPhone.id },
+          data: { deletedAt: new Date(), phone: null, oauthId: null, oauthProvider: null, referralCode: null, pointsBalance: 0 },
         }),
-        (prisma as any).user.delete({ where: { id: existingWithPhone.id } }),
       ]);
-      console.log(`[link-phone] merged guest ${existingWithPhone.id} into ${req.user.id}`);
+      try {
+        if (supabaseAdmin && UUID_RE.test(existingWithPhone.id)) {
+          await supabaseAdmin.auth.admin.deleteUser(existingWithPhone.id);
+        }
+      } catch (e: any) { console.error('[link-phone] supabase cleanup:', e?.message); }
+      console.log(`[link-phone] merged account ${existingWithPhone.id} into ${req.user.id}`);
     }
 
     const updated = await (prisma as any).user.update({
