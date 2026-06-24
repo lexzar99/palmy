@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { clearLoggedOutMark } from "@/lib/platformSessionClient";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 /**
@@ -39,6 +40,7 @@ export default function SocialAuthButton({ provider }: { provider: "google" | "a
   const handleClick = async () => {
     setLoading(true);
     setErrorMsg(null);
+    clearLoggedOutMark(); // explicit inloggning → häv utloggnings-spärren
     try {
       const supabase = createSupabaseBrowserClient();
       const options: { redirectTo: string; scopes?: string } = {

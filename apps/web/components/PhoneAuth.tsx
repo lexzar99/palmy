@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Loader2, Phone, ArrowLeft } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { persistPlatformSession } from "@/lib/platformSessionClient";
+import { persistPlatformSession, clearLoggedOutMark } from "@/lib/platformSessionClient";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { API_URL } from "@/lib/api";
 
@@ -70,6 +70,7 @@ export default function PhoneAuth() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    clearLoggedOutMark(); // explicit inloggning → häv utloggnings-spärren
     try {
       const supabase = createSupabaseBrowserClient();
       const { error: err } = await supabase.auth.signInWithOtp({ phone: fullPhone() });

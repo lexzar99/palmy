@@ -11,6 +11,21 @@ export function clearLegacyPlatformUserToken() {
   window.localStorage.removeItem("platform_user_token");
 }
 
+// "Utloggad medvetet"-spärr. En kvarvarande Supabase-session (cookies som inte
+// alltid rensas rent klient-sida) fick profil-bootstrappen att auto-byta tillbaka
+// till inloggad direkt efter logout → flappning. Spärren stoppar auto-återinlogg
+// tills användaren EXPLICIT loggar in igen (då rensas den).
+const LOGGED_OUT_KEY = "dlv_logged_out";
+export function markLoggedOut() {
+  try { window.localStorage.setItem(LOGGED_OUT_KEY, "1"); } catch { /* noop */ }
+}
+export function clearLoggedOutMark() {
+  try { window.localStorage.removeItem(LOGGED_OUT_KEY); } catch { /* noop */ }
+}
+export function isLoggedOutMark(): boolean {
+  try { return window.localStorage.getItem(LOGGED_OUT_KEY) === "1"; } catch { return false; }
+}
+
 // Rensar localStorage-data som är knuten till en specifik inloggad användare
 // (PII, sparade adresser, gäst-kontaktfält, kund-anteckningar). Kallas vid
 // logout så nästa person som använder samma device inte ser föregående

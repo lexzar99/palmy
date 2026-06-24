@@ -19,6 +19,8 @@ import {
   clearPlatformSession,
   getPlatformSessionStatus,
   persistPlatformSession,
+  markLoggedOut,
+  isLoggedOutMark,
 } from "@/lib/platformSessionClient";
 import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -330,7 +332,7 @@ function ProfileContent() {
   const platformToken = session?.platformToken;
   
   useEffect(() => {
-    if (status === "authenticated" && platformToken && !isLoggingOut) {
+    if (status === "authenticated" && platformToken && !isLoggingOut && !isLoggedOutMark()) {
       // Avoid overwriting a freshly verified local session with stale OAuth data.
       const isVerifiedLocally = user?.isVerified === true;
       if (!hasPlatformSession && !isVerifiedLocally) {
@@ -541,6 +543,14 @@ function ProfileContent() {
       );
 
       if (sbSession?.access_token) {
+        // Medvetet utloggad? En kvarvarande Supabase-session (cookies rensas inte
+        // alltid rent) får INTE auto-logga in igen. Riv sessionen, stanna utloggad
+        // tills explicit login (då rensas spärren).
+        if (isLoggedOutMark()) {
+          await supabase.auth.signOut().catch(() => {});
+          setLoading(false);
+          return;
+        }
         // Fresh OAuth-flöde — alltid byt till fresh platform JWT, oavsett
         // om gammal cookie finns. Stale cookies orsakade 401-loop tidigare.
         console.log("[OAuth] Supabase session detected — forcing fresh exchange");
@@ -566,6 +576,8 @@ function ProfileContent() {
       (event, sbSession) => {
         console.log("[OAuth] auth state change:", event, "hasSession=", !!sbSession?.access_token);
         if (event === "SIGNED_IN" && sbSession?.access_token) {
+          // Medvetet utloggad → ignorera (annars auto-återinlogg = flappning).
+          if (isLoggedOutMark()) return;
           // Tvinga nytt token-byte vid SIGNED_IN för att inte använda en
           // stale platform-cookie från en tidigare misslyckad inloggning.
           void exchangeSupabaseForPlatformToken(sbSession, true);
@@ -655,6 +667,7 @@ function ProfileContent() {
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
+    markLoggedOut(); // spärra auto-återinlogg från kvarvarande Supabase-session
     try {
       await clearPlatformSession();
       setHasPlatformSession(false);

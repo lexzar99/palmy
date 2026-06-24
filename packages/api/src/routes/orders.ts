@@ -2114,19 +2114,28 @@ router.post('/:id/review', async (req: Request, res: Response) => {
     }
 
     let isOwner = false;
+    // Inloggad recensents user-id — krediteras Dpoints även om ordern saknar
+    // userId (lades t.ex. som gäst innan kontot fanns).
+    let reviewerUserId: string | null = null;
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith('Bearer ')) {
       const bearer = authHeader.split(' ')[1];
       if (supabaseAdmin) {
         try {
           const { data: { user: sbUser } } = await supabaseAdmin.auth.getUser(bearer);
-          if (sbUser && (order as any).userId === sbUser.id) isOwner = true;
+          if (sbUser) {
+            reviewerUserId = sbUser.id;
+            if ((order as any).userId === sbUser.id) isOwner = true;
+          }
         } catch { /* fallthrough */ }
       }
-      if (!isOwner) {
+      if (!reviewerUserId) {
         try {
           const payload = jwt.verify(bearer, JWT_SECRET) as any;
-          if (payload?.id && (order as any).userId === payload.id) isOwner = true;
+          if (payload?.id) {
+            reviewerUserId = payload.id;
+            if ((order as any).userId === payload.id) isOwner = true;
+          }
         } catch { /* fallthrough */ }
       }
     }
@@ -2195,7 +2204,7 @@ router.post('/:id/review', async (req: Request, res: Response) => {
     // Dpoints: belöna recensionen (text → review_text, annars review_rating).
     // Endast inloggade (userId). Idempotent + fail-safe i helpern.
     await maybeAwardReviewPoints({
-      userId: (order as any).userId,
+      userId: (order as any).userId || reviewerUserId,
       orderId: order.id,
       hasText: typeof review === 'string' && review.trim().length > 0,
     });

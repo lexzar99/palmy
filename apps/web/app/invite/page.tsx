@@ -11,26 +11,38 @@ import { ArrowLeft, Share2, Check } from "lucide-react";
 export default function InvitePage() {
   const [shared, setShared] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
+  const [shareErr, setShareErr] = useState("");
   const REWARD_POINTS = 200;
 
   // Hämta den attribuerade delningslänken (/i/<token>) för inloggad användare.
-  // Faller tillbaka till app-länken om utloggad / om hämtning misslyckas.
   useEffect(() => {
-    if (typeof window !== "undefined") setInviteUrl(window.location.origin);
+    let active = true;
     axios
       .get("/api/platform/account/invite/link")
-      .then((r) => { if (r.data?.url) setInviteUrl(r.data.url); })
+      .then((r) => { if (active && r.data?.url) setInviteUrl(r.data.url); })
       .catch(() => {});
+    return () => { active = false; };
   }, []);
 
-  const buildShare = () => {
-    const url = inviteUrl || (typeof window !== "undefined" ? window.location.origin : "");
-    const message = `Häng med mig på Delívera, mat hemkört. ${url}`;
-    return { url, message };
+  // Returnera /i/<token>-länken — ALDRIG bara delivera.se (då ser mottagaren
+  // ingen inbjudan och tror länken är trasig). Hämta inline om den inte hunnit.
+  const ensureUrl = async (): Promise<string> => {
+    if (inviteUrl) return inviteUrl;
+    try {
+      const r = await axios.get("/api/platform/account/invite/link");
+      if (r.data?.url) { setInviteUrl(r.data.url); return r.data.url as string; }
+    } catch { /* faller igenom till felmeddelande */ }
+    return "";
   };
 
   const handleShare = async () => {
-    const { url, message } = buildShare();
+    setShareErr("");
+    const url = await ensureUrl();
+    if (!url) {
+      setShareErr("Kunde inte skapa din länk just nu. Försök igen om en stund.");
+      return;
+    }
+    const message = `Häng med mig på Delívera, mat hemkört. ${url}`;
     if (typeof navigator !== "undefined" && (navigator as any).share) {
       try {
         await (navigator as any).share({ title: "Delívera", text: message, url });
@@ -93,6 +105,7 @@ export default function InvitePage() {
           {shared ? <Check size={18} /> : <Share2 size={18} style={{ color: "var(--color-gold-500, #E7B24B)" }} />}
           {shared ? "Delat" : "Dela"}
         </button>
+        {shareErr && <p className="text-center text-[13px]" style={{ color: "#dc2626" }}>{shareErr}</p>}
       </div>
     </div>
   );
