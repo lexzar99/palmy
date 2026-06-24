@@ -26,118 +26,15 @@ import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
 import SocialAuthButton from "@/components/SocialAuthButton";
 import PhoneAuth from "@/components/PhoneAuth";
+import PhoneCountrySelect from "@/components/PhoneCountrySelect";
 // ReferralCard import removed — referral UI is disabled platform-wide.
 // Backend redeem-code endpoint stays intact for legacy URLs.
 import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 // ─── Country codes ─────────────────────────────────────────────────────────
-const COUNTRY_CODES = [
-  { flag: "🇸🇪", code: "+46", country: "Sverige" },
-  { flag: "🇳🇴", code: "+47", country: "Norge" },
-  { flag: "🇩🇰", code: "+45", country: "Danmark" },
-  { flag: "🇫🇮", code: "+358", country: "Finland" },
-  { flag: "🇩🇪", code: "+49", country: "Tyskland" },
-  { flag: "🇬🇧", code: "+44", country: "Storbritannien" },
-  { flag: "🇵🇱", code: "+48", country: "Polen" },
-  { flag: "🇸🇴", code: "+252", country: "Somalia" },
-  { flag: "🇸🇾", code: "+963", country: "Syrien" },
-  { flag: "🇮🇶", code: "+964", country: "Irak" },
-  { flag: "🇱🇧", code: "+961", country: "Libanon" },
-  { flag: "🇺🇸", code: "+1", country: "USA" },
-];
-
-function CountryPicker({
-  value, onChange
-}: {
-  value: string;
-  onChange: (code: string) => void;
-}) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const selected = COUNTRY_CODES.find(c => c.code === value) || COUNTRY_CODES[0];
-  const filtered = search.trim()
-    ? COUNTRY_CODES.filter((c) => `${c.country} ${c.code}`.toLowerCase().includes(search.trim().toLowerCase()))
-    : COUNTRY_CODES;
-
-  // Stäng dropdown vid klick utanför.
-  useEffect(() => {
-    if (!open) return;
-    const onDocClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (target.closest("[data-country-picker]")) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open]);
-
-  return (
-    <div className="relative" data-country-picker>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-2xl py-4 px-4 font-bold whitespace-nowrap h-full"
-        style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="text-lg">{selected.flag}</span>
-        <span className="text-sm">{selected.code}</span>
-        <ChevronRight size={14} className={`text-[color:var(--text-secondary)] transition-transform ${open ? "rotate-90" : ""}`} />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.95 }}
-            className="absolute top-full left-0 mt-2 z-50 rounded-2xl overflow-hidden w-72 max-w-[calc(100vw-2rem)]"
-            style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}
-            role="listbox"
-          >
-            <div className="px-3 pt-3 pb-2" style={{ borderBottom: "1px solid var(--border-muted)" }}>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t("profile.country.search")}
-                autoFocus
-                className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-              />
-            </div>
-            <div className="max-h-72 overflow-auto">
-              {filtered.length === 0 ? (
-                <div className="px-4 py-6 text-center text-xs text-[color:var(--text-secondary)]">{t("profile.country.empty")}</div>
-              ) : (
-                filtered.map((c) => (
-                  <button
-                    key={c.code}
-                    type="button"
-                    onClick={() => { onChange(c.code); setOpen(false); setSearch(""); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors text-left ${value === c.code ? "font-bold" : ""}`}
-                    style={{ color: "var(--text-primary)", backgroundColor: value === c.code ? "var(--bg-secondary)" : "transparent" }}
-                    role="option"
-                    aria-selected={value === c.code}
-                  >
-                    <span className="text-xl">{c.flag}</span>
-                    <div className="flex-1">
-                      <div className="font-bold text-xs">{c.country}</div>
-                      <div className="text-[color:var(--text-secondary)] text-[10px]">{c.code}</div>
-                    </div>
-                    {value === c.code && <Check size={14} style={{ color: "var(--text-primary)" }} />}
-                  </button>
-                ))
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+// Landskods-väljare flyttad till delade <PhoneCountrySelect> (begränsad lista,
+// Sverige som standard) — används av både telefon-inloggning och nummer-grinden.
 
 
 /**
@@ -627,6 +524,20 @@ function ProfileContent() {
       }
       setAddPhoneStep("code");
     } catch (err: any) {
+      const m = (err?.message || "").toLowerCase();
+      if (m.includes("sub claim") || m.includes("does not exist") || m.includes("user not found") || m.includes("user_not_found")) {
+        // Förlegad Supabase-session (kontot finns inte längre) → ren utloggning,
+        // be användaren logga in igen i stället för ett kryptiskt fel.
+        const supabase = createSupabaseBrowserClient();
+        await supabase.auth.signOut().catch(() => {});
+        await clearPlatformSession().catch(() => {});
+        markLoggedOut();
+        setShowAddPhone(false);
+        setAddPhoneStep("phone");
+        setHasPlatformSession(false);
+        setUser(null);
+        return;
+      }
       setAddPhoneError(err?.response?.data?.error || err?.message || t("profile.addPhone.errorGeneric"));
     } finally {
       setAddPhoneLoading(false);
@@ -772,7 +683,17 @@ function ProfileContent() {
   if (showAddPhone) {
     return (
       <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-8">
+        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-6">
+          {/* Back — så man inte fastnar på nummer-grinden. Går hem, förblir inloggad. */}
+          <button
+            type="button"
+            onClick={() => { setAddPhoneStep("phone"); router.push("/"); }}
+            aria-label={t("common.back")}
+            className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--bg-deep)]"
+            style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
+          >
+            <ArrowLeft size={16} strokeWidth={2} />
+          </button>
           <div className="text-center space-y-3">
             <div className="w-16 h-16 bg-[var(--bg-deep)] rounded-2xl flex items-center justify-center text-[var(--text-secondary)] mx-auto"><Phone size={28} /></div>
             <h2 className="text-[22px] font-bold tracking-tight">{t("profile.addPhone.title")}</h2>
@@ -783,16 +704,17 @@ function ProfileContent() {
           {addPhoneStep === "phone" ? (
             <form onSubmit={handleAddPhone} className="space-y-4">
               <div className="flex gap-2">
-                <CountryPicker value={addPhoneCountry} onChange={setAddPhoneCountry} />
+                <PhoneCountrySelect value={addPhoneCountry} onChange={setAddPhoneCountry} />
                 <input
                   required
                   type="tel"
+                  inputMode="tel"
                   autoComplete="tel"
                   value={addPhoneNum}
                   onChange={e => setAddPhoneNum(e.target.value)}
                   placeholder={t("profile.addPhone.placeholder")}
-                  className="flex-1 rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]"
-                  style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                  className="rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]"
+                  style={{ flex: 1, minWidth: 0, backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
                 />
               </div>
               {addPhoneError && <p className="text-[12.5px] text-center font-medium" style={{ color: "#dc2626" }}>{addPhoneError}</p>}

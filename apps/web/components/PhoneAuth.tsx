@@ -8,6 +8,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { persistPlatformSession, clearLoggedOutMark } from "@/lib/platformSessionClient";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { API_URL } from "@/lib/api";
+import PhoneCountrySelect from "@/components/PhoneCountrySelect";
 
 // Egen input-stil så komponenten funkar var som helst (login/register/profil)
 // utan att sidan behöver injicera auth-input-CSS.
@@ -182,8 +183,8 @@ export default function PhoneAuth() {
             <Back onClick={() => setOpen(false)} />
           </div>
           <div className="flex gap-2">
-            <input value={country} onChange={(e) => setCountry(e.target.value)} className="pa-input" style={{ width: 72, textAlign: "center" }} aria-label="Landskod" />
-            <input type="tel" inputMode="tel" autoComplete="tel" required placeholder="70 123 45 67" value={num} onChange={(e) => setNum(e.target.value)} className="pa-input" />
+            <PhoneCountrySelect value={country} onChange={setCountry} />
+            <input type="tel" inputMode="tel" autoComplete="tel" required placeholder="70 123 45 67" value={num} onChange={(e) => setNum(e.target.value)} className="pa-input" style={{ flex: 1, minWidth: 0 }} />
           </div>
           {error && <p className="text-[13px] text-rose-600 leading-snug">{error}</p>}
           {goldBtn("Skicka kod", loading || !num)}
