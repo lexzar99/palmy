@@ -15,19 +15,26 @@ const normPhone = (p?: string | null) => (p || '').replace(/[^\d]/g, '');
 async function deleteSupabaseAuthUser(u: { id: string; email: string | null; phone: string | null; oauthId: string | null }) {
   if (!supabaseAdmin) return;
   try {
-    // Supabase-uid finns antingen som vår User.id (authenticateUser-skapad) eller
-    // som oauthId (oauth-token-skapad). Annars: slå upp via e-post/telefon.
-    let sbId: string | null = UUID_RE.test(u.id) ? u.id : (u.oauthId && UUID_RE.test(u.oauthId) ? u.oauthId : null);
-    if (!sbId && (u.email || u.phone)) {
+    // Radera ALLA Supabase-auth-användare som matchar kontot — primär (vår
+    // User.id eller oauthId) OCH separata användare med samma e-post/telefon
+    // (t.ex. en telefon-OTP-användare vid sidan av Google-användaren). Annars
+    // blir numret kvar som "upptaget" i Supabase och blockerar nästa verifiering.
+    const ids = new Set<string>();
+    if (UUID_RE.test(u.id)) ids.add(u.id);
+    if (u.oauthId && UUID_RE.test(u.oauthId)) ids.add(u.oauthId);
+    if (u.email || u.phone) {
       const { data } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-      const match = ((data?.users as any[]) || []).find(
-        (su: any) =>
-          (u.email && su.email?.toLowerCase() === u.email.toLowerCase()) ||
-          (u.phone && su.phone && normPhone(su.phone) === normPhone(u.phone)),
-      );
-      sbId = match?.id ?? null;
+      for (const su of ((data?.users as any[]) || [])) {
+        const emailMatch = u.email && su.email?.toLowerCase() === u.email.toLowerCase();
+        const phoneMatch = u.phone && su.phone && normPhone(su.phone) === normPhone(u.phone);
+        if (emailMatch || phoneMatch) ids.add(su.id);
+      }
     }
-    if (sbId) await supabaseAdmin.auth.admin.deleteUser(sbId);
+    for (const sid of ids) {
+      await supabaseAdmin.auth.admin.deleteUser(sid).catch((e: any) =>
+        console.error('[delete customer] Supabase delete', sid, e?.message),
+      );
+    }
   } catch (e: any) {
     console.error('[delete customer] Supabase cascade failed:', e?.message);
   }
