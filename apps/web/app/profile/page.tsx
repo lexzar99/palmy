@@ -538,21 +538,20 @@ function ProfileContent() {
       const { error } = await supabase.auth.updateUser({ phone: fullPhone });
       if (error) {
         const m = (error.message || "").toLowerCase();
+        // INGA tysta genvägar — verifiering med kod krävs alltid. Visa felet.
         if (m.includes("already") || m.includes("exist") || m.includes("registered")) {
-          await lockPhone(fullPhone); // numret tillhör ett konto → merge (redan verifierat)
-          return;
-        }
-        if (m.includes("rate") || m.includes("limit") || m.includes("too many")) {
+          setAddPhoneError("Numret är redan kopplat till ett konto. Logga ut och logga in med telefonnumret i stället.");
+        } else if (m.includes("rate") || m.includes("limit") || m.includes("too many")) {
           setAddPhoneError("För många SMS-försök just nu. Vänta en stund och försök igen.");
-          return;
+        } else if (m.includes("sms") || m.includes("provider") || m.includes("disabled") || m.includes("unsupported")) {
+          setAddPhoneError("SMS-verifiering är inte aktiverad än. Försök igen senare.");
+        } else {
+          setAddPhoneError(error.message || "Kunde inte skicka koden. Kontrollera numret.");
         }
-        if (m.includes("sms") || m.includes("provider") || m.includes("disabled") || m.includes("unsupported")) {
-          await lockPhone(fullPhone); // SMS-leverantör ej på → länka utan verifiering
-          return;
-        }
-        throw error;
+        return;
       }
-      setAddPhoneStep("code"); // SMS skickat
+      // SMS skickat → ALLTID kod-steg, ingen tyst länkning.
+      setAddPhoneStep("code");
     } catch (err: any) {
       const m = (err?.message || "").toLowerCase();
       if (m.includes("sub claim") || m.includes("does not exist") || m.includes("user_not_found")) {
