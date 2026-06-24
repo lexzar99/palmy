@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Gift } from "lucide-react";
 import RefCookie from "./RefCookie";
 
 // Invite-landning — /i/<token>. Riktig välkomstsida (inte längre en tyst
@@ -50,17 +49,11 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
         {valid ? (
           <>
             <div className="flex flex-col items-center gap-3 text-center">
-              <span
-                className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--color-gold-500, #E7B24B)" }}
-              >
-                <Gift size={22} />
-              </span>
               <h1 className="text-[24px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
                 {inviter ? `${inviter} bjöd in dig till Delívera` : "Du är inbjuden till Delívera"}
               </h1>
               <p className="text-[14px] leading-snug" style={{ color: "var(--text-secondary)" }}>
-                Skapa ett konto och få bonusen på din första beställning. Mat hemkört, snabbt och enkelt.
+                Skapa ett konto och få bonusen efter din första beställning. Mat hemkört, snabbt och enkelt.
               </p>
             </div>
 
@@ -97,12 +90,6 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
               >
                 Fortsätt till Delívera
               </Link>
-              <p className="text-center text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                Har du redan ett konto?{" "}
-                <Link href="/login" className="font-semibold" style={{ color: "var(--text-primary)" }}>
-                  Logga in
-                </Link>
-              </p>
             </div>
           </>
         ) : (

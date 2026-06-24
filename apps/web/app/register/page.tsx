@@ -9,6 +9,7 @@ import { API_URL } from "@/lib/api";
 import { persistPlatformSession } from "@/lib/platformSessionClient";
 import { useToast } from "@/components/Toast";
 import SocialAuthButton from "@/components/SocialAuthButton";
+import PhoneAuth from "@/components/PhoneAuth";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -235,10 +236,12 @@ function RegisterContent() {
               </p>
             </div>
 
-            {/* Socialt — välj att skapa konto direkt med Apple/Google */}
+            {/* Skapa konto = som att logga in: Apple, Google eller telefon.
+                Telefon är den lösenordsfria vägen (nummer → SMS-kod → namn). */}
             <div className="flex flex-col gap-2.5">
               <SocialAuthButton provider="apple" />
               <SocialAuthButton provider="google" />
+              <PhoneAuth />
             </div>
             <div className="flex items-center gap-3">
               <div className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />

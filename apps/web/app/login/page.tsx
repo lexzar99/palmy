@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
 import SocialAuthButton from "@/components/SocialAuthButton";
+import PhoneAuth from "@/components/PhoneAuth";
 import {
   persistPlatformSession,
   getPlatformSessionStatus,
@@ -137,10 +138,11 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Socialt först — fullbredd, stackat (delad SocialAuthButton) */}
+        {/* Socialt + telefon först — fullbredd, stackat */}
         <div className="flex flex-col gap-2.5">
           <SocialAuthButton provider="apple" />
           <SocialAuthButton provider="google" />
+          <PhoneAuth />
         </div>
 
         {/* Divider */}

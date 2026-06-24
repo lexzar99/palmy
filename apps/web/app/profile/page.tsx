@@ -263,6 +263,8 @@ function ProfileContent() {
   const [addPhoneNum, setAddPhoneNum] = useState("");
   const [addPhoneLoading, setAddPhoneLoading] = useState(false);
   const [addPhoneError, setAddPhoneError] = useState("");
+  const [addPhoneStep, setAddPhoneStep] = useState<"phone" | "code">("phone");
+  const [addPhoneCode, setAddPhoneCode] = useState("");
   const [isChangingPhone, setIsChangingPhone] = useState(false); // Link to edit phone number
 
   // Modal states
@@ -560,18 +562,56 @@ function ProfileContent() {
   }, []);
 
 
+  const addPhoneFull = () => `${addPhoneCountry}${addPhoneNum.replace(/\D/g, "").replace(/^0/, "")}`;
+
+  const lockPhone = async (fullPhone: string) => {
+    const res = await axios.post(`/api/platform/profile/link-phone`, { phone: fullPhone });
+    setUser((prev: any) => ({ ...(prev || {}), ...res.data.user }));
+    await fetchData();
+    setShowAddPhone(false);
+    setAddPhoneStep("phone");
+    setAddPhoneCode("");
+  };
+
+  // OAuth-konton (Google/Apple) som saknar nummer: verifiera via SMS-kod och lås
+  // numret till kontot. Faller tillbaka till direkt-länk om SMS-leverantören inte
+  // är aktiverad än — så inget OAuth-flöde fastnar innan SMS är påslaget.
   const handleAddPhone = async (e: React.FormEvent) => {
     e.preventDefault();
-    const fullPhone = `${addPhoneCountry}${addPhoneNum.replace(/^0/, "")}`;
+    const fullPhone = addPhoneFull();
     setAddPhoneLoading(true);
     setAddPhoneError("");
     try {
-      const res = await axios.post(`/api/platform/profile/link-phone`, { phone: fullPhone });
-      setUser((prev: any) => ({ ...(prev || {}), ...res.data.user }));
-      await fetchData();
-      setShowAddPhone(false);
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.auth.updateUser({ phone: fullPhone });
+      if (error) {
+        const m = (error.message || "").toLowerCase();
+        if (m.includes("sms") || m.includes("provider") || m.includes("disabled") || m.includes("unsupported")) {
+          await lockPhone(fullPhone); // SMS ej aktiverat → länka direkt (nuvarande beteende)
+          return;
+        }
+        throw error;
+      }
+      setAddPhoneStep("code");
     } catch (err: any) {
-      setAddPhoneError(err.response?.data?.error || t("profile.addPhone.errorGeneric"));
+      setAddPhoneError(err?.response?.data?.error || err?.message || t("profile.addPhone.errorGeneric"));
+    } finally {
+      setAddPhoneLoading(false);
+    }
+  };
+
+  const handleVerifyAddPhone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const fullPhone = addPhoneFull();
+    setAddPhoneLoading(true);
+    setAddPhoneError("");
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.auth.verifyOtp({ phone: fullPhone, token: addPhoneCode.trim(), type: "phone_change" });
+      if (error) throw error;
+      await lockPhone(fullPhone);
+    } catch (err: any) {
+      setAddPhoneError(err?.message?.includes("expired") ? "Koden har gått ut, försök igen." : "Fel kod, försök igen.");
     } finally {
       setAddPhoneLoading(false);
     }
@@ -729,29 +769,54 @@ function ProfileContent() {
               {t("profile.addPhone.sub")}
             </p>
           </div>
-          <form onSubmit={handleAddPhone} className="space-y-4">
-            <div className="flex gap-2">
-              <CountryPicker value={addPhoneCountry} onChange={setAddPhoneCountry} />
+          {addPhoneStep === "phone" ? (
+            <form onSubmit={handleAddPhone} className="space-y-4">
+              <div className="flex gap-2">
+                <CountryPicker value={addPhoneCountry} onChange={setAddPhoneCountry} />
+                <input
+                  required
+                  type="tel"
+                  autoComplete="tel"
+                  value={addPhoneNum}
+                  onChange={e => setAddPhoneNum(e.target.value)}
+                  placeholder={t("profile.addPhone.placeholder")}
+                  className="flex-1 rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]"
+                  style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                />
+              </div>
+              {addPhoneError && <p className="text-[12.5px] text-center font-medium" style={{ color: "#dc2626" }}>{addPhoneError}</p>}
+              <button
+                type="submit"
+                disabled={addPhoneLoading}
+                className="w-full py-5 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3"
+              >
+                {addPhoneLoading ? <Loader2 className="animate-spin" size={20} /> : t("profile.addPhone.save")}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyAddPhone} className="space-y-4">
+              <p className="text-center text-[13px]" style={{ color: "var(--text-secondary)" }}>Vi skickade en kod till {addPhoneFull()}.</p>
               <input
                 required
-                type="tel"
-                autoComplete="tel"
-                value={addPhoneNum}
-                onChange={e => setAddPhoneNum(e.target.value)}
-                placeholder={t("profile.addPhone.placeholder")}
-                className="flex-1 rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]"
-                style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={addPhoneCode}
+                onChange={e => setAddPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="123456"
+                className="w-full rounded-2xl py-4 px-5 font-bold text-center outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]"
+                style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)", letterSpacing: "0.3em", fontSize: 18 }}
               />
-            </div>
-            {addPhoneError && <p className="text-[12.5px] text-center font-medium" style={{ color: "#dc2626" }}>{addPhoneError}</p>}
-            <button
-              type="submit"
-              disabled={addPhoneLoading}
-              className="w-full py-5 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3"
-            >
-              {addPhoneLoading ? <Loader2 className="animate-spin" size={20} /> : t("profile.addPhone.save")}
-            </button>
-          </form>
+              {addPhoneError && <p className="text-[12.5px] text-center font-medium" style={{ color: "#dc2626" }}>{addPhoneError}</p>}
+              <button
+                type="submit"
+                disabled={addPhoneLoading || addPhoneCode.length < 4}
+                className="w-full py-5 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3"
+              >
+                {addPhoneLoading ? <Loader2 className="animate-spin" size={20} /> : "Verifiera"}
+              </button>
+              <button type="button" onClick={() => { setAddPhoneStep("phone"); setAddPhoneError(""); }} className="w-full text-center text-[13px]" style={{ color: "var(--text-secondary)" }}>Ändra nummer</button>
+            </form>
+          )}
         </motion.div>
       </div>
     );
