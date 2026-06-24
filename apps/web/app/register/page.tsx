@@ -95,7 +95,10 @@ function RegisterContent() {
   // Pre-fill referral-koden från ?ref=KOD så landing-page-flödet funkar:
   // /r/KOD → "Registrera nu" → /register?ref=KOD → fältet är förvalt.
   useEffect(() => {
-    const ref = searchParams.get("ref");
+    const cookieRef = typeof document !== "undefined"
+      ? (document.cookie.match(/(?:^|; )dlv_ref=([^;]+)/)?.[1] ?? null)
+      : null;
+    const ref = searchParams.get("ref") || (cookieRef ? decodeURIComponent(cookieRef) : null);
     if (ref) {
       setReferralCode(ref.toUpperCase().slice(0, 12));
     }
@@ -127,19 +130,13 @@ function RegisterContent() {
         const trimmedCode = referralCode.trim().toUpperCase();
         if (trimmedCode) {
           try {
-            const redeemRes = await axios.post("/api/platform/account/redeem-code", {
-              code: trimmedCode,
-              email,
+            const attrRes = await axios.post("/api/platform/account/invite/attribute", {
+              token: trimmedCode,
               deviceFingerprint: getDeviceFingerprint(),
+              channel: "web",
             });
-            if (redeemRes.data?.ok) {
-              const inviterName = redeemRes.data?.inviterName || null;
-              toast(
-                inviterName
-                  ? t("auth.register.referral.with", { name: inviterName })
-                  : t("auth.register.referral.solo"),
-                "success",
-              );
+            if (attrRes.data?.ok) {
+              toast(t("auth.register.referral.solo"), "success");
             }
           } catch {
             // Tyst ignorera

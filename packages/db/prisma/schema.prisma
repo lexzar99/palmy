@@ -688,6 +688,8 @@ model RestaurantSettings {
   // [{ "maxKm": 1, "feeKr": 39 }, ...] sorterad lågt→högt. Tom = fall tillbaka
   // till dpointsCourierCost (platt). Bortom sista tier:n gäller sista avgiften.
   dpointsCourierTiers String    @default("[]")
+  dpointsEarnRules    String?
+  dpointsStreakTarget Int       @default(3)
 }
 
 model OrderDraft {
@@ -978,11 +980,33 @@ model Referral {
   revertedBy        String?   // adminUserId
   revertReason      String?
 
+  // Invite-tracking (opaque-token share-link system). Additive.
+  channel             String?  // web | app_installed | app_deferred | manual
+  inviteeFingerprint  String?
+  rewardInviterPoints Int?
+  rewardInviteePoints Int?
+  rewardLedgerKey     String?  @unique
+
   inviter           User      @relation("ReferralInviter", fields: [inviterUserId], references: [id])
   invitee           User?     @relation("ReferralInvitee", fields: [inviteeUserId], references: [id])
 
   @@index([inviterUserId])
   @@index([status])
+  @@index([inviteeFingerprint, status])
+}
+
+// Deferred-install attribution store (codeless). TTL-swept for GDPR.
+model InviteClick {
+  id          String   @id @default(cuid())
+  token       String
+  fingerprint String
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([fingerprint, expiresAt])
+  @@index([token])
 }
 
 model RestaurantPayout {

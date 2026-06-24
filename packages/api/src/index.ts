@@ -60,6 +60,7 @@ import courierRoutes, { adminCourierRouter, courierApplicationPublicRouter, admi
 import reviewsAdminRoutes from './routes/reviewsAdmin';
 import printingRoutes from './routes/printing';
 import referralsRoutes, { publicRouter as referralsPublic, adminRouter as referralsAdmin } from './routes/referrals';
+import inviteRoutes, { publicInviteRouter } from './routes/invite';
 import dpointsRoutes from './routes/dpoints';
 import dpointsAdminRoutes from './routes/dpointsAdmin';
 import apiHealthAdminRoutes from './routes/apiHealthAdmin';
@@ -284,7 +285,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/terminal/pair', adminLoginLimiter);
 app.use('/api/terminal', terminalRoutes);
 app.use('/api/account', referralsRoutes);
+app.use('/api/account', inviteRoutes);
 app.use('/api/public', referralsPublic);
+app.use('/api/public', publicInviteRouter);
 app.use('/api/payments', paymentRoutes); // Stripe (RN: /create-intent, /confirm) — kvar tills RN migrerats
 app.use('/api/payments', paymentsRoutes); // Mollie (web: /create, /status, /webhooks/mollie)
 app.use('/api/discount', discountRoutes);

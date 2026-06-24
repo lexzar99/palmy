@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import axios from "axios";
 import { io as socketIO, Socket } from "socket.io-client";
 import { motion, AnimatePresence } from "framer-motion";
@@ -94,6 +95,7 @@ export default function LiveOrderBanner() {
   const [dismissed, setDismissed] = useState(false);
   const [etaLeftSecs, setEtaLeftSecs] = useState<number | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     const read = () => {
@@ -198,6 +200,9 @@ export default function LiveOrderBanner() {
   // Never show the live banner for an unpaid (AWAITING_PAYMENT) order — it's not
   // a live order yet, and an abandoned one would otherwise sit here forever.
   // (Backend deletes abandoned ones after 30 min; the poll then 404s and clears.)
+  // Dölj bannern när kunden redan står på den här orderns egen tracking-sida —
+  // annars visas en dubblett-pill med en egen ETA-siffra ovanpå sidan.
+  if (order && pathname === `/order/${order.id}`) return null;
   if (!order || dismissed || !visual || order.status === "AWAITING_PAYMENT") return null;
 
   const orderNumber = (order.orderNumber || "").toString().replace(/^PX-/, "") || order.id;

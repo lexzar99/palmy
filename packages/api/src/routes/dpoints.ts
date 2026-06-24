@@ -1,31 +1,30 @@
 /**
  * Dpoints — kund-vända endpoints.
  *  GET  /api/dpoints/sponsor-card   publik — aktivt sponsor-kort (utloggade)
- *  GET  /api/dpoints/rewards        publik — inlösenskatalog
+ *  GET  /api/dpoints/rewards        publik — intjänings-regler (Tjäna Dpoints)
  *  GET  /api/dpoints/me             inloggad — saldo + historik
- *  POST /api/dpoints/redeem         inloggad — lös in → personlig kod
+ *
+ * Spendering sker via "köp med poäng" på rewardable varor i kassan (se orders.ts),
+ * inte via en inlösenskatalog. Den gamla redeem-vägen är borttagen.
  */
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticateUser } from './auth';
-import { getDpointsSettings, redeemReward, RedeemError, getSignupClaim, claimSignupBonus } from '../lib/dpoints';
+import { getDpointsSettings, getSignupClaim, claimSignupBonus, getDpointsEarnRules, getStreakState } from '../lib/dpoints';
 
 const router = Router();
 
-function formatReward(r: any) {
-  const isPct = r.discountType === 'PERCENTAGE';
-  return {
-    id: r.id,
-    title: r.title,
-    description: r.description,
-    pointsCost: r.pointsCost,
-    discountType: r.discountType,
-    discountKr: isPct ? null : Math.round((r.discountValue ?? 0) / 100),
-    discountPercent: isPct ? r.discountValue ?? 0 : null,
-    minOrderKr: r.minOrderKr,
-    validDays: r.validDays,
-    imageUrl: r.imageUrl ?? null,
-  };
+// Hur ofta varje regel kan tjänas (enkel indikator i kundens "Tjäna Dpoints").
+const INVITE_CAP_30D = 5; // matchar DEFAULT_MAX_REWARDS_30D i invite.ts
+function repeatLabel(key: string, streakTarget: number): string {
+  switch (key) {
+    case 'invite': return `Upp till ${INVITE_CAP_30D} per 30 dagar`;
+    case 'review_rating':
+    case 'review_text': return 'Varje recension';
+    case 'new_restaurant': return 'Varje ny restaurang';
+    case 'order_streak': return `${streakTarget} ordrar per 7 dagar`;
+    default: return '';
+  }
 }
 
 const ACTIVE_WINDOW = (now: Date) => ({
@@ -63,16 +62,17 @@ router.get('/sponsor-card', async (_req, res) => {
   }
 });
 
-// Publik — inlösenskatalog (aktiva belöningar).
+// Publik — aktiva intjänings-regler (driver kundens "Tjäna Dpoints"-lista).
+// Inlösenskatalogen är borttagen; `rewards` behålls som tom array för bakåt-
+// kompatibel responsform.
 router.get('/rewards', async (_req, res) => {
   try {
     const settings = await getDpointsSettings();
-    if (!settings.dpointsEnabled) return res.json({ enabled: false, valuePerKr: settings.dpointsValuePerKr, rewards: [] });
-    const rewards = await prisma.dpointsReward.findMany({
-      where: { isActive: true },
-      orderBy: { pointsCost: 'asc' },
-    });
-    res.json({ enabled: true, valuePerKr: settings.dpointsValuePerKr, rewards: rewards.map(formatReward) });
+    if (!settings.dpointsEnabled) return res.json({ enabled: false, valuePerKr: settings.dpointsValuePerKr, rewards: [], earnRules: [], streakTarget: settings.dpointsStreakTarget });
+    const earnRules = (await getDpointsEarnRules())
+      .filter((r) => r.enabled)
+      .map((r) => ({ key: r.key, label: r.label, points: r.points, repeat: repeatLabel(r.key, settings.dpointsStreakTarget) }));
+    res.json({ enabled: true, valuePerKr: settings.dpointsValuePerKr, rewards: [], earnRules, streakTarget: settings.dpointsStreakTarget });
   } catch (e: any) {
     console.error('[dpoints rewards] error:', e?.message);
     res.status(500).json({ error: 'Serverfel' });
@@ -85,13 +85,14 @@ router.get('/me', authenticateUser, async (req: any, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Ej inloggad' });
     const settings = await getDpointsSettings();
-    const [user, txs] = await Promise.all([
+    const [user, txs, streak] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { pointsBalance: true } }),
       prisma.pointsTransaction.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
         take: 50,
       }),
+      getStreakState(userId),
     ]);
     const signup = await getSignupClaim(userId);
     res.json({
@@ -99,6 +100,7 @@ router.get('/me', authenticateUser, async (req: any, res) => {
       balance: user?.pointsBalance ?? 0,
       valuePerKr: settings.dpointsValuePerKr,
       signup,
+      streak,
       transactions: txs.map((t) => ({
         id: t.id,
         amount: t.amount,
@@ -110,30 +112,6 @@ router.get('/me', authenticateUser, async (req: any, res) => {
     });
   } catch (e: any) {
     console.error('[dpoints me] error:', e?.message);
-    res.status(500).json({ error: 'Serverfel' });
-  }
-});
-
-// Inloggad — lös in en belöning → personlig kod (låst till kontot).
-router.post('/redeem', authenticateUser, async (req: any, res) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) return res.status(401).json({ error: 'Ej inloggad' });
-    const settings = await getDpointsSettings();
-    if (!settings.dpointsEnabled) return res.status(400).json({ error: 'Dpoints är inte aktiverat' });
-    const rewardId = (req.body || {}).rewardId;
-    if (!rewardId) return res.status(400).json({ error: 'rewardId krävs' });
-
-    const result = await redeemReward(userId, String(rewardId));
-    res.json({
-      ok: true,
-      code: result.code,
-      balanceAfter: result.balanceAfter,
-      reward: formatReward(result.reward),
-    });
-  } catch (e: any) {
-    if (e instanceof RedeemError) return res.status(400).json({ error: e.message, code: e.code });
-    console.error('[dpoints redeem] error:', e?.message);
     res.status(500).json({ error: 'Serverfel' });
   }
 });

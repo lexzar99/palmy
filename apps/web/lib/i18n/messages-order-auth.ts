@@ -35,9 +35,31 @@ export const orderAuthPending = {
     "order.summary.deliveryFee": "Leveransavgift",
     "order.summary.total": "Summa",
     "order.review.errorGeneric": "Kunde inte spara recension",
-    "order.review.dismissAria": "Stäng — visa inte igen för denna order",
+    "order.review.dismissAria": "Stäng, visa inte igen för denna order",
     "order.review.todayPrefix": "Idag",
     "order.review.scheduledDate": "{date} {time}",
+
+    // ── Retractable details + VAT ─────────────────────────────────────────
+    "order.details.showMore": "Visa mer",
+    "order.details.showLess": "Visa mindre",
+    "order.handlingShow": "Visa detaljer",
+    "order.handlingHide": "Dölj detaljer",
+    "order.summary.vat": "Varav moms ({pct}%)",
+
+    // ── ETA-budskap (perspektiv: vi-levererar vs levererar-själva) ─────────
+    "order.eta.restaurantEstimates": "Restaurangen uppskattar",
+    "order.eta.estDelivery": "Beräknad leverans",
+    "order.eta.minEstimate": "~{m} min",
+    "order.eta.prepWeDeliver": "Restaurangen uppskattar ca {m} min tills maten hämtas av budet.",
+    "order.eta.prepSelfDeliver": "Restaurangen uppskattar ca {m} min tills maten är klar och levererad till dig.",
+    "order.eta.courierOnWay": "Budet är på väg med din mat. Ankomsttiden uppdateras utifrån avstånd och antal stopp.",
+    "order.eta.busyNote": "Uppskattat utifrån tid på dygnet och avstånd. Du kan få din mat tidigare.",
+    "order.eta.overdueBusy": "Hög belastning just nu. Leveransen kan ta 10-15 minuter längre än beräknat, vi jobbar så snabbt vi kan.",
+
+    // ── Quotes (visas under leverans) ─────────────────────────────────────
+    "order.quote.fast": "Vi jobbar så snabbt vi kan för att leverera din mat.",
+    "order.quote.care": "Färsk mat, levererad med omsorg.",
+    "order.quote.by": "Delívera",
 
     // ── Order tracking (header, ETA, steg, länkrader, banner) ─────────────
     "order.header.title": "Din order",
@@ -181,7 +203,8 @@ export const orderAuthPending = {
     "profile.appleNoName.step2": "Sign-In with Apple → FoodGo → Stop using Apple ID",
     "profile.appleNoName.step3": "Kom tillbaka hit och tryck Apple-knappen igen",
     "profile.appleNoName.alt": "Eller fyll i namnet manuellt i Inställningar-fliken nedan.",
-    "profile.tabs.home": "Hem",
+    "profile.tabs.home": "Översikt",
+    "profile.tabs.dpoints": "Dpoints",
     "profile.tabs.deals": "Deals",
     "profile.tabs.addresses": "Adresser",
     "profile.tabs.settings": "Inst.",
@@ -307,9 +330,31 @@ export const orderAuthPending = {
     "order.summary.deliveryFee": "Delivery fee",
     "order.summary.total": "Total",
     "order.review.errorGeneric": "Couldn't save review",
-    "order.review.dismissAria": "Close — don't show again for this order",
+    "order.review.dismissAria": "Close, don't show again for this order",
     "order.review.todayPrefix": "Today",
     "order.review.scheduledDate": "{date} {time}",
+
+    // ── Retractable details + VAT ─────────────────────────────────────────
+    "order.details.showMore": "Show more",
+    "order.details.showLess": "Show less",
+    "order.handlingShow": "Show details",
+    "order.handlingHide": "Hide details",
+    "order.summary.vat": "Incl. VAT ({pct}%)",
+
+    // ── ETA messaging (perspective: we-deliver vs self-deliver) ───────────
+    "order.eta.restaurantEstimates": "Restaurant estimate",
+    "order.eta.estDelivery": "Estimated delivery",
+    "order.eta.minEstimate": "~{m} min",
+    "order.eta.prepWeDeliver": "The restaurant estimates about {m} min until the courier picks up your food.",
+    "order.eta.prepSelfDeliver": "The restaurant estimates about {m} min until your food is ready and delivered.",
+    "order.eta.courierOnWay": "The courier is on the way with your food. The arrival time updates based on distance and number of stops.",
+    "order.eta.busyNote": "Estimated from time of day and distance. Your food may arrive sooner.",
+    "order.eta.overdueBusy": "High demand right now. Delivery may take 10-15 minutes longer than estimated, we're working as fast as we can.",
+
+    // ── Quotes (shown during delivery) ────────────────────────────────────
+    "order.quote.fast": "We work as fast as we can to deliver your food.",
+    "order.quote.care": "Fresh food, delivered with care.",
+    "order.quote.by": "Delívera",
 
     // ── Order tracking (header, ETA, steps, link rows, banner) ────────────
     "order.header.title": "Your order",
@@ -453,7 +498,8 @@ export const orderAuthPending = {
     "profile.appleNoName.step2": "Sign-In with Apple → FoodGo → Stop using Apple ID",
     "profile.appleNoName.step3": "Come back and tap the Apple button again",
     "profile.appleNoName.alt": "Or fill in the name manually in the Settings tab below.",
-    "profile.tabs.home": "Home",
+    "profile.tabs.home": "Overview",
+    "profile.tabs.dpoints": "Dpoints",
     "profile.tabs.deals": "Deals",
     "profile.tabs.addresses": "Addresses",
     "profile.tabs.settings": "Settings",

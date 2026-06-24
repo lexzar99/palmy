@@ -1,13 +1,22 @@
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/shared/api/client";
 
+export interface EarnRule {
+  key: string;
+  label: string;
+  points: number;
+  enabled: boolean;
+}
+
 export interface DpointsConfig {
   dpointsEnabled: boolean;
   dpointsPerKr: number;
   dpointsValuePerKr: number;
   dpointsCardOnHome: boolean;
   dpointsMaxBalance: number;
-  dpointsCourierCost: number; // öre — platt budkostnad (fallback) på poäng-enbart order vid leverans
-  dpointsCourierTiers: string; // JSON-array [{ maxKm, feeKr }] — km-baserad tariff
+  dpointsCourierCost: number; // ore, platt budkostnad (fallback) pa poang-enbart order vid leverans
+  dpointsCourierTiers: string; // JSON-array [{ maxKm, feeKr }], km-baserad tariff
+  dpointsEarnRules: EarnRule[];
+  dpointsStreakTarget: number; // antal betalda ordrar inom 7 dagar for streak-bonus
 }
 
 export interface DpointsOverview {
@@ -93,7 +102,6 @@ export const dpointsKeys = {
   config: ["dpoints", "config"] as const,
   overview: ["dpoints", "overview"] as const,
   sponsors: ["dpoints", "sponsors"] as const,
-  rewards: ["dpoints", "rewards"] as const,
   campaigns: ["dpoints", "campaigns"] as const,
   customers: (s: string) => ["dpoints", "customers", s] as const,
   customer: (id: string) => ["dpoints", "customer", id] as const,
@@ -109,11 +117,8 @@ export const createSponsor = (p: Partial<SponsorCard>) => apiPost(`${base}/spons
 export const updateSponsor = (id: string, p: Partial<SponsorCard>) => apiPatch(`${base}/sponsor-cards/${id}`, p);
 export const deleteSponsor = (id: string) => apiDelete(`${base}/sponsor-cards/${id}`);
 
-// discountValueKr = kr-input för FIXED (API:t normaliserar till öre).
-export const getRewards = () => apiGet<{ rewards: DpointsReward[] }>(`${base}/rewards`).then((r) => r.rewards);
-export const createReward = (p: Record<string, unknown>) => apiPost(`${base}/rewards`, p);
-export const updateReward = (id: string, p: Record<string, unknown>) => apiPatch(`${base}/rewards/${id}`, p);
-export const deleteReward = (id: string) => apiDelete(`${base}/rewards/${id}`);
+// Inlösenskatalogen (DpointsReward) är retirerad — spendering sker via "köp med
+// poäng" på rewardable varor i Meny. Inga reward-CRUD-anrop kvar.
 
 export const getCampaigns = () => apiGet<{ campaigns: PointsCampaign[] }>(`${base}/campaigns`).then((r) => r.campaigns);
 export const createCampaign = (p: Record<string, unknown>) => apiPost(`${base}/campaigns`, p);

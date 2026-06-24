@@ -68,12 +68,10 @@ function ToastView({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
   }, [onDismiss]);
 
   const Icon = item.tone === "success" ? CheckCircle2 : item.tone === "error" ? AlertCircle : Info;
-  const accent =
-    item.tone === "success"
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
-      : item.tone === "error"
-      ? "border-rose-500/30 bg-rose-500/10 text-rose-500"
-      : "border-sky-500/30 bg-sky-500/10 text-sky-500";
+  // Monokromt kort; ikonen bär tonen. Success får en tunn guld-vänsterkant
+  // (touch av guld + emerald-bock) eftersom det är en glad success-notis.
+  const iconColor =
+    item.tone === "success" ? "text-emerald-500" : item.tone === "error" ? "text-rose-500" : "text-[color:var(--text-secondary)]";
 
   return (
     <motion.div
@@ -82,11 +80,15 @@ function ToastView({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -20, scale: 0.95 }}
       transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
-      className={`pointer-events-auto flex items-center gap-3 w-full rounded-2xl border-2 px-4 py-3 shadow-xl backdrop-blur-md ${accent}`}
-      style={{ backgroundColor: "var(--bg-secondary)" }}
+      className="pointer-events-auto flex items-center gap-3 w-full rounded-2xl border px-4 py-3 shadow-xl backdrop-blur-md"
+      style={{
+        backgroundColor: "var(--bg-secondary)",
+        borderColor: "var(--border-muted)",
+        borderLeft: item.tone === "success" ? "3px solid var(--color-gold-500, #E7B24B)" : undefined,
+      }}
     >
-      <Icon size={20} strokeWidth={2.5} className="shrink-0" />
-      <p className="flex-1 text-sm font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>
+      <Icon size={20} strokeWidth={2.5} className={`shrink-0 ${iconColor}`} />
+      <p className="flex-1 text-[14px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
         {item.message}
       </p>
       <button

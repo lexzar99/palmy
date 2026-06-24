@@ -31,7 +31,6 @@ import DpointsHomeCard from "@/components/DpointsHomeCard";
 import type { SponsorCardData } from "@/lib/dpoints";
 import WelcomeDealBanner from "@/components/WelcomeDealBanner";
 import EmptyState from "@/components/EmptyState";
-import InviteFriendsBanner from "@/components/InviteFriendsBanner";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
@@ -1011,22 +1010,23 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
               </span>
             </Link>
 
-            {/* Leverans/Hämtning — segmentkontroll */}
-            <div className="shrink-0 p-0.5 rounded-full flex items-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-              <button
-                onClick={() => toggleOrderType("DELIVERY")}
-                className="px-4 py-2 rounded-full text-[12.5px] font-semibold transition-colors"
-                style={{ backgroundColor: orderType === "DELIVERY" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "DELIVERY" ? "#141416" : "var(--text-secondary)" }}
-              >
-                {t("cart.deliveryType.delivery")}
-              </button>
-              <button
-                onClick={() => toggleOrderType("PICKUP")}
-                className="px-4 py-2 rounded-full text-[12.5px] font-semibold transition-colors"
-                style={{ backgroundColor: orderType === "PICKUP" ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === "PICKUP" ? "#141416" : "var(--text-secondary)" }}
-              >
-                {t("cart.deliveryType.pickup")}
-              </button>
+            {/* Leverans/Hämtning — segmentkontroll (monokrom + guld-streck, som i kassan) */}
+            <div className="shrink-0 flex rounded-[10px] overflow-hidden" style={{ border: "1px solid var(--line-strong)" }}>
+              {(["DELIVERY", "PICKUP"] as const).map((type, i) => {
+                const active = orderType === type;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => toggleOrderType(type)}
+                    className="relative flex items-center justify-center gap-1.5 px-4 h-9 text-[12.5px] transition-colors"
+                    style={{ color: active ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: active ? 600 : 500, borderLeft: i === 1 ? "1px solid var(--line-strong)" : undefined }}
+                  >
+                    {type === "DELIVERY" ? <Truck size={14} /> : <Store size={14} />}
+                    {type === "DELIVERY" ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
+                    {active && <span className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)" }} />}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </header>

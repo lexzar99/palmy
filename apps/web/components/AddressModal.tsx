@@ -5,10 +5,9 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin, X, ArrowRight, Truck, Store, AlertCircle,
-  Loader2, CheckCircle2, Building2, ChevronRight, Search, LocateFixed, RotateCw, Home, Briefcase,
+  Loader2, CheckCircle2, Building2, ChevronRight, Search, LocateFixed, RotateCw,
 } from "lucide-react";
 import { loadLeaflet, CARTO_LIGHT, CARTO_ATTRIBUTION, DEFAULT_MAP_CENTER } from "@/lib/leaflet";
-import { readQuickAddresses, formatQuickAddress, type QuickAddress } from "@/lib/quickAddresses";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -80,7 +79,6 @@ export default function AddressModal({
   const [mapReady, setMapReady] = useState(false);
   const [mapKey, setMapKey] = useState(0); // bumpa för att tvinga om-init (retry)
   const [locating, setLocating] = useState(false);
-  const [savedAddresses, setSavedAddresses] = useState<QuickAddress[]>([]);
   const autoLocatedRef = useRef(false);
   const mapRef = useRef<any>(null);
   const tileLayerRef = useRef<any>(null);
@@ -113,7 +111,6 @@ export default function AddressModal({
           console.warn("Failed to parse stored coords:", err);
         }
       }
-      try { setSavedAddresses(readQuickAddresses()); } catch { /* noop */ }
     }
 
     setPredictions([]);
@@ -398,7 +395,7 @@ export default function AddressModal({
               {/* Header */}
               <div className="flex items-center justify-between mb-4 shrink-0">
                 <div>
-                  <p className="text-[12.5px] font-medium mb-0.5" style={{ color: "var(--gold-ink)" }}>Innan du beställer</p>
+                  <p className="text-[12.5px] font-medium mb-0.5" style={{ color: "var(--text-secondary)" }}>Innan du beställer</p>
                   <h2 className="text-[20px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
                     {orderType === "DELIVERY" ? "Var ska vi leverera?" : "Välj stad"}
                   </h2>
@@ -408,17 +405,21 @@ export default function AddressModal({
                 </button>
               </div>
 
-              {/* Toggle */}
-              <div className="flex gap-2 mb-4 p-1 rounded-xl border shrink-0" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                {(["DELIVERY", "PICKUP"] as const).map(type => (
-                  <button key={type} onClick={() => { setOrderType(type); setError(null); setPredictions([]); }}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[13px] font-semibold transition-all"
-                    style={{ backgroundColor: orderType === type ? "var(--color-gold-500, #E7B24B)" : "transparent", color: orderType === type ? "#141416" : "var(--text-secondary)" }}
-                  >
-                    {type === "DELIVERY" ? <Truck size={14} strokeWidth={2} /> : <Store size={14} strokeWidth={2} />}
-                    {type === "DELIVERY" ? "Leverans" : "Avhämtning"}
-                  </button>
-                ))}
+              {/* Toggle — monokrom + guld-streck under aktiv (som i kassan) */}
+              <div className="flex mb-4 rounded-[10px] overflow-hidden shrink-0" style={{ border: "1px solid var(--line-strong)" }}>
+                {(["DELIVERY", "PICKUP"] as const).map((type, i) => {
+                  const active = orderType === type;
+                  return (
+                    <button key={type} onClick={() => { setOrderType(type); setError(null); setPredictions([]); }}
+                      className="relative flex-1 flex items-center justify-center gap-2 h-11 text-[13.5px] transition-colors"
+                      style={{ color: active ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: active ? 600 : 500, borderLeft: i === 1 ? "1px solid var(--line-strong)" : undefined }}
+                    >
+                      {type === "DELIVERY" ? <Truck size={15} strokeWidth={2} /> : <Store size={15} strokeWidth={2} />}
+                      {type === "DELIVERY" ? "Leverans" : "Avhämtning"}
+                      {active && <span className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)" }} />}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* ── DELIVERY: address autocomplete + interaktiv karta ── */}
@@ -434,12 +435,12 @@ export default function AddressModal({
                       className="flex items-center gap-3 rounded-xl border px-4 py-3.5 transition-all"
                       style={{
                         backgroundColor: "var(--bg-deep)",
-                        borderColor: error ? "rgba(239,68,68,0.38)" : selectedCoords ? "rgba(16,185,129,0.32)" : "var(--border-muted)",
+                        borderColor: error ? "rgba(239,68,68,0.38)" : selectedCoords ? "rgba(20,20,22,0.45)" : "var(--border-muted)",
                       }}
                     >
                       {selectedCoords
-                        ? <CheckCircle2 className="text-emerald-400 shrink-0" size={17} />
-                        : <MapPin className="text-gold-500 shrink-0" size={17} />}
+                        ? <CheckCircle2 className="text-zinc-900 shrink-0" size={17} />
+                        : <MapPin className="text-zinc-500 shrink-0" size={17} />}
                       <input
                         type="text" value={input} onChange={e => handleInputChange(e.target.value)}
                         onKeyDown={e => e.key === "Enter" && predictions.length === 0 && handleSubmit()}
@@ -448,7 +449,7 @@ export default function AddressModal({
                         style={{ color: "var(--text-primary)", fontSize: "16px" }}
                         autoComplete="off"
                       />
-                      {loading && <Loader2 size={15} className="animate-spin text-gold-500 shrink-0" />}
+                      {loading && <Loader2 size={15} className="animate-spin text-zinc-500 shrink-0" />}
                       {!loading && input && (
                         <button onClick={() => { setInput(""); setPredictions([]); }}>
                           <X size={13} style={{ color: "var(--text-secondary)" }} />
@@ -457,7 +458,7 @@ export default function AddressModal({
                     </div>
 
                     {autocompleteError && !loading && (
-                      <p className="mt-1.5 text-[12px] font-medium px-1" style={{ color: "#b45309" }}>
+                      <p className="mt-1.5 text-[12px] font-medium px-1" style={{ color: "var(--text-secondary)" }}>
                         ⚠ Söktjänsten är tillfälligt otillgänglig — välj din plats på kartan istället.
                       </p>
                     )}
@@ -477,10 +478,10 @@ export default function AddressModal({
                             <button
                               key={pred.place_id}
                               onClick={() => handleSelect(pred)}
-                              className="w-full text-left px-5 py-3.5 transition-all flex items-start gap-3 border-b last:border-none hover:bg-gold-500/5"
+                              className="w-full text-left px-5 py-3.5 transition-all flex items-start gap-3 border-b last:border-none hover:bg-[var(--bg-deep)]"
                               style={{ borderColor: "var(--border-muted)" }}
                             >
-                              <MapPin size={13} className="text-gold-500 mt-0.5 shrink-0" />
+                              <MapPin size={13} className="text-zinc-500 mt-0.5 shrink-0" />
                               <div>
                                 <span className="text-[13.5px] font-semibold block" style={{ color: "var(--text-primary)" }}>{pred.description.split(",")[0]}</span>
                                 <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{pred.description.split(",").slice(1).join(",").trim()}</span>
@@ -492,34 +493,8 @@ export default function AddressModal({
                     </AnimatePresence>
                   </div>
 
-                  {/* Sparade adresser — snabbval (man kan också söka eller pinna). */}
-                  {savedAddresses.length > 0 && (
-                    <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar shrink-0 -mx-1 px-1">
-                      {savedAddresses.slice(0, 6).map((a) => (
-                        <button
-                          key={`${a.street}-${a.zip || ""}-${a.city || ""}`}
-                          type="button"
-                          onClick={() => {
-                            const label = formatQuickAddress(a);
-                            setInput(label);
-                            setSelectedAddress(label);
-                            setSelectedPostalCode(a.zip ?? null);
-                            setSelectedDeliveryCity(a.city ?? null);
-                            if (a.latitude != null && a.longitude != null) {
-                              setSelectedCoords({ lat: a.latitude, lng: a.longitude });
-                              recenterMap(a.latitude, a.longitude);
-                            }
-                            setPredictions([]);
-                          }}
-                          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px] font-medium border transition-all active:scale-95"
-                          style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
-                        >
-                          {a.label === "Hem" ? <Home size={12} className="text-gold-500" /> : a.label === "Jobb" ? <Briefcase size={12} className="text-gold-500" /> : <MapPin size={12} className="text-gold-500" />}
-                          <span className="truncate max-w-[140px]">{formatQuickAddress(a)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {/* Single-address: ingen lista med sparade adresser. Man har EN
+                      adress som ändras här via sök/karta. */}
 
                   {/* Karta — flytta kartan (fast nål i mitten) för att välja exakt plats.
                       z-0 håller Leaflets interna z-index inom denna stacking-kontext
@@ -532,21 +507,21 @@ export default function AddressModal({
                     {!mapError && (
                       <>
                         <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-full -mt-1">
-                          <MapPin size={40} strokeWidth={2.5} fill="#EAB545" className="text-gold-600" style={{ filter: "drop-shadow(0 5px 6px rgba(0,0,0,0.45))" }} />
+                          <MapPin size={40} strokeWidth={2.5} fill="#141416" className="text-zinc-900" style={{ filter: "drop-shadow(0 5px 6px rgba(0,0,0,0.45))" }} />
                         </div>
                         <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-zinc-900/40" />
                       </>
                     )}
                     {mapError && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-                        <AlertCircle size={22} className="text-amber-500" />
+                        <AlertCircle size={22} className="text-zinc-500" />
                         <p className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>
                           Kartan kunde inte laddas just nu.
                         </p>
                         <button
                           type="button"
                           onClick={() => { setMapError(false); setMapKey((k) => k + 1); }}
-                          className="inline-flex items-center gap-1.5 px-4 h-10 rounded-xl text-[13.5px] font-semibold bg-gold-500 active:scale-95 transition-all" style={{ color: "#141416" }}
+                          className="inline-flex items-center gap-1.5 px-4 h-10 rounded-xl text-[13.5px] font-semibold bg-zinc-900 active:scale-95 transition-all" style={{ color: "#fff" }}
                         >
                           <RotateCw size={13} /> Försök igen
                         </button>
@@ -566,7 +541,7 @@ export default function AddressModal({
                     {!mapError && (
                       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] px-3 py-1.5 rounded-full bg-zinc-950/75 backdrop-blur-md pointer-events-none">
                         <span className="text-[12px] font-medium text-white flex items-center gap-1.5">
-                          <MapPin size={12} className="text-gold-400" /> Flytta kartan för exakt plats
+                          <MapPin size={12} className="text-zinc-200" /> Flytta kartan för exakt plats
                         </span>
                       </div>
                     )}
@@ -575,7 +550,7 @@ export default function AddressModal({
                   {/* Vald adress-rad */}
                   {selectedAddress && (
                     <div className="mt-3 flex items-center gap-2 shrink-0">
-                      <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                      <CheckCircle2 size={15} className="text-zinc-900 shrink-0" />
                       <span className="text-[13.5px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{selectedAddress}</span>
                     </div>
                   )}
@@ -587,7 +562,7 @@ export default function AddressModal({
                 <div className="mb-2">
                   {citiesLoading ? (
                     <div className="flex items-center justify-center gap-3 py-8 rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                      <Loader2 size={16} className="animate-spin text-gold-500" />
+                      <Loader2 size={16} className="animate-spin text-zinc-500" />
                       <span className="text-[14px] font-medium" style={{ color: "var(--text-secondary)" }}>Hämtar städer…</span>
                     </div>
                   ) : cityGroups.length === 0 ? (
@@ -598,7 +573,7 @@ export default function AddressModal({
                   ) : (
                     <>
                       <div className="flex items-center gap-3 rounded-xl border px-4 py-3 mb-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                        <Search size={15} className="text-gold-500 shrink-0" />
+                        <Search size={15} className="text-zinc-500 shrink-0" />
                         <input
                           type="text"
                           value={citySearch}
@@ -636,16 +611,16 @@ export default function AddressModal({
                                 onClick={() => { setSelectedCity(group.parent); setError(null); }}
                                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all text-left"
                                 style={{
-                                  backgroundColor: isSelected ? "rgba(234,181,69,0.05)" : "var(--bg-deep)",
-                                  borderColor: isSelected ? "rgba(234,181,69,0.4)" : "var(--border-muted)",
+                                  backgroundColor: isSelected ? "rgba(20,20,22,0.05)" : "var(--bg-deep)",
+                                  borderColor: isSelected ? "rgba(20,20,22,0.45)" : "var(--border-muted)",
                                 }}
                               >
                                 <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                                  style={{ borderColor: isSelected ? "#EAB545" : "var(--border-muted)", backgroundColor: isSelected ? "#EAB545" : "transparent" }}>
-                                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                                  style={{ borderColor: isSelected ? "#141416" : "var(--border-muted)", backgroundColor: isSelected ? "#141416" : "transparent" }}>
+                                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <span className="text-[14.5px] font-semibold" style={{ color: isSelected ? "var(--gold-ink)" : "var(--text-primary)" }}>
+                                  <span className="text-[14.5px] font-semibold" style={{ color: "var(--text-primary)" }}>
                                     {group.parent.name}
                                   </span>
                                   {subtitle && (
@@ -654,7 +629,7 @@ export default function AddressModal({
                                     </span>
                                   )}
                                 </div>
-                                <ChevronRight size={14} style={{ color: isSelected ? "#EAB545" : "var(--text-secondary)" }} />
+                                <ChevronRight size={14} style={{ color: isSelected ? "#141416" : "var(--text-secondary)" }} />
                               </button>
                             );
                           });

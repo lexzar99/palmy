@@ -534,8 +534,8 @@ router.post('/webhook', async (req, res) => {
 
         // Referral-reward — invitee:s första betalda order = trigger.
         try {
-          const { maybeTriggerReferralReward } = await import('./referrals');
-          await maybeTriggerReferralReward(order.id);
+          const { maybeRewardInvite } = await import('../lib/invite');
+          await maybeRewardInvite(order.id);
         } catch (e: any) {
           console.error('[payments webhook] referral-reward-trigger error:', e?.message);
         }

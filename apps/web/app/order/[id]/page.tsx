@@ -5,8 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, AlertCircle, ShieldCheck, ShoppingBag, MapPin, ArrowRight, Star, X, MessageSquare } from "lucide-react";
-import { openSupportChatWithOrder } from "@/components/SupportChat";
+import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, AlertCircle, ShieldCheck, ShoppingBag, MapPin, ArrowRight, Star, X, MessageSquare, ChevronDown } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import { cacheOrderDetail, getCachedOrderDetail } from "@/lib/offlineOrders";
@@ -129,7 +128,7 @@ const proofIsLive = (order: any): boolean => {
 const paymentMethodLabel = (m?: string | null): string => {
   if (m === "CASH") return "Kontant";
   if (m === "ONLINE") return "Kort / online";
-  return m || "—";
+  return m || "-";
 };
 
 const escapeHtml = (s: any): string =>
@@ -226,9 +225,17 @@ const OrderStatusPage = () => {
   const [fetchError, setFetchError] = useState<"not-found" | "network" | null>(null);
   const socketRef = useRef<any>(null);
   const [etaLeft, setEtaLeft] = useState<number | null>(null);
+  // Sekund-tick för live-nedräkning av leveransen när budet är på väg.
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
   // Budets live-position (endast vi-levererar; broadcastas via socket vid hämtad).
   const [courierPos, setCourierPos] = useState<{ lat: number; lng: number } | null>(null);
-  const [showReview, setShowReview] = useState(false);
+  // Retractable sektioner — kompakta tills man klickar (kund ser totalt /
+  // hanteringsrubriken direkt, expanderar för fullständig info).
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [handlingOpen, setHandlingOpen] = useState(false);
+  // Recensionen visas numera inline (mellan status och detaljer), inte som
+  // popup. reviewDismissed låter kunden stänga den utan att se den igen.
+  const [reviewDismissed, setReviewDismissed] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [likedItemIds, setLikedItemIds] = useState<string[]>([]);
@@ -429,26 +436,24 @@ const OrderStatusPage = () => {
     return () => clearInterval(t);
   }, [order?.etaEndsAt, order?.estimatedTime]);
 
-  // Auto-show review prompt — ENDAST för faktiskt levererade orders, inte
-  // för READY (pickup-order är bara klar att hämtas, inte upplevd än).
-  // Vi sparar också "dismiss"-tillstånd i sessionStorage så att kunden inte
-  // får upp samma popup vid varje page-reload — bara en gång per session.
+  // Tickar varje sekund så leverans-nedräkningen (budet på väg) rör sig live.
   useEffect(() => {
-    if (!order || !['DELIVERED', 'COMPLETED'].includes(order.status)) return;
-    if (order.rating || reviewDone) return;
-    if (typeof window !== "undefined") {
-      const dismissedKey = `review_dismissed_${order.id}`;
-      if (sessionStorage.getItem(dismissedKey)) return;
-    }
-    // Längre delay (6s istället för 2s) — kund hinner se "Levererad!"-state
-    // och processa innan en modal popp:ar upp och bryter UX:n.
-    const timer = setTimeout(() => setShowReview(true), 6000);
-    return () => clearTimeout(timer);
-  }, [order?.status, order?.rating, order?.id, reviewDone]);
+    if (!order?.status || ['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].includes(order.status)) return;
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [order?.status]);
 
-  // Persistera dismiss för denna order så kunden inte spammas vid reload.
+  // Recensionen visas inline (mellan status och detaljer) så fort ordern är
+  // levererad och inte redan betygsatt. Läs in ev. tidigare "stäng"-val så
+  // kunden inte ser den igen efter att ha stängt den (per session).
+  useEffect(() => {
+    if (!order?.id || typeof window === "undefined") return;
+    if (sessionStorage.getItem(`review_dismissed_${order.id}`)) setReviewDismissed(true);
+  }, [order?.id]);
+
+  // Stäng inline-recensionen och kom ihåg valet för denna order.
   const dismissReview = useCallback(() => {
-    setShowReview(false);
+    setReviewDismissed(true);
     if (order?.id && typeof window !== "undefined") {
       sessionStorage.setItem(`review_dismissed_${order.id}`, "1");
     }
@@ -467,7 +472,6 @@ const OrderStatusPage = () => {
       if (phoneFromUrl) body.phone = phoneFromUrl;
       await axios.post(`/api/platform/orders/${orderId}/review`, body);
       setReviewDone(true);
-      setShowReview(false);
       setOrder((prev: any) => prev ? { ...prev, rating: reviewRating } : prev);
     } catch (err: any) {
       alert(err.response?.data?.error || t('order.review.errorGeneric'));
@@ -475,16 +479,6 @@ const OrderStatusPage = () => {
       setReviewSubmitting(false);
     }
   };
-
-  // Lock background scroll when review modal is open
-  useEffect(() => {
-    if (showReview) {
-      document.documentElement.style.overflowY = "hidden";
-    } else {
-      document.documentElement.style.overflowY = "";
-    }
-    return () => { document.documentElement.style.overflowY = ""; };
-  }, [showReview]);
 
   if (loading) {
     // Skeleton som matchar sidans faktiska layout (paritet med övriga sidor —
@@ -561,14 +555,64 @@ const OrderStatusPage = () => {
     ? stepDefs.length - 1
     : stepDefs.reduce((acc, d, i) => (d.reached(currentStatus) ? i : acc), 0);
 
+  // ── ETA / leveranstid ──────────────────────────────────────────────────
+  // Perspektiv:
+  //  • Vi-levererar (selfDelivery=false): restaurangens tid = tills maten är
+  //    klar att HÄMTAS av budet. Efter hämtning (DELIVERING) byter vi till en
+  //    egen uppskattning (15-30 min) baserad på avstånd + budets orderantal.
+  //  • Levererar-själva (selfDelivery=true): restaurangens tid = tills maten
+  //    är klar OCH levererad till kunden.
+  const isWeDeliver = order.type === "DELIVERY" && !order.selfDelivery;
+  const courierEnRoute = currentStatus === "DELIVERING" && isWeDeliver;
+  const beforePickup = !isCompleted && !isRejected && !courierEnRoute;
+
+  // Fågelvägsavstånd restaurang -> kund (km).
+  const haversineKm = (aLat: number, aLng: number, bLat: number, bLng: number) => {
+    const R = 6371;
+    const dLat = ((bLat - aLat) * Math.PI) / 180;
+    const dLng = ((bLng - aLng) * Math.PI) / 180;
+    const s =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+  };
+  const distanceKm =
+    typeof order.restaurantLat === "number" && typeof order.restaurantLng === "number" &&
+    typeof order.deliveryLatitude === "number" && typeof order.deliveryLongitude === "number"
+      ? haversineKm(order.restaurantLat, order.restaurantLng, order.deliveryLatitude, order.deliveryLongitude)
+      : null;
+
+  // Uppskattat leveransspann efter hämtning: bas 15 min + ~3 min/km + ~4 min
+  // per extra samtidig order budet kör. Klampas till 15-30 min.
+  const courierLoad = typeof order.courierActiveOrders === "number" ? order.courierActiveOrders : 1;
+  const loadExtra = courierLoad > 1 ? (courierLoad - 1) * 4 : 0;
+  const distExtra = distanceKm != null ? Math.round(distanceKm * 3) : 5;
+  const deliveryEtaMin = Math.max(15, Math.min(30, 15 + distExtra + loadExtra));
+  // "Hög väntetid": nära taket eller många stopp -> visa mjuk disclaimer.
+  const deliveryBusy = deliveryEtaMin >= 25 || courierLoad >= 3;
+  // Live-nedräkning under leverans: mål = hämtningstid + uppskattning. När
+  // tiden passerar lägger vi på 10-15 min buffert och flaggar hög belastning.
+  const DELIVERY_OVERDUE_BUFFER_MIN = 12;
+  const deliveringAtMs = order.deliveringAt ? new Date(order.deliveringAt).getTime() : null;
+  let deliverySecondsLeft: number | null = null;
+  let deliveryOverdue = false;
+  if (courierEnRoute && deliveringAtMs) {
+    const baseTarget = deliveringAtMs + deliveryEtaMin * 60000;
+    let target = baseTarget;
+    if (nowMs >= baseTarget) { target = baseTarget + DELIVERY_OVERDUE_BUFFER_MIN * 60000; deliveryOverdue = true; }
+    deliverySecondsLeft = Math.max(0, Math.round((target - nowMs) / 1000));
+  }
+  // Inline-recension: visas när ordern är levererad, ej betygsatt och ej stängd.
+  const showInlineReview = isCompleted && !order.rating && !reviewDone && !reviewDismissed;
+
   return (
     <div className="min-h-screen pb-[calc(env(safe-area-inset-bottom,0px)+7rem)] pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24 md:pb-16" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="mx-auto max-w-2xl px-4">
 
         {/* Top bar */}
         <div className="flex items-center justify-between gap-3 py-3">
-          <Link href="/orders" className="inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-bold transition-colors" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
-            <ArrowRight size={13} className="rotate-180" /> {t("order.subtitle")}
+          <Link href="/orders" aria-label={t("order.subtitle")} className="inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
+            <ArrowRight size={16} className="rotate-180" />
           </Link>
           {!isRejected && !isCompleted && (
             <div className="inline-flex items-center gap-2 rounded-full border border-gold-500/20 bg-gold-500/10 px-3 py-1.5 text-[11px] font-bold text-gold-600">
@@ -594,18 +638,30 @@ const OrderStatusPage = () => {
 
           {/* Status + ETA */}
           <div className="flex items-center gap-4 p-5">
-            <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border ${statusInfo.colorClass} ${statusInfo.textClass}`}>
-              <StatusIcon size={28} className={currentStatus === "PENDING" ? "animate-pulse" : ""} />
+            <div className={`shrink-0 ${statusInfo.textClass}`}>
+              <StatusIcon size={34} className={currentStatus === "PENDING" ? "animate-pulse" : ""} />
             </div>
             <div className="min-w-0 flex-1">
               <h2 className="text-lg font-bold leading-tight" style={{ color: "var(--text-primary)" }}>{statusLabel(currentStatus)}</h2>
               <p className="mt-0.5 text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>{statusDesc(currentStatus)}</p>
             </div>
-            {order.estimatedTime && !isRejected && !isCompleted && (
+            {!isRejected && !isCompleted && (order.estimatedTime || courierEnRoute) && (
               <div className="shrink-0 rounded-2xl px-3.5 py-2 text-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-                <div className="text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>{etaLeft !== null && etaLeft <= 0 ? t("order.eta.ready") : t("order.eta.short")}</div>
-                <div className={`text-lg font-bold tabular-nums ${etaLeft !== null && etaLeft <= 300 ? "text-emerald-500" : "text-gold-600"}`}>
-                  {etaLeft === null ? `${order.estimatedTime} min` : etaLeft <= 0 ? t("order.eta.soon") : `${Math.floor(etaLeft / 60)}:${(etaLeft % 60).toString().padStart(2, "0")}`}
+                <div className="text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                  {courierEnRoute ? t("order.eta.estDelivery") : t("order.eta.restaurantEstimates")}
+                </div>
+                <div className={`text-lg font-bold tabular-nums ${(courierEnRoute ? (!deliveryOverdue && deliverySecondsLeft !== null && deliverySecondsLeft <= 300) : (etaLeft !== null && etaLeft <= 300)) ? "text-emerald-500" : "text-gold-600"}`}>
+                  {courierEnRoute
+                    ? (deliverySecondsLeft === null
+                        ? t("order.eta.minEstimate", { m: deliveryEtaMin })
+                        : deliverySecondsLeft <= 0
+                          ? t("order.eta.soon")
+                          : `${Math.floor(deliverySecondsLeft / 60)}:${(deliverySecondsLeft % 60).toString().padStart(2, "0")}`)
+                    : etaLeft === null
+                      ? `${order.estimatedTime} min`
+                      : etaLeft <= 0
+                        ? t("order.eta.soon")
+                        : `${Math.floor(etaLeft / 60)}:${(etaLeft % 60).toString().padStart(2, "0")}`}
                 </div>
               </div>
             )}
@@ -654,6 +710,24 @@ const OrderStatusPage = () => {
               </div>
             </div>
           )}
+
+          {/* ETA-budskap + perspektiv (vi-levererar vs levererar-själva) + quote */}
+          {!isRejected && !isCompleted && (order.estimatedTime || courierEnRoute) && (
+            <div className="border-t px-5 py-4" style={{ borderColor: "var(--border-muted)" }}>
+              <p className="text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>
+                {courierEnRoute
+                  ? (deliveryOverdue ? t("order.eta.overdueBusy") : t("order.eta.courierOnWay"))
+                  : isWeDeliver
+                    ? t("order.eta.prepWeDeliver", { m: order.estimatedTime })
+                    : t("order.eta.prepSelfDeliver", { m: order.estimatedTime })}
+              </p>
+              {courierEnRoute && !deliveryOverdue && deliveryBusy && (
+                <p className="mt-1.5 text-[12px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                  {t("order.eta.busyNote")}
+                </p>
+              )}
+            </div>
+          )}
         </motion.div>
 
         {/* Web push — "Få avisering när maten är på väg". Visas bara när
@@ -664,7 +738,7 @@ const OrderStatusPage = () => {
             <div className="min-w-0">
               <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>Få avisering när maten är på väg</p>
               <p className="text-[12.5px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                {pushEnabled ? "Aktiverat — vi säger till även om fliken är stängd" : "Push via webben — även när fliken är stängd"}
+                {pushEnabled ? "Aktiverat, vi säger till även om fliken är stängd" : "Push via webben, även när fliken är stängd"}
               </p>
             </div>
             <button
@@ -710,15 +784,62 @@ const OrderStatusPage = () => {
           </div>
         )}
 
-        <div className="mt-4 grid grid-cols-1 gap-4 items-start">
-           {/* Kvitto — rena rader, tunna avdelare, guld bara på totalen */}
-            <div className="rounded-2xl p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-              <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.detailsTitle")}</h2>
-                 <ShoppingBag size={19} className="text-gold-500" />
+        {/* Inline-recension — mellan status och beställningsdetaljer. Monokrom
+            yta, guld bara på stjärnorna. Ersätter den tidigare popupen. */}
+        {showInlineReview && (
+          <div className="mt-4 rounded-2xl p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.review.title")}</h2>
+                <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>{t("order.review.prompt", { restaurant: order.restaurantName })}</p>
               </div>
+              <button onClick={dismissReview} className="-mr-1.5 -mt-1.5 rounded-full p-2 transition-colors hover:bg-black/5" style={{ color: "var(--text-secondary)" }} aria-label={t("order.review.dismissAria")}><X size={18} /></button>
+            </div>
+            <div className="flex items-center justify-center gap-2.5 pt-5">
+              {[1,2,3,4,5].map(s => (
+                <button key={s} type="button" onClick={() => setReviewRating(s)} className="transition-transform active:scale-90 hover:scale-110" aria-label={`${s}/5`}>
+                  <Star size={34} strokeWidth={1.5} className={s <= reviewRating ? 'fill-[var(--color-gold-500)] text-[var(--color-gold-500)]' : ''} style={s <= reviewRating ? undefined : { color: "var(--line-strong)" }} />
+                </button>
+              ))}
+            </div>
+            <div className="space-y-4 pt-5">
+              <textarea
+                value={reviewText}
+                onChange={e => setReviewText(e.target.value)}
+                placeholder={t("order.review.placeholder")}
+                rows={3}
+                className="w-full rounded-2xl py-3.5 px-4 text-sm outline-none transition-shadow focus:ring-2 focus:ring-[var(--color-gold-500)]/35 resize-none"
+                style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+              />
+              <button
+                onClick={submitReview}
+                disabled={!reviewRating || reviewSubmitting}
+                className="w-full py-4 rounded-full font-bold text-sm active:scale-[0.98] transition-all disabled:opacity-40 disabled:active:scale-100 flex items-center justify-center gap-2.5"
+                style={{ backgroundColor: "var(--color-gold-500)", color: "var(--text-primary)" }}
+              >
+                {reviewSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Star size={16} className="fill-current" /> {t("order.review.submit")}</>}
+              </button>
+            </div>
+          </div>
+        )}
 
-              <div className="space-y-4 mb-6">
+        <div className="mt-4 space-y-4">
+           {/* Beställningsdetaljer — retractable: kollapsad visar bara totalen,
+               expanderad visar rader, summering, momsrad + ladda ner kvitto. */}
+            <div className="rounded-2xl p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+              <button type="button" onClick={() => setDetailsOpen((v) => !v)} className="w-full flex items-center justify-between gap-3" aria-expanded={detailsOpen}>
+                <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.detailsTitle")}</h2>
+                <span className="flex items-center gap-3">
+                  <span className="text-xl font-bold tracking-tight text-gold-600 tabular-nums">{order.total.toFixed(0)} kr</span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: "var(--text-secondary)" }}>
+                    {detailsOpen ? t("order.details.showLess") : t("order.details.showMore")}
+                    <ChevronDown size={15} style={{ transform: detailsOpen ? "rotate(180deg)" : "none" }} />
+                  </span>
+                </span>
+              </button>
+              {detailsOpen && (
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+              <div className="space-y-4 mb-6 pt-5">
                  {order.items.map((item: any) => (
                     <div key={item.id} className="flex justify-between items-start gap-6">
                        <div className="flex-1 min-w-0">
@@ -762,6 +883,14 @@ const OrderStatusPage = () => {
                    );
                  })()}
                  {order.deliveryFee > 0 && <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.deliveryFee")}</span><span className="tabular-nums">+{order.deliveryFee.toFixed(0)} kr</span></div>}
+                 {/* Momsrad — bara om restaurangen visar moms (vatPercent satt).
+                     Priset är inkl. moms, så vi visar "varav moms". */}
+                 {typeof order.restaurantVatPercent === "number" && order.restaurantVatPercent > 0 && (
+                   <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                     <span>{t("order.summary.vat", { pct: order.restaurantVatPercent })}</span>
+                     <span className="tabular-nums">{(order.total - order.total / (1 + order.restaurantVatPercent / 100)).toFixed(0)} kr</span>
+                   </div>
+                 )}
                   <div className="flex justify-between items-baseline pt-3 mt-1" style={{ borderTop: "1px solid var(--border-muted)" }}>
                      <span className="text-base font-bold" style={{ color: "var(--text-primary)" }}>{t("order.summary.total")}</span>
                      <span className="text-2xl font-bold tracking-tight text-gold-600 tabular-nums">{order.total.toFixed(0)} kr</span>
@@ -781,19 +910,27 @@ const OrderStatusPage = () => {
                   {receiptDownloads >= RECEIPT_MAX_DOWNLOADS ? "Max nått" : `PDF · ${RECEIPT_MAX_DOWNLOADS - receiptDownloads} kvar`}
                 </span>
               </button>
+              </motion.div>
+              )}
            </div>
 
-           {/* Info sidebar */}
-           <div className="space-y-4">
-               <div className="rounded-2xl border p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-                  <h2 className="text-lg font-bold tracking-tight mb-5 flex items-center justify-between" style={{ color: "var(--text-primary)" }}>
-                    {t("order.handling")}
-                    {order.type === "DELIVERY" ? <Truck size={19} className="text-gold-500" /> : <Store size={19} className="text-gold-500" />}
-                  </h2>
-
-                 <div className="space-y-5">
+           {/* Hantering — retractable, kompakt tills man klickar. Monokrom kontaktinfo. */}
+           <div className="rounded-2xl border p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+              <button type="button" onClick={() => setHandlingOpen((v) => !v)} className="w-full flex items-center justify-between gap-3" aria-expanded={handlingOpen}>
+                <span className="flex items-center gap-2.5">
+                  {order.type === "DELIVERY" ? <Truck size={18} style={{ color: "var(--text-secondary)" }} /> : <Store size={18} style={{ color: "var(--text-secondary)" }} />}
+                  <span className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.handling")}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: "var(--text-secondary)" }}>
+                  {handlingOpen ? t("order.handlingHide") : t("order.handlingShow")}
+                  <ChevronDown size={15} style={{ transform: handlingOpen ? "rotate(180deg)" : "none" }} />
+                </span>
+              </button>
+              {handlingOpen && (
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+                 <div className="space-y-5 pt-5">
                     <div className="flex items-start gap-3.5">
-                       <Phone className="text-gold-500 mt-0.5 shrink-0" size={16} />
+                       <Phone className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
                         <div>
                            <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.yourNumber")}</div>
                            <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{order.customerPhone}</div>
@@ -801,7 +938,7 @@ const OrderStatusPage = () => {
                     </div>
 
                     <div className="flex items-start gap-3.5">
-                       <Store className="text-gold-500 mt-0.5 shrink-0" size={16} />
+                       <Store className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
                         <div className="min-w-0 flex-1">
                            <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.restaurant")}</div>
                            <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{order.restaurantName}</div>
@@ -811,17 +948,19 @@ const OrderStatusPage = () => {
                              {order.restaurantPhone && (
                                <a
                                  href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`}
-                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gold-500/10 text-gold-600 text-xs font-bold hover:bg-gold-500/20 transition-colors"
+                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+                                 style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)", border: "1px solid var(--border-muted)" }}
                                >
-                                 <Phone size={11} /> {order.restaurantPhone}
+                                 <Phone size={11} style={{ color: "var(--text-secondary)" }} /> {order.restaurantPhone}
                                </a>
                              )}
                              {(order as any).restaurantEmail && (
                                <a
                                  href={`mailto:${(order as any).restaurantEmail}`}
-                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-sky-500/10 text-sky-600 text-xs font-bold hover:bg-sky-500/20 transition-colors break-all"
+                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors break-all"
+                                 style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)", border: "1px solid var(--border-muted)" }}
                                >
-                                 <Mail size={11} /> {(order as any).restaurantEmail}
+                                 <Mail size={11} style={{ color: "var(--text-secondary)" }} /> {(order as any).restaurantEmail}
                                </a>
                              )}
                            </div>
@@ -831,7 +970,7 @@ const OrderStatusPage = () => {
                     {order.type === 'DELIVERY' ? (
                        order.deliveryStreet && (
                           <div className="flex items-start gap-3.5">
-                             <MapPin className="text-gold-500 mt-0.5 shrink-0" size={16} />
+                             <MapPin className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
                               <div className="min-w-0 flex-1">
                                  <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.deliveryAddress")}</div>
                                  {/* Tappable delivery address — opens in maps */}
@@ -841,7 +980,7 @@ const OrderStatusPage = () => {
                                    rel="noreferrer"
                                    className="group block"
                                  >
-                                   <div className="text-sm font-semibold leading-snug group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{order.deliveryStreet}</div>
+                                   <div className="text-sm font-semibold leading-snug group-hover:opacity-80 transition-colors" style={{ color: "var(--text-primary)" }}>{order.deliveryStreet}</div>
                                    <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{order.restaurantCity || "Lund"}</div>
                                  </a>
                               </div>
@@ -850,9 +989,9 @@ const OrderStatusPage = () => {
                     ) : (
                        order.restaurantAddress && (
                           <div className="flex items-start gap-3.5">
-                             <MapPin className="text-gold-500 mt-0.5 shrink-0" size={16} />
+                             <MapPin className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
                               <div className="min-w-0 flex-1">
-                                 <div className="text-[10px] font-bold mb-0.5 text-gold-600">{t("order.pickupAt")}</div>
+                                 <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.pickupAt")}</div>
                                  {/* Tappable pickup address — opens in maps */}
                                  <a
                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([order.restaurantAddress, order.restaurantZip, order.restaurantCity].filter(Boolean).join(", "))}`}
@@ -860,7 +999,7 @@ const OrderStatusPage = () => {
                                    rel="noreferrer"
                                    className="group block"
                                  >
-                                   <div className="text-sm font-semibold leading-snug group-hover:text-gold-600 transition-colors" style={{ color: "var(--text-primary)" }}>{order.restaurantAddress}</div>
+                                   <div className="text-sm font-semibold leading-snug group-hover:opacity-80 transition-colors" style={{ color: "var(--text-primary)" }}>{order.restaurantAddress}</div>
                                    <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{order.restaurantZip} {order.restaurantCity}</div>
                                  </a>
                               </div>
@@ -869,7 +1008,7 @@ const OrderStatusPage = () => {
                     )}
 
                     <div className="flex items-start gap-3.5">
-                       <Calendar className="text-gold-500 mt-0.5 shrink-0" size={16} />
+                       <Calendar className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
                         <div>
                            <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.placed")}</div>
                            <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{t("order.scheduledToday", { time: new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) })}</div>
@@ -893,9 +1032,9 @@ const OrderStatusPage = () => {
                        const dateStr = scheduled.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" });
                        return (
                           <div className="flex items-start gap-3.5">
-                             <Clock className="text-gold-500 mt-0.5 shrink-0" size={16} />
+                             <Clock className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
                               <div>
-                                 <div className="text-[10px] font-bold text-gold-600 mb-0.5">
+                                 <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>
                                     {order.type === "DELIVERY" ? t("order.scheduledFor.delivery") : t("order.scheduledFor.pickup")}
                                  </div>
                                  <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -906,7 +1045,9 @@ const OrderStatusPage = () => {
                        );
                     })()}
                  </div>
-              </div>
+              </motion.div>
+              )}
+           </div>
 
               {/* Review Card or Thank You */}
               {order.rating || reviewDone ? (
@@ -927,92 +1068,34 @@ const OrderStatusPage = () => {
                 </div>
               )}
 
-              {/* Kontakta support — finns oavsett status, pre-fyllt med order-info */}
-              <button
-                onClick={() => openSupportChatWithOrder(order.orderNumber, order.id)}
-                className="w-full mt-4 py-4 rounded-full flex items-center justify-center gap-2.5 transition-all active:scale-[0.98]"
-                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-              >
-                <MessageSquare size={16} className="text-gold-500" />
-                <span className="text-sm font-bold">{t("order.support")}</span>
-              </button>
-           </div>
+              {/* Primär väg: ring restaurangen om din order. Support är medvetet
+                  nedtonad till en liten ikon utan text — vi vill inte styra folk
+                  till support i första hand. Restaurang-knappen döljs om numret saknas. */}
+              <div className="flex items-center gap-2 justify-end">
+                {order.restaurantPhone && (
+                  <a
+                    href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`}
+                    className="flex-1 py-4 rounded-full flex items-center justify-center gap-2.5 transition-all active:scale-[0.98]"
+                    style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                  >
+                    <Phone size={16} style={{ color: "var(--text-secondary)" }} />
+                    <span className="text-sm font-bold">{t("order.contactRestaurant")}</span>
+                  </a>
+                )}
+                <Link
+                  href={`/contact?order=${encodeURIComponent(order.orderNumber)}`}
+                  aria-label={t("order.support")}
+                  title={t("order.support")}
+                  className="shrink-0 flex h-12 w-12 items-center justify-center rounded-full transition-all active:scale-[0.95]"
+                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}
+                >
+                  <MessageSquare size={16} />
+                </Link>
+              </div>
         </div>
 
-        {/* Recensionsmodal — på tema (platt, vit yta, sparsam guld). */}
-        <AnimatePresence>
-          {showReview && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.6)" }} onClick={dismissReview}>
-               <motion.div initial={{ scale: 0.96, y: 24 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 24 }} transition={{ type: "spring", stiffness: 320, damping: 30 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-sm overflow-hidden rounded-3xl shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                {/* Rubrik */}
-                <div className="flex items-start justify-between gap-3 px-6 pt-6">
-                  <div className="min-w-0">
-                    <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.review.title")}</h2>
-                    <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>{t("order.review.prompt", { restaurant: order.restaurantName })}</p>
-                  </div>
-                  <button onClick={dismissReview} className="-mr-1.5 -mt-1.5 rounded-full p-2 transition-colors hover:bg-black/5" style={{ color: "var(--text-secondary)" }} aria-label={t("order.review.dismissAria")}><X size={18} /></button>
-                </div>
-                {/* Betyg */}
-                <div className="flex items-center justify-center gap-2.5 px-6 pt-6">
-                  {[1,2,3,4,5].map(s => (
-                    <button key={s} type="button" onClick={() => setReviewRating(s)} className="transition-transform active:scale-90 hover:scale-110" aria-label={`${s}/5`}>
-                      <Star size={36} strokeWidth={1.5} className={s <= reviewRating ? 'fill-[var(--color-gold-500)] text-[var(--color-gold-500)]' : ''} style={s <= reviewRating ? undefined : { color: "var(--line-strong)" }} />
-                    </button>
-                  ))}
-                </div>
-                <div className="space-y-4 px-6 pt-6">
-                  <textarea
-                    value={reviewText}
-                    onChange={e => setReviewText(e.target.value)}
-                    placeholder={t("order.review.placeholder")}
-                    rows={3}
-                    className="w-full rounded-2xl py-3.5 px-4 text-sm outline-none transition-shadow focus:ring-2 focus:ring-[var(--color-gold-500)]/35 resize-none"
-                    style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-                  />
-                  {/* Lika rätter — beställda items som väljbara taggar (♥). Visas på
-                      reviews-sidan som "Gillade: {namn}". Aktiv = mjuk guldyta. */}
-                  {(order.items || []).length > 0 ? (
-                    <div className="grid gap-2">
-                      <p className="text-xs font-bold" style={{ color: "var(--text-secondary)" }}>{t("order.review.likedTitle")}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {order.items.map((item: any) => {
-                          const id = item.productId || item.id;
-                          const active = likedItemIds.includes(id);
-                          return (
-                            <button
-                              key={id}
-                              type="button"
-                              onClick={() => setLikedItemIds((current) => active ? current.filter((x) => x !== id) : [...current, id])}
-                              className="px-3 py-2 rounded-full text-[11px] font-bold transition-all"
-                              style={{
-                                backgroundColor: active ? "var(--gold-soft)" : "var(--bg-deep)",
-                                color: active ? "var(--gold-ink)" : "var(--text-secondary)",
-                                border: `1px solid ${active ? "var(--color-gold-500)" : "var(--border-muted)"}`,
-                              }}
-                            >
-                              {active ? "♥ " : ""}{item.productName}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-                {/* Skicka */}
-                <div className="px-6 pb-6 pt-6">
-                  <button
-                    onClick={submitReview}
-                    disabled={!reviewRating || reviewSubmitting}
-                    className="w-full py-4 rounded-full font-bold text-sm active:scale-[0.98] transition-all disabled:opacity-40 disabled:active:scale-100 flex items-center justify-center gap-2.5"
-                    style={{ backgroundColor: "var(--color-gold-500)", color: "var(--text-primary)" }}
-                  >
-                    {reviewSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Star size={16} className="fill-current" /> {t("order.review.submit")}</>}
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Recensionen visas numera inline (mellan status och beställnings-
+            detaljer), inte som popup. Se {showInlineReview}-blocket ovan. */}
 
         {/* Kvitto-modal: snyggt kvitto med restaurangens juridiska uppgifter +
             nedladdning (max 2 ggr per order, klient-genererad HTML — ingen server). */}

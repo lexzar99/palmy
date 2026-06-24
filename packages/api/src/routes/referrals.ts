@@ -46,7 +46,7 @@ function generateCode(): string {
   return out;
 }
 
-async function ensureReferralCode(userId: string): Promise<string> {
+export async function ensureReferralCode(userId: string): Promise<string> {
   const u = await (prisma as any).user.findUnique({
     where: { id: userId },
     select: { referralCode: true },
@@ -288,7 +288,7 @@ function similarity(a: string, b: string): number {
   return same / max;
 }
 
-function computeFraudFlags(input: {
+export function computeFraudFlags(input: {
   inviter: any;
   inviteeEmail: string | null;
   inviteeIP: string | null;
@@ -322,7 +322,7 @@ function computeFraudFlags(input: {
   return flags;
 }
 
-function publicShareBase(): string {
+export function publicShareBase(): string {
   // Default: Vercel-deployen som är live just nu. matgo.se (custom domain)
   // är inte DNS-kopplad ännu — länkar dit dör. Bytt default tills custom
   // domain pekas till Vercel. Override via WEB_BASE_URL i Railway när det

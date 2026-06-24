@@ -7,7 +7,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
   Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2, Sparkles, Ticket, Tag,
-  Home, Briefcase, Plus, Trash2, Gift, Languages, Info
+  Home, Briefcase, Plus, Trash2, Gift, Languages, Info, Coins
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -229,7 +229,7 @@ function ProfileContent() {
   const [availableDeals, setAvailableDeals] = useState<any[]>([]);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals" | "addresses">("overview");
+  const [activeTab, setActiveTab] = useState<"dpoints" | "overview" | "orders" | "settings" | "deals" | "addresses">("dpoints");
   const [hasVisited, setHasVisited] = useState(false);
   const searchParams = useSearchParams();
 
@@ -238,7 +238,7 @@ function ProfileContent() {
     // "orders" + "addresses" är borttagna flikar — gamla länkar faller till overview.
     if (tab === "orders" || tab === "addresses") {
       setActiveTab("overview");
-    } else if (tab && ["overview", "settings", "deals"].includes(tab)) {
+    } else if (tab && ["dpoints", "overview", "settings", "deals"].includes(tab)) {
       setActiveTab(tab as any);
     }
   }, [searchParams]);
@@ -766,13 +766,6 @@ function ProfileContent() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-14 h-14 rounded-xl flex items-center justify-center font-bold text-xl shrink-0 overflow-hidden" style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-primary)" }}>
-              {user.image ? (
-                <img src={user.image} alt="" className="w-full h-full rounded-xl object-cover" />
-              ) : (
-                user.name?.charAt(0)?.toUpperCase() || "U"
-              )}
-            </div>
             <div className="min-w-0">
               <h1 className="text-[20px] font-bold tracking-tight truncate" style={{ color: "var(--text-primary)" }}>{user.name}</h1>
               {user.isVerified ? (
@@ -899,8 +892,9 @@ function ProfileContent() {
           </div>
         )}
 
-        <div className="grid grid-cols-5 p-1.5 rounded-2xl shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+        <div className="grid grid-cols-4 p-1.5 rounded-2xl shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
           {[
+            { id: "dpoints", icon: Coins, label: t("profile.tabs.dpoints") },
             { id: "overview", icon: User, label: t("profile.tabs.home") },
             { id: "deals", icon: Sparkles, label: t("profile.tabs.deals") },
             // "Ordrar"- och "Adresser"-flikarna är borttagna från profilen —
@@ -910,18 +904,26 @@ function ProfileContent() {
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id as any); setIsEditing(false); }}
-              className={`flex flex-col items-center gap-1.5 py-4 rounded-2xl transition-all ${activeTab === tab.id ? "" : "hover:opacity-80"}`}
-              style={activeTab === tab.id
-                ? { backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }
-                : { color: "var(--text-secondary)" }}
+              className={`relative flex flex-col items-center gap-1.5 py-4 rounded-2xl transition-all ${activeTab === tab.id ? "" : "hover:opacity-80"}`}
+              style={{ color: activeTab === tab.id ? "var(--text-primary)" : "var(--text-secondary)" }}
             >
               <tab.icon size={18} />
               <span className="text-[8px] font-bold">{tab.label}</span>
+              {activeTab === tab.id && (
+                <span className="absolute left-1/2 -translate-x-1/2 bottom-1.5 h-[2px] w-6 rounded-full" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)" }} />
+              )}
             </button>
           ))}
         </div>
 
         <AnimatePresence mode="wait">
+          {/* Dpoints Tab — default-landning i profilen */}
+          {activeTab === "dpoints" && (
+            <motion.div key="dpoints" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+              <DpointsPanel />
+            </motion.div>
+          )}
+
           {/* Deals Tab */}
           {activeTab === "deals" && (
             <motion.div key="deals" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
@@ -1106,7 +1108,6 @@ function ProfileContent() {
           {/* Overview */}
           {activeTab === "overview" && (
             <motion.div key="ov" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              <DpointsPanel />
               <div className="rounded-2xl p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                 <div className="flex items-center gap-4">
                   <Phone size={16} className="text-[color:var(--text-secondary)] shrink-0" />
@@ -1225,6 +1226,20 @@ function ProfileContent() {
                 </div>
               </div>
 
+              {/* Information — Om oss, Kontakt och policy bakom EN knapp som tar
+                  dig till en sida där du väljer (monokromt, ingen guld). Egen
+                  sektion ovanför kontot så den är tydlig och inte begravd. */}
+              <div className="space-y-2">
+                <div className="px-4 text-[12px] font-medium text-[color:var(--text-secondary)] mb-2">{t("profile.menu.info")}</div>
+                <Link href="/more" className="flex items-center justify-between rounded-2xl px-5 min-h-[56px] active:scale-[0.99] transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                  <span className="flex items-center gap-3 min-w-0">
+                    <Info size={17} style={{ color: "var(--text-secondary)" }} />
+                    <span className="text-[15px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{t("profile.menu.info")}</span>
+                  </span>
+                  <ChevronRight size={16} style={{ color: "var(--text-secondary)" }} />
+                </Link>
+              </div>
+
               <div className="space-y-2">
                 <div className="px-4 text-[12px] font-medium text-[color:var(--text-secondary)] mb-2">{t("profile.settings.section.account")}</div>
                 <div className="rounded-2xl shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
@@ -1244,16 +1259,6 @@ function ProfileContent() {
                   </button>
                 </div>
               </div>
-
-              {/* Information — Om oss, Kontakt och policy bakom EN knapp som tar
-                  dig till en sida där du väljer (monokromt, ingen guld). */}
-              <Link href="/more" className="flex items-center justify-between rounded-2xl px-5 min-h-[56px] active:scale-[0.99] transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                <span className="flex items-center gap-3 min-w-0">
-                  <Info size={17} style={{ color: "var(--text-secondary)" }} />
-                  <span className="text-[15px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{t("profile.menu.info")}</span>
-                </span>
-                <ChevronRight size={16} style={{ color: "var(--text-secondary)" }} />
-              </Link>
             </motion.div>
           )}
 

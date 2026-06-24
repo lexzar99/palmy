@@ -198,6 +198,7 @@ export const messages: Record<Locale, Messages> = {
     "order.thanksTitle": "Tack för förtroendet",
     "order.thanksSub": "Spara ordernumret #{number} för referens vid kontakt.",
     "order.support": "Kontakta support om denna order",
+    "order.contactRestaurant": "Kontakta restaurang",
     "order.review.title": "Betygsätt",
     "order.review.prompt": "Hur var din upplevelse med {restaurant}?",
     "order.review.placeholder": "Berätta mer om din upplevelse (valfritt)…",
@@ -209,7 +210,7 @@ export const messages: Record<Locale, Messages> = {
     "order.error.notFoundSub": "Ordern kan ha tagits bort eller så saknar du behörighet att se den.",
     "order.error.notFoundCta": "Till startsidan",
     "order.error.networkTitle": "Kunde inte ladda ordern",
-    "order.error.networkSub": "Servern är upptagen eller din anslutning är instabil. Din order är troligen registrerad — försök igen om en stund. Din betalning är säker.",
+    "order.error.networkSub": "Servern är upptagen eller din anslutning är instabil. Din order är troligen registrerad, försök igen om en stund. Din betalning är säker.",
     "order.error.retry": "Försök igen",
     "order.error.myOrders": "Mina ordrar",
 
@@ -419,6 +420,7 @@ export const messages: Record<Locale, Messages> = {
     "order.thanksTitle": "Thanks for trusting us",
     "order.thanksSub": "Save order #{number} for reference when contacting support.",
     "order.support": "Contact support about this order",
+    "order.contactRestaurant": "Contact the restaurant",
     "order.review.title": "Rate it",
     "order.review.prompt": "How was your experience with {restaurant}?",
     "order.review.placeholder": "Tell us more about your experience (optional)…",
@@ -430,7 +432,7 @@ export const messages: Record<Locale, Messages> = {
     "order.error.notFoundSub": "The order may have been removed or you don't have permission to view it.",
     "order.error.notFoundCta": "Go to home",
     "order.error.networkTitle": "Couldn't load the order",
-    "order.error.networkSub": "Server is busy or your connection is unstable. Your order is likely registered — try again in a moment. Your payment is safe.",
+    "order.error.networkSub": "Server is busy or your connection is unstable. Your order is likely registered, try again in a moment. Your payment is safe.",
     "order.error.retry": "Try again",
     "order.error.myOrders": "My orders",
 

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authenticateUser } from './auth';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
+import { maybeAwardReviewPoints } from '../lib/dpoints';
 
 const router = Router();
 
@@ -556,6 +557,14 @@ router.post('/orders/:id/review', authenticateUser, async (req: any, res: any) =
         });
       }
     }
+
+    // Dpoints: belöna recensionen (text → review_text, annars review_rating).
+    // Idempotent + fail-safe i helpern.
+    await maybeAwardReviewPoints({
+      userId: req.user.id,
+      orderId: order.id,
+      hasText: typeof review === 'string' && review.trim().length > 0,
+    });
 
     res.json({ success: true });
   } catch (error) {

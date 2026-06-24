@@ -91,8 +91,8 @@ export async function finalizePaymentSuccess(
 
   // Referral-reward — invitee:s första betalda order. Fail-safe.
   try {
-    const { maybeTriggerReferralReward } = await import('../../routes/referrals');
-    await maybeTriggerReferralReward(order.id);
+    const { maybeRewardInvite } = await import('../invite');
+    await maybeRewardInvite(order.id);
   } catch (e: any) {
     console.error('[finalize] referral-reward-trigger error:', e?.message);
   }

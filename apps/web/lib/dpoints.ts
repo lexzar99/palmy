@@ -12,11 +12,19 @@ export interface DpointsTx {
   createdAt: string;
 }
 
+export interface DpointsStreakState {
+  target: number;
+  count: number;
+  ready: boolean;
+  readyInDays: number;
+}
+
 export interface DpointsMe {
   enabled: boolean;
   balance: number;
   valuePerKr: number;
   signup?: { claimable: boolean; bonusPoints: number };
+  streak?: DpointsStreakState;
   transactions: DpointsTx[];
 }
 
@@ -45,19 +53,23 @@ export interface SponsorCardData {
 
 export const fetchDpointsMe = () => axios.get<DpointsMe>("/api/platform/dpoints/me").then((r) => r.data);
 
+export interface EarnRule {
+  key: string;
+  label: string;
+  points: number;
+  repeat?: string;
+}
+
 export const fetchDpointsRewards = () =>
-  axios.get<{ enabled: boolean; valuePerKr: number; rewards: DpointsReward[] }>("/api/platform/dpoints/rewards").then((r) => r.data);
+  axios
+    .get<{ enabled: boolean; valuePerKr: number; rewards: DpointsReward[]; earnRules?: EarnRule[]; streakTarget?: number }>("/api/platform/dpoints/rewards")
+    .then((r) => r.data);
 
 export const fetchSponsorCard = () =>
   axios.get<{ card: SponsorCardData | null }>("/api/platform/dpoints/sponsor-card").then((r) => r.data.card);
 
 export const claimDpointsSignup = () =>
   axios.post<{ ok: boolean; points: number; balance: number }>("/api/platform/dpoints/claim-signup").then((r) => r.data);
-
-export const redeemDpoints = (rewardId: string) =>
-  axios
-    .post<{ ok: boolean; code: string; balanceAfter: number; reward: DpointsReward }>("/api/platform/dpoints/redeem", { rewardId })
-    .then((r) => r.data);
 
 // Hur en transaktion ska beskrivas/visas.
 export function txLabel(t: DpointsTx): string {

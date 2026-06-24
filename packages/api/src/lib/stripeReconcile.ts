@@ -88,8 +88,8 @@ export async function applyPaymentSuccess(orderId: string, paymentIntent: Stripe
   // Referral-reward — kollar om detta är invitee:s första betalda order
   // och triggar 50/50-rewarden om så. Fail-safe: kastar aldrig.
   try {
-    const { maybeTriggerReferralReward } = await import('../routes/referrals');
-    await maybeTriggerReferralReward(order.id);
+    const { maybeRewardInvite } = await import('./invite');
+    await maybeRewardInvite(order.id);
   } catch (e: any) {
     console.error('[stripeReconcile] referral-reward-trigger error:', e?.message);
   }

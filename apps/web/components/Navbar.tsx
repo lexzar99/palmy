@@ -67,7 +67,7 @@ const Navbar = () => {
       {/* Nya brand-lockupen (bett-D + Delívera-wordmark). Ersätter den gamla
           text-logotypen. Höjd-styrd, bredd auto. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/delivera-lockup.png" alt="Delívera" style={{ height: 30, width: "auto" }} />
+      <img src="/delivera-lockup.png" alt="Delívera" style={{ height: 42, width: "auto" }} />
     </Link>
   );
 

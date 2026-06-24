@@ -189,6 +189,29 @@ export function Modal({
   );
 }
 
+export function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => !disabled && onChange(!checked)}
+      className={cn(
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50",
+        checked ? "border-transparent bg-[var(--accent)]" : "border-[var(--border-strong)] bg-transparent",
+      )}
+    >
+      <span
+        className={cn(
+          "inline-block h-4 w-4 rounded-full transition-transform",
+          checked ? "translate-x-[22px] bg-[var(--accent-fg)]" : "translate-x-[3px] bg-[var(--text-secondary)]",
+        )}
+      />
+    </button>
+  );
+}
+
 export function Tabs<T extends string>({
   value,
   options,

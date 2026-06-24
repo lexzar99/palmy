@@ -32,6 +32,7 @@ export interface DpointsSettings {
   dpointsMaxBalance: number;
   dpointsCourierCost: number; // öre — platt budkostnad (fallback) på poäng-ENBART order vid leverans
   dpointsCourierTiers: string; // JSON-array [{ maxKm, feeKr }] — km-baserad tariff
+  dpointsStreakTarget: number; // antal betalda ordrar inom 7 dagar för streak-bonus
 }
 
 export async function getDpointsSettings(): Promise<DpointsSettings> {
@@ -43,7 +44,62 @@ export async function getDpointsSettings(): Promise<DpointsSettings> {
     dpointsMaxBalance: row.dpointsMaxBalance ?? 2000,
     dpointsCourierCost: row.dpointsCourierCost ?? 0,
     dpointsCourierTiers: row.dpointsCourierTiers ?? '[]',
+    dpointsStreakTarget: Math.max(2, Math.round(row.dpointsStreakTarget ?? 3)),
   };
+}
+
+// ── Intjänings-regler (earn-rules) ───────────────────────────────────────────
+
+export interface EarnRule {
+  key: string;
+  label: string;
+  points: number;
+  enabled: boolean;
+}
+
+// Standarduppsättning. Admin ändrar poäng + på/av per regel; nycklarna är
+// stabila och läses av reward-hooks (invite m.fl.) + kundens "Tjäna Dpoints".
+export const DEFAULT_EARN_RULES: EarnRule[] = [
+  { key: 'invite', label: 'Värva en vän', points: 200, enabled: true },
+  { key: 'review_rating', label: 'Recension (betyg)', points: 20, enabled: true },
+  { key: 'review_text', label: 'Recension (med text)', points: 30, enabled: true },
+  { key: 'order_streak', label: 'Beställ flera gånger på en vecka', points: 200, enabled: true },
+  { key: 'new_restaurant', label: 'Testa en ny restaurang', points: 50, enabled: true },
+];
+
+/** Parsa lagrade earn-regler + merga med default (nya nycklar dyker alltid upp). */
+export function parseEarnRules(raw: unknown): EarnRule[] {
+  let stored: any[] = [];
+  try {
+    const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (Array.isArray(arr)) stored = arr;
+  } catch {
+    /* ignore */
+  }
+  const byKey = new Map<string, any>(stored.filter((r) => r && r.key).map((r) => [String(r.key), r]));
+  return DEFAULT_EARN_RULES.map((d) => {
+    const s = byKey.get(d.key);
+    if (!s) return { ...d };
+    const pts = Number(s.points);
+    return {
+      key: d.key,
+      label: d.label,
+      points: Number.isFinite(pts) ? Math.max(0, Math.round(pts)) : d.points,
+      enabled: s.enabled !== false,
+    };
+  });
+}
+
+/** Earn-reglerna från settings (default-fallback). */
+export async function getDpointsEarnRules(): Promise<EarnRule[]> {
+  const row: any = (await prisma.restaurantSettings.findUnique({ where: { id: 'settings' }, select: { dpointsEarnRules: true } })) || {};
+  return parseEarnRules(row.dpointsEarnRules);
+}
+
+/** En specifik regel (eller null om okänd nyckel). */
+export async function getEarnRule(key: string): Promise<EarnRule | null> {
+  const rules = await getDpointsEarnRules();
+  return rules.find((r) => r.key === key) ?? null;
 }
 
 // ── Budkostnad: km-baserad tariff (poäng-ENBART leverans) ────────────────────
@@ -217,6 +273,7 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
       select: {
         id: true,
         userId: true,
+        restaurantId: true,
         total: true,
         deliveryFee: true,
         tipAmount: true,
@@ -278,6 +335,16 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
     await evaluateStreakCampaigns(userId, order.createdAt, baseKr, settings.dpointsMaxBalance).catch((e) =>
       console.error('[dpoints] streak-eval error:', e?.message),
     );
+
+    // Nya config-styrda earn-regler (ny restaurang + vecko-streak). Samma
+    // vinnande path → en gång per order.
+    await evaluateOrderEarnRules({
+      userId,
+      restaurantId: (order as any).restaurantId,
+      orderId,
+      orderDate: order.createdAt,
+      cap: settings.dpointsMaxBalance,
+    }).catch((e) => console.error('[dpoints] order earn-rules error:', e?.message));
   } catch (e: any) {
     if (e?.message === 'ALREADY_AWARDED' || e?.code === 'P2002') return; // idempotent
     console.error('[dpoints] awardOrderPoints error:', e?.message);
@@ -358,6 +425,146 @@ export async function evaluateStreakCampaigns(userId: string, orderDate: Date, b
       },
     });
   }
+}
+
+// ── Recensions-belöning ───────────────────────────────────────────────────────
+
+/**
+ * Dela ut Dpoints för en recension. Med text → review_text-regeln, annars
+ * review_rating-regeln. En gång per order (idempotent via metadata.reviewOrderId,
+ * eftersom orderId-kolumnen redan är upptagen av EARN_ORDER). Gäst-recensioner
+ * (utan userId) tjänar inget. Fail-safe — kastar aldrig.
+ */
+export async function maybeAwardReviewPoints(opts: {
+  userId?: string | null;
+  orderId: string;
+  hasText: boolean;
+}): Promise<void> {
+  try {
+    const { userId, orderId, hasText } = opts;
+    if (!userId) return;
+    const settings = await getDpointsSettings();
+    if (!settings.dpointsEnabled) return;
+    const rule = await getEarnRule(hasText ? 'review_text' : 'review_rating');
+    if (!rule || !rule.enabled || rule.points <= 0) return;
+    // Idempotens: redan belönad recension för denna order?
+    const existing = await prisma.pointsTransaction.findFirst({
+      where: { userId, metadata: { path: ['reviewOrderId'], equals: orderId } },
+      select: { id: true },
+    });
+    if (existing) return;
+    await recordPointsTx({
+      userId,
+      amount: rule.points,
+      type: 'CAMPAIGN',
+      reason: rule.label,
+      metadata: { earnRule: rule.key, reviewOrderId: orderId },
+      cap: settings.dpointsMaxBalance,
+    });
+  } catch (e: any) {
+    console.error('[dpoints] review-points error:', e?.message);
+  }
+}
+
+// ── Order-kopplade earn-regler (utöver grund-EARN_ORDER) ──────────────────────
+
+const STREAK_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // rullande 7-dagarsfönster för streak
+
+/**
+ * Extra intjäning för en BETALD order, utöver grund-EARN_ORDER:
+ *   new_restaurant — kundens första betalda order från restaurangen
+ *   order_streak   — N betalda ordrar inom rullande 7 dagar (cooldown 7 dgr efter)
+ * Körs bara på den vinnande pointsAwarded-path:en → en gång per order. orderId-
+ * kolumnen är upptagen (unik, EARN_ORDER) så posterna bär orderId: null + egen
+ * idempotens. Fail-safe per regel.
+ */
+export async function evaluateOrderEarnRules(opts: {
+  userId: string;
+  restaurantId?: string | null;
+  orderId: string;
+  orderDate: Date;
+  cap?: number;
+}): Promise<void> {
+  const { userId, restaurantId, orderId, orderDate, cap } = opts;
+
+  // new_restaurant — kundens allra första betalda order från denna restaurang.
+  if (restaurantId) {
+    try {
+      const rule = await getEarnRule('new_restaurant');
+      if (rule?.enabled && rule.points > 0) {
+        const priorPaid = await prisma.order.count({
+          where: { userId, restaurantId, pointsAwarded: true, id: { not: orderId } },
+        });
+        if (priorPaid === 0) {
+          await recordPointsTx({
+            userId,
+            amount: rule.points,
+            type: 'CAMPAIGN',
+            reason: rule.label,
+            metadata: { earnRule: 'new_restaurant', restaurantId, orderId },
+            cap,
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error('[dpoints] new_restaurant error:', e?.message);
+    }
+  }
+
+  // order_streak — N betalda ordrar inom RULLANDE 7 dagar → bonus (utöver
+  // grund-intjäningen per order). Repeterbar: 7 dagars cooldown från senaste
+  // utdelning, så den kan tjänas igen ungefär en gång i veckan.
+  try {
+    const rule = await getEarnRule('order_streak');
+    if (rule?.enabled && rule.points > 0) {
+      const settings = await getDpointsSettings();
+      const target = settings.dpointsStreakTarget;
+      const windowStart = new Date(orderDate.getTime() - STREAK_WINDOW_MS);
+      // Cooldown: redan belönad streak inom de senaste 7 dagarna?
+      const recentGrant = await prisma.pointsTransaction.findFirst({
+        where: { userId, metadata: { path: ['earnRule'], equals: 'order_streak' }, createdAt: { gte: windowStart } },
+        select: { id: true },
+      });
+      if (!recentGrant) {
+        const paidInWindow = await prisma.order.count({
+          where: { userId, pointsAwarded: true, createdAt: { gte: windowStart } },
+        });
+        if (paidInWindow >= target) {
+          await recordPointsTx({
+            userId,
+            amount: rule.points,
+            type: 'CAMPAIGN',
+            reason: rule.label,
+            metadata: { earnRule: 'order_streak', windowDays: 7, target, count: paidInWindow },
+            cap,
+          });
+        }
+      }
+    }
+  } catch (e: any) {
+    console.error('[dpoints] order_streak error:', e?.message);
+  }
+}
+
+// Kundens streak-status (för "Tjäna Dpoints"-indikatorn). ready=false betyder
+// att streaken nyligen lösts ut och är på cooldown (redo igen om readyInDays).
+export async function getStreakState(userId: string): Promise<{ target: number; count: number; ready: boolean; readyInDays: number }> {
+  const settings = await getDpointsSettings();
+  const target = settings.dpointsStreakTarget;
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - STREAK_WINDOW_MS);
+  const lastGrant = await prisma.pointsTransaction.findFirst({
+    where: { userId, metadata: { path: ['earnRule'], equals: 'order_streak' }, createdAt: { gte: windowStart } },
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  });
+  if (lastGrant) {
+    const elapsed = now.getTime() - lastGrant.createdAt.getTime();
+    const readyInDays = Math.max(1, Math.ceil((STREAK_WINDOW_MS - elapsed) / (24 * 60 * 60 * 1000)));
+    return { target, count: target, ready: false, readyInDays };
+  }
+  const count = await prisma.order.count({ where: { userId, pointsAwarded: true, createdAt: { gte: windowStart } } });
+  return { target, count: Math.min(count, target), ready: true, readyInDays: 0 };
 }
 
 // ── Signup-bonus via sponsor-kort ─────────────────────────────────────────────

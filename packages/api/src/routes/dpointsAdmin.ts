@@ -18,8 +18,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
 import { audit } from '../lib/auditLog';
-import { recordPointsTx } from '../lib/dpoints';
-import { normalizeMoneyToOre } from '../utils/deliveryZones';
+import { recordPointsTx, parseEarnRules } from '../lib/dpoints';
 
 const router = Router();
 router.use(authenticate);
@@ -38,6 +37,8 @@ router.get('/config', async (_req, res) => {
     dpointsMaxBalance: row.dpointsMaxBalance ?? 2000,
     dpointsCourierCost: row.dpointsCourierCost ?? 0,
     dpointsCourierTiers: row.dpointsCourierTiers ?? '[]',
+    dpointsEarnRules: parseEarnRules(row.dpointsEarnRules),
+    dpointsStreakTarget: Math.max(2, Math.round(row.dpointsStreakTarget ?? 3)),
   });
 });
 
@@ -66,6 +67,15 @@ router.patch('/config', requireSuperAdmin, async (req, res) => {
         data.dpointsCourierTiers = JSON.stringify(clean);
       } catch { /* ogiltig JSON ignoreras */ }
     }
+    // Intjänings-regler (toggle + poäng per handling). Normaliseras mot default-
+    // uppsättningen så bara kända nycklar + giltiga värden lagras.
+    if (req.body?.dpointsEarnRules !== undefined) {
+      data.dpointsEarnRules = JSON.stringify(parseEarnRules(req.body.dpointsEarnRules));
+    }
+    // Streak-mål: antal betalda ordrar inom 7 dagar (minst 2).
+    if (req.body?.dpointsStreakTarget !== undefined) {
+      data.dpointsStreakTarget = Math.max(2, Math.round(Number(req.body.dpointsStreakTarget) || 3));
+    }
 
     const updated = await prisma.restaurantSettings.upsert({
       where: { id: 'settings' },
@@ -81,6 +91,8 @@ router.patch('/config', requireSuperAdmin, async (req, res) => {
       dpointsMaxBalance: (updated as any).dpointsMaxBalance,
       dpointsCourierCost: (updated as any).dpointsCourierCost,
       dpointsCourierTiers: (updated as any).dpointsCourierTiers,
+      dpointsEarnRules: parseEarnRules((updated as any).dpointsEarnRules),
+      dpointsStreakTarget: Math.max(2, Math.round((updated as any).dpointsStreakTarget ?? 3)),
     });
   } catch (e: any) {
     console.error('[dpoints config] error:', e?.message);
@@ -166,73 +178,10 @@ router.delete('/sponsor-cards/:id', requireSuperAdmin, async (req, res) => {
   }
 });
 
-// ── Inlösen-belöningar ──────────────────────────────────────────────────────
-function rewardWriteData(b: any) {
-  const data: any = {};
-  if (b.title !== undefined) data.title = String(b.title);
-  if (b.description !== undefined) data.description = b.description || null;
-  if (b.imageUrl !== undefined) data.imageUrl = b.imageUrl || null;
-  if (b.pointsCost !== undefined) data.pointsCost = Math.max(1, num(b.pointsCost, 100));
-  if (b.minOrderKr !== undefined) data.minOrderKr = Math.max(0, num(b.minOrderKr));
-  if (b.validDays !== undefined) data.validDays = Math.max(1, num(b.validDays, 30));
-  if (b.isActive !== undefined) data.isActive = !!b.isActive;
-  if (b.discountType !== undefined) {
-    const type = b.discountType === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED';
-    data.discountType = type;
-    // discountValue lagras i öre för FIXED, heltal-% för PERCENTAGE.
-    if (b.discountValue !== undefined) {
-      data.discountValue = type === 'PERCENTAGE'
-        ? Math.max(0, Math.min(100, Math.round(num(b.discountValue))))
-        : normalizeMoneyToOre(num(b.discountValue)); // kr-input → öre
-    }
-  } else if (b.discountValue !== undefined) {
-    // typen oförändrad — anta att klienten skickar i kr (FIXED) eller % konsekvent
-    data.discountValue = num(b.discountValue);
-  }
-  return data;
-}
-
-router.get('/rewards', async (_req, res) => {
-  const rewards = await prisma.dpointsReward.findMany({ orderBy: { pointsCost: 'asc' } });
-  res.json({ rewards });
-});
-
-router.post('/rewards', requireSuperAdmin, async (req, res) => {
-  try {
-    const b = req.body || {};
-    if (!b.title) return res.status(400).json({ error: 'Titel krävs' });
-    const data = rewardWriteData(b);
-    if (data.pointsCost === undefined) data.pointsCost = 100;
-    if (!data.discountType) data.discountType = 'FIXED';
-    const reward = await prisma.dpointsReward.create({ data });
-    await audit(req as AuthRequest, 'DPOINTS_REWARD_CREATE', { resourceType: 'DpointsReward', resourceId: reward.id, changes: data });
-    res.status(201).json(reward);
-  } catch (e: any) {
-    console.error('[dpoints reward create] error:', e?.message);
-    res.status(500).json({ error: 'Kunde inte skapa belöning' });
-  }
-});
-
-router.patch('/rewards/:id', requireSuperAdmin, async (req, res) => {
-  try {
-    const data = rewardWriteData(req.body || {});
-    const reward = await prisma.dpointsReward.update({ where: { id: req.params.id }, data });
-    await audit(req as AuthRequest, 'DPOINTS_REWARD_UPDATE', { resourceType: 'DpointsReward', resourceId: reward.id, changes: data });
-    res.json(reward);
-  } catch (e: any) {
-    res.status(500).json({ error: 'Kunde inte uppdatera belöning' });
-  }
-});
-
-router.delete('/rewards/:id', requireSuperAdmin, async (req, res) => {
-  try {
-    await prisma.dpointsReward.delete({ where: { id: req.params.id } });
-    await audit(req as AuthRequest, 'DPOINTS_REWARD_DELETE', { resourceType: 'DpointsReward', resourceId: req.params.id });
-    res.json({ ok: true });
-  } catch (e: any) {
-    res.status(500).json({ error: 'Kunde inte ta bort belöning' });
-  }
-});
+// ── Inlösen-belöningar (RETIRERAD) ───────────────────────────────────────────
+// Den gamla inlösenskatalogen (DpointsReward CRUD) är borttagen. Spendering sker
+// nu via "köp med poäng" på rewardable varor i Meny/kassan. Modellen behålls för
+// historik (gamla REDEEM-poster), men admin hanterar inte längre någon katalog.
 
 // ── Kampanjer / utmaningar ──────────────────────────────────────────────────
 function campaignWriteData(b: any) {

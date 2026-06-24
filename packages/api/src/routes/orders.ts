@@ -18,7 +18,7 @@ import { JWT_SECRET } from '../lib/config';
 import { cached } from '../lib/ttlCache';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
-import { getDpointsSettings, awardOrderPointsIfNotAwarded, resolveDpointsCourierFeeOre } from '../lib/dpoints';
+import { getDpointsSettings, awardOrderPointsIfNotAwarded, resolveDpointsCourierFeeOre, maybeAwardReviewPoints } from '../lib/dpoints';
 import { haversineKm } from '../utils/geo';
 import supabaseAdmin from '../lib/supabase';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
@@ -1559,7 +1559,7 @@ router.get('/:id', async (req: Request, res: Response) => {
           restaurant: true,
           // Leveransbevis för order-tracking: foto (TTL 2 dygn), leveranssätt,
           // kurirens notering. proofExpiresAt → klienten döljer fotot när det gått ut.
-          delivery: { select: { proofMethod: true, proofMessage: true, proofPhotoUrl: true, proofExpiresAt: true } },
+          delivery: { select: { proofMethod: true, proofMessage: true, proofPhotoUrl: true, proofExpiresAt: true, courierId: true, status: true } },
         },
       })
     );
@@ -1663,6 +1663,21 @@ router.get('/:id', async (req: Request, res: Response) => {
       etaEndsAt = new Date(deliveringAtDate.getTime() + windowMs).toISOString();
     }
 
+    // Bud-belastning: hur många aktiva leveranser budet har just nu. Kund-
+    // trackingen använder detta för att uppskatta ankomsttid (fler stopp =
+    // längre tid). Beräknas bara när ordern är på väg och har ett tilldelat
+    // bud — en billig, indexerad räkning på [courierId, status].
+    let courierActiveOrders: number | null = null;
+    if (customerStatus === 'DELIVERING' && order.delivery?.courierId) {
+      try {
+        courierActiveOrders = await prisma.delivery.count({
+          where: { courierId: order.delivery.courierId, status: { in: ['EN_ROUTE_PICKUP', 'PICKED_UP'] } },
+        });
+      } catch {
+        courierActiveOrders = null;
+      }
+    }
+
     res.json({
       id: order.id,
       orderNumber: order.orderNumber,
@@ -1688,6 +1703,11 @@ router.get('/:id', async (req: Request, res: Response) => {
       selfDelivery: (order.restaurant as any)?.selfDelivery ?? false,
       restaurantLat: (order.restaurant as any)?.latitude ?? null,
       restaurantLng: (order.restaurant as any)?.longitude ?? null,
+      // Moms i % som restaurangen visar i kvittot (6/12). null = restaurangen
+      // visar ingen momsrad → klienten döljer den.
+      restaurantVatPercent: (order.restaurant as any)?.vatPercent ?? null,
+      // Budets aktiva orderantal (bara satt under leverans) — driver ETA-spannet.
+      courierActiveOrders,
       etaEndsAt,
       restaurantName: order.restaurant?.name || 'Okänd restaurang',
       restaurantAddress: order.restaurant?.address || '',
@@ -2171,6 +2191,14 @@ router.post('/:id/review', async (req: Request, res: Response) => {
         });
       }
     }
+
+    // Dpoints: belöna recensionen (text → review_text, annars review_rating).
+    // Endast inloggade (userId). Idempotent + fail-safe i helpern.
+    await maybeAwardReviewPoints({
+      userId: (order as any).userId,
+      orderId: order.id,
+      hasText: typeof review === 'string' && review.trim().length > 0,
+    });
 
     res.json({ success: true });
   } catch (error) {
