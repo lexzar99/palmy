@@ -23,6 +23,7 @@ import {
 import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
 import SocialAuthButton from "@/components/SocialAuthButton";
+import PhoneAuth from "@/components/PhoneAuth";
 // ReferralCard import removed — referral UI is disabled platform-wide.
 // Backend redeem-code endpoint stays intact for legacy URLs.
 import { useToast } from "@/components/Toast";
@@ -683,35 +684,12 @@ function ProfileContent() {
           {/* Dpoints sponsor-banner — driver registrering (göms om inget aktivt kort) */}
           <DpointsSponsorBanner onRegister={() => router.push("/register")} />
 
-          {/* Logga in / Skapa konto (e-post) — leder till dedikerade sidor. */}
-          <div className="space-y-3 pt-1">
-            <button
-              type="button"
-              onClick={() => router.push("/login")}
-              className="w-full py-4 bg-gold-500 rounded-2xl font-bold text-sm active:scale-95 transition-all"
-              style={{ color: "#141416" }}
-            >
-              {t("auth.submitLogin")}
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push("/register")}
-              className="w-full py-4 rounded-2xl font-bold text-sm active:scale-95 transition-all"
-              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-            >
-              {t("auth.createFree")}
-            </button>
-          </div>
-
-          {/* Eller logga in direkt med Apple/Google (samma som login-skärmen). */}
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
-            <span className="text-[13px]" style={{ color: "var(--text-secondary)" }}>{t("auth.orWithSocial")}</span>
-            <div className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
-          </div>
-          <div className="flex flex-col gap-2.5">
+          {/* Lösenordsfritt: Apple, Google eller telefon. Allt kopplas till
+              numret — samma konto oavsett hur du loggar in nästa gång. */}
+          <div className="flex flex-col gap-2.5 pt-1">
             <SocialAuthButton provider="apple" />
             <SocialAuthButton provider="google" />
+            <PhoneAuth />
           </div>
 
           {/* Information — Om oss, Kontakt och policy bakom EN knapp som leder

@@ -8,6 +8,26 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { persistPlatformSession } from "@/lib/platformSessionClient";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 
+// Egen input-stil så komponenten funkar var som helst (login/register/profil)
+// utan att sidan behöver injicera auth-input-CSS.
+const PA_CSS = `
+.pa-input {
+  width: 100%;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-primary);
+  padding: 0 16px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.pa-input:focus { border-color: var(--text-primary); box-shadow: 0 0 0 3px rgba(127,127,127,0.12); }
+.pa-input::placeholder { color: var(--text-secondary); opacity: 0.55; }
+`;
+
 // Lösenordsfri telefon-inloggning via Supabase phone-OTP, i FLERA steg:
 //   nummer → SMS-kod → förnamn → efternamn → e-post (kvitto) → inloggad + deal.
 // Återkommande användare (har redan namn) hoppar över namn-stegen och loggas in
@@ -143,6 +163,7 @@ export default function PhoneAuth() {
 
   return (
     <div className="rounded-xl p-4 space-y-3.5" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--line-strong)" }}>
+      <style>{PA_CSS}</style>
       {step === "phone" && (
         <form onSubmit={sendCode} className="space-y-3">
           <div className="flex items-center justify-between">
@@ -150,8 +171,8 @@ export default function PhoneAuth() {
             <Back onClick={() => setOpen(false)} />
           </div>
           <div className="flex gap-2">
-            <input value={country} onChange={(e) => setCountry(e.target.value)} className="auth-input" style={{ width: 72, textAlign: "center" }} aria-label="Landskod" />
-            <input type="tel" inputMode="tel" autoComplete="tel" required placeholder="70 123 45 67" value={num} onChange={(e) => setNum(e.target.value)} className="auth-input" />
+            <input value={country} onChange={(e) => setCountry(e.target.value)} className="pa-input" style={{ width: 72, textAlign: "center" }} aria-label="Landskod" />
+            <input type="tel" inputMode="tel" autoComplete="tel" required placeholder="70 123 45 67" value={num} onChange={(e) => setNum(e.target.value)} className="pa-input" />
           </div>
           {error && <p className="text-[13px] text-rose-600 leading-snug">{error}</p>}
           {goldBtn("Skicka kod", loading || !num)}
@@ -165,7 +186,7 @@ export default function PhoneAuth() {
             <Back onClick={() => { setStep("phone"); setError(""); }} />
           </div>
           <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>Vi skickade en kod till {fullPhone()}.</p>
-          <input inputMode="numeric" autoComplete="one-time-code" required placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="auth-input" style={{ letterSpacing: "0.3em", textAlign: "center", fontSize: 18 }} />
+          <input inputMode="numeric" autoComplete="one-time-code" required placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="pa-input" style={{ letterSpacing: "0.3em", textAlign: "center", fontSize: 18 }} />
           {error && <p className="text-[13px] text-rose-600 leading-snug">{error}</p>}
           {goldBtn("Verifiera", loading || code.length < 4)}
         </form>
@@ -174,7 +195,7 @@ export default function PhoneAuth() {
       {step === "firstName" && (
         <form onSubmit={(e) => { e.preventDefault(); if (firstName.trim()) setStep("lastName"); }} className="space-y-3">
           <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>Vad heter du?</p>
-          <input type="text" autoComplete="given-name" required placeholder="Förnamn" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="auth-input" autoFocus />
+          <input type="text" autoComplete="given-name" required placeholder="Förnamn" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="pa-input" autoFocus />
           {goldBtn("Nästa", !firstName.trim())}
         </form>
       )}
@@ -185,7 +206,7 @@ export default function PhoneAuth() {
             <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>Ditt efternamn</p>
             <Back onClick={() => setStep("firstName")} />
           </div>
-          <input type="text" autoComplete="family-name" required placeholder="Efternamn" value={lastName} onChange={(e) => setLastName(e.target.value)} className="auth-input" autoFocus />
+          <input type="text" autoComplete="family-name" required placeholder="Efternamn" value={lastName} onChange={(e) => setLastName(e.target.value)} className="pa-input" autoFocus />
           {goldBtn("Nästa", !lastName.trim())}
         </form>
       )}
@@ -196,7 +217,7 @@ export default function PhoneAuth() {
             <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>E-post för kvitto</p>
             <Back onClick={() => setStep("lastName")} />
           </div>
-          <input type="email" inputMode="email" autoComplete="email" placeholder="namn@exempel.se" value={email} onChange={(e) => setEmail(e.target.value)} className="auth-input" autoFocus />
+          <input type="email" inputMode="email" autoComplete="email" placeholder="namn@exempel.se" value={email} onChange={(e) => setEmail(e.target.value)} className="pa-input" autoFocus />
           {error && <p className="text-[13px] text-rose-600 leading-snug">{error}</p>}
           {goldBtn("Klar", loading)}
         </form>
