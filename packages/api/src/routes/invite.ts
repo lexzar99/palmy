@@ -14,6 +14,7 @@ import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { authenticateUser } from './auth';
 import { ensureReferralCode, computeFraudFlags, publicShareBase } from './referrals';
+import { getDpointsSettings, getEarnRule } from '../lib/dpoints';
 
 const router = Router();
 export const publicInviteRouter = Router();
@@ -116,6 +117,28 @@ router.post('/invite/probe', writeLimiter, authenticateUser, async (req: any, re
   if (!click) return res.json({ ok: true, matched: false });
   const r = await bindInvitee({ token: click.token, uid, fingerprint, ip: clientIp(req), channel: 'app_deferred' });
   return res.json({ ok: r.body.ok === true, matched: r.body.status === 'REGISTERED' });
+});
+
+// GET /api/public/invite/info?token=  — landningssidans metadata (ingen auth):
+// är token giltig, vem bjöd in, och hur mycket den nya kunden får.
+publicInviteRouter.get('/invite/info', async (req: any, res) => {
+  try {
+    const token = (req.query?.token || '').toString().trim().toUpperCase();
+    if (!token) return res.status(400).json({ valid: false });
+    const inviter = await (prisma as any).user.findFirst({
+      where: { referralCode: token, deletedAt: null },
+      select: { name: true },
+    });
+    if (!inviter) return res.json({ valid: false });
+    const settings = await getDpointsSettings();
+    const rule = await getEarnRule('invite');
+    const points = rule?.enabled ? rule.points : 0;
+    const rewardKr = settings.dpointsValuePerKr > 0 ? Math.floor(points / settings.dpointsValuePerKr) : 0;
+    const firstName = (inviter.name || '').trim().split(/\s+/)[0] || null;
+    return res.json({ valid: true, inviterName: firstName, rewardPoints: points, rewardKr });
+  } catch {
+    return res.status(500).json({ valid: false });
+  }
 });
 
 // POST /api/public/invite/click  { token, fingerprint } — store a click so a
