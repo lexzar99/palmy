@@ -7,6 +7,7 @@ import { Loader2, Phone, ArrowLeft } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { persistPlatformSession } from "@/lib/platformSessionClient";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
+import { API_URL } from "@/lib/api";
 
 // Egen input-stil så komponenten funkar var som helst (login/register/profil)
 // utan att sidan behöver injicera auth-input-CSS.
@@ -97,7 +98,16 @@ export default function PhoneAuth() {
       if (err) throw err;
       const accessToken = data.session?.access_token;
       if (!accessToken) throw new Error("Ingen session skapades");
-      await persistPlatformSession(accessToken);
+      // Byt Supabase phone-session mot ett långlivat platform-JWT. Utan detta
+      // rensar profil-bootstrappen den råa Supabase-cookien → utloggad direkt.
+      const ex = await axios.post(
+        `${API_URL}/api/auth/phone-token`,
+        {},
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      const platformToken = ex.data?.token;
+      if (!platformToken) throw new Error("Ingen platform-session");
+      await persistPlatformSession(platformToken);
       await attributeInvite();
       // Återkommande (har namn) → logga in direkt. Ny → samla namn/efternamn/mail.
       try {

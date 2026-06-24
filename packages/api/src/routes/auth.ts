@@ -1894,4 +1894,29 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
   }
 });
 
+// POST /api/auth/phone-token — byt en verifierad Supabase phone-session (SMS-OTP)
+// mot ett långlivat platform-JWT. authenticateUser validerar Supabase-token
+// server-side (getUser) och upsertar User:n via telefon-vägen → säkert: OTP +
+// Supabase-token bevisar nummerägande. Driver lösenordsfri telefon-inloggning
+// (web + RN). Telefon-konton saknar e-post, så oauth-token (email-keyad) duger ej.
+router.post('/phone-token', authenticateUser, async (req: any, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Ej inloggad' });
+    const user = await (prisma as any).user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, image: true, isVerified: true },
+    });
+    if (!user) return res.status(404).json({ error: 'Konto saknas' });
+    const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({
+      token,
+      user: { id: user.id, name: user.name, phone: user.phone, email: user.email, image: user.image, needsPhone: !user.phone, isVerified: user.isVerified },
+    });
+  } catch (error: any) {
+    console.error('[phone-token] FAILED:', error?.message || error);
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
 export default router;

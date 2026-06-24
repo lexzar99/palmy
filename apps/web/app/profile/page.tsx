@@ -424,8 +424,28 @@ function ProfileContent() {
           rawMetaKeys: Object.keys(meta),
         });
 
+        // Telefon-session (lösenordsfri SMS-OTP) saknar e-post — byt Supabase-
+        // token mot platform-JWT via phone-token istället för att ge upp (annars
+        // rensades cookien här och användaren loggades ut direkt efter koden).
+        if (!email && sbUser?.phone) {
+          try {
+            const exRes = await axios.post(
+              `${API_URL}/api/auth/phone-token`,
+              {},
+              { headers: { Authorization: `Bearer ${sbSession.access_token}` } },
+            );
+            if (exRes.data?.token) {
+              await persistPlatformSession(exRes.data.token);
+              setHasPlatformSession(true);
+              await fetchData();
+              return;
+            }
+          } catch (e) {
+            console.warn("[OAuth] phone-token exchange failed", e);
+          }
+        }
         if (!email) {
-          console.warn("[OAuth] No email from Supabase user — cannot exchange");
+          console.warn("[OAuth] No email/phone from Supabase user — cannot exchange");
           setLoading(false);
           return;
         }
