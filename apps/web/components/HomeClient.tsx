@@ -222,12 +222,23 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   useEffect(() => {
     if (typeof window !== "undefined") {
       void getPlatformSessionStatus().then(setIsLoggedIn);
-      const stored = localStorage.getItem("platform_address");
       const storedType = localStorage.getItem(ORDER_TYPE_KEY);
+      // För leverans: läs den RIKTIGA leveransadressen först. platform_address
+      // kan ha nollats (session-rensning) eller skrivits över med pickup-stad →
+      // annars ser adressen "resettad" ut efter en order. Faller tillbaka till
+      // platform_address. (Cart-sidan läser redan delivery-först, så detta gör
+      // hemskärmen konsekvent.)
+      const stored = (storedType !== "PICKUP" && localStorage.getItem("platform_delivery_address"))
+        || localStorage.getItem("platform_address");
       if (stored) {
         const { clean } = parseStoredAddress(stored);
         setAddress(clean);
-        if (clean !== stored) localStorage.setItem("platform_address", clean);
+        localStorage.setItem("platform_address", clean);
+        // Återställ coords från delivery-nyckeln om de nollats (för zon-koll).
+        if (storedType !== "PICKUP" && !localStorage.getItem("platform_coords")) {
+          const dc = localStorage.getItem("platform_delivery_coords");
+          if (dc) localStorage.setItem("platform_coords", dc);
+        }
       }
       if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType as "DELIVERY" | "PICKUP");
 

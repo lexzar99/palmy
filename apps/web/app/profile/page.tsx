@@ -580,7 +580,12 @@ function ProfileContent() {
       if (error) throw error;
       await lockPhone(addPhoneFull());
     } catch (err: any) {
-      setAddPhoneError(err?.message?.includes("expired") ? "Koden har gått ut, försök igen." : "Fel kod, försök igen.");
+      // Skilj på fel kod, utgången kod och backend-konflikt (numret på annat konto).
+      const backendMsg = err?.response?.data?.error;
+      const m = (err?.message || "").toLowerCase();
+      if (backendMsg) setAddPhoneError(backendMsg);
+      else if (m.includes("expired")) setAddPhoneError("Koden har gått ut, försök igen.");
+      else setAddPhoneError("Fel kod, försök igen.");
     } finally {
       setAddPhoneLoading(false);
     }
