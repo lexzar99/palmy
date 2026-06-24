@@ -345,6 +345,13 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
       orderDate: order.createdAt,
       cap: settings.dpointsMaxBalance,
     }).catch((e) => console.error('[dpoints] order earn-rules error:', e?.message));
+
+    // Invite-belöning (200 till båda) — på samma vinnande path så den triggar
+    // oavsett finalize-väg (webb-direkt, Adyen-webhook, reconcile). Idempotent
+    // (atomisk REGISTERED→ORDERED i maybeRewardInvite), så dubbla anrop är ofarliga.
+    await import('./invite')
+      .then((m) => m.maybeRewardInvite(orderId))
+      .catch((e) => console.error('[dpoints] invite-reward error:', e?.message));
   } catch (e: any) {
     if (e?.message === 'ALREADY_AWARDED' || e?.code === 'P2002') return; // idempotent
     console.error('[dpoints] awardOrderPoints error:', e?.message);
@@ -487,23 +494,32 @@ export async function evaluateOrderEarnRules(opts: {
 }): Promise<void> {
   const { userId, restaurantId, orderId, orderDate, cap } = opts;
 
-  // new_restaurant — kundens allra första betalda order från denna restaurang.
+  // new_restaurant — "testa en ny restaurang". Ges INTE för kundens allra
+  // FÖRSTA restaurang (det är baslinjen, inte att testa nåt nytt) — bara när
+  // kunden redan beställt från någon ANNAN restaurang och nu prövar en ny.
   if (restaurantId) {
     try {
       const rule = await getEarnRule('new_restaurant');
       if (rule?.enabled && rule.points > 0) {
-        const priorPaid = await prisma.order.count({
+        const priorPaidThisRest = await prisma.order.count({
           where: { userId, restaurantId, pointsAwarded: true, id: { not: orderId } },
         });
-        if (priorPaid === 0) {
-          await recordPointsTx({
-            userId,
-            amount: rule.points,
-            type: 'CAMPAIGN',
-            reason: rule.label,
-            metadata: { earnRule: 'new_restaurant', restaurantId, orderId },
-            cap,
+        if (priorPaidThisRest === 0) {
+          // Ny för kunden på denna restaurang. Belöna bara om hen redan har en
+          // betald order från en ANNAN restaurang (annars är detta första gången).
+          const priorPaidOtherRest = await prisma.order.count({
+            where: { userId, pointsAwarded: true, id: { not: orderId }, restaurantId: { not: restaurantId } },
           });
+          if (priorPaidOtherRest > 0) {
+            await recordPointsTx({
+              userId,
+              amount: rule.points,
+              type: 'CAMPAIGN',
+              reason: rule.label,
+              metadata: { earnRule: 'new_restaurant', restaurantId, orderId },
+              cap,
+            });
+          }
         }
       }
     } catch (e: any) {

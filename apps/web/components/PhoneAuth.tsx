@@ -79,7 +79,9 @@ export default function PhoneAuth() {
       setStep("code");
     } catch (err: any) {
       const m = (err?.message || "").toLowerCase();
-      if (m.includes("sms") || m.includes("provider") || m.includes("disabled") || m.includes("unsupported")) {
+      if (m.includes("rate") || m.includes("limit") || m.includes("too many")) {
+        setError("För många SMS-försök just nu. Vänta en stund och försök igen.");
+      } else if (m.includes("provider") || m.includes("disabled") || m.includes("unsupported") || m.includes("not enabled") || m.includes("not configured")) {
         setError("SMS-inloggning är inte aktiverad än. Prova Google eller Apple så länge.");
       } else {
         setError(err?.message || "Kunde inte skicka koden. Kontrollera numret.");
