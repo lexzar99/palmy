@@ -713,11 +713,19 @@ function ProfileContent() {
     return (
       <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
         <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-6">
-          {/* Back — stäng nummer-grinden och visa profilen (inte hem). Numret
-              kan läggas till senare; grinden påminner vid nästa profil-besök. */}
+          {/* Tillbaka = börja om. Nummer-verifieringen är OBLIGATORISK och kan
+              INTE skippas — man kommer aldrig in i profilen utan verifierat
+              nummer. Loggar ut → auth-startvyn (välj annat SSO / logga in med
+              nummer). markLoggedOut hindrar auto-återinlogg från Supabase-sessionen. */}
           <button
             type="button"
-            onClick={() => { setAddPhoneStep("phone"); setAddPhoneError(""); setShowAddPhone(false); }}
+            onClick={async () => {
+              setAddPhoneStep("phone"); setAddPhoneError(""); setAddPhoneCode("");
+              markLoggedOut();
+              await clearPlatformSession().catch(() => {});
+              try { await createSupabaseBrowserClient().auth.signOut(); } catch { /* noop */ }
+              setHasPlatformSession(false); setUser(null); setShowAddPhone(false);
+            }}
             aria-label={t("common.back")}
             className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--bg-deep)]"
             style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
