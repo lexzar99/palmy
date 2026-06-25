@@ -179,10 +179,31 @@ function ProfileContent() {
       // Parallelise ALL 5 fetches — used to do addresses serially after the
       // first 4 which made the profile page wait an extra ~300-500ms for
       // the second round trip. Each call is independent.
-      const [profileRes, ordersRes, dealsRes, claimedRes, addrRes] = await Promise.all([
-        axios.get(`/api/platform/profile`),
-        axios.get(`/api/platform/profile/orders`),
-        axios.get(`/api/platform/profile/deals`),
+      // Profilen gate:ar HELA sidan — om den failar blir user=null → utloggad-vyn
+      // ("logga in igen") visas trots att kontot skapades. Vid en FRISK OAuth-token
+      // kan platform-cookien behöva en tick att propagera → GET /profile kan 401:a
+      // direkt efter persistPlatformSession. Retrya därför profil-hämtningen några
+      // gånger innan vi ger upp. Sekundärdata (orders/deals/adresser) failar tyst så
+      // de aldrig strandar användaren i utloggad-vyn.
+      let profileRes: any = null;
+      let lastErr: any = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          profileRes = await axios.get(`/api/platform/profile`);
+          break;
+        } catch (e: any) {
+          lastErr = e;
+          const st = e?.response?.status;
+          // 401/403/nätverk → trolig cookie-propagering, vänta + försök igen.
+          // Andra status (4xx/5xx) → ge upp direkt (inte ett timing-problem).
+          if (st && st !== 401 && st !== 403) throw e;
+          await new Promise((r) => setTimeout(r, 350));
+        }
+      }
+      if (!profileRes) throw lastErr || new Error("profile fetch failed");
+      const [ordersRes, dealsRes, claimedRes, addrRes] = await Promise.all([
+        axios.get(`/api/platform/profile/orders`).catch(() => ({ data: [] })),
+        axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })),
         axios.get(`/api/platform/profile/claimed-deals`).catch(() => ({ data: { claimed: [], global: [] } })),
         axios.get(`/api/platform/profile/addresses`).catch(() => ({ data: [] })),
       ]);
@@ -578,6 +599,9 @@ function ProfileContent() {
       const { error } = await supabase.auth.verifyOtp({ phone: addPhoneFull(), token: addPhoneCode.trim(), type: "phone_change" });
       if (error) throw error;
       await lockPhone(addPhoneFull());
+      // Verifieringen klar → kontot är komplett och inloggat. Skicka till hem-
+      // sidan (i stället för att stanna kvar på /profile efter inloggningen).
+      router.push("/");
     } catch (err: any) {
       // Skilj på fel kod, utgången kod och backend-konflikt (numret på annat konto).
       const backendMsg = err?.response?.data?.error;
