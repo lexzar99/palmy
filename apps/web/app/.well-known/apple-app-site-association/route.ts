@@ -31,6 +31,10 @@ const AASA = {
           '/verify-email*',
           '/reset-password*',
           '/r/*',
+          // Referral/invite-länk: delivera.se/i/<kod>. Med appen installerad
+          // öppnar iOS appen direkt → App.tsx fångar koden, attribuerar efter
+          // login. Utan app faller den tillbaka till web-landningen (/i/[token]).
+          '/i/*',
           '/order/*',
           // Stripe PaymentSheet returnURL för Klarna/BankID m.fl. redirect-
           // baserade flöden. Universal Link istället för foodgo://-scheme så
