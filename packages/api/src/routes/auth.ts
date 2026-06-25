@@ -1079,7 +1079,7 @@ router.post('/verify', async (req, res) => {
 const WEB_VERIFY_EMAIL_BASE =
   process.env.WEB_VERIFY_EMAIL_URL || 'https://matgo-web-pi.vercel.app/verify-email';
 const MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE =
-  process.env.MOBILE_VERIFY_EMAIL_URL || 'foodgo://verify-email';
+  process.env.MOBILE_VERIFY_EMAIL_URL || 'delivera://verify-email';
 
 // POST /api/auth/register-user
 // Registreringen logger in användaren direkt: vi skapar kontot, returnerar
@@ -1617,7 +1617,7 @@ router.post('/check-email-verified', async (req, res) => {
 const WEB_RESET_BASE =
   process.env.WEB_RESET_PASSWORD_URL || 'https://matgo-web-pi.vercel.app/reset-password';
 const MOBILE_RESET_DEEP_LINK_BASE =
-  process.env.MOBILE_RESET_PASSWORD_URL || 'foodgo://reset-password';
+  process.env.MOBILE_RESET_PASSWORD_URL || 'delivera://reset-password';
 
 // POST /api/auth/forgot-password — begär återställningslänk
 router.post('/forgot-password', authLimiter, async (req, res) => {

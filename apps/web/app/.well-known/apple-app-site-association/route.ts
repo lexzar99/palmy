@@ -26,7 +26,7 @@ const AASA = {
     apps: [] as string[],
     details: [
       {
-        appID: '3KDGPYZXHH.com.foodgoJalle.app',
+        appID: '3KDGPYZXHH.se.delivera.app',
         paths: [
           '/verify-email*',
           '/reset-password*',
