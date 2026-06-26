@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import {
   createAutomaticDeal,
   dealsQueryKey,
@@ -20,8 +20,10 @@ import {
   type DealDiscountType,
   type DealScopeType,
 } from "@/modules/deals/api";
-import { Badge, Button, Field, Input, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Badge, Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
+
+const CARD_TITLE = "text-[15px] font-extrabold tracking-[-0.3px]";
 
 type Draft = {
   title: string;
@@ -63,11 +65,11 @@ const defaultDraft = (): Draft => ({
   sortOrder: 0,
 });
 
-const SCOPE_OPTIONS: { value: DealScopeType; label: string; description: string; emoji: string }[] = [
-  { value: "RESTAURANT", label: "Restaurang", description: "Rabatt på hela menyn", emoji: "🍽️" },
-  { value: "CATEGORY", label: "Kategori", description: "Rabatt på en kategoris produkter", emoji: "📂" },
-  { value: "PRODUCT", label: "Produkt", description: "Rabatt på specifika produkter", emoji: "🛍️" },
-  { value: "MIN_ORDER", label: "Min.order", description: "Rabatt vid beställning över X kr", emoji: "💰" },
+const SCOPE_OPTIONS: { value: DealScopeType; label: string; description: string; glyph: string }[] = [
+  { value: "RESTAURANT", label: "Restaurang", description: "Rabatt på hela menyn", glyph: "%" },
+  { value: "CATEGORY", label: "Kategori", description: "Rabatt på en kategoris produkter", glyph: "▦" },
+  { value: "PRODUCT", label: "Produkt", description: "Rabatt på specifika produkter", glyph: "◷" },
+  { value: "MIN_ORDER", label: "Min.order", description: "Rabatt vid beställning över X kr", glyph: "kr" },
 ];
 
 export function KampanjFormPage({ dealId }: { dealId?: string }) {
@@ -204,47 +206,51 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
   const discountLabel =
     draft.discountType === "PERCENTAGE" ? "Rabatt (%)" : draft.discountType === "FIXED_PRICE" ? "Fast pris (kr)" : "Rabattbelopp (kr)";
 
+  // Live badge-text för förhandsvisningen, speglar aktuellt rabattvärde/typ.
+  const previewDiscount =
+    draft.discountType === "PERCENTAGE"
+      ? `${draft.discountValue}% rabatt`
+      : draft.discountType === "FIXED_PRICE"
+        ? `${draft.discountValue} kr fast pris`
+        : `${draft.discountValue} kr rabatt`;
+  const previewRestaurant = draft.isGlobal
+    ? "Alla restauranger"
+    : (restaurants.data ?? []).find((r) => r.id === draft.restaurantId)?.name || "Ingen restaurang";
+
   return (
     <div className="page-stack">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 px-1">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push("/deals?tab=kampanjer")}
-            className="flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            <ArrowLeft size={14} /> Tillbaka
-          </button>
-          <h1 className="text-xl font-black tracking-[-0.02em]">
-            {isEditing ? "Redigera kampanj" : "Ny kampanj"}
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          {isEditing && (
-            <Button
-              variant="danger"
-              onClick={() => { if (!confirm("Radera denna kampanj? Kan inte ångras.")) return; deleteMutation.mutate(); }}
-              disabled={deleteMutation.isPending}
-            >
-              <Trash2 size={14} /> Radera
+      <PageHeader
+        breadcrumb="Katalog / Deals"
+        title={isEditing ? draft.title || "Redigera deal" : "Ny deal"}
+        onBack={() => router.push("/deals?tab=kampanjer")}
+        actions={
+          <>
+            {isEditing && (
+              <Button
+                variant="danger"
+                onClick={() => { if (!confirm("Radera denna kampanj? Kan inte ångras.")) return; deleteMutation.mutate(); }}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 size={14} /> Radera
+              </Button>
+            )}
+            <Button variant="primary" onClick={handleSave} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? <><Loader2 size={14} className="animate-spin" /> Sparar...</> : "Publicera"}
             </Button>
-          )}
-          <Button variant="primary" onClick={handleSave} disabled={saveMutation.isPending}>
-            {saveMutation.isPending ? <><Loader2 size={14} className="animate-spin" /> Sparar...</> : "Spara kampanj"}
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {error && (
-        <p className="rounded-xl bg-[rgba(239,68,68,0.1)] px-4 py-3 text-sm text-red-400">{error}</p>
+        <p className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger-text)]">{error}</p>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
+      <div className="grid gap-3.5 lg:grid-cols-[1.4fr_1fr]">
         {/* Left column */}
-        <div className="grid gap-4 content-start">
+        <div className="grid gap-3.5 content-start">
           {/* Basic info */}
-          <Surface className="px-6 py-6 grid gap-5">
+          <Surface className="px-5 py-5 grid gap-5">
+            <p className={CARD_TITLE}>Grunduppgifter</p>
             <Field label="Titel">
               <Input value={draft.title} onChange={(e) => set("title", e.target.value)} placeholder="Sommarens pizzaerbjudande" autoFocus />
             </Field>
@@ -263,181 +269,215 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
           </Surface>
 
           {/* Deal type */}
-          <Surface className="px-6 py-6 grid gap-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Typ av kampanj</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {SCOPE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setDraft((prev) => ({
-                    ...prev,
-                    scopeType: opt.value,
-                    targetIds: [],
-                    discountType: (opt.value !== "PRODUCT" && opt.value !== "CATEGORY" && prev.discountType === "FIXED_PRICE") ? "PERCENTAGE" : prev.discountType,
-                  }))}
-                  className={`rounded-xl border px-4 py-3 text-left text-sm transition-all ${
-                    draft.scopeType === opt.value
-                      ? "border-[var(--accent)] bg-[rgba(99,102,241,0.15)]"
-                      : "border-[var(--border-subtle)] bg-[var(--surface-secondary)] hover:border-[var(--border-default)]"
-                  }`}
-                >
-                  <div className="text-xl mb-1">{opt.emoji}</div>
-                  <div className={`font-semibold ${draft.scopeType === opt.value ? "text-[var(--accent)]" : "text-[var(--text-primary)]"}`}>{opt.label}</div>
-                  <div className="text-xs text-[var(--text-muted)] mt-0.5">{opt.description}</div>
-                </button>
-              ))}
+          <Surface className="px-5 py-5">
+            <p className={CARD_TITLE}>Typ av deal</p>
+            <div className="mt-3.5 grid grid-cols-3 gap-2.5">
+              {SCOPE_OPTIONS.map((opt) => {
+                const selected = draft.scopeType === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setDraft((prev) => ({
+                      ...prev,
+                      scopeType: opt.value,
+                      targetIds: [],
+                      discountType: (opt.value !== "PRODUCT" && opt.value !== "CATEGORY" && prev.discountType === "FIXED_PRICE") ? "PERCENTAGE" : prev.discountType,
+                    }))}
+                    className={`rounded-[11px] p-3.5 text-left transition-all ${
+                      selected
+                        ? "border-2 border-[var(--accent)] bg-[#fff7f3]"
+                        : "border border-[var(--border-strong)] hover:border-[var(--accent)]"
+                    }`}
+                  >
+                    <div className={`text-lg font-black leading-none ${selected ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}>{opt.glyph}</div>
+                    <div className="mt-1.5 text-[12.5px] font-bold text-[var(--text-primary)]">{opt.label}</div>
+                    <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{opt.description}</div>
+                  </button>
+                );
+              })}
             </div>
           </Surface>
 
-          {/* Discount */}
-          <Surface className="px-6 py-6 grid gap-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Rabatt</p>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Rabatttyp">
-                <Select value={draft.discountType} onChange={(e) => set("discountType", e.target.value as DealDiscountType)}>
-                  <option value="PERCENTAGE">Procent (%)</option>
-                  {supportsFixedPrice && <option value="FIXED_PRICE">Fast pris (kr)</option>}
-                  {!supportsFixedPrice && <option value="FIXED">Fast belopp (kr)</option>}
-                </Select>
-              </Field>
-              <Field label={discountLabel}>
-                <Input type="number" min="0" value={draft.discountValue} onChange={(e) => set("discountValue", Number(e.target.value))} />
-              </Field>
+          {/* Villkor */}
+          <Surface className="px-5 py-5">
+            <p className={CARD_TITLE}>Villkor</p>
+            <div className="mt-3">
+              {/* Rabatt — primär rabatt: typ + värde (orange-kantad input) */}
+              <div className="flex items-center justify-between gap-3 border-t border-[var(--row-divider)] py-3">
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">Rabatt</span>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={draft.discountType}
+                    onChange={(e) => set("discountType", e.target.value as DealDiscountType)}
+                    className="w-auto"
+                    aria-label={discountLabel}
+                  >
+                    <option value="PERCENTAGE">Procent (%)</option>
+                    {supportsFixedPrice && <option value="FIXED_PRICE">Fast pris (kr)</option>}
+                    {!supportsFixedPrice && <option value="FIXED">Fast belopp (kr)</option>}
+                  </Select>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={draft.discountValue}
+                    onChange={(e) => set("discountValue", Number(e.target.value))}
+                    aria-label={discountLabel}
+                    className="w-24 border-2 border-[var(--accent)] text-right font-extrabold"
+                  />
+                </div>
+              </div>
+              {/* Min. ordervärde — endast meningsfullt för MIN_ORDER-scope */}
               {draft.scopeType === "MIN_ORDER" && (
-                <Field label="Minimiorder (kr)">
-                  <Input type="number" min="0" value={draft.minOrder} onChange={(e) => set("minOrder", Number(e.target.value))} />
-                </Field>
+                <div className="flex items-center justify-between gap-3 border-t border-[var(--row-divider)] py-3">
+                  <span className="text-[13px] font-semibold text-[var(--text-primary)]">Min. ordervärde</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={draft.minOrder}
+                    onChange={(e) => set("minOrder", Number(e.target.value))}
+                    aria-label="Minimiorder (kr)"
+                    className="w-28 text-right"
+                  />
+                </div>
               )}
+              {/* Max rabatt — taket sätts via max antal användningar (befintligt fält) */}
+              <div className="flex items-center justify-between gap-3 border-t border-[var(--row-divider)] py-3">
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">Max antal användningar</span>
+                <Input
+                  type="number"
+                  min="1"
+                  value={draft.maxUsages}
+                  onChange={(e) => set("maxUsages", e.target.value)}
+                  placeholder="∞"
+                  aria-label="Max antal användningar"
+                  className="w-28 text-right"
+                />
+              </div>
             </div>
           </Surface>
 
           {/* Targets - only for item scopes */}
           {isItemScope && (
-            <Surface className="px-6 py-6 grid gap-4">
+            <Surface className="px-5 py-5">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  {draft.scopeType === "CATEGORY" ? "Välj kategorier" : "Välj produkter"}
-                </p>
+                <p className={CARD_TITLE}>{draft.scopeType === "CATEGORY" ? "Välj kategorier" : "Välj produkter"}</p>
                 {draft.targetIds.length > 0 && <Badge tone="info">{draft.targetIds.length} valda</Badge>}
               </div>
-              {!activeRestaurantId ? (
-                <p className="text-sm text-[var(--text-muted)]">Välj restaurang för att se {draft.scopeType === "CATEGORY" ? "kategorier" : "produkter"}.</p>
-              ) : availableTargets.length === 0 ? (
-                <p className="text-sm text-[var(--text-muted)]">Inga {draft.scopeType === "CATEGORY" ? "kategorier" : "produkter"} hittades.</p>
-              ) : (
-                <div className="max-h-64 overflow-y-auto grid gap-1.5">
-                  {availableTargets.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => toggleTarget(t.id)}
-                      className={`rounded-xl border px-4 py-3 text-left transition-all ${
-                        draft.targetIds.includes(t.id)
-                          ? "border-[var(--accent)] bg-[rgba(99,102,241,0.12)]"
-                          : "border-[var(--border-subtle)] bg-[var(--surface-secondary)] hover:border-[var(--border-default)]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className={`font-semibold text-sm ${draft.targetIds.includes(t.id) ? "text-[var(--accent)]" : "text-[var(--text-primary)]"}`}>{t.label}</p>
-                          <p className="text-xs text-[var(--text-muted)] mt-0.5">{t.meta}</p>
-                        </div>
-                        {draft.targetIds.includes(t.id) && <Badge tone="success">Vald</Badge>}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="mt-3.5">
+                {!activeRestaurantId ? (
+                  <p className="text-sm text-[var(--text-muted)]">Välj restaurang för att se {draft.scopeType === "CATEGORY" ? "kategorier" : "produkter"}.</p>
+                ) : availableTargets.length === 0 ? (
+                  <p className="text-sm text-[var(--text-muted)]">Inga {draft.scopeType === "CATEGORY" ? "kategorier" : "produkter"} hittades.</p>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto grid gap-1.5">
+                    {availableTargets.map((t) => {
+                      const checked = draft.targetIds.includes(t.id);
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => toggleTarget(t.id)}
+                          className={`rounded-xl border px-4 py-3 text-left transition-all ${
+                            checked
+                              ? "border-2 border-[var(--accent)] bg-[#fff7f3]"
+                              : "border border-[var(--border-strong)] hover:border-[var(--accent)]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className={`font-semibold text-sm ${checked ? "text-[var(--accent)]" : "text-[var(--text-primary)]"}`}>{t.label}</p>
+                              <p className="text-xs text-[var(--text-muted)] mt-0.5">{t.meta}</p>
+                            </div>
+                            {checked && <Badge tone="success">Vald</Badge>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </Surface>
           )}
         </div>
 
-        {/* Right column - settings */}
-        <div className="grid gap-4 content-start">
-          <Surface className="px-6 py-6 grid gap-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Restaurang</p>
-            <label className="flex items-center gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={draft.isGlobal}
-                onChange={(e) => setDraft((prev) => ({ ...prev, isGlobal: e.target.checked, restaurantId: e.target.checked ? "" : prev.restaurantId }))}
-                className="accent-indigo-500 h-4 w-4"
-              />
-              <span className="text-sm font-medium">Gäller alla restauranger</span>
-            </label>
-            {!draft.isGlobal && (
-              <Field label="Restaurang">
-                <Select value={draft.restaurantId} onChange={(e) => set("restaurantId", e.target.value)}>
-                  <option value="">Välj restaurang...</option>
-                  {(restaurants.data ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </Select>
-              </Field>
+        {/* Right column */}
+        <div className="grid gap-3.5 content-start">
+          {/* Gäller */}
+          <Surface className="px-5 py-5">
+            <p className={CARD_TITLE}>Gäller</p>
+            <div className="mt-3">
+              {/* Restauranger */}
+              <div className="border-t border-[var(--row-divider)] py-3">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={draft.isGlobal}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, isGlobal: e.target.checked, restaurantId: e.target.checked ? "" : prev.restaurantId }))}
+                    className="h-4 w-4 accent-[var(--accent)]"
+                  />
+                  <span className="text-[13px] font-semibold text-[var(--text-primary)]">Gäller alla restauranger</span>
+                </label>
+                {!draft.isGlobal && (
+                  <Select value={draft.restaurantId} onChange={(e) => set("restaurantId", e.target.value)} className="mt-2.5" aria-label="Restaurang">
+                    <option value="">Välj restaurang...</option>
+                    {(restaurants.data ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </Select>
+                )}
+              </div>
+              {/* Period */}
+              <div className="border-t border-[var(--row-divider)] py-3">
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">Period</span>
+                <div className="mt-2.5 grid grid-cols-2 gap-3">
+                  <Field label="Giltig från (valfritt)">
+                    <Input type="date" value={draft.validFrom} onChange={(e) => set("validFrom", e.target.value)} />
+                  </Field>
+                  <Field label="Giltig till (valfritt)">
+                    <Input type="date" value={draft.validUntil} onChange={(e) => set("validUntil", e.target.value)} />
+                  </Field>
+                </div>
+              </div>
+              {/* Synlighet/status */}
+              <div className="border-t border-[var(--row-divider)] py-3 grid gap-3">
+                <Field label="Status">
+                  <Select value={draft.isActive ? "active" : "inactive"} onChange={(e) => set("isActive", e.target.value === "active")}>
+                    <option value="active">Aktiv</option>
+                    <option value="inactive">Inaktiv</option>
+                  </Select>
+                </Field>
+                <Field label="Synlig på sajten">
+                  <Select value={draft.showOnSite ? "yes" : "no"} onChange={(e) => set("showOnSite", e.target.value === "yes")}>
+                    <option value="yes">Ja — visas i kassan & spotlight</option>
+                    <option value="no">Nej</option>
+                  </Select>
+                </Field>
+              </div>
+            </div>
+          </Surface>
+
+          {/* Förhandsvisning — mörkt kort, speglar live-rabatt */}
+          <Surface className="!bg-[#111113] !border-transparent px-[18px] py-[18px] text-white">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9CA3AF]">Förhandsvisning</p>
+            <div
+              className="relative mt-3 h-[120px] overflow-hidden rounded-[14px]"
+              style={{
+                background: draft.imageUrl
+                  ? `center/cover no-repeat url(${draft.imageUrl})`
+                  : "linear-gradient(150deg,#3a2a20,#1a120d)",
+              }}
+            >
+              <span className="absolute left-3 bottom-3 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-extrabold text-white">
+                {draft.badgeText || previewDiscount}
+              </span>
+              <span className="absolute right-3 top-3 font-mono text-[9px] text-white/40">så ser kunden den</span>
+            </div>
+            {draft.title && (
+              <div className="mt-3">
+                <p className="text-sm font-black leading-snug">{draft.title}</p>
+                <p className="mt-0.5 text-[11px] text-white/50">{previewRestaurant}</p>
+              </div>
             )}
           </Surface>
-
-          <Surface className="px-6 py-6 grid gap-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Inställningar</p>
-            <Field label="Status">
-              <Select value={draft.isActive ? "active" : "inactive"} onChange={(e) => set("isActive", e.target.value === "active")}>
-                <option value="active">Aktiv</option>
-                <option value="inactive">Inaktiv</option>
-              </Select>
-            </Field>
-            <Field label="Synlig på sajten">
-              <Select value={draft.showOnSite ? "yes" : "no"} onChange={(e) => set("showOnSite", e.target.value === "yes")}>
-                <option value="yes">Ja — visas i kassan & spotlight</option>
-                <option value="no">Nej</option>
-              </Select>
-            </Field>
-          </Surface>
-
-          {/* Avancerat — sällan-använda fält bakom en utfällning så grund-flödet
-              hålls rent (gränser + giltighetstid). */}
-          <details className="group">
-            <summary className="flex cursor-pointer items-center justify-between rounded-xl border border-[var(--border-subtle)] px-5 py-3 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
-              Avancerat
-              <span className="text-[var(--text-muted)] transition-transform group-open:rotate-180">⌄</span>
-            </summary>
-            <Surface className="mt-2 px-6 py-6 grid gap-4">
-              <Field label="Max antal användningar (tom = ∞)">
-                <Input type="number" min="1" value={draft.maxUsages} onChange={(e) => set("maxUsages", e.target.value)} placeholder="Obegränsat" />
-              </Field>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Giltig från (valfritt)">
-                  <Input type="date" value={draft.validFrom} onChange={(e) => set("validFrom", e.target.value)} />
-                </Field>
-                <Field label="Giltig till (valfritt)">
-                  <Input type="date" value={draft.validUntil} onChange={(e) => set("validUntil", e.target.value)} />
-                </Field>
-              </div>
-            </Surface>
-          </details>
-
-          {/* Preview */}
-          {draft.title && (
-            <Surface className="px-6 py-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-3">Förhandsvisning</p>
-              <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-secondary)] p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-black text-base leading-snug">{draft.title}</p>
-                  <span className="shrink-0 rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-bold text-emerald-400">Aktiv</span>
-                </div>
-                <p className="mt-1 text-sm font-semibold">
-                  {draft.discountType === "PERCENTAGE" ? `-${draft.discountValue}%` : draft.discountType === "FIXED_PRICE" ? `${draft.discountValue} kr fast pris` : `-${draft.discountValue} kr`}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <span className="rounded-full border border-[rgba(99,102,241,0.3)] bg-[rgba(99,102,241,0.1)] px-2 py-0.5 text-xs text-indigo-400">
-                    {SCOPE_OPTIONS.find((o) => o.value === draft.scopeType)?.label}
-                  </span>
-                  {draft.badgeText && <span className="rounded-full border border-[rgba(243,191,87,0.3)] bg-[rgba(243,191,87,0.1)] px-2 py-0.5 text-xs text-amber-400">{draft.badgeText}</span>}
-                </div>
-                <p className="mt-2 text-xs text-[var(--text-muted)]">
-                  {draft.isGlobal ? "Alla restauranger" : (restaurants.data ?? []).find((r) => r.id === draft.restaurantId)?.name || "Ingen restaurang"}
-                </p>
-              </div>
-            </Surface>
-          )}
         </div>
       </div>
     </div>

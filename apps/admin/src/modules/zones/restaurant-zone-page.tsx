@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, MapPin, Save, Store } from "lucide-react";
+import { Loader2, MapPin, Save, Store } from "lucide-react";
 import ZoneEditor from "@/modules/zones/components/zone-editor";
 import { parseZones, serializeZones, type ZoneRecord } from "@/modules/zones/api";
 import { getRestaurantDetail, patchRestaurant, restaurantDetailQueryKey } from "@/modules/restaurants/api";
-import { Badge, Button, ErrorPanel, Field, Input, Surface } from "@/shared/components/ui";
+import { Badge, Button, ErrorPanel, Field, Input, PageHeader, Surface } from "@/shared/components/ui";
 import { useToast } from "@/shared/components/toast";
 
 /**
@@ -83,8 +83,11 @@ export function RestaurantZonePage({ restaurantId }: Props) {
 
   if (restaurantQuery.isLoading) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="animate-spin text-[var(--text-muted)]" size={32} />
+      <div className="page-stack">
+        <PageHeader title="Leveranszoner" breadcrumb="Restauranger" onBack={() => router.push("/zones")} />
+        <Surface className="flex min-h-[480px] items-center justify-center">
+          <Loader2 className="animate-spin text-[var(--text-muted)]" size={32} />
+        </Surface>
       </div>
     );
   }
@@ -105,38 +108,32 @@ export function RestaurantZonePage({ restaurantId }: Props) {
     ? "Inga zoner — använder default radie runt restaurangen"
     : `${zones.length} zon${zones.length !== 1 ? "er" : ""} ritade`;
 
+  // Decreasing-opacity orange square chips, like the prototype (full, 0.55, 0.3, …).
+  const chipColor = (index: number) => {
+    const opacities = [1, 0.55, 0.3];
+    return `rgba(240, 83, 28, ${opacities[index] ?? 0.3})`;
+  };
+
   return (
     <div className="page-stack">
-      {/* ── Header: back + namn + status + save ──────────────────────── */}
-      <Surface className="px-5 py-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              type="button"
-              onClick={() => router.push("/zones")}
-              className="shrink-0 w-10 h-10 rounded-xl border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)] transition-all"
-              aria-label="Tillbaka till zoner"
-            >
-              <ArrowLeft size={16} />
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Zoner</p>
-                {dirty && <Badge tone="warning">Osparade ändringar</Badge>}
-              </div>
-              <h1 className="text-2xl font-black tracking-[-0.02em] truncate">{restaurant.name}</h1>
-              {restaurant.address && (
-                <p className="mt-1 text-xs text-[var(--text-secondary)] flex items-center gap-1.5 truncate">
-                  <MapPin size={11} className="opacity-60 shrink-0" />
-                  {restaurant.address}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        title="Leveranszoner"
+        breadcrumb={<span>Restauranger / {restaurant.name}</span>}
+        onBack={() => router.push("/zones")}
+        actions={
+          <>
+            {dirty && <Badge tone="warning">Osparade ändringar</Badge>}
             <Badge tone={restaurant.manualIsOpen ? "success" : "neutral"}>{restaurant.manualIsOpen ? "Öppen" : "Stängd"}</Badge>
-            {!hasCoords && <Badge tone="warning">Saknar koordinater</Badge>}
-            <Badge tone={zones.length > 0 ? "info" : "neutral"}>{zonesSummary}</Badge>
+            <div className="md:w-48">
+              <Field label="Fri leverans över (kr)">
+                <Input
+                  type="number"
+                  value={freeDeliveryAbove}
+                  onChange={(e) => handleFreeDeliveryChange(Number(e.target.value))}
+                  placeholder="0 = inaktivt"
+                />
+              </Field>
+            </div>
             <Button
               variant="primary"
               onClick={() => saveMutation.mutate()}
@@ -145,15 +142,15 @@ export function RestaurantZonePage({ restaurantId }: Props) {
               {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saveMutation.isPending ? "Sparar..." : "Spara zoner"}
             </Button>
-          </div>
-        </div>
-      </Surface>
+          </>
+        }
+      />
 
       {/* ── Saknar koordinater-varning ───────────────────────────────── */}
       {!hasCoords && (
-        <Surface className="px-5 py-4 border-l-4 border-l-amber-500">
+        <Surface className="px-5 py-4 border-l-4 border-l-[var(--accent)]">
           <div className="flex items-start gap-3">
-            <Store size={20} className="text-amber-500 shrink-0 mt-0.5" />
+            <Store size={20} className="text-[var(--accent)] shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-bold mb-1">Restaurangen saknar koordinater</p>
               <p className="text-xs text-[var(--text-secondary)]">
@@ -169,37 +166,78 @@ export function RestaurantZonePage({ restaurantId }: Props) {
         </Surface>
       )}
 
-      {/* ── Free delivery threshold + kart-editor ────────────────────── */}
-      <Surface className="px-5 py-5">
-        <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end mb-4">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)] mb-1.5">Rita zoner på kartan</p>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Klicka <strong>POLYGON</strong> eller <strong>CIRCLE</strong> för att rita. Varje zon kan ha
-              egen leveransavgift, min-order och ETA. Sparas på restaurangen och används direkt vid
-              checkout för adresser inom zonen.
-            </p>
+      {/* ── Two-pane: karta (vänster) + zon-sammanfattning (höger) ───── */}
+      <Surface className="overflow-hidden p-0">
+        <div className="flex flex-col xl:flex-row">
+          {/* LEFT: existing Google Maps zone editor (drawing/editing intact). */}
+          <div className="min-w-0 flex-1 border-b border-[var(--border-subtle)] p-4 xl:border-b-0 xl:border-r">
+            <ZoneEditor
+              zones={zones}
+              onChange={handleZonesChange}
+              cityName={restaurant.name}
+              centerLat={restaurant.latitude}
+              centerLng={restaurant.longitude}
+              mapHeight={780}
+            />
           </div>
-          <div className="md:w-56">
-            <Field label="Fri leverans över (kr)">
-              <Input
-                type="number"
-                value={freeDeliveryAbove}
-                onChange={(e) => handleFreeDeliveryChange(Number(e.target.value))}
-                placeholder="0 = inaktivt"
-              />
-            </Field>
-          </div>
-        </div>
 
-        <ZoneEditor
-          zones={zones}
-          onChange={handleZonesChange}
-          cityName={restaurant.name}
-          centerLat={restaurant.latitude}
-          centerLng={restaurant.longitude}
-          mapHeight={780}
-        />
+          {/* RIGHT: ~380px summary column. */}
+          <aside className="w-full shrink-0 bg-[var(--bg-page)] p-5 xl:w-[380px]">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[14px] font-extrabold">Zoner</p>
+              {restaurant.address && (
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--text-muted)]">
+                  <MapPin size={11} className="shrink-0 opacity-70" />
+                  {zonesSummary}
+                </span>
+              )}
+            </div>
+
+            {zones.length === 0 ? (
+              <div className="surface px-4 py-8 text-center">
+                <p className="text-sm font-bold">Inga zoner ännu</p>
+                <p className="mt-1.5 text-xs text-[var(--text-secondary)]">
+                  Rita en zon på kartan med Circle eller Polygon. Avgift och min. order sätts per zon.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-[11px]">
+                {zones.map((zone, index) => (
+                  <div
+                    key={zone.id}
+                    className="surface p-[14px]"
+                    style={index === 0 ? { borderColor: "rgba(240, 83, 28, 0.3)" } : undefined}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 text-[14px] font-extrabold">
+                        <span
+                          className="h-[11px] w-[11px] rounded-[3px]"
+                          style={{ background: zone.color || chipColor(index) }}
+                        />
+                        Zon {index + 1} · {zone.name || "Namnlös"}
+                      </span>
+                      {zone.type === "circle" && zone.radiusKm ? (
+                        <span className="text-[11.5px] font-bold text-[var(--text-muted)]">{zone.radiusKm} km</span>
+                      ) : (
+                        <span className="text-[11.5px] font-bold text-[var(--text-muted)]">Polygon</span>
+                      )}
+                    </div>
+                    <div className="mt-[11px] flex gap-[18px]">
+                      <span>
+                        <span className="block text-[11px] font-semibold text-[var(--text-muted)]">Avgift</span>
+                        <span className="text-[15px] font-extrabold">{zone.deliveryFee} kr</span>
+                      </span>
+                      <span>
+                        <span className="block text-[11px] font-semibold text-[var(--text-muted)]">Min. order</span>
+                        <span className="text-[15px] font-extrabold">{zone.minOrder} kr</span>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </aside>
+        </div>
       </Surface>
     </div>
   );

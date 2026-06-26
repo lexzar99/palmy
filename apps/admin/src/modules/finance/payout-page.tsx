@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Printer } from "lucide-react";
+import { Loader2, Printer } from "lucide-react";
 import {
   financeSummaryQueryKey,
   getPayoutSpec,
@@ -14,17 +14,43 @@ import {
 } from "@/modules/finance/api";
 import { printPayoutSpec } from "@/modules/finance/spec-print";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
-import { Button, Field, Input, MetricCard, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Badge, Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDate } from "@/shared/utils/format";
+
+const mono = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const isoDate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** KPI card matching the design handoff. `accent` tints the last (Bonus) card orange. */
+function Kpi({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
+  return (
+    <article
+      className="rounded-[14px] border p-[15px]"
+      style={
+        accent
+          ? { background: "#fff7f3", borderColor: "color-mix(in srgb, var(--accent) 25%, transparent)" }
+          : { background: "var(--bg-panel, #fff)", borderColor: "var(--border-subtle)" }
+      }
+    >
+      <p className="text-[12px] font-semibold" style={{ color: accent ? "var(--accent-ink)" : "var(--text-secondary)" }}>
+        {label}
+      </p>
+      <p
+        className="mt-[7px] text-[24px] font-extrabold tracking-[-0.7px] tabular-nums"
+        style={{ color: accent ? "var(--accent-ink)" : "var(--text-primary)" }}
+      >
+        {value}
+      </p>
+    </article>
+  );
+}
 
 function CalcRow({ label, value, strong, sub, minus }: { label: string; value: number; strong?: boolean; sub?: boolean; minus?: boolean }) {
   return (
     <div className={`flex items-center justify-between py-2 ${sub ? "pl-4 text-[var(--text-secondary)]" : ""} ${strong ? "border-t border-[var(--border-strong,rgba(0,0,0,0.15))] font-black" : "border-b border-[var(--border,rgba(0,0,0,0.06))]"}`}>
       <span>{minus ? "− " : ""}{label}</span>
-      <span className="tabular-nums">{formatCurrency(value)}</span>
+      <span className="tabular-nums" style={{ fontFamily: mono }}>{formatCurrency(value)}</span>
     </div>
   );
 }
@@ -105,14 +131,25 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
   return (
     <div className="page-stack">
       <PageHeader
-        title={spec.data?.restaurant.name || "Utbetalning"}
+        breadcrumb={
+          <>
+            <Link href="/finance">Plattform / Ekonomi</Link>
+            {spec.data?.restaurant.name ? ` / ${spec.data.restaurant.name}` : ""}
+          </>
+        }
+        title="Utbetalning"
+        onBack={() => router.push("/finance")}
         actions={
-          <Link href="/finance" className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] px-3.5 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
-            <ArrowLeft size={15} /> Tillbaka
-          </Link>
+          <>
+            <span className="inline-flex items-center rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3 py-2 text-[13px] font-semibold text-[var(--text-secondary)]">
+              {formatDate(periodFrom)} – {formatDate(periodTo)}
+            </span>
+            <Button onClick={() => spec.data && printPayoutSpec(spec.data, adjustment)}>
+              <Printer size={15} /> Exportera
+            </Button>
+          </>
         }
       />
-      <p className="-mt-3 text-sm text-[var(--text-secondary)]">{formatDate(periodFrom)} – {formatDate(periodTo)}</p>
 
       {spec.isLoading || !b ? (
         <Surface className="flex items-center gap-2 px-6 py-12 text-sm text-[var(--text-secondary)]">
@@ -120,10 +157,11 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
         </Surface>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
-            <MetricCard label="Restaurangens intäkt" value={formatCurrency(b.restaurantGross)} />
-            <MetricCard label="Plattformens avdrag" value={formatCurrency(b.commission + b.subscription + b.feeVat)} />
-            <MetricCard label={isOwed ? "Att fakturera" : "Netto att betala ut"} value={formatCurrency(net)} />
+          <div className="grid gap-[13px] md:grid-cols-4">
+            <Kpi label="Restaurangens intäkt" value={formatCurrency(b.restaurantGross)} />
+            <Kpi label="Leveranser" value={b.orderCount} />
+            <Kpi label={isOwed ? "Att fakturera" : "Netto att betala ut"} value={formatCurrency(net)} />
+            <Kpi label="Plattformens avdrag" value={formatCurrency(b.commission + b.subscription + b.feeVat)} accent />
           </div>
 
           <Surface className="px-6 py-6">
@@ -187,27 +225,42 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
             </div>
           </Surface>
 
-          <Surface className="px-6 py-6">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Ordrar i perioden</p>
-            <div className="mt-3 max-h-80 overflow-auto">
-              {spec.data?.orders.length ? (
+          <Surface className="overflow-hidden p-0">
+            <div className="border-b border-[var(--row-divider)] px-[18px] py-[13px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+              Ordrar i perioden
+            </div>
+            {spec.data?.orders.length ? (
+              <div className="max-h-80 overflow-auto">
                 <table className="data-table">
-                  <thead><tr><th>Order</th><th>Datum</th><th>Typ</th><th>Summa</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>Order</th>
+                      <th>Datum</th>
+                      <th>Typ</th>
+                      <th className="text-right">Summa</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {spec.data.orders.map((o) => (
                       <tr key={o.orderNumber}>
-                        <td>#{o.orderNumber}</td>
+                        <td className="font-semibold">#{o.orderNumber}</td>
                         <td>{formatDate(o.createdAt)}</td>
-                        <td>{o.type === "PICKUP" ? "Avhämtning" : "Leverans"}</td>
-                        <td className="tabular-nums">{formatCurrency(o.total)}</td>
+                        <td>
+                          <Badge tone={o.type === "PICKUP" ? "neutral" : "info"}>
+                            {o.type === "PICKUP" ? "Avhämtning" : "Leverans"}
+                          </Badge>
+                        </td>
+                        <td className="text-right font-semibold tabular-nums" style={{ fontFamily: mono }}>
+                          {formatCurrency(o.total)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              ) : (
-                <p className="text-sm text-[var(--text-secondary)]">Inga ordrar i perioden.</p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <p className="px-[18px] py-6 text-sm text-[var(--text-secondary)]">Inga ordrar i perioden.</p>
+            )}
           </Surface>
 
           <div className="flex items-center justify-between gap-2">
@@ -215,7 +268,9 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
               <Printer size={16} /> Skriv ut / PDF
             </Button>
             <div className="flex gap-2">
-              <Link href="/finance" className="inline-flex items-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Avbryt</Link>
+              <Link href="/finance" className="inline-flex items-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                Avbryt
+              </Link>
               <Button variant="primary" onClick={() => savePayout.mutate()}>
                 {savePayout.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara utbetalning"}
               </Button>
