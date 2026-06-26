@@ -80,94 +80,190 @@ export default function OverviewTab() {
   const c = config.data;
   if (config.isLoading || !c) return <LoadingPanel />;
 
+  const earnPerKr = c.dpointsValuePerKr > 0 ? c.dpointsPerKr / c.dpointsValuePerKr : c.dpointsPerKr;
+  const redeemedPct =
+    overview.data && overview.data.totalEarned > 0
+      ? Math.round((overview.data.totalRedeemed / overview.data.totalEarned) * 100)
+      : null;
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="flex flex-col gap-4">
+      {/* KPI-rad */}
+      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Utestående poäng" value={(overview.data?.outstanding ?? 0).toLocaleString("sv-SE")} />
         <MetricCard label="Intjänat totalt" value={(overview.data?.totalEarned ?? 0).toLocaleString("sv-SE")} />
-        <MetricCard label="Inlöst totalt" value={(overview.data?.totalRedeemed ?? 0).toLocaleString("sv-SE")} />
+        <MetricCard
+          label="Inlöst totalt"
+          value={
+            <span className="inline-flex items-baseline gap-2">
+              {(overview.data?.totalRedeemed ?? 0).toLocaleString("sv-SE")}
+              {redeemedPct != null && (
+                <span className="text-[13px] font-bold text-[var(--success-text)]">{redeemedPct}%</span>
+              )}
+            </span>
+          }
+        />
         <MetricCard label="Kunder med poäng" value={(overview.data?.holders ?? 0).toLocaleString("sv-SE")} />
       </div>
 
-      <Surface>
-        <div className="flex flex-col gap-4 p-6">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold">Status</h2>
-            <Badge tone={c.dpointsEnabled ? "success" : "neutral"}>{c.dpointsEnabled ? "På" : "Av"}</Badge>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm">Dpoints</span>
-            <Toggle checked={c.dpointsEnabled} onChange={(v) => save.mutate({ dpointsEnabled: v })} />
-          </div>
-        </div>
-      </Surface>
+      {/* 2-kolumners: Intjäningsregler (redigerbar) + Status/kampanjer */}
+      <div className="grid gap-3.5 lg:grid-cols-2">
+        <Surface>
+          <div className="flex flex-col gap-4 p-5">
+            <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Intjäningsregler</h2>
 
-      <Surface>
-        <div className="flex flex-col gap-5 p-6">
-          <h2 className="text-lg font-semibold">Ekonomi</h2>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Intjäning (poäng per kr)">
-              <Input
-                type="number"
-                step="0.1"
-                min="0"
-                defaultValue={c.dpointsPerKr}
-                key={`per-${c.dpointsPerKr}`}
-                onBlur={(e) => {
-                  const v = Number(e.target.value);
-                  if (v !== c.dpointsPerKr) save.mutate({ dpointsPerKr: v });
-                }}
-              />
-            </Field>
-            <div>
-              <Field label="Värde (poäng per kr)">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Intjäning (poäng per kr)">
                 <Input
                   type="number"
-                  min="1"
-                  defaultValue={c.dpointsValuePerKr}
-                  key={`val-${c.dpointsValuePerKr}`}
+                  step="0.1"
+                  min="0"
+                  defaultValue={c.dpointsPerKr}
+                  key={`per-${c.dpointsPerKr}`}
                   onBlur={(e) => {
-                    const v = Math.round(Number(e.target.value));
-                    if (v !== c.dpointsValuePerKr) save.mutate({ dpointsValuePerKr: v });
+                    const v = Number(e.target.value);
+                    if (v !== c.dpointsPerKr) save.mutate({ dpointsPerKr: v });
                   }}
                 />
               </Field>
-              <p className="mt-1.5 text-xs text-[var(--text-secondary)]">Standard: 10 poäng = 1 kr</p>
+              <div>
+                <Field label="Värde (poäng per kr)">
+                  <Input
+                    type="number"
+                    min="1"
+                    defaultValue={c.dpointsValuePerKr}
+                    key={`val-${c.dpointsValuePerKr}`}
+                    onBlur={(e) => {
+                      const v = Math.round(Number(e.target.value));
+                      if (v !== c.dpointsValuePerKr) save.mutate({ dpointsValuePerKr: v });
+                    }}
+                  />
+                </Field>
+                <p className="mt-1.5 text-xs text-[var(--text-secondary)]">Standard: 10 poäng = 1 kr</p>
+              </div>
+            </div>
+
+            <div>
+              <Field label="Tak för saldo (0 = inget tak)">
+                <Input
+                  type="number"
+                  min="0"
+                  defaultValue={c.dpointsMaxBalance}
+                  key={`max-${c.dpointsMaxBalance}`}
+                  onBlur={(e) => {
+                    const v = Math.max(0, Math.round(Number(e.target.value)));
+                    if (v !== c.dpointsMaxBalance) save.mutate({ dpointsMaxBalance: v });
+                  }}
+                />
+              </Field>
+              <p className="mt-1.5 text-xs text-[var(--text-secondary)]">Standard: 2000 poäng. Intjäning pausas när saldot når taket.</p>
+            </div>
+
+            {/* Sammanfattningsrader (design): label-vänster, värde-pill-höger */}
+            <div>
+              <div className="flex items-center justify-between border-t border-[var(--row-divider)] py-3">
+                <span className="text-[13.5px] font-semibold">Intjäning per krona</span>
+                <span className="rounded-[9px] border border-[var(--border-subtle)] px-3 py-1.5 text-[13.5px] font-bold">
+                  {earnPerKr.toLocaleString("sv-SE", { maximumFractionDigits: 2 })} p
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-t border-[var(--row-divider)] py-3">
+                <span className="text-[13.5px] font-semibold">Värde vid inlösen</span>
+                <span className="rounded-[9px] border border-[var(--border-subtle)] px-3 py-1.5 text-[13.5px] font-bold">
+                  {c.dpointsValuePerKr} p = 1 kr
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-t border-[var(--row-divider)] py-3">
+                <span className="text-[13.5px] font-semibold">Tak för saldo</span>
+                <span className="rounded-[9px] border border-[var(--border-subtle)] px-3 py-1.5 text-[13.5px] font-bold">
+                  {c.dpointsMaxBalance === 0 ? "Inget tak" : `${c.dpointsMaxBalance.toLocaleString("sv-SE")} p`}
+                </span>
+              </div>
             </div>
           </div>
+        </Surface>
 
-          <div>
-            <Field label="Tak för saldo (0 = inget tak)">
-              <Input
-                type="number"
-                min="0"
-                defaultValue={c.dpointsMaxBalance}
-                key={`max-${c.dpointsMaxBalance}`}
-                onBlur={(e) => {
-                  const v = Math.max(0, Math.round(Number(e.target.value)));
-                  if (v !== c.dpointsMaxBalance) save.mutate({ dpointsMaxBalance: v });
-                }}
-              />
-            </Field>
-            <p className="mt-1.5 text-xs text-[var(--text-secondary)]">Standard: 2000 poäng. Intjäning pausas när saldot når taket.</p>
+        <Surface>
+          <div className="flex flex-col gap-4 p-5">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Status &amp; synlighet</h2>
+              <Badge tone={c.dpointsEnabled ? "success" : "neutral"}>{c.dpointsEnabled ? "På" : "Av"}</Badge>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 border-t border-[var(--row-divider)] pt-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-[var(--accent-soft)] text-[var(--accent-ink)] font-extrabold">
+                  D
+                </span>
+                <div>
+                  <span className="block text-[13.5px] font-bold">Dpoints</span>
+                  <span className="text-[11.5px] text-[var(--text-muted)]">Lojalitetsprogrammet aktivt</span>
+                </div>
+              </div>
+              <Toggle checked={c.dpointsEnabled} onChange={(v) => save.mutate({ dpointsEnabled: v })} />
+            </div>
+
+            <div className="flex items-center justify-between gap-4 border-t border-[var(--row-divider)] pt-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-[var(--accent-soft)] text-[var(--accent-ink)] font-extrabold">
+                  ★
+                </span>
+                <div>
+                  <span className="block text-[13.5px] font-bold">Kort på startsidan</span>
+                  <span className="text-[11.5px] text-[var(--text-muted)]">Visa Dpoints-kortet för kunder</span>
+                </div>
+              </div>
+              <Toggle checked={c.dpointsCardOnHome} onChange={(v) => save.mutate({ dpointsCardOnHome: v })} />
+            </div>
+
+            {save.isPending && <p className="text-sm text-[var(--text-secondary)]">Sparar...</p>}
           </div>
+        </Surface>
+      </div>
 
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm">Visa kort på startsidan</span>
-            <Toggle checked={c.dpointsCardOnHome} onChange={(v) => save.mutate({ dpointsCardOnHome: v })} />
+      {/* Medlemsnivåer (presentation) */}
+      <Surface>
+        <div className="flex flex-col gap-3.5 p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Medlemsnivåer</h2>
+            <span className="text-[12.5px] font-bold text-[var(--accent-ink)]">Hantera nivåer</span>
           </div>
-
-          {save.isPending && <p className="text-sm text-[var(--text-secondary)]">Sparar...</p>}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-[var(--border-subtle)] p-3.5">
+              <div className="flex items-center gap-2">
+                <span className="h-[11px] w-[11px] rounded-[3px]" style={{ background: "#c9a36b" }} />
+                <span className="text-[13.5px] font-extrabold">Brons</span>
+              </div>
+              <div className="mt-1.5 text-[11.5px] font-semibold text-[var(--text-muted)]">0–499 p</div>
+              <div className="mt-0.5 text-[12.5px] text-[var(--text-secondary)]">Standard</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border-subtle)] p-3.5">
+              <div className="flex items-center gap-2">
+                <span className="h-[11px] w-[11px] rounded-[3px]" style={{ background: "#b6bdc6" }} />
+                <span className="text-[13.5px] font-extrabold">Silver</span>
+              </div>
+              <div className="mt-1.5 text-[11.5px] font-semibold text-[var(--text-muted)]">500–1999 p</div>
+              <div className="mt-0.5 text-[12.5px] text-[var(--text-secondary)]">+5% extra poäng</div>
+            </div>
+            <div className="rounded-xl border-2 border-[var(--accent)] bg-[#FFF7F3] p-3.5">
+              <div className="flex items-center gap-2">
+                <span className="h-[11px] w-[11px] rounded-[3px] bg-[var(--accent)]" />
+                <span className="text-[13.5px] font-extrabold">Guld</span>
+              </div>
+              <div className="mt-1.5 text-[11.5px] font-semibold text-[var(--text-muted)]">2000+ p</div>
+              <div className="mt-0.5 text-[12.5px] font-bold text-[var(--accent-ink)]">Fri leverans + förtur</div>
+            </div>
+          </div>
         </div>
       </Surface>
 
+      {/* Leverans (avancerat) — oförändrad logik */}
       <Surface>
-        <div className="flex flex-col gap-4 p-6">
+        <div className="flex flex-col gap-4 p-5">
           <button
             type="button"
             onClick={() => setDeliveryOpen((o) => !o)}
-            className="flex items-center gap-2 text-left text-lg font-semibold"
+            className="flex items-center gap-2 text-left text-[15px] font-extrabold tracking-[-0.3px]"
           >
             {deliveryOpen ? (
               <ChevronDown size={18} className="text-[var(--text-secondary)]" />

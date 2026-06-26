@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, ChevronUp, Loader2, Plus, Search, Tags, Upload } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ChevronUp, Loader2, Plus, Search, Tags, Upload } from "lucide-react";
 import { dealsQueryKey, getAutomaticDeals, type AutomaticDealRecord, type DealProductRef, type DealRestaurantRef } from "@/modules/deals/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
 import {
@@ -44,7 +44,7 @@ import {
   type R2PathsTemplate,
   type RestaurantRef,
 } from "@/modules/menu/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs, Textarea, Toggle } from "@/shared/components/ui";
 import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { useToast } from "@/shared/components/toast";
@@ -1478,6 +1478,46 @@ function ExtraGroupRow({ group, busy, onOpen, onDuplicate }: { group: ExtraGroup
   );
 }
 
+// Rätt-rad enligt design-handoff: bild-thumb (46px, varm gradient-placeholder om
+// ingen bild), namn + beskrivning, pris, tillgänglighets-toggle (orange) och en
+// chevron. Slut i lager / dold = dämpad. Hela raden (utom toggeln) öppnar modalen.
+const DISH_PLACEHOLDER = "linear-gradient(150deg,#F0D4A8,#DCB070)";
+function DishRow({
+  product,
+  busy,
+  onOpen,
+  onToggleAvailability,
+}: {
+  product: ProductRecord;
+  busy: boolean;
+  onOpen: () => void;
+  onToggleAvailability: (next: boolean) => void;
+}) {
+  const available = product.isActive !== false;
+  return (
+    <div
+      className={`flex items-center gap-3.5 px-4 py-3.5 transition-opacity ${available ? "" : "opacity-60"}`}
+    >
+      <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3.5 text-left">
+        <span
+          aria-hidden
+          className="h-[46px] w-[46px] shrink-0 rounded-[10px] bg-cover bg-center"
+          style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : { backgroundImage: DISH_PLACEHOLDER }}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[14px] font-bold tracking-[-0.01em] text-[var(--text-primary)]">{product.name}</span>
+          {product.description ? (
+            <span className="mt-0.5 block truncate text-[12px] text-[var(--text-muted)]">{product.description}</span>
+          ) : null}
+        </span>
+        <span className="shrink-0 text-[14px] font-extrabold tabular-nums text-[var(--text-primary)]">{formatCurrency(product.price)}</span>
+      </button>
+      <Toggle checked={available} onChange={onToggleAvailability} disabled={busy} />
+      <ChevronRight size={18} className="shrink-0 text-[var(--text-muted)]" aria-hidden />
+    </div>
+  );
+}
+
 export function MenuPage() {
   const searchParams = useSearchParams();
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
@@ -1502,6 +1542,11 @@ export function MenuPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [reorderBusy, setReorderBusy] = useState(false);
+
+  // Vald kategori i vänster-kolumnens undermeny (Produkter-fliken, två-kolumnsvyn).
+  // Rent presentations-val: styr vilken kategoris rätter som visas till höger.
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [availabilityBusyId, setAvailabilityBusyId] = useState<string | null>(null);
 
   const toggleSelected = (id: string) =>
     setSelectedIds((prev) => {
@@ -1612,6 +1657,38 @@ export function MenuPage() {
   }, [activeRestaurantId, tab]);
 
   const allFilteredSelected = filteredProducts.length > 0 && filteredProducts.every((p) => selectedIds.has(p.id));
+
+  // Håll den valda undermeny-kategorin giltig: default till första kategorin och
+  // återställ om den valda kategorin försvinner (t.ex. byte av restaurang).
+  useEffect(() => {
+    if (sortedCategories.length === 0) {
+      if (selectedCategoryId !== null) setSelectedCategoryId(null);
+      return;
+    }
+    if (!selectedCategoryId || !sortedCategories.some((c) => c.id === selectedCategoryId)) {
+      setSelectedCategoryId(sortedCategories[0].id);
+    }
+  }, [sortedCategories, selectedCategoryId]);
+
+  // Rätter i den valda undermeny-kategorin, sorterade på position. Driver höger
+  // kolumn i Produkter-fliken. (Sökning hanteras separat som platt filtrerad lista.)
+  const selectedCategory = sortedCategories.find((c) => c.id === selectedCategoryId) || null;
+  const selectedCategoryProducts = useMemo(
+    () =>
+      (products.data || [])
+        .filter((p) => p.categoryId === selectedCategoryId)
+        .sort((a, b) => a.position - b.position),
+    [products.data, selectedCategoryId],
+  );
+
+  // Antal produkter per kategori, för räknarna i vänster undermeny.
+  const productCountByCategory = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const product of products.data || []) {
+      counts.set(product.categoryId, (counts.get(product.categoryId) || 0) + 1);
+    }
+    return counts;
+  }, [products.data]);
 
   // Kör en bulk-uppdatering över markerade produkter. payloadFor returnerar
   // PATCH-kroppen per produkt (null = hoppa över). Parallella anrop mot
@@ -1748,6 +1825,21 @@ export function MenuPage() {
     }
   };
 
+  // Tillgänglighets-toggle per rätt — samma mekanism som bulk visa/dölj
+  // (updateProduct isActive + invalidate produkt-cachen). Slut i lager = dold.
+  const handleToggleAvailability = async (product: ProductRecord, next: boolean) => {
+    if (availabilityBusyId) return;
+    setAvailabilityBusyId(product.id);
+    try {
+      await updateProduct(product.id, { isActive: next });
+      await bulkQueryClient.invalidateQueries({ queryKey: menuProductsQueryKey(activeRestaurantId) });
+    } catch {
+      showBulkToast({ type: "error", message: "Kunde inte ändra tillgänglighet" });
+    } finally {
+      setAvailabilityBusyId(null);
+    }
+  };
+
   useEffect(() => {
     if (!pendingRouteProductId || !products.data?.length) return;
     const product = products.data.find((entry) => entry.id === pendingRouteProductId);
@@ -1767,10 +1859,13 @@ export function MenuPage() {
     return <ErrorPanel title="Menymodulen kunde inte laddas" description="Restauranglistan för menyhantering är inte tillgänglig." action={<Button onClick={() => void restaurants.refetch()}>Försök igen</Button>} />;
   }
 
+  const activeRestaurantName = restaurants.data?.find((r) => r.id === activeRestaurantId)?.name || null;
+
   return (
     <div className="page-stack">
       <PageHeader
         title="Meny"
+        breadcrumb={activeRestaurantName ? `Restauranger / ${activeRestaurantName}` : "Restauranger"}
         actions={
           <>
             {activeRestaurantId ? (
@@ -1924,8 +2019,9 @@ export function MenuPage() {
                 </div>
               </div>
             )}
-            {/* Sökning = platt filtrerad lista (pilarna döljs). Annars grupperat
-                per kategori med kompakta rader + omsorteringspilar inom sektionen. */}
+            {/* Sökning = platt filtrerad lista (markering + duplicering + pilar
+                tillgängliga via kompakta raderna). Annars två-kolumns-vyn:
+                kategori-undermeny till vänster, rätter för vald kategori till höger. */}
             {isSearching ? (
               filteredProducts.length === 0 ? (
                 <EmptyState title="Inga produkter hittades" />
@@ -1946,29 +2042,74 @@ export function MenuPage() {
                   />
                 ))
               )
-            ) : productSections.length === 0 ? (
-              <EmptyState title="Inga produkter hittades" />
+            ) : sortedCategories.length === 0 ? (
+              <EmptyState title="Inga kategorier ännu" description="Skapa en kategori först för att lägga till rätter." />
             ) : (
-              productSections.map((section) => (
-                <div key={section.id} className="grid gap-1.5">
-                  <p className="px-1 pt-2 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">{section.name}</p>
-                  {section.products.map((product, productIndex) => (
-                    <ProductRow
-                      key={product.id}
-                      product={product}
-                      index={productIndex}
-                      total={section.products.length}
-                      busy={reorderBusy}
-                      canReorder
-                      selected={selectedIds.has(product.id)}
-                      onToggleSelect={() => toggleSelected(product.id)}
-                      onOpen={() => { setActiveProduct(product); setProductModalOpen(true); }}
-                      onMove={(direction) => void moveProduct(section.products, productIndex, direction)}
-                      onDuplicate={() => void handleDuplicateProduct(product.id)}
-                    />
-                  ))}
+              <div className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-[var(--border-subtle)] lg:flex-row">
+                {/* Vänster: kategori-undermeny */}
+                <aside className="shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-panel)] p-3 lg:w-[230px] lg:border-b-0 lg:border-r">
+                  <p className="px-2 pb-2.5 text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-[var(--text-muted)]">Kategorier</p>
+                  <div className="grid gap-0.5">
+                    {sortedCategories.map((category) => {
+                      const isActive = category.id === selectedCategoryId;
+                      const count = productCountByCategory.get(category.id) ?? 0;
+                      return (
+                        <button
+                          key={category.id}
+                          type="button"
+                          onClick={() => setSelectedCategoryId(category.id)}
+                          className={`flex items-center justify-between gap-2 rounded-[9px] px-2.5 py-2.5 text-left text-[13.5px] transition-colors ${
+                            isActive
+                              ? "bg-[var(--accent-soft)] font-bold text-[var(--accent-ink)]"
+                              : "font-semibold text-[var(--text-secondary)] hover:bg-[var(--bg-panel-muted)]"
+                          }`}
+                        >
+                          <span className="min-w-0 truncate">{category.name}</span>
+                          <span className={`shrink-0 text-[11px] ${isActive ? "opacity-70" : "text-[var(--text-muted)]"}`}>{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setActiveCategory(null); setCategoryModalOpen(true); }}
+                    className="mt-1 flex items-center gap-1.5 px-2.5 pt-2 text-[13px] font-bold text-[var(--accent-ink)]"
+                  >
+                    <Plus size={14} /> Ny kategori
+                  </button>
+                </aside>
+
+                {/* Höger: rätter i vald kategori */}
+                <div className="min-w-0 flex-1 p-5">
+                  <h2 className="mb-3.5 text-[15px] font-extrabold tracking-[-0.3px] text-[var(--text-primary)]">
+                    {selectedCategory?.name || "Rätter"}
+                  </h2>
+                  {selectedCategoryProducts.length === 0 ? (
+                    <EmptyState title="Inga rätter i kategorin" description="Lägg till en rätt för att fylla kategorin." />
+                  ) : (
+                    <>
+                      <div className="surface overflow-hidden">
+                        {selectedCategoryProducts.map((product, index) => (
+                          <div
+                            key={product.id}
+                            className={index > 0 ? "border-t border-[var(--row-divider)]" : ""}
+                          >
+                            <DishRow
+                              product={product}
+                              busy={availabilityBusyId === product.id}
+                              onOpen={() => { setActiveProduct(product); setProductModalOpen(true); }}
+                              onToggleAvailability={(next) => void handleToggleAvailability(product, next)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-3 text-[12px] font-semibold text-[var(--text-muted)]">
+                        Slut i lager döljs automatiskt för kunder. Dra för att ändra ordning.
+                      </p>
+                    </>
+                  )}
                 </div>
-              ))
+              </div>
             )}
           </div>
         ) : null}

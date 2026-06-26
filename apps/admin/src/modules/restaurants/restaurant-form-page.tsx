@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Plus, Store, Trash2, X } from "lucide-react";
+import { Loader2, Plus, Store, Trash2, X } from "lucide-react";
 import {
   createRestaurant,
   deleteRestaurant,
@@ -15,7 +15,7 @@ import {
   type RestaurantDetail,
   type RestaurantFormPayload,
 } from "@/modules/restaurants/api";
-import { Badge, Button, EmptyState, Field, Input, MetricCard, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, Field, Input, MetricCard, PageHeader, Select, Surface, Tabs, Textarea, Toggle } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { NotesPanel } from "@/shared/components/notes-panel";
 import GooglePlacesInput from "@/shared/components/google-places-input";
@@ -160,6 +160,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   const isCreate = !restaurantId;
   const [tab, setTab] = useState<RestaurantTab>("info");
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [savedForm, setSavedForm] = useState<FormState>(emptyForm);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
@@ -178,11 +179,15 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (detail.data && !initialized) {
-      setForm(mapDetailToForm(detail.data));
+      const mapped = mapDetailToForm(detail.data);
+      setForm(mapped);
+      setSavedForm(mapped);
       setInitialized(true);
     }
   }, [detail.data, initialized]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -200,7 +205,9 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         router.push(`/restaurants/${(saved as any).id}`);
         return;
       }
-      setForm(mapDetailToForm(saved as RestaurantDetail));
+      const mapped = mapDetailToForm(saved as RestaurantDetail);
+      setForm(mapped);
+      setSavedForm(mapped);
       showToast({ type: "success", message: "Restaurang sparad" });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
@@ -232,43 +239,27 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   return (
     <div className="page-stack">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 px-1 flex-wrap">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push("/restaurants")}
-            className="flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            <ArrowLeft size={14} /> Tillbaka
-          </button>
-          <div className="flex items-center gap-2">
-            {form.imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={form.imageUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
-            )}
-            <h1 className="text-xl font-black tracking-[-0.02em]">
-              {isCreate ? "Ny restaurang" : (form.name || "Restaurang")}
-            </h1>
+      <PageHeader
+        breadcrumb={`Restauranger / ${isCreate ? "Ny" : form.name || "Restaurang"}`}
+        title={isCreate ? "Ny restaurang" : "Redigera restaurang"}
+        onBack={() => router.push("/restaurants")}
+        actions={
+          <>
             {!isCreate && (
-              <Badge tone={form.isOpen ? "success" : "neutral"}>{form.isOpen ? "Öppen" : "Stängd"}</Badge>
+              <Button
+                variant="danger"
+                onClick={() => { if (!confirm(`Radera ${form.name}? Kan inte ångras.`)) return; deleteMutation.mutate(); }}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 size={14} /> Radera
+              </Button>
             )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {!isCreate && (
-            <Button
-              variant="danger"
-              onClick={() => { if (!confirm(`Radera ${form.name}? Kan inte ångras.`)) return; deleteMutation.mutate(); }}
-              disabled={deleteMutation.isPending}
-            >
-              <Trash2 size={14} /> Radera
+            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? <><Loader2 size={14} className="animate-spin" /> Sparar...</> : "Spara"}
             </Button>
-          )}
-          <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            {saveMutation.isPending ? <><Loader2 size={14} className="animate-spin" /> Sparar...</> : "Spara"}
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {saveError && <p className="rounded-xl bg-[rgba(239,68,68,0.1)] px-4 py-3 text-sm text-red-400">{saveError}</p>}
 
@@ -289,8 +280,9 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
       {/* Info tab */}
       {tab === "info" && (
-        <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
+        <div className="grid gap-3.5 lg:grid-cols-[1.5fr_1fr]">
           <Surface className="px-6 py-6 grid gap-4">
+            <p className="text-[15px] font-extrabold tracking-[-0.3px]">Grunduppgifter</p>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Namn"><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus={isCreate} /></Field>
               <Field label="Slug"><Input value={form.slug} onChange={(e) => set("slug", e.target.value)} /></Field>
@@ -341,16 +333,36 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} />
             </Field>
           </Surface>
-          <div className="grid gap-4 content-start">
+          <div className="grid gap-3.5 content-start">
             <Surface className="px-6 py-6 grid gap-4">
+              <p className="text-[15px] font-extrabold tracking-[-0.3px]">Bilder</p>
               <ImageUploadField label="Profilbild" kind="logo" restaurantId={restaurantId} value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
               <ImageUploadField label="Hero-bild" kind="hero" restaurantId={restaurantId} value={form.heroImageUrl} onChange={(url) => set("heroImageUrl", url)} />
             </Surface>
+            <Surface className="px-6 py-6">
+              <p className="text-[15px] font-extrabold tracking-[-0.3px]">Status &amp; synlighet</p>
+              <div className="mt-3 flex items-center justify-between border-t border-[var(--row-divider)] py-3">
+                <span className="text-[13px] font-semibold">Öppen för beställning</span>
+                <Toggle checked={form.isOpen} onChange={(v) => set("isOpen", v)} />
+              </div>
+              <div className="flex items-center justify-between border-t border-[var(--row-divider)] py-3">
+                <span className="text-[13px] font-semibold">Synlig i appen</span>
+                <Toggle
+                  checked={form.featuredClass !== 0}
+                  onChange={(v) => set("featuredClass", v ? (form.featuredClass === 0 ? 3 : form.featuredClass) : 0)}
+                />
+              </div>
+            </Surface>
+            {!isCreate && (
+              <Surface className="px-6 py-5 grid grid-cols-2 gap-2.5">
+                <Button variant="secondary" onClick={() => setTab("hours")}>Öppettider ›</Button>
+                <Button variant="secondary" onClick={() => router.push(`/zones?restaurantId=${restaurantId}`)}>Zoner ›</Button>
+              </Surface>
+            )}
             {!isCreate && (
               <Surface className="px-6 py-5">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-3">Snabbval</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-3">Fler snabbval</p>
                 <div className="grid gap-2">
-                  <Button variant="secondary" onClick={() => setTab("hours")}>Öppettider →</Button>
                   <Button variant="secondary" onClick={() => router.push(`/menu?restaurantId=${restaurantId}`)}>Hantera meny →</Button>
                   <Button variant="secondary" onClick={() => router.push(`/deals?tab=bogo`)}>BOGO-deals →</Button>
                 </div>
@@ -547,7 +559,24 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         </div>
       )}
 
-      {/* Login tab */}
+      {/* Sticky save bar — visas vid osparade ändringar */}
+      {(isDirty || isCreate) && (
+        <div className="save-bar">
+          <span className="save-bar-status">
+            {isCreate ? "Ny restaurang" : "Osparade ändringar"}
+          </span>
+          <div className="flex items-center gap-2">
+            {!isCreate && isDirty && (
+              <Button variant="secondary" onClick={() => setForm(savedForm)} disabled={saveMutation.isPending}>
+                Återställ
+              </Button>
+            )}
+            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? <><Loader2 size={14} className="animate-spin" /> Sparar...</> : "Spara ändringar"}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
