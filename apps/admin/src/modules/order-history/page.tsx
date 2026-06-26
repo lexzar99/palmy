@@ -24,6 +24,7 @@ import {
   Surface,
 } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone } from "@/shared/utils/format";
+import { cn } from "@/shared/utils/cn";
 
 const statusOptions = ["ALL", "PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING", "DELIVERED", "CANCELLED", "REJECTED"] as const;
 
@@ -272,13 +273,14 @@ export function OrderHistoryPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        title="Order historik"
+        breadcrumb="Drift"
+        title="Historik"
         actions={
           <>
             <Button variant="secondary" onClick={() => void orders.refetch()}>
               <RefreshCw size={13} /> Uppdatera
             </Button>
-            <Button variant="primary" onClick={() => setExportOpen(true)}>
+            <Button variant="secondary" onClick={() => setExportOpen(true)}>
               <Download size={13} /> Exportera
             </Button>
             <Button variant="danger" onClick={() => { setWipeOpen(true); setWipeResult(null); }}>
@@ -289,19 +291,24 @@ export function OrderHistoryPage() {
       />
 
       <Surface className="px-6 py-6">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="chip-row">
+          {statusOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={cn("chip", status === option && "is-active")}
+              onClick={() => setStatus(option)}
+            >
+              {option === "ALL" ? "Alla" : orderStatusLabel(option)}
+            </button>
+          ))}
+        </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Field label="Restaurang">
             <Select value={restaurantId} onChange={(event) => setRestaurantId(event.target.value)}>
               <option value="ALL">Alla restauranger</option>
               {(restaurants.data || []).map((r) => (
                 <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Status">
-            <Select value={status} onChange={(event) => setStatus(event.target.value as (typeof statusOptions)[number])}>
-              {statusOptions.map((option) => (
-                <option key={option} value={option}>{option === "ALL" ? "Alla" : orderStatusLabel(option)}</option>
               ))}
             </Select>
           </Field>
@@ -347,32 +354,37 @@ export function OrderHistoryPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Ordernummer</th>
-                  <th>Datum/tid</th>
+                  <th>Order</th>
                   <th>Restaurang</th>
                   <th>Kund</th>
+                  <th>Datum/tid</th>
                   <th>Status</th>
-                  <th>Totalt</th>
-                  <th>Återbetalt</th>
+                  <th style={{ textAlign: "right" }}>Belopp</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleOrders.map((order) => (
                   <tr key={order.id}>
-                    <td className="font-black">{order.orderNumber}</td>
-                    <td>{formatDateTime(order.createdAt)}</td>
-                    <td>{order.restaurantName}</td>
+                    <td style={{ fontFamily: "ui-monospace, Menlo, monospace", fontWeight: 700 }}>#{order.orderNumber}</td>
+                    <td className="font-semibold">{order.restaurantName}</td>
                     <td>
                       <div>{order.customerName}</div>
                       <div className="text-xs text-[var(--text-secondary)]">{order.customerPhone}</div>
                     </td>
+                    <td className="text-[var(--text-secondary)]">{formatDateTime(order.createdAt)}</td>
                     <td>
                       <Badge tone={orderStatusTone(order.status) as "success" | "danger" | "warning" | "info" | "neutral"}>
                         {orderStatusLabel(order.status)}
                       </Badge>
                     </td>
-                    <td>{formatCurrency(order.total)}</td>
-                    <td>{order.refundAmount ? formatCurrency(order.refundAmount / 100) : "—"}</td>
+                    <td style={{ textAlign: "right" }}>
+                      <div className="font-bold">{formatCurrency(order.total)}</div>
+                      {order.refundAmount ? (
+                        <div className="text-xs font-semibold text-[var(--danger-text)]">
+                          −{formatCurrency(order.refundAmount / 100)}
+                        </div>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -8,10 +8,10 @@ import {
   KeyRound,
   LogIn,
   LogOut,
+  Plus,
   RefreshCw,
   Tablet,
   Trash2,
-  WifiOff,
 } from "lucide-react";
 import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
 import {
@@ -19,6 +19,7 @@ import {
   Button,
   EmptyState,
   LoadingPanel,
+  Modal,
   PageHeader,
   Surface,
 } from "@/shared/components/ui";
@@ -47,6 +48,7 @@ export function RestaurantDevicesPage() {
   const queryClient = useQueryClient();
   const [restaurantId, setRestaurantId] = useState("");
   const [copied, setCopied] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
 
   const queryKey = useMemo(() => ["restaurant-devices", restaurantId], [restaurantId]);
 
@@ -88,8 +90,6 @@ export function RestaurantDevicesPage() {
   const data: RestaurantDevicesResponse | undefined = devicesQuery.data;
   const devices = data?.devices ?? [];
   const pendingCode = data?.pendingCode ?? null;
-  const linkedDevice = devices.find((d) => d.status === "linked") ?? null;
-  const revokedDevice = devices.find((d) => d.status === "revoked") ?? null;
 
   const copyCode = async () => {
     if (!pendingCode) return;
@@ -102,172 +102,219 @@ export function RestaurantDevicesPage() {
     }
   };
 
-  // Status-sammanfattning högst upp.
-  const status = linkedDevice
-    ? { tone: "success" as const, label: "Länkad", icon: Tablet, detail: `Senast aktiv ${formatWhen(linkedDevice.lastSeenAt)}` }
-    : revokedDevice
-      ? { tone: "danger" as const, label: "Utloggad", icon: WifiOff, detail: "Plattan är utloggad. Logga in igen nedan." }
-      : { tone: "neutral" as const, label: "Inte länkad", icon: KeyRound, detail: "Generera en kod och skriv in den i appen på plattan." };
-
-  const StatusIcon = status.icon;
-
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Enheter / Terminaler" />
-
-      <Surface className="flex flex-col gap-5 p-6">
-        <div>
-          <p className="eyebrow mb-1">Välj restaurang</p>
-        </div>
-        <CityRestaurantPicker value={restaurantId} onChange={setRestaurantId} />
-      </Surface>
+      <PageHeader
+        breadcrumb="Katalog"
+        title="Enheter"
+        actions={
+          <Button variant="primary" onClick={() => setLinkOpen(true)}>
+            <Plus size={15} className="mr-1.5 inline" />
+            Koppla enhet
+          </Button>
+        }
+      />
 
       {!restaurantId ? (
-        <EmptyState
-          title="Ingen restaurang vald"
-          description="Välj stad och restaurang ovan för att se eller para en platta."
-        />
+        <Surface className="p-6">
+          <EmptyState
+            title="Välj en restaurang"
+            description="Enheter är restaurang-specifika. Tryck på Koppla enhet för att välja stad och restaurang, och se eller para terminaler."
+            action={
+              <Button variant="primary" onClick={() => setLinkOpen(true)}>
+                <Plus size={15} className="mr-1.5 inline" />
+                Koppla enhet
+              </Button>
+            }
+          />
+        </Surface>
       ) : devicesQuery.isLoading ? (
         <LoadingPanel label="Laddar enheter…" />
       ) : (
-        <Surface className="flex flex-col gap-6 p-6">
-          {/* Status-hero */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div
-                className="flex h-14 w-14 items-center justify-center rounded-2xl"
-                style={{
-                  background:
-                    status.tone === "success"
-                      ? "color-mix(in srgb, var(--accent) 16%, transparent)"
-                      : status.tone === "danger"
-                        ? "color-mix(in srgb, #dc2626 14%, transparent)"
-                        : "var(--bg-panel-strong, rgba(120,120,120,0.10))",
-                }}
-              >
-                <StatusIcon
-                  size={26}
-                  color={
-                    status.tone === "success"
-                      ? "var(--accent)"
-                      : status.tone === "danger"
-                        ? "#dc2626"
-                        : "var(--text-secondary)"
-                  }
-                />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[20px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">
-                    {status.label}
-                  </span>
-                  <Badge tone={status.tone}>{linkedDevice ? "ansluten" : revokedDevice ? "avstängd" : "väntar"}</Badge>
-                </div>
-                <p className="mt-1 text-sm text-[var(--text-secondary)]">{status.detail}</p>
-              </div>
-            </div>
-            <Button variant="primary" disabled={busy} onClick={() => generateMutation.mutate()}>
-              <KeyRound size={15} className="mr-2 inline" />
-              {generateMutation.isPending ? "Genererar…" : "Generera pairing-kod"}
-            </Button>
+        <Surface className="overflow-hidden p-0">
+          {/* Tabellrubrik */}
+          <div
+            className="grid items-center px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+            style={{ gridTemplateColumns: "1.4fr 1.1fr 1fr 90px 64px", borderBottom: "1px solid var(--row-divider)" }}
+          >
+            <span>Enhet</span>
+            <span>ID</span>
+            <span>Senast sedd</span>
+            <span>Status</span>
+            <span />
           </div>
 
-          {/* Aktiv pairing-kod */}
-          {pendingCode ? (
-            <div className="rounded-2xl border border-dashed border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_7%,transparent)] p-5">
-              <p className="eyebrow mb-3">Pairing-kod — skriv in på plattan</p>
-              <div className="flex flex-wrap items-center gap-4">
-                <span className="font-mono text-[44px] font-bold leading-none tracking-[0.22em] text-[var(--text-primary)]">
-                  {pendingCode.code}
-                </span>
-                <Button variant="secondary" onClick={copyCode}>
-                  {copied ? <Check size={15} className="mr-1.5 inline" /> : <Copy size={15} className="mr-1.5 inline" />}
-                  {copied ? "Kopierad" : "Kopiera"}
-                </Button>
-              </div>
-              <p className="mt-3 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                <RefreshCw size={13} className="animate-spin opacity-70" />
-                Väntar på att plattan parar… giltig till {formatWhen(pendingCode.expiresAt)} · engångskod.
-              </p>
-            </div>
-          ) : null}
-
-          {/* Enhetslista */}
           {devices.length === 0 ? (
-            <EmptyState
-              title="Ingen platta parad ännu"
-              description="Generera en kod ovan och skriv in den i Delívera Business-appen på plattan."
-            />
-          ) : (
-            <div className="flex flex-col gap-3">
-              {devices.map((device) => {
-                const linked = device.status === "linked";
-                return (
-                  <div
-                    key={device.id}
-                    className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-strong,transparent)] p-4"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-11 w-11 items-center justify-center rounded-xl"
-                        style={{
-                          background: linked
-                            ? "color-mix(in srgb, var(--accent) 14%, transparent)"
-                            : "color-mix(in srgb, #dc2626 12%, transparent)",
-                        }}
-                      >
-                        <Tablet size={20} color={linked ? "var(--accent)" : "#dc2626"} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-[var(--text-primary)]">
-                            {device.label || "Platta"}
-                          </span>
-                          <Badge tone={linked ? "success" : "danger"}>
-                            {linked ? "Länkad" : "Utloggad"}
-                          </Badge>
-                        </div>
-                        <p className="mt-0.5 font-mono text-xs text-[var(--text-secondary)]">
-                          {device.deviceId.slice(0, 14)}… · senast {formatWhen(device.lastSeenAt)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {linked ? (
-                        // Logga ut FÖRST — delete är inte tillgängligt på en
-                        // inloggad platta (annars loggas den inte ut innan den
-                        // tas bort).
-                        <Button variant="danger" disabled={busy} onClick={() => revokeMutation.mutate(device.id)}>
-                          <LogOut size={15} className="mr-1.5 inline" />
-                          Logga ut
-                        </Button>
-                      ) : (
-                        <>
-                          <Button variant="primary" disabled={busy} onClick={() => restoreMutation.mutate(device.id)}>
-                            <LogIn size={15} className="mr-1.5 inline" />
-                            Logga in igen
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            disabled={busy}
-                            onClick={() => {
-                              if (window.confirm("Ta bort enheten helt? Plattan loggas ut och kan paras om med en ny kod (även till en annan restaurang).")) {
-                                deleteMutation.mutate(device.id);
-                              }
-                            }}
-                          >
-                            <Trash2 size={15} />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="px-6 py-14">
+              <EmptyState
+                title="Ingen platta parad ännu"
+                description="Tryck på Koppla enhet, generera en kod och skriv in den i Delívera Business-appen på plattan."
+                action={
+                  <Button variant="primary" onClick={() => setLinkOpen(true)}>
+                    <Plus size={15} className="mr-1.5 inline" />
+                    Koppla enhet
+                  </Button>
+                }
+              />
             </div>
+          ) : (
+            devices.map((device, idx) => {
+              const linked = device.status === "linked";
+              return (
+                <div
+                  key={device.id}
+                  className="grid items-center px-[18px] py-[13px] text-[13px]"
+                  style={{
+                    gridTemplateColumns: "1.4fr 1.1fr 1fr 90px 64px",
+                    borderBottom: idx === devices.length - 1 ? "none" : "1px solid var(--row-divider)",
+                  }}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
+                      style={{
+                        background: linked
+                          ? "var(--accent-soft)"
+                          : "var(--danger-soft)",
+                      }}
+                    >
+                      <Tablet size={17} color={linked ? "var(--accent)" : "var(--danger)"} />
+                    </div>
+                    <span className="truncate font-bold text-[var(--text-primary)]">
+                      {device.label || "Platta"}
+                    </span>
+                  </div>
+                  <span className="truncate font-mono text-[12px] text-[var(--text-secondary)]">
+                    {device.deviceId.slice(0, 14)}…
+                  </span>
+                  <span className="text-[var(--text-secondary)]">{formatWhen(device.lastSeenAt)}</span>
+                  <span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="h-[7px] w-[7px] shrink-0 rounded-full"
+                        style={{ background: linked ? "var(--success)" : "var(--warning)" }}
+                      />
+                      <Badge tone={linked ? "success" : "warning"}>
+                        {linked ? "Online" : "Utloggad"}
+                      </Badge>
+                    </span>
+                  </span>
+                  <div className="flex items-center justify-end gap-1.5">
+                    {linked ? (
+                      // Logga ut FÖRST — delete är inte tillgängligt på en
+                      // inloggad platta (annars loggas den inte ut innan den
+                      // tas bort).
+                      <Button
+                        variant="danger"
+                        disabled={busy}
+                        onClick={() => revokeMutation.mutate(device.id)}
+                        aria-label="Logga ut"
+                        title="Logga ut"
+                      >
+                        <LogOut size={15} />
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="primary"
+                          disabled={busy}
+                          onClick={() => restoreMutation.mutate(device.id)}
+                          aria-label="Logga in igen"
+                          title="Logga in igen"
+                        >
+                          <LogIn size={15} />
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          disabled={busy}
+                          aria-label="Ta bort"
+                          title="Ta bort"
+                          onClick={() => {
+                            if (window.confirm("Ta bort enheten helt? Plattan loggas ut och kan paras om med en ny kod (även till en annan restaurang).")) {
+                              deleteMutation.mutate(device.id);
+                            }
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })
           )}
         </Surface>
       )}
+
+      {/* Koppla enhet: stad → restaurang → enhetskod */}
+      <Modal
+        open={linkOpen}
+        title="Koppla ny enhet"
+        description="Enheter är restaurang-specifika. Välj stad och restaurang, generera sedan en engångskod att skriva in på plattan."
+        widthClassName="max-w-3xl"
+        onClose={() => setLinkOpen(false)}
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          {/* Steg 1 — välj plats */}
+          <div className="rounded-2xl border border-[var(--border-subtle)] p-5">
+            <p className="eyebrow mb-4">Steg 1 · välj plats</p>
+            <CityRestaurantPicker
+              value={restaurantId}
+              onChange={(id) => {
+                setRestaurantId(id);
+              }}
+              className="!grid-cols-1"
+            />
+            <div className="mt-5">
+              <Button
+                variant="primary"
+                className="w-full justify-center"
+                disabled={!restaurantId || busy}
+                onClick={() => generateMutation.mutate()}
+              >
+                <KeyRound size={15} className="mr-2 inline" />
+                {generateMutation.isPending ? "Genererar…" : "Generera enhetskod"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Steg 2 — ange på enheten */}
+          <div
+            className="flex flex-col items-center justify-center rounded-2xl p-6 text-center"
+            style={{ background: "#111113" }}
+          >
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9CA3AF]">
+              Steg 2 · ange på enheten
+            </p>
+            {pendingCode ? (
+              <>
+                <p
+                  className="mt-5 font-mono text-[40px] font-extrabold leading-none tracking-[0.16em] text-white"
+                  style={{ wordBreak: "break-all" }}
+                >
+                  {pendingCode.code}
+                </p>
+                <Button variant="secondary" className="mt-5" onClick={copyCode}>
+                  {copied ? <Check size={15} className="mr-1.5 inline" /> : <Copy size={15} className="mr-1.5 inline" />}
+                  {copied ? "Kopierad" : "Kopiera kod"}
+                </Button>
+                <p className="mt-5 flex items-center gap-2 text-[12px] leading-relaxed text-white/70">
+                  <RefreshCw size={13} className="animate-spin opacity-70" />
+                  Väntar på att plattan parar. Giltig till {formatWhen(pendingCode.expiresAt)}, engångskod.
+                </p>
+                <p className="mt-2 max-w-[30ch] text-[12px] leading-relaxed text-white/60">
+                  Öppna Delívera Business på enheten och ange koden.
+                </p>
+              </>
+            ) : (
+              <p className="mt-5 max-w-[30ch] text-[13px] leading-relaxed text-white/60">
+                Välj restaurang och tryck på Generera enhetskod. Koden visas här att skriva in på plattan.
+              </p>
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { createSponsor, deleteSponsor, getSponsors, sponsorsQueryKey, updateSponsor, type SponsorRecord } from "@/modules/sponsors/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Textarea, Toggle } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { formatDate, formatNumber } from "@/shared/utils/format";
 import { getConfig as getDpointsConfig, updateConfig as updateDpointsConfig, dpointsKeys } from "@/modules/dpoints/api";
@@ -107,50 +107,120 @@ function SponsorModal({ open, sponsor, onClose }: { open: boolean; sponsor: Spon
   );
 }
 
+// Mappar sponsorns linkType till en läsbar placeringsetikett i tabellen.
+const PLACEMENT_LABELS: Record<NonNullable<SponsorRecord["linkType"]>, string> = {
+  EXTERNAL: "Hem-carousel",
+  DEAL: "Banner (flöde)",
+  RESTAURANT: "Kategori-topp",
+};
+
+function placementLabel(linkType?: SponsorRecord["linkType"]) {
+  return PLACEMENT_LABELS[linkType ?? "EXTERNAL"];
+}
+
+function SponsorRow({ sponsor, onOpen }: { sponsor: SponsorRecord; onOpen: () => void }) {
+  const queryClient = useQueryClient();
+  const toggleStatus = useMutation({
+    mutationFn: (next: boolean) => updateSponsor(sponsor.id, { isActive: next }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: sponsorsQueryKey }),
+  });
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      className="grid cursor-pointer items-center gap-3 border-b border-[var(--row-divider)] px-[18px] py-[13px] text-[13px] transition-colors last:border-b-0 hover:bg-[var(--bg-hover)]"
+      style={{ gridTemplateColumns: "1.6fr 1.2fr 1fr 90px 50px" }}
+    >
+      <span className="flex items-center gap-[11px]">
+        <span
+          className="h-9 w-9 flex-none rounded-[9px] bg-cover bg-center"
+          style={{
+            backgroundImage: sponsor.imageUrl
+              ? `url(${sponsor.imageUrl})`
+              : "linear-gradient(150deg,#F0D4A8,#DCB070)",
+          }}
+        />
+        <span className="min-w-0">
+          <span className="block truncate font-bold text-[var(--text-primary)]">{sponsor.name}</span>
+          <span className="mt-0.5 block">
+            <Badge tone={sponsor.isClickable ? "info" : "neutral"}>{sponsor.isClickable ? "Klickbar" : "Statisk"}</Badge>
+          </span>
+        </span>
+      </span>
+
+      <span className="text-[var(--text-secondary)]">{placementLabel(sponsor.linkType)}</span>
+
+      <span className="text-[var(--text-secondary)]">{formatDate(sponsor.createdAt)}</span>
+
+      <span className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+        <Toggle
+          checked={sponsor.isActive}
+          disabled={toggleStatus.isPending}
+          onChange={(next) => toggleStatus.mutate(next)}
+        />
+      </span>
+
+      <span className="flex justify-end text-[var(--text-muted)]">
+        <ChevronRight size={18} />
+      </span>
+    </div>
+  );
+}
+
 export function SponsorsPage() {
   const [activeSponsor, setActiveSponsor] = useState<SponsorRecord | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const sponsors = useQuery({ queryKey: sponsorsQueryKey, queryFn: getSponsors });
 
   if (sponsors.isLoading) {
-    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading sponsor placements...</Surface>;
+    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar sponsorplaceringar...</Surface>;
   }
 
   if (sponsors.isError || !sponsors.data) {
-    return <ErrorPanel title="Sponsors could not be loaded" description="The sponsor endpoint is unavailable." action={<Button onClick={() => void sponsors.refetch()}>Retry</Button>} />;
+    return <ErrorPanel title="Sponsorer kunde inte laddas" description="Sponsor-endpointen är otillgänglig." action={<Button onClick={() => void sponsors.refetch()}>Försök igen</Button>} />;
   }
 
   return (
     <div className="page-stack">
       <PageHeader
-        title="Sponsors"
-        actions={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={13} /> New sponsor</Button>}
+        breadcrumb="Katalog"
+        title="Sponsorer"
+        actions={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={13} /> Ny sponsor</Button>}
       />
 
       <DpointsHomeToggle />
 
       <Surface className="px-6 py-6">
         {sponsors.data.length === 0 ? (
-          <EmptyState title="No sponsors yet" />
+          <EmptyState title="Inga sponsorer ännu" description="Lägg till en betald placering så visas den i kund-appens flöde." />
         ) : (
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="overflow-hidden rounded-[14px] border border-[var(--border-subtle)]">
+            <div
+              className="grid gap-3 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+              style={{ gridTemplateColumns: "1.6fr 1.2fr 1fr 90px 50px" }}
+            >
+              <span>Sponsor</span>
+              <span>Placering</span>
+              <span>Tillagd</span>
+              <span>Status</span>
+              <span />
+            </div>
             {sponsors.data.map((sponsor) => (
-              <button key={sponsor.id} type="button" onClick={() => setActiveSponsor(sponsor)} className="surface-muted flex flex-col gap-4 px-5 py-5 text-left">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-lg font-black tracking-[-0.02em]">{sponsor.name}</p>
-                      <Badge tone={sponsor.isActive ? "success" : "danger"}>{sponsor.isActive ? "Active" : "Inactive"}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{sponsor.linkType || "EXTERNAL"} • {formatDate(sponsor.createdAt)}</p>
-                  </div>
-                  <Badge tone={sponsor.isClickable ? "info" : "neutral"}>{sponsor.isClickable ? "Clickable" : "Static"}</Badge>
-                </div>
-                <p className="text-sm text-[var(--text-secondary)] break-all">{sponsor.imageUrl}</p>
-              </button>
+              <SponsorRow key={sponsor.id} sponsor={sponsor} onOpen={() => setActiveSponsor(sponsor)} />
             ))}
           </div>
         )}
+        <p className="mt-3 text-[12px] font-semibold text-[var(--text-muted)]">
+          Placeringar matchar kund-appens sponsrat-kort och annonsbanner. Max sponsrade per vy styrs i Inställningar.
+        </p>
       </Surface>
 
       <SponsorModal open={Boolean(activeSponsor)} sponsor={activeSponsor} onClose={() => setActiveSponsor(null)} />

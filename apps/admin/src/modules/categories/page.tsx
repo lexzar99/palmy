@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Filter, Loader2, Percent, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Filter, GripVertical, Loader2, Percent, Plus, Search, Trash2 } from "lucide-react";
 import { getPlatformSettings, platformSettingsQueryKey, updatePlatformSettings } from "@/modules/platform-settings/api";
 import {
   categoriesQueryKey,
@@ -29,6 +29,7 @@ import {
   Select,
   Surface,
   Textarea,
+  Toggle,
 } from "@/shared/components/ui";
 import { formatNumber } from "@/shared/utils/format";
 
@@ -176,22 +177,6 @@ const formToPayload = (form: FormState): HomeCategoryPayload => ({
     endTime: form.endTime || null,
   },
 });
-
-function formatFilterSummary(section: HomeCategorySection): string[] {
-  const tags: string[] = [];
-  if (section.filterMode !== "FILTER") {
-    tags.push(`${section.manualRestaurantIds.length} valda restauranger`);
-  }
-  if (section.filters.cuisines?.length) tags.push(`Kök: ${section.filters.cuisines.join(", ")}`);
-  if (section.filters.searchTerm) tags.push(`Sök: ${section.filters.searchTerm}`);
-  if (section.filters.maxEtaMinutes != null) tags.push(`ETA ≤ ${section.filters.maxEtaMinutes} min`);
-  if (section.filters.minRating != null) tags.push(`Betyg ≥ ${section.filters.minRating}`);
-  if (section.filters.openNowOnly) tags.push("Endast öppna");
-  if (section.filters.dealsOnly) tags.push("Måste ha deal");
-  if (section.filters.freeDeliveryOnly) tags.push("Fri leverans");
-  if (section.schedule.enabled) tags.push("Schemalagd");
-  return tags.slice(0, 5);
-}
 
 function CategoryEditorModal({
   open,
@@ -671,7 +656,12 @@ export function CategoriesPage() {
   }, [categories.data]);
 
   if (categories.isLoading) {
-    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar kategorier...</Surface>;
+    return (
+      <div className="page-stack">
+        <PageHeader breadcrumb="Katalog" title="Kategorier" />
+        <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar kategorier...</Surface>
+      </div>
+    );
   }
 
   if (categories.isError || !categories.data) {
@@ -684,22 +674,18 @@ export function CategoriesPage() {
     );
   }
 
-  const stats = {
-    total: categories.data.length,
-    active: categories.data.filter((section) => section.isActive).length,
-    scheduled: categories.data.filter((section) => section.schedule.enabled).length,
-    manual: categories.data.filter((section) => section.filterMode !== "FILTER").length,
-  };
+  const visibleSections = sortedCategories.filter((section) => section.isActive);
 
   return (
     <div className="page-stack">
       <PageHeader
+        breadcrumb="Katalog"
         title="Kategorier"
         actions={
           <>
             <Button variant="secondary" onClick={() => void categories.refetch()}>Uppdatera</Button>
             <Button variant="primary" onClick={() => setCreateOpen(true)}>
-              <Plus size={13} /> Ny kategori
+              <Plus size={13} /> Ny sektion
             </Button>
           </>
         }
@@ -707,77 +693,143 @@ export function CategoriesPage() {
 
       <DiscountedRailToggle />
 
-      <Surface className="px-6 py-6">
-        {sortedCategories.length === 0 ? (
-          <div className="mt-6">
-            <EmptyState title="Inga kategorier ännu" />
+      <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr]">
+        <Surface className="overflow-hidden">
+          <div className="border-b border-[var(--border-subtle)] px-6 py-5">
+            <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Sektioner på hemskärmen</h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">
+              Bestäm ordning och synlighet. Av betyder att sektionen inte visas för kunder på hemskärmen.
+            </p>
           </div>
-        ) : (
-          <div className="mt-6 grid gap-3">
-            {sortedCategories.map((section, index) => {
-              const summary = formatFilterSummary(section);
-              return (
-                <div key={section.id} className="surface-muted px-5 py-5">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
-                        <Filter size={18} />
-                      </div>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-lg font-black tracking-[-0.02em]">{section.title}</p>
-                          <Badge tone={section.isActive ? "success" : "danger"}>
-                            {section.isActive ? "Aktiv" : "Dold"}
-                          </Badge>
-                          <Badge tone="info">{section.filterMode}</Badge>
-                          {section.schedule.enabled ? <Badge tone="warning">Schema</Badge> : null}
-                        </div>
-                        {section.subtitle ? (
-                          <p className="mt-1 text-sm text-[var(--text-secondary)]">{section.subtitle}</p>
-                        ) : null}
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {summary.map((tag) => (
-                            <Badge key={tag} tone="neutral">{tag}</Badge>
-                          ))}
-                        </div>
-                      </div>
+
+          {sortedCategories.length === 0 ? (
+            <div className="px-6 py-10">
+              <EmptyState title="Inga sektioner ännu" description="Skapa din första hemskärms-sektion." />
+            </div>
+          ) : (
+            <div className="px-3 py-3">
+              <div className="grid grid-cols-[28px_1fr_minmax(0,140px)_44px_24px] items-center gap-3 px-3 pb-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                <span />
+                <span>Sektion på hem</span>
+                <span className="hidden sm:block">Typ</span>
+                <span className="text-center">Visas</span>
+                <span />
+              </div>
+
+              <div className="divide-y divide-[var(--row-divider)]">
+                {sortedCategories.map((section, index) => (
+                  <div
+                    key={section.id}
+                    className={`grid grid-cols-[28px_1fr_minmax(0,140px)_44px_24px] items-center gap-3 px-3 py-3 transition-opacity ${
+                      section.isActive ? "" : "opacity-55"
+                    }`}
+                  >
+                    <div className="flex flex-col items-center">
+                      <button
+                        type="button"
+                        aria-label="Flytta upp"
+                        onClick={() => reorderMutation.mutate({ section, direction: "up" })}
+                        disabled={index === 0 || reorderMutation.isPending}
+                        className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-30"
+                      >
+                        <ChevronUp size={13} />
+                      </button>
+                      <GripVertical size={15} className="text-[var(--border-strong)]" />
+                      <button
+                        type="button"
+                        aria-label="Flytta ner"
+                        onClick={() => reorderMutation.mutate({ section, direction: "down" })}
+                        disabled={index === sortedCategories.length - 1 || reorderMutation.isPending}
+                        className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-30"
+                      >
+                        <ChevronDown size={13} />
+                      </button>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex flex-col gap-1">
-                        <Button
-                          variant="secondary"
-                          onClick={() => reorderMutation.mutate({ section, direction: "up" })}
-                          disabled={index === 0 || reorderMutation.isPending}
-                        >
-                          <ArrowUp size={14} />
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => reorderMutation.mutate({ section, direction: "down" })}
-                          disabled={index === sortedCategories.length - 1 || reorderMutation.isPending}
-                        >
-                          <ArrowDown size={14} />
-                        </Button>
-                      </div>
-                      <Button variant="secondary" onClick={() => toggleActiveMutation.mutate(section)}>
-                        {section.isActive ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </Button>
-                      <Button variant="primary" onClick={() => setActiveSection(section)}>
-                        Öppna
-                      </Button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveSection(section)}
+                      className="min-w-0 text-left"
+                    >
+                      <p className="truncate text-[13.5px] font-bold text-[var(--text-primary)]">{section.title}</p>
+                      {section.subtitle ? (
+                        <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{section.subtitle}</p>
+                      ) : null}
+                    </button>
+
+                    <div className="hidden min-w-0 sm:block">
+                      <span className="block truncate text-xs font-semibold text-[var(--text-secondary)]">
+                        {filterModeLabel(section.filterMode)}
+                      </span>
+                      {section.schedule.enabled ? (
+                        <span className="mt-0.5 block text-[11px] text-[var(--text-muted)]">Schemalagd</span>
+                      ) : null}
                     </div>
+
+                    <div className="flex justify-center">
+                      <Toggle
+                        checked={section.isActive}
+                        onChange={() => toggleActiveMutation.mutate(section)}
+                        disabled={toggleActiveMutation.isPending}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      aria-label="Öppna sektion"
+                      onClick={() => setActiveSection(section)}
+                      className="flex justify-center text-[var(--border-strong)] transition-colors hover:text-[var(--text-primary)]"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
                   </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            </div>
+          )}
+        </Surface>
+
+        <Surface className="overflow-hidden">
+          <div className="border-b border-[var(--border-subtle)] px-6 py-5">
+            <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Förhandsvisning</h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">Ändringar speglas direkt på kundens hemskärm.</p>
           </div>
-        )}
-      </Surface>
+          <div className="flex justify-center bg-[var(--bg-page)] px-6 py-7">
+            <div className="w-full max-w-[240px] rounded-[28px] bg-[#0a0a0c] p-2 shadow-[0_20px_40px_rgba(0,0,0,0.25)]">
+              <div className="rounded-[22px] bg-[var(--bg-panel)] px-4 py-5">
+                {visibleSections.length === 0 ? (
+                  <p className="py-10 text-center text-xs text-[var(--text-muted)]">Inga synliga sektioner</p>
+                ) : (
+                  <div className="space-y-4">
+                    {visibleSections.slice(0, 6).map((section) => (
+                      <div key={section.id}>
+                        <p className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--accent)]">
+                          {section.title}
+                        </p>
+                        <div className="mt-2 flex gap-2">
+                          <div className="h-14 flex-1 rounded-xl bg-[var(--accent-soft)]" />
+                          <div className="h-14 flex-1 rounded-xl bg-[var(--bg-page)] border border-[var(--border-subtle)]" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </Surface>
+      </div>
 
       <CategoryEditorModal open={Boolean(activeSection)} section={activeSection} onClose={() => setActiveSection(null)} />
       <CategoryEditorModal open={createOpen} section={null} onClose={() => setCreateOpen(false)} />
     </div>
   );
+}
+
+function filterModeLabel(mode: HomeCategoryFilterMode): string {
+  if (mode === "MANUAL") return "Manuellt val";
+  if (mode === "HYBRID") return "Hybrid";
+  return "Auto-rail";
 }
 
 // Toggle för "Rea & Rabatter"-sektionen på hem-sidan i web.

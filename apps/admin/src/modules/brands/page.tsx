@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Network, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronRight, Loader2, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
 import {
   brandsQueryKey,
   brandRestaurantsQueryKey,
@@ -131,8 +131,8 @@ function SyncModal({ brand, open, onClose }: { brand: BrandRecord; open: boolean
               </div>
             );
           })}
-          <p className={`text-xs ${result.dryRun ? "text-[var(--text-secondary)]" : "text-emerald-400"}`}>
-            {result.dryRun ? "Förhandsvisning — inget har skrivits. Klicka Synka för att köra." : "✓ Klart — platsernas menyer uppdaterade."}
+          <p className={`text-xs ${result.dryRun ? "text-[var(--text-secondary)]" : "text-[var(--success-text)]"}`}>
+            {result.dryRun ? "Förhandsvisning, inget har skrivits. Klicka Synka för att köra." : "Klart. Platsernas menyer uppdaterade."}
           </p>
         </div>
       ) : (
@@ -142,8 +142,21 @@ function SyncModal({ brand, open, onClose }: { brand: BrandRecord; open: boolean
   );
 }
 
-// ── Ett kedjekort ────────────────────────────────────────────────────────────
-function BrandCard({ brand, allRestaurants }: { brand: BrandRecord; allRestaurants: RestaurantRef[] }) {
+// Distinkta städer i kedjan (för "Städer"-kolumnen).
+function brandCities(brand: BrandRecord): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of brand.restaurants) {
+    const c = (r.city ?? "").trim();
+    if (c && !seen.has(c)) { seen.add(c); out.push(c); }
+  }
+  return out;
+}
+
+// ── En kedja: tabellrad + utfällbar panel (kedjans restauranger = undermeny) ──
+function BrandRow({ brand, allRestaurants, expanded, onToggle }: {
+  brand: BrandRecord; allRestaurants: RestaurantRef[]; expanded: boolean; onToggle: () => void;
+}) {
   const qc = useQueryClient();
   const { showToast } = useToast();
   const [manageOpen, setManageOpen] = useState(false);
@@ -161,63 +174,117 @@ function BrandCard({ brand, allRestaurants }: { brand: BrandRecord; allRestauran
   });
 
   const canSync = Boolean(brand.masterRestaurantId) && brand.restaurants.length > 1;
+  const cities = brandCities(brand);
 
   return (
-    <Surface className="px-6 py-5">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-lg font-bold tracking-[-0.01em]">{brand.name}</h2>
-          <p className="mt-0.5 text-sm text-[var(--text-secondary)]">{brand.locationCount} {brand.locationCount === 1 ? "plats" : "platser"}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => { if (window.confirm(`Ta bort kedjan "${brand.name}"? Platserna kopplas bort men raderas inte.`)) remove.mutate(); }}
-          className="shrink-0 rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--danger)]"
-          aria-label="Ta bort kedja"
-        >
-          {remove.isPending ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-        </button>
-      </div>
+    <>
+      <tr
+        className="cursor-pointer"
+        onClick={onToggle}
+        aria-expanded={expanded}
+      >
+        <td>
+          <span className="flex items-center gap-3">
+            {brand.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={brand.logoUrl} alt="" className="h-10 w-10 flex-none rounded-[10px] object-cover" />
+            ) : (
+              <span
+                className="h-10 w-10 flex-none rounded-[10px]"
+                style={{ background: "linear-gradient(150deg,#F0D4A8,#DCB070)" }}
+              />
+            )}
+            <span className="font-extrabold tracking-[-0.2px]">{brand.name}</span>
+          </span>
+        </td>
+        <td className="text-[var(--text-secondary)]">
+          {brand.locationCount} {brand.locationCount === 1 ? "restaurang" : "restauranger"}
+        </td>
+        <td className="text-[var(--text-secondary)]">
+          {cities.length ? cities.join(" · ") : <span className="text-[var(--text-muted)]">–</span>}
+        </td>
+        <td>
+          {brand.masterRestaurantId ? <Badge tone="success">Master vald</Badge> : <Badge tone="neutral">Ingen master</Badge>}
+        </td>
+        <td className="text-right">
+          <ChevronRight
+            size={16}
+            className={`inline text-[var(--text-muted)] transition-transform ${expanded ? "rotate-90" : ""}`}
+          />
+        </td>
+      </tr>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-        <div>
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-widest text-[var(--text-muted)]">Master-plats (menyns källa)</label>
-          <Select
-            value={brand.masterRestaurantId ?? ""}
-            onChange={(e) => setMaster.mutate(e.target.value || null)}
-            disabled={brand.restaurants.length === 0 || setMaster.isPending}
-          >
-            <option value="">Välj master…</option>
-            {brand.restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </Select>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setManageOpen(true)}>Hantera platser</Button>
-          <Button variant="primary" onClick={() => setSyncOpen(true)} disabled={!canSync}>
-            <RefreshCw size={14} /> Synka alla
-          </Button>
-        </div>
-      </div>
+      {expanded ? (
+        <tr className="brand-row-detail">
+          <td colSpan={5} className="!py-0">
+            <div
+              className="border-t border-[var(--row-divider)] px-1 py-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+                <div>
+                  <label className="mb-1.5 block text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                    Master-plats (menyns källa)
+                  </label>
+                  <Select
+                    value={brand.masterRestaurantId ?? ""}
+                    onChange={(e) => setMaster.mutate(e.target.value || null)}
+                    disabled={brand.restaurants.length === 0 || setMaster.isPending}
+                  >
+                    <option value="">Välj master…</option>
+                    {brand.restaurants.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </Select>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={() => setManageOpen(true)}>Hantera platser</Button>
+                  <Button variant="primary" onClick={() => setSyncOpen(true)} disabled={!canSync}>
+                    <RefreshCw size={14} /> Synka alla
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => { if (window.confirm(`Ta bort kedjan "${brand.name}"? Platserna kopplas bort men raderas inte.`)) remove.mutate(); }}
+                    disabled={remove.isPending}
+                  >
+                    {remove.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Ta bort
+                  </Button>
+                </div>
+              </div>
 
-      {brand.restaurants.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {brand.restaurants.map((r) => (
-            <Badge key={r.id} tone={r.id === brand.masterRestaurantId ? "info" : "neutral"}>
-              {r.id === brand.masterRestaurantId ? "★ " : ""}{r.name}
-            </Badge>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-4 text-sm text-[var(--text-muted)]">Inga platser än — klicka &ldquo;Hantera platser&rdquo;.</p>
-      )}
+              {brand.restaurants.length > 0 ? (
+                <div className="mt-4">
+                  <div className="mb-2 text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                    Kedjans restauranger
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {brand.restaurants.map((r) => {
+                      const isMaster = r.id === brand.masterRestaurantId;
+                      return (
+                        <Badge key={r.id} tone={isMaster ? "info" : "neutral"}>
+                          <span className="inline-flex items-center gap-1">
+                            {isMaster ? <Star size={11} className="fill-current" /> : null}
+                            {r.name}
+                            {r.city ? <span className="text-[var(--text-muted)]"> · {r.city}</span> : null}
+                          </span>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-[var(--text-muted)]">Inga platser än, klicka &ldquo;Hantera platser&rdquo;.</p>
+              )}
 
-      {!canSync && brand.restaurants.length > 1 ? (
-        <p className="mt-3 text-xs text-[var(--warning)]">Välj en master-plats för att kunna synka.</p>
+              {!canSync && brand.restaurants.length > 1 ? (
+                <p className="mt-3 text-xs text-[var(--warning)]">Välj en master-plats för att kunna synka.</p>
+              ) : null}
+            </div>
+          </td>
+        </tr>
       ) : null}
 
       {manageOpen ? <ManageLocationsModal brand={brand} allRestaurants={allRestaurants} open={manageOpen} onClose={() => setManageOpen(false)} /> : null}
       {syncOpen ? <SyncModal brand={brand} open={syncOpen} onClose={() => setSyncOpen(false)} /> : null}
-    </Surface>
+    </>
   );
 }
 
@@ -228,6 +295,7 @@ export function BrandsPage() {
   const restaurants = useQuery({ queryKey: brandRestaurantsQueryKey, queryFn: getAllRestaurants });
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const create = useMutation({ meta: { toast: false },
     mutationFn: () => createBrand(newName.trim()),
@@ -249,18 +317,53 @@ export function BrandsPage() {
   return (
     <div className="page-stack">
       <PageHeader
+        breadcrumb="Katalog"
         title="Kedjor"
-        actions={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={14} /> Skapa kedja</Button>}
+        actions={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={14} /> Ny kedja</Button>}
       />
 
       {brands.isLoading ? (
-        <div className="grid gap-3">{[0, 1].map((i) => <div key={i} className="metric-card animate-pulse" style={{ minHeight: 160 }} />)}</div>
+        <Surface className="p-0">
+          <div className="px-6 py-5 space-y-3">
+            {[0, 1, 2].map((i) => <div key={i} className="h-12 animate-pulse rounded-[10px] bg-[var(--bg-hover)]" />)}
+          </div>
+        </Surface>
       ) : list.length === 0 ? (
-        <EmptyState title="Inga kedjor än" action={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={14} /> Skapa kedja</Button>} />
+        <EmptyState
+          title="Inga kedjor än"
+          description="Gruppera restauranger under en kedja för att dela meny och synka platser."
+          action={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={14} /> Ny kedja</Button>}
+        />
       ) : (
-        <div className="grid gap-3">
-          {list.map((b) => <BrandCard key={b.id} brand={b} allRestaurants={allRestaurants} />)}
-        </div>
+        <>
+          <Surface className="overflow-hidden p-0">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Kedja</th>
+                  <th>Restauranger</th>
+                  <th>Städer</th>
+                  <th>Status</th>
+                  <th aria-hidden />
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((b) => (
+                  <BrandRow
+                    key={b.id}
+                    brand={b}
+                    allRestaurants={allRestaurants}
+                    expanded={expandedId === b.id}
+                    onToggle={() => setExpandedId((cur) => (cur === b.id ? null : b.id))}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </Surface>
+          <p className="text-[12px] font-semibold text-[var(--text-muted)]">
+            Klicka på en kedja för att se kedjans restauranger och hantera platser.
+          </p>
+        </>
       )}
 
       <Modal

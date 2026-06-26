@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Loader2, Plus, UserRound } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronRight, Loader2, Plus } from "lucide-react";
 import {
   createCustomerDeal,
   customerDetailQueryKey,
@@ -229,6 +229,13 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
 
 const PAGE_SIZE = 50;
 
+function initials(name: string) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function exportCsv(rows: CustomerRecord[]) {
   // Quote ALLA fält (inklusive numeriska) så Excel inte vrider "08-12345" → 812345
   // eller tolkar långa telefonnummer som scientific notation.
@@ -286,7 +293,12 @@ export function CustomersPage() {
   const resetPage = () => setPage(1);
 
   if (customers.isLoading) {
-    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading customers...</Surface>;
+    return (
+      <div className="page-stack">
+        <PageHeader breadcrumb="Drift" title="Kunder" />
+        <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar kunder…</Surface>
+      </div>
+    );
   }
 
   if (customers.isError || !customers.data) {
@@ -296,72 +308,80 @@ export function CustomersPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        title="Customers"
+        breadcrumb="Drift"
+        title="Kunder"
         actions={
-          <Button variant="secondary" onClick={() => exportCsv(filtered)}>
-            Exportera CSV
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <Input value={nameFilter} onChange={(e) => { setNameFilter(e.target.value); resetPage(); }} placeholder="Sök namn…" />
+              <Input value={emailFilter} onChange={(e) => { setEmailFilter(e.target.value); resetPage(); }} placeholder="Sök e-post…" />
+              <Input value={phoneFilter} onChange={(e) => { setPhoneFilter(e.target.value); resetPage(); }} placeholder="Sök telefon…" />
+            </div>
+            <Button variant="secondary" onClick={() => exportCsv(filtered)}>
+              Exportera CSV
+            </Button>
+          </div>
         }
       />
 
-      <Surface className="px-6 py-6">
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <Input value={nameFilter} onChange={(e) => { setNameFilter(e.target.value); resetPage(); }} placeholder="Sök namn…" />
-          <Input value={emailFilter} onChange={(e) => { setEmailFilter(e.target.value); resetPage(); }} placeholder="Sök e-post…" />
-          <Input value={phoneFilter} onChange={(e) => { setPhoneFilter(e.target.value); resetPage(); }} placeholder="Sök telefon…" />
-        </div>
-
+      <Surface className="p-0 overflow-hidden">
         {filtered.length === 0 ? (
-          <EmptyState title="Inga kunder hittades" />
+          <div className="px-6 py-12">
+            <EmptyState title="Inga kunder hittades" />
+          </div>
         ) : (
           <>
-            <div className="table-shell">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Namn</th>
-                    <th>Email</th>
-                    <th>Telefon</th>
-                    <th>Senaste order</th>
-                    <th>Antal ordrar</th>
-                    <th>Total spenderat</th>
-                    <th>Signaler</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageRows.map((customer) => (
-                    <tr key={customer.id}>
-                      <td className="font-black">
-                        {customer.name}
+            <div
+              className="grid items-center gap-4 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+              style={{ gridTemplateColumns: "1.7fr 1.2fr 0.8fr 1fr 0.9fr 50px" }}
+            >
+              <span>Kund</span>
+              <span>Telefon</span>
+              <span>Ordrar</span>
+              <span>Spenderat</span>
+              <span>Dpoints</span>
+              <span />
+            </div>
+
+            <div>
+              {pageRows.map((customer) => (
+                <button
+                  key={customer.id}
+                  type="button"
+                  onClick={() => setActiveCustomer(customer)}
+                  className="grid w-full items-center gap-4 border-b border-[var(--row-divider)] px-[18px] py-[13px] text-left text-[13px] transition-colors last:border-b-0 hover:bg-[var(--bg-page)]"
+                  style={{ gridTemplateColumns: "1.7fr 1.2fr 0.8fr 1fr 0.9fr 50px" }}
+                >
+                  <span className="flex min-w-0 items-center gap-[11px]">
+                    <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#111113] text-[12px] font-extrabold text-white">
+                      {initials(customer.name)}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate font-bold text-[var(--text-primary)]">{customer.name || "—"}</span>
                         {customer.accountAgeDays !== undefined && customer.accountAgeDays <= 7 && (
-                          <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--accent)]/80">ny</span>
+                          <span className="text-[10px] uppercase tracking-wider text-[var(--accent)]">ny</span>
                         )}
-                      </td>
-                      <td className="text-[var(--text-secondary)]">{customer.email || "—"}</td>
-                      <td>{customer.phone || "—"}</td>
-                      <td className="text-[var(--text-secondary)]">{customer.lastOrder ? formatDate(customer.lastOrder) : "—"}</td>
-                      <td>{formatNumber(customer._count?.orders || 0)}</td>
-                      <td>{formatCurrency(customer.totalSpent)}</td>
-                      <td>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(customer.fraudFlags || []).map((flag) => (
-                            <Badge key={flag} tone="danger">{FRAUD_FLAG_LABEL[flag]}</Badge>
-                          ))}
-                          {(!customer.fraudFlags || customer.fraudFlags.length === 0) && (customer._count?.orders || 0) > 0 && (
-                            <Badge tone="success">OK</Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td><div className="flex justify-end"><Button variant="secondary" onClick={() => setActiveCustomer(customer)}><UserRound size={16} /> Open</Button></div></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        {(customer.fraudFlags || []).map((flag) => (
+                          <Badge key={flag} tone="danger">{FRAUD_FLAG_LABEL[flag]}</Badge>
+                        ))}
+                      </span>
+                      <span className="block truncate text-[12px] text-[var(--text-muted)]">{customer.email || "Ingen e-post"}</span>
+                    </span>
+                  </span>
+                  <span className="text-[var(--text-secondary)]">{customer.phone || "—"}</span>
+                  <span>{formatNumber(customer._count?.orders || 0)}</span>
+                  <span className="font-bold text-[var(--text-primary)]">{formatCurrency(customer.totalSpent)}</span>
+                  <span className="text-[var(--text-secondary)]">–</span>
+                  <span className="flex justify-end text-[var(--text-muted)]">
+                    <ChevronRight size={18} />
+                  </span>
+                </button>
+              ))}
             </div>
 
             {totalPages > 1 && (
-              <div className="mt-4 flex items-center justify-between text-sm text-[var(--text-secondary)]">
+              <div className="flex items-center justify-between border-t border-[var(--border-subtle)] px-[18px] py-4 text-sm text-[var(--text-secondary)]">
                 <span>{filtered.length} kunder • sida {safePage} av {totalPages}</span>
                 <div className="flex gap-2">
                   <Button variant="secondary" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}>‹ Föregående</Button>

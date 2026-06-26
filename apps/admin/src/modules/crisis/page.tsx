@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Bell, BellOff, Ban, DollarSign, Loader2, Megaphone, Pause, Play, Power, RotateCcw, Timer, MapPin } from "lucide-react";
-import { Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Bell, BellOff, Ban, DollarSign, Loader2, Megaphone, Pause, Play, Power, RotateCcw, Timer, MapPin } from "lucide-react";
+import { Badge, Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import {
   bulkRefundRestaurant,
   deactivateRestaurant,
@@ -43,7 +43,7 @@ export function CrisisPage() {
   const closeAll = useMutation({
     mutationFn: () => emergencyCloseAll(closeReason || "Manuell kris-stängning"),
     onSuccess: (data) => {
-      alert(`✅ ${data.closedCount} restauranger stängdes.`);
+      alert(`${data.closedCount} restauranger stängdes.`);
       setCloseReason("");
     },
   });
@@ -51,7 +51,7 @@ export function CrisisPage() {
   const openAll = useMutation({
     mutationFn: emergencyOpenAll,
     onSuccess: (data) => {
-      alert(`✅ ${data.openedCount} restauranger öppnades igen.`);
+      alert(`${data.openedCount} restauranger öppnades igen.`);
     },
   });
 
@@ -63,7 +63,7 @@ export function CrisisPage() {
     }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["platform-banner"] });
-      alert("✅ Banner uppdaterad");
+      alert("Banner uppdaterad.");
     },
   });
 
@@ -78,40 +78,34 @@ export function CrisisPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader title="Krisverktyg" />
+      <PageHeader breadcrumb="Plattform" title="Krisverktyg" />
 
-      <Surface className="px-6 py-5">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 bg-rose-500/10 border border-rose-500/30">
-            <AlertTriangle size={18} className="text-rose-500" />
-          </div>
-          <div>
-            <h2 className="text-base font-black uppercase tracking-tight">Verktyg för platsstörningar</h2>
-          </div>
+      {/* Emergency Close All — destructive, danger-tinted card */}
+      <Surface className="px-6 py-6 border-[color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[var(--danger-soft)]">
+        <div className="flex items-center gap-2.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
+          <h2 className="text-[15px] font-extrabold tracking-[-0.3px] text-[var(--danger-text)]">Stoppa alla beställningar</h2>
         </div>
-      </Surface>
-
-      {/* Emergency Close All */}
-      <Surface className="px-6 py-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Power size={18} className="text-rose-500" />
-          <h2 className="text-base font-black uppercase tracking-tight">Stäng ALLA restauranger</h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-[var(--text-secondary)]">
+          Nödstoppare. Stänger alla restauranger omedelbart för nya ordrar. Befintliga ordrar påverkas ej.
+        </p>
+        <div className="mt-4">
+          <Field label="Anledning (loggas)">
+            <Input value={closeReason} onChange={(e) => setCloseReason(e.target.value)} placeholder="t.ex. Misstänkt matförgiftnings-utbrott" />
+          </Field>
         </div>
-        <Field label="Anledning (loggas)">
-          <Input value={closeReason} onChange={(e) => setCloseReason(e.target.value)} placeholder="t.ex. Misstänkt matförgiftnings-utbrott" />
-        </Field>
-        <div className="flex gap-3 mt-4">
+        <div className="flex flex-wrap gap-3 mt-4">
           <Button
             variant="danger"
             onClick={() => {
               if (!closeReason.trim()) { alert("Ange anledning först."); return; }
-              const ok = window.confirm(`🚨 STÄNG ALLA RESTAURANGER NU?\n\nAnledning: ${closeReason}\n\nKan inte ångras automatiskt — du måste klicka "Återöppna alla" sen.`);
+              const ok = window.confirm(`Stäng alla restauranger nu?\n\nAnledning: ${closeReason}\n\nKan inte ångras automatiskt. Du måste klicka "Återöppna alla" sen.`);
               if (ok) closeAll.mutate();
             }}
             disabled={closeAll.isPending}
           >
             {closeAll.isPending ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
-            STÄNG ALLA NU
+            Stäng alla nu
           </Button>
           <Button
             variant="secondary"
@@ -128,16 +122,19 @@ export function CrisisPage() {
 
       {/* Platform Banner */}
       <Surface className="px-6 py-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Megaphone size={18} className="text-amber-500" />
-          <h2 className="text-base font-black uppercase tracking-tight">Plattform-banner</h2>
+        <div className="flex items-center gap-2.5">
+          <Megaphone size={16} className="text-[var(--warning)]" />
+          <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Plattform-banner</h2>
         </div>
-        <div className="grid gap-4">
+        <p className="mt-2 text-[13px] leading-relaxed text-[var(--text-secondary)]">
+          Visar ett meddelande överst i kund-appen. Lämna tomt för att dölja bannern.
+        </p>
+        <div className="grid gap-4 mt-4">
           <Field label="Meddelande (tom = ingen banner)">
             <Textarea
               value={bannerMsg}
               onChange={(e) => setBannerMsg(e.target.value)}
-              placeholder="Underhåll pågår 13:00–14:00. Beställningar kan dröja."
+              placeholder="Underhåll pågår 13:00 till 14:00. Beställningar kan dröja."
               rows={2}
             />
           </Field>
@@ -154,7 +151,7 @@ export function CrisisPage() {
             </Field>
           </div>
         </div>
-        <div className="flex gap-3 mt-4">
+        <div className="flex flex-wrap gap-3 mt-4">
           <Button variant="primary" onClick={() => saveBanner.mutate()} disabled={saveBanner.isPending}>
             {saveBanner.isPending ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
             Publicera
@@ -187,11 +184,11 @@ function PlatformPauseControls() {
   const pauseMut = useMutation({
     mutationFn: () => pausePlatform(minutes, reason || undefined),
     onSuccess: (data) => {
-      alert(`✅ Plattformen pausad till ${new Date(data.until).toLocaleString("sv-SE")}.`);
+      alert(`Plattformen pausad till ${new Date(data.until).toLocaleString("sv-SE")}.`);
       setReason("");
       void queryClient.invalidateQueries({ queryKey: ["crisis-state"] });
     },
-    onError: (err: any) => alert(`❌ ${err?.response?.data?.error || "Pause misslyckades"}`),
+    onError: (err: any) => alert(err?.response?.data?.error || "Pause misslyckades."),
   });
   const unpauseMut = useMutation({
     mutationFn: unpausePlatform,
@@ -204,17 +201,21 @@ function PlatformPauseControls() {
 
   return (
     <Surface className="px-6 py-6">
-      <div className="flex items-center gap-3 mb-4">
-        <Pause size={18} className="text-amber-500" />
-        <h2 className="text-base font-black uppercase tracking-tight">Pausa plattformen</h2>
+      <div className="flex items-center gap-2.5">
+        <Pause size={16} className="text-[var(--warning)]" />
+        <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Pausa plattformen</h2>
+        {paused ? <Badge tone="warning">Pausad</Badge> : <Badge tone="success">Aktiv</Badge>}
       </div>
+      <p className="mt-2 text-[13px] leading-relaxed text-[var(--text-secondary)]">
+        Stoppar alla nya ordrar tillfälligt. Återupptas automatiskt när tiden går ut.
+      </p>
       {paused ? (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 mb-4">
-          <div className="flex items-start gap-2 text-sm">
-            <Timer size={16} className="text-amber-400 shrink-0 mt-0.5" />
+        <div className="rounded-2xl border border-[color-mix(in_srgb,var(--warning)_22%,transparent)] bg-[var(--warning-soft)] px-4 py-3 mt-4">
+          <div className="flex items-start gap-2 text-[13px]">
+            <Timer size={16} className="text-[var(--warning)] shrink-0 mt-0.5" />
             <div>
-              <div className="font-bold">Plattformen är pausad till {new Date(paused.until).toLocaleString("sv-SE")}</div>
-              {paused.reason && <div className="text-xs text-amber-200/80 mt-1">{paused.reason}</div>}
+              <div className="font-bold text-[var(--warning-text)]">Plattformen är pausad till {new Date(paused.until).toLocaleString("sv-SE")}</div>
+              {paused.reason && <div className="text-xs text-[var(--text-secondary)] mt-1">{paused.reason}</div>}
             </div>
           </div>
           <Button
@@ -228,8 +229,8 @@ function PlatformPauseControls() {
           </Button>
         </div>
       ) : (
-        <>
-          <div className="grid gap-4 md:grid-cols-3">
+        <div className="mt-4">
+          <div className="grid gap-4 md:grid-cols-3 mb-4">
             <Field label="Tid (minuter, 1-360)">
               <Input
                 type="number"
@@ -245,7 +246,6 @@ function PlatformPauseControls() {
           </div>
           <Button
             variant="danger"
-            className="mt-4"
             onClick={() => {
               if (!window.confirm(`Pausa plattformen i ${minutes} min?\n\nIngen ny order kan skapas under denna tid. Anledning: ${reason || "(ingen)"}.`)) return;
               pauseMut.mutate();
@@ -255,7 +255,7 @@ function PlatformPauseControls() {
             {pauseMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Pause size={14} />}
             Pausa nu
           </Button>
-        </>
+        </div>
       )}
     </Surface>
   );
@@ -271,27 +271,30 @@ function CityPauseControls() {
   const pauseMut = useMutation({
     mutationFn: () => pauseCity({ cityId, reason: reason || undefined }),
     onSuccess: (data) => {
-      alert(`✅ ${data.closedCount} restauranger i staden stängdes.`);
+      alert(`${data.closedCount} restauranger i staden stängdes.`);
       setReason("");
       void queryClient.invalidateQueries({ queryKey: ["crisis-state"] });
     },
-    onError: (err: any) => alert(`❌ ${err?.response?.data?.error || "Stadspaus misslyckades"}`),
+    onError: (err: any) => alert(err?.response?.data?.error || "Stadspaus misslyckades."),
   });
   const unpauseMut = useMutation({
     mutationFn: () => unpauseCity({ cityId }),
     onSuccess: (data) => {
-      alert(`✅ ${data.openedCount} restauranger i staden återöppnades.`);
+      alert(`${data.openedCount} restauranger i staden återöppnades.`);
       void queryClient.invalidateQueries({ queryKey: ["crisis-state"] });
     },
   });
 
   return (
     <Surface className="px-6 py-6">
-      <div className="flex items-center gap-3 mb-4">
-        <MapPin size={18} className="text-rose-500" />
-        <h2 className="text-base font-black uppercase tracking-tight">Pausa en stad</h2>
+      <div className="flex items-center gap-2.5">
+        <MapPin size={16} className="text-[var(--danger)]" />
+        <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Pausa en stad</h2>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <p className="mt-2 text-[13px] leading-relaxed text-[var(--text-secondary)]">
+        Stänger alla restauranger i en vald stad utan att påverka resten av plattformen.
+      </p>
+      <div className="grid gap-4 md:grid-cols-2 mt-4">
         <Field label="Välj stad">
           <Select value={cityId} onChange={(e) => setCityId(e.target.value)}>
             <option value="">— Välj —</option>
@@ -346,10 +349,10 @@ function PerRestaurantCrisis() {
   const refundMut = useMutation({
     mutationFn: () => bulkRefundRestaurant(selectedId, { fromDate, toDate, reason: refundReason }),
     onSuccess: (data) => {
-      alert(`✅ Bulk-refund klar.\n\nRefunderat: ${data.summary.refunded}\nSkippade: ${data.summary.skipped}\nFailade: ${data.summary.failed}\nTotalt: ${data.summary.total}`);
+      alert(`Bulk-refund klar.\n\nRefunderat: ${data.summary.refunded}\nSkippade: ${data.summary.skipped}\nFailade: ${data.summary.failed}\nTotalt: ${data.summary.total}`);
       setRefundReason("");
     },
-    onError: (err: any) => alert(`❌ ${err?.response?.data?.error || "Bulk-refund misslyckades"}`),
+    onError: (err: any) => alert(err?.response?.data?.error || "Bulk-refund misslyckades."),
   });
 
   const deactivateMut = useMutation({
@@ -364,17 +367,20 @@ function PerRestaurantCrisis() {
       a.click();
       URL.revokeObjectURL(url);
       setDeactivateReason("");
-      alert("✅ Restaurang deaktiverad. Datadump nedladdad.");
+      alert("Restaurang deaktiverad. Datadump nedladdad.");
     },
-    onError: (err: any) => alert(`❌ ${err?.response?.data?.error || "Deactivation misslyckades"}`),
+    onError: (err: any) => alert(err?.response?.data?.error || "Deactivation misslyckades."),
   });
 
   return (
     <Surface className="px-6 py-6">
-      <div className="flex items-center gap-3 mb-4">
-        <Ban size={18} className="text-rose-500" />
-        <h2 className="text-base font-black uppercase tracking-tight">Per-restaurang krisåtgärder</h2>
+      <div className="flex items-center gap-2.5">
+        <Ban size={16} className="text-[var(--danger)]" />
+        <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Per-restaurang krisåtgärder</h2>
       </div>
+      <p className="mt-2 mb-4 text-[13px] leading-relaxed text-[var(--text-secondary)]">
+        Riktade åtgärder för en enskild restaurang. Refundering och deaktivering kan inte ångras.
+      </p>
 
       <Field label="Välj restaurang">
         <Select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} disabled={restaurants.isLoading}>
@@ -388,10 +394,10 @@ function PerRestaurantCrisis() {
       {selectedId && (
         <>
           {/* Bulk-refund */}
-          <div className="mt-6 pt-6 border-t" style={{ borderColor: "var(--border-muted)" }}>
-            <div className="flex items-center gap-3 mb-3">
-              <DollarSign size={16} className="text-amber-500" />
-              <h3 className="text-sm font-black uppercase tracking-tight">Bulk-refund alla orders</h3>
+          <div className="mt-6 pt-6 border-t" style={{ borderColor: "var(--row-divider)" }}>
+            <div className="flex items-center gap-2.5 mb-3">
+              <DollarSign size={16} className="text-[var(--warning)]" />
+              <h3 className="text-[14px] font-extrabold tracking-[-0.3px]">Bulk-refund alla orders</h3>
             </div>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <Field label="Från">
@@ -420,10 +426,10 @@ function PerRestaurantCrisis() {
           </div>
 
           {/* Deactivate */}
-          <div className="mt-6 pt-6 border-t" style={{ borderColor: "var(--border-muted)" }}>
-            <div className="flex items-center gap-3 mb-3">
-              <Ban size={16} className="text-rose-500" />
-              <h3 className="text-sm font-black uppercase tracking-tight">Akut deaktivera restaurang</h3>
+          <div className="mt-6 pt-6 border-t" style={{ borderColor: "var(--row-divider)" }}>
+            <div className="flex items-center gap-2.5 mb-3">
+              <Ban size={16} className="text-[var(--danger)]" />
+              <h3 className="text-[14px] font-extrabold tracking-[-0.3px]">Akut deaktivera restaurang</h3>
             </div>
             <Field label="Anledning (loggas)">
               <Input value={deactivateReason} onChange={(e) => setDeactivateReason(e.target.value)} placeholder="Avtalsbrott, ej betalat 3 månader" />

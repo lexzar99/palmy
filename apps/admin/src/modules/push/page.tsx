@@ -23,7 +23,7 @@ import {
   type PushLogRecord,
   type PushResult,
 } from "@/modules/push/api";
-import { Badge, Button, Field, Input, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, Field, Input, PageHeader, Select, Surface, Tabs, Textarea, Toggle } from "@/shared/components/ui";
 import { formatDateTime } from "@/shared/utils/format";
 
 type TargetMode = "all" | "user" | "city" | "cohort";
@@ -61,6 +61,13 @@ const TEMPLATES = [
   { label: "Ny restaurang", title: "En ny restaurang har öppnat", body: "En ny partner är live just nu. Öppna appen för att se menyn." },
 ];
 
+// Default value for the schedule input when the toggle is switched on (local one hour ahead).
+function defaultScheduleValue(): string {
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function buildPushData(form: ComposerForm): Record<string, unknown> | undefined {
   if (form.linkType === "restaurant" && form.restaurantSlug) return { restaurantSlug: form.restaurantSlug };
   if (form.linkType === "discover") return { screen: "discover" };
@@ -77,20 +84,16 @@ function linkPreviewLabel(form: ComposerForm): string {
 
 function PhonePreview({ title, body, linkLabel }: { title: string; body: string; linkLabel: string }) {
   return (
-    <div className="w-[260px] rounded-[26px] border border-[var(--border-strong)] bg-[#0b101b] p-3 shadow-[0_24px_60px_rgba(0,0,0,0.4)]">
-      <div className="mx-auto mb-3 h-1.5 w-16 rounded-full bg-white/15" />
-      <div className="rounded-[20px] bg-[linear-gradient(180deg,#111827,#0b1220)] px-4 py-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[linear-gradient(135deg,#f3bf57,#ffd77f)] text-[10px] font-black text-[#11151b]">L</div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/60">Delívera</p>
-            <p className="text-[9px] text-white/30">nu</p>
-          </div>
-        </div>
-        <div className="mt-3 rounded-[16px] border border-white/8 bg-white/6 px-3 py-3">
-          <p className="text-sm font-black text-white">{title || "Push-rubrik"}</p>
-          <p className="mt-1.5 text-sm leading-5 text-white/70">{body || "Meddelandetext"}</p>
-          {linkLabel ? <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--accent-strong)]">{linkLabel}</p> : null}
+    <div className="rounded-[14px] bg-[#111113] p-4">
+      <p className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-[#9CA3AF]">Förhandsvisning</p>
+      <div className="mt-2.5 flex gap-2.5 rounded-[11px] bg-white/10 p-3">
+        <span className="mt-0.5 h-[30px] w-[30px] shrink-0 rounded-[7px] bg-[var(--accent)]" />
+        <div className="min-w-0">
+          <p className="text-[12.5px] font-bold text-white">{title || "Push-rubrik"}</p>
+          <p className="mt-0.5 text-[11.5px] leading-[1.35] text-white/70">{body || "Meddelandetext"}</p>
+          {linkLabel ? (
+            <p className="mt-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[var(--accent)]">{linkLabel}</p>
+          ) : null}
         </div>
       </div>
     </div>
@@ -207,29 +210,39 @@ export function PushPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        title="Push-notiser"
+        breadcrumb="Drift"
+        title="Push"
         actions={
           <>
             <Badge tone="info"><Smartphone size={12} /> APNs</Badge>
             <Badge tone="success">{audience} användare</Badge>
+            <Button variant="primary" onClick={handleSend} disabled={isPending || !canSend}>
+              {isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {isPending ? "Skickar…" : form.scheduledFor ? "Schemalägg" : "Skicka"}
+            </Button>
           </>
         }
       />
 
-      <Surface className="px-6 py-6">
-        <Tabs
-          value={mode}
-          onChange={handleModeChange}
-          options={[
-            { value: "all", label: `Alla användare (${audience})` },
-            { value: "user", label: "En användare" },
-            { value: "city", label: "Stad" },
-            { value: "cohort", label: "Cohort" },
-          ]}
-        />
+      <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+        {/* Compose card */}
+        <Surface className="px-6 py-6">
+          <p className="text-[15px] font-extrabold tracking-[-0.3px]">Nytt utskick</p>
 
-        <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_280px]">
-          <div className="space-y-5">
+          <div className="mt-5">
+            <Tabs
+              value={mode}
+              onChange={handleModeChange}
+              options={[
+                { value: "all", label: `Alla användare (${audience})` },
+                { value: "user", label: "En användare" },
+                { value: "city", label: "Stad" },
+                { value: "cohort", label: "Cohort" },
+              ]}
+            />
+          </div>
+
+          <div className="mt-5 space-y-5">
             {/* Target selector */}
             {mode === "user" && (
               <div className="space-y-3">
@@ -241,10 +254,10 @@ export function PushPage() {
                   />
                 </Field>
                 {selectedCustomer ? (
-                  <div className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[rgba(48,199,143,0.06)] px-4 py-3 text-sm">
+                  <div className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--accent-soft)] px-4 py-3 text-sm">
                     <div>
-                      <p className="font-black">{selectedCustomer.name}</p>
-                      <p className="text-[var(--text-secondary)]">{selectedCustomer.phone || selectedCustomer.email || "—"}</p>
+                      <p className="font-bold">{selectedCustomer.name}</p>
+                      <p className="text-[var(--text-secondary)]">{selectedCustomer.phone || selectedCustomer.email || "saknas"}</p>
                     </div>
                     <Button variant="secondary" onClick={() => setForm((s) => ({ ...s, userId: "", userSearch: "" }))}>
                       <XCircle size={14} /> Ändra
@@ -264,8 +277,8 @@ export function PushPage() {
                             onClick={() => setForm((s) => ({ ...s, userId: c.id, userSearch: c.name }))}
                           >
                             <div>
-                              <p className="font-black">{c.name}</p>
-                              <p className="text-[var(--text-secondary)]">{c.phone || c.email || "—"}</p>
+                              <p className="font-bold">{c.name}</p>
+                              <p className="text-[var(--text-secondary)]">{c.phone || c.email || "saknas"}</p>
                             </div>
                             <p className="text-[var(--text-muted)]">{c._count?.orders ?? 0} orders</p>
                           </button>
@@ -345,8 +358,8 @@ export function PushPage() {
 
             {/* Result / error */}
             {result && (
-              <div className="rounded-2xl border border-[rgba(48,199,143,0.25)] bg-[rgba(48,199,143,0.08)] px-4 py-4">
-                <div className="flex items-center gap-2 text-sm font-black text-[#c4ffeb]">
+              <div className="rounded-xl border border-[color-mix(in_srgb,var(--success)_24%,transparent)] bg-[var(--success-soft)] px-4 py-3.5">
+                <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--success-text)]">
                   <CheckCircle2 size={16} />
                   Skickat till {result.count} enhet{result.count !== 1 ? "er" : ""}
                   {result.errors && result.errors > 0 ? ` (${result.errors} fel)` : ""}
@@ -354,43 +367,84 @@ export function PushPage() {
               </div>
             )}
             {sendError && (
-              <div className="rounded-2xl border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] px-4 py-4">
-                <div className="flex items-center gap-2 text-sm text-rose-400">
+              <div className="rounded-xl border border-[color-mix(in_srgb,var(--danger,#dc2626)_24%,transparent)] bg-[rgba(220,38,38,0.08)] px-4 py-3.5">
+                <div className="flex items-center gap-2 text-[13px] font-semibold text-[#dc2626]">
                   <AlertCircle size={16} /> {sendError}
                 </div>
               </div>
             )}
 
-            {/* A13 — optional schedule. Empty = send now. */}
-            <Field label="Schemalägg (valfritt — tomt = skicka nu)">
-              <Input
-                type="datetime-local"
-                value={form.scheduledFor}
-                onChange={(e) => setForm((s) => ({ ...s, scheduledFor: e.target.value }))}
-              />
-            </Field>
-
-            <div>
-              <Button variant="primary" onClick={handleSend} disabled={isPending || !canSend}>
-                {isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                {isPending ? "Skickar…" : form.scheduledFor ? "Schemalägg push" : "Skicka push"}
-              </Button>
+            {/* A13 — optional schedule. Off = send now. */}
+            <div className="rounded-xl border border-[var(--border-subtle)] px-4 py-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[13px] font-semibold text-[var(--text-primary)]">Schemalägg</p>
+                  <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">Av = skicka nu. På = välj tidpunkt.</p>
+                </div>
+                <Toggle
+                  checked={!!form.scheduledFor}
+                  onChange={(v) => setForm((s) => ({ ...s, scheduledFor: v ? defaultScheduleValue() : "" }))}
+                />
+              </div>
+              {form.scheduledFor && (
+                <div className="mt-4">
+                  <Field label="Tidpunkt">
+                    <Input
+                      type="datetime-local"
+                      value={form.scheduledFor}
+                      onChange={(e) => setForm((s) => ({ ...s, scheduledFor: e.target.value }))}
+                    />
+                  </Field>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Phone preview */}
-          <div className="flex flex-col items-center gap-4 pt-1">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Förhandsvisning</p>
-            <PhonePreview title={form.title} body={form.body} linkLabel={linkPreviewLabel(form)} />
+            <Button variant="primary" className="w-full justify-center" onClick={handleSend} disabled={isPending || !canSend}>
+              {isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {isPending ? "Skickar…" : form.scheduledFor ? "Schemalägg push" : "Skicka push"}
+            </Button>
           </div>
+        </Surface>
+
+        {/* Preview + recent */}
+        <div className="flex flex-col gap-4">
+          <Surface className="px-5 py-5">
+            <PhonePreview title={form.title} body={form.body} linkLabel={linkPreviewLabel(form)} />
+            <p className="mt-3 text-[12px] font-semibold text-[var(--text-secondary)]">
+              Når ca <strong className="text-[var(--text-primary)]">{audience}</strong> enheter.
+            </p>
+          </Surface>
+
+          <Surface className="px-5 py-5">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Senaste</p>
+            {history.isLoading ? (
+              <p className="mt-3 text-[12.5px] text-[var(--text-secondary)]">Laddar…</p>
+            ) : !history.data?.logs.length ? (
+              <p className="mt-3 text-[12.5px] text-[var(--text-secondary)]">Inga skickade notiser än.</p>
+            ) : (
+              <div className="mt-2">
+                {history.data.logs.slice(0, 4).map((log) => (
+                  <div
+                    key={log.id}
+                    className="flex items-center justify-between gap-3 border-b border-[var(--row-divider)] py-2.5 last:border-0"
+                  >
+                    <span className="min-w-0 truncate text-[12.5px] font-semibold text-[var(--text-primary)]">{log.title}</span>
+                    <span className="shrink-0 text-[12px] text-[var(--text-muted)]">
+                      {log.count} · {targetLabel(log.target)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Surface>
         </div>
-      </Surface>
+      </div>
 
       <ScheduledPushList />
 
       {/* History */}
       <Surface className="px-6 py-6">
-        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Skickade notiser</p>
+        <p className="text-[15px] font-extrabold tracking-[-0.3px]">Skickade notiser</p>
         {history.isLoading ? (
           <p className="mt-4 text-sm text-[var(--text-secondary)]">Laddar historik…</p>
         ) : !history.data?.logs.length ? (
@@ -411,10 +465,10 @@ export function PushPage() {
                       </Badge>
                     </td>
                     <td className="text-sm text-[var(--text-secondary)]">
-                      {log.target === "user" ? (log.identifier || "—") : log.target === "city" ? (log.city || "—") : "Alla"}
+                      {log.target === "user" ? (log.identifier || "saknas") : log.target === "city" ? (log.city || "saknas") : "Alla"}
                     </td>
                     <td className="max-w-[200px] truncate text-sm">{log.title}</td>
-                    <td className="font-black">{log.count}</td>
+                    <td className="font-bold">{log.count}</td>
                     <td>
                       {log.success
                         ? <Badge tone="success"><CheckCircle2 size={11} /> OK</Badge>
@@ -445,7 +499,7 @@ function ScheduledPushList() {
   if (rows.length === 0) return null;
   return (
     <Surface className="px-6 py-6">
-      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Schemalagda pushar</p>
+      <p className="text-[15px] font-extrabold tracking-[-0.3px]">Schemalagda pushar</p>
       <div className="mt-4 table-shell">
         <table className="data-table">
           <thead>
@@ -454,9 +508,9 @@ function ScheduledPushList() {
           <tbody>
             {rows.map((row) => {
               const targetText =
-                row.target === "user" ? `Användare · ${row.identifier ?? "—"}` :
-                row.target === "city" ? `Stad · ${row.city ?? "—"}` :
-                row.target === "cohort" ? `Cohort · ${row.cohort ?? "—"}` :
+                row.target === "user" ? `Användare · ${row.identifier ?? "saknas"}` :
+                row.target === "city" ? `Stad · ${row.city ?? "saknas"}` :
+                row.target === "cohort" ? `Cohort · ${row.cohort ?? "saknas"}` :
                 "Alla";
               const status = row.cancelledAt
                 ? { tone: "neutral" as const, label: "Avbokad" }
