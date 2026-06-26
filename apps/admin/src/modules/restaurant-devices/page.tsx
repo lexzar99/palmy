@@ -115,17 +115,28 @@ export function RestaurantDevicesPage() {
         }
       />
 
+      {/* Kontext: välj restaurang för att se DESS kopplade enheter. Enheter
+          är restaurang-specifika, så listan är alltid scopad till en
+          restaurang, aldrig en platt lista över alla restauranger. */}
+      <Surface className="p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="eyebrow mb-2">Restaurang</p>
+            <CityRestaurantPicker value={restaurantId} onChange={setRestaurantId} />
+          </div>
+          {restaurantId ? (
+            <Button variant="secondary" onClick={() => devicesQuery.refetch()} disabled={busy}>
+              <RefreshCw size={14} className="mr-1.5 inline" /> Uppdatera
+            </Button>
+          ) : null}
+        </div>
+      </Surface>
+
       {!restaurantId ? (
         <Surface className="p-6">
           <EmptyState
-            title="Välj en restaurang"
-            description="Enheter är restaurang-specifika. Tryck på Koppla enhet för att välja stad och restaurang, och se eller para terminaler."
-            action={
-              <Button variant="primary" onClick={() => setLinkOpen(true)}>
-                <Plus size={15} className="mr-1.5 inline" />
-                Koppla enhet
-              </Button>
-            }
+            title="Välj en restaurang ovan"
+            description="Enheter är restaurang-specifika. Välj stad och restaurang i väljaren ovanför för att se dess kopplade plattor, eller tryck på Koppla enhet för att para en ny."
           />
         </Surface>
       ) : devicesQuery.isLoading ? (
@@ -137,7 +148,7 @@ export function RestaurantDevicesPage() {
             className="grid items-center px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
             style={{ gridTemplateColumns: "1.4fr 1.1fr 1fr 90px 64px", borderBottom: "1px solid var(--row-divider)" }}
           >
-            <span>Enhet</span>
+            <span>Enhet{devices.length > 0 ? ` (${devices.length})` : ""}</span>
             <span>ID</span>
             <span>Senast sedd</span>
             <span>Status</span>
@@ -158,7 +169,8 @@ export function RestaurantDevicesPage() {
               />
             </div>
           ) : (
-            devices.map((device, idx) => {
+            <div className="max-h-[460px] overflow-y-auto">
+              {devices.map((device, idx) => {
               const linked = device.status === "linked";
               return (
                 <div
@@ -242,7 +254,8 @@ export function RestaurantDevicesPage() {
                   </div>
                 </div>
               );
-            })
+              })}
+            </div>
           )}
         </Surface>
       )}

@@ -318,42 +318,44 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
         </div>
         {/* P14 höger: kopplade Tillvalsgrupper med obligatorisk/valfri-badge och en dämpad rad med tillvalen. */}
         <div className="surface px-5 py-5">
-          <p className="text-[15px] font-extrabold tracking-[-0.3px] text-[var(--text-primary)]">Tillvalsgrupper</p>
-          <div className="mt-3.5 grid gap-2.5">
-            {extraGroups.length === 0 ? (
-              <p className="text-[13px] text-[var(--text-muted)]">Inga tillvalsgrupper finns för restaurangen ännu.</p>
-            ) : extraGroups.map((group) => {
-              const linked = form.extraGroupIds.includes(group.id);
-              const required = group.required;
-              const limit = group.type === "RADIO" ? "välj 1" : group.maxSelections ? `max ${group.maxSelections}` : null;
-              const badgeText = required ? ["Obligatorisk", limit].filter(Boolean).join(" · ") : ["Valfri", limit].filter(Boolean).join(" · ");
-              const optionsLine = group.extras
-                .map((extra) => (extra.priceAddon ? `${extra.name} (+${extra.priceAddon} kr)` : extra.name))
-                .join(" · ");
-              return (
-                <button
-                  key={group.id}
-                  type="button"
-                  onClick={() => toggleExtraGroup(group.id)}
-                  aria-pressed={linked}
-                  className={`w-full rounded-[12px] border px-3.5 py-3 text-left transition-colors ${
-                    linked
-                      ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-                      : "border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2.5">
-                    <span className="flex items-center gap-2 min-w-0">
-                      {linked ? <Check size={14} strokeWidth={3} className="shrink-0 text-[var(--accent-ink)]" /> : null}
-                      <span className="truncate text-[13.5px] font-bold text-[var(--text-primary)]">{group.name}</span>
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-[15px] font-extrabold tracking-[-0.3px] text-[var(--text-primary)]">Tillvalsgrupper</p>
+            {extraGroups.length > 0 ? (
+              <span className="text-[11px] font-bold text-[var(--text-muted)]">{form.extraGroupIds.length} av {extraGroups.length} valda</span>
+            ) : null}
+          </div>
+          {extraGroups.length === 0 ? (
+            <p className="mt-3 text-[13px] text-[var(--text-muted)]">Inga tillvalsgrupper finns för restaurangen ännu.</p>
+          ) : (
+            <div className="mt-3 grid max-h-[260px] gap-1.5 overflow-y-auto pr-1">
+              {extraGroups.map((group) => {
+                const linked = form.extraGroupIds.includes(group.id);
+                const required = group.required;
+                const limit = group.type === "RADIO" ? "välj 1" : group.maxSelections ? `max ${group.maxSelections}` : null;
+                const badgeText = required ? ["Obligatorisk", limit].filter(Boolean).join(" · ") : ["Valfri", limit].filter(Boolean).join(" · ");
+                return (
+                  <button
+                    key={group.id}
+                    type="button"
+                    onClick={() => toggleExtraGroup(group.id)}
+                    aria-pressed={linked}
+                    title={group.extras.map((extra) => (extra.priceAddon ? `${extra.name} (+${extra.priceAddon} kr)` : extra.name)).join(" · ")}
+                    className={`flex w-full items-center justify-between gap-2.5 rounded-[10px] border px-3 py-2 text-left transition-colors ${
+                      linked
+                        ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                        : "border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      {linked ? <Check size={13} strokeWidth={3} className="shrink-0 text-[var(--accent-ink)]" /> : null}
+                      <span className="truncate text-[13px] font-bold text-[var(--text-primary)]">{group.name}</span>
                     </span>
                     <span className={`badge shrink-0 ${required ? "badge-accent" : "badge-neutral"}`}>{badgeText}</span>
-                  </div>
-                  {optionsLine ? <p className="mt-1.5 truncate text-[12px] text-[var(--text-muted)]">{optionsLine}</p> : null}
-                </button>
-              );
-            })}
-          </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="md:col-span-2"></div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
