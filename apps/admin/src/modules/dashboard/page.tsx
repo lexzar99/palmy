@@ -14,7 +14,7 @@ import {
   updateRestaurantLiveState,
 } from "@/modules/dashboard/api";
 import { TrendChart } from "@/modules/dashboard/TrendChart";
-import { Badge, Button, ErrorPanel, MetricCard, PageHeader, Surface } from "@/shared/components/ui";
+import { Badge, Button, ErrorPanel, MetricCard, PageHeader, Sparkline, Surface } from "@/shared/components/ui";
 import {
   formatCurrency,
   formatNumber,
@@ -120,13 +120,14 @@ export function DashboardPage() {
     <div className="page-stack">
       <PageHeader
         title="Översikt"
+        breadcrumb="Plattform"
         actions={
           <>
             {/* Per-restaurang-vy: scopear ALLA siffror på sidan */}
             <select
               value={restaurantScope ?? ""}
               onChange={(e) => setRestaurantScope(e.target.value || null)}
-              className="h-9 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-3 text-[13px] text-[var(--text-primary)] outline-none transition-colors hover:border-[var(--border-strong)]"
+              className="h-[38px] rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3 text-[13px] font-semibold text-[var(--text-secondary)] outline-none transition-colors hover:border-[var(--border-strong)]"
               aria-label="Filtrera på restaurang"
             >
               <option value="">Alla restauranger</option>
@@ -134,6 +135,10 @@ export function DashboardPage() {
                 <option key={r.id} value={r.id}>{r.name}</option>
               ))}
             </select>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--success-soft)] px-3 py-1.5 text-[11.5px] font-extrabold text-[var(--success-text)]">
+              <span className="h-[7px] w-[7px] rounded-full bg-[var(--success)]" />
+              Produktion
+            </span>
             <Button
               variant="secondary"
               onClick={() => {
@@ -152,15 +157,19 @@ export function DashboardPage() {
         <MetricCard
           label="Intäkt idag"
           value={formatCurrency(data.summary.todayRevenue)}
+          sparkline={<Sparkline points="0,22 12,18 22,20 34,12 44,14 54,9 64,4" />}
           detail={`${formatNumber(data.summary.todayOrders)} ordrar · snitt ${formatCurrency(data.summary.avgTicket)}`}
         />
         <MetricCard
           label="Live ordrar"
           value={formatNumber(data.summary.liveOrders)}
+          sparkline={<Sparkline points="0,24 10,20 20,22 30,14 40,16 52,8 64,5" />}
           detail={
-            healthData.operations.pendingOrders > 0
-              ? `${formatNumber(healthData.operations.pendingOrders)} väntar accept`
-              : "Inget i kö"
+            healthData.operations.pendingOrders > 0 ? (
+              <span className="font-bold text-[var(--accent-ink)]">{formatNumber(healthData.operations.pendingOrders)} väntar accept</span>
+            ) : (
+              "Inget i kö"
+            )
           }
         />
         <MetricCard
@@ -168,44 +177,48 @@ export function DashboardPage() {
           value={
             <>
               {formatNumber(data.summary.openRestaurants)}
-              <span className="text-[var(--text-muted)] text-[26px] font-normal"> / {formatNumber(data.summary.totalRestaurants)}</span>
+              <small> / {formatNumber(data.summary.totalRestaurants)}</small>
             </>
           }
+          sparkline={<Sparkline points="0,16 12,14 24,17 36,11 48,13 64,10" tone="success" />}
           detail={data.summary.openRestaurants === data.summary.totalRestaurants ? "Alla igång" : `${data.summary.totalRestaurants - data.summary.openRestaurants} stängda`}
         />
         <MetricCard
           label="Kräver åtgärd"
           value={formatNumber(totalAttention)}
           detail={
-            totalAttention === 0
-              ? "Allt under kontroll"
-              : `${attentionList.length} restauranger · ${criticalAlerts.length} alerts`
+            totalAttention === 0 ? (
+              <span className="font-bold text-[var(--success-text)]">Allt under kontroll</span>
+            ) : (
+              <span className="font-bold text-[var(--accent-ink)]">{`${attentionList.length} restauranger · ${criticalAlerts.length} alerts`}</span>
+            )
           }
         />
       </div>
 
       {/* ── Trend: omsättning/ordrar per dag — alltid synlig ── */}
-      <Surface className="px-7 py-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="section-title">Försäljningstrend</h2>
-          <div className="flex gap-1">
+      <Surface className="px-5 py-5">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="section-title">Omsättning</h2>
+            <p className="section-subtitle">Senaste {trendDays} dagarna</p>
+          </div>
+          <div className="segmented">
             {([7, 30, 90] as const).map((days) => (
               <button
                 key={days}
                 type="button"
                 onClick={() => setTrendDays(days)}
-                className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors ${
-                  trendDays === days
-                    ? "bg-[var(--accent)] text-[var(--accent-fg)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-                }`}
+                className={trendDays === days ? "is-active" : ""}
               >
-                {days} dgr
+                {days}d
               </button>
             ))}
           </div>
         </div>
-        <TrendChart points={data.trend} />
+        <div className="mt-4">
+          <TrendChart points={data.trend} />
+        </div>
         <div className="mt-3 flex flex-wrap gap-5 text-[12px] text-[var(--text-secondary)]">
           <span>
             Period: <span className="font-semibold text-[var(--text-primary)]">{formatCurrency(data.trend.reduce((s, p) => s + p.revenue, 0))}</span>
@@ -223,39 +236,57 @@ export function DashboardPage() {
 
       {/* ── Attention list — only if something needs action ── */}
       {totalAttention > 0 && (
-        <Surface className="px-7 py-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="section-title">Vad behöver din uppmärksamhet</h2>
+        <Surface className="px-5 py-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="section-title">Kräver åtgärd</h2>
+            <span className="rounded-[7px] bg-[var(--accent-soft)] px-2.5 py-0.5 text-[11px] font-extrabold text-[var(--accent-ink)]">
+              {totalAttention}
+            </span>
           </div>
-          <div className="grid gap-2">
-            {criticalAlerts.slice(0, 3).map((alert) => (
-              <div
-                key={alert.id}
-                className="surface-muted flex items-start gap-3 px-5 py-4"
-              >
-                <AlertCircle size={16} className="mt-0.5 shrink-0 text-[var(--danger)]" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-[var(--text-primary)]">{alert.title}</p>
-                  <p className="mt-1 text-[13px] text-[var(--text-secondary)]">{alert.description}</p>
+          <div className="grid gap-2.5">
+            {criticalAlerts.slice(0, 3).map((alert) => {
+              const high = alert.severity === "high";
+              return (
+                <div
+                  key={alert.id}
+                  className="flex items-start gap-3 rounded-xl border p-3"
+                  style={{
+                    background: high ? "var(--danger-soft)" : "var(--warning-soft)",
+                    borderColor: high ? "color-mix(in srgb, var(--danger) 14%, transparent)" : "color-mix(in srgb, var(--warning) 14%, transparent)",
+                  }}
+                >
+                  <span
+                    className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]"
+                    style={{ background: high ? "color-mix(in srgb, var(--danger) 10%, transparent)" : "color-mix(in srgb, var(--warning) 10%, transparent)" }}
+                  >
+                    <AlertCircle size={15} style={{ color: high ? "var(--danger)" : "var(--warning)" }} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-bold text-[var(--text-primary)]">{alert.title}</p>
+                    <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">{alert.description}</p>
+                  </div>
                 </div>
-                <Badge tone={alert.severity === "high" ? "danger" : "warning"}>{alert.severity}</Badge>
-              </div>
-            ))}
+              );
+            })}
             {attentionList.slice(0, Math.max(0, 3 - criticalAlerts.length)).map((r) => (
               <button
                 key={r.id}
                 type="button"
                 onClick={() => router.push(`/restaurants/${r.id}`)}
-                className="surface-muted flex items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                className="flex items-center gap-3 rounded-xl border border-[color-mix(in_srgb,var(--warning)_14%,transparent)] bg-[var(--warning-soft)] p-3 text-left"
               >
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{r.name}</p>
+                <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] bg-[color-mix(in_srgb,var(--warning)_10%,transparent)]">
+                  <AlertCircle size={15} className="text-[var(--warning)]" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-bold text-[var(--text-primary)]">{r.name}</p>
+                  <p className="mt-0.5 text-[12px] text-[var(--text-secondary)]">
+                    {r.pendingOrders > 0 && `${r.pendingOrders} väntande ordrar`}
+                    {!r.hasHours && (r.pendingOrders > 0 ? " · saknar öppettider" : "Saknar öppettider")}
+                    {r.reviewScore < 4.2 && ` · ${r.reviewScore.toFixed(1)} ★`}
+                  </p>
                 </div>
-                <div className="flex gap-1.5 shrink-0">
-                  {r.pendingOrders > 0 && <Badge tone="warning">{r.pendingOrders} väntar</Badge>}
-                  {!r.hasHours && <Badge tone="danger">Inga öppettider</Badge>}
-                  {r.reviewScore < 4.2 && <Badge tone="neutral">{r.reviewScore.toFixed(1)} ★</Badge>}
-                </div>
+                <span className="shrink-0 self-center text-[12px] font-bold text-[var(--accent-ink)]">Visa</span>
               </button>
             ))}
           </div>
