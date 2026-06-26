@@ -148,13 +148,23 @@ button {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 252px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   background: var(--bg-page);
 }
 
-.sidebar-shell {
+/* ── Nav wrap: the sticky left column. Its own width (66 rail / 252 pinned)
+   drives the grid's first column via `auto`. The hover-flyout is an absolute
+   child so it overlays content without changing the column width. ── */
+.nav-wrap {
   position: sticky;
   top: 0;
+  align-self: start;
+  height: 100vh;
+  z-index: 40;
+}
+
+.sidebar-shell {
+  width: 252px;
   height: 100vh;
   padding: 18px 14px 14px;
   border-right: 1px solid var(--border-subtle);
@@ -163,6 +173,112 @@ button {
   flex-direction: column;
   overflow-y: auto;
   gap: 4px;
+}
+
+/* ── Ikon-rad (66px) — alltid synlig ── */
+.nav-rail {
+  width: 66px;
+  height: 100vh;
+  padding: 16px 0 12px;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.nav-rail::-webkit-scrollbar { width: 0; }
+
+.nav-rail-icon {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  border: 0;
+  background: transparent;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.nav-rail-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.nav-rail-icon.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.nav-rail-sep {
+  width: 24px;
+  height: 1px;
+  flex: none;
+  background: var(--border-subtle);
+  margin: 2px 0;
+}
+
+.nav-rail-spacer { margin-top: auto; }
+
+/* ── Hover-flyout (252px) — overlay ovanpå innehållet ── */
+.nav-flyout {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 252px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-lift);
+  padding: 18px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  z-index: 50;
+  animation: nav-flyout-in 160ms ease;
+}
+
+@keyframes nav-flyout-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Pin/collapse chevron i nav-huvudet */
+.nav-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 7px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-page);
+  color: var(--text-muted);
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.nav-pin:hover {
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.nav-pin.is-pinned {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-flyout { animation: none; }
 }
 
 .content-shell {
@@ -1064,19 +1180,8 @@ button {
    ───────────────────────────────────────────── */
 
 @media (max-width: 1100px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar-shell {
-    position: static;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--border-subtle);
-    overflow-y: visible;
-    padding: 12px;
-  }
-
+  /* Navet behålls (66px ikon-rad) även på smala skärmar — den tar lite plats
+     och håller navigationen ett klick bort. Innehållet får mindre padding. */
   .content-shell {
     padding: 28px 24px 48px;
   }
