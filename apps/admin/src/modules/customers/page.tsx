@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, ChevronRight, Loader2, Plus } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronRight, Loader2, MapPin, Plus, ShoppingBag, Wallet } from "lucide-react";
 import {
   createCustomerDeal,
   customerDetailQueryKey,
@@ -142,16 +142,103 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
           <Tabs value={tab} onChange={setTab} options={[{ value: "info", label: "Info" }, { value: "orders", label: "Orders" }, { value: "deals", label: "Deals" }, { value: "push", label: "Push" }]} />
 
           {tab === "info" ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Name"><Input value={profile.name} onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))} /></Field>
-              <Field label="Phone"><Input value={profile.phone} onChange={(event) => setProfile((current) => ({ ...current, phone: event.target.value }))} /></Field>
-              <Field label="Email"><Input value={profile.email} onChange={(event) => setProfile((current) => ({ ...current, email: event.target.value }))} /></Field>
-              <Field label="Address"><Input value={profile.address} onChange={(event) => setProfile((current) => ({ ...current, address: event.target.value }))} /></Field>
-              <Field label="City"><Input value={profile.city} onChange={(event) => setProfile((current) => ({ ...current, city: event.target.value }))} /></Field>
-              <Field label="Zip"><Input value={profile.zip} onChange={(event) => setProfile((current) => ({ ...current, zip: event.target.value }))} /></Field>
-              <Field label="Active"><Select value={profile.isActive ? "yes" : "no"} onChange={(event) => setProfile((current) => ({ ...current, isActive: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
-              <Field label="Verified"><Select value={profile.isVerified ? "yes" : "no"} onChange={(event) => setProfile((current) => ({ ...current, isVerified: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
-              <div className="md:col-span-2"><Field label="Internal info"><Textarea value={profile.internalInfo} onChange={(event) => setProfile((current) => ({ ...current, internalInfo: event.target.value }))} /></Field></div>
+            <div className="space-y-4">
+              {/* Profilöversikt — presentation av befintlig kunddata */}
+              <div className="grid gap-4 lg:grid-cols-3">
+                {/* Kontakt */}
+                <Surface className="px-5 py-5">
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Kontakt</p>
+                  <div className="mt-4 flex items-center gap-3">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#111113] text-[15px] font-extrabold text-white">
+                      {initials(data.name)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-[15px] font-bold text-[var(--text-primary)]">{data.name || "–"}</p>
+                      <p className="text-[11.5px] text-[var(--text-muted)]">Medlem sedan {new Date(data.createdAt).getFullYear()}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-1.5 border-t border-[var(--row-divider)] pt-4 text-[12.5px] leading-relaxed text-[var(--text-secondary)]">
+                    <p>Tel · {data.phone || "–"}</p>
+                    <p>Mejl · {data.email || "–"}</p>
+                  </div>
+                </Surface>
+
+                {/* Adresser — endast en sparad adress finns i datan */}
+                <Surface className="px-5 py-5">
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Adresser</p>
+                  {data.address || data.city || data.zip ? (
+                    <div className="mt-4 flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[var(--accent-soft)]">
+                        <MapPin size={13} className="text-[var(--accent)]" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-bold text-[var(--text-primary)]">Adress</p>
+                        <p className="text-[11.5px] text-[var(--text-secondary)]">
+                          {[data.address, [data.zip, data.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "–"}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-[12.5px] text-[var(--text-muted)]">Ingen sparad adress</p>
+                  )}
+                </Surface>
+
+                {/* Konto — statistik */}
+                <Surface className="px-5 py-5">
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Konto</p>
+                  <div className="mt-4 grid grid-cols-2 gap-2.5">
+                    <div className="rounded-[10px] bg-[var(--bg-page)] px-3 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5 text-[17px] font-extrabold text-[var(--text-primary)]">
+                        <ShoppingBag size={14} className="text-[var(--text-muted)]" />
+                        {formatNumber(data._count?.orders ?? data.orders.length)}
+                      </div>
+                      <div className="mt-0.5 text-[10.5px] font-semibold text-[var(--text-muted)]">Ordrar</div>
+                    </div>
+                    <div className="rounded-[10px] bg-[var(--bg-page)] px-3 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5 text-[17px] font-extrabold text-[var(--text-primary)]">
+                        <Wallet size={14} className="text-[var(--text-muted)]" />
+                        {formatCurrency(data.totalSpent)}
+                      </div>
+                      <div className="mt-0.5 text-[10.5px] font-semibold text-[var(--text-muted)]">Spenderat</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--row-divider)] pt-4">
+                    <Badge tone={data.isActive ? "success" : "danger"}>{data.isActive ? "Aktiv" : "Inaktiv"}</Badge>
+                    <Badge tone={data.isVerified ? "success" : "info"}>{data.isVerified ? "Verifierad" : "Ej verifierad"}</Badge>
+                  </div>
+                </Surface>
+              </div>
+
+              {/* Senaste ordrar — preview */}
+              {data.orders.length > 0 ? (
+                <Surface className="px-5 py-5">
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Senaste ordrar</p>
+                  <div className="mt-2">
+                    {data.orders.slice(0, 5).map((order) => (
+                      <div key={order.id} className="flex items-center justify-between gap-3 border-b border-[var(--row-divider)] py-2.5 text-[13px] last:border-b-0">
+                        <span className="min-w-0 truncate font-semibold text-[var(--text-primary)]">{order.orderNumber} · {order.restaurant?.name || "Delívera"}</span>
+                        <span className="shrink-0 text-[var(--text-secondary)]">{formatCurrency(order.total / 100)} · {formatDate(order.createdAt)} · {orderStatusLabel(order.status)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Surface>
+              ) : null}
+
+              {/* Redigera profil — full editfunktion bevarad */}
+              <Surface className="px-5 py-5">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Redigera profil</p>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <Field label="Name"><Input value={profile.name} onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))} /></Field>
+                  <Field label="Phone"><Input value={profile.phone} onChange={(event) => setProfile((current) => ({ ...current, phone: event.target.value }))} /></Field>
+                  <Field label="Email"><Input value={profile.email} onChange={(event) => setProfile((current) => ({ ...current, email: event.target.value }))} /></Field>
+                  <Field label="Address"><Input value={profile.address} onChange={(event) => setProfile((current) => ({ ...current, address: event.target.value }))} /></Field>
+                  <Field label="City"><Input value={profile.city} onChange={(event) => setProfile((current) => ({ ...current, city: event.target.value }))} /></Field>
+                  <Field label="Zip"><Input value={profile.zip} onChange={(event) => setProfile((current) => ({ ...current, zip: event.target.value }))} /></Field>
+                  <Field label="Active"><Select value={profile.isActive ? "yes" : "no"} onChange={(event) => setProfile((current) => ({ ...current, isActive: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
+                  <Field label="Verified"><Select value={profile.isVerified ? "yes" : "no"} onChange={(event) => setProfile((current) => ({ ...current, isVerified: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
+                  <div className="md:col-span-2"><Field label="Internal info"><Textarea value={profile.internalInfo} onChange={(event) => setProfile((current) => ({ ...current, internalInfo: event.target.value }))} /></Field></div>
+                </div>
+              </Surface>
             </div>
           ) : null}
 

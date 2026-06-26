@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, ChevronDown, Loader2, MapPin, MapPinned, Plus, Save, Settings2, Store, Trash2 } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, Loader2, MapPin, Plus, Save, Settings2, Store, Trash2 } from "lucide-react";
 import ZoneEditor from "@/modules/zones/components/zone-editor";
 import { CityHierarchyManager } from "@/modules/zones/city-hierarchy-manager";
 import { createCity, deleteCity, getCities, getZoneRestaurants, parseZones, saveCity, serializeZones, zonesCitiesQueryKey, zonesRestaurantsQueryKey, type CityRecord, type CityRestaurantLink, type RestaurantLocationRecord, type ZoneRecord } from "@/modules/zones/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
+import { Badge, Button, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { formatNumber } from "@/shared/utils/format";
 
 type EnrichedCity = CityRecord & { restaurants: CityRestaurantLink[] };
@@ -223,166 +223,199 @@ export function ZonesPage() {
   });
 
   if (citiesQuery.isLoading || restaurantsQuery.isLoading) {
-    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading zone control...</Surface>;
+    return (
+      <div className="page-stack">
+        <PageHeader breadcrumb="Katalog" title="Zoner" />
+        <Surface className="flex items-center gap-2 px-6 py-12 text-sm text-[var(--text-secondary)]">
+          <Loader2 size={15} className="animate-spin" /> Hämtar zoner...
+        </Surface>
+      </div>
+    );
   }
 
   if (citiesQuery.isError || restaurantsQuery.isError) {
-    return <ErrorPanel title="Zone module could not be loaded" description="Cities or restaurant data failed to load." action={<Button onClick={() => { void citiesQuery.refetch(); void restaurantsQuery.refetch(); }}>Retry</Button>} />;
+    return (
+      <div className="page-stack">
+        <PageHeader breadcrumb="Katalog" title="Zoner" />
+        <ErrorPanel
+          title="Zoner kunde inte laddas"
+          description="Städer eller restaurangdata gick inte att hämta."
+          action={<Button onClick={() => { void citiesQuery.refetch(); void restaurantsQuery.refetch(); }}>Försök igen</Button>}
+        />
+      </div>
+    );
   }
-
-  const stats = {
-    cities: cities.length,
-    active: cities.filter((city) => city.isActive).length,
-    restaurants: cities.reduce((sum, city) => sum + city.restaurants.length, 0),
-    zones: cities.reduce((sum, city) => sum + parseZones(city.zones).length, 0),
-  };
 
   return (
     <div className="page-stack">
       <PageHeader
-        title="Zones"
+        breadcrumb="Katalog"
+        title="Zoner"
         actions={
           <>
-            <Button variant="secondary" onClick={() => setNewCityOpen(true)}><Plus size={13} /> New city</Button>
-            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!selectedCity || saveMutation.isPending}><Save size={13} /> Save city</Button>
+            <Button variant="secondary" onClick={() => setNewCityOpen(true)}><Plus size={14} /> Lägg till stad/zon</Button>
+            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!selectedCity || saveMutation.isPending}><Save size={14} /> Spara stad</Button>
           </>
         }
       />
 
-      {/* ── Stad-dropdown + city-actions överst ─────────────────────────── */}
-      <Surface className="px-6 py-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex-1 max-w-md">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)] mb-2">Välj stad</p>
-            <div className="relative">
-              <MapPinned size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <select
-                value={selectedCityId || ""}
-                onChange={(event) => setSelectedCityId(event.target.value || null)}
-                className="w-full appearance-none rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] py-2.5 pl-10 pr-10 text-sm font-bold text-[var(--text-primary)] focus:border-[rgba(231,178,75,0.4)] focus:outline-none focus:ring-2 focus:ring-[rgba(231,178,75,0.15)]"
-              >
-                {cities.length === 0 && <option value="">Inga städer än</option>}
-                {cities.map((city) => (
-                  <option key={city.id} value={city.id}>
-                    {city.name} — {city.restaurants.length} restauranger
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            </div>
+      {/* ── Stad → restaurang drill-down ──────────────────────────────────
+          Zoner är restaurang-specifika (inga globala zoner). Varje stad är
+          ett kort; restaurangerna är rader som länkar till sin zon-detalj. */}
+      {cities.length === 0 ? (
+        <Surface className="px-6 py-16 text-center">
+          <MapPin size={28} className="mx-auto mb-3 text-[var(--text-muted)]" />
+          <h3 className="text-[15px] font-extrabold tracking-[-0.3px]">Inga städer än</h3>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-[var(--text-secondary)]">
+            Lägg till en stad för att börja koppla restauranger och rita deras zoner.
+          </p>
+          <div className="mt-5 flex justify-center">
+            <Button variant="primary" onClick={() => setNewCityOpen(true)}><Plus size={14} /> Lägg till stad/zon</Button>
           </div>
-          {selectedCity && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={selectedCity.isActive ? "success" : "danger"}>{selectedCity.isActive ? "Active" : "Inactive"}</Badge>
-              <Badge tone="info">{selectedCity.deliveryMode}</Badge>
-              <Button variant="secondary" onClick={() => setSettingsOpen(true)}><Settings2 size={14} /> Stadsinställningar</Button>
-              <Button variant="danger" onClick={() => {
-                const count = selectedCity.restaurants.length;
-                const msg = count > 0
-                  ? `Radera ${selectedCity.name}?\n\n⚠️  ${count} restaurang${count !== 1 ? "er" : ""} länkad${count !== 1 ? "a" : ""} till denna stad får sin city-koppling rensad.\n\nFortsätt?`
-                  : `Radera ${selectedCity.name}?`;
-                if (window.confirm(msg)) deleteMutation.mutate();
-              }}><Trash2 size={14} /> Radera stad</Button>
-            </div>
-          )}
-        </div>
-      </Surface>
-
-      {!selectedCity ? (
-        <EmptyState title="Välj en stad" />
+        </Surface>
       ) : (
-        <>
-          {/* ── Restaurang-grid: alla restauranger i staden, klickbara → polygon-editor ── */}
-          <Surface className="px-6 py-6">
-            <div className="flex items-center justify-between gap-3 mb-5">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Restauranger i {selectedCity.name}</p>
-                <h3 className="mt-1.5 text-xl font-black tracking-[-0.02em]">Klicka en restaurang för att rita zoner</h3>
-              </div>
-              <Badge tone="info">{selectedCity.restaurants.length} kopplade</Badge>
-            </div>
-
-            {selectedCity.restaurants.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--border-subtle)] px-6 py-12 text-center">
-                <Store size={28} className="mx-auto text-[var(--text-muted)] mb-3" />
-                <p className="text-sm font-bold text-[var(--text-secondary)]">Inga restauranger kopplade till {selectedCity.name} ännu.</p>
-              </div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {selectedCity.restaurants.map((restaurant) => {
-                  const overrideCount = parseZones(restaurant.deliveryZones).length;
-                  const hasCoords = restaurant.latitude != null && restaurant.longitude != null;
-                  return (
+        <div className="space-y-4">
+          {cities.map((city) => {
+            const isSelected = city.id === selectedCityId;
+            return (
+              <Surface key={city.id} className="overflow-hidden">
+                {/* Stad-rubrik */}
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--row-divider)] px-6 py-4">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCityId(isSelected ? null : city.id)}
+                    className="flex min-w-0 items-center gap-3 text-left"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent-ink)]">
+                      <MapPin size={16} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2">
+                        <span className="text-[15px] font-extrabold tracking-[-0.3px] text-[var(--text-primary)]">{city.name}</span>
+                        <ChevronDown
+                          size={15}
+                          className={`shrink-0 text-[var(--text-muted)] transition-transform ${isSelected ? "rotate-180" : ""}`}
+                        />
+                      </span>
+                      <span className="mt-0.5 block text-xs font-medium text-[var(--text-muted)]">
+                        {city.restaurants.length} restaurang{city.restaurants.length !== 1 ? "er" : ""}
+                      </span>
+                    </span>
+                  </button>
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    <Badge tone={city.isActive ? "success" : "danger"}>{city.isActive ? "Aktiv" : "Inaktiv"}</Badge>
                     <button
-                      key={restaurant.id}
                       type="button"
-                      onClick={() => router.push(`/zones/restaurant/${restaurant.id}`)}
-                      className="group surface-muted px-4 py-4 text-left rounded-2xl border border-[var(--border-subtle)] hover:border-[rgba(231,178,75,0.4)] hover:bg-[rgba(231,178,75,0.04)] transition-all"
+                      onClick={() => { setSelectedCityId(city.id); setSettingsOpen(true); }}
+                      className="icon-button"
+                      aria-label="Stadsinställningar"
                     >
-                      <div className="flex items-start justify-between gap-3 mb-2.5">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-black text-base truncate group-hover:text-[rgba(231,178,75,1)] transition-colors">{restaurant.name}</p>
-                          {restaurant.city && (
-                            <p className="mt-0.5 text-xs text-[var(--text-secondary)] truncate flex items-center gap-1">
-                              <MapPin size={11} className="opacity-60" />
-                              {restaurant.city}
-                            </p>
-                          )}
-                        </div>
-                        <Badge tone={restaurant.isOpen ? "success" : "neutral"}>{restaurant.isOpen ? "Öppen" : "Stängd"}</Badge>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-[var(--border-subtle)]">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge tone={overrideCount > 0 ? "info" : "neutral"}>{overrideCount} zon{overrideCount !== 1 ? "er" : ""}</Badge>
-                          {!hasCoords && <Badge tone="warning">Saknar koordinater</Badge>}
-                        </div>
-                        <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] group-hover:text-[rgba(231,178,75,1)] transition-colors">
-                          Konfigurera →
-                        </span>
-                      </div>
+                      <Settings2 size={15} />
                     </button>
-                  );
-                })}
-              </div>
-            )}
-          </Surface>
-
-          {/* ── Koppla fler restauranger (collapsible — sekundär flow) ─── */}
-          <details className="group">
-            <summary className="cursor-pointer list-none">
-              <Surface className="px-6 py-4 flex items-center justify-between hover:border-[rgba(231,178,75,0.3)] transition-all">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Avancerat</p>
-                  <p className="mt-1 text-sm font-bold">Koppla / koppla bort restauranger från {selectedCity.name}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCityId(city.id);
+                        const count = city.restaurants.length;
+                        const msg = count > 0
+                          ? `Radera ${city.name}?\n\n${count} restaurang${count !== 1 ? "er" : ""} länkad${count !== 1 ? "a" : ""} till denna stad får sin city-koppling rensad.\n\nFortsätt?`
+                          : `Radera ${city.name}?`;
+                        if (window.confirm(msg)) deleteMutation.mutate();
+                      }}
+                      className="icon-button"
+                      aria-label="Radera stad"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
-                <ChevronDown size={16} className="text-[var(--text-muted)] group-open:rotate-180 transition-transform" />
-              </Surface>
-            </summary>
-            <Surface className="px-6 py-6 mt-3">
-              <div className="grid gap-3 lg:grid-cols-2">
-                {restaurantsQuery.data?.map((restaurant) => {
-                  const linked = selectedCity.restaurants.some((item) => item.id === restaurant.id);
-                  return (
-                    <div key={restaurant.id} className="surface-muted px-4 py-3 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-bold text-sm truncate">{restaurant.name}</p>
-                        <p className="mt-0.5 text-xs text-[var(--text-secondary)] truncate">{restaurant.city || "Ingen stad"}</p>
-                      </div>
-                      <Button variant="secondary" onClick={() => toggleRestaurantLink(restaurant)}>{linked ? "Koppla bort" : "Koppla"}</Button>
+
+                {/* Restauranger i staden (expanderbart) */}
+                {isSelected && (
+                  city.restaurants.length === 0 ? (
+                    <div className="px-6 py-10 text-center">
+                      <Store size={24} className="mx-auto mb-2.5 text-[var(--text-muted)]" />
+                      <p className="text-sm font-semibold text-[var(--text-secondary)]">Inga restauranger kopplade till {city.name} ännu.</p>
                     </div>
-                  );
-                })}
-              </div>
-            </Surface>
-          </details>
-
-          {/* Stadsövergripande täckning är borttagen — varje restaurang har egna
-              zoner via /zones/restaurant/{id}. Ingen "fallback"-täckning på
-              city-nivå längre. Backend ignorerar city.zones helt vid
-              validate-location. */}
-
-        </>
+                  ) : (
+                    <div>
+                      {city.restaurants.map((restaurant) => {
+                        const zoneCount = parseZones(restaurant.deliveryZones).length;
+                        const hasCoords = restaurant.latitude != null && restaurant.longitude != null;
+                        return (
+                          <button
+                            key={restaurant.id}
+                            type="button"
+                            onClick={() => router.push(`/zones/restaurant/${restaurant.id}`)}
+                            className="group flex w-full items-center justify-between gap-3 border-b border-[var(--row-divider)] px-6 py-3.5 text-left last:border-b-0 hover:bg-[var(--accent-soft)]"
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-panel-soft)] text-[var(--text-muted)]">
+                                <Store size={14} />
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-bold text-[var(--text-primary)]">{restaurant.name}</p>
+                                <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-[var(--text-muted)]">
+                                  <MapPin size={10} className="shrink-0 opacity-70" />
+                                  {restaurant.city || "Ingen stad"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-3">
+                              {!hasCoords && <Badge tone="warning">Saknar koordinater</Badge>}
+                              <Badge tone={zoneCount > 0 ? "info" : "neutral"}>{zoneCount} zon{zoneCount !== 1 ? "er" : ""}</Badge>
+                              <span className="flex items-center gap-1 text-[13px] font-bold text-[var(--accent-ink)]">
+                                Öppna zoner
+                                <ChevronRight size={15} className="transition-transform group-hover:translate-x-0.5" />
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
+                )}
+              </Surface>
+            );
+          })}
+        </div>
       )}
+
+      {/* ── Koppla fler restauranger (collapsible — sekundär flow) ─── */}
+      {selectedCity && (
+        <details className="group/details">
+          <summary className="cursor-pointer list-none">
+            <Surface className="flex items-center justify-between px-6 py-4 transition-colors hover:border-[var(--border-strong)]">
+              <div>
+                <p className="text-[15px] font-extrabold tracking-[-0.3px]">Koppla restauranger</p>
+                <p className="mt-0.5 text-xs font-medium text-[var(--text-muted)]">Koppla eller koppla bort restauranger från {selectedCity.name}.</p>
+              </div>
+              <ChevronDown size={16} className="text-[var(--text-muted)] transition-transform group-open/details:rotate-180" />
+            </Surface>
+          </summary>
+          <Surface className="mt-3 px-6 py-5">
+            <div className="grid gap-2.5 lg:grid-cols-2">
+              {restaurantsQuery.data?.map((restaurant) => {
+                const linked = selectedCity.restaurants.some((item) => item.id === restaurant.id);
+                return (
+                  <div key={restaurant.id} className="flex items-center justify-between gap-3 surface-muted px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold">{restaurant.name}</p>
+                      <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{restaurant.city || "Ingen stad"}</p>
+                    </div>
+                    <Button variant="secondary" onClick={() => toggleRestaurantLink(restaurant)}>{linked ? "Koppla bort" : "Koppla"}</Button>
+                  </div>
+                );
+              })}
+            </div>
+          </Surface>
+        </details>
+      )}
+
+      {/* Stadsövergripande täckning är borttagen — varje restaurang har egna
+          zoner via /zones/restaurant/{id}. Ingen "fallback"-täckning på
+          city-nivå längre. Backend ignorerar city.zones helt vid
+          validate-location. */}
 
       {/* ── Städer-hantering: hierarki + manuell merge + aliases ─────────
           Visas alltid (oavsett om en stad är vald), så admin kan se alla
@@ -390,8 +423,8 @@ export function ZonesPage() {
       <CityHierarchyManager />
 
       <CitySettingsModal open={settingsOpen} city={selectedCity} onClose={() => setSettingsOpen(false)} onChange={updateSelectedCity} />
-      <Modal open={newCityOpen} onClose={() => setNewCityOpen(false)} title="New city" footer={<div className="flex justify-end gap-2"><Button onClick={() => setNewCityOpen(false)}>Close</Button><Button variant="primary" onClick={() => createMutation.mutate()} disabled={!newCityName.trim() || createMutation.isPending}>{createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />} Create</Button></div>}>
-        <Field label="City name"><Input value={newCityName} onChange={(event) => setNewCityName(event.target.value)} placeholder="Lund" /></Field>
+      <Modal open={newCityOpen} onClose={() => setNewCityOpen(false)} title="Lägg till stad" footer={<div className="flex justify-end gap-2"><Button onClick={() => setNewCityOpen(false)}>Avbryt</Button><Button variant="primary" onClick={() => createMutation.mutate()} disabled={!newCityName.trim() || createMutation.isPending}>{createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />} Skapa</Button></div>}>
+        <Field label="Stadsnamn"><Input value={newCityName} onChange={(event) => setNewCityName(event.target.value)} placeholder="Lund" /></Field>
       </Modal>
       {/* RestaurantOverrideModal är borttagen — zone-redigering per restaurang
           sker nu på en standalone full-skärm-sida: /zones/restaurant/{id}.

@@ -3,18 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, RefreshCw, Zap, Tag, Gift } from "lucide-react";
+import { Plus, RefreshCw, ChevronRight } from "lucide-react";
 import {
   dealsQueryKey,
   dealRestaurantsQueryKey,
   getAutomaticDeals,
   getDealRestaurants,
+  updateAutomaticDeal,
   type AutomaticDealRecord,
 } from "@/modules/deals/api";
 import { discountsQueryKey, getDiscounts, createDiscount, updateDiscount, deleteDiscount, type DiscountRecord } from "@/modules/coupons/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Toggle } from "@/shared/components/ui";
 import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
-import { formatDate, formatNumber } from "@/shared/utils/format";
+import { cn } from "@/shared/utils/cn";
+import { formatDate } from "@/shared/utils/format";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
 
 type Tab = "bogo" | "kampanjer" | "kupongkoder";
@@ -100,6 +102,18 @@ export function DealsPage() {
     onError: () => setCouponError("Kunde inte radera kupong."),
   });
 
+  // Aktivera/inaktivera automatisk deal (BOGO + kampanj) direkt från listan.
+  const toggleDealMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => updateAutomaticDeal(id, { isActive }),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: dealsQueryKey }); },
+  });
+
+  // Aktivera/inaktivera kupongkod direkt från listan.
+  const toggleCouponMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => updateDiscount(id, { isActive }),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: discountsQueryKey }); },
+  });
+
   const openEditCoupon = (r: DiscountRecord) => {
     setEditingCoupon(r);
     setCouponForm({
@@ -129,16 +143,21 @@ export function DealsPage() {
   }, [automaticDeals.data, filterRestaurantId]);
 
   if (automaticDeals.isLoading || restaurants.isLoading) {
-    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar deals...</Surface>;
+    return (
+      <div className="page-stack">
+        <PageHeader breadcrumb="Katalog" title="Deals" />
+        <Surface className="px-6 py-14 text-center text-sm text-[var(--text-secondary)]">Laddar deals...</Surface>
+      </div>
+    );
   }
   if (automaticDeals.isError || !automaticDeals.data || !restaurants.data) {
     return <ErrorPanel title="Kunde inte ladda deals" action={<Button onClick={() => void automaticDeals.refetch()}><RefreshCw size={16} /> Försök igen</Button>} />;
   }
 
-  const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
-    { id: "bogo", label: "BOGO", icon: <Gift size={16} />, count: bogoDeals.filter((d) => d.isActive).length },
-    { id: "kampanjer", label: "Kampanjer", icon: <Zap size={16} />, count: kampanjDeals.filter((d) => d.isActive).length },
-    { id: "kupongkoder", label: "Kupongkoder", icon: <Tag size={16} />, count: (discounts.data || []).filter((d) => d.isActive).length },
+  const tabs: { id: Tab; label: string; count: number }[] = [
+    { id: "bogo", label: "BOGO", count: bogoDeals.filter((d) => d.isActive).length },
+    { id: "kampanjer", label: "Kampanjer", count: kampanjDeals.filter((d) => d.isActive).length },
+    { id: "kupongkoder", label: "Kupongkoder", count: (discounts.data || []).filter((d) => d.isActive).length },
   ];
 
   const changeTab = (t: Tab) => {
@@ -146,146 +165,145 @@ export function DealsPage() {
     router.replace(`/deals?tab=${t}`, { scroll: false });
   };
 
+  const restaurantName = (id: string) =>
+    (allRestaurants.data || []).find((r: ControlCenterRestaurantSnapshot) => r.id === id)?.name ?? id;
+
   return (
     <div className="page-stack">
       <PageHeader
+        breadcrumb="Katalog"
         title="Deals"
         actions={
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => void automaticDeals.refetch()}><RefreshCw size={13} /></Button>
-            {tab === "bogo" && <Button variant="primary" onClick={() => router.push("/deals/bogo/new")}><Plus size={14} /> Ny BOGO-deal</Button>}
-            {tab === "kampanjer" && <Button variant="primary" onClick={() => router.push("/deals/kampanj/new")}><Plus size={14} /> Ny kampanj</Button>}
-            {tab === "kupongkoder" && <Button variant="primary" onClick={() => { setEditingCoupon(null); setCouponForm(emptyCouponForm()); setCouponModalOpen(true); }}><Plus size={14} /> Ny kupongkod</Button>}
-          </div>
+          <>
+            <Button variant="secondary" onClick={() => void automaticDeals.refetch()} aria-label="Uppdatera"><RefreshCw size={14} /></Button>
+            {tab === "bogo" && <Button variant="primary" onClick={() => router.push("/deals/bogo/new")}><Plus size={15} /> Ny BOGO-deal</Button>}
+            {tab === "kampanjer" && <Button variant="primary" onClick={() => router.push("/deals/kampanj/new")}><Plus size={15} /> Ny kampanj</Button>}
+            {tab === "kupongkoder" && <Button variant="primary" onClick={() => { setEditingCoupon(null); setCouponForm(emptyCouponForm()); setCouponModalOpen(true); }}><Plus size={15} /> Ny kupongkod</Button>}
+          </>
         }
       />
 
-      <Surface className="px-6 py-6">
-        {/* Restaurant filter — stad först, sen restaurang */}
-        <div className="mb-6">
+      {/* Tabs som filter-chips + stad/restaurang-väljare */}
+      <div className="chip-row items-center">
+        {tabs.map(({ id, label, count }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => changeTab(id)}
+            className={cn("chip", tab === id && "is-active")}
+          >
+            {label} {count > 0 ? count : ""}
+          </button>
+        ))}
+        <div className="ml-auto flex items-center gap-3">
           <CityRestaurantPicker
             value={filterRestaurantId || ""}
             onChange={(rid) => setFilterRestaurantId(rid || null)}
             emptyOption={{ value: "", label: "Alla restauranger i stad" }}
           />
           {filterRestaurantId && (
-            <button type="button" onClick={() => setFilterRestaurantId(null)} className="mt-2 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline">
+            <button type="button" onClick={() => setFilterRestaurantId(null)} className="text-xs font-semibold text-[var(--text-muted)] underline hover:text-[var(--text-secondary)]">
               Visa alla
             </button>
           )}
         </div>
+      </div>
 
-        {/* Tabs */}
-        <div className="flex gap-3 mb-8">
-          {tabs.map(({ id, label, icon, count }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => changeTab(id)}
-              className={`flex items-center gap-2.5 rounded-xl border px-5 py-3 text-sm font-semibold transition-all ${
-                tab === id
-                  ? "border-[var(--accent)] bg-[rgba(99,102,241,0.12)] text-[var(--accent)] shadow-sm"
-                  : "border-[var(--border-subtle)] bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              {icon}
-              <span>{label}</span>
-              {count > 0 && (
-                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${tab === id ? "bg-[var(--accent)] text-white" : "bg-[var(--accent-soft)] text-[var(--text-muted)]"}`}>
-                  {count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+      {/* BOGO tab */}
+      {tab === "bogo" && (
+        <DealTable
+          deals={bogoDeals}
+          emptyTitle="Inga BOGO-deals"
+          getTypeLabel={() => bogoTriggerLabel}
+          getTypeTone={() => "info"}
+          getPeriod={(deal) => dealPeriod(deal)}
+          getRestaurants={(deal) => dealRestaurantsLabel(deal, restaurantName)}
+          onOpen={(deal) => router.push(`/deals/bogo/${deal.id}`)}
+          onToggle={(deal, next) => toggleDealMutation.mutate({ id: deal.id, isActive: next })}
+          togglePending={toggleDealMutation.isPending}
+        />
+      )}
 
-        {/* BOGO tab */}
-        {tab === "bogo" && (
-          <DealGrid
-            deals={bogoDeals}
-            emptyTitle="Inga BOGO-deals"
-            renderCard={(deal) => (
-              <DealCard
-                key={deal.id}
-                deal={deal}
-                typeLabel={bogoTriggerLabel(deal)}
-                valueLine="1 gratis"
-                onClick={() => router.push(`/deals/bogo/${deal.id}`)}
-              />
-            )}
-          />
-        )}
+      {/* Kampanjer tab */}
+      {tab === "kampanjer" && (
+        <DealTable
+          deals={kampanjDeals}
+          emptyTitle="Inga kampanjer"
+          getTypeLabel={() => kampanjTypeLabel}
+          getTypeTone={kampanjTypeTone}
+          getPeriod={(deal) => dealPeriod(deal)}
+          getRestaurants={(deal) => dealRestaurantsLabel(deal, restaurantName)}
+          onOpen={(deal) => router.push(`/deals/kampanj/${deal.id}`)}
+          onToggle={(deal, next) => toggleDealMutation.mutate({ id: deal.id, isActive: next })}
+          togglePending={toggleDealMutation.isPending}
+        />
+      )}
 
-        {/* Kampanjer tab */}
-        {tab === "kampanjer" && (
-          <DealGrid
-            deals={kampanjDeals}
-            emptyTitle="Inga kampanjer"
-            renderCard={(deal) => {
-              const discountLine =
-                deal.discountType === "PERCENTAGE" ? `-${deal.discountValue}%`
-                : deal.scopeType === "MIN_ORDER" ? `${deal.discountValue} kr · min ${deal.minOrder} kr`
-                : `${deal.discountValue} kr`;
-              const typeLabel =
-                isPopupDeal(deal) ? "Popup"
-                : deal.scopeType === "RESTAURANT" ? "Restaurang"
-                : deal.scopeType === "PRODUCT" ? "Produkt"
-                : deal.scopeType === "CATEGORY" ? "Kategori"
-                : deal.scopeType === "COMBO" ? "Combo"
-                : deal.scopeType === "MIN_ORDER" ? "Min.order"
-                : deal.scopeType;
-              return (
-                <DealCard
-                  key={deal.id}
-                  deal={deal}
-                  typeLabel={typeLabel}
-                  valueLine={discountLine}
-                  onClick={() => router.push(`/deals/kampanj/${deal.id}`)}
-                />
-              );
-            }}
-          />
-        )}
-
-        {/* Kupongkoder tab */}
-        {tab === "kupongkoder" && (
-          <div>
-            {discounts.isLoading ? (
-              <p className="text-sm text-[var(--text-secondary)] py-8 text-center">Laddar...</p>
-            ) : (discounts.data || []).length === 0 ? (
-              <EmptyState title="Inga kupongkoder" />
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {(discounts.data || []).map((record) => (
-                  <button
-                    key={record.id}
-                    type="button"
-                    onClick={() => openEditCoupon(record)}
-                    className="surface-muted px-5 py-5 text-left"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-mono text-xl font-black tracking-widest">{record.code}</p>
-                      <Badge tone={record.isActive ? "success" : "neutral"}>{record.isActive ? "Aktiv" : "Inaktiv"}</Badge>
-                    </div>
-                    <p className="mt-2 text-sm font-semibold text-[var(--text-primary)]">
-                      {record.discountType === "free_delivery" ? "Fri leverans" : record.discountType === "percentage" ? `-${record.discountValue}%` : `-${record.discountValue} kr`}
-                      {record.minOrderAmount > 0 ? <span className="text-[var(--text-muted)] font-normal"> · min {record.minOrderAmount} kr</span> : null}
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--text-muted)]">
-                      {record.applicableRestaurantIds?.length > 0
-                        ? record.applicableRestaurantIds.map((id) => (allRestaurants.data || []).find((r: ControlCenterRestaurantSnapshot) => r.id === id)?.name ?? id).join(", ")
-                        : record.restaurantId
-                          ? ((allRestaurants.data || []).find((r: ControlCenterRestaurantSnapshot) => r.id === record.restaurantId)?.name ?? record.restaurantId)
-                          : "Alla restauranger"}
-                      {record.expiresAt ? ` · t.o.m. ${formatDate(record.expiresAt)}` : ""}
-                    </p>
-                  </button>
-                ))}
+      {/* Kupongkoder tab */}
+      {tab === "kupongkoder" && (
+        <Surface className="overflow-hidden p-0">
+          {discounts.isLoading ? (
+            <div className="px-6 py-14 text-center text-sm text-[var(--text-secondary)]">Laddar...</div>
+          ) : (discounts.data || []).length === 0 ? (
+            <div className="p-6"><EmptyState title="Inga kupongkoder" /></div>
+          ) : (
+            <div role="table">
+              <div
+                role="row"
+                className="grid items-center gap-3 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+                style={{ gridTemplateColumns: "1.6fr 0.9fr 1fr 1fr 90px 56px" }}
+              >
+                <span>Kod</span>
+                <span>Typ</span>
+                <span>Restauranger</span>
+                <span>Period</span>
+                <span>Status</span>
+                <span />
               </div>
-            )}
-          </div>
-        )}
-      </Surface>
+              {(discounts.data || []).map((record, i, arr) => {
+                const typeLabel = record.discountType === "free_delivery" ? "Leverans" : record.discountType === "percentage" ? "Procent" : "Belopp";
+                const typeTone = record.discountType === "free_delivery" ? "accent" : record.discountType === "percentage" ? "info" : "success";
+                const valueLine = record.discountType === "free_delivery" ? "Fri leverans" : record.discountType === "percentage" ? `-${record.discountValue}%` : `-${record.discountValue} kr`;
+                const restLabel = record.applicableRestaurantIds?.length > 0
+                  ? record.applicableRestaurantIds.length === 1
+                    ? restaurantName(record.applicableRestaurantIds[0])
+                    : `${record.applicableRestaurantIds.length} ställen`
+                  : record.restaurantId
+                    ? restaurantName(record.restaurantId)
+                    : "Alla";
+                return (
+                  <div
+                    key={record.id}
+                    role="row"
+                    className={cn("grid items-center gap-3 px-[18px] py-[13px] text-[13px] transition-colors hover:bg-[var(--bg-hover)]", i !== arr.length - 1 && "border-b border-[var(--row-divider)]")}
+                    style={{ gridTemplateColumns: "1.6fr 0.9fr 1fr 1fr 90px 56px" }}
+                  >
+                    <span className="min-w-0">
+                      <button type="button" onClick={() => openEditCoupon(record)} className="block truncate text-left font-mono font-bold tracking-widest hover:text-[var(--accent-ink)]">
+                        {record.code}
+                      </button>
+                      <span className="block truncate text-[11.5px] text-[var(--text-muted)]">
+                        {valueLine}{record.minOrderAmount > 0 ? ` · min ${record.minOrderAmount} kr` : ""}
+                      </span>
+                    </span>
+                    <span><TypeBadge tone={typeTone}>{typeLabel}</TypeBadge></span>
+                    <span className="truncate text-[var(--text-secondary)]">{restLabel}</span>
+                    <span className="text-[var(--text-secondary)]">{record.expiresAt ? `t.o.m. ${formatDate(record.expiresAt)}` : "Pågående"}</span>
+                    <span>
+                      <Toggle checked={record.isActive} disabled={toggleCouponMutation.isPending} onChange={(next) => toggleCouponMutation.mutate({ id: record.id, isActive: next })} />
+                    </span>
+                    <span className="flex justify-end">
+                      <button type="button" onClick={() => openEditCoupon(record)} aria-label={`Öppna ${record.code}`} className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
+                        <ChevronRight size={18} />
+                      </button>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Surface>
+      )}
 
       {/* Kupong-modal */}
       <Modal
@@ -364,53 +382,128 @@ export function DealsPage() {
 
 // ---- Helpers ----
 
+/** Tonad typ-badge. "accent" mappar till badge-accent (orange), övriga till Badge-toner. */
+type TypeTone = "accent" | "info" | "success" | "warning" | "neutral";
+
+function TypeBadge({ tone, children }: { tone: TypeTone; children: React.ReactNode }) {
+  if (tone === "accent") return <span className="badge badge-accent">{children}</span>;
+  return <Badge tone={tone}>{children}</Badge>;
+}
+
 function bogoTriggerLabel(deal: AutomaticDealRecord): string {
   if ((deal.bogoTriggerProductIds ?? []).length > 0) return "Produkter";
   if ((deal as any).bogoMinOrderAmount != null && (deal as any).bogoMinOrderAmount > 0) return `Min ${(deal as any).bogoMinOrderAmount} kr`;
   return deal.triggerQuantity != null ? `Köp ${deal.triggerQuantity}` : "BOGO";
 }
 
-function DealGrid({ deals, emptyTitle, emptyDescription, renderCard }: {
-  deals: AutomaticDealRecord[];
-  emptyTitle: string;
-  emptyDescription?: string;
-  renderCard: (deal: AutomaticDealRecord) => React.ReactNode;
-}) {
-  if (deals.length === 0) return <EmptyState title={emptyTitle} description={emptyDescription} />;
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {deals.map(renderCard)}
-    </div>
-  );
+function kampanjTypeLabel(deal: AutomaticDealRecord): string {
+  if (isPopupDeal(deal)) return "Popup";
+  switch (deal.scopeType) {
+    case "RESTAURANT": return "Leverans";
+    case "PRODUCT": return "Produkt";
+    case "CATEGORY": return "Procent";
+    case "COMBO": return "Combo";
+    case "MIN_ORDER": return "Belopp";
+    default: return deal.scopeType;
+  }
 }
 
-function DealCard({ deal, typeLabel, valueLine, onClick }: {
-  deal: AutomaticDealRecord;
-  typeLabel: string;
-  valueLine: string;
-  onClick: () => void;
+function kampanjTypeTone(deal: AutomaticDealRecord): TypeTone {
+  if (isPopupDeal(deal)) return "warning";
+  switch (deal.scopeType) {
+    case "RESTAURANT": return "accent";
+    case "COMBO": return "info";
+    case "MIN_ORDER": return "success";
+    case "CATEGORY": return deal.discountType === "PERCENTAGE" ? "info" : "success";
+    default: return "info";
+  }
+}
+
+/** "2–4 aug" / "t.o.m. X" / "Pågående" beroende på vilka datum som finns. */
+function dealPeriod(deal: AutomaticDealRecord): string {
+  if (deal.validUntil && new Date(deal.validUntil) < new Date()) return "Avslutad";
+  if (deal.validUntil) return `t.o.m. ${formatDate(deal.validUntil)}`;
+  if (deal.validFrom) return `fr.o.m. ${formatDate(deal.validFrom)}`;
+  return "Pågående";
+}
+
+function dealRestaurantsLabel(deal: AutomaticDealRecord, restaurantName: (id: string) => string): string {
+  if (deal.restaurant?.name) return deal.restaurant.name;
+  if (deal.applicableRestaurantIds && deal.applicableRestaurantIds.length > 1) return `${deal.applicableRestaurantIds.length} ställen`;
+  if (deal.applicableRestaurantIds && deal.applicableRestaurantIds.length === 1) return restaurantName(deal.applicableRestaurantIds[0]);
+  if (deal.restaurantId) return restaurantName(deal.restaurantId);
+  if (deal.isGlobal) return "Alla";
+  return "Alla";
+}
+
+function DealTable({
+  deals,
+  emptyTitle,
+  getTypeLabel,
+  getTypeTone,
+  getPeriod,
+  getRestaurants,
+  onOpen,
+  onToggle,
+  togglePending,
+}: {
+  deals: AutomaticDealRecord[];
+  emptyTitle: string;
+  getTypeLabel: () => (deal: AutomaticDealRecord) => string;
+  getTypeTone: (deal: AutomaticDealRecord) => TypeTone;
+  getPeriod: (deal: AutomaticDealRecord) => string;
+  getRestaurants: (deal: AutomaticDealRecord) => string;
+  onOpen: (deal: AutomaticDealRecord) => void;
+  onToggle: (deal: AutomaticDealRecord, next: boolean) => void;
+  togglePending: boolean;
 }) {
-  const expired = deal.validUntil ? new Date(deal.validUntil) < new Date() : false;
+  const typeLabelFn = getTypeLabel();
+  const cols = "1.6fr 0.9fr 1fr 1fr 90px 56px";
   return (
-    <button type="button" onClick={onClick} className="surface-muted px-5 py-5 text-left hover:brightness-110 transition-all">
-      {deal.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={deal.imageUrl} alt="" className="mb-3 h-28 w-full rounded-xl object-cover" />
+    <Surface className="overflow-hidden p-0">
+      {deals.length === 0 ? (
+        <div className="p-6"><EmptyState title={emptyTitle} /></div>
+      ) : (
+        <div role="table">
+          <div
+            role="row"
+            className="grid items-center gap-3 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+            style={{ gridTemplateColumns: cols }}
+          >
+            <span>Kampanj</span>
+            <span>Typ</span>
+            <span>Restauranger</span>
+            <span>Period</span>
+            <span>Status</span>
+            <span />
+          </div>
+          {deals.map((deal, i) => (
+            <div
+              key={deal.id}
+              role="row"
+              className={cn("grid items-center gap-3 px-[18px] py-[13px] text-[13px] transition-colors hover:bg-[var(--bg-hover)]", i !== deals.length - 1 && "border-b border-[var(--row-divider)]")}
+              style={{ gridTemplateColumns: cols }}
+            >
+              <span className="min-w-0">
+                <button type="button" onClick={() => onOpen(deal)} className="block truncate text-left font-bold tracking-[-0.01em] hover:text-[var(--accent-ink)]">
+                  {deal.title}
+                </button>
+              </span>
+              <span><TypeBadge tone={getTypeTone(deal)}>{typeLabelFn(deal)}</TypeBadge></span>
+              <span className="truncate text-[var(--text-secondary)]">{getRestaurants(deal)}</span>
+              <span className="text-[var(--text-secondary)]">{getPeriod(deal)}</span>
+              <span>
+                <Toggle checked={deal.isActive} disabled={togglePending} onChange={(next) => onToggle(deal, next)} />
+              </span>
+              <span className="flex justify-end">
+                <button type="button" onClick={() => onOpen(deal)} aria-label={`Öppna ${deal.title}`} className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
+                  <ChevronRight size={18} />
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
       )}
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-base font-black tracking-[-0.02em] leading-snug">{deal.title}</p>
-        <Badge tone={!deal.isActive || expired ? "danger" : "success"}>
-          {expired ? "Utgången" : deal.isActive ? "Aktiv" : "Inaktiv"}
-        </Badge>
-      </div>
-      <p className="mt-1.5 text-sm font-semibold text-[var(--text-primary)]">{valueLine}</p>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <Badge tone="info">{typeLabel}</Badge>
-      </div>
-      <p className="mt-2 text-xs text-[var(--text-muted)]">
-        {deal.restaurant?.name || (deal.isGlobal ? "Alla restauranger" : "Ingen restaurang")}
-        {deal.validUntil ? ` · t.o.m. ${formatDate(deal.validUntil)}` : ""}
-      </p>
-    </button>
+    </Surface>
   );
 }
