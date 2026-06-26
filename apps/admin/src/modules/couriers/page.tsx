@@ -28,6 +28,16 @@ const VehiclePill = ({ v }: { v: "BIKE" | "CAR" }) => (
   </Badge>
 );
 
+const initials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+
+type CourierFilter = "all" | "online" | "paused";
+
 // ----------------------------------------------------------- create modal
 function CreateCourierModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
@@ -142,6 +152,7 @@ export function CouriersPage() {
   const [tab, setTab] = useState<Tab>("couriers");
   const [createOpen, setCreateOpen] = useState(false);
   const [approveApp, setApproveApp] = useState<CourierApplication | null>(null);
+  const [courierFilter, setCourierFilter] = useState<CourierFilter>("all");
 
   const couriers = useQuery({ queryKey: couriersQueryKey, queryFn: getCouriers });
   const applications = useQuery({ queryKey: applicationsQueryKey, queryFn: getApplications });
@@ -156,7 +167,10 @@ export function CouriersPage() {
   const pendingCount = (applications.data || []).filter((a) => a.status === "PENDING").length;
   const rows = couriers.data || [];
   const onlineCount = rows.filter((c) => c.online).length;
+  const pausedCount = rows.filter((c) => !c.online).length;
   const todaySum = rows.reduce((s, c) => s + c.todayEarnings, 0);
+  const visibleRows =
+    courierFilter === "online" ? rows.filter((c) => c.online) : courierFilter === "paused" ? rows.filter((c) => !c.online) : rows;
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "couriers", label: "Kurirer" },
@@ -167,9 +181,28 @@ export function CouriersPage() {
   return (
     <div className="page-stack">
       <PageHeader
+        breadcrumb="Drift"
         title="Kurirer"
         actions={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {tab === "couriers" && (
+              <>
+                <button
+                  type="button"
+                  className={`chip${courierFilter === "online" ? " is-active" : ""}`}
+                  onClick={() => setCourierFilter((f) => (f === "online" ? "all" : "online"))}
+                >
+                  Online {onlineCount}
+                </button>
+                <button
+                  type="button"
+                  className={`chip${courierFilter === "paused" ? " is-active" : ""}`}
+                  onClick={() => setCourierFilter((f) => (f === "paused" ? "all" : "paused"))}
+                >
+                  Paus {pausedCount}
+                </button>
+              </>
+            )}
             <Button onClick={() => { void couriers.refetch(); void applications.refetch(); }}><RefreshCw size={14} /></Button>
             <Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={15} /> Lägg till kurir</Button>
           </div>
@@ -193,39 +226,69 @@ export function CouriersPage() {
             <MetricCard label="Online nu" value={String(onlineCount)} />
             <MetricCard label="Utbetalt idag" value={formatCurrency(todaySum)} />
           </div>
-          <Surface className="px-6 py-6">
+          <Surface className="overflow-hidden p-0">
             {couriers.isLoading ? (
-              <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]"><Loader2 size={16} className="animate-spin" /> Laddar…</div>
+              <div className="flex items-center gap-2 px-6 py-6 text-sm text-[var(--text-secondary)]"><Loader2 size={16} className="animate-spin" /> Laddar…</div>
             ) : couriers.isError ? (
-              <ErrorPanel title="Kunde inte ladda kurirer" action={<Button onClick={() => void couriers.refetch()}>Försök igen</Button>} />
+              <div className="px-6 py-6"><ErrorPanel title="Kunde inte ladda kurirer" action={<Button onClick={() => void couriers.refetch()}>Försök igen</Button>} /></div>
             ) : rows.length === 0 ? (
-              <EmptyState title="Inga kurirer än" />
+              <div className="px-6 py-6"><EmptyState title="Inga kurirer än" /></div>
+            ) : visibleRows.length === 0 ? (
+              <div className="px-6 py-6"><EmptyState title="Inga kurirer matchar filtret" /></div>
             ) : (
               <div className="table-shell">
                 <table className="data-table">
-                  <thead><tr><th>Kurir</th><th>Fordon</th><th>Stad</th><th>Status</th><th>Idag</th><th>30 dgr</th><th>km-pris</th><th /></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>Kurir</th>
+                      <th>Status</th>
+                      <th>Aktiv order</th>
+                      <th>Idag</th>
+                      <th>Betyg</th>
+                      <th />
+                    </tr>
+                  </thead>
                   <tbody>
-                    {rows.map((c) => (
+                    {visibleRows.map((c) => (
                       <tr key={c.id} style={{ opacity: c.isActive ? 1 : 0.5 }}>
                         <td>
-                          <button onClick={() => router.push(`/couriers/${c.id}`)} className="group flex items-center gap-1.5 text-left transition-colors hover:text-[var(--accent-strong)]">
-                            <div>
-                              <p className="font-black">{c.name}</p>
-                              <p className="text-sm text-[var(--text-secondary)]">{c.email}</p>
-                            </div>
-                            <ChevronRight size={15} className="text-[var(--text-muted)] transition-colors group-hover:text-[var(--accent-strong)]" />
-                          </button>
+                          <div className="flex items-center gap-[11px]">
+                            <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#111113] text-[12px] font-extrabold text-white">
+                              {initials(c.name)}
+                            </span>
+                            <span className="font-bold text-[var(--text-primary)]">{c.name}</span>
+                          </div>
                         </td>
-                        <td><VehiclePill v={c.vehicle} /></td>
-                        <td>{c.city}</td>
-                        <td><Badge tone={c.online ? "success" : "neutral"}>{c.online ? "Online" : "Offline"}</Badge></td>
-                        <td className="tabular-nums">{formatCurrency(c.todayEarnings)} <span className="text-[var(--text-muted)]">({c.todayDeliveries})</span></td>
-                        <td className="tabular-nums">{formatCurrency(c.last30Earnings)} <span className="text-[var(--text-muted)]">({c.last30Deliveries})</span></td>
-                        <td className="tabular-nums">{c.ratePerKm} kr</td>
                         <td>
-                          <div className="flex justify-end gap-2">
+                          {c.online ? (
+                            <span className="inline-flex items-center gap-[5px] text-[11px] font-extrabold text-[var(--success-text)]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
+                              Ledig
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-[5px] text-[11px] font-extrabold text-[var(--warning)]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[var(--warning)]" />
+                              Paus
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <span className="text-[var(--text-muted)]" style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 }}>–</span>
+                        </td>
+                        <td className="tabular-nums">{c.todayDeliveries}</td>
+                        <td className="font-bold text-[var(--text-muted)]">–</td>
+                        <td>
+                          <div className="flex items-center justify-end gap-2">
                             <Button variant="secondary" onClick={() => toggleActive.mutate({ id: c.id, isActive: !c.isActive })}>{c.isActive ? "Inaktivera" : "Aktivera"}</Button>
                             <Button variant="danger" onClick={() => { if (confirm(`Logga ut ${c.name} från alla enheter?`)) revoke.mutate(c.id); }}>Logga ut</Button>
+                            <button
+                              type="button"
+                              aria-label={`Öppna ${c.name}`}
+                              onClick={() => router.push(`/couriers/${c.id}`)}
+                              className="text-[var(--text-muted)] transition-colors hover:text-[var(--accent)]"
+                            >
+                              <ChevronRight size={18} />
+                            </button>
                           </div>
                         </td>
                       </tr>

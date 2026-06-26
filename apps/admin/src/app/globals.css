@@ -857,9 +857,9 @@ button {
 }
 
 .chip.is-active {
-  background: var(--accent);
+  background: var(--text-primary);
   border-color: transparent;
-  color: var(--accent-fg);
+  color: var(--bg-panel);
 }
 
 /* ─────────────────────────────────────────────

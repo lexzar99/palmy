@@ -7,7 +7,7 @@ import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, Plus, Rece
 import { bulkRefundOrders, deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
 import { CustomerModal } from "@/modules/customers/page";
 import { NotesPanel } from "@/shared/components/notes-panel";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Surface, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, orderTypeLabel } from "@/shared/utils/format";
 
 // Order-resans steg i ordning. Leverans har ett extra "Levereras"-steg;
@@ -646,77 +646,131 @@ export function OrderDetailsModal({
 
 const LIVE_STATUSES = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"];
 
+const MONO = "font-[ui-monospace,Menlo,monospace]";
+// Delad kolumnmall för header + rader (Order · Restaurang · Kund · Status · Tid · Åtgärd).
+const ORDERS_GRID = "80px 1.3fr 1.1fr 1fr 0.8fr 130px";
+
+// Statusbricka för listan. "På väg" (DELIVERING) använder den orange accent-tonen
+// (badge-accent) per designen; övriga går via den semantiska tabellen i orderStatusTone.
+function StatusBadge({ status }: { status: string }) {
+  if (status === "DELIVERING") {
+    return <span className="badge badge-accent">{orderStatusLabel(status)}</span>;
+  }
+  return <Badge tone={orderStatusTone(status) as "success" | "danger" | "warning" | "info" | "neutral"}>{orderStatusLabel(status)}</Badge>;
+}
+
 type OrderRowProps = {
   order: AdminOrder;
   isSelected: boolean;
   nowMs: number;
+  isAdvancing: boolean;
   onOpen: (id: string) => void;
   onToggleSelect: (id: string, checked: boolean) => void;
   onOpenCustomer: (userId: string) => void;
+  onAdvance: (order: AdminOrder, nextStatus: string) => void;
 };
 
 // Memo-iserad orderrad. Vid 70 ordrar var listan trög för att VARJE rad
 // renderades om dels på 30s-ticken (nowMs), dels vid varje markering. Nu:
 // • slutförda rader hoppar over nowMs-ticken (tid-i-status visas bara live),
 // • bara den togglade raden renderas om vid markering (stabila callbacks).
-function OrderRowBase({ order, isSelected, nowMs, onOpen, onToggleSelect, onOpenCustomer }: OrderRowProps) {
+function OrderRowBase({ order, isSelected, nowMs, isAdvancing, onOpen, onToggleSelect, onOpenCustomer, onAdvance }: OrderRowProps) {
   const isLive = LIVE_STATUSES.includes(order.status);
+  const isDelivery = order.type === "DELIVERY";
   const tis = isLive ? formatTimeInStatus(order, nowMs) : null;
-  const ctxBadge = customerContextBadge(order.customerStats);
+  const next = nextAction(order.status, isDelivery);
   const isRefundable = !order.refundedAt && Boolean(order.stripePaymentIntentId) && order.stripePaymentIntentId !== "TEST_PAYMENT" && order.stripePaymentIntentId !== "FREE_PROMO";
+  const isPending = order.status === "PENDING";
+  const isLate = tis?.tone === "danger";
+
+  // Höger-justerad åtgärd. Återanvänder updateOrderStatus via onAdvance; "Spåra"/"Detaljer"
+  // öppnar samma orderdetalj-modal (ingen ny endpoint).
+  const action = (() => {
+    if (isPending && next) {
+      return (
+        <Button
+          variant="primary"
+          className="h-auto px-3 py-1.5 text-[12px]"
+          disabled={isAdvancing}
+          onClick={(e) => { e.stopPropagation(); onAdvance(order, next.status); }}
+        >
+          {isAdvancing ? <Loader2 size={13} className="animate-spin" /> : null}
+          Acceptera
+        </Button>
+      );
+    }
+    if (isLive && next) {
+      if (order.status === "DELIVERING") {
+        return <span className="text-[12px] font-bold text-[var(--text-secondary)]">Spåra ›</span>;
+      }
+      return (
+        <Button
+          variant="secondary"
+          className="h-auto px-3 py-1.5 text-[12px]"
+          disabled={isAdvancing}
+          onClick={(e) => { e.stopPropagation(); onAdvance(order, next.status); }}
+        >
+          {isAdvancing ? <Loader2 size={13} className="animate-spin" /> : null}
+          Klar
+        </Button>
+      );
+    }
+    return <span className="text-[12px] font-bold text-[var(--text-secondary)]">Detaljer ›</span>;
+  })();
+
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={() => onOpen(order.id)}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(order.id); } }}
-      className="surface-muted flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
+      className="grid cursor-pointer items-center gap-3 border-b border-[var(--row-divider)] px-[18px] py-[13px] text-[13px] transition-colors last:border-b-0 hover:bg-[var(--bg-hover)]"
+      style={{ gridTemplateColumns: ORDERS_GRID, ...(isPending ? { background: "var(--warning-soft)" } : {}) }}
     >
-      {/* Checkbox — bara för återbetalningsbara ordrar */}
-      {isRefundable ? (
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => { e.stopPropagation(); onToggleSelect(order.id, e.target.checked); }}
-          className="h-4 w-4 shrink-0 cursor-pointer accent-[var(--accent-strong)]"
-          aria-label={`Välj order ${order.orderNumber}`}
-        />
+      {/* Order# (+ valbar checkbox för återbetalningsbara) */}
+      <div className="flex min-w-0 items-center gap-2">
+        {isRefundable ? (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => { e.stopPropagation(); onToggleSelect(order.id, e.target.checked); }}
+            className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[var(--accent-strong)]"
+            aria-label={`Välj order ${order.orderNumber}`}
+          />
+        ) : null}
+        <span className={`${MONO} truncate text-[12px] font-bold text-[var(--text-primary)]`}>{order.orderNumber}</span>
+      </div>
+
+      {/* Restaurang */}
+      <span className="truncate font-semibold text-[var(--text-primary)]">{order.restaurantName || "—"}</span>
+
+      {/* Kund */}
+      {order.userId ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onOpenCustomer(order.userId!); }}
+          className="truncate text-left text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-strong)]"
+        >
+          {order.customerName}
+        </button>
       ) : (
-        <span className="inline-block h-4 w-4 shrink-0" aria-hidden />
+        <span className="truncate text-[var(--text-secondary)]">{order.customerName}</span>
       )}
 
-      <div className="min-w-0 flex-1">
-        {/* Rad 1: ordernr · status · (tid om live) · risk-flagga · restaurang */}
-        <div className="flex items-center gap-2">
-          <span className="text-[15px] font-bold tracking-[-0.01em] text-[var(--text-primary)]">{order.orderNumber}</span>
-          <Badge tone={orderStatusTone(order.status) as "success" | "danger" | "warning" | "info" | "neutral"}>{orderStatusLabel(order.status)}</Badge>
-          {isLive && tis && <Badge tone={tis.tone}>{tis.label}</Badge>}
-          {ctxBadge && (ctxBadge.tone === "danger" || ctxBadge.tone === "warning") ? <Badge tone={ctxBadge.tone}>{ctxBadge.label}</Badge> : null}
-          {order.restaurantName ? <span className="truncate text-[13px] text-[var(--text-muted)]">{order.restaurantName}</span> : null}
-        </div>
-        {/* Rad 2: kund + antal artiklar (resten i modalen) */}
-        <div className="mt-1 flex items-center gap-1.5 text-[13px] text-[var(--text-secondary)]">
-          {order.userId ? (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onOpenCustomer(order.userId!); }}
-              className="truncate font-medium transition-colors hover:text-[var(--accent-strong)]"
-            >
-              {order.customerName}
-            </button>
-          ) : (
-            <span className="truncate font-medium">{order.customerName}</span>
-          )}
-          <span className="shrink-0 text-[var(--text-muted)]">· {order.items.length} art.</span>
-        </div>
-      </div>
+      {/* Status */}
+      <span className="min-w-0"><StatusBadge status={order.status} /></span>
 
-      {/* Höger: total + tidpunkt */}
-      <div className="flex shrink-0 flex-col items-end gap-0.5">
-        <span className="text-[15px] font-bold text-[var(--text-primary)] tabular-nums">{formatCurrency(order.total)}</span>
-        <span className="text-[12px] text-[var(--text-muted)]">{formatDateTime(order.createdAt)}</span>
-      </div>
+      {/* Tid i status — röd + fet om sen */}
+      <span
+        className="truncate"
+        style={isLate ? { color: "var(--danger)", fontWeight: 700 } : { color: "var(--text-muted)" }}
+      >
+        {isLive && tis ? tis.label : formatDateTime(order.createdAt)}
+      </span>
+
+      {/* Åtgärd */}
+      <div className="flex items-center justify-end">{action}</div>
     </div>
   );
 }
@@ -724,9 +778,11 @@ function OrderRowBase({ order, isSelected, nowMs, onOpen, onToggleSelect, onOpen
 const OrderRow = memo(OrderRowBase, (a, b) =>
   a.order === b.order &&
   a.isSelected === b.isSelected &&
+  a.isAdvancing === b.isAdvancing &&
   a.onOpen === b.onOpen &&
   a.onToggleSelect === b.onToggleSelect &&
   a.onOpenCustomer === b.onOpenCustomer &&
+  a.onAdvance === b.onAdvance &&
   // nowMs påverkar bara live-ordrar (tid-i-status-badgen) → slutförda rader
   // behöver inte renderas om vid varje 30s-tick.
   (LIVE_STATUSES.includes(a.order.status) ? a.nowMs === b.nowMs : true),
@@ -785,9 +841,25 @@ export function OrdersPage() {
 
   const totalPages = orders.data ? Math.max(1, Math.ceil(orders.data.total / ORDERS_PAGE_SIZE)) : 1;
 
+  // Inline statusframflyttning (Acceptera/Klar) — återanvänder updateOrderStatus,
+  // samma endpoint som orderdetalj-modalen. Ingen ny logik.
+  const [advancingId, setAdvancingId] = useState<string | null>(null);
+  const advanceMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => updateOrderStatus(id, status),
+    onSettled: async () => {
+      setAdvancingId(null);
+      await queryClient.invalidateQueries({ queryKey: ["orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+
   // Stabila callbacks → OrderRow-memon kan hoppa över re-renders.
   const openOrder = useCallback((id: string) => setActiveOrderId(id), []);
   const openCustomer = useCallback((userId: string) => setActiveCustomerId(userId), []);
+  const advanceOrder = useCallback((order: AdminOrder, nextStatus: string) => {
+    setAdvancingId(order.id);
+    advanceMutation.mutate({ id: order.id, status: nextStatus });
+  }, [advanceMutation]);
   const toggleSelect = useCallback((id: string, checked: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -817,14 +889,33 @@ export function OrdersPage() {
     return <ErrorPanel title="Kunde inte ladda ordrar" action={<Button onClick={() => void orders.refetch()}><RefreshCw size={14} /> Försök igen</Button>} />;
   }
 
-  const liveCount = orders.data.orders.filter((order) => ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(order.status)).length;
+  const loadedOrders = orders.data.orders;
+  const liveCount = loadedOrders.filter((order) => ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(order.status)).length;
+
+  // Chip-räknare härleds ur den laddade listan. När ett statusfilter är aktivt
+  // returnerar API:t bara den statusen, så räknarna visar vad som faktiskt är laddat.
+  const statusCount = (s: (typeof statusOptions)[number]) =>
+    s === "ALL" ? loadedOrders.length : loadedOrders.filter((o) => o.status === s).length;
 
   return (
     <div className="page-stack">
       <PageHeader
+        breadcrumb="Drift"
         title="Ordrar"
         actions={
           <>
+            <div className="chip-row">
+              {statusOptions.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setStatus(item)}
+                  className={`chip${status === item ? " is-active" : ""}`}
+                >
+                  {item === "ALL" ? "Alla" : orderStatusLabel(item)} {formatNumber(statusCount(item))}
+                </button>
+              ))}
+            </div>
             <Badge tone="success">{formatNumber(liveCount)} live</Badge>
             <Button variant="secondary" onClick={() => void orders.refetch()}>
               <RefreshCw size={14} /> Uppdatera
@@ -834,12 +925,9 @@ export function OrdersPage() {
       />
 
       <Surface className="px-5 py-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative w-full max-w-xl">
-            <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <Input className="pl-11" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sök order, kund, telefon, restaurang" />
-          </div>
-          <Tabs value={status} onChange={(value) => setStatus(value)} options={statusOptions.map((item) => ({ value: item, label: item === "ALL" ? "Alla" : orderStatusLabel(item) }))} />
+        <div className="relative w-full max-w-xl">
+          <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+          <Input className="pl-11" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sök order, kund, telefon, restaurang" />
         </div>
 
         {/* Bulk action bar — only refundable orders are eligible; the API
@@ -883,16 +971,30 @@ export function OrdersPage() {
           <div className="mt-6"><EmptyState title="Inga ordrar i den här vyn" /></div>
         ) : (
           <>
-          <div className="mt-6 grid gap-3">
+          <div className="mt-6 overflow-hidden rounded-[14px] border border-[var(--border-subtle)] bg-[var(--bg-panel)]">
+            {/* Header-rad */}
+            <div
+              className="grid gap-3 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+              style={{ gridTemplateColumns: ORDERS_GRID }}
+            >
+              <span>Order</span>
+              <span>Restaurang</span>
+              <span>Kund</span>
+              <span>Status</span>
+              <span>Tid</span>
+              <span className="text-right">Åtgärd</span>
+            </div>
             {filteredOrders.map((order) => (
               <OrderRow
                 key={order.id}
                 order={order}
                 isSelected={selectedIds.has(order.id)}
                 nowMs={nowMs}
+                isAdvancing={advancingId === order.id}
                 onOpen={openOrder}
                 onToggleSelect={toggleSelect}
                 onOpenCustomer={openCustomer}
+                onAdvance={advanceOrder}
               />
             ))}
           </div>

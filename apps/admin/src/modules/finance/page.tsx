@@ -11,6 +11,8 @@ import { formatCurrency, formatNumber } from "@/shared/utils/format";
 
 type ModeFilter = "all" | "platform" | "self";
 
+const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
+
 const isoDate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -65,7 +67,8 @@ export function FinancePage() {
   return (
     <div className="page-stack">
       <PageHeader
-        title="Ekonomi"
+        breadcrumb="Plattform"
+        title="Utbetalningar"
         actions={
           <Button onClick={() => router.push("/finance/installningar")}>
             <Settings2 size={16} /> Provision & moms
@@ -80,7 +83,7 @@ export function FinancePage() {
               <button
                 key={k}
                 onClick={() => setPreset(k)}
-                className="rounded-full border border-[var(--border,rgba(0,0,0,0.12))] px-3.5 py-1.5 text-sm font-semibold transition hover:bg-[var(--surface-muted,rgba(0,0,0,0.04))]"
+                className="rounded-full border border-[var(--border-subtle)] px-3.5 py-1.5 text-sm font-semibold transition hover:bg-[var(--accent-soft)]"
               >
                 {label}
               </button>
@@ -105,7 +108,20 @@ export function FinancePage() {
             <MetricCard label="Försäljning" value={totals ? formatCurrency(totals.grossSales) : "—"} detail={totals ? `${formatNumber(totals.orderCount)} ordrar` : undefined} />
             <MetricCard label="Provision" value={totals ? formatCurrency(totals.commission) : "—"} />
             <MetricCard label="Abonnemang" value={totals ? formatCurrency(totals.subscription) : "—"} />
-            <MetricCard label="Att betala ut" value={totals ? formatCurrency(totals.payout) : "—"} />
+            <article
+              className="metric-card"
+              style={{
+                background: "#FFF7F3",
+                borderColor: "color-mix(in srgb, var(--accent) 25%, transparent)",
+              }}
+            >
+              <p className="kpi-label" style={{ color: "var(--accent-ink)" }}>Att betala ut</p>
+              <div className="mt-2.5">
+                <p className="kpi-value" style={{ fontSize: 26, letterSpacing: "-0.8px", color: "var(--accent-ink)" }}>
+                  {totals ? formatCurrency(totals.payout) : "—"}
+                </p>
+              </div>
+            </article>
             <MetricCard label="Att fakturera" value={totals ? formatCurrency(totals.owed) : "—"} detail="restauranger som är skyldiga oss" />
           </div>
 
@@ -139,12 +155,12 @@ export function FinancePage() {
                     <tr>
                       <th>Restaurang</th>
                       <th>Modell</th>
-                      <th>Ordrar</th>
-                      <th>Försäljning</th>
-                      <th>Provision</th>
-                      <th>Abonnemang</th>
-                      <th>Netto</th>
-                      <th>Status</th>
+                      <th style={{ textAlign: "right" }}>Ordrar</th>
+                      <th style={{ textAlign: "right" }}>Brutto</th>
+                      <th style={{ textAlign: "right" }}>Provision</th>
+                      <th style={{ textAlign: "right" }}>Abonnemang</th>
+                      <th style={{ textAlign: "right" }}>Netto</th>
+                      <th style={{ textAlign: "right" }}>Status</th>
                       <th />
                     </tr>
                   </thead>
@@ -157,24 +173,28 @@ export function FinancePage() {
                           <td>
                             <div className="flex items-center gap-3" style={{ borderLeft: `3px solid ${accent}`, paddingLeft: 10 }}>
                               <div>
-                                <p className="font-black">{r.name}</p>
+                                <p className="font-bold">{r.name}</p>
                                 <p className="mt-0.5 text-sm text-[var(--text-secondary)]">{r.city || "Ingen stad"} • {r.tierLabel}</p>
                               </div>
                             </div>
                           </td>
                           <td><DeliveryModeBadge selfDelivery={r.selfDelivery} /></td>
-                          <td className="tabular-nums">{formatNumber(r.orderCount)}</td>
-                          <td className="tabular-nums">{formatCurrency(r.grossSales)}</td>
-                          <td className="tabular-nums">{formatCurrency(r.commission)} <span className="text-[var(--text-muted)]">({r.commissionPct}%)</span></td>
-                          <td className="tabular-nums">{formatCurrency(r.subscription)}</td>
-                          <td className="font-black tabular-nums">
+                          <td style={{ fontFamily: MONO, textAlign: "right" }}>{formatNumber(r.orderCount)}</td>
+                          <td style={{ fontFamily: MONO, textAlign: "right" }}>{formatCurrency(r.grossSales)}</td>
+                          <td style={{ fontFamily: MONO, textAlign: "right", color: "var(--text-muted)" }}>
+                            −{formatCurrency(r.commission)} <span>({r.commissionPct}%)</span>
+                          </td>
+                          <td style={{ fontFamily: MONO, textAlign: "right", color: "var(--text-muted)" }}>{formatCurrency(r.subscription)}</td>
+                          <td style={{ fontFamily: MONO, fontWeight: 700, textAlign: "right" }}>
                             {isOwed ? (
-                              <span className="text-[#B45309]">{formatCurrency(r.owed)} <span className="font-semibold">(fakturera)</span></span>
+                              <span style={{ color: "var(--warning-text, #B45309)" }}>{formatCurrency(r.owed)} <span style={{ fontWeight: 600 }}>(fakturera)</span></span>
                             ) : (
                               formatCurrency(r.payout)
                             )}
                           </td>
-                          <td><Badge tone={statusTone(r.status)}>{r.status ? STATUS_LABEL[r.status] || r.status : "Ej hanterad"}</Badge></td>
+                          <td style={{ textAlign: "right" }}>
+                            <Badge tone={statusTone(r.status)}>{r.status ? STATUS_LABEL[r.status] || r.status : "Ej hanterad"}</Badge>
+                          </td>
                           <td onClick={(e) => e.stopPropagation()}>
                             <div className="flex justify-end"><Button variant="secondary" onClick={() => openPayout(r.restaurantId)}>Öppna</Button></div>
                           </td>
