@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -106,7 +105,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [hydrated, setHydrated] = useState(false);
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => setTheme(getStoredTheme()), []);
   const toggleTheme = () =>
@@ -116,16 +115,19 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
       return next;
     });
 
-  // Hydrate from storage + auto-expand the section containing current path
+  // Hydrate from storage + ensure the section containing the current path is
+  // open. Default: all three groups expanded (matches handoff — navet är
+  // alltid synligt och grupperna ligger öppna).
   useEffect(() => {
     const stored = loadExpanded();
+    const next: Record<string, boolean> = { ...stored };
+    if (Object.keys(stored).length === 0) {
+      for (const section of SECTIONS) next[section.id] = true;
+    }
     const activeSection = SECTIONS.find((section) =>
       section.items.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)),
     );
-    const next: Record<string, boolean> = { ...stored };
     if (activeSection) next[activeSection.id] = true;
-    // If nothing is set yet, expand Drift by default
-    if (Object.keys(stored).length === 0 && !activeSection) next.drift = true;
     setExpanded(next);
     setHydrated(true);
   }, [pathname]);
@@ -174,15 +176,13 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (
     <aside className="sidebar-shell">
       <Link href="/dashboard" className="sidebar-brand">
-        <Image
-          src="/delivera-admin-icon.png"
-          alt="Delívera"
-          width={32}
-          height={32}
-          className="sidebar-brand-mark"
-          priority
-        />
-        <span className="sidebar-brand-text">Delívera.</span>
+        <span className="sidebar-brand-mark" aria-hidden>d</span>
+        <span>
+          <span className="sidebar-brand-text">
+            del<em>í</em>vera
+          </span>
+          <span className="sidebar-brand-sub">Admin</span>
+        </span>
       </Link>
 
       <nav className="flex-1 overflow-y-auto" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -195,17 +195,15 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
                 onClick={() => toggleSection(section.id)}
                 className="sidebar-section-header"
               >
-                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <ChevronRight
-                    size={11}
-                    style={{
-                      transition: "transform 150ms ease",
-                      transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
-                    }}
-                  />
-                  {section.label}
-                </span>
-                <span className="sidebar-section-count">{section.items.length}</span>
+                <span>{section.label}</span>
+                <ChevronRight
+                  size={11}
+                  style={{
+                    transition: "transform 150ms ease",
+                    transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
+                    opacity: 0.6,
+                  }}
+                />
               </button>
 
               {isOpen && (
@@ -220,7 +218,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
                         href={item.href}
                         className={cn("nav-link", active && "nav-link-active")}
                       >
-                        <Icon size={14} />
+                        <Icon size={16} />
                         <span>{item.label}</span>
                       </Link>
                     );

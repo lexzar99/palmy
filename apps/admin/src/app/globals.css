@@ -1,11 +1,56 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
+
+  /* ── Color system: ljust, luftigt tema med orange (#F0531C) som enda
+     varumärkesfärg. Neutralerna bär gränssnittet; orange reserveras för
+     primärknapp, aktiv nav, fokus och nyckeltal. Semantiska färger
+     (success/danger/warning/info) bär status. ── */
+  --bg-page: #f6f7f9;
+  --bg-primary: #ffffff;
+  --bg-secondary: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-panel-strong: #ffffff;
+  --bg-panel-muted: rgba(17, 17, 19, 0.035);
+  --bg-panel-soft: rgba(17, 17, 19, 0.022);
+  --bg-hover: rgba(17, 17, 19, 0.04);
+
+  --border-subtle: rgba(17, 17, 19, 0.08);
+  --border-strong: rgba(17, 17, 19, 0.14);
+  --row-divider: rgba(17, 17, 19, 0.055);
+
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #9ca3af;
+
+  /* Accent (orange) — ENDA varumärkesfärgen */
+  --accent: #f0531c;          /* primärknapp, aktiv, fokus, nyckeltal */
+  --accent-strong: #cc4012;   /* hover/tryckt */
+  --accent-deep: #cc4012;
+  --accent-light: #fb7a4a;    /* ljusa stopp, sparkline */
+  --accent-ink: #b23c12;      /* orange som läsbar text/länk på vitt */
+  --accent-soft: #fff0ea;     /* mjuk yta: aktiv nav, soft-knapp, badge */
+  --accent-tintbar: #f1e4db;  /* inaktiva staplar i diagram */
+  --accent-fg: #ffffff;
+
+  --success: #16a34a;  --success-text: #15803d; --success-soft: #e6f1e8;
+  --danger: #dc2626;   --danger-text: #b91c1c;  --danger-soft: rgba(220, 38, 38, 0.05);
+  --warning: #b45309;  --warning-text: #b45309; --warning-soft: rgba(180, 83, 9, 0.1);
+  --info: #2563eb;     --info-text: #1d4ed8;    --info-soft: rgba(37, 99, 235, 0.1);
+
+  --shadow-soft: 0 1px 2px rgba(17, 17, 19, 0.04);
+  --shadow-panel: 0 10px 30px rgba(17, 17, 19, 0.1);
+  --shadow-lift: 0 12px 34px rgba(17, 17, 19, 0.16);
+  --shadow-cta: 0 6px 14px rgba(240, 83, 28, 0.3);
+}
+
+/* ── Mörkt tema — valfritt alternativ via data-theme="dark" på <html>
+   (sätts av inline-skript i layouten innan paint, så ingen tema-flimmer).
+   Orange-accenten behålls; bara neutralerna mörknas. ── */
+:root[data-theme="dark"] {
   color-scheme: dark;
 
-  /* ── Color system: deep neutral + monochrome (white) accent ──
-     Delívera. — svartvitt dark-tema. Accenten är vit/near-white istället för
-     lime; bara semantiska färger (success/danger/warning/info) bär färg. */
   --bg-page: #08090b;
   --bg-primary: #0b0c0f;
   --bg-secondary: #101114;
@@ -17,69 +62,38 @@
 
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-strong: rgba(255, 255, 255, 0.12);
+  --row-divider: rgba(255, 255, 255, 0.06);
 
   --text-primary: #fafafa;
   --text-secondary: #a1a1aa;
-  --text-muted: #52525b;
+  --text-muted: #71717a;
 
-  --accent: #f4f4f5;
-  --accent-strong: #ffffff;
-  --accent-soft: rgba(255, 255, 255, 0.10);
-  --accent-fg: #08090b;
+  --accent: #f0531c;
+  --accent-strong: #fb7a4a;
+  --accent-deep: #cc4012;
+  --accent-light: #fb7a4a;
+  --accent-ink: #fb9a72;
+  --accent-soft: rgba(240, 83, 28, 0.14);
+  --accent-tintbar: rgba(240, 83, 28, 0.18);
+  --accent-fg: #ffffff;
 
-  --success: #4ade80;
-  --danger: #fb7185;
-  --warning: #fbbf24;
-  --info: #60a5fa;
+  --success: #4ade80;  --success-text: #86efac; --success-soft: rgba(74, 222, 128, 0.1);
+  --danger: #fb7185;   --danger-text: #fda4af;  --danger-soft: rgba(251, 113, 133, 0.08);
+  --warning: #fbbf24;  --warning-text: #fcd34d; --warning-soft: rgba(251, 191, 36, 0.1);
+  --info: #60a5fa;     --info-text: #93c5fd;    --info-soft: rgba(96, 165, 250, 0.1);
 
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-panel: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
   --shadow-lift: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+  --shadow-cta: 0 6px 16px rgba(240, 83, 28, 0.35);
 }
 
-/* ── Ljust tema — aktiveras via data-theme="light" på <html> (sätts av en
-   inline-skript i layouten innan paint, så ingen tema-flimmer). Monokromt:
-   accenten inverteras till nära-svart, semantiska färger mörknas för kontrast
-   mot ljus bakgrund. Allt annat flippar automatiskt via tokens. ── */
-:root[data-theme="light"] {
-  color-scheme: light;
-
-  --bg-page: #f6f7f9;
-  --bg-primary: #ffffff;
-  --bg-secondary: #ffffff;
-  --bg-panel: #ffffff;
-  --bg-panel-strong: #ffffff;
-  --bg-panel-muted: rgba(9, 9, 11, 0.035);
-  --bg-panel-soft: rgba(9, 9, 11, 0.022);
-  --bg-hover: rgba(9, 9, 11, 0.05);
-
-  --border-subtle: rgba(9, 9, 11, 0.09);
-  --border-strong: rgba(9, 9, 11, 0.16);
-
-  --text-primary: #18181b;
-  --text-secondary: #52525b;
-  --text-muted: #9ca3af;
-
-  --accent: #18181b;
-  --accent-strong: #000000;
-  --accent-soft: rgba(9, 9, 11, 0.07);
-  --accent-fg: #ffffff;
-
-  --success: #16a34a;
-  --danger: #dc2626;
-  --warning: #b45309;
-  --info: #2563eb;
-
-  --shadow-soft: 0 1px 2px rgba(9, 9, 11, 0.06);
-  --shadow-panel: 0 10px 30px -12px rgba(9, 9, 11, 0.12);
-  --shadow-lift: 0 24px 50px -20px rgba(9, 9, 11, 0.16);
-}
-
-/* Ljust tema: semantiska badge-färger mörknas för kontrast mot ljus tint. */
-:root[data-theme="light"] .badge-success { background: rgba(22, 163, 74, 0.1); color: #15803d; border-color: rgba(22, 163, 74, 0.22); }
-:root[data-theme="light"] .badge-danger  { background: rgba(220, 38, 38, 0.09); color: #b91c1c; border-color: rgba(220, 38, 38, 0.2); }
-:root[data-theme="light"] .badge-warning { background: rgba(180, 83, 9, 0.1); color: #b45309; border-color: rgba(180, 83, 9, 0.22); }
-:root[data-theme="light"] .badge-info    { background: rgba(37, 99, 235, 0.09); color: #1d4ed8; border-color: rgba(37, 99, 235, 0.2); }
+/* Semantiska badge-färger via tokens (gäller bägge teman). */
+.badge-success { background: var(--success-soft); color: var(--success-text); border-color: color-mix(in srgb, var(--success) 22%, transparent); }
+.badge-danger  { background: var(--danger-soft);  color: var(--danger-text);  border-color: color-mix(in srgb, var(--danger) 20%, transparent); }
+.badge-warning { background: var(--warning-soft); color: var(--warning-text); border-color: color-mix(in srgb, var(--warning) 22%, transparent); }
+.badge-info    { background: var(--info-soft);    color: var(--info-text);    border-color: color-mix(in srgb, var(--info) 20%, transparent); }
+.badge-accent  { background: var(--accent-soft);  color: var(--accent-ink);   border-color: color-mix(in srgb, var(--accent) 18%, transparent); }
 
 * {
   box-sizing: border-box;
@@ -134,7 +148,7 @@ button {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 252px minmax(0, 1fr);
   background: var(--bg-page);
 }
 
@@ -142,9 +156,9 @@ button {
   position: sticky;
   top: 0;
   height: 100vh;
-  padding: 16px 12px 12px;
+  padding: 18px 14px 14px;
   border-right: 1px solid var(--border-subtle);
-  background: var(--bg-page);
+  background: var(--bg-panel);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -176,16 +190,50 @@ button {
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  padding-bottom: 24px;
+  padding-bottom: 20px;
   border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.page-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+
+.page-breadcrumb a:hover {
+  color: var(--text-secondary);
 }
 
 .page-title {
-  font-size: 36px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+
+.page-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 11px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.page-back:hover {
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -196,24 +244,58 @@ button {
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 4px 8px 16px;
+  gap: 11px;
+  padding: 6px 8px 18px;
   margin-bottom: 4px;
 }
 
 .sidebar-brand-mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  object-fit: cover;
-  display: block;
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  background: #111113;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.sidebar-brand-mark::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .sidebar-brand-text {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  line-height: 1;
   color: var(--text-primary);
+}
+
+.sidebar-brand-text em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.sidebar-brand-sub {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-top: 2px;
 }
 
 .sidebar-section-header {
@@ -221,16 +303,16 @@ button {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 10px 10px;
-  margin-top: 8px;
+  padding: 8px 10px;
+  margin-top: 10px;
   border-radius: 8px;
   background: transparent;
   border: 0;
   color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.13em;
   transition: color 120ms ease;
 }
 
@@ -264,13 +346,13 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 40px;
-  padding: 0 12px 0 28px;
-  border-radius: 8px;
+  min-height: 38px;
+  padding: 0 12px 0 12px;
+  border-radius: 9px;
   border: 0;
   color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13.5px;
+  font-weight: 600;
   letter-spacing: -0.005em;
   transition: background 120ms ease, color 120ms ease;
   text-align: left;
@@ -292,23 +374,23 @@ button {
 
 .nav-link-active {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
 }
 
 .nav-link-active::before {
   content: "";
   position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 0;
+  top: 7px;
+  bottom: 7px;
   width: 3px;
-  height: 15px;
-  border-radius: 999px;
+  border-radius: 2px;
   background: var(--accent);
 }
 
 .nav-link-active svg {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .sidebar-footer {
@@ -321,14 +403,14 @@ button {
 .cmdk-trigger {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
+  padding: 9px 11px;
+  border-radius: 11px;
   border: 1px solid var(--border-subtle);
-  background: var(--bg-panel-muted);
-  color: var(--text-secondary);
-  font-size: 13px;
+  background: var(--bg-page);
+  color: var(--text-muted);
+  font-size: 12.5px;
   font-weight: 500;
   transition: border-color 120ms ease, background 120ms ease;
 }
@@ -360,20 +442,22 @@ button {
 .surface {
   border: 1px solid var(--border-subtle);
   background: var(--bg-panel);
-  border-radius: 14px;
+  border-radius: 16px;
+  box-shadow: var(--shadow-soft);
 }
 
 .surface-muted {
   border: 1px solid var(--border-subtle);
   background: var(--bg-panel-soft);
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .metric-card {
   border: 1px solid var(--border-subtle);
   background: var(--bg-panel);
-  border-radius: 14px;
-  padding: 24px;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: var(--shadow-soft);
   transition: border-color 120ms ease;
 }
 
@@ -386,23 +470,23 @@ button {
    ───────────────────────────────────────────── */
 
 .section-title {
-  font-size: 24px;
+  font-size: 18px;
   line-height: 1.2;
-  font-weight: 700;
-  letter-spacing: -0.025em;
+  font-weight: 800;
+  letter-spacing: -0.3px;
   color: var(--text-primary);
 }
 
 .section-subtitle {
-  margin-top: 6px;
-  color: var(--text-secondary);
+  margin-top: 4px;
+  color: var(--text-muted);
   line-height: 1.55;
-  font-size: 14px;
+  font-size: 12.5px;
 }
 
 .eyebrow {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--text-muted);
@@ -427,16 +511,17 @@ button {
   min-height: 40px;
   padding: 0 20px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 11px;
   background: var(--accent);
   color: var(--accent-fg);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.005em;
+  box-shadow: var(--shadow-cta);
 }
 
 .button-primary:hover {
-  background: var(--accent-strong);
+  background: var(--accent-deep);
 }
 
 .button-primary:active {
@@ -457,18 +542,19 @@ button {
   gap: 8px;
   min-height: 40px;
   padding: 0 18px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .button-secondary:hover,
 .icon-button:hover {
   border-color: var(--border-strong);
   background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .button-danger {
@@ -495,13 +581,14 @@ button {
 .select,
 .textarea {
   width: 100%;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-panel-soft);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
   color: var(--text-primary);
   border-radius: 10px;
   padding: 11px 14px;
   outline: none;
   font-size: 14px;
+  font-weight: 500;
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
@@ -558,29 +645,8 @@ button {
   color: var(--text-secondary);
 }
 
-.badge-success {
-  background: rgba(74, 222, 128, 0.08);
-  color: #86efac;
-  border-color: rgba(74, 222, 128, 0.15);
-}
-
-.badge-danger {
-  background: rgba(251, 113, 133, 0.08);
-  color: #fda4af;
-  border-color: rgba(251, 113, 133, 0.18);
-}
-
-.badge-warning {
-  background: rgba(251, 191, 36, 0.08);
-  color: #fcd34d;
-  border-color: rgba(251, 191, 36, 0.18);
-}
-
-.badge-info {
-  background: rgba(96, 165, 250, 0.08);
-  color: #93c5fd;
-  border-color: rgba(96, 165, 250, 0.18);
-}
+/* Semantiska toner definieras token-baserat högre upp (.badge-success m.fl.)
+   så de följer aktivt tema. */
 
 /* ─────────────────────────────────────────────
    Data table
@@ -598,7 +664,7 @@ button {
 .data-table th,
 .data-table td {
   padding: 14px 16px;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--row-divider);
   text-align: left;
   vertical-align: middle;
   font-size: 13px;
@@ -606,11 +672,12 @@ button {
 
 .data-table th {
   font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
   background: transparent;
+  border-bottom-color: var(--border-subtle);
 }
 
 .data-table tbody tr:hover {
@@ -694,6 +761,141 @@ button {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+/* ─────────────────────────────────────────────
+   KPI metric card — label · value+sparkline · delta
+   ───────────────────────────────────────────── */
+
+.kpi-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.kpi-value {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.kpi-value small {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.kpi-delta {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.kpi-delta.up { color: var(--success-text); }
+.kpi-delta.down { color: var(--success-text); }
+.kpi-delta.flat { color: var(--text-secondary); }
+
+/* ─────────────────────────────────────────────
+   Segmented control (7d / 30d / 90d, filter pills)
+   ───────────────────────────────────────────── */
+
+.segmented {
+  display: inline-flex;
+  gap: 0;
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-page);
+}
+
+.segmented button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 11px;
+  border-radius: 7px;
+  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.segmented button.is-active {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(17, 17, 19, 0.1);
+}
+
+/* ─────────────────────────────────────────────
+   Filter chips (Alla / Öppna / Stängda …)
+   ───────────────────────────────────────────── */
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.chip:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.chip.is-active {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-fg);
+}
+
+/* ─────────────────────────────────────────────
+   Sticky save bar (editorer)
+   ───────────────────────────────────────────── */
+
+.save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+.save-bar-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.save-bar-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 /* ─────────────────────────────────────────────

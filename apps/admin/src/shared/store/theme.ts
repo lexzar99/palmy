@@ -7,11 +7,11 @@ export type Theme = "dark" | "light";
 export const THEME_KEY = "admin:theme";
 
 export function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   try {
-    return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+    return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
   } catch {
-    return "dark";
+    return "light";
   }
 }
 

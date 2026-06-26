@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
 import { cn } from "@/shared/utils/cn";
 
 export function Surface({ className, children }: { className?: string; children: React.ReactNode }) {
@@ -9,14 +9,30 @@ export function Surface({ className, children }: { className?: string; children:
 
 export function PageHeader({
   title,
+  breadcrumb,
+  onBack,
   actions,
 }: {
   title: string;
+  /** Optional breadcrumb shown above the title, e.g. "Restauranger / Pizzeria Roma". */
+  breadcrumb?: React.ReactNode;
+  /** When set, renders a back-arrow button to the left of the title. */
+  onBack?: () => void;
   actions?: React.ReactNode;
 }) {
   return (
     <div className="page-header">
-      <h1 className="page-title">{title}</h1>
+      <div className="flex items-center gap-3">
+        {onBack ? (
+          <button type="button" className="page-back" onClick={onBack} aria-label="Tillbaka">
+            <ChevronLeft size={18} />
+          </button>
+        ) : null}
+        <div>
+          {breadcrumb ? <div className="page-breadcrumb">{breadcrumb}</div> : null}
+          <h1 className="page-title">{title}</h1>
+        </div>
+      </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
   );
@@ -49,17 +65,38 @@ export function MetricCard({
   label,
   value,
   detail,
+  sparkline,
 }: {
   label: string;
   value: React.ReactNode;
   detail?: React.ReactNode;
+  /** Optional decorative SVG (sparkline) shown to the right of the value. */
+  sparkline?: React.ReactNode;
 }) {
   return (
     <article className="metric-card">
-      <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">{label}</p>
-      <p className="mt-4 text-[46px] font-bold tracking-[-0.035em] text-[var(--text-primary)] leading-[1.05]">{value}</p>
-      {detail ? <div className="mt-3 text-[14px] text-[var(--text-secondary)]">{detail}</div> : null}
+      <p className="kpi-label">{label}</p>
+      <div className="mt-2.5 flex items-end justify-between gap-3">
+        <p className="kpi-value">{value}</p>
+        {sparkline ? <div className="shrink-0">{sparkline}</div> : null}
+      </div>
+      {detail ? <div className="mt-1.5 text-[12px] font-medium text-[var(--text-secondary)]">{detail}</div> : null}
     </article>
+  );
+}
+
+/** Small orange/green sparkline for KPI cards. `tone` picks the stroke colour. */
+export function Sparkline({ points, tone = "accent" }: { points: string; tone?: "accent" | "success" }) {
+  return (
+    <svg width="64" height="30" viewBox="0 0 64 30" fill="none" aria-hidden>
+      <polyline
+        points={points}
+        stroke={tone === "success" ? "var(--success)" : "var(--accent)"}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -198,14 +235,14 @@ export function Toggle({ checked, onChange, disabled }: { checked: boolean; onCh
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
       className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50",
-        checked ? "border-transparent bg-[var(--accent)]" : "border-[var(--border-strong)] bg-transparent",
+        "relative inline-flex h-[24px] w-[44px] shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
+        checked ? "bg-[var(--accent)]" : "bg-[#d8d8d4]",
       )}
     >
       <span
         className={cn(
-          "inline-block h-4 w-4 rounded-full transition-transform",
-          checked ? "translate-x-[22px] bg-[var(--accent-fg)]" : "translate-x-[3px] bg-[var(--text-secondary)]",
+          "inline-block h-[18px] w-[18px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform",
+          checked ? "translate-x-[23px]" : "translate-x-[3px]",
         )}
       />
     </button>
