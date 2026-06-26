@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, MapPin, Save, Store } from "lucide-react";
+import { Loader2, Save, Store } from "lucide-react";
 import ZoneEditor from "@/modules/zones/components/zone-editor";
 import { parseZones, serializeZones, type ZoneRecord } from "@/modules/zones/api";
 import { getRestaurantDetail, patchRestaurant, restaurantDetailQueryKey } from "@/modules/restaurants/api";
@@ -104,15 +104,6 @@ export function RestaurantZonePage({ restaurantId }: Props) {
 
   const restaurant = restaurantQuery.data;
   const hasCoords = restaurant.latitude != null && restaurant.longitude != null;
-  const zonesSummary = zones.length === 0
-    ? "Inga zoner — använder default radie runt restaurangen"
-    : `${zones.length} zon${zones.length !== 1 ? "er" : ""} ritade`;
-
-  // Decreasing-opacity orange square chips, like the prototype (full, 0.55, 0.3, …).
-  const chipColor = (index: number) => {
-    const opacities = [1, 0.55, 0.3];
-    return `rgba(240, 83, 28, ${opacities[index] ?? 0.3})`;
-  };
 
   return (
     <div className="page-stack">
@@ -166,79 +157,16 @@ export function RestaurantZonePage({ restaurantId }: Props) {
         </Surface>
       )}
 
-      {/* ── Two-pane: karta (vänster) + zon-sammanfattning (höger) ───── */}
-      <Surface className="overflow-hidden p-0">
-        <div className="flex flex-col xl:flex-row">
-          {/* LEFT: existing Google Maps zone editor (drawing/editing intact). */}
-          <div className="min-w-0 flex-1 border-b border-[var(--border-subtle)] p-4 xl:border-b-0 xl:border-r">
-            <ZoneEditor
-              zones={zones}
-              onChange={handleZonesChange}
-              cityName={restaurant.name}
-              centerLat={restaurant.latitude}
-              centerLng={restaurant.longitude}
-              mapHeight={780}
-            />
-          </div>
-
-          {/* RIGHT: ~380px summary column. */}
-          <aside className="w-full shrink-0 bg-[var(--bg-page)] p-5 xl:w-[380px]">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-[14px] font-extrabold">Zoner</p>
-              {restaurant.address && (
-                <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--text-muted)]">
-                  <MapPin size={11} className="shrink-0 opacity-70" />
-                  {zonesSummary}
-                </span>
-              )}
-            </div>
-
-            {zones.length === 0 ? (
-              <div className="surface px-4 py-8 text-center">
-                <p className="text-sm font-bold">Inga zoner ännu</p>
-                <p className="mt-1.5 text-xs text-[var(--text-secondary)]">
-                  Rita en zon på kartan med Circle eller Polygon. Avgift och min. order sätts per zon.
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-[11px]">
-                {zones.map((zone, index) => (
-                  <div
-                    key={zone.id}
-                    className="surface p-[14px]"
-                    style={index === 0 ? { borderColor: "rgba(240, 83, 28, 0.3)" } : undefined}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 text-[14px] font-extrabold">
-                        <span
-                          className="h-[11px] w-[11px] rounded-[3px]"
-                          style={{ background: zone.color || chipColor(index) }}
-                        />
-                        Zon {index + 1} · {zone.name || "Namnlös"}
-                      </span>
-                      {zone.type === "circle" && zone.radiusKm ? (
-                        <span className="text-[11.5px] font-bold text-[var(--text-muted)]">{zone.radiusKm} km</span>
-                      ) : (
-                        <span className="text-[11.5px] font-bold text-[var(--text-muted)]">Polygon</span>
-                      )}
-                    </div>
-                    <div className="mt-[11px] flex gap-[18px]">
-                      <span>
-                        <span className="block text-[11px] font-semibold text-[var(--text-muted)]">Avgift</span>
-                        <span className="text-[15px] font-extrabold">{zone.deliveryFee} kr</span>
-                      </span>
-                      <span>
-                        <span className="block text-[11px] font-semibold text-[var(--text-muted)]">Min. order</span>
-                        <span className="text-[15px] font-extrabold">{zone.minOrder} kr</span>
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </aside>
-        </div>
-      </Surface>
+      {/* Karta + zon-panel (ZoneEditor sköter ritning av cirkel/polygon och
+          redigering per zon — designens layout ligger i komponenten). */}
+      <ZoneEditor
+        zones={zones}
+        onChange={handleZonesChange}
+        cityName={restaurant.name}
+        centerLat={restaurant.latitude}
+        centerLng={restaurant.longitude}
+        mapHeight={720}
+      />
     </div>
   );
 }

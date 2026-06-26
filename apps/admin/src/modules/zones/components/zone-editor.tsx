@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Circle as CircleIcon, Eye, EyeOff, Loader2, MapPin, Navigation2, PenLine, Plus, Search, Trash2, X, ZoomIn } from "lucide-react";
+import { Circle as CircleIcon, Loader2, MapPin, Navigation2, PenLine, Search, Trash2, X, ZoomIn } from "lucide-react";
 import type { ZoneRecord } from "@/modules/zones/api";
+import { Toggle } from "@/shared/components/ui";
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "";
 
@@ -18,17 +19,20 @@ type MapsState = "idle" | "loading" | "ready" | "auth_error" | "load_error";
 let mapsState: MapsState = "idle";
 const mapsWaiters: Array<{ ok: () => void; err: (error: unknown) => void }> = [];
 
+// Distinkta färger per zon så ringarna går att skilja åt på kartan (panelens
+// fyrkant använder samma colorAt(index), så de matchar). Orange är UI-temat,
+// men zonerna behöver var sin egen färg.
 const palette = [
-  { main: "#22c55e" },
-  { main: "#3b82f6" },
-  { main: "#f59e0b" },
-  { main: "#ef4444" },
-  { main: "#8b5cf6" },
-  { main: "#06b6d4" },
-  { main: "#ec4899" },
-  { main: "#f97316" },
-  { main: "#84cc16" },
-  { main: "#a855f7" },
+  { main: "#F0531C" }, // orange
+  { main: "#2563EB" }, // blå
+  { main: "#16A34A" }, // grön
+  { main: "#9333EA" }, // lila
+  { main: "#0891B2" }, // cyan
+  { main: "#DB2777" }, // rosa
+  { main: "#CA8A04" }, // guld
+  { main: "#DC2626" }, // röd
+  { main: "#65A30D" }, // lime
+  { main: "#4F46E5" }, // indigo
 ];
 
 const colorAt = (index: number) => palette[index % palette.length];
@@ -246,12 +250,12 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
       zoom: 12,
       mapTypeId: "roadmap",
       styles: [
-        { elementType: "geometry", stylers: [{ color: "#12121e" }] },
-        { elementType: "labels.text.fill", stylers: [{ color: "#8a9bb0" }] },
-        { elementType: "labels.text.stroke", stylers: [{ color: "#12121e" }] },
-        { featureType: "road", elementType: "geometry", stylers: [{ color: "#232336" }] },
-        { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#2e2e46" }] },
-        { featureType: "water", elementType: "geometry", stylers: [{ color: "#0d1b2a" }] },
+        { elementType: "geometry", stylers: [{ color: "#f3f4f1" }] },
+        { elementType: "labels.text.fill", stylers: [{ color: "#9ca3af" }] },
+        { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
+        { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+        { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#f1e4db" }] },
+        { featureType: "water", elementType: "geometry", stylers: [{ color: "#dbe6ea" }] },
         { featureType: "poi", stylers: [{ visibility: "off" }] },
         { featureType: "transit", stylers: [{ visibility: "off" }] },
       ],
@@ -507,8 +511,8 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex min-w-[220px] flex-1">
-          <div className="flex flex-1 items-center gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-4 py-2.5 transition-all focus-within:border-[var(--accent)]">
-            <Search size={13} className="shrink-0 text-[var(--text-secondary)]" />
+          <div className="flex flex-1 items-center gap-2 rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-4 py-2.5 transition-colors focus-within:border-[var(--accent)]">
+            <Search size={14} className="shrink-0 text-[var(--text-muted)]" />
             <input
               value={search}
               onChange={(event) => handleSearchChange(event.target.value)}
@@ -518,19 +522,19 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
                   geocodeSearch();
                 }
               }}
-              placeholder={cityName ? `Search address in ${cityName}` : "Search city or address"}
-              className="flex-1 bg-transparent text-xs font-bold text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/50"
+              placeholder={cityName ? `Sök adress i ${cityName}` : "Sök stad eller adress"}
+              className="flex-1 bg-transparent text-[13px] font-semibold text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
             />
-            {loadingSuggestions ? <Loader2 size={11} className="animate-spin text-[var(--text-secondary)]" /> : null}
+            {loadingSuggestions ? <Loader2 size={12} className="animate-spin text-[var(--text-muted)]" /> : null}
           </div>
           {suggestions.length > 0 ? (
-            <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] shadow-2xl">
+            <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-[12px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] shadow-[var(--shadow-lift)]">
               {suggestions.map((suggestion) => (
-                <button key={suggestion.place_id} type="button" onClick={() => void selectSuggestion(suggestion.place_id, suggestion.description)} className="flex w-full items-center gap-3 border-b border-[var(--border-subtle)] px-4 py-3 text-left transition-all hover:bg-white/5 last:border-none">
-                  <MapPin size={11} className="shrink-0 text-[var(--accent-strong)]" />
+                <button key={suggestion.place_id} type="button" onClick={() => void selectSuggestion(suggestion.place_id, suggestion.description)} className="flex w-full items-center gap-3 border-b border-[var(--row-divider)] px-4 py-3 text-left transition-colors last:border-none hover:bg-[var(--bg-hover)]">
+                  <MapPin size={12} className="shrink-0 text-[var(--accent-ink)]" />
                   <div>
-                    <span className="block text-[11px] font-bold text-[var(--text-primary)]">{suggestion.description.split(",")[0]}</span>
-                    <span className="text-[10px] text-[var(--text-secondary)]">{suggestion.description.split(",").slice(1).join(",").trim()}</span>
+                    <span className="block text-[12px] font-bold text-[var(--text-primary)]">{suggestion.description.split(",")[0]}</span>
+                    <span className="text-[11px] text-[var(--text-muted)]">{suggestion.description.split(",").slice(1).join(",").trim()}</span>
                   </div>
                 </button>
               ))}
@@ -538,174 +542,224 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
           ) : null}
         </div>
 
-        <button type="button" onClick={geocodeSearch} disabled={searching || !search.trim() || !mapsReady} className="rounded-2xl bg-[var(--accent)] px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--accent-fg)] transition-all hover:bg-[var(--accent-strong)] disabled:opacity-40">
-          {searching ? <Loader2 size={12} className="inline animate-spin" /> : <Navigation2 size={12} className="inline" />} Set center
+        <button type="button" onClick={geocodeSearch} disabled={searching || !search.trim() || !mapsReady} className="inline-flex items-center gap-1.5 rounded-[11px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3.5 py-2.5 text-[13px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40">
+          {searching ? <Loader2 size={14} className="animate-spin" /> : <Navigation2 size={14} />} Sätt center
         </button>
 
         {drawing ? (
-          <button type="button" onClick={cancelDraw} className="rounded-2xl bg-[#ef6b73] px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-white">
-            <X size={12} className="inline" /> Cancel
+          <button type="button" onClick={cancelDraw} className="inline-flex items-center gap-1.5 rounded-[11px] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[var(--danger-soft)] px-3.5 py-2.5 text-[13px] font-bold text-[var(--danger-text)]">
+            <X size={14} /> Avbryt
           </button>
         ) : (
           <>
-            <button type="button" onClick={() => startDraw("circle")} disabled={!mapsReady} className="rounded-2xl bg-[#3b82f6] px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-white disabled:opacity-40">
-              <Plus size={11} className="mr-1 inline" /><CircleIcon size={10} className="mr-1 inline" />Circle
+            <button type="button" onClick={() => startDraw("circle")} disabled={!mapsReady} className="inline-flex items-center gap-1.5 rounded-[11px] bg-[var(--accent)] px-3.5 py-2.5 text-[13px] font-extrabold text-[var(--accent-fg)] shadow-[var(--shadow-cta)] transition-colors hover:bg-[var(--accent-deep)] disabled:opacity-40">
+              <CircleIcon size={14} /> Cirkel
             </button>
-            <button type="button" onClick={() => startDraw("polygon")} disabled={!mapsReady} className="rounded-2xl bg-[#8b5cf6] px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-white disabled:opacity-40">
-              <Plus size={11} className="mr-1 inline" /><PenLine size={10} className="mr-1 inline" />Polygon
+            <button type="button" onClick={() => startDraw("polygon")} disabled={!mapsReady} className="inline-flex items-center gap-1.5 rounded-[11px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3.5 py-2.5 text-[13px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40">
+              <PenLine size={14} /> Polygon
             </button>
           </>
         )}
 
         {zones.length > 0 ? (
-          <button type="button" onClick={fitBounds} disabled={!mapsReady} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] transition-all hover:text-[var(--text-primary)]">
-            <ZoomIn size={12} className="mr-1 inline" /> Fit view
+          <button type="button" onClick={fitBounds} disabled={!mapsReady} className="inline-flex items-center gap-1.5 rounded-[11px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3.5 py-2.5 text-[13px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40">
+            <ZoomIn size={14} /> Anpassa
           </button>
         ) : null}
       </div>
 
       <div className="flex gap-4" style={{ minHeight: mapHeight }}>
-        <div className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-[var(--border-subtle)]" style={{ height: mapHeight }}>
+        <div className="relative min-w-0 flex-1 overflow-hidden rounded-[14px] border border-[var(--border-subtle)]" style={{ height: mapHeight }}>
           {!mapsReady ? (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[var(--bg-primary)]">
-              <Loader2 size={24} className="animate-spin text-[var(--accent-strong)]" />
-              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">Loading Google Maps</span>
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[var(--bg-page)]">
+              <Loader2 size={24} className="animate-spin text-[var(--accent)]" />
+              <span className="text-[11px] font-bold text-[var(--text-muted)]">Laddar Google Maps</span>
             </div>
           ) : null}
           <div ref={mapRef} className="h-full w-full" />
           {drawing ? (
-            <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-2xl px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-white" style={{ background: drawing === "circle" ? "rgba(59,130,246,0.92)" : "rgba(139,92,246,0.92)" }}>
-              {drawing === "circle" ? "Click and drag to draw a circle" : "Click points and double-click to finish the polygon"}
+            <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-full bg-[var(--accent)] px-5 py-2.5 text-[12px] font-extrabold text-white shadow-[var(--shadow-cta)]">
+              {drawing === "circle" ? "Klicka och dra för att rita en cirkel" : "Klicka punkter, dubbelklicka för att avsluta polygonen"}
             </div>
           ) : null}
           {mapsReady ? (
-            <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 rounded-xl border border-[var(--accent-soft)] bg-[rgba(10,11,14,0.9)] px-3 py-2 backdrop-blur-sm">
-              <div className="h-3 w-3 rounded-full border-2 border-white bg-[var(--accent)]" />
-              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--accent-strong)]">City center</span>
+            <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 rounded-full bg-[var(--bg-panel)] px-3.5 py-2 shadow-[0_2px_8px_rgba(17,17,19,0.12)]">
+              <div className="h-2.5 w-2.5 rounded-full border-2 border-white bg-[#111113]" />
+              <span className="text-[11.5px] font-bold text-[var(--text-secondary)]">Restaurangens center</span>
             </div>
           ) : null}
           {zones.length === 0 && !drawing && mapsReady ? (
-            <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-center">
-              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(15,19,27,0.85)] px-5 py-3 backdrop-blur-sm">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">Draw the first delivery zone</p>
+            <div className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2 text-center">
+              <div className="rounded-full bg-[var(--bg-panel)] px-4 py-2 shadow-[0_2px_8px_rgba(17,17,19,0.12)]">
+                <p className="text-[12px] font-bold text-[var(--text-secondary)]">Rita din första leveranszon med Cirkel eller Polygon</p>
               </div>
             </div>
           ) : null}
         </div>
 
-        <div className="flex w-72 shrink-0 flex-col gap-2 overflow-y-auto pr-0.5" style={{ maxHeight: mapHeight }}>
-          {zones.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[var(--border-subtle)] p-6 text-center">
-              <MapPin size={22} className="text-[var(--text-secondary)]/40" />
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]/60">Draw a zone on the map to start editing</p>
-            </div>
-          ) : (
-            zones.map((zone, index) => {
-              const selected = zone.id === selectedId;
-              const color = colorAt(index).main;
+        <div className="flex w-[340px] shrink-0 flex-col overflow-y-auto rounded-[14px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5" style={{ maxHeight: mapHeight }}>
+          {/* Vald zons editor */}
+          {selectedZone ? (
+            <div className="mb-5">
+              <input
+                className="w-full bg-transparent text-[16px] font-extrabold tracking-[-0.3px] text-[var(--text-primary)] outline-none"
+                value={selectedZone.name}
+                onChange={(event) => updateZone(selectedZone.id, { name: event.target.value })}
+                aria-label="Zonnamn"
+              />
 
-              return (
-                <div key={zone.id} className="cursor-pointer rounded-2xl border transition-all" style={selected ? { borderColor: `${color}80`, backgroundColor: `${color}15` } : { borderColor: "var(--border-subtle)", backgroundColor: "transparent" }} onClick={() => setSelectedId(selected ? null : zone.id)}>
-                  <div className="flex items-center gap-2.5 px-3.5 pb-2 pt-3.5">
-                    <div className="h-3 w-3 shrink-0 rounded-full border-2 border-white/20" style={{ backgroundColor: color }} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[11px] font-black text-[var(--text-primary)]">{zone.name}</p>
-                      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">{zone.type === "circle" ? `Circle${zone.radiusKm ? ` • ${zone.radiusKm} km` : ""}` : `Polygon • ${Math.max((zone.polygon?.length || 1) - 1, 0)} pts`}{!zone.isActive ? <span className="ml-1 text-[#ef6b73]">• inactive</span> : null}</p>
-                    </div>
-                    <div className="flex items-center gap-0.5">
-                      <button type="button" title={zone.isActive ? "Disable" : "Enable"} onClick={(event) => { event.stopPropagation(); updateZone(zone.id, { isActive: !zone.isActive }); }} className="rounded-lg p-1.5 text-[var(--text-secondary)] transition-all hover:bg-white/10 hover:text-[var(--text-primary)]">
-                        {zone.isActive ? <Eye size={11} /> : <EyeOff size={11} />}
-                      </button>
-                      <button type="button" title="Delete zone" onClick={(event) => { event.stopPropagation(); removeZone(zone.id); }} className="rounded-lg p-1.5 text-[var(--text-secondary)] transition-all hover:bg-[rgba(239,107,115,0.16)] hover:text-[#ef6b73]">
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
+              {selectedZone.type === "circle" ? (
+                <div className="mt-4">
+                  <p className="eyebrow mb-2">Avstånd (radie)</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0.1}
+                      step={0.1}
+                      className="w-full rounded-[10px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3 py-2 text-center text-[14px] font-bold text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+                      value={selectedZone.radiusKm ?? 0}
+                      onChange={(event) => updateZone(selectedZone.id, { radiusKm: Math.max(0.1, Number(event.target.value)) })}
+                      aria-label="Radie (km)"
+                    />
+                    <span className="text-[13px] font-bold text-[var(--text-muted)]">km</span>
                   </div>
-
-                  {selected ? (
-                    <div className="space-y-2.5 px-3.5 pb-3.5" onClick={(event) => event.stopPropagation()}>
-                      <div>
-                        <label className="mb-0.5 block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">Zone name</label>
-                        <input className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-3 py-2 text-[11px] font-black text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" value={zone.name} onChange={(event) => updateZone(zone.id, { name: event.target.value })} />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="mb-0.5 block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">Fee</label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-3 py-2 text-[11px] font-black text-[#8bf0c9] outline-none"
-                            value={draftFee[zone.id] ?? String(zone.deliveryFee)}
-                            onChange={(event) => {
-                              const raw = event.target.value.replace(/[^0-9]/g, "");
-                              setDraftFee((current) => ({ ...current, [zone.id]: raw }));
-                              if (raw !== "") updateZone(zone.id, { deliveryFee: Number(raw) });
-                            }}
-                            onBlur={() => {
-                              const nextValue = Math.max(0, Number(draftFee[zone.id] ?? zone.deliveryFee) || 0);
-                              setDraftFee((current) => ({ ...current, [zone.id]: String(nextValue) }));
-                              updateZone(zone.id, { deliveryFee: nextValue });
-                            }}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-0.5 block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">Min order</label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-3 py-2 text-[11px] font-black text-[#b7dcff] outline-none"
-                            value={draftMin[zone.id] ?? String(zone.minOrder)}
-                            onChange={(event) => {
-                              const raw = event.target.value.replace(/[^0-9]/g, "");
-                              setDraftMin((current) => ({ ...current, [zone.id]: raw }));
-                              if (raw !== "") updateZone(zone.id, { minOrder: Number(raw) });
-                            }}
-                            onBlur={() => {
-                              const nextValue = Math.max(0, Number(draftMin[zone.id] ?? zone.minOrder) || 0);
-                              setDraftMin((current) => ({ ...current, [zone.id]: String(nextValue) }));
-                              updateZone(zone.id, { minOrder: nextValue });
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="mb-0.5 block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">ETA minutes</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-3 py-2 text-[11px] font-black text-[#d9b7ff] outline-none"
-                          value={draftEta[zone.id] ?? (zone.etaMinutes != null ? String(zone.etaMinutes) : "")}
-                          onChange={(event) => {
-                            const raw = event.target.value.replace(/[^0-9]/g, "");
-                            setDraftEta((current) => ({ ...current, [zone.id]: raw }));
-                            updateZone(zone.id, { etaMinutes: raw === "" ? undefined : Number(raw) });
-                          }}
-                          onBlur={() => {
-                            const raw = draftEta[zone.id] ?? "";
-                            if (raw === "") {
-                              updateZone(zone.id, { etaMinutes: undefined });
-                            } else {
-                              const nextValue = Math.max(1, Number(raw) || 30);
-                              setDraftEta((current) => ({ ...current, [zone.id]: String(nextValue) }));
-                              updateZone(zone.id, { etaMinutes: nextValue });
-                            }
-                          }}
-                        />
-                      </div>
-
-                      <div className="rounded-xl border px-3 py-2 text-[10px] font-bold text-[var(--text-secondary)]" style={{ borderColor: `${color}40`, backgroundColor: `${color}10` }}>
-                        {zone.deliveryFee === 0 ? "Free delivery" : `${zone.deliveryFee} kr delivery`} • {zone.minOrder > 0 ? `minimum ${zone.minOrder} kr` : "no minimum"}{zone.etaMinutes ? ` • ${zone.etaMinutes} min` : ""}
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
-              );
-            })
+              ) : (
+                <p className="mt-3 text-[12px] text-[var(--text-muted)]">Polygon med {Math.max((selectedZone.polygon?.length || 1) - 1, 0)} punkter. Dra hörnen på kartan för att ändra formen.</p>
+              )}
+
+              <div className="mt-5 flex items-center justify-between border-t border-[var(--row-divider)] pt-4">
+                <span className="text-[13px] font-semibold">Leveransavgift</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    className="w-[88px] rounded-[10px] border-2 border-[var(--accent)] bg-[var(--bg-panel)] px-3 py-2 text-right text-[14px] font-bold text-[var(--text-primary)] outline-none"
+                    value={draftFee[selectedZone.id] ?? String(selectedZone.deliveryFee)}
+                    onChange={(event) => {
+                      const raw = event.target.value.replace(/[^0-9]/g, "");
+                      setDraftFee((current) => ({ ...current, [selectedZone.id]: raw }));
+                      if (raw !== "") updateZone(selectedZone.id, { deliveryFee: Number(raw) });
+                    }}
+                    onBlur={() => {
+                      const nextValue = Math.max(0, Number(draftFee[selectedZone.id] ?? selectedZone.deliveryFee) || 0);
+                      setDraftFee((current) => ({ ...current, [selectedZone.id]: String(nextValue) }));
+                      updateZone(selectedZone.id, { deliveryFee: nextValue });
+                    }}
+                    aria-label="Leveransavgift (kr)"
+                  />
+                  <span className="text-[13px] font-bold text-[var(--text-muted)]">kr</span>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between border-t border-[var(--row-divider)] pt-4">
+                <span className="text-[13px] font-semibold">Min. ordervärde</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    className="w-[88px] rounded-[10px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3 py-2 text-right text-[14px] font-bold text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+                    value={draftMin[selectedZone.id] ?? String(selectedZone.minOrder)}
+                    onChange={(event) => {
+                      const raw = event.target.value.replace(/[^0-9]/g, "");
+                      setDraftMin((current) => ({ ...current, [selectedZone.id]: raw }));
+                      if (raw !== "") updateZone(selectedZone.id, { minOrder: Number(raw) });
+                    }}
+                    onBlur={() => {
+                      const nextValue = Math.max(0, Number(draftMin[selectedZone.id] ?? selectedZone.minOrder) || 0);
+                      setDraftMin((current) => ({ ...current, [selectedZone.id]: String(nextValue) }));
+                      updateZone(selectedZone.id, { minOrder: nextValue });
+                    }}
+                    aria-label="Min. ordervärde (kr)"
+                  />
+                  <span className="text-[13px] font-bold text-[var(--text-muted)]">kr</span>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between border-t border-[var(--row-divider)] pt-4">
+                <div>
+                  <span className="block text-[13px] font-semibold">Leveranstid</span>
+                  <span className="text-[11.5px] text-[var(--text-muted)]">minuter, valfritt</span>
+                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="–"
+                  className="w-[88px] rounded-[10px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3 py-2 text-right text-[14px] font-bold text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+                  value={draftEta[selectedZone.id] ?? (selectedZone.etaMinutes != null ? String(selectedZone.etaMinutes) : "")}
+                  onChange={(event) => {
+                    const raw = event.target.value.replace(/[^0-9]/g, "");
+                    setDraftEta((current) => ({ ...current, [selectedZone.id]: raw }));
+                    updateZone(selectedZone.id, { etaMinutes: raw === "" ? undefined : Number(raw) });
+                  }}
+                  onBlur={() => {
+                    const raw = draftEta[selectedZone.id] ?? "";
+                    if (raw === "") {
+                      updateZone(selectedZone.id, { etaMinutes: undefined });
+                    } else {
+                      const nextValue = Math.max(1, Number(raw) || 30);
+                      setDraftEta((current) => ({ ...current, [selectedZone.id]: String(nextValue) }));
+                      updateZone(selectedZone.id, { etaMinutes: nextValue });
+                    }
+                  }}
+                  aria-label="Leveranstid (min)"
+                />
+              </div>
+
+              <div className="mt-4 flex items-center justify-between border-t border-[var(--row-divider)] pt-4">
+                <span className="text-[13px] font-semibold">Aktiv</span>
+                <Toggle checked={selectedZone.isActive} onChange={(v) => updateZone(selectedZone.id, { isActive: v })} />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => removeZone(selectedZone.id)}
+                className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--danger-text)]"
+              >
+                <Trash2 size={14} /> Ta bort zon
+              </button>
+            </div>
+          ) : null}
+
+          {/* Restaurangens zoner */}
+          <p className="eyebrow mb-3">Restaurangens zoner</p>
+          {zones.length === 0 ? (
+            <p className="text-[13px] text-[var(--text-muted)]">Rita en zon på kartan med Cirkel eller Polygon för att börja.</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {zones.map((zone, index) => {
+                const selected = zone.id === selectedId;
+                // Matcha exakt kartans overlay-färg (palett per index, samma som renderOverlay).
+                const color = colorAt(index).main;
+                const meta = zone.type === "circle" ? `${zone.radiusKm ?? 0} km` : `${Math.max((zone.polygon?.length || 1) - 1, 0)} pkt`;
+                return (
+                  <button
+                    key={zone.id}
+                    type="button"
+                    onClick={() => setSelectedId(selected ? null : zone.id)}
+                    className={`flex items-center justify-between gap-2 rounded-[10px] px-3 py-2.5 text-left transition-colors ${
+                      selected ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--bg-hover)]"
+                    } ${zone.isActive ? "" : "opacity-55"}`}
+                  >
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <span className="h-[11px] w-[11px] shrink-0 rounded-[3px]" style={{ background: color }} />
+                      <span className="min-w-0">
+                        <span className={`block truncate text-[13.5px] ${selected ? "font-extrabold text-[var(--accent-ink)]" : "font-semibold text-[var(--text-secondary)]"}`}>
+                          {zone.name}
+                        </span>
+                        <span className="block text-[11px] font-medium text-[var(--text-muted)]">{meta}{zone.isActive ? "" : " · inaktiv"}</span>
+                      </span>
+                    </span>
+                    <span className={`shrink-0 text-[13px] font-bold ${selected ? "text-[var(--accent-ink)]" : "text-[var(--text-primary)]"}`}>
+                      {zone.deliveryFee} kr
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
