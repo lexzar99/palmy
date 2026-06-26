@@ -3,11 +3,11 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, Plus, ReceiptText, RefreshCw, Search, SlidersHorizontal, Trash2, UserRound } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, MapPin, Phone, ReceiptText, RefreshCw, Search, SlidersHorizontal, Trash2, UserRound } from "lucide-react";
 import { bulkRefundOrders, deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
 import { CustomerModal } from "@/modules/customers/page";
 import { NotesPanel } from "@/shared/components/notes-panel";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Surface, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Input, Modal, PageHeader, Surface, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, orderTypeLabel } from "@/shared/utils/format";
 
 // Order-resans steg i ordning. Leverans har ett extra "Levereras"-steg;
@@ -119,6 +119,36 @@ function deliveryInstructionLabel(value: string): string {
     ENTER_CODE: "Portkod krävs",
   };
   return map[value] ?? value;
+}
+
+// Initialer för avatar-platshållare (rund mörk cirkel med 1-2 bokstäver).
+function initials(name?: string | null): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Rund mörk avatar med initialer (image/avatar-platshållare per designen).
+function Avatar({ name, size = 38 }: { name?: string | null; size?: number }) {
+  return (
+    <span
+      className="flex shrink-0 items-center justify-center rounded-full bg-[#111113] font-extrabold text-white"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.34) }}
+      aria-hidden
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
+// Statusbricka i orderdetaljen. "På väg" (DELIVERING) → accent; övriga via semantisk ton.
+function DetailStatusBadge({ status }: { status: string }) {
+  if (status === "DELIVERING") {
+    return <span className="badge badge-accent">{orderStatusLabel(status)}</span>;
+  }
+  return <Badge tone={orderStatusTone(status) as "success" | "danger" | "warning" | "info" | "neutral"}>{orderStatusLabel(status)}</Badge>;
 }
 
 function StatusTrack({ status, isDelivery }: { status: string; isDelivery: boolean }) {
@@ -287,72 +317,73 @@ export function OrderDetailsModal({
           <StatusTrack status={order.status} isDelivery={isDelivery} />
 
           <div className="grid gap-4 lg:grid-cols-[1.35fr_0.9fr]">
-            {/* ── Vänster: kund, artiklar, bud ── */}
+            {/* ── Vänster: artiklar + kvitto/summa, bud ── */}
             <div className="space-y-4">
-              <div className="surface-muted px-5 py-5">
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <p className="card-label">Kund</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <p className="text-[15px] font-semibold">{order.customerName}</p>
-                      {order.userId && onViewCustomer ? (
-                        <button
-                          type="button"
-                          onClick={() => onViewCustomer(order.userId!)}
-                          className="inline-flex items-center gap-1 rounded-md border border-[var(--border-subtle)] px-2 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-                        >
-                          <UserRound size={11} /> Profil
-                        </button>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 text-[13px] text-[var(--text-secondary)]">{order.customerPhone}</p>
-                    {order.customerEmail ? <p className="text-[13px] text-[var(--text-secondary)]">{order.customerEmail}</p> : null}
-                  </div>
-                  <div>
-                    <p className="card-label">{isDelivery ? "Leverans" : "Avhämtning"}</p>
-                    <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
-                      {isDelivery
-                        ? `${order.deliveryStreet || "Adress saknas"}${order.deliveryZip || order.deliveryCity ? `, ${order.deliveryZip || ""} ${order.deliveryCity || ""}` : ""}`
-                        : "Avhämtning i restaurang"}
-                    </p>
-                    {order.deliveryInstructions ? <p className="mt-1.5 text-[13px] text-[var(--text-muted)]">{order.deliveryInstructions}</p> : null}
-                  </div>
+              <div className="surface px-5 py-5">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[14.5px] font-extrabold tracking-[-0.01em]">
+                    Artiklar{order.restaurantName ? ` · ${order.restaurantName}` : ""}
+                  </p>
+                  <span className="rounded-full bg-[var(--bg-panel-soft)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--text-secondary)] tabular-nums">
+                    {formatNumber(order.items.reduce((n, it) => n + it.quantity, 0))} st
+                  </span>
                 </div>
-              </div>
-
-              <div className="surface-muted px-5 py-5">
-                <p className="card-label mb-1">Artiklar</p>
-                <div className="divide-y divide-[var(--border-subtle)]">
+                <div className="mt-3 divide-y divide-[var(--border-subtle)] border-t border-[var(--border-subtle)]">
                   {order.items.map((item) => {
                     const extras = parseExtras(item.selectedExtras);
+                    const extraText = extras.map((e) => e.extraName || e.name).filter(Boolean).join(" · ");
                     return (
-                      <div key={item.id} className="flex items-start justify-between gap-4 py-3">
-                        <div className="min-w-0">
-                          <p className="text-[14px] font-semibold">{item.quantity}× {item.productName}</p>
-                          {item.note ? <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">{item.note}</p> : null}
-                          {extras.length > 0 ? (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {extras.map((extra, index) => (
-                                <span key={`${item.id}-${index}`} className="rounded-md bg-[var(--bg-hover)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">
-                                  + {extra.extraName || extra.name}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
+                      <div key={item.id} className="flex items-baseline gap-3 py-3">
+                        <span className="shrink-0 text-[13.5px] font-extrabold text-[var(--accent)] tabular-nums">{item.quantity}×</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13.5px] font-semibold">{item.productName}</p>
+                          {extraText ? <p className="mt-0.5 text-[12px] font-medium text-[var(--text-muted)]">+ {extraText}</p> : null}
+                          {item.note ? <p className="mt-0.5 text-[12.5px] text-[var(--text-secondary)]">{item.note}</p> : null}
                         </div>
-                        <p className="shrink-0 text-[14px] font-semibold tabular-nums">{formatCurrency(item.subtotal)}</p>
+                        <span className="shrink-0 text-[13.5px] font-bold tabular-nums">{formatCurrency(item.subtotal)}</span>
                       </div>
                     );
                   })}
                 </div>
-                <div className="mt-1 flex items-center justify-between border-t border-[var(--border-strong)] pt-3 text-[15px] font-bold">
-                  <span>Summa artiklar</span>
-                  <span className="tabular-nums">{formatCurrency(order.total - (order.deliveryFee || 0) + (order.discountAmount || 0))}</span>
+
+                {/* Kvitto / summa */}
+                <div className="mt-2 border-t border-[var(--border-strong)] pt-3">
+                  <div className="flex items-center justify-between py-1 text-[13px] text-[var(--text-secondary)]">
+                    <span>Delsumma</span>
+                    <span className="tabular-nums">{formatCurrency(order.total - (order.deliveryFee || 0) + (order.discountAmount || 0))}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 text-[13px] text-[var(--text-secondary)]">
+                    <span>Leverans</span>
+                    <span className="tabular-nums">{formatCurrency(order.deliveryFee || 0)}</span>
+                  </div>
+                  {order.discountAmount ? (
+                    <div className="flex items-center justify-between py-1 text-[13px] text-[var(--text-secondary)]">
+                      <span>Rabatt</span>
+                      <span className="tabular-nums">−{formatCurrency(order.discountAmount)}</span>
+                    </div>
+                  ) : null}
+                  <div className="mt-1.5 flex items-baseline justify-between">
+                    <span className="text-[15px] font-extrabold">Totalt</span>
+                    <span className="text-[19px] font-extrabold tracking-[-0.02em] tabular-nums">{formatCurrency(order.total)}</span>
+                  </div>
+                  <p className="mt-1.5 text-[11.5px] text-[var(--text-muted)]">
+                    Betalt med {order.paymentMethod || "—"} · {formatDateTime(order.createdAt)}
+                  </p>
+                  {(order.pointsEarned || order.pointsSpent) ? (
+                    <div className="mt-3 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-3 py-2.5 text-[12.5px] text-[var(--text-secondary)]">
+                      {!!order.pointsEarned && (
+                        <p>Tjänade <strong className="text-[var(--text-primary)]">{order.pointsEarned} p</strong>{order.pointsReverted ? " (återtagna)" : ""}</p>
+                      )}
+                      {!!order.pointsSpent && (
+                        <p>Löste in <strong className="text-[var(--text-primary)]">{order.pointsSpent} p</strong>{order.pointsReverted ? " (återförda)" : ""}</p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
               {order.courier && (
-                <div className="surface-muted px-5 py-5">
+                <div className="surface px-5 py-5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="card-label">Bud</p>
@@ -443,8 +474,107 @@ export function OrderDetailsModal({
               )}
             </div>
 
-            {/* ── Höger: hantera, betalning, återbetalning, notering ── */}
+            {/* ── Höger: kund, leverans, hantera, återbetalning, notering ── */}
             <div className="space-y-4">
+              {/* Kund */}
+              <div className="surface px-5 py-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="card-label">Kund</p>
+                  {customerContextBadge(order.customerStats) ? (
+                    <Badge tone={customerContextBadge(order.customerStats)!.tone}>{customerContextBadge(order.customerStats)!.label}</Badge>
+                  ) : null}
+                </div>
+                <div className="mt-3 flex items-center gap-3">
+                  <Avatar name={order.customerName} size={38} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-bold">{order.customerName}</p>
+                    <p className="truncate text-[12px] text-[var(--text-muted)]">
+                      {order.customerPhone}
+                      {order.customerStats?.orderCount ? ` · ${formatNumber(order.customerStats.orderCount)} ordrar` : ""}
+                    </p>
+                  </div>
+                  {order.userId && onViewCustomer ? (
+                    <button
+                      type="button"
+                      onClick={() => onViewCustomer(order.userId!)}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--border-subtle)] px-2 py-1 text-[11px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                    >
+                      <UserRound size={11} /> Profil
+                    </button>
+                  ) : null}
+                </div>
+                <div className="mt-3 flex items-start gap-2 border-t border-[var(--border-subtle)] pt-3 text-[12.5px] text-[var(--text-secondary)]">
+                  <MapPin size={14} className="mt-0.5 shrink-0 text-[var(--text-muted)]" />
+                  <p className="leading-5">
+                    {isDelivery
+                      ? `${order.deliveryStreet || "Adress saknas"}${order.deliveryZip || order.deliveryCity ? `, ${order.deliveryZip || ""} ${order.deliveryCity || ""}` : ""}`
+                      : "Avhämtning i restaurang"}
+                    {order.deliveryInstructions ? <span className="text-[var(--text-muted)]"> · &ldquo;{deliveryInstructionLabel(order.deliveryInstructions)}&rdquo;</span> : null}
+                  </p>
+                </div>
+                {order.customerEmail ? <p className="mt-1.5 truncate text-[12px] text-[var(--text-muted)]">{order.customerEmail}</p> : null}
+              </div>
+
+              {/* Leverans: ETA + progress + bud-rad. Visas för leveransordrar. */}
+              {isDelivery && (() => {
+                const steps = DELIVERY_STEPS as readonly string[];
+                const idx = steps.indexOf(order.status);
+                const pct = isCancelled ? 0 : idx < 0 ? 0 : Math.round(((idx + 1) / steps.length) * 100);
+                return (
+                  <div className="surface px-5 py-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="card-label">Leverans</p>
+                      {isLive && order.estimatedTime ? (
+                        <span className="text-[12px] font-extrabold text-[var(--accent)]">{order.estimatedTime} min</span>
+                      ) : (
+                        <DetailStatusBadge status={order.status} />
+                      )}
+                    </div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#F0F0EC]">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,#F0531C,#FB7A4A)" }} />
+                    </div>
+                    {order.courier ? (
+                      <div className="mt-3 flex items-center gap-3">
+                        <Avatar name={order.courier.name} size={34} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-bold">{order.courier.name || "Ej tilldelad"}</p>
+                          <p className="truncate text-[11.5px] text-[var(--text-muted)]">
+                            {[order.courier.vehicle === "CAR" ? "Bil" : order.courier.vehicle === "BIKE" ? "Cykel" : null, order.courier.phone].filter(Boolean).join(" · ") || "—"}
+                          </p>
+                        </div>
+                        {order.courier.id ? (
+                          <button
+                            type="button"
+                            onClick={() => { const cid = order.courier?.id; if (cid) { onClose(); router.push(`/couriers/${cid}`); } }}
+                            className="shrink-0 text-[12px] font-bold text-[var(--accent-ink)] transition-colors hover:underline"
+                          >
+                            Spåra ›
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-[12.5px] text-[var(--text-muted)]">Inget bud tilldelat ännu.</p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Snabbåtgärder per design: kontakta kund (accent) + återbetala (danger-outline). */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <a href={`tel:${order.customerPhone}`} className="contents">
+                  <Button variant="primary" className="w-full"><Phone size={15} /> Kontakta kund</Button>
+                </a>
+                {!order.refundedAt ? (
+                  <Button variant="danger" className="w-full" onClick={() => setShowRefund((v) => !v)}>
+                    <ReceiptText size={15} /> Återbetala
+                  </Button>
+                ) : (
+                  <Button variant="secondary" className="w-full" disabled>
+                    <CheckCircle2 size={15} /> Återbetald
+                  </Button>
+                )}
+              </div>
+
               <div className="surface px-5 py-5">
                 <p className="card-label">Hantera order</p>
                 {isCancelled ? (
@@ -501,79 +631,119 @@ export function OrderDetailsModal({
                 )}
               </div>
 
-              <div className="surface-muted px-5 py-5">
-                <p className="card-label mb-2">Betalning</p>
-                <div className="space-y-2 text-[13px] text-[var(--text-secondary)]">
-                  <div className="flex items-center justify-between"><span>Leveransavgift</span><span className="tabular-nums">{formatCurrency(order.deliveryFee || 0)}</span></div>
-                  <div className="flex items-center justify-between"><span>Rabatt</span><span className="tabular-nums">{order.discountAmount ? `−${formatCurrency(order.discountAmount)}` : formatCurrency(0)}</span></div>
-                  <div className="flex items-center justify-between border-t border-[var(--border-strong)] pt-2.5 text-[15px] font-bold text-[var(--text-primary)]">
-                    <span>Totalt · {order.paymentMethod || "—"}</span>
-                    <span className="tabular-nums">{formatCurrency(order.total)}</span>
-                  </div>
-                </div>
-                {(order.pointsEarned || order.pointsSpent) ? (
-                  <div className="mt-3 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-3 py-2.5 text-[12.5px] text-[var(--text-secondary)]">
-                    {!!order.pointsEarned && (
-                      <p>Tjänade <strong className="text-[var(--text-primary)]">{order.pointsEarned} p</strong>{order.pointsReverted ? " (återtagna)" : ""}</p>
-                    )}
-                    {!!order.pointsSpent && (
-                      <p>Löste in <strong className="text-[var(--text-primary)]">{order.pointsSpent} p</strong>{order.pointsReverted ? " (återförda)" : ""}</p>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-
               {/* ── Återbetalning ── */}
               {order.refundedAt ? (
-                <div className="surface-muted flex items-center gap-2 px-5 py-4 text-[13px] text-[var(--success)]">
-                  <CheckCircle2 size={15} /> Återbetald {formatCurrency(order.refundAmount || 0)}
+                <div className="surface flex items-center gap-2.5 px-5 py-4 text-[13px] font-semibold text-[var(--success-text)]">
+                  <CheckCircle2 size={16} /> Återbetald {formatCurrency(order.refundAmount || 0)}
+                  {order.refundReason ? <span className="font-normal text-[var(--text-muted)]">· {order.refundReason}</span> : null}
                 </div>
               ) : showRefund ? (
-                <div className="surface-muted px-5 py-5">
-                  <p className="card-label mb-3">Återbetalning</p>
-                  <div className="grid gap-4">
-                    <Field label="Belopp (kr) — tomt = hela">
-                      <Input
-                        type="number"
-                        value={refundAmount}
-                        onChange={(event) => setRefundAmount(event.target.value ? Number(event.target.value) : "")}
-                        placeholder={`Hela: ${order.total} kr`}
-                      />
-                    </Field>
-                    <Field label="Anledning">
-                      <select
-                        value={refundReasonKey}
-                        onChange={(event) => setRefundReasonKey(event.target.value)}
-                        className="select"
-                      >
-                        <option value="">Välj anledning…</option>
-                        {REFUND_REASONS.map((r) => (
-                          <option key={r.value} value={r.value}>{r.label}</option>
-                        ))}
-                      </select>
-                      {refundReasonKey && (
-                        <div className="mt-2">
-                          <Textarea
-                            value={refundReasonExtra}
-                            onChange={(event) => setRefundReasonExtra(event.target.value)}
-                            placeholder={refundReasonKey === "other" ? "Beskriv anledningen" : "Tillägg (valfritt)"}
-                          />
-                        </div>
-                      )}
-                    </Field>
-                    {refundSuccess && (
-                      <div className="flex items-center gap-2 rounded-[10px] border border-[rgba(74,222,128,0.18)] bg-[rgba(74,222,128,0.08)] px-3 py-2.5 text-[13px] text-[var(--success)]">
-                        <CheckCircle2 size={14} /> Återbetalning skickad{refundStatus ? ` · ${refundStatus}` : ""}
+                <div className="surface overflow-hidden border-[color-mix(in_srgb,var(--danger)_28%,transparent)] px-5 py-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[14px] font-extrabold tracking-[-0.01em] text-[var(--danger-text)]">Återbetala order</p>
+                    <span className="font-[ui-monospace,Menlo,monospace] text-[12px] font-bold text-[var(--text-muted)]">{order.orderNumber}</span>
+                  </div>
+
+                  {/* Belopp: helt eller delvis. Tomt fält = helt belopp (backend använder order.total). */}
+                  <p className="mt-4 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Belopp</p>
+                  <div className="mt-2 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setRefundAmount("")}
+                      className="flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors"
+                      style={refundAmount === ""
+                        ? { borderColor: "var(--accent)", borderWidth: 2, background: "var(--accent-soft)" }
+                        : { borderColor: "var(--border-subtle)" }}
+                    >
+                      <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border-2" style={{ borderColor: refundAmount === "" ? "var(--accent)" : "var(--border-strong)" }}>
+                        {refundAmount === "" ? <span className="h-2 w-2 rounded-full bg-[var(--accent)]" /> : null}
+                      </span>
+                      <span className="flex-1 text-[13.5px] font-bold">Hela beloppet</span>
+                      <span className="text-[13.5px] font-extrabold tabular-nums">{order.total} kr</span>
+                    </button>
+                    <div
+                      className="flex items-center gap-3 rounded-xl border px-4 py-3"
+                      style={refundAmount !== ""
+                        ? { borderColor: "var(--accent)", borderWidth: 2, background: "var(--accent-soft)" }
+                        : { borderColor: "var(--border-subtle)" }}
+                    >
+                      <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border-2" style={{ borderColor: refundAmount !== "" ? "var(--accent)" : "var(--border-strong)" }}>
+                        {refundAmount !== "" ? <span className="h-2 w-2 rounded-full bg-[var(--accent)]" /> : null}
+                      </span>
+                      <span className="flex-1 text-[13.5px] font-bold">Delvis belopp</span>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          className="w-24 text-right"
+                          value={refundAmount}
+                          onChange={(event) => setRefundAmount(event.target.value ? Number(event.target.value) : "")}
+                          placeholder="0"
+                        />
+                        <span className="text-[13px] font-semibold text-[var(--text-muted)]">kr</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Anledning: vald kategori + valfri fritext-tillägg. */}
+                  <p className="mt-4 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Anledning</p>
+                  <div className="mt-2">
+                    <select
+                      value={refundReasonKey}
+                      onChange={(event) => setRefundReasonKey(event.target.value)}
+                      className="select"
+                    >
+                      <option value="">Välj anledning…</option>
+                      {REFUND_REASONS.map((r) => (
+                        <option key={r.value} value={r.value}>{r.label}</option>
+                      ))}
+                    </select>
+                    {refundReasonKey && (
+                      <div className="mt-2">
+                        <Textarea
+                          value={refundReasonExtra}
+                          onChange={(event) => setRefundReasonExtra(event.target.value)}
+                          placeholder={refundReasonKey === "other" ? "Beskriv anledningen" : "Intern notering (valfri)"}
+                        />
                       </div>
                     )}
-                    {refundError && (
-                      <div className="flex items-center gap-2 rounded-[10px] border border-[rgba(251,113,133,0.2)] bg-[rgba(251,113,133,0.08)] px-3 py-2.5 text-[13px] text-[var(--danger)]">
-                        <AlertCircle size={14} /> {refundError}
-                      </div>
-                    )}
-                    <div className="grid gap-2">
+                  </div>
+
+                  {refundSuccess && (
+                    <div className="mt-3 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] bg-[var(--success-soft)] px-3 py-2.5 text-[13px] font-semibold text-[var(--success-text)]">
+                      <CheckCircle2 size={14} /> Återbetalning skickad{refundStatus ? ` · ${refundStatus}` : ""}
+                    </div>
+                  )}
+                  {refundError && (
+                    <div className="mt-3 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[var(--danger-soft)] px-3 py-2.5 text-[13px] font-semibold text-[var(--danger-text)]">
+                      <AlertCircle size={14} /> {refundError}
+                    </div>
+                  )}
+
+                  {/* Bekräftelse: avbryt + återbetala. Partial visas bara vid giltigt delbelopp. */}
+                  <div className="mt-4 flex items-center gap-2.5">
+                    <Button variant="secondary" className="flex-1" onClick={() => setShowRefund(false)} disabled={refundMutation.isPending}>
+                      Avbryt
+                    </Button>
+                    {refundAmount !== "" && Number(refundAmount) > 0 && Number(refundAmount) < order.total ? (
                       <Button
-                        variant="primary"
+                        variant="danger"
+                        className="flex-[1.4]"
+                        onClick={() => {
+                          const amount = Number(refundAmount);
+                          if (!window.confirm(`Återbetala ${amount} kr (delvis) för order ${order.orderNumber}?`)) return;
+                          setRefundSuccess(false);
+                          setRefundError(null);
+                          refundMutation.mutate(amount);
+                        }}
+                        disabled={refundMutation.isPending}
+                      >
+                        {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
+                        Återbetala {Number(refundAmount)} kr
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="danger"
+                        className="flex-[1.4]"
                         onClick={() => {
                           if (!window.confirm(`Återbetala hela beloppet ${order.total} kr för order ${order.orderNumber}?`)) return;
                           setRefundSuccess(false);
@@ -583,40 +753,15 @@ export function OrderDetailsModal({
                         disabled={refundMutation.isPending}
                       >
                         {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
-                        {refundMutation.isPending ? "Återbetalar…" : `Återbetala hela (${order.total} kr)`}
+                        {refundMutation.isPending ? "Återbetalar…" : `Återbetala ${order.total} kr`}
                       </Button>
-                      {refundAmount !== "" && Number(refundAmount) > 0 && Number(refundAmount) < order.total && (
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            const amount = Number(refundAmount);
-                            if (!window.confirm(`Återbetala ${amount} kr (delvis) för order ${order.orderNumber}?`)) return;
-                            setRefundSuccess(false);
-                            setRefundError(null);
-                            refundMutation.mutate(amount);
-                          }}
-                          disabled={refundMutation.isPending}
-                        >
-                          {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
-                          Återbetala {Number(refundAmount)} kr
-                        </Button>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowRefund(true)}
-                  className="flex w-full items-center justify-between rounded-[14px] border border-[var(--border-subtle)] px-5 py-4 text-[13px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-                >
-                  <span>Återbetala order</span>
-                  <Plus size={15} />
-                </button>
-              )}
+              ) : null}
 
               {order.note ? (
-                <div className="surface-muted px-5 py-5">
+                <div className="surface px-5 py-5">
                   <p className="card-label">Kundnotering</p>
                   <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">{order.note}</p>
                 </div>

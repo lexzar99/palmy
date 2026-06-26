@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Store, Trash2, X } from "lucide-react";
+import { Calendar, Loader2, Plus, Store, Trash2, X } from "lucide-react";
 import {
   createRestaurant,
   deleteRestaurant,
@@ -29,15 +29,18 @@ type Shift = { open: string; close: string };
 type DayHours = { closed: boolean; shifts: Shift[] };
 type HoursForm = Record<DayKey, DayHours>;
 
-const DAYS: { key: DayKey; label: string }[] = [
-  { key: "monday", label: "Måndag" },
-  { key: "tuesday", label: "Tisdag" },
-  { key: "wednesday", label: "Onsdag" },
-  { key: "thursday", label: "Torsdag" },
-  { key: "friday", label: "Fredag" },
-  { key: "saturday", label: "Lördag" },
-  { key: "sunday", label: "Söndag" },
+const DAYS: { key: DayKey; label: string; short: string }[] = [
+  { key: "monday", label: "Måndag", short: "Mån" },
+  { key: "tuesday", label: "Tisdag", short: "Tis" },
+  { key: "wednesday", label: "Onsdag", short: "Ons" },
+  { key: "thursday", label: "Torsdag", short: "Tor" },
+  { key: "friday", label: "Fredag", short: "Fre" },
+  { key: "saturday", label: "Lördag", short: "Lör" },
+  { key: "sunday", label: "Söndag", short: "Sön" },
 ];
+
+// JS getDay(): 0 = Sunday .. 6 = Saturday → map to our Monday-first DayKey order.
+const TODAY_KEY: DayKey = (["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as DayKey[])[new Date().getDay()];
 
 const buildDefaultHours = (): HoursForm =>
   DAYS.reduce((acc, { key }) => {
@@ -454,36 +457,118 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
       {/* Hours tab */}
       {tab === "hours" && (
-        <Surface className="px-6 py-6 grid gap-3">
-          {DAYS.map(({ key, label }) => {
-            const day = form.openingHours[key];
-            const updateDay = (next: DayHours) => setForm((prev) => ({ ...prev, openingHours: { ...prev.openingHours, [key]: next } }));
-            return (
-              <div key={key} className="surface-muted px-5 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-black">{label}</p>
-                  <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)] cursor-pointer">
-                    <input type="checkbox" checked={day.closed} onChange={(e) => updateDay({ closed: e.target.checked, shifts: e.target.checked ? [] : (day.shifts.length ? day.shifts : [{ open: "11:00", close: "22:00" }]) })} />
-                    Stängd
-                  </label>
-                </div>
-                {!day.closed && (
-                  <div className="mt-3 grid gap-2">
-                    {day.shifts.map((shift, idx) => (
-                      <div key={idx} className="flex flex-wrap items-center gap-2">
-                        <Input type="time" value={shift.open} onChange={(e) => updateDay({ ...day, shifts: day.shifts.map((s, i) => i === idx ? { ...s, open: e.target.value } : s) })} className="w-32" />
-                        <span className="text-[var(--text-secondary)]">–</span>
-                        <Input type="time" value={shift.close} onChange={(e) => updateDay({ ...day, shifts: day.shifts.map((s, i) => i === idx ? { ...s, close: e.target.value } : s) })} className="w-32" />
-                        {day.shifts.length > 1 && <Button variant="secondary" onClick={() => updateDay({ ...day, shifts: day.shifts.filter((_, i) => i !== idx) })}><X size={14} /> Ta bort</Button>}
-                      </div>
-                    ))}
-                    <Button variant="secondary" onClick={() => updateDay({ ...day, shifts: [...day.shifts, { open: "17:00", close: "22:00" }] })}><Plus size={14} /> Lägg till skift</Button>
+        <div className="grid gap-4">
+          {/* Topbar-style actions */}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button variant="secondary" disabled title="Avvikande dagar hanteras snart här">
+              <Calendar size={14} /> Avvikelser
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                // Copy the first open day's shifts to every day, preserving each day's closed/open state.
+                const source = DAYS.map(({ key }) => form.openingHours[key]).find((d) => !d.closed && d.shifts.length > 0);
+                if (!source) return;
+                const template = source.shifts.map((s) => ({ ...s }));
+                setForm((prev) => ({
+                  ...prev,
+                  openingHours: DAYS.reduce((acc, { key }) => {
+                    const prevDay = prev.openingHours[key];
+                    acc[key] = prevDay.closed ? prevDay : { closed: false, shifts: template.map((s) => ({ ...s })) };
+                    return acc;
+                  }, {} as HoursForm),
+                }));
+              }}
+            >
+              Kopiera till alla dagar
+            </Button>
+          </div>
+
+          <Surface className="p-0 overflow-hidden">
+            {DAYS.map(({ key, label, short }, dayIdx) => {
+              const day = form.openingHours[key];
+              const isOpen = !day.closed;
+              const isToday = key === TODAY_KEY;
+              const updateDay = (next: DayHours) => setForm((prev) => ({ ...prev, openingHours: { ...prev.openingHours, [key]: next } }));
+              return (
+                <div
+                  key={key}
+                  className="flex flex-wrap items-center justify-between gap-4 px-5 py-4"
+                  style={{
+                    borderBottom: dayIdx < DAYS.length - 1 ? "1px solid var(--row-divider)" : "none",
+                    opacity: isOpen ? 1 : 0.6,
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className="flex h-[42px] w-[42px] items-center justify-center rounded-[10px] text-sm font-extrabold"
+                      style={{
+                        fontWeight: 800,
+                        background: isToday ? "var(--accent-soft)" : "var(--bg-page)",
+                        color: isToday ? "var(--accent)" : "var(--text-secondary)",
+                      }}
+                      title={label}
+                    >
+                      {short}
+                    </span>
+                    <Toggle
+                      checked={isOpen}
+                      onChange={(v) => updateDay({ closed: !v, shifts: v ? (day.shifts.length ? day.shifts : [{ open: "11:00", close: "22:00" }]) : [] })}
+                    />
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </Surface>
+
+                  {isOpen ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      {day.shifts.map((shift, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <Input
+                            type="time"
+                            value={shift.open}
+                            onChange={(e) => updateDay({ ...day, shifts: day.shifts.map((s, i) => (i === idx ? { ...s, open: e.target.value } : s)) })}
+                            className="w-[120px] font-bold"
+                          />
+                          <span className="text-[var(--text-muted)]">–</span>
+                          <Input
+                            type="time"
+                            value={shift.close}
+                            onChange={(e) => updateDay({ ...day, shifts: day.shifts.map((s, i) => (i === idx ? { ...s, close: e.target.value } : s)) })}
+                            className="w-[120px] font-bold"
+                          />
+                          {day.shifts.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => updateDay({ ...day, shifts: day.shifts.filter((_, i) => i !== idx) })}
+                              aria-label="Ta bort tid"
+                              className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+                            >
+                              <X size={15} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => updateDay({ ...day, shifts: [...day.shifts, { open: "17:00", close: "22:00" }] })}
+                        className="flex items-center gap-1 text-xs font-bold text-[var(--accent-ink)]"
+                      >
+                        <Plus size={13} /> Lägg till tid
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-sm font-bold text-[var(--text-muted)]">Stängt</span>
+                  )}
+                </div>
+              );
+            })}
+          </Surface>
+
+          <div className="flex items-center gap-2 text-[var(--text-muted)]">
+            <Calendar size={15} />
+            <span className="text-xs font-medium">
+              Tider gäller direkt. Avvikande dagar (helg, tillfälligt stängt) hanteras under Avvikelser.
+            </span>
+          </div>
+        </div>
       )}
 
       {/* Settings tab */}

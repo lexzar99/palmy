@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, ChevronRight, ChevronUp, Loader2, Plus, Search, Tags, Upload } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ChevronUp, GripVertical, Loader2, Plus, Search, Tags, Upload } from "lucide-react";
 import { dealsQueryKey, getAutomaticDeals, type AutomaticDealRecord, type DealProductRef, type DealRestaurantRef } from "@/modules/deals/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
 import {
@@ -267,25 +267,95 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
       ) : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara"}</Button></div></div>}
     >
         <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Namn"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
-        <Field label="Pris"><Input type="number" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: Number(event.target.value) }))} /></Field>
-        <Field label="Kategori"><Select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select></Field>
-        <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
-        <ImageUploadField
-          label="Bild"
-          value={form.imageUrl}
-          onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))}
-          kind="product"
-          restaurantId={restaurantId}
-          categoryId={form.categoryId || null}
-          productId={product?.id || null}
-          // För NYA produkter (inget id än) bygger backend bild-path:en på namnet,
-          // så du kan lägga bilden direkt när du skapar produkten. Kräver att
-          // Namn + Kategori är ifyllda först.
-          fileBaseName={form.name}
-        />
-        <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></Select></Field>
-        <div className="md:col-span-2"><Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
+        {/* P14 vänster: Detaljer-kort med bild-thumb, namn, orange-kantat pris, beskrivning och tillgänglighets-toggle. */}
+        <div className="surface px-5 py-5">
+          <p className="text-[15px] font-extrabold tracking-[-0.3px] text-[var(--text-primary)]">Detaljer</p>
+          <div className="mt-4 flex gap-3.5">
+            <span
+              aria-hidden
+              className="h-[84px] w-[84px] shrink-0 rounded-[12px] bg-cover bg-center"
+              style={form.imageUrl ? { backgroundImage: `url(${form.imageUrl})` } : { backgroundImage: DISH_PLACEHOLDER }}
+            />
+            <div className="min-w-0 flex-1 grid gap-3">
+              <Field label="Namn"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
+              <Field label="Pris">
+                <Input
+                  type="number"
+                  className="border-2 border-[var(--accent)] font-bold"
+                  value={form.price}
+                  onChange={(event) => setForm((current) => ({ ...current, price: Number(event.target.value) }))}
+                />
+              </Field>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <Field label="Kategori"><Select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select></Field>
+            <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
+          </div>
+          <div className="mt-4">
+            <ImageUploadField
+              label="Bild"
+              value={form.imageUrl}
+              onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))}
+              kind="product"
+              restaurantId={restaurantId}
+              categoryId={form.categoryId || null}
+              productId={product?.id || null}
+              // För NYA produkter (inget id än) bygger backend bild-path:en på namnet,
+              // så du kan lägga bilden direkt när du skapar produkten. Kräver att
+              // Namn + Kategori är ifyllda först.
+              fileBaseName={form.name}
+            />
+          </div>
+          <div className="mt-4"><Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3.5">
+            <div>
+              <p className="text-[13px] font-semibold text-[var(--text-primary)]">Tillgänglig</p>
+              <p className="text-[11.5px] text-[var(--text-muted)]">Visas för kunder</p>
+            </div>
+            <Toggle checked={form.isActive} onChange={(next) => setForm((current) => ({ ...current, isActive: next }))} />
+          </div>
+        </div>
+        {/* P14 höger: kopplade Tillvalsgrupper med obligatorisk/valfri-badge och en dämpad rad med tillvalen. */}
+        <div className="surface px-5 py-5">
+          <p className="text-[15px] font-extrabold tracking-[-0.3px] text-[var(--text-primary)]">Tillvalsgrupper</p>
+          <div className="mt-3.5 grid gap-2.5">
+            {extraGroups.length === 0 ? (
+              <p className="text-[13px] text-[var(--text-muted)]">Inga tillvalsgrupper finns för restaurangen ännu.</p>
+            ) : extraGroups.map((group) => {
+              const linked = form.extraGroupIds.includes(group.id);
+              const required = group.required;
+              const limit = group.type === "RADIO" ? "välj 1" : group.maxSelections ? `max ${group.maxSelections}` : null;
+              const badgeText = required ? ["Obligatorisk", limit].filter(Boolean).join(" · ") : ["Valfri", limit].filter(Boolean).join(" · ");
+              const optionsLine = group.extras
+                .map((extra) => (extra.priceAddon ? `${extra.name} (+${extra.priceAddon} kr)` : extra.name))
+                .join(" · ");
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => toggleExtraGroup(group.id)}
+                  aria-pressed={linked}
+                  className={`w-full rounded-[12px] border px-3.5 py-3 text-left transition-colors ${
+                    linked
+                      ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                      : "border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2.5">
+                    <span className="flex items-center gap-2 min-w-0">
+                      {linked ? <Check size={14} strokeWidth={3} className="shrink-0 text-[var(--accent-ink)]" /> : null}
+                      <span className="truncate text-[13.5px] font-bold text-[var(--text-primary)]">{group.name}</span>
+                    </span>
+                    <span className={`badge shrink-0 ${required ? "badge-accent" : "badge-neutral"}`}>{badgeText}</span>
+                  </div>
+                  {optionsLine ? <p className="mt-1.5 truncate text-[12px] text-[var(--text-muted)]">{optionsLine}</p> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="md:col-span-2"></div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="card-label">Rabatt</p>
@@ -356,14 +426,6 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
               ["isGlutenFree", "Glutenfri"],
             ] as const).map(([key, label]) => (
               <TogglePill key={key} active={Boolean(form[key])} onClick={() => setForm((current) => ({ ...current, [key]: !current[key] }))}>{label}</TogglePill>
-            ))}
-          </div>
-        </div>
-        <div className="md:col-span-2 surface-muted px-4 py-4">
-          <p className="card-label">Tillvalsgrupper</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {extraGroups.map((group) => (
-              <TogglePill key={group.id} active={form.extraGroupIds.includes(group.id)} onClick={() => toggleExtraGroup(group.id)}>{group.name}</TogglePill>
             ))}
           </div>
         </div>
@@ -613,17 +675,27 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
           <Field label="Typ"><Select value={type} onChange={(event) => setType(event.target.value)}><option value="CHECKBOX">Checkbox</option><option value="RADIO">Radio</option></Select></Field>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Min antal"><Input type="number" value={minSelections} onChange={(event) => setMinSelections(Number(event.target.value))} /></Field>
-          <Field label="Max antal"><Input type="number" value={maxSelections} onChange={(event) => setMaxSelections(Number(event.target.value))} /></Field>
-          <Field label="Visningsstil"><Select value={displayStyle} onChange={(event) => setDisplayStyle(event.target.value === "BOX_IMAGE" ? "BOX_IMAGE" : "LIST")}><option value="LIST">Lista</option><option value="BOX_IMAGE">Bildrutor</option></Select></Field>
-        </div>
-
-        <div className="surface-muted px-4 py-4">
-          <p className="card-label">Inställningar</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <TogglePill active={required} onClick={() => setRequired((current) => !current)}>Obligatorisk</TogglePill>
-            <TogglePill active={allowQuantity} onClick={() => setAllowQuantity((current) => !current)}>Antal per val</TogglePill>
+        {/* P15: gruppinställningar i ett kort — Gruppnamn redan ovan; här Val (min/max),
+            visningsstil/antal samt Obligatorisk-toggle på egen rad. */}
+        <div className="surface px-5 py-5">
+          <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+            <Field label="Visningsstil"><Select value={displayStyle} onChange={(event) => setDisplayStyle(event.target.value === "BOX_IMAGE" ? "BOX_IMAGE" : "LIST")}><option value="LIST">Lista</option><option value="BOX_IMAGE">Bildrutor</option></Select></Field>
+            <div>
+              <span className="field-label">Val</span>
+              <div className="mt-1.5 flex items-center gap-2">
+                <Input type="number" className="w-[72px] text-center font-bold" value={minSelections} onChange={(event) => setMinSelections(Number(event.target.value))} aria-label="Min antal" />
+                <span className="text-[var(--text-muted)]">–</span>
+                <Input type="number" className="w-[72px] text-center font-bold" value={maxSelections} onChange={(event) => setMaxSelections(Number(event.target.value))} aria-label="Max antal" />
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3.5">
+            <span className="text-[13px] font-semibold text-[var(--text-primary)]">Obligatorisk</span>
+            <Toggle checked={required} onChange={setRequired} />
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3.5">
+            <span className="text-[13px] font-semibold text-[var(--text-primary)]">Antal per val</span>
+            <Toggle checked={allowQuantity} onChange={setAllowQuantity} />
           </div>
         </div>
 
@@ -636,30 +708,57 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
           </div>
         </div>
 
-        <div className="grid gap-2">
+        {/* P15: TILLVAL-lista. Varje rad: dra-handtag, namn, +pris-pill, förvald-toggle, ta bort. */}
+        <div className="grid gap-2.5">
           <div className="flex items-center justify-between gap-3">
-            <p className="card-label">Tillval</p>
-            <Button variant="secondary" onClick={() => setExtras((current) => [...current, { name: "", priceAddon: 0, isDefault: false, imageUrl: null }])}>Lägg till rad</Button>
+            <p className="text-[13px] font-extrabold uppercase tracking-[0.04em] text-[var(--text-primary)]">Tillval</p>
+            <button
+              type="button"
+              onClick={() => setExtras((current) => [...current, { name: "", priceAddon: 0, isDefault: false, imageUrl: null }])}
+              className="inline-flex items-center gap-1 text-[12.5px] font-bold text-[var(--accent-ink)]"
+            >
+              <Plus size={14} /> Lägg till tillval
+            </button>
           </div>
-          <div className="grid gap-2">
+          <div className="surface overflow-hidden">
             {extras.map((extra, index) => (
-              <div key={index} className="surface-muted grid gap-2 px-4 py-4">
-                <div className="grid gap-2 md:grid-cols-[1fr_110px_130px_auto]">
-                  <Input value={extra.name} onChange={(event) => updateExtra(index, "name", event.target.value)} placeholder="Namn" />
-                  <Input type="number" value={extra.priceAddon} onChange={(event) => updateExtra(index, "priceAddon", Number(event.target.value))} placeholder="Pris" />
-                  <Select value={extra.isDefault ? "yes" : "no"} onChange={(event) => updateExtra(index, "isDefault", event.target.value === "yes")}><option value="no">Valfri</option><option value="yes">Förvald</option></Select>
-                  <Button variant="danger" onClick={() => setExtras((current) => current.filter((_, currentIndex) => currentIndex !== index))}>Ta bort</Button>
+              <div key={index} className={index > 0 ? "border-t border-[var(--row-divider)]" : ""}>
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <GripVertical size={16} className="shrink-0 cursor-grab text-[var(--text-muted)]" aria-hidden />
+                  <Input
+                    className="min-w-0 flex-1 border-0 bg-transparent px-0 font-semibold focus:ring-0"
+                    value={extra.name}
+                    onChange={(event) => updateExtra(index, "name", event.target.value)}
+                    placeholder="Namn på tillval"
+                  />
+                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-[8px] border border-[var(--border-subtle)] px-2.5 py-1.5 text-[13px] font-bold text-[var(--text-primary)]">
+                    +
+                    <input
+                      type="number"
+                      value={extra.priceAddon}
+                      onChange={(event) => updateExtra(index, "priceAddon", Number(event.target.value))}
+                      aria-label="Pristillägg"
+                      className="w-[42px] bg-transparent text-right font-bold outline-none"
+                    />
+                    kr
+                  </span>
+                  <Toggle checked={extra.isDefault} onChange={(next) => updateExtra(index, "isDefault", next)} />
+                  <RowIconButton label="Ta bort tillval" onClick={() => setExtras((current) => current.filter((_, currentIndex) => currentIndex !== index))}>
+                    <Plus size={14} className="rotate-45" />
+                  </RowIconButton>
                 </div>
                 {displayStyle === "BOX_IMAGE" ? (
-                  <ImageUploadField
-                    label="Bild"
-                    value={extra.imageUrl || ""}
-                    onChange={(url) => updateExtra(index, "imageUrl", url || null)}
-                    kind="extra"
-                    fileBaseName={extra.name}
-                    restaurantId={restaurantId}
-                    uploadOnly
-                  />
+                  <div className="px-4 pb-4 pl-[43px]">
+                    <ImageUploadField
+                      label="Bild"
+                      value={extra.imageUrl || ""}
+                      onChange={(url) => updateExtra(index, "imageUrl", url || null)}
+                      kind="extra"
+                      fileBaseName={extra.name}
+                      restaurantId={restaurantId}
+                      uploadOnly
+                    />
+                  </div>
                 ) : null}
               </div>
             ))}
