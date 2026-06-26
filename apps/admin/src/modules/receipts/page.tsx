@@ -16,7 +16,7 @@ import {
   type ReceiptTemplate,
 } from "@/modules/receipts/api";
 import { getRestaurantOverview } from "@/modules/restaurants/api";
-import { Button, ErrorPanel, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Button, ErrorPanel, Field, Input, PageHeader, Select, Surface, Textarea, Toggle } from "@/shared/components/ui";
 
 const defaultElements: ReceiptElement[] = [
   // ── Header (all centered) ──────────────────────────────────────────────────
@@ -272,64 +272,69 @@ export function ReceiptsPage() {
   const selectedElement = draft?.elements.find((el) => el.key === selectedKey) ?? null;
 
   if (config.isLoading || restaurants.isLoading || previewOrders.isLoading) {
-    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading receipt control...</Surface>;
+    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar kvitto-mall…</Surface>;
   }
 
   if (config.isError || restaurants.isError || previewOrders.isError || !config.data || !restaurants.data || !previewOrders.data) {
-    return <ErrorPanel title="Receipts could not be loaded" description="Printing config, restaurants or preview orders failed to load." action={<Button onClick={() => { void config.refetch(); void restaurants.refetch(); void previewOrders.refetch(); }}>Retry</Button>} />;
+    return <ErrorPanel title="Kunde inte ladda kvitto-mallen" description="Utskriftskonfiguration, restauranger eller förhandsvisningsordrar gick inte att hämta." action={<Button onClick={() => { void config.refetch(); void restaurants.refetch(); void previewOrders.refetch(); }}>Försök igen</Button>} />;
   }
+
+  const PAPER_WIDTHS: Array<ReceiptTemplate["paperWidth"]> = ["58mm", "72mm", "80mm", "A4"];
+  const handlePrintTest = () => { if (typeof window !== "undefined") window.print(); };
 
   const effectiveTemplate = draft ?? mergeTemplateElements(config.data.template);
 
   return (
     <div className="page-stack">
       <PageHeader
-        title="Receipts"
-      />
-
-      {/* Template editor + live preview */}
-      <Surface className="px-6 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Template editor</p>
-            <h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">Receipt template</h2>
-          </div>
-          <div className="flex items-center gap-3">
-            {saveStatus === "saved" && (
-              <span className="text-sm font-medium text-green-600">✓ Sparat!</span>
-            )}
-            {saveStatus === "error" && (
-              <span className="text-sm font-medium text-red-500">✗ Kunde inte spara</span>
-            )}
-            <Button
-              onClick={() => {
-                if (config.data) setDraft(mergeTemplateElements({ ...config.data.template, elements: defaultElements }));
-              }}
-              disabled={!draft}
-            >
-              Återställ allt
+        breadcrumb="Plattform / Kvitto-mall"
+        title="Utskriftsmall"
+        actions={
+          <>
+            {saveStatus === "saved" && <span className="text-[13px] font-bold text-[var(--success-text)]">Sparat</span>}
+            {saveStatus === "error" && <span className="text-[13px] font-bold text-[var(--danger-text)]">Kunde inte spara</span>}
+            <Button variant="secondary" onClick={handlePrintTest}>
+              <Printer size={14} /> Skriv ut test
             </Button>
             <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!draft || saveMutation.isPending}>
-              {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Spara template
+              {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Spara mall
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        <div className="grid gap-6 xl:grid-cols-[300px_1fr]">
+      <p className="-mt-2 text-[13px] text-[var(--text-secondary)]">
+        Gäller kvitton som skrivs ut på restaurangernas kvittoskrivare. Ändringar syns direkt i förhandsvisningen.
+      </p>
+
+      <Surface className="px-6 py-6">
+        <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
           {/* Left: element controls */}
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Paper width">
-                <Select value={draft?.paperWidth ?? "80mm"} onChange={(e) => setDraft((p) => p ? { ...p, paperWidth: e.target.value as ReceiptTemplate["paperWidth"] } : p)}>
-                  <option value="58mm">58 mm</option>
-                  <option value="72mm">72 mm</option>
-                  <option value="80mm">80 mm</option>
-                  <option value="A4">A4</option>
-                </Select>
-              </Field>
-              <Field label="Plattform">
-                <Input value={draft?.platformName ?? ""} onChange={(e) => setDraft((p) => p ? { ...p, platformName: e.target.value } : p)} />
-              </Field>
+            <div className="rounded-[14px] border border-[var(--border-subtle)] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[14px] font-semibold">Papperbredd</span>
+                <div className="segmented">
+                  {PAPER_WIDTHS.map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      className={draft?.paperWidth === w ? "is-active" : ""}
+                      onClick={() => setDraft((p) => p ? { ...p, paperWidth: w } : p)}
+                    >
+                      {w === "A4" ? "A4" : w.replace("mm", " mm")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3 border-t border-[var(--row-divider)] pt-4">
+                <span className="text-[14px] font-semibold">Plattformsnamn</span>
+                <Input
+                  value={draft?.platformName ?? ""}
+                  onChange={(e) => setDraft((p) => p ? { ...p, platformName: e.target.value } : p)}
+                  className="max-w-[160px] text-right"
+                />
+              </div>
             </div>
 
             {(() => {
@@ -351,8 +356,8 @@ export function ReceiptsPage() {
               const contentKeys = new Set(["thankYou", "footerMsg", "headerMsg"]);
 
               return (
-                <div className="rounded border border-[var(--border)] overflow-hidden divide-y divide-[var(--border)]">
-                  {sections.map((section) => {
+                <div className="overflow-hidden rounded-[14px] border border-[var(--border-subtle)]">
+                  {sections.map((section, si) => {
                     const sectionVisible = section.elements.some((key) => {
                       const el = draft?.elements.find((e) => e.key === key);
                       return el?.visible === true;
@@ -373,32 +378,24 @@ export function ReceiptsPage() {
                     };
 
                     return (
-                      <div key={section.key}>
+                      <div key={section.key} style={si > 0 ? { borderTop: "1px solid var(--row-divider)" } : undefined}>
                         {/* Section header row */}
-                        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[var(--border)] last:border-b-0">
-                          {/* iOS-style toggle */}
-                          <button
-                            type="button"
-                            onClick={toggleSectionVisible}
-                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${sectionVisible ? "bg-emerald-500" : "bg-zinc-300"}`}
-                          >
-                            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${sectionVisible ? "translate-x-5" : "translate-x-0"}`} />
-                          </button>
-                          {/* Label */}
-                          <span className="flex-1 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{section.label}</span>
-                          {/* Expand/collapse */}
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          <span className="flex-1 text-[14px] font-semibold text-[var(--text-primary)]">{section.label}</span>
                           <button
                             type="button"
                             onClick={() => setExpandedSection((k) => k === section.key ? null : section.key)}
-                            className="text-[var(--text-muted)]"
+                            className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
+                            aria-label={isExpanded ? "Dölj inställningar" : "Visa inställningar"}
                           >
                             {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                           </button>
+                          <Toggle checked={sectionVisible} onChange={() => toggleSectionVisible()} />
                         </div>
 
                         {/* Expanded element detail */}
                         {isExpanded && (
-                          <div className="px-4 py-3 bg-[var(--bg-deep,var(--surface-muted))] space-y-3 border-b border-[var(--border)]">
+                          <div className="space-y-3 border-t border-[var(--row-divider)] bg-[var(--bg-page)] px-4 py-3">
                             {section.elements.map((key) => {
                               const el = draft?.elements.find((e) => e.key === key);
                               if (!el) return null;
@@ -451,24 +448,31 @@ export function ReceiptsPage() {
                 </div>
               );
             })()}
+
+            <button
+              type="button"
+              onClick={() => { if (config.data) setDraft(mergeTemplateElements({ ...config.data.template, elements: defaultElements })); }}
+              disabled={!draft}
+              className="px-1 text-[12.5px] font-bold text-[var(--accent-ink)] disabled:opacity-40"
+            >
+              Återställ allt till standard
+            </button>
           </div>
 
           {/* Right: live preview */}
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                <Field label="Preview order">
-                  <Select value={previewOrderId || ""} onChange={(e) => setPreviewOrderId(e.target.value)}>
-                    {previewOrders.data.map((order) => <option key={order.id} value={order.id}>{order.orderNumber} • {order.customerName}</option>)}
-                  </Select>
-                </Field>
+            <div className="flex items-center justify-between gap-3">
+              <p className="eyebrow">Kvittoskrivare · {draft?.paperWidth ?? "80mm"}</p>
+              <div className="w-[220px]">
+                <Select value={previewOrderId || ""} onChange={(e) => setPreviewOrderId(e.target.value)}>
+                  {previewOrders.data.map((order) => <option key={order.id} value={order.id}>{order.orderNumber} • {order.customerName}</option>)}
+                </Select>
               </div>
-              <Printer size={18} className="text-[var(--accent-strong)] mt-5 shrink-0" />
             </div>
 
-            <div className="surface-muted flex justify-center px-4 py-6">
+            <div className="flex justify-center rounded-[16px] bg-[var(--bg-page)] px-4 py-8">
               {/* 72 mm-rulle: 72 × 3.78 ≈ 272 px, marginal px-3 → ~65 mm utskriftsyta */}
-              <div className="w-[272px] bg-white px-3 py-4 text-black shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
+              <div className="w-[272px] rounded-[6px] bg-white px-4 py-5 text-black shadow-[0_18px_60px_rgba(17,17,19,0.18)]">
                 {!previewOrderId ? (
                   <p className="py-10 text-center text-xs text-[#888]">Välj en order ovan</p>
                 ) : preview.isLoading ? (
