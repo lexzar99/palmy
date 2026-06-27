@@ -24,11 +24,18 @@ interface Sponsor {
   infoText?: string;
   ctaText?: string;
   ctaLink?: string;
-  linkType?: 'EXTERNAL' | 'DEAL' | 'RESTAURANT';
+  linkType?: 'NONE' | 'EXTERNAL' | 'DEAL' | 'RESTAURANT';
   linkTarget?: string;
   showName?: boolean;
+  category?: string;
+  tier?: string;
+  tagline?: string;
+  color?: string;
+  startsAt?: string;
+  endsAt?: string;
   sortOrder: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 async function readSponsors(): Promise<Sponsor[]> {
@@ -87,7 +94,7 @@ router.get('/all', authenticate, requireSuperAdmin, async (_req, res) => {
 // ── POST /api/sponsors — create sponsor ──────────────────────────────────────
 router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, imageUrl, isClickable, infoText, ctaText, ctaLink, linkType, linkTarget, showName } = req.body;
+    const { name, imageUrl, isClickable, infoText, ctaText, ctaLink, linkType, linkTarget, showName, category, tier, tagline, color, startsAt, endsAt } = req.body;
     if (!name || !imageUrl) return res.status(400).json({ error: 'name och imageUrl krävs' });
 
     const sponsors = await readSponsors();
@@ -103,6 +110,12 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
       linkType: linkType || 'EXTERNAL',
       linkTarget: linkTarget || undefined,
       showName: showName ?? true,
+      category: category || undefined,
+      tier: tier || undefined,
+      tagline: tagline || undefined,
+      color: color || undefined,
+      startsAt: startsAt || undefined,
+      endsAt: endsAt || undefined,
       sortOrder: sponsors.length,
       createdAt: new Date().toISOString(),
     };
@@ -121,7 +134,7 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
     const idx = sponsors.findIndex(s => s.id === req.params.id);
     if (idx < 0) return res.status(404).json({ error: 'Sponsor hittades inte' });
 
-    sponsors[idx] = { ...sponsors[idx], ...req.body, id: sponsors[idx].id };
+    sponsors[idx] = { ...sponsors[idx], ...req.body, id: sponsors[idx].id, updatedAt: new Date().toISOString() };
     await writeSponsors(sponsors);
     res.json(sponsors[idx]);
   } catch {
