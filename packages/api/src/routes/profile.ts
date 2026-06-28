@@ -162,7 +162,9 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
 router.get('/orders', authenticateUser, async (req: any, res: any) => {
   try {
     const orders = await prisma.order.findMany({
-      where: { userId: req.user.id },
+      // Avvisade/avbrutna ordrar ska inte synas i orderhistoriken (kunden
+      // debiterades aldrig, eller har återbetalats + fått poängen återförda).
+      where: { userId: req.user.id, status: { notIn: ['CANCELLED', 'REJECTED'] } },
       include: { restaurant: { select: { id: true, name: true, slug: true } }, items: true },
       orderBy: { createdAt: 'desc' }
     });

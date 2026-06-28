@@ -773,6 +773,20 @@ router.patch('/orders/:id/status', async (req, res) => {
       },
     });
 
+    // Avvisad/avbruten order → backend-auktoritativ Dpoints-återföring:
+    // claw-backa intjänade poäng + återbetala inlösta. Idempotent via
+    // Order.pointsReverted (använder orderns LAGRADE värden, aldrig klient-
+    // input) så kunden inte kan frysa/hacka clawbacken från frontend. Awaitas
+    // så att saldot är korrekt innan svaret (kort, en enda updateMany + tx).
+    if (status === 'REJECTED' || status === 'CANCELLED') {
+      try {
+        const { revertOrderPointsForRefund } = await import('../lib/dpoints');
+        await revertOrderPointsForRefund(order.id);
+      } catch (e: any) {
+        console.error('[admin] dpoints revert on reject failed:', e?.message);
+      }
+    }
+
     // När en order går till DELIVERING får vi en ny datapunkt för
     // restaurangens dynamiska ETA: tiden från createdAt till deliveringAt.
     // Räkna om snittet av senaste 20 ordrarna fire-and-forget — felar det
