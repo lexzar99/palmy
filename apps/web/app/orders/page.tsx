@@ -1,324 +1,613 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import axios from "axios";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Clock, ChevronRight, MessageSquare } from "lucide-react";
-import { API_URL } from "@/lib/api";
-import { readOrderHistory, removeOrderFromHistory, type StoredOrderRef } from "@/lib/orderHistory";
-import { cacheOrdersList, getCachedOrdersList } from "@/lib/offlineOrders";
-import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import {
+  ChevronRight,
+  Diamond,
+  History,
+  Lock,
+  Repeat,
+  Star,
+  Store,
+  UserPlus,
+} from "lucide-react";
+import {
+  claimDpointsSignup,
+  fetchDpointsMe,
+  fetchDpointsRewards,
+  fetchRewardProducts,
+  fetchSponsorCard,
+  txLabel,
+  type DpointsMe,
+  type EarnRule,
+  type RewardRestaurant,
+  type SponsorCardData,
+} from "@/lib/dpoints";
 
-type FetchedOrder = StoredOrderRef & {
-  loaded: true;
-  orderNumber?: string;
-  status?: string;
-  fetchedTotal?: number;
-  restaurantName?: string | null;
+const EARN_ICON: Record<string, typeof UserPlus> = {
+  invite: UserPlus,
+  order_streak: Repeat,
+  new_restaurant: Store,
+  review_rating: Star,
+  review_text: Star,
 };
 
-type FailedOrder = StoredOrderRef & {
-  loaded: false;
-  error: "not_found" | "network";
+const nf = (n: number) => n.toLocaleString("sv-SE");
+const REWARDS_CACHE_KEY = "delivera_rewards_cache_v1";
+
+type RewardsCache = {
+  me?: DpointsMe | null;
+  earnRules?: EarnRule[];
+  rewardRestaurants?: RewardRestaurant[];
+  ts?: number;
 };
 
-type OrderRow = FetchedOrder | FailedOrder;
+function readRewardsCache(): RewardsCache | null {
+  try {
+    return JSON.parse(localStorage.getItem(REWARDS_CACHE_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
 
-// Tone per status (label resolveras via t("orders.status.*") inne i komponenten).
-const STATUS_TONE: Record<string, "warn" | "ok" | "info" | "muted"> = {
-  PENDING: "warn",
-  AWAITING_PAYMENT: "warn",
-  ACCEPTED: "info",
-  PREPARING: "info",
-  READY: "ok",
-  DELIVERING: "info",
-  DELIVERED: "ok",
-  CANCELLED: "muted",
-  REJECTED: "muted",
-  DELIVERY_FAILED: "muted",
-};
+function writeRewardsCache(next: RewardsCache) {
+  try {
+    const current = readRewardsCache() || {};
+    localStorage.setItem(REWARDS_CACHE_KEY, JSON.stringify({ ...current, ...next, ts: Date.now() }));
+  } catch {
+    /* noop */
+  }
+}
 
-// EN statuspalett ("tyst & direkt"): väntar = neutral, pågår = mjuk guld,
-// klart = mjuk grön, avbrutet = neutral dämpad.
-const toneClasses: Record<string, string> = {
-  warn: "bg-[var(--bg-deep)] text-[var(--text-secondary)] border border-[var(--border-muted)]",
-  ok: "bg-[var(--success-soft)] text-[var(--success-ink)] border border-[var(--border-muted)]",
-  info: "bg-[var(--gold-soft)] text-[var(--gold-ink)] border border-[var(--border-muted)]",
-  muted: "bg-[var(--bg-deep)] text-[var(--text-secondary)] border border-[var(--border-muted)]",
-};
+function RewardsSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="skeleton h-40 rounded-3xl" />
+      <div className="skeleton h-7 w-44 rounded-xl" />
+      <div className="flex gap-3 overflow-hidden">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="skeleton h-56 w-36 shrink-0 rounded-2xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
-export default function OrdersPage() {
-  const { t } = useTranslation();
-  const [rows, setRows] = useState<OrderRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showingOffline, setShowingOffline] = useState(false);
+function SponsorBanner({ onRegister }: { onRegister: () => void }) {
+  const [card, setCard] = useState<SponsorCardData | null>(null);
 
-  // Offline orderhistorik: persist:a berikade rader (status/ordernummer) så
-  // listan är komplett även utan nät — inte bara app-skalet.
   useEffect(() => {
-    if (rows.length > 0 && rows.some((r) => r.loaded && (r as FetchedOrder).status)) {
-      cacheOrdersList(rows);
+    try {
+      if (localStorage.getItem("dp_hadAccount")) return;
+    } catch {
+      /* noop */
     }
-  }, [rows]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    // 1) Visa localStorage-refs DIREKT som "loaded med basic data" — namn,
-    //    total och createdAt har vi redan. Statusen fylls i async i bakgrunden.
-    //    Detta gör att listan blir klickbar omedelbart istället för att vänta
-    //    8s på flera API-anrop.
-    const refs = readOrderHistory();
-    // Berika direkt från offline-cachen (status/ordernummer från förra
-    // besöket) — utan nät är detta hela innehållet, med nät ersätts det
-    // strax av färsk data.
-    const cached = getCachedOrdersList();
-    const cachedById = new Map<string, any>((cached?.orders ?? []).map((o: any) => [o.id, o]));
-    if (typeof navigator !== "undefined" && !navigator.onLine && cachedById.size > 0) {
-      setShowingOffline(true);
-    }
-    if (refs.length > 0) {
-      const initial: OrderRow[] = refs
-        .map((ref) => ({
-          ...ref,
-          loaded: true as const,
-          orderNumber: cachedById.get(ref.id)?.orderNumber ?? undefined,
-          status: cachedById.get(ref.id)?.status ?? undefined,
-          fetchedTotal: ref.total,
-          restaurantName: ref.restaurantName ?? null,
-        }))
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setRows(initial);
-      setLoading(false);
-    }
-
-    // 2) Backend-fetch i bakgrunden (inloggade users — orders från andra enheter)
-    axios
-      .get(`/api/platform/profile/orders`, { timeout: 5000 })
-      .then((res) => {
-        if (cancelled || !Array.isArray(res.data)) return;
-        const backendOrders = res.data;
-        setRows((prev) => {
-          const seenIds = new Set(backendOrders.map((o: any) => o.id));
-          const backendRows: OrderRow[] = backendOrders.map((o: any) => ({
-            id: o.id,
-            phone: o.customerPhone || "",
-            createdAt: o.createdAt || new Date().toISOString(),
-            restaurantName: o.restaurantName ?? null,
-            restaurantSlug: null,
-            total: o.total,
-            loaded: true as const,
-            orderNumber: o.orderNumber,
-            status: o.status,
-            fetchedTotal: o.total,
-          }));
-          const localOnly = prev.filter((r) => !seenIds.has(r.id));
-          return [...backendRows, ...localOnly].sort(
-            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-          );
-        });
-        setLoading(false);
-      })
-      .catch(() => {
-        // Inte inloggad / backend nere — vi har redan localStorage-rader
-        if (!cancelled) setLoading(false);
-      });
-
-    // 3) Status/orderNumber för gäst-ordrar i EN batch per telefonnummer
-    //    (istället för ett anrop per order — ~21/laddning förut). Kollapsar
-    //    fan-out:en så order-historiken håller vid hög samtidig last.
-    const idsByPhone = new Map<string, string[]>();
-    refs.forEach((ref) => {
-      const p = ref.phone || "";
-      const list = idsByPhone.get(p) ?? [];
-      list.push(ref.id);
-      idsByPhone.set(p, list);
-    });
-    idsByPhone.forEach((ids, phone) => {
-      axios
-        .get(`${API_URL}/api/orders/status-batch`, {
-          params: { ids: ids.join(","), phone },
-          timeout: 5000,
-        })
-        .then((res) => {
-          if (cancelled || !Array.isArray(res.data)) return;
-          const byId = new Map<string, any>(res.data.map((o: any) => [o.id, o]));
-          setRows((prev) =>
-            prev.map((row) => {
-              const m = byId.get(row.id);
-              return m
-                ? {
-                    ...row,
-                    loaded: true as const,
-                    orderNumber: m.orderNumber,
-                    status: m.status,
-                    fetchedTotal: m.total,
-                    restaurantName: m.restaurantName ?? row.restaurantName ?? null,
-                  }
-                : row;
-            }),
-          );
-        })
-        .catch(() => {
-          // Nätfel/inte inloggad — vi har redan basic localStorage-data att visa.
-        });
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    fetchSponsorCard().then(setCard).catch(() => {});
   }, []);
 
-  const handleClearMissing = (id: string) => {
-    removeOrderFromHistory(id);
-    setRows((prev) => prev.filter((r) => r.id !== id));
+  if (!card) return null;
+
+  return (
+    <div
+      className="rounded-3xl p-4 sm:p-5"
+      style={{ backgroundColor: "#141416", border: "1px solid rgba(240,83,28,0.45)" }}
+    >
+      <div className="flex items-center gap-3.5">
+        <Diamond size={30} strokeWidth={1.9} style={{ color: "var(--color-gold-500)" }} />
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-extrabold leading-tight text-white">{card.title}</p>
+          {card.description && (
+            <p className="mt-0.5 text-[12px] font-semibold leading-snug text-white/80">{card.description}</p>
+          )}
+          {card.sponsorName && <p className="mt-0.5 text-[11px] text-white/60">{card.sponsorName}</p>}
+        </div>
+        <span
+          className="shrink-0 rounded-full px-3 py-1.5 text-[13px] font-extrabold text-white"
+          style={{ backgroundColor: "var(--color-gold-500)", fontVariantNumeric: "tabular-nums" }}
+        >
+          +{nf(card.bonusPoints)} p
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={onRegister}
+        className="mt-3 w-full text-center text-[13px] font-bold"
+        style={{ color: "#FFB199" }}
+      >
+        Få {nf(card.bonusPoints)} Dpoints när du skapar ett konto
+      </button>
+    </div>
+  );
+}
+
+function GuestRewards({ rewardRestaurants, loading }: { rewardRestaurants: RewardRestaurant[]; loading: boolean }) {
+  const router = useRouter();
+  const previewRewards = useMemo(
+    () =>
+      rewardRestaurants
+        .flatMap((restaurant) =>
+          restaurant.products.slice(0, 4).map((product) => ({
+            id: product.id,
+            restaurantName: restaurant.name,
+            title: product.name,
+            imageUrl: product.imageUrl,
+            meta: `${nf(product.pointsPrice)} p`,
+          })),
+        )
+        .slice(0, 10),
+    [rewardRestaurants],
+  );
+
+  return (
+    <div className="space-y-4">
+      <SponsorBanner onRegister={() => router.push("/register")} />
+
+      <section
+        className="relative overflow-hidden rounded-3xl p-5 sm:p-6 text-white"
+        style={{
+          backgroundColor: "var(--color-gold-500)",
+          boxShadow: "0 18px 40px rgba(240,83,28,0.22)",
+        }}
+      >
+        <div className="absolute -right-9 -top-9 h-36 w-36 rounded-full bg-white/15" />
+        <Diamond size={30} strokeWidth={1.9} />
+        <h2 className="mt-4 text-[30px] font-black leading-[34px] tracking-tight">Poäng som blir mat</h2>
+        <p className="mt-2 max-w-sm text-[13.5px] font-medium leading-5 text-white/85">
+          Samla Dpoints på beställningar, uppdrag och deals från Delivera.
+        </p>
+        <Link
+          href="/register"
+          className="mt-5 flex h-12 items-center justify-center rounded-xl bg-white px-4 text-[15px] font-extrabold"
+          style={{ color: "var(--color-gold-500)" }}
+        >
+          Registrera dig och börja samla
+        </Link>
+      </section>
+
+      <section className="space-y-2.5">
+        <h2 className="text-[18px] font-extrabold" style={{ color: "var(--text-primary)" }}>Lös in</h2>
+        <p className="text-[12.5px] leading-[18px]" style={{ color: "var(--text-secondary)" }}>
+          Logga in för att låsa upp produkter som kan betalas med Dpoints.
+        </p>
+
+        {loading ? (
+          <div className="-mx-4 flex gap-3 overflow-hidden px-4">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="w-[148px] shrink-0 overflow-hidden rounded-[18px] border" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+                <div className="skeleton h-[88px]" />
+                <div className="space-y-2 p-3">
+                  <div className="skeleton h-3 w-24 rounded-full" />
+                  <div className="skeleton h-2.5 w-16 rounded-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+            {previewRewards.map((reward) => (
+              <div
+                key={reward.id}
+                className="w-[148px] shrink-0 overflow-hidden rounded-[18px] border opacity-50"
+                style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}
+              >
+                <div className="relative h-[88px]" style={{ backgroundColor: "var(--bg-deep)" }}>
+                  {reward.imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={reward.imageUrl} alt="" className="h-full w-full object-cover" />
+                  )}
+                  <span className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-zinc-950/75 text-white">
+                    <Lock size={12} />
+                  </span>
+                </div>
+                <div className="p-3">
+                  <p className="truncate text-[14.5px] font-extrabold" style={{ color: "var(--text-primary)" }}>{reward.title}</p>
+                  <p className="mt-1 truncate text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>{reward.meta}</p>
+                  <p className="mt-0.5 truncate text-[11.5px]" style={{ color: "var(--text-secondary)" }}>{reward.restaurantName}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div>
+      <h2 className="text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>{title}</h2>
+      {subtitle && <p className="mt-0.5 text-[13px]" style={{ color: "var(--text-secondary)" }}>{subtitle}</p>}
+    </div>
+  );
+}
+
+function MemberRewards({
+  me,
+  earnRules,
+  rewardRestaurants,
+  initialHistoryOpen = false,
+  loading,
+  onClaimed,
+}: {
+  me: DpointsMe;
+  earnRules: EarnRule[];
+  rewardRestaurants: RewardRestaurant[];
+  initialHistoryOpen?: boolean;
+  loading: boolean;
+  onClaimed: (me: DpointsMe) => void;
+}) {
+  const [claiming, setClaiming] = useState(false);
+  const [showHistory, setShowHistory] = useState(initialHistoryOpen);
+  const [showEarnTasks, setShowEarnTasks] = useState(false);
+  const rewardProductCount = rewardRestaurants.reduce((sum, restaurant) => sum + restaurant.products.length, 0);
+  const streakProgress = me.streak ? Math.min(100, Math.round((me.streak.count / Math.max(1, me.streak.target)) * 100)) : 0;
+  const historyTransactions = me.transactions.slice(0, 10);
+
+  useEffect(() => {
+    if (initialHistoryOpen) {
+      setShowHistory(true);
+      setShowEarnTasks(false);
+    }
+  }, [initialHistoryOpen]);
+
+  const claimSignup = async () => {
+    setClaiming(true);
+    try {
+      await claimDpointsSignup();
+      const nextMe = await fetchDpointsMe();
+      onClaimed(nextMe);
+    } catch {
+      /* noop */
+    } finally {
+      setClaiming(false);
+    }
   };
 
   return (
-    <div className="min-h-screen md:pt-20 pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
-      <div className="mx-auto max-w-2xl md:max-w-4xl lg:max-w-5xl 2xl:max-w-[1400px] px-4 sm:px-6 lg:px-10 pt-8">
-        <header className="mb-8 md:mb-10">
-          <div className="flex items-start justify-between gap-3 mb-2">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-              {t("orders.title")} {t("orders.titleAccent")}
-            </h1>
-            {/* Kontakt uppe till höger (flyttad hit från botten): ikon + text. */}
-            <Link href="/contact" className="flex items-center gap-2 h-10 px-3.5 rounded-2xl shrink-0 active:scale-95 transition-all" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}>
-              <MessageSquare size={17} style={{ color: "var(--text-secondary)" }} />
-              <span className="text-[13.5px] font-semibold">{t("nav.contact")}</span>
-            </Link>
+    <div className="space-y-[18px]">
+      {me.signup?.claimable && (
+        <button
+          type="button"
+          onClick={claimSignup}
+          disabled={claiming}
+          className="relative w-full overflow-hidden rounded-[18px] bg-[#2E7D4F] p-4 text-left active:scale-[0.99]"
+        >
+          <div className="absolute -right-4 -top-5 h-16 w-16 rounded-full bg-white/15" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-bold text-white">Hämta din välkomstbonus</p>
+              <p className="mt-0.5 text-[13px] text-white/80">+{nf(me.signup.bonusPoints)} Dpoints väntar på dig</p>
+            </div>
+            <span className="rounded-full bg-white/20 px-5 py-2.5 text-[13px] font-bold text-white">
+              {claiming ? "..." : "Hämta"}
+            </span>
           </div>
-          {showingOffline && (
-            <p className="mb-2 inline-flex items-center gap-2 rounded-md px-2.5 py-1 text-[12.5px] font-medium" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
-              Offline — visar senast sparade ordrar
-            </p>
+        </button>
+      )}
+
+      <section
+        className="relative overflow-hidden rounded-[18px] p-[17px] text-white"
+        style={{
+          backgroundColor: "var(--color-gold-500)",
+          boxShadow: "0 14px 28px rgba(240,83,28,0.19)",
+        }}
+      >
+        <div className="absolute -right-6 -top-7 h-28 w-28 rounded-full bg-white/15" />
+        <p className="text-[12px] font-semibold text-white/70">Dpoints</p>
+        <p className="mt-0.5 text-[35px] font-extrabold leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
+          {nf(me.balance)}
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => { setShowEarnTasks((v) => !v); setShowHistory(false); }}
+            className="flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl border p-2 text-white"
+            style={{
+              backgroundColor: showEarnTasks ? "#111113" : "rgba(255,255,255,0.13)",
+              borderColor: showEarnTasks ? "rgba(17,17,19,0.26)" : "rgba(255,255,255,0.20)",
+            }}
+          >
+            <Diamond size={17} />
+            <span className="text-[11.5px] font-extrabold">Tjäna poäng</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowHistory((v) => !v); setShowEarnTasks(false); }}
+            className="flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-xl border p-2 text-white"
+            style={{
+              backgroundColor: showHistory ? "#111113" : "rgba(255,255,255,0.13)",
+              borderColor: showHistory ? "rgba(17,17,19,0.26)" : "rgba(255,255,255,0.20)",
+            }}
+          >
+            <History size={17} />
+            <span className="text-[11.5px] font-extrabold">Historik</span>
+          </button>
+        </div>
+      </section>
+
+      {showEarnTasks && (
+        <section className="space-y-3">
+          <SectionTitle title="Tjäna poäng" />
+          <p className="px-0.5 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
+            Varje köp ger poäng: <span className="font-bold" style={{ color: "var(--text-primary)" }}>10% tillbaka i Dpoints</span>. Gör tasks för extra.
+          </p>
+          {earnRules.length === 0 ? (
+            <div className="rounded-[18px] border p-4 text-[13px]" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+              Inga uppdrag är aktiva just nu.
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-[18px] border" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+              {earnRules.map((rule, i) => {
+                const Icon = EARN_ICON[rule.key] ?? Diamond;
+                const ready = rule.key === "order_streak" && !!me.streak?.ready;
+                const caption =
+                  rule.key === "order_streak" && me.streak
+                    ? me.streak.ready
+                      ? `${me.streak.count}/${me.streak.target} på 7 dagar`
+                      : `Klar, redo om ${me.streak.readyInDays} ${me.streak.readyInDays === 1 ? "dag" : "dagar"}`
+                    : rule.repeat;
+                const row = (
+                  <div className="relative flex items-center gap-3 px-4 py-[15px]" style={{ borderTop: i > 0 ? "1px solid var(--border-muted)" : "none" }}>
+                    <Icon size={21} style={{ color: ready ? "#FFFFFF" : "var(--text-primary)" }} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[14.5px] font-bold" style={{ color: ready ? "#FFFFFF" : "var(--text-primary)" }}>{rule.label}</p>
+                      {caption && <p className="mt-0.5 truncate text-[12.5px]" style={{ color: ready ? "rgba(255,255,255,0.78)" : "var(--text-secondary)" }}>{caption}</p>}
+                      {rule.key === "order_streak" && me.streak && (
+                        <div className="mt-2 h-0.5 overflow-hidden rounded-full" style={{ backgroundColor: ready ? "rgba(255,255,255,0.24)" : "var(--bg-deep)" }}>
+                          <div className="h-full" style={{ width: `${streakProgress}%`, backgroundColor: ready ? "#FFFFFF" : "var(--color-gold-500)" }} />
+                        </div>
+                      )}
+                    </div>
+                    <span className="rounded-full px-3 py-1.5 text-[12px] font-bold text-white" style={{ backgroundColor: ready ? "rgba(255,255,255,0.18)" : "#111113" }}>
+                      +{nf(rule.points)} p
+                    </span>
+                    {rule.key === "invite" && <ChevronRight size={15} style={{ color: ready ? "#FFFFFF" : "var(--text-secondary)" }} />}
+                  </div>
+                );
+                return rule.key === "invite" ? (
+                  <Link key={rule.key} href="/invite" className={ready ? "block bg-[#2E7D4F]" : "block"}>
+                    {row}
+                  </Link>
+                ) : (
+                  <div key={rule.key} className={ready ? "bg-[#2E7D4F]" : ""}>{row}</div>
+                );
+              })}
+            </div>
           )}
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            {t("orders.subtitle")}
+        </section>
+      )}
+
+      {showHistory && (
+        <section className="space-y-3">
+          <SectionTitle title="Historik" subtitle="Dina 10 senaste Dpoints-rörelser." />
+          <div className="overflow-hidden rounded-[18px] border" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+            {historyTransactions.length === 0 ? (
+              <p className="px-4 py-4 text-[13px]" style={{ color: "var(--text-secondary)" }}>Ingen Dpoints-historik än.</p>
+            ) : (
+              historyTransactions.map((tx, i) => (
+                <div key={tx.id} className="flex items-center justify-between gap-3 px-4 py-3.5" style={{ borderTop: i > 0 ? "1px solid var(--border-muted)" : "none" }}>
+                  <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold" style={{ color: "var(--text-secondary)" }}>{txLabel(tx)}</span>
+                  <span className="text-[13.5px] font-extrabold" style={{ color: tx.amount >= 0 ? "var(--text-primary)" : "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                    {tx.amount >= 0 ? "+" : ""}{nf(tx.amount)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      )}
+
+      <section className="space-y-3">
+        <SectionTitle
+          title="Köp med poäng"
+          subtitle={rewardProductCount > 0 ? `${rewardProductCount} produkter från restaurangerna` : "Rewardable produkter visas här när de är aktiva."}
+        />
+        {rewardRestaurants.length === 0 ? (
+          loading ? (
+            <div className="-mx-4 flex gap-3 overflow-hidden px-4">
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="skeleton h-[218px] w-[146px] shrink-0 rounded-[18px]" />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[18px] border p-[18px]" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+              <p className="text-[14.5px] font-bold" style={{ color: "var(--text-primary)" }}>Inga produkter ännu</p>
+              <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
+                När en restaurang markerar produkter som rewardable i admin visas de här.
+              </p>
+            </div>
+          )
+        ) : (
+          <div className="space-y-5">
+            {rewardRestaurants.map((restaurant) => (
+              <div key={restaurant.id} className="space-y-2.5">
+                <Link href={`/restaurants/${restaurant.slug}`} className="flex items-center gap-2.5 active:opacity-80">
+                  <div className="h-[34px] w-[34px] overflow-hidden rounded-[10px]" style={{ backgroundColor: "var(--bg-deep)" }}>
+                    {(restaurant.logoUrl || restaurant.imageUrl) && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={restaurant.logoUrl || restaurant.imageUrl || ""} alt="" className="h-full w-full object-cover" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-extrabold" style={{ color: "var(--text-primary)" }}>{restaurant.name}</p>
+                    <p className="truncate text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
+                      {restaurant.cuisine || "Rewards"} · välj produkt i menyn
+                    </p>
+                  </div>
+                  <ChevronRight size={16} style={{ color: "var(--text-secondary)" }} />
+                </Link>
+
+                <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+                  {restaurant.products.map((product) => {
+                    const affordable = me.balance >= product.pointsPrice;
+                    return (
+                      <Link
+                        key={product.id}
+                        href={`/restaurants/${restaurant.slug}`}
+                        className="w-[146px] shrink-0 overflow-hidden rounded-[18px] border active:opacity-85"
+                        style={{
+                          borderColor: affordable ? "var(--border-muted)" : "var(--border-muted)",
+                          backgroundColor: "var(--bg-secondary)",
+                          opacity: affordable ? 1 : 0.58,
+                        }}
+                      >
+                        <div className="relative h-[132px] bg-white">
+                          {product.imageUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={product.imageUrl} alt="" className="h-full w-full object-contain" />
+                          )}
+                          {!affordable && (
+                            <span className="absolute right-2 top-2 grid h-[26px] w-[26px] place-items-center rounded-full bg-zinc-950/75 text-white">
+                              <Lock size={13} />
+                            </span>
+                          )}
+                        </div>
+                        <div className="space-y-1.5 p-[11px]">
+                          <p className="truncate text-[13.5px] font-extrabold" style={{ color: "var(--text-primary)" }}>{product.name}</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[12.5px] font-extrabold" style={{ color: "#B23C12", fontVariantNumeric: "tabular-nums" }}>
+                              {nf(product.pointsPrice)} p
+                            </span>
+                            <span className="text-[11.5px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+                              {Math.round(product.price)} kr
+                            </span>
+                          </div>
+                          {product.tier?.label && (
+                            <p className="truncate text-[11.5px]" style={{ color: "var(--text-secondary)" }}>{product.tier.label}</p>
+                          )}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+    </div>
+  );
+}
+
+export default function OrdersPage() {
+  const [loadingMe, setLoadingMe] = useState(true);
+  const [me, setMe] = useState<DpointsMe | null>(null);
+  const [earnRules, setEarnRules] = useState<EarnRule[]>([]);
+  const [rewardRestaurants, setRewardRestaurants] = useState<RewardRestaurant[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [initialHistoryOpen, setInitialHistoryOpen] = useState(false);
+
+  const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true);
+    try {
+      let data = await fetchRewardProducts();
+      if (data.restaurants.length === 0) data = await fetchRewardProducts(true);
+      const restaurants = Array.isArray(data.restaurants) ? data.restaurants : [];
+      setRewardRestaurants(restaurants);
+      writeRewardsCache({ rewardRestaurants: restaurants });
+    } catch {
+      setRewardRestaurants([]);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    try {
+      setInitialHistoryOpen(new URLSearchParams(window.location.search).get("history") === "1");
+    } catch {
+      /* noop */
+    }
+    const cached = readRewardsCache();
+    if (cached) {
+      if (cached.me !== undefined) {
+        setMe(cached.me ?? null);
+        setLoadingMe(false);
+      }
+      if (Array.isArray(cached.earnRules)) setEarnRules(cached.earnRules);
+      if (Array.isArray(cached.rewardRestaurants)) {
+        setRewardRestaurants(cached.rewardRestaurants);
+        setCatalogLoading(false);
+      }
+    }
+
+    fetchDpointsMe()
+      .then((data) => {
+        if (!active) return;
+        setMe(data);
+        writeRewardsCache({ me: data });
+        try { localStorage.setItem("dp_hadAccount", "1"); } catch { /* noop */ }
+      })
+      .catch(() => {
+        if (active) setMe(null);
+      })
+      .finally(() => {
+        if (active) setLoadingMe(false);
+      });
+
+    fetchDpointsRewards()
+      .then((data) => {
+        if (!active) return;
+        const rules = data.earnRules || [];
+        setEarnRules(rules);
+        writeRewardsCache({ earnRules: rules });
+      })
+      .catch(() => {
+        if (active) setEarnRules([]);
+      });
+
+    void loadCatalog();
+    return () => { active = false; };
+  }, [loadCatalog]);
+
+  const loggedIn = !!me;
+
+  return (
+    <div className="min-h-screen md:pt-20 pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-[18px] px-5 pt-8 sm:px-6 lg:px-10">
+        <header className="space-y-1">
+          <motion.h1
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-[30px] font-black leading-tight tracking-tight"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Rewards
+          </motion.h1>
+          <p className="text-[13.5px] leading-[19px]" style={{ color: "var(--text-secondary)" }}>
+            {loggedIn
+              ? "Tjäna poäng, köp reward-produkter och följ din historik."
+              : "Se vilka rewards du kan låsa upp när du loggar in."}
           </p>
         </header>
 
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-28 skeleton rounded-2xl" />
-            ))}
-          </div>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center text-center pt-12 pb-10 px-6">
-            {/* Tom orderhistorik — samma guld-line-art-språk som tomma
-                varukorgen: ett kvitto ritas upp vid mount, svävar mjukt, och
-                guld-skuggan andas i motfas. Ingen lucide-ikon, ingen emoji. */}
-            <style>{`
-              @keyframes ordReceiptDraw { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
-              @keyframes ordReceiptFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-              @keyframes ordShadowBreathe { 0%, 100% { transform: scaleX(1); opacity: 0.55; } 50% { transform: scaleX(0.82); opacity: 0.3; } }
-              .ord-empty-art path, .ord-empty-art line { stroke-dasharray: 300; animation: ordReceiptDraw 1.1s ease-out forwards; }
-              .ord-empty-float { animation: ordReceiptFloat 5s ease-in-out 1.2s infinite; }
-              .ord-empty-shadow { transform-origin: center; animation: ordShadowBreathe 5s ease-in-out 1.2s infinite; }
-              @media (prefers-reduced-motion: reduce) {
-                .ord-empty-art path, .ord-empty-art line { animation: none; stroke-dashoffset: 0; }
-                .ord-empty-float, .ord-empty-shadow { animation: none; }
-              }
-            `}</style>
-            <div className="ord-empty-float">
-              <svg className="ord-empty-art" width="84" height="84" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-                {/* Kvitto med tandad nederkant */}
-                <path d="M18 8h28v44l-5-3.5-5 3.5-6-3.5-6 3.5-5-3.5V8z" stroke="var(--color-gold-500, #E7B24B)" strokeWidth="2" strokeLinejoin="round" fill="none" />
-                <line x1="25" y1="20" x2="39" y2="20" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" />
-                <line x1="25" y1="28" x2="39" y2="28" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" />
-                <line x1="25" y1="36" x2="33" y2="36" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </div>
-            <svg className="ord-empty-shadow mt-2" width="68" height="10" viewBox="0 0 68 10" aria-hidden="true">
-              <ellipse cx="34" cy="5" rx="28" ry="4" fill="var(--gold-soft)" />
-            </svg>
-            <h2 className="mt-6 text-[17px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-              {t("orders.empty.title")}
-            </h2>
-            <p className="mt-1.5 text-[13.5px] max-w-[280px]" style={{ color: "var(--text-secondary)" }}>
-              {t("orders.empty.subtitle")}
-            </p>
-            <Link
-              href="/"
-              className="mt-6 h-11 px-5 rounded-xl flex items-center text-[14.5px] font-semibold transition-all active:scale-95"
-              style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
-            >
-              {t("orders.empty.cta")}
-            </Link>
-          </div>
+        {loadingMe ? (
+          <RewardsSkeleton />
+        ) : loggedIn && me.enabled ? (
+          <MemberRewards
+            me={me}
+            earnRules={earnRules}
+            rewardRestaurants={rewardRestaurants}
+            initialHistoryOpen={initialHistoryOpen}
+            loading={catalogLoading}
+            onClaimed={(nextMe) => {
+              setMe(nextMe);
+              writeRewardsCache({ me: nextMe });
+            }}
+          />
+        ) : !loggedIn ? (
+          <GuestRewards rewardRestaurants={rewardRestaurants} loading={catalogLoading} />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {rows.map((row) => {
-              if (!row.loaded) {
-                return (
-                  <div
-                    key={row.id}
-                    className="rounded-2xl border p-5 flex flex-col gap-3"
-                    style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-bold text-rose-400">
-                        {row.error === "not_found" ? t("orders.row.notFound") : t("orders.row.fetchError")}
-                      </p>
-                      <button
-                        onClick={() => handleClearMissing(row.id)}
-                        className="text-[12px] font-medium text-zinc-500 hover:text-zinc-300"
-                      >
-                        {t("orders.row.remove")}
-                      </button>
-                    </div>
-                    <p className="text-sm font-bold" style={{ color: "var(--text-secondary)" }}>
-                      {new Date(row.createdAt).toLocaleString("sv-SE")}
-                    </p>
-                  </div>
-                );
-              }
-              const tone = row.status ? STATUS_TONE[row.status] : null;
-              return (
-                <Link
-                  key={row.id}
-                  href={`/order/${row.id}?phone=${encodeURIComponent(row.phone)}`}
-                  className="group block rounded-2xl border p-5 hover:border-gold-500/40 transition-colors active:scale-[0.99]"
-                  style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", touchAction: "manipulation" }}
-                >
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-bold mb-1" style={{ color: "var(--text-secondary)" }}>
-                        {row.restaurantName || t("orders.row.fallbackName")}
-                      </p>
-                      <p className="text-lg font-bold tracking-tight truncate" style={{ color: "var(--text-primary)" }}>
-                        {row.orderNumber || row.id.slice(-6).toUpperCase()}
-                      </p>
-                    </div>
-                    <ChevronRight size={18} className="shrink-0 text-zinc-500 group-hover:text-gold-500 transition-colors" />
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap mb-3">
-                    {row.status && tone ? (
-                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold ${toneClasses[tone]}`}>
-                        {t(`orders.status.${row.status}`)}
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">
-                        {t("orders.row.statusLoading")}
-                      </span>
-                    )}
-                    {typeof row.fetchedTotal === "number" && (
-                      <span className="text-[10px] font-bold" style={{ color: "var(--text-secondary)" }}>
-                        {row.fetchedTotal.toFixed(0)} kr
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
-                    <Clock size={11} /> {new Date(row.createdAt).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" })}
-                  </div>
-                </Link>
-              );
-            })}
+          <div className="rounded-2xl border p-4 text-[13px]" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+            Rewards är inte aktivt just nu.
           </div>
         )}
-
       </div>
     </div>
   );

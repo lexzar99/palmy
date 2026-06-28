@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  /* Gold accent – bevarat som premium-signal */
-  --color-gold-400: #F4D086;
-  --color-gold-500: #E7B24B;
-  --color-gold-600: #C28E2E;
+  /* Legacy gold names now map to the React app's orange brand scale. */
+  --color-gold-400: #FFB39B;
+  --color-gold-500: #F0531C;
+  --color-gold-600: #C83F12;
 }
 
 /* ── "Silk / Light Luxury" design tokens ─────────────────────────────────────
@@ -12,26 +12,33 @@
    Inspiration: Uber Eats, Wolt, Apple light mode.
    ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  --bg-primary:   #FFFFFF;         /* Ren vit – maximal kontrast */
-  --bg-secondary: #FFFFFF;         /* Rena kortet */
-  --bg-deep:      #F4F4F2;         /* Subtila sektioner */
+  --color-gold-400: #FFB39B;
+  --color-gold-500: #F0531C;
+  --color-gold-600: #C83F12;
+  --gold-400:     #FFB39B;
+  --gold-500:     #F0531C;
+  --gold-600:     #C83F12;
+  --orange:       #F0531C;
+  --bg-primary:   #FCFCF9;         /* Matchar React bgPrimary */
+  --bg-secondary: #FFFFFF;         /* Matchar React bgSecondary */
+  --bg-tertiary:  #F6F6F1;         /* Matchar React bgTertiary */
+  --bg-deep:      #F4F3EF;         /* Matchar React bgDeep */
   --bg-card:      #FFFFFF;
   --text-primary: #111113;         /* Nästan svart – hög kontrast-rubrik */
   --text-secondary: #5C5C61;       /* Mörkare metadata för bättre kontrast */
   --glass-bg:     rgba(255,255,255,0.94);
   --glass-border: rgba(17,17,19,0.10);
-  --border-muted: rgba(17,17,19,0.09);
+  --border-muted: #EDEDEA;
   --card-shadow:  0px 8px 24px rgba(17,17,19,0.06);
   --skeleton-base: #EAEAEA;
   --skeleton-highlight: #F5F5F5;
-  /* "Tyst & direkt"-tokens: guld som textfärg kräver mörkare nyans på vitt
-     för att klara kontrast; mjuka statusytor ersätter genomskinliga
-     färg/glow-kombinationer. */
-  --gold-ink:     #8A6512;         /* Guld som läsbar text på ljus yta */
-  --gold-soft:    #FBF4E4;         /* Mjuk guldyta (info, aktiv status) */
+  /* "Tyst & direkt"-tokens: orange som textfärg kräver mörkare nyans på vitt
+     för att klara kontrast; mjuka statusytor ersätter genomskinliga färger. */
+  --gold-ink:     #F0531C;         /* Samma orange som brandfärgen */
+  --gold-soft:    #FFF0EA;         /* Mjuk orangeyta (info, aktiv status) */
   --success-ink:  #2E7D4F;         /* Rabatter, levererat */
   --success-soft: #E6F1E8;
-  --line-strong:  rgba(17,17,19,0.14); /* Inputs/steppers — snäppet tydligare */
+  --line-strong:  rgba(17,17,19,0.16); /* Inputs/steppers — snäppet tydligare */
 }
 
 /* Mörka temat borttaget — appen är ljus, ett enda token-set i :root ovan. */
@@ -142,7 +149,7 @@
 }
 
 .text-gold-gradient {
-  background: linear-gradient(135deg, #F4D086 0%, #E7B24B 45%, #C28E2E 100%);
+  background: linear-gradient(135deg, #FFB39B 0%, #F0531C 45%, #C83F12 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -188,7 +195,7 @@
 
 .quick-filter-chip.active {
   color: var(--text-primary);
-  border-bottom-color: var(--color-gold-500, #E7B24B);
+  border-bottom-color: var(--color-gold-500, #F0531C);
 }
 
 /* ── Animations ──────────────────────────────────────────────────────────────── */
@@ -200,6 +207,19 @@
 
 .animate-float {
   animation: float 6s ease-in-out infinite;
+}
+
+@keyframes trackingSweep {
+  from { transform: translateX(-52px); }
+  to { transform: translateX(620px); }
+}
+
+.tracking-sweep {
+  animation: trackingSweep 2.2s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tracking-sweep { display: none; }
 }
 
 /* Ren fade när en sida monteras (global via app/template.tsx). OBS: enbart
@@ -261,5 +281,5 @@ button:active:not(:disabled),
 .backface-hidden   { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 
 .bg-gold-gradient {
-  background: linear-gradient(135deg, #F4D086 0%, #E7B24B 45%, #C28E2E 100%);
+  background: linear-gradient(135deg, #FFB39B 0%, #F0531C 45%, #C83F12 100%);
 }

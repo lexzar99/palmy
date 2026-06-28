@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef, type ReactNode } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, Utensils } from "lucide-react";
+import { Search, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, Utensils, Store, Truck } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import dynamic from "next/dynamic";
 import FloatingCartButton from "@/components/FloatingCartButton";
@@ -98,7 +98,12 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
             </span>
           )}
           {/* Rewardable → "eller X poäng" bredvid priset */}
-          <DpointsBadge priceKr={final} rewardable={!!product.rewardable} />
+          <DpointsBadge
+            priceKr={final}
+            rewardable={!!product.rewardable}
+            rewardPointsMultiplier={product.rewardPointsMultiplier}
+            rewardPointsPrice={product.rewardPointsPrice}
+          />
           {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
             <span className="flex items-center gap-1.5 ml-0.5">
               {product.isVegan && <span className="text-[11.5px] font-medium px-1.5 rounded-md" style={{ color: "var(--success-ink)", border: "1px solid color-mix(in srgb, var(--success-ink) 30%, transparent)" }}>Vegan</span>}
@@ -213,7 +218,12 @@ function CompactCard({ product, onClick, disabled }: { product: any; onClick: ()
               {original} kr
             </span>
           )}
-          <DpointsBadge priceKr={final} rewardable={!!product.rewardable} />
+          <DpointsBadge
+            priceKr={final}
+            rewardable={!!product.rewardable}
+            rewardPointsMultiplier={product.rewardPointsMultiplier}
+            rewardPointsPrice={product.rewardPointsPrice}
+          />
         </div>
       </div>
     </button>
@@ -403,6 +413,40 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
     }
   // ↓ Only stable Zustand action — no deliveryOverrides in deps (prevents infinite loop)
   }, [updateDeliveryOverride]);
+
+  const handleOrderTypeChange = useCallback((nextType: "DELIVERY" | "PICKUP") => {
+    setOrderType(nextType);
+    if (typeof window === "undefined") return;
+
+    const previousType = localStorage.getItem("platform_order_type");
+    localStorage.setItem("platform_order_type", nextType);
+
+    if (nextType === "PICKUP") {
+      setZoneAvailable(null);
+      const pickupCity = localStorage.getItem("platform_pickup_city");
+      if (pickupCity) {
+        localStorage.setItem("platform_address", pickupCity);
+        setAddress(pickupCity);
+        return;
+      }
+      setShowAddressModal(true);
+      return;
+    }
+
+    const deliveryAddress =
+      localStorage.getItem("platform_delivery_address") ||
+      (previousType !== "PICKUP" ? localStorage.getItem("platform_address") : null);
+    const hasCoords = Boolean(localStorage.getItem("platform_coords"));
+    if (deliveryAddress) {
+      localStorage.setItem("platform_address", deliveryAddress);
+      setAddress(deliveryAddress);
+    }
+    if (!deliveryAddress || !hasCoords) {
+      setShowAddressModal(true);
+      return;
+    }
+    if (restaurant) void checkZone(restaurant);
+  }, [checkZone, restaurant]);
 
   const ssrSeededRef = useRef(!!initialData);
   const fetchData = useCallback(async () => {
@@ -840,6 +884,30 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           )}
         </div>
 
+        <div className="mt-4 grid grid-cols-2 rounded-[10px] overflow-hidden" style={{ border: "1px solid var(--line-strong)" }}>
+          {(["DELIVERY", "PICKUP"] as const).map((type, i) => {
+            const active = orderType === type;
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => handleOrderTypeChange(type)}
+                className="relative flex h-11 items-center justify-center gap-2 text-[13.5px] transition-colors"
+                style={{
+                  color: active ? "var(--text-primary)" : "var(--text-secondary)",
+                  fontWeight: active ? 700 : 500,
+                  backgroundColor: active ? "var(--gold-soft)" : "var(--bg-secondary)",
+                  borderLeft: i === 1 ? "1px solid var(--line-strong)" : undefined,
+                }}
+              >
+                {type === "DELIVERY" ? <Truck size={15} /> : <Store size={15} />}
+                {type === "DELIVERY" ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
+                {active && <span className="absolute left-4 right-4 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500)" }} />}
+              </button>
+            );
+          })}
+        </div>
+
       </div>
 
       <div className="mx-auto max-w-2xl px-4 sm:px-6 pt-4 relative">
@@ -1023,7 +1091,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                     className="pb-2.5 text-[14.5px] font-semibold transition-colors shrink-0 whitespace-nowrap"
                     style={{
                       color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
-                      borderBottom: isActive ? "2px solid var(--color-gold-500, #E7B24B)" : "2px solid transparent",
+                      borderBottom: isActive ? "2px solid var(--color-gold-500, #F0531C)" : "2px solid transparent",
                       marginBottom: "-1px",
                     }}
                   >
@@ -1251,8 +1319,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             // dyker upp igen när man redan valt här (paritet med home-flödet).
             if (newOrderType === "PICKUP") {
               localStorage.setItem("platform_pickup_city", city || newAddress);
-            } else if (city) {
-              localStorage.setItem("platform_city", city);
+            } else {
+              localStorage.setItem("platform_delivery_address", newAddress);
+              if (city) localStorage.setItem("platform_city", city);
             }
             if (coords) {
               localStorage.setItem("platform_coords", JSON.stringify(coords));

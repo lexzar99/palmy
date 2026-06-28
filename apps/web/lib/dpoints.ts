@@ -60,9 +60,41 @@ export interface EarnRule {
   repeat?: string;
 }
 
+export interface RewardProduct {
+  id: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  imageUrl?: string | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  pointsPrice: number;
+  multiplier?: number | null;
+  tier?: { key: string; label: string; rank: number };
+}
+
+export interface RewardRestaurant {
+  id: string;
+  name: string;
+  slug: string;
+  cuisine?: string | null;
+  imageUrl?: string | null;
+  logoUrl?: string | null;
+  rating?: number | null;
+  ratingCount?: number | null;
+  products: RewardProduct[];
+}
+
 export const fetchDpointsRewards = () =>
   axios
     .get<{ enabled: boolean; valuePerKr: number; rewards: DpointsReward[]; earnRules?: EarnRule[]; streakTarget?: number }>("/api/platform/dpoints/rewards")
+    .then((r) => r.data);
+
+export const fetchRewardProducts = (refresh = false) =>
+  axios
+    .get<{ enabled: boolean; earnRate: number; restaurants: RewardRestaurant[] }>("/api/platform/dpoints/reward-products", {
+      params: refresh ? { refresh: 1 } : undefined,
+    })
     .then((r) => r.data);
 
 export const fetchSponsorCard = () =>

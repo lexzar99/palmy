@@ -164,14 +164,14 @@ export default function CookieConsent() {
                     type="button"
                     onClick={() => setAllowAnalytics((v) => !v)}
                     className="w-full text-left rounded-2xl border p-4 transition-colors"
-                    style={{ backgroundColor: "var(--bg-deep)", borderColor: allowAnalytics ? "rgba(231,178,75,0.4)" : "var(--border-muted)" }}
+                    style={{ backgroundColor: "var(--bg-deep)", borderColor: allowAnalytics ? "rgba(240,83,28,0.4)" : "var(--border-muted)" }}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="text-[13px] font-black" style={{ color: "var(--text-primary)" }}>Analys</div>
                       <span
                         aria-hidden
                         className="w-10 h-6 rounded-full flex items-center transition-colors px-0.5"
-                        style={{ backgroundColor: allowAnalytics ? "var(--gold-500, #e7b24b)" : "var(--border-muted)" }}
+                        style={{ backgroundColor: allowAnalytics ? "var(--gold-500, #F0531C)" : "var(--border-muted)" }}
                       >
                         <span
                           className="w-5 h-5 rounded-full bg-white transition-transform"
@@ -189,14 +189,14 @@ export default function CookieConsent() {
                     type="button"
                     onClick={() => setAllowMarketing((v) => !v)}
                     className="w-full text-left rounded-2xl border p-4 transition-colors"
-                    style={{ backgroundColor: "var(--bg-deep)", borderColor: allowMarketing ? "rgba(231,178,75,0.4)" : "var(--border-muted)" }}
+                    style={{ backgroundColor: "var(--bg-deep)", borderColor: allowMarketing ? "rgba(240,83,28,0.4)" : "var(--border-muted)" }}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="text-[13px] font-black" style={{ color: "var(--text-primary)" }}>Marknadsföring</div>
                       <span
                         aria-hidden
                         className="w-10 h-6 rounded-full flex items-center transition-colors px-0.5"
-                        style={{ backgroundColor: allowMarketing ? "var(--gold-500, #e7b24b)" : "var(--border-muted)" }}
+                        style={{ backgroundColor: allowMarketing ? "var(--gold-500, #F0531C)" : "var(--border-muted)" }}
                       >
                         <span
                           className="w-5 h-5 rounded-full bg-white transition-transform"

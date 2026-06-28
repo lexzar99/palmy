@@ -10,6 +10,7 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useToast } from "./Toast";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { fetchDpointsMe, type DpointsMe } from "@/lib/dpoints";
+import { calcDpointsPrice } from "./DpointsBadge";
 
 interface ProductModalProps {
   product: any;
@@ -240,10 +241,10 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const extrasPrice = selectedExtras.reduce((sum, e) => sum + e.price * (e.quantity ?? 1), 0);
   const totalPrice = (effectiveBasePrice + extrasPrice) * quantity;
   // Dpoints: kostnad i poäng för hela raden + om kunden kan betala med poäng.
-  const dpointsUnitCost = Math.round((effectiveBasePrice + extrasPrice) * (dpoints?.valuePerKr ?? 10));
+  const dpointsUnitCost = calcDpointsPrice(effectiveBasePrice + extrasPrice, product.rewardPointsMultiplier, product.rewardPointsPrice, dpoints?.valuePerKr ?? 10);
   const dpointsCost = dpointsUnitCost * quantity;
   // Poäng-pris för basvaran — visas i header-prisraden ("eller X poäng").
-  const dpointsBasePoints = Math.round(effectiveBasePrice * (dpoints?.valuePerKr ?? 10));
+  const dpointsBasePoints = calcDpointsPrice(effectiveBasePrice, product.rewardPointsMultiplier, product.rewardPointsPrice, dpoints?.valuePerKr ?? 10);
   // Poäng redan reserverade av andra köp-med-poäng-rader i korgen → kan inte
   // dubbel-spendera samma saldo.
   const committedPoints = cartItems.reduce((sum, i) => sum + (i.paidWithPoints ? (i.dpointsUnitCost ?? 0) * i.quantity : 0), 0);
@@ -505,7 +506,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                           <div
                             key={extra.id}
                             className="rounded-2xl overflow-hidden flex flex-col transition-colors"
-                            style={{ border: `1.5px solid ${isSelected ? "var(--gold-500, #E7B24B)" : "var(--border-muted)"}`, backgroundColor: "var(--bg-secondary)" }}
+                            style={{ border: `1.5px solid ${isSelected ? "var(--gold-500, #F0531C)" : "var(--border-muted)"}`, backgroundColor: "var(--bg-secondary)" }}
                           >
                             <button
                               type="button"

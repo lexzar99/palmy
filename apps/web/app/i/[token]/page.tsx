@@ -1,5 +1,6 @@
 import Link from "next/link";
 import RefCookie from "./RefCookie";
+import DeliveraWordmark from "@/components/DeliveraWordmark";
 
 // Invite-landning — /i/<token>. Riktig välkomstsida (inte längre en tyst
 // redirect): visar vem som bjöd in, belöningen, och en tydlig "Skapa konto"-CTA.
@@ -43,7 +44,7 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
         {/* Brand-logga */}
         <div className="flex justify-center pt-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/delivera-lockup.png" alt="Delívera" style={{ height: 40, width: "auto" }} />
+          <DeliveraWordmark size="md" />
         </div>
 
         {valid ? (
@@ -65,7 +66,7 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
               >
                 <span
                   className="rounded-full px-4 py-1.5 text-[15px] font-bold"
-                  style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#141416", fontVariantNumeric: "tabular-nums" }}
+                  style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416", fontVariantNumeric: "tabular-nums" }}
                 >
                   +{reward} Dpoints
                 </span>

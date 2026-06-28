@@ -30,6 +30,7 @@ type SponsorDraft = Partial<SponsorRecord> & {
   isClickable: boolean;
   linkType: NonNullable<SponsorRecord["linkType"]>;
   showName: boolean;
+  imageOnly: boolean;
 };
 
 type AdDraft = Partial<TrackingAdRecord> & {
@@ -37,6 +38,7 @@ type AdDraft = Partial<TrackingAdRecord> & {
   title: string;
   subtitle: string;
   isActive: boolean;
+  imageOnly: boolean;
 };
 
 const orange = "#F47721";
@@ -87,6 +89,7 @@ function sponsorToDraft(sponsor?: SponsorRecord | null): SponsorDraft {
     linkType: sponsor?.linkType || "EXTERNAL",
     isActive: sponsor?.isActive ?? true,
     isClickable: sponsor?.isClickable ?? true,
+    imageOnly: sponsor?.imageOnly ?? (sponsor?.showName === false),
     showName: sponsor?.showName ?? true,
     sortOrder: sponsor?.sortOrder,
   };
@@ -103,6 +106,7 @@ function adToDraft(ad?: TrackingAdRecord | null): AdDraft {
     startsAt: isoDateInput(ad?.startsAt),
     endsAt: isoDateInput(ad?.endsAt),
     isActive: ad?.isActive ?? true,
+    imageOnly: ad?.imageOnly ?? false,
     sortOrder: ad?.sortOrder,
   };
 }
@@ -221,11 +225,15 @@ function AdPreview({ draft }: { draft: AdDraft }) {
           backgroundPosition: "center",
         }}
       >
-        <span className="relative w-fit rounded-md bg-white/95 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-[#F47721]">Annons</span>
-        <div className="relative">
-          <div className="text-[17px] font-extrabold leading-[1.05] tracking-[-0.03em] text-white">{draft.title || "Din rubrik här"}</div>
-          <div className="mt-0.5 text-[11.5px] font-semibold text-white/90">{draft.subtitle || "Kort slogan om erbjudandet"}</div>
-        </div>
+        {!draft.imageOnly ? (
+          <>
+            <span className="relative w-fit rounded-md bg-white/95 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-[#F47721]">Annons</span>
+            <div className="relative">
+              <div className="text-[17px] font-extrabold leading-[1.05] tracking-[-0.03em] text-white">{draft.title || "Din rubrik här"}</div>
+              <div className="mt-0.5 text-[11.5px] font-semibold text-white/90">{draft.subtitle || "Kort slogan om erbjudandet"}</div>
+            </div>
+          </>
+        ) : <span aria-hidden="true" />}
       </article>
       <div className="mt-2 flex gap-1.5">
         <div className="h-0.5 flex-1 rounded bg-[#F47721]" />
@@ -238,8 +246,8 @@ function AdPreview({ draft }: { draft: AdDraft }) {
 
 function SponsorPreview({ draft, sponsors }: { draft: SponsorDraft; sponsors: SponsorRecord[] }) {
   const cards = [
-    { id: draft.id || "draft", name: draft.name || "Partner", imageUrl: draft.imageUrl, color: draft.color || colorFromText(draft.name), selected: true },
-    ...sponsors.filter((s) => s.id !== draft.id).slice(0, 2).map((s) => ({ id: s.id, name: s.name, imageUrl: s.imageUrl, color: s.color || colorFromText(s.name), selected: false })),
+    { id: draft.id || "draft", name: draft.name || "Partner", imageUrl: draft.imageUrl, color: draft.color || colorFromText(draft.name), imageOnly: draft.imageOnly, selected: true },
+    ...sponsors.filter((s) => s.id !== draft.id).slice(0, 2).map((s) => ({ id: s.id, name: s.name, imageUrl: s.imageUrl, color: s.color || colorFromText(s.name), imageOnly: s.imageOnly ?? (s.showName === false), selected: false })),
   ];
 
   return (
@@ -265,11 +273,15 @@ function SponsorPreview({ draft, sponsors }: { draft: SponsorDraft; sponsors: Sp
             >
               {card.imageUrl ? <img src={card.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
               <div className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.09)_0_16px,rgba(255,255,255,0)_16px_32px)]" />
-              <div className="absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-b from-black/0 to-black/90" />
-              <div className="absolute inset-x-0 bottom-0 p-3.5">
-                <span className="mb-2 inline-block rounded-md border border-white/30 bg-black/70 px-2 py-1 text-[10px] font-bold text-white">Partner</span>
-                <div className="truncate text-[19px] font-extrabold tracking-[-0.02em] text-white">{card.name}</div>
-              </div>
+              {!card.imageOnly ? (
+                <>
+                  <div className="absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-b from-black/0 to-black/90" />
+                  <div className="absolute inset-x-0 bottom-0 p-3.5">
+                    <span className="mb-2 inline-block rounded-md border border-white/30 bg-black/70 px-2 py-1 text-[10px] font-bold text-white">Partner</span>
+                    <div className="truncate text-[19px] font-extrabold tracking-[-0.02em] text-white">{card.name}</div>
+                  </div>
+                </>
+              ) : null}
             </div>
           ))}
         </div>
@@ -348,7 +360,8 @@ export function SponsorsPage() {
         linkType: draft.linkType,
         isActive: draft.isActive,
         isClickable: draft.linkType !== "NONE" && draft.isClickable,
-        showName: draft.showName,
+        imageOnly: draft.imageOnly,
+        showName: draft.imageOnly ? false : draft.showName,
       };
       return draft.id ? updateSponsor(draft.id, payload) : createSponsor(payload);
     },
@@ -370,6 +383,7 @@ export function SponsorsPage() {
         startsAt: draft.startsAt || undefined,
         endsAt: draft.endsAt || undefined,
         isActive: draft.isActive,
+        imageOnly: draft.imageOnly,
       };
       return draft.id ? updateAd(draft.id, payload) : createAd(payload);
     },
@@ -479,7 +493,7 @@ export function SponsorsPage() {
                             key={ad.id}
                             selected={selected}
                             title={live.brand || ad.brand}
-                            subtitle={formatPeriod(ad.startsAt, ad.endsAt)}
+                            subtitle={`${formatPeriod(ad.startsAt, ad.endsAt)}${live.imageOnly ? " · Endast bild" : ""}`}
                             color={colorFromText(live.brand)}
                             status={statusForActive(ad.isActive, ad.startsAt)}
                             onClick={() => { setSelectedAdId(ad.id); setAdDraft(adToDraft(ad)); }}
@@ -494,7 +508,7 @@ export function SponsorsPage() {
                             key={sponsor.id}
                             selected={selected}
                             title={live.name || sponsor.name}
-                            subtitle={`${live.category || "Partner"} · ${live.tier || "Partner"}`}
+                            subtitle={`${live.category || "Partner"} · ${live.tier || "Partner"}${live.imageOnly ? " · Endast bild" : ""}`}
                             color={live.color || colorFromText(live.name)}
                             status={statusForActive(sponsor.isActive)}
                             onClick={() => { setSelectedSponsorId(sponsor.id); setSponsorDraft(sponsorToDraft(sponsor)); }}
@@ -554,6 +568,10 @@ export function SponsorsPage() {
                     <div className="mt-2"><UploadHint title="Bannerformat" description="Liten annons under order. Designa för 343 x 156 px." /></div>
                   </div>
                   <div className="md:col-span-2 flex items-center justify-between rounded-xl border border-[rgba(20,20,22,0.08)] bg-[#FBFAF7] p-3">
+                    <div><div className="text-[12.5px] font-black">Endast bild</div><div className="mt-0.5 text-[11px] font-semibold text-[#6b6b73]">Döljer annons-chip, rubrik och slogan i kundvyn.</div></div>
+                    <ActiveToggle checked={!!adDraft.imageOnly} onChange={() => setAdDraft((d) => ({ ...d, imageOnly: !d.imageOnly }))} />
+                  </div>
+                  <div className="md:col-span-2 flex items-center justify-between rounded-xl border border-[rgba(20,20,22,0.08)] bg-[#FBFAF7] p-3">
                     <div><div className="text-[12.5px] font-black">Aktiv</div><div className="mt-0.5 text-[11px] font-semibold text-[#6b6b73]">{adDraft.isActive ? "Visas i appen nu" : "Dold för kunder"}</div></div>
                     <ActiveToggle checked={!!adDraft.isActive} onChange={() => setAdDraft((d) => ({ ...d, isActive: !d.isActive }))} />
                   </div>
@@ -574,6 +592,10 @@ export function SponsorsPage() {
                   <div className="md:col-span-2">
                     <ImageUploadField label="Kortbild / helbild" kind="misc" value={sponsorDraft.imageUrl || ""} onChange={(url) => setSponsorDraft((d) => ({ ...d, imageUrl: url }))} />
                     <div className="mt-2"><UploadHint title="Sponsorkort" description="Liggande ca 1.9:1. Namn och partner-chip läggs ovanpå längst ner." /></div>
+                  </div>
+                  <div className="md:col-span-2 flex items-center justify-between rounded-xl border border-[rgba(20,20,22,0.08)] bg-[#FBFAF7] p-3">
+                    <div><div className="text-[12.5px] font-black">Endast bild</div><div className="mt-0.5 text-[11px] font-semibold text-[#6b6b73]">Döljer Partner-chip, namn och all text på kortet.</div></div>
+                    <ActiveToggle checked={!!sponsorDraft.imageOnly} onChange={() => setSponsorDraft((d) => ({ ...d, imageOnly: !d.imageOnly, showName: d.imageOnly ? true : false }))} />
                   </div>
                   <div className="md:col-span-2 flex items-center justify-between rounded-xl border border-[rgba(20,20,22,0.08)] bg-[#FBFAF7] p-3">
                     <div><div className="text-[12.5px] font-black">Aktiv</div><div className="mt-0.5 text-[11px] font-semibold text-[#6b6b73]">{sponsorDraft.isActive ? "Visas i appen nu" : "Dold för kunder"}</div></div>

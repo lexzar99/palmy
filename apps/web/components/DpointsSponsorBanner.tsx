@@ -59,14 +59,14 @@ export default function DpointsSponsorBanner({ onRegister }: { onRegister?: () =
         {/* Poäng-belöningen är den enda starka guld-accenten */}
         <div
           className="shrink-0 rounded-full px-3 py-1.5 text-[14px] font-bold"
-          style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#141416", fontVariantNumeric: "tabular-nums" }}
+          style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416", fontVariantNumeric: "tabular-nums" }}
         >
           +{card.bonusPoints} p
         </div>
       </div>
       <div
         className="mt-3.5 flex items-center justify-center gap-1.5 h-11 rounded-xl text-[14px] font-semibold"
-        style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#141416" }}
+        style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416" }}
       >
         {card.ctaLabel || `Skapa konto & få ${card.bonusPoints} Dpoints`}
       </div>

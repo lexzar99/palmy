@@ -1706,19 +1706,42 @@ export default function CartPage() {
   if (!mounted || (pageLoading && items.length > 0)) {
     return (
       <div className="min-h-screen pb-32 pt-[env(safe-area-inset-top,0px)] md:pt-24" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <div className="max-w-2xl mx-auto px-5 sm:px-6 pt-6">
-          <div className="skeleton h-8 w-40 rounded-xl mb-2" />
-          <div className="skeleton h-10 w-3/4 rounded-xl mb-6" />
-          {/* Rader */}
-          <div className="space-y-3 mb-8">
-            {[0, 1].map((i) => (
-              <div key={i} className="skeleton h-20 w-full rounded-2xl" />
-            ))}
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-16 pt-6">
+          <div className="flex items-end justify-between mb-5 px-1">
+            <div>
+              <div className="skeleton h-8 w-36 rounded-xl mb-2" />
+              <div className="skeleton h-4 w-56 rounded-lg" />
+            </div>
+            <div className="skeleton h-5 w-24 rounded-lg hidden sm:block" />
           </div>
-          {/* Formulär/summering */}
-          <div className="skeleton h-14 w-full rounded-2xl mb-3" />
-          <div className="skeleton h-14 w-full rounded-2xl mb-3" />
-          <div className="skeleton h-40 w-full rounded-2xl" />
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_480px] gap-4 lg:gap-8 items-start">
+            <div className="space-y-4">
+              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="px-3.5 py-3 flex items-center gap-3" style={{ borderTop: i === 0 ? "none" : "1px solid var(--border-muted)" }}>
+                    <div className="skeleton h-8 w-20 rounded-full shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="skeleton h-4 w-3/4 rounded-lg mb-2" />
+                      <div className="skeleton h-3 w-1/2 rounded-lg" />
+                    </div>
+                    <div className="skeleton h-4 w-14 rounded-lg shrink-0" />
+                  </div>
+                ))}
+              </div>
+              <div className="hidden lg:block rounded-2xl p-5 space-y-3" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+                <div className="skeleton h-14 w-full rounded-xl" />
+                <div className="skeleton h-14 w-full rounded-xl" />
+                <div className="skeleton h-28 w-full rounded-xl" />
+              </div>
+            </div>
+            <div className="rounded-2xl p-4 sm:p-5 space-y-3" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+              <div className="skeleton h-12 w-full rounded-xl" />
+              <div className="skeleton h-14 w-full rounded-xl" />
+              <div className="skeleton h-14 w-full rounded-xl" />
+              <div className="skeleton h-32 w-full rounded-xl" />
+              <div className="skeleton h-12 w-full rounded-xl" />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1745,7 +1768,7 @@ export default function CartPage() {
         <div className="flex flex-col items-center">
           <div className="cart-empty-float">
             <svg className="cart-empty-bag" width="88" height="88" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-              <path d="M14 22h36l-3.2 30a4 4 0 0 1-4 3.6H21.2a4 4 0 0 1-4-3.6L14 22z" stroke="var(--color-gold-500, #E7B24B)" strokeWidth="2" strokeLinejoin="round" fill="none" />
+              <path d="M14 22h36l-3.2 30a4 4 0 0 1-4 3.6H21.2a4 4 0 0 1-4-3.6L14 22z" stroke="var(--color-gold-500, #F0531C)" strokeWidth="2" strokeLinejoin="round" fill="none" />
               <path d="M23 28v-9a9 9 0 0 1 18 0v9" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" fill="none" />
               <circle cx="26" cy="40" r="1.4" fill="var(--gold-ink)" stroke="var(--gold-ink)" strokeWidth="0.5" />
               <circle cx="38" cy="40" r="1.4" fill="var(--gold-ink)" stroke="var(--gold-ink)" strokeWidth="0.5" />
@@ -1798,7 +1821,7 @@ export default function CartPage() {
             className={`w-full flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-all text-left ${disabled ? "opacity-40 cursor-not-allowed" : "active:scale-[0.99]"}`}
             style={{
               backgroundColor: isActive ? "var(--gold-soft)" : "var(--bg-deep)",
-              borderColor: isActive ? "rgba(231,178,75,0.45)" : "var(--border-muted)",
+              borderColor: isActive ? "rgba(240,83,28,0.45)" : "var(--border-muted)",
             }}
           >
             <div className="flex items-center gap-2.5 min-w-0">
@@ -1841,7 +1864,7 @@ export default function CartPage() {
         onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); }}
         disabled={!!selectedAccountDealId}
         className="w-full border rounded-xl h-12 pl-11 pr-24 text-[14px] font-medium outline-none transition-all disabled:cursor-not-allowed"
-        style={{ backgroundColor: "var(--bg-deep)", borderColor: selectedPersonalDeal ? "rgba(231,178,75,0.45)" : "var(--border-muted)", color: selectedPersonalDeal ? "var(--gold-ink)" : "var(--text-primary)" }}
+        style={{ backgroundColor: "var(--bg-deep)", borderColor: selectedPersonalDeal ? "rgba(240,83,28,0.45)" : "var(--border-muted)", color: selectedPersonalDeal ? "var(--gold-ink)" : "var(--text-primary)" }}
         placeholder={selectedAccountDealId ? t("cart.discount.promoBlockedByReward") : selectedPersonalDeal ? t("cart.discount.promoApplied") : t("cart.discount.promoPlaceholder")}
       />
       <button
@@ -1896,7 +1919,7 @@ export default function CartPage() {
           }}
           className="py-2.5 rounded-xl text-[13px] font-semibold border transition-all active:scale-95"
           style={showCustomTipInput
-            ? { backgroundColor: "var(--color-gold-500, #E7B24B)", borderColor: "var(--color-gold-500, #E7B24B)", color: "#141416" }
+            ? { backgroundColor: "var(--color-gold-500, #F0531C)", borderColor: "var(--color-gold-500, #F0531C)", color: "#141416" }
             : { backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
         >
           {t("cart.tip.custom")}
@@ -2002,6 +2025,44 @@ export default function CartPage() {
         })()}
       </div>
     );
+
+  const renderFulfillmentStatus = () => {
+    const isDelivery = orderType === "DELIVERY";
+    const Icon = isDelivery ? Truck : Store;
+    const title = isDelivery ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup");
+    const detail = isDelivery
+      ? (addressInput || t("cart.fields.addressPlaceholderFull"))
+      : (cartRestaurantName ? `${t("cart.deliveryType.pickup")} hos ${cartRestaurantName}` : t("cart.deliveryType.pickup"));
+    const meta = isDelivery
+      ? `~${restaurantSettings.estimatedDeliveryTime} min`
+      : `~${restaurantSettings.estimatedPickupTime} min`;
+    const statusColor = isDelivery && addressZoneStatus === "error"
+      ? "#C0392B"
+      : isDelivery && addressZoneStatus === "checking"
+        ? "var(--text-secondary)"
+        : "var(--gold-ink)";
+
+    return (
+      <div className="mb-4 rounded-2xl px-4 py-3 flex items-start gap-2.5" style={{ backgroundColor: "var(--gold-soft)", border: "1px solid rgba(240,83,28,0.18)" }}>
+        <Icon size={18} strokeWidth={2.4} className="mt-0.5 shrink-0" style={{ color: "var(--gold-ink)" }} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <p className="text-[13px] font-bold" style={{ color: statusColor }}>{title}</p>
+            <span className="text-[12px] font-semibold shrink-0" style={{ color: "var(--text-secondary)" }}>{meta}</span>
+          </div>
+          <p className="mt-0.5 text-[13px] font-medium truncate" style={{ color: "var(--text-primary)" }}>{detail}</p>
+          {isDelivery && addressZoneStatus === "error" && (
+            <p className="mt-1 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.zoneNotCoveredHome")}</p>
+          )}
+        </div>
+        {isDelivery && (checkingDelivery || addressZoneStatus === "checking") ? (
+          <Loader2 size={16} className="animate-spin shrink-0" style={{ color: "var(--text-secondary)" }} />
+        ) : isDelivery && addressZoneStatus === "ok" ? (
+          <Check size={17} strokeWidth={2.6} className="shrink-0" style={{ color: "var(--success-ink)" }} />
+        ) : null}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-dot-pattern pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6 lg:px-10 xl:px-16" style={{ backgroundColor: "var(--bg-primary)" }}>
@@ -2239,7 +2300,7 @@ export default function CartPage() {
                     || (!isTestFlow && addressZoneStatus === "error")
                     || (!isTestFlow && addressZoneStatus === "checking")
                   }
-                  className="w-full h-[52px] px-5 bg-gold-500 rounded-xl text-[15.5px] font-semibold active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3 group" style={{ color: "#141416" }}
+                  className="w-full h-[52px] px-5 bg-gold-500 rounded-xl text-[15.5px] font-semibold active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3 group" style={{ color: "#FFFFFF" }}
                 >
                   {loading
                     ? <Loader2 className="animate-spin" size={24} />
@@ -2287,20 +2348,7 @@ export default function CartPage() {
                   </motion.div>
                ) : (
                   <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-4 sm:p-5 rounded-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                      <div className="flex mb-4 rounded-[10px] overflow-hidden" style={{ border: "1px solid var(--line-strong)" }}>
-                         {(['DELIVERY', 'PICKUP'] as const).map((type, i) => {
-                            const active = orderType === type;
-                            return (
-                            <button key={type} type="button" onClick={() => { setOrderType(type); localStorage.setItem("cart_order_type", type); }}
-                              className="relative flex-1 flex items-center justify-center gap-2 h-11 text-[14px] transition-colors"
-                              style={{ color: active ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: active ? 600 : 500, borderLeft: i === 1 ? "1px solid var(--line-strong)" : undefined }}>
-                               {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
-                               {type === 'DELIVERY' ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
-                               {active && <span className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)" }} />}
-                            </button>
-                            );
-                         })}
-                      </div>
+                      {renderFulfillmentStatus()}
 
 
                        <div className="space-y-2.5">
@@ -2309,27 +2357,6 @@ export default function CartPage() {
                           const lbl = (bad: boolean) => ({ width: 74, flexShrink: 0, fontSize: 13, fontWeight: 500 as const, whiteSpace: "nowrap" as const, color: bad ? "#C0392B" : "var(--text-secondary)" });
                           const inputCls = "flex-1 h-full bg-transparent outline-none text-[16px] sm:text-[15px] font-medium";
                           const inputStyle = { color: "var(--text-primary)", border: "none" as const };
-
-                          // Läs-bar leveransadress. Sätts på startsidans grind och är
-                          // sanningen → går INTE att ändra här (byts på hem-sidan).
-                          // Zon-status visas så täckningen syns.
-                          const addressDisplay = orderType === "DELIVERY" ? (
-                            <>
-                              <div className="relative flex items-center min-h-[52px] px-4">
-                                {addressZoneStatus && <span className="absolute left-0 top-0 bottom-0" style={{ width: 3, backgroundColor: addressZoneStatus === "ok" ? "var(--success-ink)" : addressZoneStatus === "error" ? "#C0392B" : "var(--text-secondary)" }} />}
-                                <MapPin size={15} className="shrink-0 mr-2.5" style={{ color: "var(--text-secondary)" }} />
-                                <span className="flex-1 min-w-0 text-[15px] font-medium truncate" style={{ color: addressInput ? "var(--text-primary)" : "var(--text-secondary)" }}>{addressInput || t("cart.fields.addressPlaceholderFull")}</span>
-                                {(checkingDelivery || addressZoneStatus === "checking") ? (
-                                  <Loader2 size={14} className="animate-spin shrink-0" style={{ color: "var(--text-secondary)" }} />
-                                ) : addressZoneStatus === "ok" ? (
-                                  <Check size={15} strokeWidth={2.5} className="shrink-0" style={{ color: "var(--success-ink)" }} />
-                                ) : null}
-                              </div>
-                              {/* Liten ostörande hint: adressen byts på startsidan, ej här. */}
-                              <p className="px-4 pb-2 text-[11px]" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.addressChangeHint")}</p>
-                              {addressZoneStatus === "error" && <p className="px-4 pb-2.5 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.zoneNotCoveredHome")}</p>}
-                            </>
-                          ) : null;
 
                           // INLOGGAD: uppgifterna är redan kända → visa dem hopfällda
                           // och läs-bara (klicka för att se), som rabattkod-raden.
@@ -2341,11 +2368,11 @@ export default function CartPage() {
                               </div>
                             ) : null;
                             // INLOGGAD: namn/telefon/epost hopfällt (klick för att se).
-                            // Leveransadressen visas ALLTID läs-bart nedan (som för gäst).
+                            // Leverans-/pickup-läget visas i den orange statusraden ovan.
                             return (
-                              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "#fff" }}>
+                              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-card)" }}>
                                 <div className="px-4">
-                                  <CartCollapsibleRow first label={t("cart.yourInfo.title")} icon={<UserIcon size={15} style={{ color: "var(--text-secondary)" }} />}>
+                                  <CartCollapsibleRow first label={t("cart.yourInfo.title")} hint={formData.customerName || "Inloggad"} icon={<UserIcon size={15} style={{ color: "var(--text-secondary)" }} />}>
                                     <div className="pt-0.5">
                                       {readRow(t("cart.fields.name"), formData.customerName)}
                                       {readRow(t("cart.fields.phone"), formData.customerPhone)}
@@ -2353,20 +2380,22 @@ export default function CartPage() {
                                     </div>
                                   </CartCollapsibleRow>
                                 </div>
-                                {orderType === "DELIVERY" && hair}
-                                {addressDisplay}
                               </div>
                             );
                           }
 
                           // GÄST: öppet formulär, endast namn + telefon. Ingen e-post,
-                          // ingen portkod. Adressen visas läs-bart (från startsidan).
+                          // ingen portkod. Adressen visas bara i statusraden ovan.
                           const nameTouched = formData.customerName.length > 0;
                           const phoneTouched = formData.customerPhone.length > 0;
                           const nameInvalid = nameTouched && formData.customerName.trim().length < 2;
                           const phoneInvalid = phoneTouched && formData.customerPhone.replace(/\D/g, '').length < 8;
                           return (
-                            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "#fff" }}>
+                            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-card)" }}>
+                              <div className="px-4 py-3 flex items-center justify-between gap-3" style={{ borderBottom: "1px solid var(--border-muted)" }}>
+                                <span className="text-[14px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.yourInfo.title")}</span>
+                                <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "var(--gold-ink)", backgroundColor: "var(--gold-soft)" }}>Gäst</span>
+                              </div>
                               <div className="flex items-center min-h-[52px] px-4">
                                 <span style={lbl(nameInvalid)}>{t("cart.fields.name")}</span>
                                 <input value={formData.customerName} onChange={e => setFormData({ ...formData, customerName: e.target.value })} autoComplete="name" className={inputCls} style={inputStyle} placeholder={t("cart.fields.namePlaceholder")} />
@@ -2378,11 +2407,21 @@ export default function CartPage() {
                                 <input value={formData.customerPhone} onChange={e => setFormData({ ...formData, customerPhone: e.target.value })} type="tel" inputMode="tel" autoComplete="tel" className={inputCls} style={inputStyle} placeholder="070 000 00 00" />
                               </div>
                               {phoneInvalid && <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.phoneTooShort")}</p>}
-                              {orderType === "DELIVERY" && hair}
-                              {addressDisplay}
                             </div>
                           );
                         })()}
+
+                        {orderType === "PICKUP" && (
+                          <div className="rounded-xl border px-4 py-3 flex gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+                            <Store size={17} className="shrink-0 mt-0.5" style={{ color: "var(--gold-ink)" }} />
+                            <div className="min-w-0">
+                              <p className="text-[13.5px] font-semibold" style={{ color: "var(--text-primary)" }}>Avhämtning vald</p>
+                              <p className="text-[12px] leading-snug mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                                Du betalar här och hämtar ordern hos restaurangen när den är klar.
+                              </p>
+                            </div>
+                          </div>
+                        )}
 
                         {/* ── Mobile only: extras (desktop shows these in left column) ── */}
                         <div className="lg:hidden space-y-4">
@@ -2400,14 +2439,14 @@ export default function CartPage() {
                          className="mt-6 w-full rounded-2xl border px-4 py-3.5 text-left transition-all hover:brightness-[0.99] active:scale-[0.99]"
                          style={{
                            background: "var(--gold-soft)",
-                           borderColor: "rgba(231,178,75,0.22)",
+                           borderColor: "rgba(240,83,28,0.22)",
                          }}
                        >
                          <div className="flex items-center justify-between gap-2">
                            <div className="flex items-center gap-3 min-w-0">
                              <span
                                className="shrink-0 w-9 h-9 rounded-xl grid place-items-center"
-                               style={{ backgroundColor: "rgba(231,178,75,0.16)" }}
+                               style={{ backgroundColor: "rgba(240,83,28,0.16)" }}
                              >
                                <Gift size={17} strokeWidth={2.3} style={{ color: "var(--gold-ink)" }} />
                              </span>
@@ -2655,7 +2694,7 @@ export default function CartPage() {
                             || (!isTestFlow && addressZoneStatus === "error")
                             || (!isTestFlow && addressZoneStatus === "checking")
                           }
-                          className="w-full h-[52px] px-5 bg-gold-500 rounded-xl text-[15.5px] font-semibold active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3 group" style={{ color: "#141416" }}
+                          className="w-full h-[52px] px-5 bg-gold-500 rounded-xl text-[15.5px] font-semibold active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3 group" style={{ color: "#FFFFFF" }}
                        >
                           {loading
                             ? <Loader2 className="animate-spin" size={24} />
@@ -2713,7 +2752,3 @@ export default function CartPage() {
     </div>
   );
 }
-
-
-
-

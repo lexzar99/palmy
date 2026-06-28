@@ -61,6 +61,8 @@ export interface ProductRecord {
   hideDescription?: boolean;
   // Dpoints: köpbar med poäng.
   rewardable?: boolean;
+  rewardPointsMultiplier?: number | null;
+  rewardPointsPrice?: number | null;
   localPriceLocked?: boolean;
   // Produkt-egen rabatt (skild från produktdeals). discountPrice är i kr efter list-API:ts /100.
   discountActive?: boolean;

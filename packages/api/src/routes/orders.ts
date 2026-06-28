@@ -1713,6 +1713,8 @@ router.get('/:id', async (req: Request, res: Response) => {
       status: customerStatus,
       type: order.type,
       total: order.total / 100,
+      pointsEarned: order.pointsEarned ?? 0,
+      dpointsEarned: order.pointsEarned ?? 0,
       deliveryFee: order.deliveryFee / 100,
       discountAmount: order.discountAmount / 100,
       tipAmount: (order.tipAmount ?? 0) / 100,

@@ -81,7 +81,7 @@ export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewar
         {/* ── Hero-header: lugn guld-ton, ingen emoji/versal-italic ───────────── */}
         <div
           className="relative px-6 pt-7 pb-6 shrink-0"
-          style={{ background: "linear-gradient(160deg, rgba(231,178,75,0.16) 0%, rgba(231,178,75,0.04) 70%, transparent 100%)" }}
+          style={{ background: "linear-gradient(160deg, rgba(240,83,28,0.16) 0%, rgba(240,83,28,0.04) 70%, transparent 100%)" }}
         >
           <button
             type="button"
@@ -92,7 +92,7 @@ export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewar
           >
             <X size={16} strokeWidth={2.5} />
           </button>
-          <div className="w-12 h-12 rounded-2xl grid place-items-center mb-3.5" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", boxShadow: "0 4px 14px rgba(200,154,60,0.35)" }}>
+          <div className="w-12 h-12 rounded-2xl grid place-items-center mb-3.5" style={{ backgroundColor: "var(--color-gold-500, #F0531C)", boxShadow: "0 4px 14px rgba(240,83,28,0.35)" }}>
             <Gift size={22} className="text-zinc-900" strokeWidth={2.2} />
           </div>
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold-600 mb-1">Du har låst upp en gratis vara</p>
@@ -134,7 +134,7 @@ export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewar
               <span
                 aria-hidden="true"
                 className="shrink-0 w-8 h-8 rounded-full grid place-items-center"
-                style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.15)" }}
+                style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.15)" }}
               >
                 <Plus size={16} strokeWidth={3} />
               </span>

@@ -87,6 +87,7 @@ const DISMISS_KEY = "matgo_dismissed_order_id";
 // order.customerPhone), token är 30-min-fallbacken direkt efter köp.
 const TOKEN_KEY = "matgo_active_order_token";
 const PHONE_KEY = "matgo_active_order_phone";
+const ACTIVE_ORDERS_KEY = "matgo_active_orders";
 
 export default function LiveOrderBanner() {
   const { t } = useTranslation();
@@ -202,6 +203,7 @@ export default function LiveOrderBanner() {
   // (Backend deletes abandoned ones after 30 min; the poll then 404s and clears.)
   // Dölj bannern när kunden redan står på den här orderns egen tracking-sida —
   // annars visas en dubblett-pill med en egen ETA-siffra ovanpå sidan.
+  if (pathname === "/") return null;
   if (order && pathname === `/order/${order.id}`) return null;
   if (!order || dismissed || !visual || order.status === "AWAITING_PAYMENT") return null;
 
@@ -257,13 +259,13 @@ export default function LiveOrderBanner() {
           .lob-seg-active {
             background-image: linear-gradient(90deg,
               var(--gold-soft) 0%,
-              var(--color-gold-500, #E7B24B) 50%,
+              var(--color-gold-500, #F0531C) 50%,
               var(--gold-soft) 100%);
             background-size: 200% 100%;
             animation: lob-sweep 2s linear infinite;
           }
           @media (prefers-reduced-motion: reduce) {
-            .lob-seg-active { animation: none; background-image: none; background-color: var(--color-gold-500, #E7B24B); opacity: .45; }
+            .lob-seg-active { animation: none; background-image: none; background-color: var(--color-gold-500, #F0531C); opacity: .45; }
           }
         `}</style>
         <Link
@@ -340,7 +342,7 @@ export default function LiveOrderBanner() {
                           ? undefined
                           : {
                               backgroundColor: done
-                                ? "var(--color-gold-500, #E7B24B)"
+                                ? "var(--color-gold-500, #F0531C)"
                                 : "var(--border-muted)",
                             }
                       }
@@ -369,6 +371,13 @@ export function rememberActiveOrder(
     else localStorage.removeItem(TOKEN_KEY);
     if (proof?.phone) localStorage.setItem(PHONE_KEY, proof.phone);
     else localStorage.removeItem(PHONE_KEY);
+    const existing = JSON.parse(localStorage.getItem(ACTIVE_ORDERS_KEY) || "[]");
+    const next = [
+      { id: orderId, token: proof?.token || null, phone: proof?.phone || null },
+      ...(Array.isArray(existing) ? existing : []).filter((order: any) => order?.id && String(order.id) !== orderId),
+    ].slice(0, 3);
+    localStorage.setItem(ACTIVE_ORDERS_KEY, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: orderId }));
+    window.dispatchEvent(new StorageEvent("storage", { key: ACTIVE_ORDERS_KEY, newValue: JSON.stringify(next) }));
   } catch { }
 }

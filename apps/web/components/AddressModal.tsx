@@ -416,7 +416,7 @@ export default function AddressModal({
                     >
                       {type === "DELIVERY" ? <Truck size={15} strokeWidth={2} /> : <Store size={15} strokeWidth={2} />}
                       {type === "DELIVERY" ? "Leverans" : "Avhämtning"}
-                      {active && <span className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)" }} />}
+                      {active && <span className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #F0531C)" }} />}
                     </button>
                   );
                 })}
@@ -652,7 +652,7 @@ export default function AddressModal({
 
               <button onClick={handleSubmit}
                 className="mt-4 w-full flex items-center justify-between px-6 h-[52px] rounded-xl transition-all group bg-gold-500 active:scale-[0.99] shrink-0"
-                style={{ color: "#141416" }}>
+                style={{ color: "#FFFFFF" }}>
                 <span className="text-[15.5px] font-semibold">
                   {orderType === "DELIVERY" ? "Visa restauranger" : "Hitta avhämtning"}
                 </span>
@@ -666,4 +666,3 @@ export default function AddressModal({
     document.body,
   );
 }
-

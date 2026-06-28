@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { notFound } from "next/navigation";
 import MenuContent from "@/components/MenuContent";
 import { rehydrateMenuCategories } from "@/lib/menu";
 
@@ -34,6 +35,7 @@ interface Restaurant {
   description?: string;
   cuisine?: string;
   imageUrl?: string;
+  comingSoon?: boolean;
 }
 
 async function getRestaurant(slug: string): Promise<Restaurant | null> {
@@ -141,6 +143,8 @@ export default async function RestaurantPage({
     getRestaurant(slug),
     getDeals(slug),
   ]);
+
+  if (restaurant?.comingSoon) notFound();
 
   // ── Size guard ────────────────────────────────────────────────────────────
   // Only SSR-inline menus that are safely under Next's ~2MB Data Cache ceiling.

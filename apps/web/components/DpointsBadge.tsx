@@ -21,7 +21,29 @@ function getDpointsRate() {
   return cached;
 }
 
-export default function DpointsBadge({ priceKr, className, rewardable }: { priceKr: number; className?: string; rewardable?: boolean }) {
+export function calcDpointsPrice(priceKr: number, multiplier?: number | null, override?: number | null, valuePerKr = 10) {
+  if (override != null && Number.isFinite(Number(override)) && Number(override) > 0) {
+    return Math.ceil(Number(override));
+  }
+  const factor = multiplier != null && Number.isFinite(Number(multiplier)) && Number(multiplier) > 0
+    ? Number(multiplier)
+    : valuePerKr;
+  return Math.ceil(Math.max(0, priceKr) * factor);
+}
+
+export default function DpointsBadge({
+  priceKr,
+  className,
+  rewardable,
+  rewardPointsMultiplier,
+  rewardPointsPrice,
+}: {
+  priceKr: number;
+  className?: string;
+  rewardable?: boolean;
+  rewardPointsMultiplier?: number | null;
+  rewardPointsPrice?: number | null;
+}) {
   const [rate, setRate] = useState<{ enabled: boolean; valuePerKr: number } | null>(null);
   useEffect(() => {
     getDpointsRate().then(setRate);
@@ -31,7 +53,7 @@ export default function DpointsBadge({ priceKr, className, rewardable }: { price
   // Övriga varor visar bara kr-priset — ingen poäng-etikett.
   if (!rewardable) return null;
   if (!rate || !rate.enabled || !priceKr || priceKr <= 0) return null;
-  const points = Math.round(priceKr * rate.valuePerKr);
+  const points = calcDpointsPrice(priceKr, rewardPointsMultiplier, rewardPointsPrice, rate.valuePerKr);
   return (
     <span
       className={`inline-flex items-center gap-1 text-[12.5px] font-medium ${className || ""}`}

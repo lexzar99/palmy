@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import { Clock, ArrowRight, ShoppingBag } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
@@ -78,14 +78,8 @@ export default function PreviouslyOrderedBar({ restaurantId, restaurantSlug }: P
       className="mb-4 flex items-center gap-3 p-3 rounded-xl"
       style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
     >
-      <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-        style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
-      >
-        <Clock size={16} strokeWidth={1.8} />
-      </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
+        <div className="text-[12px] font-semibold" style={{ color: "var(--text-secondary)" }}>
           Du beställde här senast
         </div>
         <div className="text-[13px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>
@@ -99,15 +93,7 @@ export default function PreviouslyOrderedBar({ restaurantId, restaurantSlug }: P
         className="shrink-0 flex items-center gap-1.5 px-3.5 h-9 rounded-xl bg-gold-500 text-[13px] font-semibold transition-opacity active:opacity-90 disabled:opacity-60"
         style={{ color: "#141416" }}
       >
-        {loading ? (
-          <>
-            <ShoppingBag size={14} strokeWidth={1.8} /> Laddar
-          </>
-        ) : (
-          <>
-            Beställ igen <ArrowRight size={14} strokeWidth={1.8} />
-          </>
-        )}
+        {loading ? "Laddar" : <>Beställ igen <ArrowRight size={14} strokeWidth={1.8} /></>}
       </button>
     </motion.div>
   );

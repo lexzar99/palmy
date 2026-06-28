@@ -15,6 +15,7 @@ export interface SponsorData {
   linkType?: 'EXTERNAL' | 'DEAL' | 'RESTAURANT' | 'NONE';
   linkTarget?: string;
   showName?: boolean;
+  imageOnly?: boolean;
 }
 
 /**
@@ -45,7 +46,7 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
     }
   };
 
-  const showName = sponsor.showName !== false;
+  const showName = !sponsor.imageOnly && sponsor.showName !== false;
 
   return (
     <motion.div
@@ -90,9 +91,9 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
           <div className="min-w-0">
             <div
               className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md mb-1.5"
-              style={{ backgroundColor: "rgba(20,20,22,0.55)", border: "1px solid rgba(234,181,69,0.5)" }}
+              style={{ backgroundColor: "rgba(20,20,22,0.55)", border: "1px solid rgba(240,83,28,0.5)" }}
             >
-              <span className="text-[10.5px] font-semibold tracking-wide" style={{ color: "#EAB545" }}>Partner</span>
+              <span className="text-[10.5px] font-semibold tracking-wide" style={{ color: "#FFFFFF" }}>Partner</span>
             </div>
             <h3
               className="text-[18px] sm:text-[20px] font-bold tracking-tight leading-tight truncate"
@@ -111,4 +112,3 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
     </motion.div>
   );
 }
-

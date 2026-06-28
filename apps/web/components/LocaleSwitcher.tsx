@@ -102,7 +102,7 @@ const LocaleSwitcher = ({ buttonClassName, iconSize = 20 }: LocaleSwitcherProps 
                   setOpen(false);
                 }}
                 className="w-full px-4 py-2 flex items-center gap-3 text-left text-sm font-bold transition-colors hover:bg-gold-500/10"
-                style={{ color: active ? "var(--gold-primary, #e7b24b)" : "var(--text-primary)" }}
+                style={{ color: active ? "var(--gold-primary, #F0531C)" : "var(--text-primary)" }}
               >
                 <span aria-hidden className="text-base leading-none">{FLAG[l]}</span>
                 <span className="flex-1">{t(`nav.locale.${l}`)}</span>

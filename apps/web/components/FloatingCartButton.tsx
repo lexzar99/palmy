@@ -32,7 +32,7 @@ const FloatingCartButton = () => {
         href="/cart"
         aria-label={t("menu.viewCartAria", { count, total: total.toFixed(0) })}
         className="w-full max-w-md h-12 rounded-xl bg-gold-500 flex items-center justify-between px-5 transition-opacity active:opacity-90"
-        style={{ color: "#141416", boxShadow: "0 2px 12px rgba(20,20,22,0.18)" }}
+        style={{ color: "#FFFFFF", boxShadow: "0 2px 12px rgba(20,20,22,0.18)" }}
       >
         <span className="flex items-center gap-2.5 min-w-0">
           <span className="relative shrink-0">
@@ -46,7 +46,7 @@ const FloatingCartButton = () => {
                 exit={{ scale: 0.3, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 700, damping: 18 }}
                 className="absolute -top-2 -right-2 min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold flex items-center justify-center"
-                style={{ backgroundColor: "#141416", color: "var(--color-gold-500, #E7B24B)" }}
+                style={{ backgroundColor: "#FFFFFF", color: "var(--color-gold-500, #F0531C)" }}
               >
                 {count}
               </motion.span>

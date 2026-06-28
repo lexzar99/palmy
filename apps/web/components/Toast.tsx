@@ -84,7 +84,7 @@ function ToastView({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
       style={{
         backgroundColor: "var(--bg-secondary)",
         borderColor: "var(--border-muted)",
-        borderLeft: item.tone === "success" ? "3px solid var(--color-gold-500, #E7B24B)" : undefined,
+        borderLeft: item.tone === "success" ? "3px solid var(--color-gold-500, #F0531C)" : undefined,
       }}
     >
       <Icon size={20} strokeWidth={2.5} className={`shrink-0 ${iconColor}`} />

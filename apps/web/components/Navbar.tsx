@@ -2,17 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Mail } from "lucide-react";
+import { ShoppingBag, Mail, Coins } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { PLATFORM_SESSION_CHANGED_EVENT } from "@/lib/platformSessionClient";
+import DeliveraWordmark from "@/components/DeliveraWordmark";
 
 type SessionUser = {
   firstName?: string | null;
   lastName?: string | null;
   name?: string | null;
+};
+
+type DpointsHeader = {
+  enabled?: boolean;
+  balance?: number;
 };
 
 /**
@@ -28,6 +34,7 @@ const Navbar = () => {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [dpoints, setDpoints] = useState<DpointsHeader | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -41,11 +48,21 @@ const Navbar = () => {
         if (!cancelled) setUser(null);
       }
     };
+    const loadDpoints = async () => {
+      try {
+        const res = await axios.get(`/api/platform/dpoints/me`);
+        if (!cancelled && res.data?.enabled) setDpoints({ enabled: true, balance: Number(res.data.balance ?? 0) });
+        else if (!cancelled) setDpoints(null);
+      } catch {
+        if (!cancelled) setDpoints(null);
+      }
+    };
 
     loadUser();
+    loadDpoints();
 
     // Lyssna på session-events (login/logout i samma flik eller annan flik)
-    const onChange = () => { void loadUser(); };
+    const onChange = () => { void loadUser(); void loadDpoints(); };
     window.addEventListener(PLATFORM_SESSION_CHANGED_EVENT, onChange);
     window.addEventListener("storage", onChange);
     return () => {
@@ -55,6 +72,8 @@ const Navbar = () => {
     };
   }, []);
 
+  if (pathname?.startsWith("/order/")) return null;
+
   // Visningsnamn: först + efternamn om finns, annars name-fältet, annars null
   const displayName = user
     ? ((user.firstName?.trim() || "") + " " + (user.lastName?.trim() || "")).trim()
@@ -63,12 +82,7 @@ const Navbar = () => {
     : null;
 
   const logo = (
-    <Link href="/" className="flex items-center" aria-label="Delívera — startsidan">
-      {/* Nya brand-lockupen (bett-D + Delívera-wordmark). Ersätter den gamla
-          text-logotypen. Höjd-styrd, bredd auto. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/delivera-lockup.png" alt="Delívera" style={{ height: 42, width: "auto" }} />
-    </Link>
+    <DeliveraWordmark href="/" size="md" />
   );
 
   if (!mounted) return (
@@ -134,6 +148,16 @@ const Navbar = () => {
             </Link>
           )}
 
+          <Link
+            href="/orders"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold transition-colors"
+            style={{ backgroundColor: "var(--gold-soft)", color: "var(--color-gold-500)", border: "1px solid color-mix(in srgb, var(--color-gold-500) 24%, transparent)" }}
+            aria-label="Dpoints"
+          >
+            <Coins size={15} strokeWidth={1.9} />
+            <span className="tabular-nums">{dpoints?.enabled ? `${(dpoints.balance ?? 0).toLocaleString("sv-SE")} p` : "Dpoints"}</span>
+          </Link>
+
           {/* Tysta ikonknappar — ingen bakgrundsplatta, ingen kant */}
           <div className="flex items-center gap-1 pl-4" style={{ borderLeft: "1px solid var(--border-muted)" }}>
             <Link
@@ -156,7 +180,7 @@ const Navbar = () => {
               {itemCount > 0 && (
                 <span
                   className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 text-[10px] font-bold rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#141416" }}
+                  style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416" }}
                 >
                   {itemCount}
                 </span>

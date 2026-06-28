@@ -250,7 +250,7 @@ export default function RestaurantReviewsPage() {
                       <span
                         key={name}
                         className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider"
-                        style={{ backgroundColor: "rgba(243,191,87,0.12)", color: "var(--accent-strong, #f3bf57)" }}
+                        style={{ backgroundColor: "rgba(240,83,28,0.12)", color: "var(--accent-strong, #F0531C)" }}
                       >
                         ♥ {name}
                       </span>

@@ -51,7 +51,18 @@ import { useToast } from "@/shared/components/toast";
 import { Copy } from "lucide-react";
 import { formatCurrency } from "@/shared/utils/format";
 
-type MenuTab = "categories" | "products" | "extras";
+type MenuTab = "categories" | "products" | "rewardable" | "extras";
+const REWARD_MULTIPLIERS = [1.3, 1.5, 1.7, 2] as const;
+const REWARD_EARN_RATE = 0.1;
+
+function calcRewardPoints(price: number, multiplier = 1.5, override?: number | null) {
+  if (override && override > 0) return Math.ceil(override);
+  return Math.ceil(Math.max(0, Number(price) || 0) * Math.max(1, Number(multiplier) || 1.5));
+}
+
+function effectiveRewardPercent(multiplier = 1.5) {
+  return (REWARD_EARN_RATE / Math.max(0.01, multiplier)) * 100;
+}
 
 // Enhetlig monokrom på/av-stil för alla toggle-kontroller i menyeditorn. Aktiv =
 // ifylld accent (vit/silver) med kontrast-text, inaktiv = ren kontur. Ingen
@@ -146,7 +157,7 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
 
 function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, restaurants, products, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; restaurants: DealRestaurantRef[]; products: DealProductRef[]; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, rewardable: false, localPriceLocked: false, discountActive: false, discountPercent: 0, extraGroupIds: [] as string[] });
+  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, rewardable: false, rewardPointsMultiplier: 1.5, rewardPointsPrice: "" as string | number, localPriceLocked: false, discountActive: false, discountPercent: 0, extraGroupIds: [] as string[] });
   const [promotionModalOpen, setPromotionModalOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -168,6 +179,8 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             displayMode: product.displayMode ?? "FULL",
             hideDescription: product.hideDescription ?? false,
             rewardable: product.rewardable ?? false,
+            rewardPointsMultiplier: product.rewardPointsMultiplier ?? 1.5,
+            rewardPointsPrice: product.rewardPointsPrice ?? "",
             localPriceLocked: (product as any).localPriceLocked ?? false,
             discountActive: product.discountActive ?? false,
             discountPercent: product.discountPercent ?? 0,
@@ -187,6 +200,8 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             displayMode: "FULL",
             hideDescription: false,
             rewardable: false,
+            rewardPointsMultiplier: 1.5,
+            rewardPointsPrice: "",
             localPriceLocked: false,
             discountActive: false,
             discountPercent: 0,
@@ -200,10 +215,13 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
     mutationFn: async () => {
       // Backend kräver discountPercent 1-95 när satt; percent 0 eller toggle av = rensa rabatten.
       const discountOn = form.discountActive && form.discountPercent > 0;
+      const rewardOverride = form.rewardPointsPrice === "" ? null : Math.ceil(Number(form.rewardPointsPrice));
       const payload = {
         ...form,
         discountActive: discountOn,
         discountPercent: discountOn ? Math.min(95, Math.max(1, Math.round(form.discountPercent))) : null,
+        rewardPointsMultiplier: Number(form.rewardPointsMultiplier) || 1.5,
+        rewardPointsPrice: Number.isFinite(rewardOverride) && rewardOverride && rewardOverride > 0 ? rewardOverride : null,
         restaurantId,
       };
       if (product) {
@@ -249,6 +267,10 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
     () => existingDeals.filter((deal) => deal.scopeType === "RESTAURANT"),
     [existingDeals],
   );
+  const rewardOverrideRaw = form.rewardPointsPrice === "" ? null : Number(form.rewardPointsPrice);
+  const rewardOverride = rewardOverrideRaw != null && Number.isFinite(rewardOverrideRaw) && rewardOverrideRaw > 0 ? rewardOverrideRaw : null;
+  const rewardPreviewPoints = calcRewardPoints(form.price, form.rewardPointsMultiplier, rewardOverride);
+  const rewardPercent = effectiveRewardPercent(form.rewardPointsMultiplier);
 
   return (
     <Modal
@@ -418,6 +440,48 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             <TogglePill active={form.rewardable} onClick={() => setForm((current) => ({ ...current, rewardable: !current.rewardable }))}>★ Köpbar med poäng (Dpoints)</TogglePill>
             <TogglePill active={form.localPriceLocked} onClick={() => setForm((current) => ({ ...current, localPriceLocked: !current.localPriceLocked }))}>🔒 Lås lokalt pris (kedja)</TogglePill>
           </div>
+        </div>
+        <div className="md:col-span-2 surface-muted px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="card-label">Rewards-pris</p>
+              <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Standard: poängpris = pris × multiplier, avrundat uppåt.</p>
+            </div>
+            <div className="rounded-[12px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-4 py-2 text-right">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">Kostar</p>
+              <p className="text-[22px] font-black tabular-nums text-[var(--text-primary)]">{rewardPreviewPoints}p</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {REWARD_MULTIPLIERS.map((m) => (
+              <TogglePill key={m} active={Number(form.rewardPointsMultiplier) === m} onClick={() => setForm((current) => ({ ...current, rewardPointsMultiplier: m, rewardPointsPrice: "" }))}>
+                {m.toFixed(1)}x
+              </TogglePill>
+            ))}
+          </div>
+          <div className="mt-3 grid gap-4 md:grid-cols-2">
+            <Field label="Multiplier">
+              <Input
+                type="number"
+                step="0.1"
+                min={1}
+                value={form.rewardPointsMultiplier}
+                onChange={(event) => setForm((current) => ({ ...current, rewardPointsMultiplier: Number(event.target.value), rewardPointsPrice: "" }))}
+              />
+            </Field>
+            <Field label="Override points">
+              <Input
+                type="number"
+                min={1}
+                value={form.rewardPointsPrice}
+                placeholder={`${rewardPreviewPoints}p auto`}
+                onChange={(event) => setForm((current) => ({ ...current, rewardPointsPrice: event.target.value }))}
+              />
+            </Field>
+          </div>
+          <p className="mt-3 text-[12px] text-[var(--text-secondary)]">
+            {form.price} kr → {rewardPreviewPoints}p. Vid 10% intjäning motsvarar {Number(form.rewardPointsMultiplier).toFixed(1)}x ungefär <b className="text-[var(--text-primary)]">{rewardPercent.toFixed(2)}%</b> faktiskt reward-värde.
+          </p>
         </div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <p className="card-label">Kostflaggor</p>
@@ -1552,6 +1616,84 @@ function ProductRow({
   );
 }
 
+function RewardableProductRow({
+  product,
+  busy,
+  onOpen,
+  onPatch,
+}: {
+  product: ProductRecord;
+  busy: boolean;
+  onOpen: () => void;
+  onPatch: (payload: Record<string, unknown>) => void;
+}) {
+  const [override, setOverride] = useState<string>("");
+  const multiplier = product.rewardPointsMultiplier ?? 1.5;
+  const points = calcRewardPoints(product.price, multiplier, product.rewardPointsPrice ?? null);
+  const percent = effectiveRewardPercent(multiplier);
+
+  useEffect(() => {
+    setOverride(product.rewardPointsPrice ? String(product.rewardPointsPrice) : "");
+  }, [product.rewardPointsPrice]);
+
+  const saveOverride = () => {
+    const parsed = override.trim() === "" ? null : Math.ceil(Number(override));
+    const next = parsed != null && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    if (next === (product.rewardPointsPrice ?? null)) return;
+    onPatch({ rewardPointsPrice: next });
+  };
+
+  return (
+    <div className={`surface-muted grid gap-3 px-4 py-4 ${product.rewardable ? "" : "opacity-72"}`}>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={onOpen} className="flex min-w-[220px] flex-1 items-center gap-3 text-left">
+          <span
+            aria-hidden
+            className="h-[46px] w-[46px] shrink-0 rounded-[10px] bg-cover bg-center"
+            style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : { backgroundImage: DISH_PLACEHOLDER }}
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[14px] font-bold tracking-[-0.01em] text-[var(--text-primary)]">{product.name}</span>
+            <span className="mt-0.5 block truncate text-[12px] text-[var(--text-muted)]">{product.category.name} · {formatCurrency(product.price)}</span>
+          </span>
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="rounded-[10px] bg-[var(--bg-panel)] px-3 py-2 text-[18px] font-black tabular-nums text-[var(--text-primary)]">{points}p</span>
+          <Toggle checked={!!product.rewardable} onChange={(next) => onPatch({ rewardable: next })} disabled={busy} />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {REWARD_MULTIPLIERS.map((m) => (
+          <button
+            key={m}
+            type="button"
+            disabled={busy}
+            onClick={() => onPatch({ rewardable: true, rewardPointsMultiplier: m, rewardPointsPrice: null })}
+            className={`rounded-lg border px-3 py-1.5 text-[12px] font-bold transition-colors ${Number(multiplier) === m && !product.rewardPointsPrice ? toggleOnClass : toggleOffClass}`}
+          >
+            {m.toFixed(1)}x
+          </button>
+        ))}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[12px] text-[var(--text-secondary)]">
+            {Number(multiplier).toFixed(1)}x ≈ <b className="text-[var(--text-primary)]">{percent.toFixed(2)}%</b>
+          </span>
+          <Input
+            type="number"
+            min={1}
+            value={override}
+            onChange={(event) => setOverride(event.target.value)}
+            onBlur={saveOverride}
+            onKeyDown={(event) => { if (event.key === "Enter") (event.currentTarget as HTMLInputElement).blur(); }}
+            placeholder="Override p"
+            className="w-[118px]"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Kompakt tillvalsrad — samma monokroma format som ProductRow. Namn + en liten
 // meta-rad ({n} val · typ · obligatorisk · kopplade produkter), och till höger en
 // duplicera-knapp. Hela raden (utom knappen) öppnar gruppmodalen.
@@ -1716,6 +1858,16 @@ export function MenuPage() {
     const lowerQuery = query.trim().toLowerCase();
     return (products.data || []).filter((product) => !lowerQuery || `${product.name} ${product.description || ""} ${product.category.name}`.toLowerCase().includes(lowerQuery));
   }, [products.data, query]);
+
+  const rewardableProducts = useMemo(
+    () =>
+      [...filteredProducts].sort((a, b) =>
+        Number(b.rewardable) - Number(a.rewardable) ||
+        (a.category.name || "").localeCompare(b.category.name || "", "sv") ||
+        a.position - b.position,
+      ),
+    [filteredProducts],
+  );
 
   const filteredGroups = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
@@ -1941,6 +2093,19 @@ export function MenuPage() {
     }
   };
 
+  const handleRewardPatch = async (product: ProductRecord, payload: Record<string, unknown>) => {
+    if (availabilityBusyId) return;
+    setAvailabilityBusyId(product.id);
+    try {
+      await updateProduct(product.id, payload);
+      await bulkQueryClient.invalidateQueries({ queryKey: menuProductsQueryKey(activeRestaurantId) });
+    } catch {
+      showBulkToast({ type: "error", message: "Kunde inte uppdatera reward-priset" });
+    } finally {
+      setAvailabilityBusyId(null);
+    }
+  };
+
   useEffect(() => {
     if (!pendingRouteProductId || !products.data?.length) return;
     const product = products.data.find((entry) => entry.id === pendingRouteProductId);
@@ -1977,7 +2142,7 @@ export function MenuPage() {
                 <R2AutoMatchButton restaurantId={activeRestaurantId} />
               </>
             ) : null}
-            {activeRestaurantId ? (
+            {activeRestaurantId && tab !== "rewardable" ? (
               <Button variant="secondary" onClick={() => setImportModalOpen(true)}>
                 <Copy size={14} /> Importera från annan
               </Button>
@@ -2011,7 +2176,7 @@ export function MenuPage() {
             <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Sök i menyn..." />
           </div>
-          <Tabs value={tab} onChange={setTab} options={[{ value: "categories", label: "Kategorier" }, { value: "products", label: "Produkter" }, { value: "extras", label: "Tillval" }]} />
+          <Tabs value={tab} onChange={setTab} options={[{ value: "categories", label: "Kategorier" }, { value: "products", label: "Produkter" }, { value: "rewardable", label: "Rewardable" }, { value: "extras", label: "Tillval" }]} />
         </div>
 
         {tab === "categories" ? (
@@ -2211,6 +2376,39 @@ export function MenuPage() {
                   )}
                 </div>
               </div>
+            )}
+          </div>
+        ) : null}
+
+        {tab === "rewardable" ? (
+          <div className="mt-5 grid gap-3">
+            <div className="surface-muted px-4 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[15px] font-extrabold tracking-[-0.3px] text-[var(--text-primary)]">Rewardable produkter</p>
+                  <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                    Kunder tjänar 10% i points. 1.5x ger ungefär 6.67% faktiskt reward-värde.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {REWARD_MULTIPLIERS.map((m) => (
+                    <Badge key={m} tone="neutral">{m.toFixed(1)}x = {effectiveRewardPercent(m).toFixed(2)}%</Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {rewardableProducts.length === 0 ? (
+              <EmptyState title="Inga produkter hittades" description="Sökningen matchar inga produkter." />
+            ) : (
+              rewardableProducts.map((product) => (
+                <RewardableProductRow
+                  key={product.id}
+                  product={product}
+                  busy={availabilityBusyId === product.id}
+                  onOpen={() => { setActiveProduct(product); setProductModalOpen(true); }}
+                  onPatch={(payload) => void handleRewardPatch(product, payload)}
+                />
+              ))
             )}
           </div>
         ) : null}

@@ -61,6 +61,7 @@ const restaurantSchema = z.object({
   tags: z.any().optional(),
   featuredClass: z.any().optional(),
   isOpen: z.boolean().optional(),
+  comingSoon: z.boolean().optional(),
   rating: z.any().optional(),
   ratingCount: z.any().optional(),
   openingHours: z.any().optional(),
@@ -132,6 +133,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
       return restaurant.isOpen;
     }
   })(),
+  comingSoon: restaurant.comingSoon ?? false,
   manualIsOpen: restaurant.isOpen,
   pausedUntil: restaurant.pausedUntil
     ? new Date(restaurant.pausedUntil).toISOString()
@@ -344,6 +346,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       etaMinutes: payload.etaMinutes !== undefined ? Number(payload.etaMinutes) : undefined,
       featuredClass: payload.featuredClass !== undefined ? Number(payload.featuredClass) : undefined,
       isOpen: payload.isOpen,
+      comingSoon: payload.comingSoon,
       rating: payload.rating !== undefined ? Number(payload.rating) : undefined,
       ratingCount: payload.ratingCount !== undefined ? Number(payload.ratingCount) : undefined,
       deliveryFee: kr(Number(payload.deliveryFee ?? 0)),
@@ -496,6 +499,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     }
     if (payload.featuredClass !== undefined) data.featuredClass = toSafeNum(payload.featuredClass);
     if (payload.isOpen !== undefined) data.isOpen = payload.isOpen;
+    if (payload.comingSoon !== undefined) data.comingSoon = payload.comingSoon;
     if (payload.rating !== undefined) data.rating = toSafeNum(payload.rating);
     if (payload.ratingCount !== undefined) data.ratingCount = toSafeNum(payload.ratingCount);
     

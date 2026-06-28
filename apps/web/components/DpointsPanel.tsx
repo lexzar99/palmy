@@ -100,10 +100,10 @@ export default function DpointsPanel() {
       {/* Saldo-kort — kompakt ink med guld-highlight på poäng + ikon */}
       <div className="rounded-3xl bg-zinc-950 px-5 py-4 text-white">
         <div className="flex items-center gap-2 text-xs font-semibold text-zinc-400">
-          <Coins className="h-4 w-4" style={{ color: "var(--color-gold-500, #E7B24B)" }} /> Dpoints
+          <Coins className="h-4 w-4" style={{ color: "var(--color-gold-500, #F0531C)" }} /> Dpoints
         </div>
         <div className="mt-1.5 flex items-baseline gap-2">
-          <span className="text-3xl font-black tracking-tight" style={{ color: "var(--color-gold-500, #E7B24B)" }}>
+          <span className="text-3xl font-black tracking-tight" style={{ color: "var(--color-gold-500, #F0531C)" }}>
             {me.balance.toLocaleString("sv-SE")}
           </span>
           <span className="text-sm font-medium text-zinc-400">≈ {valueKr} kr i värde</span>

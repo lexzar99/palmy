@@ -6,7 +6,8 @@ import SmartImage from "@/components/SmartImage";
 import { readHomeCache, writeHomeCache } from "@/lib/homeCache";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { API_URL } from "@/lib/api";
+import { API_URL, SOCKET_URL } from "@/lib/api";
+import { io as socketIO } from "socket.io-client";
 import {
   MapPin,
   Search,
@@ -21,6 +22,7 @@ import {
   Phone,
   Gift,
   ChevronRight,
+  Coins,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
@@ -31,6 +33,7 @@ import DpointsHomeCard from "@/components/DpointsHomeCard";
 import type { SponsorCardData } from "@/lib/dpoints";
 import WelcomeDealBanner from "@/components/WelcomeDealBanner";
 import EmptyState from "@/components/EmptyState";
+import { OrderTrackingCard, TrackingAdsRail, type TrackingAd } from "@/components/OrderTrackingCard";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
@@ -53,6 +56,7 @@ interface Restaurant {
   minOrderAmount?: number;
   etaMinutes?: number;
   isOpen?: boolean;
+  comingSoon?: boolean;
   pausedUntil?: string | null;
   openingHours?: Record<string, { closed?: boolean; shifts?: { open: string; close: string }[] }> | null;
   featuredClass?: number;
@@ -61,6 +65,21 @@ interface Restaurant {
   address?: string;
   zip?: string;
 }
+
+const DEV_TRACKING_ADS: TrackingAd[] = [
+  {
+    id: "dev-ad-free-drink",
+    brand: "Delivera Test",
+    title: "Testannons: dryck på köpet",
+    subtitle: "Syns under ordertracking och kan öppnas i fullscreen.",
+  },
+  {
+    id: "dev-ad-dessert",
+    brand: "Delivera Test",
+    title: "Testannons: dessert-deal",
+    subtitle: "Används bara lokalt när backend saknar annonser.",
+  },
+];
 
 // Nästa öppettid → "Öppnar 10:00" / "Öppnar imorgon 11:00" / "Öppnar tis 11:00".
 const WEEKDAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
@@ -111,6 +130,14 @@ const cuisineFilters = [
 ];
 
 const ORDER_TYPE_KEY = "platform_order_type";
+const ACTIVE_ORDER_KEY = "matgo_active_order_id";
+const ACTIVE_ORDER_TOKEN_KEY = "matgo_active_order_token";
+const ACTIVE_ORDER_PHONE_KEY = "matgo_active_order_phone";
+const ACTIVE_ORDERS_KEY = "matgo_active_orders";
+const CLOSED_ORDER_SEEN_KEY = "delivera_closed_order_seen_v1";
+const CLOSED_ORDER_VISIBLE_MS = 3 * 60 * 1000;
+const ACTIVE_TRACKING_STATUSES = new Set(["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"]);
+const CLOSED_TRACKING_STATUSES = new Set(["CANCELLED", "REJECTED", "DELIVERY_FAILED"]);
 const PROMO_CARD_WIDTH = 260;
 const PROMO_CARD_GAP = 12;
 const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
@@ -119,6 +146,55 @@ type PromoCardItem =
   | { id: string; kind: "deal"; deal: DealCardData }
   | { id: string; kind: "sponsor"; sponsor: SponsorData }
   | { id: string; kind: "dpoints"; card: SponsorCardData };
+
+function readClosedOrderSeen() {
+  if (typeof window === "undefined") return {};
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CLOSED_ORDER_SEEN_KEY) || "{}");
+    return parsed && typeof parsed === "object" ? parsed as Record<string, number> : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeClosedOrderSeen(map: Record<string, number>) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(CLOSED_ORDER_SEEN_KEY, JSON.stringify(map));
+  } catch {
+    /* noop */
+  }
+}
+
+function shouldShowTrackingOrderOnHome(order: any) {
+  const status = String(order?.status || "").toUpperCase();
+  if (ACTIVE_TRACKING_STATUSES.has(status)) return true;
+  if (!CLOSED_TRACKING_STATUSES.has(status)) return false;
+  const orderId = String(order?.id || "");
+  if (!orderId) return false;
+  const seen = readClosedOrderSeen();
+  const seenAt = Number(seen[orderId] || 0);
+  if (seenAt > 0) return Date.now() < seenAt + CLOSED_ORDER_VISIBLE_MS;
+  seen[orderId] = Date.now();
+  writeClosedOrderSeen(seen);
+  return true;
+}
+
+function forgetClosedHomeOrder(orderId: string) {
+  if (typeof window === "undefined" || !orderId) return;
+  try {
+    if (localStorage.getItem(ACTIVE_ORDER_KEY) === orderId) {
+      localStorage.removeItem(ACTIVE_ORDER_KEY);
+      localStorage.removeItem(ACTIVE_ORDER_TOKEN_KEY);
+      localStorage.removeItem(ACTIVE_ORDER_PHONE_KEY);
+    }
+    const stored = JSON.parse(localStorage.getItem(ACTIVE_ORDERS_KEY) || "[]");
+    const next = (Array.isArray(stored) ? stored : []).filter((order: any) => String(order?.id || "") !== orderId);
+    localStorage.setItem(ACTIVE_ORDERS_KEY, JSON.stringify(next));
+  } catch {
+    /* noop */
+  }
+}
 
 export interface HomeInitialData {
   restaurants: Restaurant[];
@@ -188,6 +264,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   // Zone filtering – IDs of restaurants that can deliver to the user's saved coords
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
   const [zoneError, setZoneError] = useState<string | null>(null);
+  const [hasDeliveryCoords, setHasDeliveryCoords] = useState(false);
   // Zone-specific delivery info per restaurant (fee öre, minOrder öre, etaMinutes, zoneName)
   const [zoneDeliveryInfo, setZoneDeliveryInfo] = useState<Record<string, {
     deliveryFee: number; minOrder: number; etaMinutes?: number | null; zoneName?: string;
@@ -196,6 +273,152 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   const setDeliveryOverrides = useCartStore((s) => s.setDeliveryOverrides);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [dpointsCard, setDpointsCard] = useState<SponsorCardData | null>(null);
+  const [dpointsBalance, setDpointsBalance] = useState<number | null>(null);
+  const [activeOrders, setActiveOrders] = useState<any[]>([]);
+  const [trackingAds, setTrackingAds] = useState<TrackingAd[]>([]);
+  const [courierPositions, setCourierPositions] = useState<Record<string, { lat: number; lng: number }>>({});
+  useEffect(() => {
+    axios.get("/api/platform/dpoints/me")
+      .then((res) => setDpointsBalance(res.data?.enabled ? Number(res.data.balance ?? 0) : null))
+      .catch(() => setDpointsBalance(null));
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    const fallbackAds = process.env.NODE_ENV !== "production" ? DEV_TRACKING_ADS : [];
+    axios.get("/api/platform/ads")
+      .then((res) => {
+        const rows = Array.isArray(res.data) ? res.data : [];
+        setTrackingAds(rows.length ? rows : fallbackAds);
+      })
+      .catch(() => setTrackingAds(fallbackAds));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchOrderDetail = async (order: any) => {
+      const id = order?.id;
+      if (!id) return null;
+      const qs = new URLSearchParams();
+      const phone = order.customerPhone || order.phone || order.__trackingPhone || localStorage.getItem(ACTIVE_ORDER_PHONE_KEY);
+      const token = order.__trackingToken || order.token || order.accessToken || localStorage.getItem(ACTIVE_ORDER_TOKEN_KEY);
+      if (token) qs.set("token", token);
+      if (phone) qs.set("phone", phone);
+      const url = qs.toString()
+        ? `${API_URL}/api/orders/${id}?${qs.toString()}`
+        : `${API_URL}/api/orders/${id}`;
+      return axios.get(url).then((res) => ({
+        ...res.data,
+        __trackingPhone: phone || null,
+        __trackingToken: token || null,
+      })).catch(() => order);
+    };
+
+    const loadActiveOrders = async () => {
+      try {
+        const rowsById = new Map<string, any>();
+        const storedId = localStorage.getItem(ACTIVE_ORDER_KEY);
+        if (storedId) rowsById.set(storedId, { id: storedId, customerPhone: localStorage.getItem(ACTIVE_ORDER_PHONE_KEY) });
+        try {
+          const storedOrders = JSON.parse(localStorage.getItem(ACTIVE_ORDERS_KEY) || "[]");
+          (Array.isArray(storedOrders) ? storedOrders : []).forEach((order: any) => {
+            if (order?.id) rowsById.set(String(order.id), {
+              id: String(order.id),
+              customerPhone: order.phone || order.customerPhone || null,
+              __trackingPhone: order.phone || order.customerPhone || null,
+              __trackingToken: order.token || order.accessToken || null,
+            });
+          });
+        } catch { /* noop */ }
+        if (process.env.NODE_ENV !== "production") {
+          try {
+            const testOrdersRaw = new URLSearchParams(window.location.search).get("testOrders");
+            const testOrders = testOrdersRaw ? JSON.parse(testOrdersRaw) : [];
+            const normalizedTestOrders = (Array.isArray(testOrders) ? testOrders : [])
+              .filter((order: any) => order?.id)
+              .map((order: any) => ({
+                id: String(order.id),
+                phone: order.phone || order.customerPhone || null,
+                token: order.token || order.accessToken || null,
+              }));
+            if (normalizedTestOrders.length > 0) {
+              rowsById.clear();
+              localStorage.setItem(ACTIVE_ORDERS_KEY, JSON.stringify(normalizedTestOrders.slice(0, 3)));
+            }
+            normalizedTestOrders.forEach((order: any) => {
+              if (order?.id) rowsById.set(String(order.id), {
+                id: String(order.id),
+                customerPhone: order.phone || null,
+                __trackingPhone: order.phone || null,
+                __trackingToken: order.token || null,
+              });
+            });
+          } catch { /* noop */ }
+        }
+
+        if (isLoggedIn) {
+          const history = await axios.get("/api/platform/profile/orders").catch(() => ({ data: [] }));
+          (Array.isArray(history.data) ? history.data : []).forEach((order: any) => {
+            if (order?.id && shouldShowTrackingOrderOnHome(order)) rowsById.set(String(order.id), order);
+          });
+        }
+
+        const details = await Promise.all(Array.from(rowsById.values()).slice(0, 3).map(fetchOrderDetail));
+        const next = details
+          .filter(Boolean)
+          .filter((order) => {
+            const status = String(order.status || "").toUpperCase();
+            const paymentStatus = String(order.paymentStatus || "").toUpperCase();
+            if (status === "AWAITING_PAYMENT" || ["AWAITING_PAYMENT", "FAILED", "EXPIRED"].includes(paymentStatus)) return false;
+            const shouldShow = shouldShowTrackingOrderOnHome(order);
+            if (!shouldShow && CLOSED_TRACKING_STATUSES.has(status)) forgetClosedHomeOrder(String(order.id || ""));
+            return shouldShow;
+          })
+          .slice(0, 3);
+        if (!cancelled) setActiveOrders(next);
+      } catch {
+        if (!cancelled) setActiveOrders([]);
+      }
+    };
+
+    void loadActiveOrders();
+    const timer = window.setInterval(loadActiveOrders, 15000);
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || [ACTIVE_ORDER_KEY, ACTIVE_ORDER_PHONE_KEY, ACTIVE_ORDER_TOKEN_KEY, ACTIVE_ORDERS_KEY].includes(event.key)) void loadActiveOrders();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    const trackable = activeOrders.filter((order) => {
+      const type = String(order.orderType || order.type || "").toUpperCase();
+      return type !== "PICKUP" && !order.selfDelivery;
+    });
+    if (trackable.length === 0) return;
+    const socket = socketIO(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
+    socket.on("connect", () => trackable.forEach((order) => socket.emit("join:order", order.id)));
+    socket.on("courier:location", (payload: any) => {
+      if (!payload?.orderId || typeof payload.lat !== "number" || typeof payload.lng !== "number") return;
+      setCourierPositions((current) => ({ ...current, [String(payload.orderId)]: { lat: payload.lat, lng: payload.lng } }));
+    });
+    socket.on("order:status", (payload: any) => {
+      if (!payload?.orderId || !payload.status) return;
+      setActiveOrders((orders) => orders
+        .map((order) => (
+          String(order.id) === String(payload.orderId)
+            ? { ...order, status: payload.status, estimatedTime: payload.estimatedTime ?? order.estimatedTime, etaEndsAt: payload.etaEndsAt ?? order.etaEndsAt, deliveringAt: payload.deliveringAt ?? order.deliveringAt }
+            : order
+        ))
+        .filter(shouldShowTrackingOrderOnHome));
+    });
+    return () => {
+      socket.disconnect();
+    };
+  }, [activeOrders]);
   // Dpoints-registreringskort i sponsor-railen — bara för utloggade besökare.
   useEffect(() => {
     if (isLoggedIn) {
@@ -272,6 +495,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
 
       // Restore zone filtering from saved coords
       const storedCoords = localStorage.getItem("platform_coords");
+      setHasDeliveryCoords(Boolean(storedCoords && storedType !== "PICKUP"));
       if (storedCoords && stored && storedType !== "PICKUP") {
         try {
           const coords = JSON.parse(storedCoords);
@@ -435,6 +659,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
 
     if (type === "PICKUP") {
       setZoneRestaurantIds(null);
+      setHasDeliveryCoords(false);
       // Pickup-city auto-default: prefer the delivery city the user already
       // picked. Falls back to the previously-used pickup city, then to the
       // address modal as a last resort. Old behaviour kept a stale pickup
@@ -472,6 +697,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
           try {
             const coords = JSON.parse(realCoordsRaw);
             localStorage.setItem("platform_coords", realCoordsRaw);
+            setHasDeliveryCoords(true);
             validateZone(coords.lat, coords.lng);
           } catch { /* ignore */ }
         }
@@ -481,6 +707,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         setDetectedCityName(null);
         setCityFamilyIds(null);
         setCityFamilyNames(null);
+        setHasDeliveryCoords(false);
         setShowAddressModal(true);
       }
     }
@@ -501,6 +728,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       localStorage.setItem("platform_address", pickupCity);
       setDetectedCityName(pickupCity);
       setZoneRestaurantIds(null);
+      setHasDeliveryCoords(false);
       await resolveCityFamily(pickupCity);
     } else {
       saveAddress(addr);
@@ -520,11 +748,13 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       if (coords) {
         localStorage.setItem("platform_coords", JSON.stringify(coords));
         localStorage.setItem("platform_delivery_coords", JSON.stringify(coords));
+        setHasDeliveryCoords(true);
         rememberQuickAddress({ street: addr.split(",")[0].trim(), latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
         await validateZone(coords.lat, coords.lng);
       } else {
         localStorage.removeItem("platform_coords");
         setZoneRestaurantIds(null);
+        setHasDeliveryCoords(false);
       }
     }
 
@@ -824,10 +1054,13 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 overflow-x-auto md:overflow-visible pb-1 md:pb-0 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
         {sortedSection.map((r, i) => {
           const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
-          const dimmed = r.isOpen === false || !inZone;
+          const isComingSoon = r.comingSoon === true;
+          const dimmed = isComingSoon || r.isOpen === false || !inZone;
           const railPaused = r.pausedUntil ? new Date(r.pausedUntil) : null;
           const railIsPaused = railPaused !== null && railPaused.getTime() > Date.now();
-          const railDimReason = !inZone
+          const railDimReason = isComingSoon
+            ? "Kommer snart"
+            : !inZone
             ? "Utanför zon"
             : r.isOpen === false
               ? (railIsPaused
@@ -868,7 +1101,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                 <div className="h-36 sm:h-44 md:h-48 w-full relative overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
                   {railDimReason && (
                     <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm" style={{ backgroundColor: "rgba(17,17,19,0.82)", backdropFilter: "blur(6px)" }}>
-                      {!inZone ? <MapPin size={11} className="text-white" /> : <Clock size={11} className="text-white" />}
+                      {isComingSoon ? <Store size={11} className="text-white" /> : !inZone ? <MapPin size={11} className="text-white" /> : <Clock size={11} className="text-white" />}
                       <span className="text-[10px] font-black uppercase tracking-wide text-white">{railDimReason}</span>
                     </div>
                   )}
@@ -918,6 +1151,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     // Modal:en (closedRestaurant nedan) ger valet "Se meny" eller "Stäng".
     const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
     const isPaused = pausedUntil && pausedUntil.getTime() > Date.now();
+    if (r.comingSoon) return;
     if (r.isOpen === false || isPaused) {
       setClosedRestaurant(r);
       return;
@@ -929,68 +1163,49 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
 
   return (
     <div className="min-h-screen pb-36 md:pt-28" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
-      {/* ── MOBIL HEADER — två lager, ren CSS, kan aldrig glitcha ──────────
+      {/* ── MOBIL HEADER — kompakt adress/sök, ren CSS, kan aldrig glitcha ──
           Tier 1 och Tier 2 är DIREKTA barn till den höga sid-diven — annars
           slutar position:sticky fungera så fort man scrollat förbi en kort
           wrapper (sticky stickar bara inom sin närmaste blockförälder).
-          Tier 1 (sticky): delívera + leverans/hämtning, pinnad hela sidan.
-          Tier 2 (vanligt flöde): adress + sök, scrollar bort naturligt bakom
-          tier 1 (solid bakgrund). Ingen scroll-JS, ingen höjd-animation →
-          noll glitch, oberoende av zoom. Döljs på desktop. */}
+          Mobilen har ingen separat leverans/hämtning-toggle här; adressraden
+          öppnar AddressModal där läge + adress/stad väljs. Döljs på desktop. */}
       <div
-        className="md:hidden sticky top-0 z-50"
+        className="md:hidden sticky top-0 z-[1400]"
         style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
-        <div className="px-4 py-2.5 flex items-center justify-between">
-          {/* Nya brand-lockupen (bett-D + Delívera-wordmark), samma som desktop-navbaren. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/delivera-lockup.png" alt="Delívera" style={{ height: 26, width: "auto" }} />
-
-          {/* Segmenterad kontroll, samma som kassan: monokrom text, boxad ram,
-              guld 2px-linje under aktivt segment (ingen guld-fyllning). */}
-          <div className="shrink-0 flex rounded-[10px] overflow-hidden" style={{ border: "1px solid var(--line-strong)" }}>
-            {(["DELIVERY", "PICKUP"] as const).map((type, i) => {
-              const active = orderType === type;
-              return (
-                <button
-                  key={type}
-                  onClick={() => toggleOrderType(type)}
-                  className="relative flex items-center justify-center gap-1.5 px-3.5 h-9 text-[12.5px] transition-colors"
-                  style={{ color: active ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: active ? 600 : 500, borderLeft: i === 1 ? "1px solid var(--line-strong)" : undefined }}
-                >
-                  {type === "DELIVERY" ? <Truck size={13} /> : <Store size={13} />}
-                  {type === "DELIVERY" ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
-                  {active && <span className="absolute left-2.5 right-2.5 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)" }} />}
-                </button>
-              );
-            })}
+        <div className="px-4 pt-2.5 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <AddressPullDown
+                currentAddress={address}
+                zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : hasDeliveryCoords ? "ok" : null) : null}
+                onOpenFull={() => setShowAddressModal(true)}
+                orderType={orderType}
+                cityName={detectedCityName}
+                onSelect={handleQuickAddressSelect}
+                compact
+              />
+            </div>
+            <Link
+              href="/orders"
+              className="shrink-0 inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12px] font-bold"
+              style={{ backgroundColor: "var(--gold-soft)", color: "var(--color-gold-500)", border: "1px solid color-mix(in srgb, var(--color-gold-500) 24%, transparent)" }}
+              aria-label="Dpoints"
+            >
+              <Coins size={13} strokeWidth={2} />
+              <span className="tabular-nums">{dpointsBalance != null ? `${dpointsBalance.toLocaleString("sv-SE")} p` : "Dpoints"}</span>
+            </Link>
           </div>
+          <Link
+            href="/search"
+            aria-label={t("home.searchCta")}
+            className="mt-2 flex h-10 items-center gap-2 rounded-xl px-3 transition-colors active:opacity-80"
+            style={{ backgroundColor: "var(--bg-deep)" }}
+          >
+            <Search size={15} strokeWidth={2} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+            <span className="text-[13.5px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>{t("home.searchCta")}</span>
+          </Link>
         </div>
-      </div>
-
-      {/* Tier 2 — adress + sök (vanligt flöde, scrollar bort bakom tier 1) */}
-      <div className="md:hidden px-4 pt-2.5 pb-3" style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)" }}>
-        <div className="flex items-center">
-          <div className="flex-1 min-w-0">
-            <AddressPullDown
-              currentAddress={address}
-              zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
-              onOpenFull={() => setShowAddressModal(true)}
-              orderType={orderType}
-              cityName={detectedCityName}
-              onSelect={handleQuickAddressSelect}
-            />
-          </div>
-        </div>
-        <Link
-          href="/search"
-          aria-label={t("home.searchCta")}
-          className="mt-2.5 flex h-12 items-center gap-2.5 rounded-xl px-4 transition-colors active:opacity-80"
-          style={{ backgroundColor: "var(--bg-deep)" }}
-        >
-          <Search size={16} strokeWidth={2} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-          <span className="text-[14px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>{t("home.searchCta")}</span>
-        </Link>
       </div>
       <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 pt-3 md:pt-0">
         {/* DESKTOP SUBHEADER — adressblock till vänster, sök i mitten,
@@ -1001,7 +1216,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             <div className="shrink-0 min-w-0 max-w-[300px]">
               <AddressPullDown
                 currentAddress={address}
-                zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
+                zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : hasDeliveryCoords ? "ok" : null) : null}
                 onOpenFull={() => setShowAddressModal(true)}
                 orderType={orderType}
                 cityName={detectedCityName}
@@ -1034,13 +1249,40 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                   >
                     {type === "DELIVERY" ? <Truck size={14} /> : <Store size={14} />}
                     {type === "DELIVERY" ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
-                    {active && <span className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)" }} />}
+                    {active && <span className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #F0531C)" }} />}
                   </button>
                 );
               })}
             </div>
           </div>
         </header>
+
+        {activeOrders.length > 0 && activeCuisine === "Alla" && (
+          <section className="mb-5">
+            <div className="space-y-2">
+              {activeOrders.map((order, index) => {
+                  const qs = new URLSearchParams();
+                  try {
+                  const token = order.__trackingToken || localStorage.getItem(ACTIVE_ORDER_TOKEN_KEY);
+                  const phone = order.__trackingPhone || order.customerPhone || localStorage.getItem(ACTIVE_ORDER_PHONE_KEY);
+                  if (token) qs.set("token", token);
+                  if (phone) qs.set("phone", phone);
+                } catch { /* noop */ }
+                const href = qs.toString() ? `/order/${order.id}?${qs.toString()}` : `/order/${order.id}`;
+                return (
+                  <OrderTrackingCard
+                    key={order.id}
+                    order={order}
+                    href={href}
+                    courier={courierPositions[String(order.id)]}
+                    className={index === 0 ? "" : "mt-2"}
+                  />
+                );
+              })}
+            </div>
+            <TrackingAdsRail ads={trackingAds} />
+          </section>
+        )}
 
         {/* ── WHAT'S ON (Aktuellt) — först på sidan: stora banner-kort som
             auto-skiftar var 5:e sekund, med prick-indikator under. ── */}
@@ -1078,16 +1320,13 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                       setActivePromo(i);
                     }}
                     className="h-1.5 rounded-full transition-all"
-                    style={{ width: activePromo === i ? "22px" : "6px", backgroundColor: activePromo === i ? "#EAB545" : "var(--border-muted)" }}
+                    style={{ width: activePromo === i ? "22px" : "6px", backgroundColor: activePromo === i ? "#F0531C" : "var(--border-muted)" }}
                   />
                 ))}
               </div>
             )}
           </section>
         )}
-
-        {/* "Senaste beställning"-kortet borttaget — den live order-tracking-
-            bannern (LiveOrderBanner, fixed nederst) sköter aktiv order. */}
 
         {/* ── KATEGORIER — ramlösa text-tabbar med guld-underline för aktiv
             (samma språk som menysidans sticky kategori-rad). ── */}
@@ -1161,7 +1400,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         {!loading && !apiError && !cityFamilyResolving && detectedCityName && filtered.length === 0 && resolvedHomeCategorySections.every((s) => s.restaurants.filter(matchesCityFamily).length === 0) && (
           <section className="mb-10">
             <div className="rounded-3xl px-6 py-10 text-center" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-              <div className="mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(231,178,75,0.1)" }}>
+              <div className="mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(240,83,28,0.1)" }}>
                 <MapPin size={22} className="text-gold-500" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>
@@ -1260,10 +1499,13 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                 {filtered.map((r, i) => {
                   const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
                   const isClosed = r.isOpen === false;
-                  const dimmed = isClosed || isOutOfZone;
+                  const isComingSoon = r.comingSoon === true;
+                  const dimmed = isComingSoon || isClosed || isOutOfZone;
                   const pausedUntilDate = r.pausedUntil ? new Date(r.pausedUntil) : null;
                   const isPaused = pausedUntilDate !== null && pausedUntilDate.getTime() > Date.now();
-                  const dimReason = isOutOfZone
+                  const dimReason = isComingSoon
+                    ? "Kommer snart"
+                    : isOutOfZone
                     ? "Utanför zon"
                     : isClosed
                       ? (isPaused
@@ -1308,7 +1550,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                                 zon) — enkel, fin pill. Visas bara när dimmed. */}
                             {dimReason && (
                               <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm" style={{ backgroundColor: "rgba(17,17,19,0.82)", backdropFilter: "blur(6px)" }}>
-                                {isOutOfZone ? <MapPin size={11} className="text-white" /> : <Clock size={11} className="text-white" />}
+                                {isComingSoon ? <Store size={11} className="text-white" /> : isOutOfZone ? <MapPin size={11} className="text-white" /> : <Clock size={11} className="text-white" />}
                                 <span className="text-[10px] font-black uppercase tracking-wide text-white">{dimReason}</span>
                               </div>
                             )}
@@ -1489,7 +1731,3 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     </div>
   );
 }
-
-
-
-

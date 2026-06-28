@@ -29,7 +29,7 @@ const formatReward = (deal: BannerDeal) => {
 };
 
 const STRIP_TONES = [
-  { bg: "rgba(234,181,69,0.13)", border: "rgba(234,181,69,0.28)", text: "#EAB545", icon: "#EAB545" },
+  { bg: "rgba(240,83,28,0.13)", border: "rgba(240,83,28,0.28)", text: "#F0531C", icon: "#F0531C" },
   { bg: "rgba(240,122,19,0.12)", border: "rgba(240,122,19,0.26)", text: "#F07A13", icon: "#F07A13" },
   { bg: "rgba(99,202,132,0.11)", border: "rgba(99,202,132,0.25)", text: "#63CA84", icon: "#63CA84" },
 ];

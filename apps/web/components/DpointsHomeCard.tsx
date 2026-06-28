@@ -30,7 +30,7 @@ export default function DpointsHomeCard({ card }: { card: SponsorCardData }) {
         </span>
         <span
           className="shrink-0 rounded-full px-2.5 py-1 text-[13px] font-bold leading-none"
-          style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#141416", fontVariantNumeric: "tabular-nums" }}
+          style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416", fontVariantNumeric: "tabular-nums" }}
         >
           +{card.bonusPoints} p
         </span>
@@ -45,7 +45,7 @@ export default function DpointsHomeCard({ card }: { card: SponsorCardData }) {
 
       <span
         className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-xl h-10 px-4 text-[13.5px] font-semibold transition-transform group-hover:scale-[1.02]"
-        style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#141416" }}
+        style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416" }}
       >
         {card.ctaLabel || "Skapa konto"}
         <ArrowRight size={14} strokeWidth={2.5} />

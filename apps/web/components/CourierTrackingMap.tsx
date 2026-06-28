@@ -15,7 +15,17 @@ type LL = { lat: number; lng: number };
  * varje ping — den försvinner aldrig och visar alltid senast kända position.
  * Modern CARTO-stil. SSR-säker: Leaflet importeras dynamiskt i useEffect.
  */
-function CourierTrackingMap({ pickup, dropoff, courier }: { pickup?: LL | null; dropoff?: LL | null; courier?: LL | null }) {
+function CourierTrackingMap({
+  pickup,
+  dropoff,
+  courier,
+  accentColor = "#2E7D4F",
+}: {
+  pickup?: LL | null;
+  dropoff?: LL | null;
+  courier?: LL | null;
+  accentColor?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
@@ -45,7 +55,7 @@ function CourierTrackingMap({ pickup, dropoff, courier }: { pickup?: LL | null; 
 
       const bounds: [number, number][] = [];
       if (pickup) {
-        L.marker([pickup.lat, pickup.lng], { icon: pinIcon("#e7b24b", "🍽️") }).addTo(map);
+        L.marker([pickup.lat, pickup.lng], { icon: pinIcon(accentColor, "🍽️") }).addTo(map);
         bounds.push([pickup.lat, pickup.lng]);
       }
       if (dropoff) {
@@ -53,9 +63,9 @@ function CourierTrackingMap({ pickup, dropoff, courier }: { pickup?: LL | null; 
         bounds.push([dropoff.lat, dropoff.lng]);
       }
       // Statisk rutt restaurang→kund — ritas en gång, ändras aldrig.
-      if (pickup && dropoff) drawRoute(L, mapRef, pickup, dropoff);
+      if (pickup && dropoff) drawRoute(L, mapRef, pickup, dropoff, accentColor);
       // Om vi redan har en budposition (sällan vid mount) → rita pricken direkt.
-      if (courier) upsertCourier(L, map, courierMarkerRef, courier);
+      if (courier) upsertCourier(L, map, courierMarkerRef, courier, accentColor);
       if (bounds.length > 1) map.fitBounds(L.latLngBounds(bounds).pad(0.3));
       setTimeout(() => {
         if (mapRef.current === map) map.invalidateSize();
@@ -76,8 +86,8 @@ function CourierTrackingMap({ pickup, dropoff, courier }: { pickup?: LL | null; 
     const L = LRef.current;
     const map = mapRef.current;
     if (!L || !map || !courier) return;
-    upsertCourier(L, map, courierMarkerRef, courier);
-  }, [courier?.lat, courier?.lng]);
+    upsertCourier(L, map, courierMarkerRef, courier, accentColor);
+  }, [courier?.lat, courier?.lng, accentColor]);
 
   // Re-centrera: passa in hela rutten + budet igen — för kunden som zoomat/
   // pannat bort. Räknar bounds från aktuella props vid klick.
@@ -94,7 +104,7 @@ function CourierTrackingMap({ pickup, dropoff, courier }: { pickup?: LL | null; 
   };
 
   return (
-    <div style={{ position: "relative", height: 300, width: "100%" }}>
+    <div style={{ position: "relative", height: "100%", minHeight: 120, width: "100%" }}>
       <div ref={ref} style={{ height: "100%", width: "100%" }} />
       <button
         type="button"
@@ -130,11 +140,11 @@ function CourierTrackingMap({ pickup, dropoff, courier }: { pickup?: LL | null; 
 
 // Skapar budpricken en gång och flyttar den sedan (setLatLng) — försvinner aldrig.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function upsertCourier(L: any, map: any, ref: { current: any }, courier: LL) {
+function upsertCourier(L: any, map: any, ref: { current: any }, courier: LL, accentColor: string) {
   if (!ref.current) {
     const icon = L.divIcon({
       className: "",
-      html: `<span style="position:relative;display:block;width:22px;height:22px"><span style="position:absolute;inset:-9px;border-radius:50%;background:rgba(231,178,75,.3)"></span><span style="position:relative;display:block;width:22px;height:22px;border-radius:50%;background:#e7b24b;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4)"></span></span>`,
+      html: `<span style="position:relative;display:block;width:22px;height:22px"><span style="position:absolute;inset:-9px;border-radius:50%;background:${hexToRgba(accentColor, 0.28)}"></span><span style="position:relative;display:block;width:22px;height:22px;border-radius:50%;background:${accentColor};border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4)"></span></span>`,
       iconSize: [22, 22],
       iconAnchor: [11, 11],
     });
@@ -148,7 +158,7 @@ function upsertCourier(L: any, map: any, ref: { current: any }, courier: LL) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function drawRoute(L: any, mapRef: { current: any }, from: LL, to: LL) {
+function drawRoute(L: any, mapRef: { current: any }, from: LL, to: LL, accentColor: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let layer: any = null;
   const add = (latlngs: [number, number][], dashed: boolean) => {
@@ -156,7 +166,7 @@ function drawRoute(L: any, mapRef: { current: any }, from: LL, to: LL) {
     if (!map) return;
     try {
       if (layer) map.removeLayer(layer);
-      layer = L.polyline(latlngs, dashed ? { color: "#e7b24b", weight: 4, opacity: 0.55, dashArray: "6 8" } : { color: "#e7b24b", weight: 5, opacity: 0.95 }).addTo(map);
+      layer = L.polyline(latlngs, dashed ? { color: accentColor, weight: 4, opacity: 0.55, dashArray: "6 8" } : { color: accentColor, weight: 5, opacity: 0.95 }).addTo(map);
     } catch {
       /* karta borttagen */
     }
@@ -172,6 +182,15 @@ function drawRoute(L: any, mapRef: { current: any }, from: LL, to: LL) {
     .catch(straight);
 }
 
+function hexToRgba(hex: string, alpha: number) {
+  const clean = hex.replace("#", "");
+  if (clean.length !== 6) return `rgba(46,125,79,${alpha})`;
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 // Re-rendera bara när en koordinat faktiskt ändras (inte på varje parent-render),
 // så kartan aldrig byggs om i onödan och pricken inte hinner blinka.
 export default memo(CourierTrackingMap, (a, b) =>
@@ -180,5 +199,6 @@ export default memo(CourierTrackingMap, (a, b) =>
   a.dropoff?.lat === b.dropoff?.lat &&
   a.dropoff?.lng === b.dropoff?.lng &&
   a.courier?.lat === b.courier?.lat &&
-  a.courier?.lng === b.courier?.lng,
+  a.courier?.lng === b.courier?.lng &&
+  a.accentColor === b.accentColor,
 );

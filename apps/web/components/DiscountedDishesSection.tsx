@@ -149,7 +149,7 @@ export default function DiscountedDishesSection({ variant = "rail" }: Props = {}
                 className={cardCls}
                 style={{
                   backgroundColor: "var(--bg-secondary)",
-                  borderColor: "rgba(231,178,75,0.16)",
+                  borderColor: "rgba(240,83,28,0.16)",
                   boxShadow: "var(--card-shadow)",
                 }}
               >

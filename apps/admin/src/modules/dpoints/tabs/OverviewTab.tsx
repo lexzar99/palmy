@@ -80,7 +80,9 @@ export default function OverviewTab() {
   const c = config.data;
   if (config.isLoading || !c) return <LoadingPanel />;
 
-  const earnPerKr = c.dpointsValuePerKr > 0 ? c.dpointsPerKr / c.dpointsValuePerKr : c.dpointsPerKr;
+  const cashbackPct = Math.round((c.dpointsPerKr ?? 0) * 1000) / 10;
+  const exampleOrderKr = 150;
+  const exampleEarned = Math.round(exampleOrderKr * (c.dpointsPerKr ?? 0));
   const redeemedPct =
     overview.data && overview.data.totalEarned > 0
       ? Math.round((overview.data.totalRedeemed / overview.data.totalEarned) * 100)
@@ -110,73 +112,57 @@ export default function OverviewTab() {
       <div className="grid gap-3.5 lg:grid-cols-2">
         <Surface>
           <div className="flex flex-col gap-4 p-5">
-            <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Intjäningsregler</h2>
+            <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Poängmodell</h2>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Intjäning (poäng per kr)">
+              <Field label="Cashback i Dpoints (%)">
                 <Input
                   type="number"
-                  step="0.1"
+                  step="0.5"
                   min="0"
-                  defaultValue={c.dpointsPerKr}
+                  defaultValue={cashbackPct}
                   key={`per-${c.dpointsPerKr}`}
                   onBlur={(e) => {
-                    const v = Number(e.target.value);
+                    const v = Math.max(0, Number(e.target.value) / 100);
                     if (v !== c.dpointsPerKr) save.mutate({ dpointsPerKr: v });
                   }}
                 />
               </Field>
               <div>
-                <Field label="Värde (poäng per kr)">
+                <Field label="Tak för saldo (0 = inget tak)">
                   <Input
                     type="number"
-                    min="1"
-                    defaultValue={c.dpointsValuePerKr}
-                    key={`val-${c.dpointsValuePerKr}`}
+                    min="0"
+                    defaultValue={c.dpointsMaxBalance}
+                    key={`max-${c.dpointsMaxBalance}`}
                     onBlur={(e) => {
-                      const v = Math.round(Number(e.target.value));
-                      if (v !== c.dpointsValuePerKr) save.mutate({ dpointsValuePerKr: v });
+                      const v = Math.max(0, Math.round(Number(e.target.value)));
+                      if (v !== c.dpointsMaxBalance) save.mutate({ dpointsMaxBalance: v });
                     }}
                   />
                 </Field>
-                <p className="mt-1.5 text-xs text-[var(--text-secondary)]">Standard: 10 poäng = 1 kr</p>
+                <p className="mt-1.5 text-xs text-[var(--text-secondary)]">Launch-standard: 2500 poäng.</p>
               </div>
-            </div>
-
-            <div>
-              <Field label="Tak för saldo (0 = inget tak)">
-                <Input
-                  type="number"
-                  min="0"
-                  defaultValue={c.dpointsMaxBalance}
-                  key={`max-${c.dpointsMaxBalance}`}
-                  onBlur={(e) => {
-                    const v = Math.max(0, Math.round(Number(e.target.value)));
-                    if (v !== c.dpointsMaxBalance) save.mutate({ dpointsMaxBalance: v });
-                  }}
-                />
-              </Field>
-              <p className="mt-1.5 text-xs text-[var(--text-secondary)]">Standard: 2000 poäng. Intjäning pausas när saldot når taket.</p>
             </div>
 
             {/* Sammanfattningsrader (design): label-vänster, värde-pill-höger */}
             <div>
               <div className="flex items-center justify-between border-t border-[var(--row-divider)] py-3">
-                <span className="text-[13.5px] font-semibold">Intjäning per krona</span>
+                <span className="text-[13.5px] font-semibold">Kunden tjänar</span>
                 <span className="rounded-[9px] border border-[var(--border-subtle)] px-3 py-1.5 text-[13.5px] font-bold">
-                  {earnPerKr.toLocaleString("sv-SE", { maximumFractionDigits: 2 })} p
+                  {cashbackPct.toLocaleString("sv-SE", { maximumFractionDigits: 1 })}%
                 </span>
               </div>
               <div className="flex items-center justify-between border-t border-[var(--row-divider)] py-3">
-                <span className="text-[13.5px] font-semibold">Värde vid inlösen</span>
+                <span className="text-[13.5px] font-semibold">Exempelorder</span>
                 <span className="rounded-[9px] border border-[var(--border-subtle)] px-3 py-1.5 text-[13.5px] font-bold">
-                  {c.dpointsValuePerKr} p = 1 kr
+                  {exampleOrderKr} kr → {exampleEarned}p
                 </span>
               </div>
               <div className="flex items-center justify-between border-t border-[var(--row-divider)] py-3">
-                <span className="text-[13.5px] font-semibold">Tak för saldo</span>
+                <span className="text-[13.5px] font-semibold">Produktpris i poäng</span>
                 <span className="rounded-[9px] border border-[var(--border-subtle)] px-3 py-1.5 text-[13.5px] font-bold">
-                  {c.dpointsMaxBalance === 0 ? "Inget tak" : `${c.dpointsMaxBalance.toLocaleString("sv-SE")} p`}
+                  Meny → Rewardable
                 </span>
               </div>
             </div>
@@ -221,37 +207,37 @@ export default function OverviewTab() {
         </Surface>
       </div>
 
-      {/* Medlemsnivåer (presentation) */}
+      {/* Rewardable-modell */}
       <Surface>
         <div className="flex flex-col gap-3.5 p-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Medlemsnivåer</h2>
-            <span className="text-[12.5px] font-bold text-[var(--accent-ink)]">Hantera nivåer</span>
+            <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Rewardable produkter</h2>
+            <span className="text-[12.5px] font-bold text-[var(--accent-ink)]">Meny → Rewardable</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-[var(--border-subtle)] p-3.5">
               <div className="flex items-center gap-2">
-                <span className="h-[11px] w-[11px] rounded-[3px]" style={{ background: "#c9a36b" }} />
-                <span className="text-[13.5px] font-extrabold">Brons</span>
+                <span className="h-[11px] w-[11px] rounded-[3px] bg-[var(--accent)]" />
+                <span className="text-[13.5px] font-extrabold">Standard</span>
               </div>
-              <div className="mt-1.5 text-[11.5px] font-semibold text-[var(--text-muted)]">0–499 p</div>
-              <div className="mt-0.5 text-[12.5px] text-[var(--text-secondary)]">Standard</div>
+              <div className="mt-1.5 text-[11.5px] font-semibold text-[var(--text-muted)]">1.5x priset</div>
+              <div className="mt-0.5 text-[12.5px] text-[var(--text-secondary)]">100 kr produkt → 150p</div>
             </div>
             <div className="rounded-xl border border-[var(--border-subtle)] p-3.5">
               <div className="flex items-center gap-2">
                 <span className="h-[11px] w-[11px] rounded-[3px]" style={{ background: "#b6bdc6" }} />
-                <span className="text-[13.5px] font-extrabold">Silver</span>
+                <span className="text-[13.5px] font-extrabold">Flex</span>
               </div>
-              <div className="mt-1.5 text-[11.5px] font-semibold text-[var(--text-muted)]">500–1999 p</div>
-              <div className="mt-0.5 text-[12.5px] text-[var(--text-secondary)]">+5% extra poäng</div>
+              <div className="mt-1.5 text-[11.5px] font-semibold text-[var(--text-muted)]">1.3x / 1.7x / 2x</div>
+              <div className="mt-0.5 text-[12.5px] text-[var(--text-secondary)]">Välj per produkt</div>
             </div>
             <div className="rounded-xl border-2 border-[var(--accent)] bg-[#FFF7F3] p-3.5">
               <div className="flex items-center gap-2">
                 <span className="h-[11px] w-[11px] rounded-[3px] bg-[var(--accent)]" />
-                <span className="text-[13.5px] font-extrabold">Guld</span>
+                <span className="text-[13.5px] font-extrabold">Override</span>
               </div>
-              <div className="mt-1.5 text-[11.5px] font-semibold text-[var(--text-muted)]">2000+ p</div>
-              <div className="mt-0.5 text-[12.5px] font-bold text-[var(--accent-ink)]">Fri leverans + förtur</div>
+              <div className="mt-1.5 text-[11.5px] font-semibold text-[var(--text-muted)]">Fast poängpris</div>
+              <div className="mt-0.5 text-[12.5px] font-bold text-[var(--accent-ink)]">För kampanjvaror</div>
             </div>
           </div>
         </div>
@@ -275,7 +261,7 @@ export default function OverviewTab() {
 
           {deliveryOpen && (
             <div className="flex flex-col gap-5">
-              <Field label="Platt budkostnad (kr), fallback om ingen km-tariff satt">
+              <Field label="Standard kurirkostnad (kr) när restaurangens zon är gratis">
                 <Input
                   type="number"
                   min="0"
@@ -288,7 +274,10 @@ export default function OverviewTab() {
                   }}
                 />
               </Field>
-              <Field label="Km-tariff för budkostnad (poäng-köp, endast leverans)">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Om restaurangens matchade zon har en avgift över 0 kr används den avgiften för Dpoints-order. Om zonen är gratis används standarden eller tariffen här.
+              </p>
+              <Field label="Km-tariff för standardkurir (endast när zonen är gratis)">
                 <CourierTierEditor
                   value={c.dpointsCourierTiers ?? "[]"}
                   busy={save.isPending}

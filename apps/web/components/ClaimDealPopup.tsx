@@ -131,7 +131,7 @@ export default function ClaimDealPopup() {
           className="w-full max-w-sm rounded-[28px] p-6 shadow-2xl"
           style={{
             background: "linear-gradient(180deg, #1a1f29 0%, #11151b 100%)",
-            border: "1px solid rgba(243,191,87,0.3)",
+            border: "1px solid rgba(240,83,28,0.3)",
             color: "#fff",
           }}
         >
@@ -148,13 +148,13 @@ export default function ClaimDealPopup() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={deal.imageUrl} alt="" className="mb-4 h-40 w-full rounded-2xl object-cover" />
           ) : (
-            <div className="mb-4 flex h-40 w-full items-center justify-center rounded-2xl bg-[rgba(243,191,87,0.1)] text-5xl">
+            <div className="mb-4 flex h-40 w-full items-center justify-center rounded-2xl bg-[rgba(240,83,28,0.1)] text-5xl">
               🎁
             </div>
           )}
 
           {badge ? (
-            <div className="mb-3 inline-block rounded-full bg-[#f3bf57] px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#11151b]">
+            <div className="mb-3 inline-block rounded-full bg-[#F0531C] px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#11151b]">
               {badge}
             </div>
           ) : null}
@@ -174,8 +174,8 @@ export default function ClaimDealPopup() {
           ) : null}
 
           {deal.popupCode ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-[#f3bf57]/40 bg-[#f3bf57]/10 px-4 py-3 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#f3bf57]">Använd kod</p>
+            <div className="mt-4 rounded-2xl border border-dashed border-[#F0531C]/40 bg-[#F0531C]/10 px-4 py-3 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#F0531C]">Använd kod</p>
               <p className="mt-1 text-lg font-black tracking-wider text-white">{deal.popupCode}</p>
             </div>
           ) : null}
@@ -184,7 +184,7 @@ export default function ClaimDealPopup() {
             <button
               type="button"
               onClick={handleDismiss}
-              className="mt-5 w-full rounded-2xl bg-[#f3bf57] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b] transition-all active:scale-[0.98]"
+              className="mt-5 w-full rounded-2xl bg-[#F0531C] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b] transition-all active:scale-[0.98]"
             >
               OK
             </button>
@@ -194,7 +194,7 @@ export default function ClaimDealPopup() {
                 type="button"
                 onClick={handleClaim}
                 disabled={claiming || claimed}
-                className="mt-5 w-full rounded-2xl bg-[#f3bf57] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b] transition-all active:scale-[0.98] disabled:opacity-60"
+                className="mt-5 w-full rounded-2xl bg-[#F0531C] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b] transition-all active:scale-[0.98] disabled:opacity-60"
               >
                 {claimed ? "Sparat ✓" : claiming ? "Sparar..." : ctaLabel}
               </button>

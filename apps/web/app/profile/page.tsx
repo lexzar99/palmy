@@ -5,15 +5,13 @@ import { signOut, useSession } from "next-auth/react";
 import axios from "axios";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
-  User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
-  Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2, Sparkles, Ticket, Tag,
-  Home, Briefcase, Plus, Trash2, Gift, Languages, Info, Coins
+  User, Settings, MapPin, Phone, LogOut, ChevronRight,
+  History, Lock, ArrowLeft, Loader2, Save, Bell, Check, Ticket, Tag,
+  Home, Briefcase, Trash2, Gift, Languages, Info, Heart, CreditCard, Smartphone, Apple, MessageCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import DpointsPanel from "@/components/DpointsPanel";
-import DpointsSponsorBanner from "@/components/DpointsSponsorBanner";
 import { API_URL } from "@/lib/api";
 import {
   clearPlatformSession,
@@ -22,7 +20,6 @@ import {
   markLoggedOut,
   isLoggedOutMark,
 } from "@/lib/platformSessionClient";
-import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
 import SocialAuthButton from "@/components/SocialAuthButton";
 import PhoneAuth from "@/components/PhoneAuth";
@@ -32,6 +29,31 @@ import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 // Backend redeem-code endpoint stays intact for legacy URLs.
 import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import DeliveraWordmark from "@/components/DeliveraWordmark";
+
+type ProfileTab = "overview" | "orders" | "deals" | "addresses" | "settings" | "payments";
+type PreferredPaymentMethod = "APPLE_PAY" | "CARD" | "SWISH";
+type SavedPaymentMethod = {
+  id: string;
+  type?: string | null;
+  brand?: string | null;
+  lastFour?: string | null;
+  expiryMonth?: string | number | null;
+  expiryYear?: string | number | null;
+  holderName?: string | null;
+  isDefault?: boolean;
+};
+
+const PAYMENT_OPTIONS: {
+  key: PreferredPaymentMethod;
+  icon: typeof Apple;
+  title: string;
+  subtitle: string;
+}[] = [
+  { key: "APPLE_PAY", icon: Apple, title: "Apple Pay", subtitle: "Snabb betalning i kassan" },
+  { key: "CARD", icon: CreditCard, title: "Kort", subtitle: "Sparade kort via Adyen" },
+  { key: "SWISH", icon: Smartphone, title: "Swish", subtitle: "Betala med telefonnummer" },
+];
 
 // ─── Country codes ─────────────────────────────────────────────────────────
 // Landskods-väljare flyttad till delade <PhoneCountrySelect> (begränsad lista,
@@ -56,21 +78,19 @@ function LanguagePickerRow() {
   const active = SUPPORTED_LOCALES.find((l) => l.code === locale) ?? SUPPORTED_LOCALES[0];
 
   return (
-    <div className="p-6 flex items-center justify-between group">
-      <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
-          <Languages size={18} strokeWidth={1.8} />
-        </div>
+    <div className="px-4 py-[14px] flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3.5 min-w-0">
+        <Languages size={20} strokeWidth={1.9} className="shrink-0" style={{ color: "var(--text-primary)" }} />
         <div>
-          <p className="font-semibold text-[14px]" style={{ color: "var(--text-primary)" }}>{t("profile.settings.language")}</p>
-          <p className="text-[12px]" style={{ color: "var(--text-secondary)" }}>{active.flag} {active.label}</p>
+          <p className="font-bold text-[15px]" style={{ color: "var(--text-primary)" }}>{t("profile.settings.language")}</p>
+          <p className="text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>{active.flag} {active.label}</p>
         </div>
       </div>
       <div className="relative">
         <select
           value={locale}
           onChange={(e) => setLocale(e.target.value as typeof locale)}
-          className="appearance-none text-[13px] font-semibold rounded-xl px-4 py-2.5 pr-8 cursor-pointer outline-none transition-all"
+          className="appearance-none text-[13px] font-semibold rounded-xl px-3 py-2 pr-7 cursor-pointer outline-none transition-all"
           style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)", border: "1px solid var(--line-strong)" }}
           aria-label={t("profile.settings.languageAria")}
         >
@@ -130,19 +150,23 @@ function ProfileContent() {
   const [availableDeals, setAvailableDeals] = useState<any[]>([]);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"dpoints" | "overview" | "orders" | "settings" | "deals" | "addresses">("dpoints");
+  const [activeTab, setActiveTab] = useState<ProfileTab>("overview");
+  const [preferredPayment, setPreferredPayment] = useState<PreferredPaymentMethod>("APPLE_PAY");
+  const [paymentMethods, setPaymentMethods] = useState<SavedPaymentMethod[]>([]);
+  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
   const [hasVisited, setHasVisited] = useState(false);
   const searchParams = useSearchParams();
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    // "orders" + "addresses" är borttagna flikar — gamla länkar faller till overview.
-    if (tab === "orders" || tab === "addresses") {
-      setActiveTab("overview");
-    } else if (tab && ["dpoints", "overview", "settings", "deals"].includes(tab)) {
-      setActiveTab(tab as any);
+    if (tab === "dpoints") {
+      router.replace("/orders");
+      return;
     }
-  }, [searchParams]);
+    if (tab && ["overview", "orders", "deals", "addresses", "settings", "payments"].includes(tab)) {
+      setActiveTab(tab as ProfileTab);
+    }
+  }, [router, searchParams]);
 
   // Saved addresses state
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
@@ -531,6 +555,43 @@ function ProfileContent() {
     else localStorage.setItem("platform_has_visited", "true");
   }, []);
 
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("delivera_preferred_payment_method_v1");
+      if (saved === "APPLE_PAY" || saved === "CARD" || saved === "SWISH") {
+        setPreferredPayment(saved);
+      }
+    } catch {
+      // localStorage kan vara låst i vissa browserlägen; profilen ska ändå rendera.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasPlatformSession || activeTab !== "payments") return;
+    let cancelled = false;
+    setPaymentMethodsLoading(true);
+    axios
+      .get("/api/platform/account/payment-methods")
+      .then((res) => {
+        if (cancelled) return;
+        const methods = Array.isArray(res.data?.methods)
+          ? res.data.methods
+          : Array.isArray(res.data?.paymentMethods)
+            ? res.data.paymentMethods
+            : [];
+        setPaymentMethods(methods);
+      })
+      .catch(() => {
+        if (!cancelled) setPaymentMethods([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPaymentMethodsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, hasPlatformSession]);
+
 
   const addPhoneFull = () => `${addPhoneCountry}${addPhoneNum.replace(/\D/g, "").replace(/^0/, "")}`;
 
@@ -654,6 +715,48 @@ function ProfileContent() {
     }
   };
 
+  const orderStatusLabel = (status?: string | null) => {
+    switch ((status || "").toUpperCase()) {
+      case "DELIVERED":
+        return "Levererad";
+      case "READY":
+        return "Redo";
+      case "OUT_FOR_DELIVERY":
+        return "På väg";
+      case "CANCELLED":
+        return "Avbruten";
+      case "CONFIRMED":
+        return "Bekräftad";
+      default:
+        return "Pågående";
+    }
+  };
+
+  const handleMakeDefaultAddress = async (address: any) => {
+    if (!address?.id || address.isDefault) return;
+    try {
+      const { data } = await axios.patch(`/api/platform/profile/addresses/${address.id}`, { ...address, isDefault: true });
+      setSavedAddresses((current) => [data, ...current.filter((a) => a.id !== address.id).map((a) => ({ ...a, isDefault: false }))]);
+    } catch (err: any) {
+      alert(err?.response?.data?.error || t("profile.addresses.saveError"));
+    }
+  };
+
+  const selectProfileTab = (tab: ProfileTab) => {
+    setActiveTab(tab);
+    setIsEditing(false);
+    router.replace(tab === "overview" ? "/profile" : `/profile?tab=${tab}`, { scroll: false });
+  };
+
+  const handlePreferredPaymentChange = (method: PreferredPaymentMethod) => {
+    setPreferredPayment(method);
+    try {
+      localStorage.setItem("delivera_preferred_payment_method_v1", method);
+    } catch {
+      // Valet fungerar i sessionen även om localStorage inte är tillgängligt.
+    }
+  };
+
   // ─── Loading (skeleton — paritet med övriga sidor) ──────────────────────────
   if (loading) {
     return <ProfileSkeleton />;
@@ -669,17 +772,13 @@ function ProfileContent() {
               stället för en generisk lås-ikon. */}
           <div className="text-center space-y-2">
             <div className="flex justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/delivera-lockup.png" alt="Delívera" style={{ height: 30, width: "auto" }} />
+              <DeliveraWordmark size="sm" />
             </div>
             <h1 className="text-[22px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
               {hasVisited ? t("auth.welcomeBack.title.welcome") : t("auth.welcomeBack.title.create")}{" "}
               <span style={{ color: "var(--text-primary)" }}>{hasVisited ? t("auth.welcomeBack.title.welcomeAccent") : t("auth.welcomeBack.title.createAccent")}</span>
             </h1>
           </div>
-
-          {/* Dpoints sponsor-banner — driver registrering (göms om inget aktivt kort) */}
-          <DpointsSponsorBanner onRegister={() => router.push("/register")} />
 
           {/* Lösenordsfritt: Apple, Google eller telefon. Allt kopplas till
               numret — samma konto oavsett hur du loggar in nästa gång. */}
@@ -690,8 +789,7 @@ function ProfileContent() {
           </div>
 
           {/* Information — Om oss, Kontakt och policy bakom EN knapp som leder
-              till en sida där du väljer. (Beställningar & support ligger nu i
-              bottom-naven, så det kortet är borttaget här.) */}
+              till en samlad sida. */}
           <Link
             href="/more"
             className="mt-2 w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl transition-all active:scale-[0.99]"
@@ -823,28 +921,40 @@ function ProfileContent() {
     <div className="min-h-screen pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] md:pt-16 pb-32 px-5 sm:px-6 lg:px-8" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="max-w-2xl mx-auto space-y-8">
 
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4 min-w-0">
+        {activeTab === "overview" ? (
+          <div className="mb-2">
+            <h1 className="text-[26px] font-black tracking-normal" style={{ color: "var(--text-primary)" }}>Profil</h1>
+          </div>
+        ) : (
+          <div className="mb-2 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                selectProfileTab("overview");
+                setIsEditing(false);
+              }}
+              aria-label={t("common.back")}
+              className="h-10 w-10 rounded-full flex items-center justify-center active:scale-95 transition-all"
+              style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}
+            >
+              <ChevronRight size={20} className="rotate-180" />
+            </button>
             <div className="min-w-0">
-              <h1 className="text-[20px] font-bold tracking-tight truncate" style={{ color: "var(--text-primary)" }}>{user.name}</h1>
-              {user.isVerified ? (
-                <div className="flex items-center gap-1.5 mt-1 text-emerald-600">
-                  <ShieldCheck size={14} />
-                  <span className="text-[12px] font-medium">{t("profile.verified")}</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 mt-1 text-rose-500">
-                  <Lock size={14} />
-                  <span className="text-[12px] font-medium">{t("profile.notVerified")}</span>
-                </div>
-              )}
+              <p className="text-[10.5px] font-black tracking-[0.08em]" style={{ color: "var(--text-secondary)" }}>PROFIL</p>
+              <h1 className="text-[22px] font-extrabold tracking-normal truncate" style={{ color: "var(--text-primary)" }}>
+                {activeTab === "deals"
+                  ? "Mina deals"
+                  : activeTab === "orders"
+                    ? "Orderhistorik"
+                    : activeTab === "payments"
+                      ? "Betalsätt"
+                      : activeTab === "settings"
+                        ? "Inställningar"
+                        : "Profil"}
+              </h1>
             </div>
           </div>
-          <button onClick={handleLogout} aria-label={t("profile.logout")} className="p-3 rounded-2xl transition-all active:scale-95 hover:text-rose-500 shrink-0" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
-            <LogOut size={20} />
-          </button>
-        </div>
+        )}
 
         {/*
           Apple-användare som saknar namn — Apple skickar fullName ENDAST
@@ -952,35 +1062,120 @@ function ProfileContent() {
           </div>
         )}
 
-        <div className="grid grid-cols-4 p-1.5 rounded-2xl shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-          {[
-            { id: "dpoints", icon: Coins, label: t("profile.tabs.dpoints") },
-            { id: "overview", icon: User, label: t("profile.tabs.home") },
-            { id: "deals", icon: Sparkles, label: t("profile.tabs.deals") },
-            // "Ordrar"- och "Adresser"-flikarna är borttagna från profilen —
-            // ordrar finns i bottom-nav (/orders); adress hanteras på startsidan.
-            { id: "settings", icon: Settings, label: t("profile.tabs.settings") },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => { setActiveTab(tab.id as any); setIsEditing(false); }}
-              className={`relative flex flex-col items-center gap-1.5 py-4 rounded-2xl transition-all ${activeTab === tab.id ? "" : "hover:opacity-80"}`}
-              style={{ color: activeTab === tab.id ? "var(--text-primary)" : "var(--text-secondary)" }}
-            >
-              <tab.icon size={18} />
-              <span className="text-[8px] font-bold">{tab.label}</span>
-              {activeTab === tab.id && (
-                <span className="absolute left-1/2 -translate-x-1/2 bottom-1.5 h-[2px] w-6 rounded-full" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)" }} />
-              )}
-            </button>
-          ))}
-        </div>
-
         <AnimatePresence mode="wait">
-          {/* Dpoints Tab — default-landning i profilen */}
-          {activeTab === "dpoints" && (
-            <motion.div key="dpoints" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              <DpointsPanel />
+          {/* Orders Tab */}
+          {activeTab === "orders" && (
+            <motion.div
+              key="orders"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="rounded-2xl overflow-hidden shadow-sm"
+              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+            >
+              {orders.length === 0 ? (
+                <div className="px-[18px] py-7 text-center">
+                  <History size={30} strokeWidth={1.8} className="mx-auto" style={{ color: "var(--text-secondary)" }} />
+                  <p className="mt-2.5 text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>Inga ordrar ännu</p>
+                  <p className="mt-1 text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>Dina tidigare beställningar visas här.</p>
+                </div>
+              ) : (
+                orders.slice(0, 12).map((order, index) => {
+                  const restaurantName = order.restaurantName || order.restaurant?.name || t("profile.orders.fallbackName");
+                  const total = Number(order.total ?? order.totalAmount ?? 0);
+                  const phoneProof = order.customerPhone || user.phone;
+                  const orderHref = phoneProof
+                    ? `/order/${order.id}?phone=${encodeURIComponent(phoneProof)}`
+                    : `/order/${order.id}`;
+                  return (
+                    <Link
+                      key={order.id}
+                      href={orderHref}
+                      className="flex items-center gap-[13px] px-4 py-[15px] active:opacity-70 transition-opacity"
+                      style={{ borderTop: index === 0 ? "0" : "1px solid var(--border-muted)" }}
+                    >
+                      <History size={20} strokeWidth={1.9} className="shrink-0" style={{ color: "var(--text-primary)" }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[15px] font-bold truncate" style={{ color: "var(--text-primary)" }}>
+                          {restaurantName}
+                        </span>
+                        <span className="block mt-0.5 text-[12.5px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>
+                          {orderStatusLabel(order.status)} · {total.toLocaleString("sv-SE")} kr
+                        </span>
+                      </span>
+                      <ChevronRight size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+                    </Link>
+                  );
+                })
+              )}
+            </motion.div>
+          )}
+
+          {/* Addresses Tab */}
+          {activeTab === "addresses" && (
+            <motion.div key="addresses" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3">
+              {savedAddresses.length === 0 ? (
+                <div className="py-16 text-center rounded-2xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                  <div className="mx-auto mb-5 w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
+                    <MapPin size={28} strokeWidth={1.8} />
+                  </div>
+                  <p className="text-lg font-bold tracking-tight mb-1.5" style={{ color: "var(--text-primary)" }}>{t("profile.addresses.empty.title")}</p>
+                  <p className="text-sm max-w-xs mx-auto" style={{ color: "var(--text-secondary)" }}>{t("profile.addresses.empty.sub")}</p>
+                  <Link href="/" className="mt-5 inline-flex h-11 items-center justify-center rounded-xl px-5 bg-gold-500 text-white text-[13px] font-bold">
+                    {t("profile.addresses.add")}
+                  </Link>
+                </div>
+              ) : (
+                savedAddresses.map((address) => (
+                  <div
+                    key={address.id}
+                    className="rounded-2xl p-5 shadow-sm"
+                    style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
+                        {address.label === "Jobb" ? <Briefcase size={18} strokeWidth={1.8} /> : <Home size={18} strokeWidth={1.8} />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>{address.label || t("profile.addresses.label.home")}</p>
+                          {address.isDefault ? (
+                            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: "var(--gold-soft)", color: "var(--color-gold-500)" }}>
+                              {t("profile.addresses.default")}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>{address.street}</p>
+                        <p className="mt-0.5 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                          {[address.zip, address.city].filter(Boolean).join(" ")}
+                        </p>
+                        {address.note ? (
+                          <p className="mt-2 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>{address.note}</p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleMakeDefaultAddress(address)}
+                        disabled={address.isDefault}
+                        className="h-10 px-4 rounded-xl text-[12px] font-bold transition-all disabled:opacity-45"
+                        style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}
+                      >
+                        {address.isDefault ? t("profile.addresses.default") : t("profile.addresses.makeDefault")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAddressToDelete(address); setDeleteAddressModalOpen(true); }}
+                        className="h-10 w-10 rounded-xl flex items-center justify-center text-rose-500 bg-rose-50"
+                        aria-label={t("common.delete")}
+                      >
+                        <Trash2 size={16} strokeWidth={1.9} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </motion.div>
           )}
 
@@ -1000,8 +1195,8 @@ function ProfileContent() {
                          key={`avail-${deal.id}`}
                          className="p-6 rounded-2xl relative overflow-hidden"
                          style={{
-                           background: "linear-gradient(135deg, rgba(243,191,87,0.16), rgba(243,191,87,0.06))",
-                           border: "1px solid rgba(243,191,87,0.35)",
+                           background: "linear-gradient(135deg, rgba(240,83,28,0.16), rgba(240,83,28,0.06))",
+                           border: "1px solid rgba(240,83,28,0.35)",
                          }}
                        >
                          <div className="flex items-start gap-4">
@@ -1167,157 +1362,184 @@ function ProfileContent() {
 
           {/* Overview */}
           {activeTab === "overview" && (
-            <motion.div key="ov" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              <div className="rounded-2xl p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                <div className="flex items-center gap-4">
-                  <Phone size={16} className="text-[color:var(--text-secondary)] shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-[12px] font-medium text-[color:var(--text-secondary)]">{t("profile.overview.phone")}</p>
-                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.phone || t("profile.overview.notSet")}</p>
-                  </div>
-                  {user.isVerified ? (
-                    <span className="text-[8px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1.5 rounded-full font-semibold flex items-center gap-1">
-                      <Lock size={8} /> {t("profile.overview.locked")}
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setAddPhoneNum(user.phone?.replace("+46", "") || "");
-                        setAddPhoneCountry(user.phone?.startsWith("+") ? user.phone.slice(0, 3) : "+46");
-                        setShowAddPhone(true);
-                      }}
-                      className="text-[8px] bg-amber-50 text-amber-600 border border-amber-100 px-3 py-1.5 rounded-full font-semibold hover:bg-amber-100 transition-all flex items-center gap-1"
-                    >
-                      <Edit2 size={8} /> {t("profile.overview.edit")}
-                    </button>
-                  )}
+            <motion.div key="ov" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3.5">
+              <div className="rounded-2xl p-[18px] flex items-center gap-[15px] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <div className="h-[60px] w-[60px] rounded-full bg-[#111113] text-white flex items-center justify-center shrink-0">
+                  <span className="text-[23px] font-extrabold">
+                    {(user.name || "Delivera").trim().charAt(0).toUpperCase() || "D"}
+                  </span>
                 </div>
-                <div className="flex items-center gap-4">
-                  <Mail size={16} className="text-[color:var(--text-secondary)] shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-[12px] font-medium text-[color:var(--text-secondary)]">{t("profile.overview.email")}</p>
-                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.email || t("profile.overview.notSet")}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-2xl p-6 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                  <p className="text-[12px] font-medium text-[color:var(--text-secondary)] mb-1">{t("profile.overview.ordersCount")}</p>
-                  <p className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>{orders.length}</p>
-                </div>
-                <div className="rounded-2xl p-6 shadow-sm" style={{ backgroundColor: user.isVerified ? "var(--bg-secondary)" : "var(--bg-secondary)", border: user.isVerified ? "1px solid rgba(5,150,105,0.1)" : "1px solid var(--border-muted)" }}>
-                  <p className="text-[12px] font-medium text-[color:var(--text-secondary)] mb-1">{t("profile.overview.status")}</p>
-                  <p className={`text-[14px] font-semibold ${user.isVerified ? "text-emerald-600" : "text-rose-500"}`}>
-                    {user.isVerified ? t("profile.overview.statusVerified") : t("profile.overview.statusUnverified")}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[19px] font-extrabold tracking-normal truncate" style={{ color: "var(--text-primary)" }}>
+                    {user.name || "Profil"}
+                  </p>
+                  <p className="mt-0.5 text-[12.5px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>
+                    {user.phone || user.email || "Medlem hos Delivera"}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    selectProfileTab("settings");
+                    setIsEditing(true);
+                  }}
+                  className="text-[13px] font-extrabold active:scale-95 transition-all"
+                  style={{ color: "var(--color-gold-500)" }}
+                >
+                  Ändra
+                </button>
               </div>
 
-              {/* Mina beställningar — flyttad hit från bottom-nav. Länkar till
-                  /orders-sidan (fungerar utan login via localStorage-historik). */}
-              <Link
-                href="/orders"
-                className="rounded-2xl p-6 flex items-center justify-between group shadow-sm transition-all"
-                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+              <div className="rounded-2xl overflow-hidden shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                {[
+                  { key: "deals", icon: Tag, title: "Mina deals", subtitle: deals.length ? `${deals.length} aktiva` : "Rabatter & koder", action: () => selectProfileTab("deals") },
+                  { key: "orders", icon: History, title: "Orderhistorik", subtitle: `${orders.length} ordrar`, action: () => selectProfileTab("orders") },
+                  { key: "support", icon: MessageCircle, title: "Support", subtitle: "Hjälp & kontakt", action: () => router.push("/contact") },
+                  { key: "favorites", icon: Heart, title: "Favoriter", subtitle: "Sparade ställen", action: () => router.push("/discover") },
+                  { key: "settings", icon: Settings, title: "Notiser & inställningar", subtitle: locale === "sv" ? "Svenska" : "English", action: () => selectProfileTab("settings") },
+                ].map((row, index) => {
+                  const Icon = row.icon;
+                  return (
+                    <button
+                      key={row.key}
+                      type="button"
+                      onClick={row.action}
+                      className="w-full flex items-center gap-3.5 px-4 py-[15px] text-left active:opacity-70 transition-opacity"
+                      style={{ borderTop: index === 0 ? "0" : "1px solid var(--border-muted)" }}
+                    >
+                      <Icon size={20} strokeWidth={1.9} style={{ color: "var(--text-primary)" }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[15px] font-bold truncate" style={{ color: "var(--text-primary)" }}>{row.title}</span>
+                        <span className="block mt-0.5 text-[12.5px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>{row.subtitle}</span>
+                      </span>
+                      <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full h-12 rounded-[14px] flex items-center justify-center gap-2 text-[14.5px] font-bold active:opacity-70 transition-opacity"
+                style={{ border: "1px solid var(--border-muted)", color: "var(--danger, #dc2626)" }}
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-11 h-11 rounded-2xl bg-[var(--bg-deep)] text-[var(--text-secondary)] flex items-center justify-center">
-                    <History size={20} />
+                <LogOut size={18} />
+                Logga ut
+              </button>
+            </motion.div>
+          )}
+
+          {activeTab === "payments" && (
+            <motion.div key="payments" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3.5">
+              <div className="rounded-2xl p-[18px] space-y-3 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <div className="flex items-center gap-3">
+                  <div className="h-[42px] w-[42px] rounded-full flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}>
+                    <CreditCard size={21} strokeWidth={1.9} />
                   </div>
-                  <div>
-                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.ordersSupport")}</p>
-                    <p className="text-[10px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>{t("orders.subtitle")}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[18px] font-extrabold tracking-normal" style={{ color: "var(--text-primary)" }}>Betalsätt</p>
+                    <p className="mt-0.5 text-[12.5px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>
+                      {preferredPayment === "APPLE_PAY" ? "Apple Pay är valt" : preferredPayment === "CARD" ? "Kort är valt" : "Swish är valt"}
+                    </p>
                   </div>
                 </div>
-                <ChevronRight size={18} className="text-[color:var(--text-secondary)] transition-colors" />
-              </Link>
 
-              {/* Referral-kort borttaget — referral-systemet avstängt för
-                  launch. Komponenten finns kvar i repo men renderas inte. */}
+                <div className="space-y-[9px]">
+                  {PAYMENT_OPTIONS.map((option) => {
+                    const selected = preferredPayment === option.key;
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => handlePreferredPaymentChange(option.key)}
+                        className="w-full rounded-[14px] px-[13px] py-3 flex items-center gap-3 text-left active:opacity-75 transition-all"
+                        style={{
+                          backgroundColor: selected ? "#FFF3ED" : "var(--bg-deep)",
+                          border: `1.2px solid ${selected ? "var(--color-gold-500)" : "var(--border-muted)"}`,
+                        }}
+                      >
+                        <Icon size={20} strokeWidth={1.9} style={{ color: selected ? "var(--color-gold-500)" : "var(--text-primary)" }} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[14.5px] font-extrabold truncate" style={{ color: "var(--text-primary)" }}>{option.title}</span>
+                          <span className="block mt-0.5 text-[12px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>{option.subtitle}</span>
+                        </span>
+                        <Check size={20} strokeWidth={2} style={{ color: selected ? "var(--color-gold-500)" : "var(--text-secondary)", opacity: selected ? 1 : 0.35 }} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-2xl overflow-hidden shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <div className="px-4 py-[15px]" style={{ borderBottom: "1px solid var(--border-muted)" }}>
+                  <p className="text-[16px] font-extrabold tracking-normal" style={{ color: "var(--text-primary)" }}>Sparade kort</p>
+                  <p className="mt-0.5 text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                    {paymentMethodsLoading ? "Hämtar kort..." : paymentMethods.length ? `${paymentMethods.length} sparade` : "Inga sparade kort ännu"}
+                  </p>
+                </div>
+
+                {paymentMethods.map((method, index) => {
+                  const title = method.brand
+                    ? `${method.brand}${method.lastFour ? ` •••• ${method.lastFour}` : ""}`
+                    : method.lastFour
+                      ? `Kort •••• ${method.lastFour}`
+                      : "Sparat kort";
+                  const expiry = [method.expiryMonth, method.expiryYear].filter(Boolean).join("/");
+                  return (
+                    <div key={method.id} className="flex items-center gap-3 px-4 py-3.5" style={{ borderTop: index === 0 ? "0" : "1px solid var(--border-muted)" }}>
+                      <CreditCard size={20} style={{ color: "var(--text-primary)" }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14.5px] font-extrabold truncate" style={{ color: "var(--text-primary)" }}>{title}</p>
+                        <p className="mt-0.5 text-[12px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>
+                          {method.holderName || (expiry ? `Giltigt till ${expiry}` : "Redo för snabb betalning")}
+                        </p>
+                      </div>
+                      {method.isDefault ? (
+                        <span className="rounded-full px-2.5 py-1 text-[11.5px] font-extrabold" style={{ backgroundColor: "#FFF3ED", color: "var(--color-gold-500)" }}>Standard</span>
+                      ) : null}
+                    </div>
+                  );
+                })}
+
+                {!paymentMethods.length && !paymentMethodsLoading ? (
+                  <div className="px-4 py-5 text-center">
+                    <Lock size={24} className="mx-auto" style={{ color: "var(--text-secondary)" }} />
+                    <p className="mt-2 text-[14.5px] font-extrabold" style={{ color: "var(--text-primary)" }}>Kort sparas efter betalning</p>
+                    <p className="mt-1 text-[12.5px] font-medium leading-5" style={{ color: "var(--text-secondary)" }}>Dina kortuppgifter lagras säkert hos betalpartnern.</p>
+                  </div>
+                ) : null}
+              </div>
             </motion.div>
           )}
 
           {/* Settings */}
           {activeTab === "settings" && !isEditing && (
-            <motion.div key="set" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
-              <div className="space-y-2">
-                <div className="px-4 text-[12px] font-medium mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.profile")}</div>
-                <div className="rounded-2xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="w-full flex items-center justify-between p-6 hover:bg-black/[0.025] transition-all text-left rounded-2xl"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-[var(--bg-deep)] text-[var(--text-secondary)] rounded-xl flex items-center justify-center"><Settings size={18} /></div>
-                      <div>
-                        <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>{t("profile.settings.editProfile")}</p>
-                        <p className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.editProfileSub")}</p>
-                      </div>
-                    </div>
-                    <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="px-4 text-[12px] font-medium mb-2" style={{ color: "var(--text-secondary)" }}>{t("profile.settings.section.prefs")}</div>
-                <div className="rounded-2xl divide-y divide-[color:var(--border-muted)]" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                  <div className="p-6 flex items-center justify-between group">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-[color:var(--bg-deep)] text-[color:var(--text-secondary)] flex items-center justify-center">
-                        <Bell size={18} />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{t("profile.settings.push")}</p>
-                        <p className="text-[10px] text-[color:var(--text-secondary)] font-medium">{t("profile.settings.pushSub")}</p>
-                      </div>
-                    </div>
-                    <div className="w-12 h-6 bg-[color:var(--line-strong)] rounded-full relative cursor-pointer opacity-50">
-                       <div className="absolute left-1 top-1 w-4 h-4 bg-[color:var(--text-secondary)] rounded-full" />
-                    </div>
-                  </div>
-                  {/*
-                    Språkväljare (paritet med RN — sv/en/ar).
-                    TODO: i18n-byte i UI är inte trådat in i webben ännu (next-intl saknas).
-                    För nu persisterar vi bara valet i `matgo_locale` så att flaggan följer
-                    med när en framtida i18n-lösning aktiveras.
-                  */}
-                  <LanguagePickerRow />
-                </div>
-              </div>
-
-              {/* Information — Om oss, Kontakt och policy bakom EN knapp som tar
-                  dig till en sida där du väljer (monokromt, ingen guld). Egen
-                  sektion ovanför kontot så den är tydlig och inte begravd. */}
-              <div className="space-y-2">
-                <div className="px-4 text-[12px] font-medium text-[color:var(--text-secondary)] mb-2">{t("profile.menu.info")}</div>
-                <Link href="/more" className="flex items-center justify-between rounded-2xl px-5 min-h-[56px] active:scale-[0.99] transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                  <span className="flex items-center gap-3 min-w-0">
-                    <Info size={17} style={{ color: "var(--text-secondary)" }} />
-                    <span className="text-[15px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{t("profile.menu.info")}</span>
+            <motion.div key="set" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3.5">
+              <div className="rounded-2xl overflow-hidden shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <LanguagePickerRow />
+                <Link href="/more" className="flex items-center justify-between gap-3 px-4 py-[14px] active:opacity-70 transition-opacity" style={{ borderTop: "1px solid var(--border-muted)" }}>
+                  <span className="flex items-center gap-3.5 min-w-0">
+                    <Info size={20} strokeWidth={1.9} style={{ color: "var(--text-primary)" }} />
+                    <span className="text-[15px] font-bold truncate" style={{ color: "var(--text-primary)" }}>{t("profile.menu.info")}</span>
                   </span>
-                  <ChevronRight size={16} style={{ color: "var(--text-secondary)" }} />
+                  <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
                 </Link>
               </div>
 
-              <div className="space-y-2">
-                <div className="px-4 text-[12px] font-medium text-[color:var(--text-secondary)] mb-2">{t("profile.settings.section.account")}</div>
-                <div className="rounded-2xl shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                  <button
-                    onClick={() => setDeleteAccountModalOpen(true)}
-                    className="w-full text-left p-6 flex items-center justify-between group hover:bg-rose-50 transition-all rounded-2xl"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center">
-                        <Trash2 size={18} />
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-rose-500">{t("profile.settings.deleteAccount")}</p>
-                        <p className="text-[10px] text-[color:var(--text-secondary)] font-medium">{t("profile.settings.deleteAccountSub")}</p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
+              <div className="rounded-2xl overflow-hidden shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <button
+                  type="button"
+                  onClick={() => setDeleteAccountModalOpen(true)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-[14px] text-left active:opacity-70 transition-opacity"
+                >
+                  <span className="flex items-center gap-3.5">
+                    <Trash2 size={20} strokeWidth={1.9} className="text-rose-500" />
+                    <span className="text-[15px] font-bold text-rose-500">{t("profile.settings.deleteAccount")}</span>
+                  </span>
+                  <ChevronRight size={18} className="text-rose-500" />
+                </button>
               </div>
             </motion.div>
           )}

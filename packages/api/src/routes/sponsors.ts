@@ -27,6 +27,7 @@ interface Sponsor {
   linkType?: 'NONE' | 'EXTERNAL' | 'DEAL' | 'RESTAURANT';
   linkTarget?: string;
   showName?: boolean;
+  imageOnly?: boolean;
   category?: string;
   tier?: string;
   tagline?: string;
@@ -94,7 +95,7 @@ router.get('/all', authenticate, requireSuperAdmin, async (_req, res) => {
 // ── POST /api/sponsors — create sponsor ──────────────────────────────────────
 router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, imageUrl, isClickable, infoText, ctaText, ctaLink, linkType, linkTarget, showName, category, tier, tagline, color, startsAt, endsAt } = req.body;
+    const { name, imageUrl, isClickable, infoText, ctaText, ctaLink, linkType, linkTarget, showName, imageOnly, category, tier, tagline, color, startsAt, endsAt } = req.body;
     if (!name || !imageUrl) return res.status(400).json({ error: 'name och imageUrl krävs' });
 
     const sponsors = await readSponsors();
@@ -109,7 +110,8 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
       ctaLink: ctaLink || undefined,
       linkType: linkType || 'EXTERNAL',
       linkTarget: linkTarget || undefined,
-      showName: showName ?? true,
+      imageOnly: Boolean(imageOnly),
+      showName: imageOnly ? false : (showName ?? true),
       category: category || undefined,
       tier: tier || undefined,
       tagline: tagline || undefined,

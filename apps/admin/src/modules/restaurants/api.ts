@@ -44,6 +44,7 @@ export interface RestaurantDetail {
   activeOrdersCount: number;
   isOpen: boolean;
   manualIsOpen: boolean;
+  comingSoon?: boolean;
   featuredClass: number;
   selfDelivery?: boolean;
   commissionPctOverride?: number | null;
@@ -93,6 +94,7 @@ export interface RestaurantFormPayload {
   etaOverrideMinutes?: number | null;
   featuredClass?: number;
   isOpen?: boolean;
+  comingSoon?: boolean;
   rating?: number;
   ratingCount?: number;
   adminPassword?: string;

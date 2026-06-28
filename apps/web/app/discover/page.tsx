@@ -161,7 +161,7 @@ export default function FavoritesPage() {
               <svg className="fav-empty-heart" width="64" height="60" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path
                   d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.51 4.04 3 5.5l7 7Z"
-                  stroke="var(--color-gold-500, #E7B24B)"
+                  stroke="var(--color-gold-500, #F0531C)"
                   strokeWidth="1.4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -220,7 +220,7 @@ export default function FavoritesPage() {
                       style={{ backgroundColor: "rgba(255,255,255,0.95)" }}
                       aria-label={t("home.favorite.remove")}
                     >
-                      <Heart size={15} fill="#E7B24B" stroke="#C28E2E" strokeWidth={1} />
+                      <Heart size={15} fill="#F0531C" stroke="#C83F12" strokeWidth={1} />
                     </button>
                   </div>
                   <div className="px-4 py-3">

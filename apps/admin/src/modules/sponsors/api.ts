@@ -12,6 +12,7 @@ export interface SponsorRecord {
   linkType?: "NONE" | "EXTERNAL" | "DEAL" | "RESTAURANT";
   linkTarget?: string;
   showName?: boolean;
+  imageOnly?: boolean;
   category?: string;
   tier?: "Huvudpartner" | "Partner" | string;
   tagline?: string;
@@ -30,6 +31,7 @@ export interface TrackingAdRecord {
   subtitle: string;
   imageUrl?: string;
   url?: string;
+  imageOnly?: boolean;
   startsAt?: string;
   endsAt?: string;
   isActive: boolean;

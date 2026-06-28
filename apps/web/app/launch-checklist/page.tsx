@@ -739,7 +739,7 @@ export default function LaunchChecklistPage() {
         className="sticky top-0 z-10 backdrop-blur-md border-b"
         style={{
           backgroundColor: "rgba(11,10,15,0.85)",
-          borderColor: "rgba(231,178,75,0.18)",
+          borderColor: "rgba(240,83,28,0.18)",
         }}
       >
         <div className="max-w-3xl mx-auto px-6 py-5">
@@ -747,7 +747,7 @@ export default function LaunchChecklistPage() {
             <div>
               <p
                 className="text-[10px] font-black uppercase tracking-[0.3em] mb-1"
-                style={{ color: "#E7B24B" }}
+                style={{ color: "#F0531C" }}
               >
                 FoodGo
               </p>
@@ -792,11 +792,11 @@ export default function LaunchChecklistPage() {
                 className="h-full transition-all duration-300"
                 style={{
                   width: `${progressPct}%`,
-                  background: "linear-gradient(90deg,#E7B24B 0%,#F4D086 100%)",
+                  background: "linear-gradient(90deg,#F0531C 0%,#FFB39B 100%)",
                 }}
               />
             </div>
-            <div className="text-xs font-black tabular-nums" style={{ color: "#E7B24B" }}>
+            <div className="text-xs font-black tabular-nums" style={{ color: "#F0531C" }}>
               {checkedCount}/{totalCount}
             </div>
           </div>
@@ -820,7 +820,7 @@ export default function LaunchChecklistPage() {
               style={{
                 backgroundColor: "rgba(255,255,255,0.03)",
                 borderColor: phaseDone
-                  ? "rgba(231,178,75,0.4)"
+                  ? "rgba(240,83,28,0.4)"
                   : "rgba(255,255,255,0.08)",
               }}
             >
@@ -839,7 +839,7 @@ export default function LaunchChecklistPage() {
                 <div className="text-right">
                   <div
                     className="text-xs font-black tabular-nums"
-                    style={{ color: phaseDone ? "#E7B24B" : "#a1a1aa" }}
+                    style={{ color: phaseDone ? "#F0531C" : "#a1a1aa" }}
                   >
                     {done}/{total}
                   </div>
@@ -872,7 +872,7 @@ export default function LaunchChecklistPage() {
                         style={{
                           borderColor: "rgba(255,255,255,0.03)",
                           backgroundColor: itemState.checked
-                            ? "rgba(231,178,75,0.04)"
+                            ? "rgba(240,83,28,0.04)"
                             : "transparent",
                         }}
                       >
@@ -885,7 +885,7 @@ export default function LaunchChecklistPage() {
                             }
                           >
                             {itemState.checked ? (
-                              <CheckCircle2 size={20} style={{ color: "#E7B24B" }} />
+                              <CheckCircle2 size={20} style={{ color: "#F0531C" }} />
                             ) : (
                               <Circle size={20} className="text-zinc-600" />
                             )}
@@ -910,13 +910,13 @@ export default function LaunchChecklistPage() {
                                       item.who === "Jag"
                                         ? "rgba(96,165,250,0.15)"
                                         : item.who === "Du"
-                                          ? "rgba(231,178,75,0.18)"
+                                          ? "rgba(240,83,28,0.18)"
                                           : "rgba(74,222,128,0.15)",
                                     color:
                                       item.who === "Jag"
                                         ? "#60A5FA"
                                         : item.who === "Du"
-                                          ? "#E7B24B"
+                                          ? "#F0531C"
                                           : "#4ADE80",
                                   }}
                                 >
@@ -927,7 +927,7 @@ export default function LaunchChecklistPage() {
                                 </span>
                                 {hasNote && (
                                   <span title="Har anteckning">
-                                    <StickyNote size={11} style={{ color: "#E7B24B" }} />
+                                    <StickyNote size={11} style={{ color: "#F0531C" }} />
                                   </span>
                                 )}
                               </div>

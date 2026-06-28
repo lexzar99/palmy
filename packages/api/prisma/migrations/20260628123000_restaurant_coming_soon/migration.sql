@@ -1,0 +1,1 @@
+ALTER TABLE "Restaurant" ADD COLUMN "comingSoon" BOOLEAN NOT NULL DEFAULT false;

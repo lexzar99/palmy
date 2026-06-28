@@ -5,13 +5,14 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, AlertCircle, ShieldCheck, ShoppingBag, MapPin, ArrowRight, Star, X, MessageSquare, ChevronDown } from "lucide-react";
+import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, AlertCircle, ShieldCheck, ShoppingBag, MapPin, ArrowRight, Star, X, MessageSquare, ChevronDown, Navigation, Receipt, Download } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import { cacheOrderDetail, getCachedOrderDetail } from "@/lib/offlineOrders";
 import { isPushSupported, getPushPublicKey, subscribeOrderPush, hasOrderPush } from "@/lib/webPushClient";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import dynamic from "next/dynamic";
+import { OrderTrackingCard } from "@/components/OrderTrackingCard";
 
 // Live-karta laddas bara på klienten (Leaflet behöver window).
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
@@ -113,7 +114,7 @@ const PICKUP_STEP_DEFS: StepDef[] = [
 // dras tillbaka till ett aktivt läge av en stale poll, en cachad GET (backend
 // cachar order-detaljen 4s) eller en omordnad socket-event. Utan detta hoppade
 // kund-trackingen bakåt (DELIVERED → DELIVERING) och live-kartan kom tillbaka.
-const TERMINAL_STATUSES = ["DELIVERED", "COMPLETED", "CANCELLED", "REJECTED"];
+const TERMINAL_STATUSES = ["DELIVERED", "COMPLETED", "CANCELLED", "REJECTED", "DELIVERY_FAILED"];
 const isTerminal = (s?: string | null) => !!s && TERMINAL_STATUSES.includes(s);
 
 // Leveransfotot finns kvar ~2 dygn (proofExpiresAt) och raderas sen permanent
@@ -151,8 +152,8 @@ function buildReceiptHtml(order: any): string {
 
   const row = (label: string, value: string, opts?: { strong?: boolean; muted?: boolean; accent?: boolean }) =>
     `<div style="display:flex;justify-content:space-between;gap:16px;padding:${opts?.strong ? "10px 0 0" : "3px 0"};${opts?.strong ? "border-top:1px solid #e7e3da;margin-top:8px;" : ""}">
-      <span style="${opts?.strong ? "font-weight:700;font-size:15px;" : "font-size:13px;"}color:${opts?.accent ? "#8A6512" : opts?.muted ? "#6b6b70" : "#111113"};">${escapeHtml(label)}</span>
-      <span style="${opts?.strong ? "font-weight:700;font-size:18px;color:#8A6512;" : "font-size:13px;color:#111113;"}font-variant-numeric:tabular-nums;">${escapeHtml(value)}</span>
+      <span style="${opts?.strong ? "font-weight:700;font-size:15px;" : "font-size:13px;"}color:${opts?.accent ? "#F0531C" : opts?.muted ? "#6b6b70" : "#111113"};">${escapeHtml(label)}</span>
+      <span style="${opts?.strong ? "font-weight:700;font-size:18px;color:#F0531C;" : "font-size:13px;color:#111113;"}font-variant-numeric:tabular-nums;">${escapeHtml(value)}</span>
     </div>`;
 
   const itemsHtml = items.map((it) => {
@@ -163,7 +164,7 @@ function buildReceiptHtml(order: any): string {
     const noteHtml = it.note ? `<div style="padding-left:22px;color:#6b6b70;font-size:12px;font-style:italic;">${escapeHtml(it.note)}</div>` : "";
     return `<div style="display:flex;justify-content:space-between;gap:16px;margin-bottom:10px;">
       <div style="flex:1;min-width:0;">
-        <div><span style="color:#8A6512;font-weight:700;font-size:12px;">${escapeHtml(it.quantity)}×</span> <span style="font-weight:600;font-size:14px;">${escapeHtml(it.productName)}</span></div>
+        <div><span style="color:#F0531C;font-weight:700;font-size:12px;">${escapeHtml(it.quantity)}×</span> <span style="font-weight:600;font-size:14px;">${escapeHtml(it.productName)}</span></div>
         ${extrasHtml}${noteHtml}
       </div>
       <div style="font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;">${escapeHtml(Number(it.subtotal).toFixed(0))} kr</div>
@@ -246,6 +247,10 @@ const OrderStatusPage = () => {
   const [receiptDownloads, setReceiptDownloads] = useState(0);
   // Förstora leveransfotot.
   const [proofZoom, setProofZoom] = useState(false);
+  const [trackingSheetExpanded, setTrackingSheetExpanded] = useState(false);
+  const [trackingSheetDragStartY, setTrackingSheetDragStartY] = useState<number | null>(null);
+  const [trackingSheetDragOffsetY, setTrackingSheetDragOffsetY] = useState(0);
+  const trackingSheetDragActiveRef = useRef(false);
   // Web push: visas bara när webbläsaren stödjer push OCH servern har VAPID-
   // nycklar (annars null → raden renderas inte alls).
   const [pushAvailable, setPushAvailable] = useState(false);
@@ -304,17 +309,16 @@ const OrderStatusPage = () => {
       const qs = new URLSearchParams();
       if (tokenFromUrl) qs.set("token", tokenFromUrl);
       if (phoneFromUrl) qs.set("phone", phoneFromUrl);
+      // Använd web-proxyn så inloggade kunder får platform_session-cookien
+      // vidarebefordrad som Authorization-header. Direkt API_URL-anrop saknar
+      // den headern i webben och gav "Order ej hittad" från profilens historik.
       const url = qs.toString()
-        ? `${API_URL}/api/orders/${orderId}?${qs.toString()}`
-        : `${API_URL}/api/orders/${orderId}`;
+        ? `/api/platform/orders/${orderId}?${qs.toString()}`
+        : `/api/platform/orders/${orderId}`;
       const res = await axios.get(url, { withCredentials: true });
-      // Låt aldrig en (ev. cachad/stale) poll dra tillbaka en redan avslutad
-      // order — behåll terminal-status men ta in övriga färska fält.
-      setOrder((prev: any) =>
-        prev && isTerminal(prev.status) && !isTerminal(res.data?.status)
-          ? { ...res.data, status: prev.status }
-          : res.data
-      );
+      // Backend är sanningen för tracking. Admin/testflöden kan flytta en order
+      // bakåt mellan statusar, så kundvyn får inte låsa fast sig i DELIVERED.
+      setOrder(res.data);
       // Offline-kvitto: senaste ordern cachas lokalt så sidan kan visas helt
       // utan nät (app-skalet serveras redan av service workern).
       cacheOrderDetail(res.data);
@@ -355,8 +359,6 @@ const OrderStatusPage = () => {
       if (data.orderId === orderId) {
         setOrder((prev: any) => {
           if (!prev) return prev;
-          // Sen/omordnad event får inte återuppliva en avslutad order.
-          if (isTerminal(prev.status) && !isTerminal(data.status)) return prev;
           return {
             ...prev,
             status: data.status,
@@ -402,26 +404,9 @@ const OrderStatusPage = () => {
       .catch((e) => console.warn("[order] snabb betalnings-bekräftelse misslyckades", e));
   }, [orderId, order?.status, fetchOrder]);
 
-  // Auto-levererad efter 15 min är en MOCK — ENDAST för self-leverans (ingen
-  // kurir finns att markera klart). Vi-levererar får DELIVERED på riktigt av
-  // budet via socket/poll → ingen tidsmock där.
-  useEffect(() => {
-    if (!order?.selfDelivery || !order?.deliveringAt || order.status !== "DELIVERING") return;
-    const markDelivered = () => {
-      setOrder((prev: any) => prev ? { ...prev, status: "DELIVERED" } : prev);
-      // Gör den durabel (best-effort; kräver inloggad ägare, gäster får bara display-flip).
-      axios.patch(`${API_URL}/api/orders/${orderId}/status`, { status: "DELIVERED" }).catch(() => {});
-    };
-    const deliveringTime = new Date(order.deliveringAt).getTime();
-    const msRemaining = (deliveringTime + 15 * 60 * 1000) - Date.now();
-    if (msRemaining <= 0) { markDelivered(); return; }
-    const timer = setTimeout(markDelivered, msRemaining);
-    return () => clearTimeout(timer);
-  }, [order?.selfDelivery, order?.deliveringAt, order?.status, orderId]);
-
   // ETA Countdown — in seconds for real-time display
   useEffect(() => {
-    if (!order?.status || ['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].includes(order.status)) { setEtaLeft(null); return; }
+    if (!order?.status || ['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(order.status)) { setEtaLeft(null); return; }
     if (!order?.etaEndsAt && !order?.estimatedTime) { setEtaLeft(null); return; }
     const calc = () => {
       if (order?.etaEndsAt) {
@@ -438,7 +423,7 @@ const OrderStatusPage = () => {
 
   // Tickar varje sekund så leverans-nedräkningen (budet på väg) rör sig live.
   useEffect(() => {
-    if (!order?.status || ['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].includes(order.status)) return;
+    if (!order?.status || ['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(order.status)) return;
     const t = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(t);
   }, [order?.status]);
@@ -563,7 +548,7 @@ const OrderStatusPage = () => {
   //  • Levererar-själva (selfDelivery=true): restaurangens tid = tills maten
   //    är klar OCH levererad till kunden.
   const isWeDeliver = order.type === "DELIVERY" && !order.selfDelivery;
-  const courierEnRoute = currentStatus === "DELIVERING" && isWeDeliver;
+  const courierEnRoute = ["DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"].includes(currentStatus) && isWeDeliver;
   const beforePickup = !isCompleted && !isRejected && !courierEnRoute;
 
   // Fågelvägsavstånd restaurang -> kund (km).
@@ -584,9 +569,9 @@ const OrderStatusPage = () => {
 
   // Uppskattat leveransspann efter hämtning: bas 15 min + ~3 min/km + ~4 min
   // per extra samtidig order budet kör. Klampas till 15-30 min.
-  const courierLoad = typeof order.courierActiveOrders === "number" ? order.courierActiveOrders : 1;
+  const courierLoad = typeof order.courierActiveOrders === "number" && Number.isFinite(order.courierActiveOrders) ? order.courierActiveOrders : 1;
   const loadExtra = courierLoad > 1 ? (courierLoad - 1) * 4 : 0;
-  const distExtra = distanceKm != null ? Math.round(distanceKm * 3) : 5;
+  const distExtra = Number.isFinite(distanceKm) ? Math.round(Number(distanceKm) * 3) : 5;
   const deliveryEtaMin = Math.max(15, Math.min(30, 15 + distExtra + loadExtra));
   // "Hög väntetid": nära taket eller många stopp -> visa mjuk disclaimer.
   const deliveryBusy = deliveryEtaMin >= 25 || courierLoad >= 3;
@@ -594,16 +579,561 @@ const OrderStatusPage = () => {
   // tiden passerar lägger vi på 10-15 min buffert och flaggar hög belastning.
   const DELIVERY_OVERDUE_BUFFER_MIN = 12;
   const deliveringAtMs = order.deliveringAt ? new Date(order.deliveringAt).getTime() : null;
+  const etaTargetMs = order.etaEndsAt
+    ? new Date(order.etaEndsAt).getTime()
+    : deliveringAtMs
+      ? deliveringAtMs + deliveryEtaMin * 60000
+      : null;
+  const liveEtaSecondsLeft = etaTargetMs && Number.isFinite(etaTargetMs)
+    ? Math.max(0, Math.ceil((etaTargetMs - nowMs) / 1000))
+    : null;
   let deliverySecondsLeft: number | null = null;
   let deliveryOverdue = false;
-  if (courierEnRoute && deliveringAtMs) {
-    const baseTarget = deliveringAtMs + deliveryEtaMin * 60000;
+  if (courierEnRoute && etaTargetMs && Number.isFinite(etaTargetMs)) {
+    const baseTarget = etaTargetMs;
     let target = baseTarget;
     if (nowMs >= baseTarget) { target = baseTarget + DELIVERY_OVERDUE_BUFFER_MIN * 60000; deliveryOverdue = true; }
     deliverySecondsLeft = Math.max(0, Math.round((target - nowMs) / 1000));
   }
   // Inline-recension: visas när ordern är levererad, ej betygsatt och ej stängd.
   const showInlineReview = isCompleted && !order.rating && !reviewDone && !reviewDismissed;
+  const isPickup = order.type !== "DELIVERY";
+  const isSelf = order.type === "DELIVERY" && !!order.selfDelivery;
+  const isOnWay = ["DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"].includes(currentStatus);
+  const isGreenStatus = isPickup ? (currentStatus === "READY" || isCompleted) : (isCompleted || isOnWay);
+  const statusTone = isRejected ? "red" : isGreenStatus ? "green" : ["PREPARING", "READY"].includes(currentStatus) ? "yellow" : "orange";
+  const statusAccent = statusTone === "red" ? "#C0392B" : statusTone === "green" ? "#2E7D4F" : statusTone === "yellow" ? "#E1A70D" : "#F0531C";
+  const statusAccentInk = statusTone === "red" ? "#9A2A1F" : statusTone === "green" ? "#1F6B41" : statusTone === "yellow" ? "#8A5B00" : "#B23C12";
+  const statusSoft = statusTone === "red" ? "#FCEBE9" : statusTone === "green" ? "#EAF7EF" : statusTone === "yellow" ? "#FFF7DB" : "#FFF0EA";
+  const restName = order.restaurantName || "Restaurang";
+  const cancelledCopy = (() => {
+    switch (currentStatus) {
+      case "REJECTED":
+        return {
+          title: "Restaurangen avböjde",
+          sub: "Order avböjd",
+          main: "Avböjd",
+          description: `${restName} kunde tyvärr inte ta emot beställningen. Du har inte blivit debiterad.`,
+        };
+      case "DELIVERY_FAILED":
+        return {
+          title: "Leverans misslyckades",
+          sub: "Leverans misslyckades",
+          main: "Misslyckad",
+          description: "Leveransen kunde inte slutföras. Kontakta support om betalningen behöver följas upp.",
+        };
+      default:
+        return {
+          title: "Ordern avbröts",
+          sub: "Order avbruten",
+          main: "Avbruten",
+          description: "Beställningen avbröts. Du har inte blivit debiterad.",
+        };
+    }
+  })();
+  const restAddr = [order.restaurantAddress, [order.restaurantZip, order.restaurantCity].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const custAddr = [order.deliveryStreet, [order.deliveryZip, order.deliveryCity || order.restaurantCity].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const orderNo = order.orderNumber ? `#${order.orderNumber}` : `#${String(order.id || "").slice(-6).toUpperCase()}`;
+  const hasRestCoords = typeof order.restaurantLat === "number" && typeof order.restaurantLng === "number";
+  const hasCustomerCoords = typeof order.deliveryLatitude === "number" && typeof order.deliveryLongitude === "number";
+  const showMapFullscreen = order.type === "DELIVERY" && !isSelf && !isRejected && isOnWay && !isCompleted && hasRestCoords && hasCustomerCoords;
+  const activeStep = isCompleted ? stepDefs.length - 1 : Math.max(0, currentIdx);
+  const progressRatio = isCompleted ? 1 : Math.max(0.22, Math.min(1, (activeStep + 1) / stepDefs.length));
+  const etaMinutes = courierEnRoute
+    ? liveEtaSecondsLeft != null
+      ? Math.ceil(liveEtaSecondsLeft / 60)
+      : deliveryEtaMin
+    : etaLeft != null
+      ? Math.ceil(etaLeft / 60)
+      : Number(order.estimatedTime || 0) || null;
+  const awaitingAccept = !isCompleted && !isRejected && !order.scheduledFor && !etaMinutes;
+  const etaSub = isRejected
+    ? cancelledCopy.sub
+    : isCompleted
+      ? "Status"
+      : awaitingAccept
+        ? "Inväntar restaurang"
+        : order.scheduledFor
+          ? "Schemalagd tid"
+          : isPickup
+            ? currentStatus === "READY" ? "Redo att hämtas" : "Klar om ca"
+            : courierEnRoute
+              ? "Framme om ca"
+              : "Klar om ca";
+  const etaMain = isRejected
+    ? cancelledCopy.main
+    : isCompleted
+      ? isPickup ? "hämtad" : "klart"
+      : awaitingAccept
+        ? "tills de accepterar"
+        : order.scheduledFor
+          ? new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
+          : etaMinutes != null && etaMinutes <= 0
+            ? "snart"
+            : etaMinutes != null
+              ? `${etaMinutes} min`
+              : "tills de accepterar";
+  const mapEtaMin = etaMinutes != null && Number.isFinite(etaMinutes) ? etaMinutes : Number.isFinite(deliveryEtaMin) ? deliveryEtaMin : 15;
+  const formatLiveEta = (seconds: number | null) => {
+    if (seconds == null) return mapEtaMin <= 0 ? "snart" : `${mapEtaMin} min`;
+    if (seconds <= 0) return "snart";
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+  };
+  const fullscreenEtaSub = showMapFullscreen ? "Framme om ca" : etaSub;
+  const fullscreenEtaMain = showMapFullscreen ? formatLiveEta(liveEtaSecondsLeft) : etaMain;
+  const statusTitle = isRejected
+    ? cancelledCopy.title
+    : isCompleted
+      ? isPickup ? "Hämtad" : "Levererad"
+      : isPickup && currentStatus === "READY"
+        ? "Redo att hämtas"
+        : isOnWay
+          ? "På väg"
+          : currentStatus === "PREPARING"
+            ? "Tillagas"
+            : currentStatus === "ACCEPTED"
+              ? "Mottagen"
+              : "Skickad";
+  const statusDescription = isRejected
+    ? cancelledCopy.description
+    : isSelf && isOnWay
+      ? `${restName} levererar själva och är på väg med din mat.`
+      : isSelf
+      ? `${restName} levererar själva. Ingen live-karta eller bud att följa för det här stället.`
+      : courierEnRoute
+        ? (deliveryOverdue ? t("order.eta.overdueBusy") : "Tillagad · ditt bud är på väg")
+        : isPickup && currentStatus === "READY"
+          ? "Visa ordernumret i restaurangen när du hämtar."
+          : statusDesc(currentStatus);
+
+  const TrackingLineWeb = ({ pickupReady = false }: { pickupReady?: boolean }) => {
+    const labels = isPickup
+      ? ["Mottagen", "Tillagas", "Redo"]
+      : ["Mottagen", "Tillagas", isCompleted ? "Levererad" : "På väg"];
+    const selected = pickupReady ? labels.length - 1 : Math.min(labels.length - 1, activeStep);
+    const lineProgress = isCompleted || pickupReady ? 1 : Math.max(0.18, Math.min(1, (selected + 1) / labels.length));
+    return (
+      <div className="mt-6 w-full">
+        <div className="relative h-[9px] overflow-hidden rounded-full" style={{ backgroundColor: isGreenStatus || pickupReady ? "#EAF7EF" : statusTone === "yellow" ? "#FFF7DB" : "#F0F0EC" }}>
+          <div className="h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${Math.round(lineProgress * 100)}%`, backgroundColor: isGreenStatus || pickupReady ? "#2E7D4F" : statusAccent }} />
+        </div>
+        <div className="mt-2.5 flex justify-between gap-2">
+          {labels.map((label, index) => (
+            <span
+              key={label}
+              className="flex-1 truncate text-[11.5px] font-semibold"
+              style={{
+                textAlign: index === 0 ? "left" : index === labels.length - 1 ? "right" : "center",
+                color: index === selected ? (isGreenStatus || pickupReady ? "#1F6B41" : statusAccentInk) : index < selected ? "var(--text-primary)" : "var(--text-secondary)",
+              }}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const ContactActionsWeb = ({ primaryLabel = "Kontakta restaurang" }: { primaryLabel?: string }) => (
+    <div className="mt-3.5 flex gap-2.5">
+      {order.restaurantPhone ? (
+        <a
+          href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`}
+          className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] border bg-white text-[14.5px] font-bold active:opacity-70"
+          style={{ borderColor: "rgba(17,17,19,0.12)", color: "var(--text-primary)" }}
+        >
+          <Phone size={18} />
+          {primaryLabel}
+        </a>
+      ) : null}
+      {isPickup ? (
+        <a
+          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restAddr || restName)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="grid h-[52px] w-14 place-items-center rounded-[14px] text-white shadow-lg active:opacity-80"
+          style={{ backgroundColor: statusAccent, boxShadow: `0 8px 18px color-mix(in srgb, ${statusAccent} 28%, transparent)` }}
+        >
+          <Navigation size={20} />
+        </a>
+      ) : null}
+    </div>
+  );
+
+  const DestRowWeb = ({ mini, main, sub, icon: Icon, call, sep }: { mini: string; main: string; sub?: string; icon: any; call?: boolean; sep?: boolean }) => (
+    <div className="flex items-center gap-3 px-3.5 py-3.5" style={{ borderTop: sep ? "1px solid rgba(17,17,19,0.08)" : "0" }}>
+      <Icon size={21} style={{ color: "#F0531C" }} />
+      <div className="min-w-0 flex-1">
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.04em]" style={{ color: "var(--text-secondary)" }}>{mini}</p>
+        <p className="mt-0.5 truncate text-[14.5px] font-bold" style={{ color: "var(--text-primary)" }}>{main}</p>
+        {sub ? <p className="mt-0.5 line-clamp-2 text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{sub}</p> : null}
+      </div>
+      {call && order.restaurantPhone ? (
+        <a href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`} className="grid h-9 w-9 place-items-center rounded-full" style={{ color: "var(--text-primary)" }}>
+          <Phone size={17} />
+        </a>
+      ) : null}
+    </div>
+  );
+
+  const rawSubtotal = (order.items ?? []).reduce((s: number, it: any) => s + (Number(it.subtotal) || 0), 0);
+  const deliveryFee = Number(order.deliveryFee || 0);
+  const discount = Math.max(0, Math.round(rawSubtotal + deliveryFee - Number(order.total || 0)));
+  const vatKr = Math.max(0, Math.round((Math.max(0, Number(order.total || 0) - Number(order.tipAmount || 0)) * 12) / 112));
+  const paymentLabel = order.paymentMethod === "ONLINE" ? "Betalt med Apple Pay" : order.paymentMethod ? `Betalt med ${order.paymentMethod}` : "Betalning registrerad";
+  const orderEarnedPoints = (() => {
+    const raw =
+      order.dpointsEarned ??
+      order.pointsEarned ??
+      order.earnedPoints ??
+      order.rewardPoints ??
+      order.dpoints?.earned;
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed);
+    const total = Number(order.subtotal ?? order.total ?? order.totalAmount ?? 0);
+    return Number.isFinite(total) && total > 0 ? Math.max(1, Math.round(total)) : 0;
+  })();
+  const sheetDragOffsetFromDelta = (delta: number, expanded: boolean) => {
+    return expanded
+      ? Math.max(0, Math.min(360, delta))
+      : Math.min(0, Math.max(-360, delta));
+  };
+
+  const finishSheetDragDelta = (delta: number) => {
+    setTrackingSheetDragStartY(null);
+    setTrackingSheetDragOffsetY(0);
+    if (delta < -36) setTrackingSheetExpanded(true);
+    else if (delta > 36) setTrackingSheetExpanded(false);
+    else setTrackingSheetExpanded((v) => !v);
+  };
+
+  const startSheetDrag = (clientY: number) => {
+    if (trackingSheetDragActiveRef.current) return;
+    trackingSheetDragActiveRef.current = true;
+    const startY = clientY;
+    const expandedAtStart = trackingSheetExpanded;
+    setTrackingSheetDragStartY(startY);
+    setTrackingSheetDragOffsetY(0);
+
+    const eventY = (event: MouseEvent | PointerEvent | TouchEvent) => {
+      if ("touches" in event && event.touches?.[0]) return event.touches[0].clientY;
+      if ("changedTouches" in event && event.changedTouches?.[0]) return event.changedTouches[0].clientY;
+      return (event as MouseEvent | PointerEvent).clientY;
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onEnd);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+      window.removeEventListener("touchcancel", onCancel);
+      trackingSheetDragActiveRef.current = false;
+    };
+    const onMove = (event: MouseEvent | PointerEvent | TouchEvent) => {
+      if ("touches" in event) event.preventDefault();
+      const delta = eventY(event) - startY;
+      setTrackingSheetDragOffsetY(sheetDragOffsetFromDelta(delta, expandedAtStart));
+    };
+    const onEnd = (event: MouseEvent | PointerEvent | TouchEvent) => {
+      const delta = eventY(event) - startY;
+      cleanup();
+      finishSheetDragDelta(delta);
+    };
+    const onCancel = () => {
+      cleanup();
+      setTrackingSheetDragStartY(null);
+      setTrackingSheetDragOffsetY(0);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+    window.addEventListener("pointercancel", onCancel);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onEnd);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onEnd);
+    window.addEventListener("touchcancel", onCancel);
+  };
+
+  const OrderInfoOverlayWeb = (
+    <AnimatePresence>
+      {showReceipt ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[1900] overflow-y-auto"
+          style={{ backgroundColor: "var(--bg-primary)" }}
+        >
+          <div className="mx-auto min-h-[100dvh] max-w-md px-5 pb-8 pt-[calc(env(safe-area-inset-top,0px)+14px)]">
+            <div className="flex items-center gap-3 pb-4">
+              <button type="button" onClick={() => setShowReceipt(false)} className="grid h-10 w-10 place-items-center rounded-full" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}>
+                <ArrowRight size={18} className="rotate-180" />
+              </button>
+              <h2 className="text-[22px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>Orderinfo</h2>
+            </div>
+
+            <div className="rounded-[18px] border bg-white p-3.5 shadow-sm" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
+              <div className="flex items-center gap-3.5">
+                <div className="grid h-[54px] w-[54px] place-items-center rounded-[14px]" style={{ backgroundColor: "var(--bg-deep)", color: "#F0531C" }}>
+                  <Store size={25} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[16px] font-bold" style={{ color: "var(--text-primary)" }}>{restName}</p>
+                  <p className="mt-0.5 truncate text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>Order {orderNo}</p>
+                </div>
+                <ChevronDown size={20} className="-rotate-90" style={{ color: "#C2C2C6" }} />
+              </div>
+            </div>
+
+            <p className="px-0.5 pb-2 pt-5 text-[11px] font-black uppercase tracking-[0.1em]" style={{ color: "var(--text-secondary)" }}>Din beställning</p>
+            <div className="rounded-[18px] border bg-white px-4 shadow-sm" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
+              {(order.items ?? []).map((item: any, index: number) => (
+                <div key={`${item.id || item.productId || item.productName}-${index}`} className="flex items-baseline gap-2.5 py-3.5" style={{ borderTop: index > 0 ? "1px solid rgba(17,17,19,0.07)" : "0" }}>
+                  <span className="text-[13.5px] font-black" style={{ color: "#F0531C" }}>{item.quantity || 1}x</span>
+                  <span className="min-w-0 flex-1 text-[14.5px] font-bold leading-5" style={{ color: "var(--text-primary)" }}>{item.productName || item.name}</span>
+                  <span className="text-[14px] font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{Math.round(Number(item.subtotal || 0))} kr</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="px-0.5 pb-2 pt-5 text-[11px] font-black uppercase tracking-[0.1em]" style={{ color: "var(--text-secondary)" }}>Kvitto</p>
+            <div className="space-y-1.5 px-0.5">
+              <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Delsumma</span><span className="tabular-nums">{Math.round(rawSubtotal)} kr</span></div>
+              {order.type === "DELIVERY" ? <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Leverans</span><span className="tabular-nums">{deliveryFee > 0 ? `${Math.round(deliveryFee)} kr` : "Fri"}</span></div> : null}
+              {discount > 0 ? <div className="flex justify-between py-1 text-[13.5px] font-semibold text-emerald-600"><span>Rabatt</span><span className="tabular-nums">-{discount} kr</span></div> : null}
+              <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Varav moms (12%)</span><span className="tabular-nums">{vatKr} kr</span></div>
+              <div className="mt-2 flex items-baseline justify-between border-t pt-3" style={{ borderColor: "rgba(17,17,19,0.12)" }}>
+                <span className="text-[16px] font-black" style={{ color: "var(--text-primary)" }}>Totalt</span>
+                <span className="text-[21px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>{Math.round(Number(order.total || 0))} kr</span>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                <ShoppingBag size={14} /> {paymentLabel}
+              </div>
+              <button
+                type="button"
+                onClick={downloadReceipt}
+                disabled={receiptDownloads >= RECEIPT_MAX_DOWNLOADS}
+                className="mt-3 flex h-12 w-full items-center gap-2.5 rounded-[13px] border bg-white px-4 text-[14px] font-bold disabled:opacity-50"
+                style={{ borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
+              >
+                <Download size={18} />
+                {receiptDownloads >= RECEIPT_MAX_DOWNLOADS ? "Kvitto nedladdat" : "Ladda ner kvitto"}
+                <span className="ml-auto text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                  {receiptDownloads >= RECEIPT_MAX_DOWNLOADS ? "Max nått" : `HTML · ${RECEIPT_MAX_DOWNLOADS - receiptDownloads} kvar`}
+                </span>
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+  );
+
+  if (showMapFullscreen) {
+    return (
+      <div className="relative isolate min-h-[100dvh] overflow-hidden bg-white">
+        <div className="absolute inset-x-0 top-0 z-0 h-[47dvh] min-h-[330px] isolate overflow-hidden" style={{ backgroundColor: "#E7EAE6" }}>
+          <CourierTrackingMap
+            pickup={{ lat: order.restaurantLat, lng: order.restaurantLng }}
+            dropoff={{ lat: order.deliveryLatitude, lng: order.deliveryLongitude }}
+            courier={courierPos}
+            accentColor={statusAccent}
+          />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-white/80 via-white/20 to-transparent" />
+        </div>
+        <Link href="/" aria-label="Till startsidan" className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+16px)] z-[1600] grid h-11 w-11 place-items-center rounded-full border bg-white shadow-lg" style={{ borderColor: "rgba(17,17,19,0.10)", color: "var(--text-primary)" }}>
+          <ArrowRight size={18} className="rotate-180" />
+        </Link>
+        <section
+          className={`absolute inset-x-0 bottom-0 z-[1500] overflow-hidden rounded-t-[32px] border-t bg-white shadow-2xl transition-[top] duration-300 ease-out ${trackingSheetExpanded ? "top-[calc(env(safe-area-inset-top,0px)+14px)]" : "top-[calc(47dvh-28px)]"}`}
+          style={{
+            borderColor: "rgba(17,17,19,0.08)",
+            boxShadow: "0 -12px 34px rgba(17,17,19,0.16)",
+            transform: trackingSheetDragOffsetY ? `translate3d(0, ${trackingSheetDragOffsetY}px, 0)` : undefined,
+            transition: trackingSheetDragStartY == null ? undefined : "none",
+          }}
+        >
+          <button
+            type="button"
+            className="flex w-full touch-none select-none justify-center pb-3 pt-4"
+            aria-label={trackingSheetExpanded ? "Dra ner orderpanelen" : "Dra upp orderpanelen"}
+            onPointerDown={(e) => {
+              (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
+              startSheetDrag(e.clientY);
+            }}
+            onMouseDown={(e) => startSheetDrag(e.clientY)}
+            onTouchStart={(e) => startSheetDrag(e.touches[0]?.clientY ?? 0)}
+          >
+            <div className="h-[5px] w-12 rounded-full bg-[#D6D6D2]" />
+          </button>
+          <div className="px-5 pb-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.09em]" style={{ color: "var(--text-secondary)" }}>ORDER {order.orderNumber ? `#${order.orderNumber}` : ""}</p>
+                <h1 className="mt-0.5 text-[22px] font-black tracking-tight" style={{ color: isGreenStatus ? "#2E7D4F" : "var(--text-primary)" }}>{statusTitle}</h1>
+                <p className="mt-0.5 text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>{statusDescription}</p>
+              </div>
+              <div className="text-right">
+                <button type="button" onClick={() => setShowReceipt(true)} className="mb-1 text-[11.5px] font-bold" style={{ color: statusAccentInk }}>Orderinfo & kvitto ›</button>
+                <p className="text-[10px] font-medium" style={{ color: "var(--text-secondary)" }}>{fullscreenEtaSub}</p>
+                <p className="text-[24px] font-black tracking-tight" style={{ color: isGreenStatus ? "#2E7D4F" : "var(--text-primary)" }}>{fullscreenEtaMain}</p>
+              </div>
+            </div>
+            <TrackingLineWeb />
+            <div className="mt-3 flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusAccent }} />
+              <p className="text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                {deliveryOverdue ? t("order.eta.overdueBusy") : isGreenStatus ? statusDescription : "Tillagad · ditt bud är på väg"}
+              </p>
+            </div>
+            <ContactActionsWeb />
+          </div>
+          <div className="h-[calc(100%-250px)] overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+24px)]">
+            <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: "rgba(17,17,19,0.08)" }}>
+              <DestRowWeb mini="Levereras till" main={custAddr || restName} icon={MapPin} />
+            </div>
+            <div className="mt-3 overflow-hidden rounded-2xl border bg-white" style={{ borderColor: "rgba(17,17,19,0.08)" }}>
+              <DestRowWeb mini="Restaurang" main={restName} sub={restAddr} icon={Store} call />
+            </div>
+          </div>
+        </section>
+        {OrderInfoOverlayWeb}
+      </div>
+    );
+  }
+
+  const StatusCard = () => (
+    <div className="mt-4 rounded-[24px] border bg-white px-6 py-7 text-center shadow-xl" style={{ borderColor: isGreenStatus ? "rgba(46,125,79,0.22)" : "rgba(17,17,19,0.07)", boxShadow: "0 14px 28px rgba(17,17,19,0.10)" }}>
+      <div className="mx-auto inline-flex items-center gap-2 rounded-full px-3.5 py-2" style={{ backgroundColor: statusSoft }}>
+        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: statusAccent }} />
+        <span className="text-[11px] font-black uppercase tracking-[0.07em]" style={{ color: statusAccentInk }}>{isPickup ? "AVHÄMTNING" : statusTitle.toUpperCase()}</span>
+      </div>
+      <p className="mt-4 text-[clamp(30px,12vw,50px)] font-black leading-none tracking-tight" style={{ color: isRejected ? "#C0392B" : isGreenStatus ? "#2E7D4F" : "var(--text-primary)" }}>
+        {isRejected || awaitingAccept || isCompleted || order.scheduledFor ? etaMain : `ca ${etaMain}`}
+      </p>
+      <p className="mx-auto mt-2 max-w-sm text-[13.5px] font-medium leading-5" style={{ color: "var(--text-secondary)" }}>{statusDescription}</p>
+      {!isRejected ? (
+        <>
+          <div className="mt-4">
+            <p className="text-[30px] font-black tabular-nums" style={{ color: statusAccent }}>+{orderEarnedPoints} Dpoints</p>
+          </div>
+          <TrackingLineWeb />
+        </>
+      ) : null}
+    </div>
+  );
+
+  const PickupReadyCard = () => (
+    <div className="mt-4 overflow-hidden rounded-[24px] border bg-white shadow-xl" style={{ borderColor: "rgba(17,17,19,0.06)", boxShadow: "0 14px 30px rgba(17,17,19,0.11)" }}>
+      <div className="relative overflow-hidden bg-[#2E7D4F] p-[22px] text-white">
+        <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/10" />
+        <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-2">
+          <span className="h-2 w-2 rounded-full bg-white" />
+          <span className="text-[11px] font-black uppercase tracking-[0.07em]">REDO ATT HÄMTAS</span>
+        </div>
+        <h2 className="mt-4 text-[38px] font-black tracking-tight">Din mat väntar</h2>
+        <p className="mt-1.5 text-[13.5px] font-medium leading-5 text-white/85">Visa ordernumret i restaurangen när du hämtar.</p>
+      </div>
+      <div className="p-[18px]">
+        <div className="flex items-center gap-3">
+          <MapPin size={22} style={{ color: "#2E7D4F" }} />
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>{restName}</p>
+            <p className="mt-0.5 line-clamp-2 text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>{restAddr}</p>
+          </div>
+        </div>
+        <div className="mt-4 border-t pt-4" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
+          <TrackingLineWeb pickupReady />
+        </div>
+      </div>
+    </div>
+  );
+
+  const CompletedReviewCard = () => (
+    <div className="mt-4 rounded-[24px] border bg-white p-5 text-center shadow-xl" style={{ borderColor: order.rating || reviewDone ? "rgba(46,125,79,0.26)" : "rgba(240,83,28,0.24)", boxShadow: "0 14px 28px rgba(17,17,19,0.10)" }}>
+      {order.rating || reviewDone ? (
+        <>
+          <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full bg-[#EAF7EF] text-[#2E7D4F]"><ShieldCheck size={34} /></div>
+          <p className="text-[30px] font-black" style={{ color: "#2E7D4F" }}>Klart</p>
+          <p className="mt-2 text-[20px] font-black" style={{ color: "var(--text-primary)" }}>Tack för att du väljer Delivera</p>
+        </>
+      ) : (
+        <>
+          <p className="text-left text-[11px] font-black uppercase tracking-[0.09em]" style={{ color: "#2E7D4F" }}>LEVERERAD</p>
+          <h2 className="mt-1 text-left text-[24px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>Hur smakade maten?</h2>
+          <div className="my-4 flex justify-center gap-3">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <button key={s} type="button" onClick={() => setReviewRating(s)}>
+                <Star size={31} className={s <= reviewRating ? "fill-[var(--color-gold-500)] text-[var(--color-gold-500)]" : "text-[var(--border-muted)]"} />
+              </button>
+            ))}
+          </div>
+          <textarea value={reviewText} onChange={(e) => setReviewText(e.target.value)} placeholder="Skriv en kort recension" rows={3} className="w-full rounded-[14px] p-3.5 text-sm outline-none" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }} />
+          <button type="button" onClick={submitReview} disabled={!reviewRating || reviewSubmitting} className="mt-3 flex h-[52px] w-full items-center justify-center gap-2 rounded-[14px] text-[14.5px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: "#F0531C" }}>
+            {reviewSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Star size={16} className="fill-current" />}
+            {reviewSubmitting ? "Skickar" : "Skicka recension"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="min-h-[100dvh]" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="mx-auto max-w-md px-4 pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-[calc(env(safe-area-inset-top,0px)+8px)]">
+        <div className="flex h-[52px] items-center gap-3 border-b" style={{ borderColor: "var(--border-muted)" }}>
+          <Link href="/" aria-label="Till startsidan" className="grid h-9 w-9 place-items-center rounded-full">
+            <ArrowRight size={20} className="rotate-180" />
+          </Link>
+          <span className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>Din order</span>
+          <span className="ml-auto text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{orderNo}</span>
+        </div>
+
+        <div className="mt-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.1em]" style={{ color: "var(--text-secondary)" }}>ORDER {order.orderNumber ? `#${order.orderNumber}` : ""}</p>
+          <h1 className="mt-0.5 text-[28px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>{isPickup ? "Din avhämtning" : "Din order"}</h1>
+        </div>
+
+        {isCompleted
+          ? <CompletedReviewCard />
+          : isPickup && currentStatus === "READY"
+            ? <PickupReadyCard />
+            : <StatusCard />}
+
+        {!isPickup ? (
+          <div className="mt-3.5 overflow-hidden rounded-[18px] border bg-white shadow-sm" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
+            <DestRowWeb mini="Levereras till" main={custAddr || restName} icon={MapPin} />
+            <DestRowWeb mini="Restaurang" main={restName} sub={restAddr} icon={Store} call sep />
+          </div>
+        ) : null}
+
+        <ContactActionsWeb primaryLabel={isPickup ? "Ring restaurang" : "Kontakta restaurang"} />
+
+        <button
+          type="button"
+          onClick={() => setShowReceipt(true)}
+          className="mt-3.5 flex w-full items-center gap-3.5 rounded-[18px] border bg-white p-4 text-left shadow-sm"
+          style={{ borderColor: "rgba(17,17,19,0.07)" }}
+        >
+          <span className="grid h-[46px] w-[46px] place-items-center rounded-[13px]" style={{ backgroundColor: "#FFF0EA", color: "#F0531C" }}>
+            <Receipt size={21} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>Orderinfo & kvitto</span>
+            <span className="mt-0.5 block truncate text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>Se rätter, restaurang och pris</span>
+          </span>
+          <ChevronDown size={20} className="-rotate-90" style={{ color: "#C2C2C6" }} />
+        </button>
+      </div>
+      {OrderInfoOverlayWeb}
+    </div>
+  );
 
   return (
     <div className="min-h-screen pb-[calc(env(safe-area-inset-bottom,0px)+7rem)] pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24 md:pb-16" style={{ backgroundColor: "var(--bg-primary)" }}>
@@ -611,7 +1141,7 @@ const OrderStatusPage = () => {
 
         {/* Top bar */}
         <div className="flex items-center justify-between gap-3 py-3">
-          <Link href="/orders" aria-label={t("order.subtitle")} className="inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
+          <Link href="/" aria-label="Till startsidan" className="inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
             <ArrowRight size={16} className="rotate-180" />
           </Link>
           {!isRejected && !isCompleted && (
@@ -621,9 +1151,10 @@ const OrderStatusPage = () => {
             </div>
           )}
         </div>
-        <h1 className="mb-4 px-1 text-[1.45rem] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.title")} <span className="text-gold-600">#{order.orderNumber}</span></h1>
+        <OrderTrackingCard order={order} courier={courierPos} full />
 
-        {/* Hero: karta (vi-levererar) + status + ETA + steg */}
+        {/* Hero: ersatt av samma React-lika OrderTrackingCard som hemskärmen. */}
+        {false && (
         <motion.div key={currentStatus} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-2xl border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
 
           {/* Live-karta — endast vi-levererar (ej self) + under leverans. Visas direkt vid hämtad;
@@ -650,18 +1181,18 @@ const OrderStatusPage = () => {
                 <div className="text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
                   {courierEnRoute ? t("order.eta.estDelivery") : t("order.eta.restaurantEstimates")}
                 </div>
-                <div className={`text-lg font-bold tabular-nums ${(courierEnRoute ? (!deliveryOverdue && deliverySecondsLeft !== null && deliverySecondsLeft <= 300) : (etaLeft !== null && etaLeft <= 300)) ? "text-emerald-500" : "text-gold-600"}`}>
+                <div className={`text-lg font-bold tabular-nums ${(courierEnRoute ? (!deliveryOverdue && deliverySecondsLeft !== null && deliverySecondsLeft! <= 300) : (etaLeft !== null && etaLeft! <= 300)) ? "text-emerald-500" : "text-gold-600"}`}>
                   {courierEnRoute
                     ? (deliverySecondsLeft === null
                         ? t("order.eta.minEstimate", { m: deliveryEtaMin })
-                        : deliverySecondsLeft <= 0
+                        : deliverySecondsLeft! <= 0
                           ? t("order.eta.soon")
-                          : `${Math.floor(deliverySecondsLeft / 60)}:${(deliverySecondsLeft % 60).toString().padStart(2, "0")}`)
+                          : `${Math.floor(deliverySecondsLeft! / 60)}:${(deliverySecondsLeft! % 60).toString().padStart(2, "0")}`)
                     : etaLeft === null
                       ? `${order.estimatedTime} min`
-                      : etaLeft <= 0
+                      : etaLeft! <= 0
                         ? t("order.eta.soon")
-                        : `${Math.floor(etaLeft / 60)}:${(etaLeft % 60).toString().padStart(2, "0")}`}
+                        : `${Math.floor(etaLeft! / 60)}:${(etaLeft! % 60).toString().padStart(2, "0")}`}
                 </div>
               </div>
             )}
@@ -729,11 +1260,12 @@ const OrderStatusPage = () => {
             </div>
           )}
         </motion.div>
+        )}
 
         {/* Web push — "Få avisering när maten är på väg". Visas bara när
             servern har VAPID-nycklar + webbläsaren stödjer push, och döljs
             för avslutade ordrar. */}
-        {pushAvailable && !isTerminal(currentStatus) && (
+        {false && pushAvailable && !isTerminal(currentStatus) && (
           <div className="mt-4 flex items-center justify-between gap-4 rounded-xl px-4 py-3.5" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
             <div className="min-w-0">
               <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>Få avisering när maten är på väg</p>

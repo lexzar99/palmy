@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
       margin: 0;
       text-transform: uppercase;
     }
-    h1 .accent { color: #e7b24b; }
+    h1 .accent { color: #F0531C; }
     .label {
       font-size: 10px;
       font-weight: 900;
@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
     .cta {
       display: inline-flex;
       align-items: center; justify-content: center;
-      background: #e7b24b;
+      background: #F0531C;
       color: #000;
       font-size: 14px; font-weight: 900;
       text-transform: uppercase;

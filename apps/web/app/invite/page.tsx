@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { ArrowLeft, Share2, Check } from "lucide-react";
+import DeliveraWordmark from "@/components/DeliveraWordmark";
 
 // Bjud in-sida — monokrom med touch av guld. Brand-loggan (ingen ikon-ruta),
 // belöning, och EN dela-knapp. Ingen synlig länk; länken bärs i share-payloaden.
@@ -76,8 +77,7 @@ export default function InvitePage() {
 
         {/* Brand-logga — ingen ikon-ruta, bara loggan */}
         <div className="flex justify-center pt-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/delivera-lockup.png" alt="Delívera" style={{ height: 40, width: "auto" }} />
+          <DeliveraWordmark size="md" />
         </div>
 
         <div className="space-y-2 text-center">
@@ -89,7 +89,7 @@ export default function InvitePage() {
 
         {/* Belöning — den enda starka guld-accenten */}
         <div className="flex flex-col items-center gap-1.5 rounded-2xl py-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-          <span className="rounded-full px-4 py-1.5 text-[15px] font-bold" style={{ backgroundColor: "var(--color-gold-500, #E7B24B)", color: "#141416", fontVariantNumeric: "tabular-nums" }}>
+          <span className="rounded-full px-4 py-1.5 text-[15px] font-bold" style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416", fontVariantNumeric: "tabular-nums" }}>
             +{REWARD_POINTS} Dpoints
           </span>
           <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>till er båda</span>
@@ -102,7 +102,7 @@ export default function InvitePage() {
           className="flex h-[54px] w-full items-center justify-center gap-2.5 rounded-2xl text-[15px] font-semibold transition-all active:scale-[0.99]"
           style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-primary)" }}
         >
-          {shared ? <Check size={18} /> : <Share2 size={18} style={{ color: "var(--color-gold-500, #E7B24B)" }} />}
+          {shared ? <Check size={18} /> : <Share2 size={18} style={{ color: "var(--color-gold-500, #F0531C)" }} />}
           {shared ? "Delat" : "Dela"}
         </button>
         {shareErr && <p className="text-center text-[13px]" style={{ color: "#dc2626" }}>{shareErr}</p>}

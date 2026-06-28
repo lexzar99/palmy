@@ -129,8 +129,8 @@ export default function WelcomeDealBanner({ enabled = true }: { enabled?: boolea
         exit={{ opacity: 0, y: -8 }}
         className="mb-6 rounded-[1.5rem] border flex items-center gap-4 px-4 py-3.5"
         style={{
-          backgroundColor: "rgba(231,178,75,0.08)",
-          borderColor: "rgba(231,178,75,0.3)",
+          backgroundColor: "rgba(240,83,28,0.08)",
+          borderColor: "rgba(240,83,28,0.3)",
         }}
       >
         <div className="w-10 h-10 shrink-0 rounded-2xl bg-gold-500/15 border border-gold-500/30 flex items-center justify-center text-gold-500">

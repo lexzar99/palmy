@@ -29,7 +29,7 @@ export interface DealCardData {
 }
 
 const TONES: Record<DealTone, { accent: string }> = {
-  gold:    { accent: "#EAB545" },
+  gold:    { accent: "#F0531C" },
   orange:  { accent: "#F07A13" },
   purple:  { accent: "#A855F7" },
   emerald: { accent: "#10B981" },

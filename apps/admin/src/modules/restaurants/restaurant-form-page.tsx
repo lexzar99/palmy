@@ -81,7 +81,7 @@ type FormState = {
   legalName: string; organizationNumber: string;
   imageUrl: string; heroImageUrl: string;
   etaOverride: string; etaCalculated: number | null; etaEffective: number;
-  featuredClass: number; isOpen: boolean; rating: number; ratingCount: number;
+  featuredClass: number; isOpen: boolean; comingSoon: boolean; rating: number; ratingCount: number;
   internalInfo: string; latitude: string; longitude: string;
   placeId: string;
   openingHours: HoursForm; logoutCode: string;
@@ -95,7 +95,7 @@ const emptyForm: FormState = {
   legalName: "", organizationNumber: "",
   imageUrl: "", heroImageUrl: "",
   etaOverride: "", etaCalculated: null, etaEffective: 40,
-  featuredClass: 3, isOpen: true, rating: 4.6, ratingCount: 0,
+  featuredClass: 3, isOpen: true, comingSoon: false, rating: 4.6, ratingCount: 0,
   internalInfo: "", latitude: "", longitude: "",
   placeId: "",
   openingHours: buildDefaultHours(), logoutCode: "",
@@ -115,6 +115,7 @@ const mapDetailToForm = (d: RestaurantDetail): FormState => ({
   etaOverride: d.etaOverrideMinutes != null ? String(d.etaOverrideMinutes) : "",
   etaCalculated: d.etaCalculatedMinutes ?? null, etaEffective: d.etaMinutes ?? 40,
   featuredClass: (d as any).featuredClass ?? 3, isOpen: d.manualIsOpen,
+  comingSoon: (d as any).comingSoon ?? false,
   rating: d.rating || 0, ratingCount: d.ratingCount || 0,
   internalInfo: (d as any).internalInfo || "",
   latitude: d.latitude != null ? String(d.latitude) : "",
@@ -140,6 +141,7 @@ const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
   imageUrl: f.imageUrl || null, heroImageUrl: f.heroImageUrl || null,
   etaOverrideMinutes: f.etaOverride.trim() === "" ? null : Number(f.etaOverride),
   featuredClass: Number(f.featuredClass || 3), isOpen: f.isOpen,
+  comingSoon: f.comingSoon,
   rating: Number(f.rating || 0), ratingCount: Number(f.ratingCount || 0),
   internalInfo: f.internalInfo || null,
   latitude: f.latitude.trim() ? Number(f.latitude) : null,
@@ -354,6 +356,10 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                   checked={form.featuredClass !== 0}
                   onChange={(v) => set("featuredClass", v ? (form.featuredClass === 0 ? 3 : form.featuredClass) : 0)}
                 />
+              </div>
+              <div className="flex items-center justify-between border-t border-[var(--row-divider)] py-3">
+                <span className="text-[13px] font-semibold">Coming soon</span>
+                <Toggle checked={form.comingSoon} onChange={(v) => set("comingSoon", v)} />
               </div>
             </Surface>
             {!isCreate && (
@@ -582,6 +588,13 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <option value="closed">Stängd</option>
               </Select>
             </Field>
+            <div className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-3">
+              <div>
+                <p className="text-[13px] font-bold">Coming soon</p>
+                <p className="mt-0.5 text-xs text-[var(--text-secondary)]">Visas dimmad i kundappen och kan inte öppnas.</p>
+              </div>
+              <Toggle checked={form.comingSoon} onChange={(v) => set("comingSoon", v)} />
+            </div>
             <Field label="Tier (abonnemang + ranking)">
               <Select value={String(form.featuredClass)} onChange={(e) => set("featuredClass", Number(e.target.value))}>
                 <option value="1">Gold</option>
@@ -665,4 +678,3 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
     </div>
   );
 }
-

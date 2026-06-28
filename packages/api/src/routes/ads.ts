@@ -23,6 +23,7 @@ export interface TrackingAd {
   subtitle: string;
   imageUrl?: string;
   url?: string;
+  imageOnly?: boolean;
   startsAt?: string;
   endsAt?: string;
   isActive: boolean;
@@ -91,6 +92,7 @@ function writeData(input: any, current?: TrackingAd): TrackingAd {
     subtitle: String(input.subtitle ?? input.text ?? current?.subtitle ?? '').trim(),
     imageUrl: input.imageUrl !== undefined ? (input.imageUrl || undefined) : current?.imageUrl,
     url: input.url !== undefined ? (input.url || undefined) : current?.url,
+    imageOnly: input.imageOnly !== undefined ? !!input.imageOnly : (current?.imageOnly ?? false),
     startsAt: input.startsAt !== undefined ? normalizeDate(input.startsAt) : current?.startsAt,
     endsAt: input.endsAt !== undefined ? normalizeDate(input.endsAt) : current?.endsAt,
     isActive: input.isActive !== undefined ? !!input.isActive : (current?.isActive ?? true),
