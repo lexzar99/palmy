@@ -4,10 +4,9 @@
  * requireSuperAdmin + skrivs till AuditLog.
  *
  *  GET   /config                       Dpoints-inställningar
- *  PATCH /config                       uppdatera (enabled, perKr, valuePerKr)
+ *  PATCH /config                       uppdatera cashback, saldo-tak och Dpoints-kurirfallback
  *  GET   /overview                     nyckeltal för sidan
  *  GET   /sponsor-cards   POST/PATCH/DELETE /sponsor-cards[/:id]
- *  GET   /rewards         POST/PATCH/DELETE /rewards[/:id]
  *  GET   /campaigns       POST/PATCH/DELETE /campaigns[/:id]
  *  GET   /customers?search=            kunder + saldo
  *  GET   /customers/:id                kund + historik
@@ -31,10 +30,10 @@ router.get('/config', async (_req, res) => {
   const row: any = (await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } })) || {};
   res.json({
     dpointsEnabled: row.dpointsEnabled ?? false,
-    dpointsPerKr: row.dpointsPerKr ?? 1,
+    dpointsPerKr: row.dpointsPerKr ?? 0.1,
     dpointsValuePerKr: row.dpointsValuePerKr ?? 10,
     dpointsCardOnHome: row.dpointsCardOnHome ?? true,
-    dpointsMaxBalance: row.dpointsMaxBalance ?? 2000,
+    dpointsMaxBalance: row.dpointsMaxBalance ?? 2500,
     dpointsCourierCost: row.dpointsCourierCost ?? 0,
     dpointsCourierTiers: row.dpointsCourierTiers ?? '[]',
     dpointsEarnRules: parseEarnRules(row.dpointsEarnRules),

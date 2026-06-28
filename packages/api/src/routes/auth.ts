@@ -533,6 +533,12 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
   }
 };
 
+export const authenticateUserOptional = async (req: any, res: any, next: any) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return next();
+  return authenticateUser(req, res, next);
+};
+
 /**
  * Hard gate: OAuth users (Google/Apple) MUST have a verified phone before
  * they can access protected endpoints. Without this, anyone could create an

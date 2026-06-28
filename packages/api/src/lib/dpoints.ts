@@ -39,9 +39,9 @@ export async function getDpointsSettings(): Promise<DpointsSettings> {
   const row: any = (await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } })) || {};
   return {
     dpointsEnabled: row.dpointsEnabled ?? false,
-    dpointsPerKr: row.dpointsPerKr ?? 1,
+    dpointsPerKr: row.dpointsPerKr ?? 0.1,
     dpointsValuePerKr: row.dpointsValuePerKr ?? 10,
-    dpointsMaxBalance: row.dpointsMaxBalance ?? 2000,
+    dpointsMaxBalance: row.dpointsMaxBalance ?? 2500,
     dpointsCourierCost: row.dpointsCourierCost ?? 0,
     dpointsCourierTiers: row.dpointsCourierTiers ?? '[]',
     dpointsStreakTarget: Math.max(2, Math.round(row.dpointsStreakTarget ?? 3)),

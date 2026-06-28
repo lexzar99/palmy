@@ -15,7 +15,7 @@ import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, type Ca
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
-import { cached } from '../lib/ttlCache';
+import { bustCache, cached } from '../lib/ttlCache';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
 import { getDpointsSettings, awardOrderPointsIfNotAwarded, resolveDpointsCourierFeeOre, maybeAwardReviewPoints } from '../lib/dpoints';
@@ -372,6 +372,7 @@ router.post('/', async (req: Request, res: Response) => {
     // (t.ex. 25%) och lägga en spök-"leveransavgift" på pickup-ordern.
     let deliveryFee = 0;
     let minOrderAmount = data.type === 'PICKUP' ? 0 : (globalSettings?.minOrderAmount ?? 0);
+    let resolvedZoneDeliveryFee = 0;
 
     if (data.type === 'DELIVERY') {
       if (!data.lat || !data.lng) {
@@ -403,6 +404,7 @@ router.post('/', async (req: Request, res: Response) => {
       }
 
       deliveryFee = resolved.fee;
+      resolvedZoneDeliveryFee = resolved.fee;
       minOrderAmount = resolved.minOrder ?? 0;
     }
     const estimatedTime = data.scheduledFor
@@ -631,6 +633,12 @@ router.post('/', async (req: Request, res: Response) => {
         return product.price;
       })();
       const pointsBaseOre = (discountedBaseOre + extrasTotal) * item.quantity;
+      const rewardUnitPoints = (() => {
+        const override = Number((product as any).rewardPointsPrice);
+        if (Number.isFinite(override) && override > 0) return Math.ceil(override);
+        const multiplier = Number((product as any).rewardPointsMultiplier ?? 1.5);
+        return Math.ceil(((discountedBaseOre + extrasTotal) / 100) * (Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1.5));
+      })();
       // Dpoints: betalas raden med poäng nollas priset (gratis-rad) och poängen
       // dras vid betalning. Kräver inloggad användare + aktiverat system + att
       // varan är markerad rewardable. Klienten erbjuder bara poäng-köp på
@@ -641,7 +649,7 @@ router.post('/', async (req: Request, res: Response) => {
       const payWithPoints = !!item.paidWithPoints && !!authenticatedUserId && dpSettings.dpointsEnabled && !!product.rewardable;
       const itemSubtotal = payWithPoints ? 0 : fullItemOre;
       if (payWithPoints) {
-        pointsToSpend += Math.round((pointsBaseOre / 100) * dpSettings.dpointsValuePerKr);
+        pointsToSpend += rewardUnitPoints * item.quantity;
         pointsPaidValueOre += pointsBaseOre;
       }
       subtotal += itemSubtotal;
@@ -661,9 +669,9 @@ router.post('/', async (req: Request, res: Response) => {
     // all mat täckt av poäng) bär ingen kontant som kan finansiera kuriren.
     // Vid LEVERANS lägger vi därför på den globala budkostnaden — den ersätter
     // ev. zon-avgift (även restauranger med "fri leverans") så budet alltid får
-    // betalt. Vid HÄMTNING finns ingen kurir → ingen budkostnad (gratis).
+    // betalt. Vid HÄMTNING finns ingen kurir, men betalpartnern behöver 5 kr.
     const isPointsOnlyOrder = pointsToSpend > 0 && subtotal === 0;
-    if (isPointsOnlyOrder && data.type === 'DELIVERY') {
+    if (isPointsOnlyOrder && data.type === 'DELIVERY' && resolvedZoneDeliveryFee <= 0) {
       // Km-baserad budkostnad: avstånd restaurang → kund via haversine, slå upp
       // i den globala tariffen (fallback platt dpointsCourierCost om tom).
       const rLat = (restaurant as any).latitude;
@@ -675,6 +683,7 @@ router.post('/', async (req: Request, res: Response) => {
           : 0;
       deliveryFee = resolveDpointsCourierFeeOre(distKm, dpSettings);
     }
+    const pointsPickupPartnerFeeOre = isPointsOnlyOrder && data.type === 'PICKUP' ? 500 : 0;
 
     // Min-order-validering flyttad nedåt — den behöver veta om en rabatt
     // appliceras (eftersom rabatt-tolerans bara aktiveras DÅ). Se
@@ -1070,16 +1079,14 @@ router.post('/', async (req: Request, res: Response) => {
     // "154.28999999999996 kr" på Stripe-knappen (JS-float-precision på
     // rabatt-procent). Ceil betyder kunden betalar max 99 öre mer än
     // exakt-beloppet — försumbart, men håller siffrorna rena.
-    const rawTotal = subtotal - discountAmount + deliveryFee + tipOre;
+    const rawTotal = subtotal - discountAmount + deliveryFee + tipOre + pointsPickupPartnerFeeOre;
     let total = Math.max(0, Math.ceil(rawTotal / 100) * 100);
-    // Dpoints: Stripe kan inte debitera under 5 kr. Om poäng dragit ner kr-totalen
-    // under 5 kr → golva kortbeloppet till 5 kr och låt poängen täcka 5 kr mindre.
-    // Kunden betalar alltid minst 5 kr med kort, resten med poäng (inget kortfritt 0-kr).
+    // Dpoints: betalpartnern kan inte debitera under 5 kr. Om poäng dragit ner
+    // kr-totalen under 5 kr → lägg 5 kr kontantavgift, utan att minska
+    // produktens poängpris. Kunden betalar maten med points + extern avgift.
     const CARD_FLOOR_ORE = 500;
     if (pointsToSpend > 0 && total < CARD_FLOOR_ORE) {
-      const bumpOre = CARD_FLOOR_ORE - total;
       total = CARD_FLOOR_ORE;
-      pointsToSpend = Math.max(0, pointsToSpend - Math.round((bumpOre / 100) * dpSettings.dpointsValuePerKr));
     }
 
     // Verifiera Stripe-beloppet matchar det vi räknat fram. Tidigare auto-justerade
@@ -1689,6 +1696,9 @@ router.get('/:id', async (req: Request, res: Response) => {
       tipAmount: (order.tipAmount ?? 0) / 100,
       paymentStatus: order.paymentStatus,
       paymentMethod: order.paymentMethod,
+      rating: order.rating ?? null,
+      review: order.review ?? null,
+      reviewedAt: order.reviewedAt ?? null,
       appliedDealTitle: order.appliedDealTitle,
       estimatedTime: order.estimatedTime,
       scheduledFor: order.scheduledFor,
@@ -2001,54 +2011,98 @@ router.post('/:id/live-activity-push', async (req: Request, res: Response) => {
 // the same patterns are intentionally inlined since this is the only other
 // place we need them.
 //
-// Allowed transitions:
+// Allowed customer transition in production:
 //   DELIVERING → DELIVERED
-// All other transitions are no-ops (return 200 with `{changed: false}` so the
-// client doesn't retry). This endpoint is idempotent.
+//
+// Local/dev test mode:
+//   When body.devStepper=true and NODE_ENV !== production, the owning customer
+//   can step through the full visible tracking chain. This backs the temporary
+//   in-app tester without granting admin order controls in production.
 router.patch('/:id/status', async (req: Request, res: Response) => {
   try {
     const orderId = req.params.id;
     const newStatus = String(req.body?.status || '').toUpperCase();
-    if (newStatus !== 'DELIVERED') {
+    const devStepper = req.body?.devStepper === true && process.env.NODE_ENV !== 'production';
+    const devAllowedStatuses = new Set(['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'DELIVERING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED']);
+    if (!devStepper && newStatus !== 'DELIVERED') {
       return res.status(400).json({ error: 'Endast DELIVERED tillåts via denna endpoint' });
+    }
+    if (devStepper && !devAllowedStatuses.has(newStatus)) {
+      return res.status(400).json({ error: 'Ogiltig teststatus' });
     }
 
     // Resolve caller identity
     const auth = req.headers.authorization;
-    if (!auth?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Saknar inloggning' });
-    }
-    const token = auth.slice(7);
     let callerUserId: string | null = null;
 
-    // Try Supabase JWT first
-    try {
-      const sb = await supabaseAdmin.auth.getUser(token);
-      if (sb.data.user) {
-        callerUserId = sb.data.user.id;
-      }
-    } catch {}
-
-    // Fall back to legacy custom JWT
-    if (!callerUserId) {
+    if (auth?.startsWith('Bearer ')) {
+      const token = auth.slice(7);
+      // Try Supabase JWT first
       try {
-        const payload = jwt.verify(token, JWT_SECRET) as any;
-        if (payload?.id) callerUserId = String(payload.id);
+        const sb = await supabaseAdmin.auth.getUser(token);
+        if (sb.data.user) {
+          callerUserId = sb.data.user.id;
+        }
       } catch {}
+
+      // Fall back to legacy custom JWT
+      if (!callerUserId) {
+        try {
+          const payload = jwt.verify(token, JWT_SECRET) as any;
+          if (payload?.id) callerUserId = String(payload.id);
+        } catch {}
+      }
     }
 
-    if (!callerUserId) {
+    if (!callerUserId && !devStepper) {
       return res.status(401).json({ error: 'Ogiltig token' });
     }
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, userId: true, status: true, restaurantId: true, restaurant: { select: { selfDelivery: true } } },
+      select: { id: true, userId: true, status: true, restaurantId: true, customerPhone: true, accessToken: true, restaurant: { select: { selfDelivery: true } } },
     });
     if (!order) return res.status(404).json({ error: 'Ordern hittades inte' });
-    if (order.userId !== callerUserId) {
+    const normalizePhone = (p: string | null | undefined) => (p || '').replace(/[^\d+]/g, '');
+    const phoneProof =
+      typeof req.query.phone === 'string' ? req.query.phone :
+      typeof req.body?.phone === 'string' ? req.body.phone :
+      null;
+    const tokenProof =
+      typeof req.query.token === 'string' ? req.query.token :
+      typeof req.body?.accessToken === 'string' ? req.body.accessToken :
+      null;
+    const ownsByUser = !!callerUserId && order.userId === callerUserId;
+    const ownsByPhone = !!phoneProof && normalizePhone(phoneProof) === normalizePhone(order.customerPhone);
+    const ownsByAccessToken = !!tokenProof && !!order.accessToken && tokenProof === order.accessToken;
+    if (!ownsByUser && !ownsByPhone && !ownsByAccessToken) {
       return res.status(403).json({ error: 'Du äger inte denna order' });
     }
+    if (devStepper) {
+      const data: any = { status: newStatus };
+      if (newStatus === 'PREPARING') data.preparingAt = new Date();
+      if (newStatus === 'DELIVERING' || newStatus === 'OUT_FOR_DELIVERY') data.deliveringAt = new Date();
+      if (newStatus === 'DELIVERED' || newStatus === 'COMPLETED') data.deliveringAt = null;
+
+      const updated = await prisma.order.update({
+        where: { id: orderId },
+        data,
+        select: { id: true, status: true },
+      });
+
+      try {
+        getIO()?.to(`order:${orderId}`).emit('order:status', { id: orderId, orderId, status: updated.status });
+        getIO()?.to('admin-room').emit('order:updated', { id: orderId, orderId, status: updated.status });
+        if (order.restaurantId) getIO()?.to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: orderId, orderId, status: updated.status });
+        void sendOrderStatusPush(orderId, updated.status);
+      } catch {}
+      void pushLiveActivityForOrder(orderId).catch((e) =>
+        console.warn(`[orders/status] LA dispatch failed order=${orderId}:`, e?.message),
+      );
+
+      return res.json({ changed: true, status: updated.status, devStepper: true });
+    }
+
     // Kund-mocken (auto-levererad efter X min) gäller ENDAST self-leverans.
     // Vi-levererar markeras DELIVERED på riktigt av budet — aldrig av kunden.
     if (!order.restaurant?.selfDelivery) {
@@ -2069,11 +2123,11 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 
     // Notify any connected clients (restaurant, admin, customer mirrors).
     try {
-      getIO()?.to(`order:${orderId}`).emit('order:status', { id: orderId, status: 'DELIVERED' });
+      getIO()?.to(`order:${orderId}`).emit('order:status', { id: orderId, orderId, status: 'DELIVERED' });
       // Även admin-rummet så order-listan uppdateras direkt (annars syns
       // kund-mockens auto-DELIVERED först vid nästa poll).
-      getIO()?.to('admin-room').emit('order:updated', { id: orderId, status: 'DELIVERED' });
-      if (order.restaurantId) getIO()?.to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: orderId });
+      getIO()?.to('admin-room').emit('order:updated', { id: orderId, orderId, status: 'DELIVERED' });
+      if (order.restaurantId) getIO()?.to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: orderId, orderId, status: 'DELIVERED' });
       void sendOrderStatusPush(orderId, 'DELIVERED');
     } catch {}
 
@@ -2186,6 +2240,7 @@ router.post('/:id/review', async (req: Request, res: Response) => {
         customerName: reviewerName,
       } as any,
     });
+    bustCache('order:byid', req.params.id);
 
     if ((order as any).restaurantId) {
       const stats = await prisma.order.aggregate({

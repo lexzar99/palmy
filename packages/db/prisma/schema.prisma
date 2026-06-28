@@ -59,6 +59,10 @@ model Product {
   // rewardable-varor visar poäng-pris + "köp med poäng" i klienterna. Togglas
   // i admin (produkt-edit) och i Flutter (Meny → Rewards).
   rewardable          Boolean             @default(false)
+  // Reward-pris i Dpoints. Om rewardPointsPrice är null räknas priset som
+  // ceil(priceKr * rewardPointsMultiplier). Default 1.5x = aggressiv launch.
+  rewardPointsMultiplier Float             @default(1.5)
+  rewardPointsPrice      Int?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   orderItems          OrderItem[]
@@ -672,14 +676,14 @@ model RestaurantSettings {
   // per spenderad kr (intjäning). dpointsValuePerKr = poäng per 1 kr produkt-
   // värde ("kostar X poäng"-etiketten nära produkter + standard i inlösen).
   dpointsEnabled      Boolean   @default(false)
-  dpointsPerKr        Float     @default(1)
+  dpointsPerKr        Float     @default(0.1)
   dpointsValuePerKr   Int       @default(10)
   // Visa Dpoints-registreringskortet bland sponsorerna på hemsidan. Togglas
   // från admin → Sponsorer. true = synligt (för utloggade besökare).
   dpointsCardOnHome   Boolean   @default(true)
   // Tak för saldo: intjäning (köp + kampanjer) pausas vid taket → kunden måste
   // lösa in poäng för att tjäna mer. Begränsar utestående skuld. 0 = inget tak.
-  dpointsMaxBalance   Int       @default(2000)
+  dpointsMaxBalance   Int       @default(2500)
   // Budkostnad (öre) som läggs på en order som betalas ENBART med poäng vid
   // leverans (poängen täcker maten men inte kuriren). Vid hämtning = gratis.
   // Global, sätts i admin → Dpoints. 0 = ingen budkostnad.

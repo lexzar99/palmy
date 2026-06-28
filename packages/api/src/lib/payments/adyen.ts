@@ -64,7 +64,8 @@ function buildLineItems(order: OrderForPayment): any[] {
 export const adyenProvider: PaymentProvider = {
   name: 'adyen',
 
-  async createPayment({ order, returnUrl, channel }: CreatePaymentArgs): Promise<CreatePaymentResult> {
+  async createPayment({ order, returnUrl, channel, storePaymentMethod }: CreatePaymentArgs): Promise<CreatePaymentResult> {
+    const canStorePaymentMethod = Boolean(storePaymentMethod && order.userId);
     const res = await checkout().PaymentsApi.sessions({
       merchantAccount: merchantAccount(),
       amount: { currency: CURRENCY, value: order.total }, // öre direkt, INGEN /100
@@ -76,6 +77,10 @@ export const adyenProvider: PaymentProvider = {
       // native SDK. Default 'Web' (bakåtkompatibelt med webben som inte skickar fält).
       channel: (channel || 'Web') as any,
       shopperEmail: order.customerEmail ?? undefined,
+      shopperReference: order.userId ?? undefined,
+      recurringProcessingModel: canStorePaymentMethod ? 'CardOnFile' : undefined,
+      storePaymentMethod: canStorePaymentMethod ? true : undefined,
+      shopperInteraction: canStorePaymentMethod ? 'Ecommerce' : undefined,
       lineItems: buildLineItems(order),
       // Bara de metoder vi vill visa. 'klarna' = EN Klarna-rad (inte alla varianter);
       // detta tystar även "you support X but not configured"-varningarna.
@@ -104,6 +109,23 @@ export const adyenProvider: PaymentProvider = {
     return { refundRef: (r.pspReference as string) || '' };
   },
 };
+
+export async function listAdyenStoredPaymentMethods(shopperReference: string) {
+  const res = await checkout().RecurringApi.getTokensForStoredPaymentDetails(shopperReference, merchantAccount());
+  return (res.storedPaymentMethods || []).map((method: any, index: number) => ({
+    id: String(method.id || index),
+    storedPaymentMethodId: method.id || null,
+    type: method.type || null,
+    brand: method.brand || method.name || null,
+    name: method.name || null,
+    lastFour: method.lastFour || null,
+    expiryMonth: method.expiryMonth || null,
+    expiryYear: method.expiryYear || null,
+    holderName: method.holderName || method.ownerName || null,
+    supportedRecurringProcessingModels: method.supportedRecurringProcessingModels || [],
+    isDefault: index === 0,
+  }));
+}
 
 /**
  * Verifiera HMAC-signaturen på ETT notification-item. Anropas per item i

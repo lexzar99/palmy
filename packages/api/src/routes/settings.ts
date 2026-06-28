@@ -80,7 +80,7 @@ router.get('/', async (_req, res) => {
       // Dpoints — publika fält: badge nära produkter + gating i klienterna.
       dpoints: {
         enabled: (settings as any).dpointsEnabled ?? false,
-        perKr: (settings as any).dpointsPerKr ?? 1,
+        perKr: (settings as any).dpointsPerKr ?? 0.1,
         valuePerKr: (settings as any).dpointsValuePerKr ?? 10,
         cardOnHome: (settings as any).dpointsCardOnHome ?? true,
         // Budkostnad (öre) på poäng-ENBART order vid leverans. Web visar den som

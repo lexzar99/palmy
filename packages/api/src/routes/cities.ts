@@ -375,10 +375,13 @@ router.post('/validate-location', async (req, res) => {
           // Budkostnad (öre) för poäng-ENBART leverans till denna adress.
           // Samma haversine + km-tariff som orders.ts → klienten kan visa exakt
           // belopp och det matchar serverns order-total.
-          const dpointsCourierFee =
-            typeof r.latitude === 'number' && typeof r.longitude === 'number'
-              ? resolveDpointsCourierFeeOre(haversineKm(lat, lng, r.latitude, r.longitude), dpSettings)
-              : (dpSettings.dpointsCourierCost ?? 0);
+          const dpointsCourierFee = rZone.fee > 0
+            ? rZone.fee
+            : (
+              typeof r.latitude === 'number' && typeof r.longitude === 'number'
+                ? resolveDpointsCourierFeeOre(haversineKm(lat, lng, r.latitude, r.longitude), dpSettings)
+                : (dpSettings.dpointsCourierCost ?? 0)
+            );
 
           return {
             ...r,

@@ -14,6 +14,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
+import { authenticateUserOptional } from './auth';
 import { getPaymentProvider, type OrderForPayment } from '../lib/payments';
 import { finalizePaymentSuccess, finalizePaymentFailed } from '../lib/payments/finalize';
 import { verifyAdyenHmac } from '../lib/payments/adyen';
@@ -38,6 +39,7 @@ function publicWebhookUrl(): string | undefined {
 function toOrderForPayment(order: any): OrderForPayment {
   return {
     id: order.id,
+    userId: order.userId ?? null,
     orderNumber: order.orderNumber,
     total: order.total,
     deliveryFee: order.deliveryFee,
@@ -55,9 +57,9 @@ function toOrderForPayment(order: any): OrderForPayment {
 }
 
 // POST /api/payments/create
-router.post('/create', createLimiter, async (req, res) => {
+router.post('/create', createLimiter, authenticateUserOptional, async (req: any, res) => {
   try {
-    const { orderId, returnUrl, channel } = req.body || {};
+    const { orderId, returnUrl, channel, storePaymentMethod } = req.body || {};
     if (!orderId || typeof orderId !== 'string') {
       res.status(400).json({ error: 'orderId krävs' });
       return;
@@ -79,6 +81,10 @@ router.post('/create', createLimiter, async (req, res) => {
       res.status(404).json({ error: 'Order hittades inte' });
       return;
     }
+    if (storePaymentMethod && (!req.user?.id || req.user.id !== order.userId)) {
+      res.status(403).json({ error: 'Du måste vara inloggad på orderns konto för att spara kort.' });
+      return;
+    }
     if (order.paymentStatus === 'PAID') {
       res.json({ alreadyPaid: true, paymentStatus: 'PAID' });
       return;
@@ -94,6 +100,7 @@ router.post('/create', createLimiter, async (req, res) => {
       returnUrl,
       webhookUrl: publicWebhookUrl(),
       channel: adyenChannel,
+      storePaymentMethod: !!storePaymentMethod,
     });
 
     // Länka PSP-referensen på ordern (provider-specifik kolumn) så webhook/reconcile hittar den.

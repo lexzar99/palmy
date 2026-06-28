@@ -11,6 +11,7 @@ import type { PaymentProviderName } from './finalize';
 /** Minimal order-vy som en provider behöver för att skapa en betalning. */
 export interface OrderForPayment {
   id: string;
+  userId?: string | null;
   orderNumber: string;
   total: number; // öre — auktoritativ, härledd ur DB
   deliveryFee: number;
@@ -36,6 +37,8 @@ export interface CreatePaymentArgs {
    *  MÅSTE skapas med samma kanal som klienten använder — annars failar setup
    *  (native iOS-SDK mot en Web-session → AdyenNetworking EmptyErrorResponse). */
   channel?: 'Web' | 'iOS' | 'Android';
+  /** Shopper explicitly consented to store card details with Adyen for faster future checkout. */
+  storePaymentMethod?: boolean;
 }
 
 export interface CreatePaymentResult {

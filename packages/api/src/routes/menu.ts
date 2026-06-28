@@ -286,9 +286,11 @@ router.get('/categories', async (req, res) => {
         // Visningsläge för menykortet (FULL = 1-per-rad, COMPACT = 2-per-rad)
         displayMode: prod.displayMode || "FULL",
         hideDescription: prod.hideDescription || false,
-        // Dpoints: rewardable = köpbar med poäng. Klienten visar då poäng-pris
-        // (price × valuePerKr) + "köp med poäng". Default false.
+        // Dpoints: rewardable = visas i Rewards. Poängpris är produktstyrt:
+        // override om satt, annars ceil(priceKr × rewardPointsMultiplier).
         rewardable: !!prod.rewardable,
+        rewardPointsMultiplier: (prod as any).rewardPointsMultiplier ?? 1.5,
+        rewardPointsPrice: (prod as any).rewardPointsPrice ?? null,
         ...extraGroupsField,
         });
       }),

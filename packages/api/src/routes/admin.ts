@@ -1510,6 +1510,8 @@ const ProductSchema = z.object({
   discountActive: z.boolean().optional(),
   // Dpoints: markera varan som köpbar med poäng (rewardable).
   rewardable: z.boolean().optional(),
+  rewardPointsMultiplier: z.number().min(1).max(10).optional().nullable(),
+  rewardPointsPrice: z.number().int().min(1).max(100000).optional().nullable(),
   // Kedja: lås lokalt pris (master→plats-synk skriver inte över priset här).
   localPriceLocked: z.boolean().optional(),
 });
@@ -1920,6 +1922,8 @@ router.post('/products', async (req, res) => {
         discountLabel: data.discountLabel ?? null,
         discountActive: data.discountActive ?? false,
         rewardable: data.rewardable ?? false,
+        rewardPointsMultiplier: Number(data.rewardPointsMultiplier ?? 1.5),
+        rewardPointsPrice: data.rewardPointsPrice ?? null,
         localPriceLocked: data.localPriceLocked ?? false,
         ...(data.extraGroupIds && data.extraGroupIds.length > 0 ? {
           extraGroups: {
@@ -1974,9 +1978,13 @@ router.patch('/products/:id', async (req, res) => {
       res.status(400).json({ error: 'Ogiltig produktdata', details: parsed.error.flatten() });
       return;
     }
-    const { extraGroupIds, price, discountPrice, ...rest } = parsed.data;
+    const { extraGroupIds, price, discountPrice, rewardPointsMultiplier, rewardPointsPrice, ...rest } = parsed.data;
     const updateData: Record<string, unknown> = { ...rest };
     if (price !== undefined) updateData.price = Math.round(price * 100);
+    if (rewardPointsMultiplier !== undefined) {
+      updateData.rewardPointsMultiplier = rewardPointsMultiplier == null ? 1.5 : Number(rewardPointsMultiplier);
+    }
+    if (rewardPointsPrice !== undefined) updateData.rewardPointsPrice = rewardPointsPrice == null ? null : Math.ceil(Number(rewardPointsPrice));
     if (discountPrice !== undefined) {
       updateData.discountPrice = discountPrice == null
         ? null
@@ -2211,6 +2219,8 @@ router.post('/products/:id/duplicate', async (req, res) => {
         discountLabel: source.discountLabel,
         discountActive: source.discountActive,
         rewardable: source.rewardable,
+        rewardPointsMultiplier: (source as any).rewardPointsMultiplier ?? 1.5,
+        rewardPointsPrice: (source as any).rewardPointsPrice ?? null,
         localPriceLocked: source.localPriceLocked,
         ...(source.extraGroups.length > 0 ? {
           extraGroups: {

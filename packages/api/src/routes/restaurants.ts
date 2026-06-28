@@ -172,6 +172,8 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
           isVegetarian: prod.isVegetarian,
           isGlutenFree: prod.isGlutenFree,
           rewardable: !!prod.rewardable,
+          rewardPointsMultiplier: (prod as any).rewardPointsMultiplier ?? 1.5,
+          rewardPointsPrice: (prod as any).rewardPointsPrice ?? null,
           extraGroups: (prod.extraGroups || []).map((peg: any) => ({
             id: peg.extraGroup.id,
             name: peg.extraGroup.name,
