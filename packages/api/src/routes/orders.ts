@@ -743,11 +743,16 @@ router.post('/', async (req: Request, res: Response) => {
             validatedCode = code.code;
           }
         } else {
-          // 2. Check personalized customer deals
+          // 2. Check personalized customer deals.
+          // OBS: `code` är @unique → slå upp PÅ KODEN ENSAM. Tidigare krävdes
+          // exakt `phone: data.customerPhone` i WHERE, vilket TYST gav 0 rabatt
+          // (→ kunden debiterades FULLPRIS) så fort telefonformatet skilde sig
+          // (t.ex. "+46 70.." i deal vs "070.." i formuläret), trots att carten
+          // visade rabatten. Ägarskap valideras nu i JS mot userId ELLER
+          // normaliserat telefonnummer.
           const personalDeal = await (prisma as any).customerDeal.findFirst({
-             where: { 
+             where: {
                code: data.discountCode,
-               phone: data.customerPhone,
                campaign: {
                   isActive: true,
                   OR: [
@@ -759,7 +764,16 @@ router.post('/', async (req: Request, res: Response) => {
              include: { campaign: true }
           });
 
-          if (personalDeal) {
+          const onlyDigits = (v: any) => String(v ?? '').replace(/\D/g, '');
+          const dealOwnerOk = personalDeal
+            ? (
+                (authenticatedUserId && personalDeal.userId === authenticatedUserId) ||
+                (personalDeal.phone && data.customerPhone &&
+                  onlyDigits(personalDeal.phone).slice(-9) === onlyDigits(data.customerPhone).slice(-9))
+              )
+            : false;
+
+          if (personalDeal && dealOwnerOk) {
             const isUsable = personalDeal.usageCount < (personalDeal.maxUsages || 1);
             const minOrderOre = normalizeMoneyToOre(personalDeal.campaign.minOrder ?? 0);
             if (isUsable && subtotal >= minOrderOre) {
@@ -1079,6 +1093,14 @@ router.post('/', async (req: Request, res: Response) => {
     // "154.28999999999996 kr" på Stripe-knappen (JS-float-precision på
     // rabatt-procent). Ceil betyder kunden betalar max 99 öre mer än
     // exakt-beloppet — försumbart, men håller siffrorna rena.
+    // Diagnostik: klienten skickade en rabattkod men servern applicerade 0 rabatt
+    // → kunden skulle debiteras fullpris (carten visade rabatt). Logga så att
+    // ev. kvarvarande mismatch syns direkt i loggarna.
+    if (data.discountCode && discountAmount === 0 && data.discountCode !== 'test' && data.discountCode !== 'testa') {
+      console.warn('[orders] discountCode skickad men 0 rabatt applicerad (kund riskerar fullpris)', {
+        code: data.discountCode, phone: data.customerPhone, subtotal, restaurantId: restaurant?.id,
+      });
+    }
     const rawTotal = subtotal - discountAmount + deliveryFee + tipOre + pointsPickupPartnerFeeOre;
     let total = Math.max(0, Math.ceil(rawTotal / 100) * 100);
     // Dpoints: betalpartnern kan inte debitera under 5 kr. Om poäng dragit ner
