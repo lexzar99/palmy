@@ -162,9 +162,10 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
 router.get('/orders', authenticateUser, async (req: any, res: any) => {
   try {
     const orders = await prisma.order.findMany({
-      // Avvisade/avbrutna ordrar ska inte synas i orderhistoriken (kunden
-      // debiterades aldrig, eller har återbetalats + fått poängen återförda).
-      where: { userId: req.user.id, status: { notIn: ['CANCELLED', 'REJECTED'] } },
+      // OBS: filtrera INTE bort CANCELLED/REJECTED här. Home-skärmen läser samma
+      // endpoint för att kunna visa "Avbruten"-kortet för en nyligen avvisad
+      // order. Orderhistoriken döljer avbrutna client-side (OrdersListScreen).
+      where: { userId: req.user.id },
       include: { restaurant: { select: { id: true, name: true, slug: true } }, items: true },
       orderBy: { createdAt: 'desc' }
     });
