@@ -17,7 +17,7 @@ import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { authenticateUserOptional } from './auth';
 import { getPaymentProvider, type OrderForPayment } from '../lib/payments';
 import { finalizePaymentSuccess, finalizePaymentFailed } from '../lib/payments/finalize';
-import { verifyAdyenHmac } from '../lib/payments/adyen';
+import { verifyAdyenHmac, getAdyenSessionResult } from '../lib/payments/adyen';
 
 const router = Router();
 
@@ -129,6 +129,59 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     // Surfacea felmeddelandet under uppsättning (test) så env-/konfig-problem syns
     // direkt i klienten (t.ex. "ADYEN_API_KEY saknas", "Invalid Merchant Account").
     res.status(500).json({ error: 'Kunde inte initiera betalning', details: msg });
+  }
+});
+
+// POST /api/payments/adyen/verify — server-verifiera Drop-in-resultatet direkt
+// vid onComplete (utan att vänta på webhooken). Klienten skickar orderId +
+// sessionId + sessionResult; vi frågar Adyen (server-till-server) och finaliserar
+// ordern om betalningen är klar. Idempotent: redan PAID → { paid: true } direkt.
+router.post('/adyen/verify', authenticateUserOptional, async (req: any, res) => {
+  try {
+    const { orderId, sessionId, sessionResult } = req.body || {};
+    if (!orderId || typeof orderId !== 'string') {
+      res.status(400).json({ error: 'orderId krävs' });
+      return;
+    }
+    if (!sessionId || !sessionResult) {
+      res.status(400).json({ error: 'sessionId + sessionResult krävs' });
+      return;
+    }
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, total: true, paymentStatus: true, adyenSessionId: true },
+    });
+    if (!order) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+    if (order.paymentStatus === 'PAID') {
+      res.json({ paid: true, status: 'completed' });
+      return;
+    }
+    // Sessionen måste tillhöra ordern (annars kan man verifiera mot en annan session).
+    if (order.adyenSessionId && order.adyenSessionId !== sessionId) {
+      res.status(400).json({ error: 'Sessionen matchar inte ordern' });
+      return;
+    }
+
+    const { status } = await getAdyenSessionResult(String(sessionId), String(sessionResult));
+    if (status === 'completed') {
+      // ref=sessionId här (pspReference kommer via webhooken för refund senare).
+      await finalizePaymentSuccess(order.id, { provider: 'adyen', ref: String(sessionId), amountReceivedOre: order.total });
+      res.json({ paid: true, status });
+      return;
+    }
+    if (['refused', 'canceled', 'cancelled', 'expired', 'error'].includes(status.toLowerCase())) {
+      await finalizePaymentFailed(order.id, { provider: 'adyen', ref: String(sessionId), reason: status.toLowerCase() });
+      res.json({ paid: false, failed: true, status });
+      return;
+    }
+    // paymentPending (Klarna/Swish async) eller okänt → låt klienten polla vidare.
+    res.json({ paid: false, pending: true, status });
+  } catch (err: any) {
+    console.error('[payments/adyen/verify] error:', err?.message || err);
+    res.status(500).json({ error: 'Kunde inte verifiera betalningen', details: err?.message });
   }
 });
 

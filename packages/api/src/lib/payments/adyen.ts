@@ -110,6 +110,23 @@ export const adyenProvider: PaymentProvider = {
   },
 };
 
+/**
+ * Server-verifierar slutresultatet av en Drop-in/Component-session via Adyen
+ * (GET /sessions/{id}?sessionResult=...). Detta är ett SERVER-till-server-svar
+ * som klienten inte kan förfalska, så vi kan finalisera ordern direkt vid
+ * onComplete utan att vänta på webhooken (som inte alltid är konfigurerad i TEST).
+ *
+ * status: 'completed' = betald, 'paymentPending' = väntar (Klarna/Swish async),
+ * 'refused' | 'canceled' | 'expired' | 'error' = misslyckad.
+ */
+export async function getAdyenSessionResult(
+  sessionId: string,
+  sessionResult: string,
+): Promise<{ status: string }> {
+  const res = await checkout().PaymentsApi.getResultOfPaymentSession(sessionId, sessionResult);
+  return { status: String((res as any)?.status || '') };
+}
+
 export async function listAdyenStoredPaymentMethods(shopperReference: string) {
   const res = await checkout().RecurringApi.getTokensForStoredPaymentDetails(shopperReference, merchantAccount());
   return (res.storedPaymentMethods || []).map((method: any, index: number) => ({
