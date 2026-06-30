@@ -279,6 +279,7 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
         tipAmount: true,
         pointsAwarded: true,
         pointsSpent: true,
+        userDealId: true,
         createdAt: true,
       },
     });
@@ -291,7 +292,17 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
     const baseOre = Math.max(0, order.total - order.deliveryFee - (order.tipAmount ?? 0));
     const baseKr = baseOre / 100;
     const mult = await bestActiveMultiplier(baseKr, order.createdAt);
-    const earned = Math.round(baseKr * settings.dpointsPerKr * mult);
+    let appDealBonus = 0;
+    if ((order as any).userDealId) {
+      const userDeal = await (prisma as any).userDeal.findUnique({
+        where: { id: (order as any).userDealId },
+        select: { metadata: true },
+      }).catch(() => null);
+      const meta = (userDeal?.metadata || {}) as any;
+      const rawBonus = meta.appMissionType ? 0 : Number(meta.appDpointsBonus || 0);
+      appDealBonus = Number.isFinite(rawBonus) && rawBonus > 0 ? Math.round(rawBonus) : 0;
+    }
+    const earned = Math.round(baseKr * settings.dpointsPerKr * mult) + appDealBonus;
     const userId = order.userId;
 
     await prisma.$transaction(async (tx) => {
@@ -321,8 +332,8 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
               type: 'EARN_ORDER',
               orderId,
               balanceAfter: u.pointsBalance,
-              reason: mult > 1 ? `Köp (${mult}× bonus)` : 'Köp',
-              metadata: { baseKr, multiplier: mult, perKr: settings.dpointsPerKr, capped: actualEarned < earned },
+              reason: appDealBonus > 0 ? 'Köp + dealbonus' : mult > 1 ? `Köp (${mult}× bonus)` : 'Köp',
+              metadata: { baseKr, multiplier: mult, perKr: settings.dpointsPerKr, appDealBonus, capped: actualEarned < earned },
             },
           });
         }
@@ -345,6 +356,13 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
       orderDate: order.createdAt,
       cap: settings.dpointsMaxBalance,
     }).catch((e) => console.error('[dpoints] order earn-rules error:', e?.message));
+
+    await evaluateAppDealMissions({
+      userId,
+      orderId,
+      orderDate: order.createdAt,
+      cap: settings.dpointsMaxBalance,
+    }).catch((e) => console.error('[dpoints] app-deal missions error:', e?.message));
 
     // Invite-belöning (200 till båda) — på samma vinnande path så den triggar
     // oavsett finalize-väg (webb-direkt, Adyen-webhook, reconcile). Idempotent
@@ -446,21 +464,21 @@ export async function maybeAwardReviewPoints(opts: {
   userId?: string | null;
   orderId: string;
   hasText: boolean;
-}): Promise<void> {
+}): Promise<{ awarded: boolean; points: number; balanceAfter?: number; reason?: string | null }> {
   try {
     const { userId, orderId, hasText } = opts;
-    if (!userId) return;
+    if (!userId) return { awarded: false, points: 0 };
     const settings = await getDpointsSettings();
-    if (!settings.dpointsEnabled) return;
+    if (!settings.dpointsEnabled) return { awarded: false, points: 0 };
     const rule = await getEarnRule(hasText ? 'review_text' : 'review_rating');
-    if (!rule || !rule.enabled || rule.points <= 0) return;
+    if (!rule || !rule.enabled || rule.points <= 0) return { awarded: false, points: 0 };
     // Idempotens: redan belönad recension för denna order?
     const existing = await prisma.pointsTransaction.findFirst({
       where: { userId, metadata: { path: ['reviewOrderId'], equals: orderId } },
       select: { id: true },
     });
-    if (existing) return;
-    await recordPointsTx({
+    if (existing) return { awarded: false, points: 0 };
+    const balanceAfter = await recordPointsTx({
       userId,
       amount: rule.points,
       type: 'CAMPAIGN',
@@ -468,8 +486,10 @@ export async function maybeAwardReviewPoints(opts: {
       metadata: { earnRule: rule.key, reviewOrderId: orderId },
       cap: settings.dpointsMaxBalance,
     });
+    return { awarded: true, points: rule.points, balanceAfter, reason: rule.label };
   } catch (e: any) {
     console.error('[dpoints] review-points error:', e?.message);
+    return { awarded: false, points: 0 };
   }
 }
 
@@ -559,6 +579,85 @@ export async function evaluateOrderEarnRules(opts: {
     }
   } catch (e: any) {
     console.error('[dpoints] order_streak error:', e?.message);
+  }
+}
+
+export async function evaluateAppDealMissions(opts: {
+  userId: string;
+  orderId: string;
+  orderDate: Date;
+  cap?: number;
+}): Promise<void> {
+  const { userId, orderId, orderDate, cap = 0 } = opts;
+  const missions = await (prisma as any).userDeal.findMany({
+    where: {
+      userId,
+      type: 'APP_MISSION',
+      status: 'ACTIVE',
+      OR: [{ expiresAt: null }, { expiresAt: { gte: orderDate } }],
+    },
+    select: { id: true, dealId: true, metadata: true, createdAt: true },
+  });
+  if (!missions.length) return;
+
+  for (const mission of missions) {
+    const meta = (mission.metadata || {}) as any;
+    const missionType = String(meta.appMissionType || '').toUpperCase();
+    if (missionType !== 'THREE_ORDERS_WEEK') continue;
+
+    const target = Math.max(2, Math.round(Number(meta.missionTarget || 3)));
+    const rewardPoints = Math.max(0, Math.round(Number(meta.missionRewardPoints || 0)));
+    if (rewardPoints <= 0) continue;
+
+    const paidCount = await prisma.order.count({
+      where: {
+        userId,
+        pointsAwarded: true,
+        createdAt: { gte: mission.createdAt, lte: orderDate },
+        status: { notIn: ['CANCELLED', 'REJECTED'] },
+      },
+    });
+    if (paidCount < target) continue;
+
+    await prisma.$transaction(async (tx) => {
+      const claimed = await (tx as any).userDeal.updateMany({
+        where: { id: mission.id, status: 'ACTIVE' },
+        data: { status: 'USED', usedAt: new Date(), usedOnOrderId: orderId },
+      });
+      if (claimed.count === 0) return;
+
+      let actual = rewardPoints;
+      if (cap > 0) {
+        const before = await tx.user.findUnique({ where: { id: userId }, select: { pointsBalance: true } });
+        actual = Math.min(rewardPoints, Math.max(0, cap - (before?.pointsBalance ?? 0)));
+      }
+      if (actual <= 0) return;
+
+      const user = await tx.user.update({
+        where: { id: userId },
+        data: { pointsBalance: { increment: actual } },
+        select: { pointsBalance: true },
+      });
+      await tx.pointsTransaction.create({
+        data: {
+          userId,
+          amount: actual,
+          type: 'CAMPAIGN',
+          reason: meta.title || 'App-uppdrag',
+          balanceAfter: user.pointsBalance,
+          metadata: {
+            earnRule: 'app_deal_mission',
+            appMissionType: missionType,
+            missionUserDealId: mission.id,
+            dealId: mission.dealId,
+            completedOnOrderId: orderId,
+            target,
+            count: paidCount,
+            capped: actual < rewardPoints,
+          },
+        },
+      });
+    });
   }
 }
 

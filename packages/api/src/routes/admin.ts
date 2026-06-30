@@ -735,14 +735,26 @@ router.patch('/orders/:id/status', async (req, res) => {
       return;
     }
 
+    const allowedStatusByType =
+      existing.type === 'PICKUP'
+        ? new Set(['PREPARING', 'READY', 'REJECTED', 'CANCELLED'])
+        : new Set(['PREPARING', 'DELIVERING', 'DELIVERED', 'DELIVERY_FAILED', 'REJECTED', 'CANCELLED']);
+
+    if (!allowedStatusByType.has(status)) {
+      res.status(400).json({
+        error:
+          existing.type === 'PICKUP'
+            ? 'Avhämtningsorder kan bara ändras till tillagas, redo att hämtas, nekad eller avbruten.'
+            : 'Leveransorder kan bara ändras till tillagas, på väg, levererad, misslyckad, nekad eller avbruten.',
+      });
+      return;
+    }
+
     if (!isSuperAdmin(req as AuthRequest) && existing.restaurantId !== adminRestaurantId) {
       res.status(403).json({ error: 'Du kan bara uppdatera orders för din restaurang' });
       return;
     }
 
-    // When marking as DELIVERING: store as DELIVERED in DB immediately,
-    // but tell the customer it's "DELIVERING" with a timestamp so the
-    // customer sees "PÅ VÄG" for 10-15 minutes then auto-transitions to "LEVERERAD"
     const isPreparingTransition = status === 'PREPARING';
     const isDeliveringTransition = status === 'DELIVERING';
     // Test-order i VI-LEVERERAR-flödet (platform-delivery): vid READY finns inget
@@ -755,7 +767,7 @@ router.patch('/orders/:id/status', async (req, res) => {
       existing.type === 'DELIVERY' &&
       !existing.restaurant?.selfDelivery &&
       isTestOrder(existing);
-    const dbStatus = (isDeliveringTransition || isTestDeliveryReady) ? 'DELIVERED' : status;
+    const dbStatus = isTestDeliveryReady ? 'DELIVERED' : status;
     const customerStatus = isTestDeliveryReady ? 'DELIVERED' : status; // Always send the requested status to the customer
 
     const order = await prisma.order.update({
@@ -772,6 +784,7 @@ router.patch('/orders/:id/status', async (req, res) => {
         ...(status === 'DELIVERED' && !isDeliveringTransition ? { deliveringAt: null } : {}),
       },
     });
+    bustCache('order:byid', order.id);
 
     // Avvisad/avbruten order → backend-auktoritativ Dpoints-återföring:
     // claw-backa intjänade poäng + återbetala inlösta. Idempotent via
@@ -2908,6 +2921,20 @@ const formatDealForAdmin = (deal: any) => ({
   // Skalning-fält (default 1/1 = nuvarande beteende, "1 gratis per order").
   bogoRewardsPerTrigger: (deal as any).bogoRewardsPerTrigger ?? 1,
   bogoMaxRewardsPerOrder: (deal as any).bogoMaxRewardsPerOrder ?? null,
+  appEnabled: Boolean(deal.appEnabled),
+  appPlacement: deal.appPlacement || 'HOME_TOP',
+  appAudience: deal.appAudience || 'ALL',
+  appTemplate: deal.appTemplate || 'DEAL_HERO',
+  appSize: deal.appSize || 'LARGE',
+  appRotating: deal.appRotating !== false,
+  appWeight: deal.appWeight ?? 10,
+  appClaimRequired: deal.appClaimRequired !== false,
+  appClaimExpiresMinutes: deal.appClaimExpiresMinutes ?? null,
+  appCooldownHours: deal.appCooldownHours ?? null,
+  appDpointsBonus: deal.appDpointsBonus ?? 0,
+  appMissionType: deal.appMissionType ?? null,
+  appCtaLabel: deal.appCtaLabel ?? null,
+  appTheme: deal.appTheme ?? null,
 });
 
 // Deaktivera deals som krockar med scope för en NYAKTIVERAD deal eller en
@@ -2995,7 +3022,7 @@ const resyncBrandDealScopes = async (brandId: string): Promise<void> => {
 // validFrom > validUntil mm. innan vi rör databasen.
 const DealInputSchema = z.object({
   title: z.string().min(1, 'Titel krävs').optional(),
-  discountType: z.enum(['PERCENTAGE', 'FIXED', 'FIXED_PRICE']).optional(),
+  discountType: z.enum(['NONE', 'PERCENTAGE', 'FIXED', 'FIXED_PRICE']).optional(),
   discountValue: z.number().or(z.string().transform((s) => Number(s))).optional(),
   validFrom: z.union([z.string(), z.date(), z.null()]).optional(),
   validUntil: z.union([z.string(), z.date(), z.null()]).optional(),
@@ -3007,6 +3034,10 @@ const DealInputSchema = z.object({
   triggerQuantity: z.number().int().min(1).optional(),
   maxUsages: z.number().int().min(1).nullable().optional(),
   minOrder: z.number().min(0).optional(),
+  appWeight: z.number().int().min(1).max(100).optional(),
+  appClaimExpiresMinutes: z.number().int().min(1).nullable().optional(),
+  appCooldownHours: z.number().int().min(0).nullable().optional(),
+  appDpointsBonus: z.number().int().min(0).optional(),
 }).passthrough();
 
 const validateDealPayload = (body: any): string | null => {
@@ -3119,6 +3150,27 @@ const normalizeDealInputForDb = (body: any) => {
       discountType === 'FIXED' || discountType === 'FIXED_PRICE'
         ? normalizeMoneyToOre(discountValueRaw)
         : Math.round(discountValueRaw);
+  }
+
+  if (body.appEnabled !== undefined) next.appEnabled = Boolean(body.appEnabled);
+  if (body.appRotating !== undefined) next.appRotating = Boolean(body.appRotating);
+  if (body.appClaimRequired !== undefined) next.appClaimRequired = Boolean(body.appClaimRequired);
+  if (body.appPlacement !== undefined) next.appPlacement = String(body.appPlacement || 'HOME_TOP').toUpperCase();
+  if (body.appAudience !== undefined) next.appAudience = String(body.appAudience || 'ALL').toUpperCase();
+  if (body.appTemplate !== undefined) next.appTemplate = String(body.appTemplate || 'DEAL_HERO').toUpperCase();
+  if (body.appSize !== undefined) next.appSize = String(body.appSize || 'LARGE').toUpperCase();
+  if (body.appTheme !== undefined) next.appTheme = body.appTheme ? String(body.appTheme) : null;
+  if (body.appCtaLabel !== undefined) next.appCtaLabel = body.appCtaLabel ? String(body.appCtaLabel) : null;
+  if (body.appMissionType !== undefined) next.appMissionType = body.appMissionType ? String(body.appMissionType).toUpperCase() : null;
+  if (body.appWeight !== undefined) next.appWeight = Math.max(1, Math.min(100, Math.round(Number(body.appWeight) || 10)));
+  if (body.appDpointsBonus !== undefined) next.appDpointsBonus = Math.max(0, Math.round(Number(body.appDpointsBonus) || 0));
+  if (body.appClaimExpiresMinutes !== undefined) {
+    const n = Number(body.appClaimExpiresMinutes);
+    next.appClaimExpiresMinutes = Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+  }
+  if (body.appCooldownHours !== undefined) {
+    const n = Number(body.appCooldownHours);
+    next.appCooldownHours = Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
   }
 
   if (body.minOrder !== undefined) {

@@ -15,7 +15,7 @@ import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, type Ca
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
-import { bustCache, cached } from '../lib/ttlCache';
+import { bustCache } from '../lib/ttlCache';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
 import { getDpointsSettings, awardOrderPointsIfNotAwarded, resolveDpointsCourierFeeOre, maybeAwardReviewPoints } from '../lib/dpoints';
@@ -1014,16 +1014,20 @@ router.post('/', async (req: Request, res: Response) => {
       const deliveryDiscountOre = wantsFreeDelivery ? deliveryFee : 0;
 
       const totalDealOre = subtotalDiscountOre + deliveryDiscountOre;
-      if (totalDealOre > 0) {
+      const userDealMeta = (userDeal.metadata || {}) as any;
+      const appDpointsBonus = userDealMeta.appMissionType ? 0 : Math.max(0, Number(userDealMeta.appDpointsBonus || 0));
+      if (totalDealOre > 0 || appDpointsBonus > 0) {
         // discountAmount absorberar BÅDA komponenterna. Order-formel är
         // total = subtotal - discountAmount + deliveryFee. Med freeDelivery:
         // discountAmount = subtotalDisc + deliveryFee → leveransen blir gratis.
-        discountAmount = totalDealOre;
-        appliedDeal = null;
-        validatedCode = undefined;
-        // UserDeal vinner → välkomst-auto-erbjudandet gäller inte.
-        welcomeAppliedTitle = null;
-        welcomeAppliedDealId = null;
+        if (totalDealOre > 0) {
+          discountAmount = totalDealOre;
+          appliedDeal = null;
+          validatedCode = undefined;
+          // UserDeal vinner → välkomst-auto-erbjudandet gäller inte.
+          welcomeAppliedTitle = null;
+          welcomeAppliedDealId = null;
+        }
         appliedUserDealId = userDeal.id;
         appliedUserDealAmountKr = Math.round(totalDealOre / 100);
       }
@@ -1576,22 +1580,36 @@ router.get('/status-batch', async (req: Request, res: Response) => {
 // ID-gissning inte avslöjar vilka ordrar som existerar.
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    // Cache 4s by id: order-tracking AND the app-wide banner both poll this every
-    // 15s for the SAME order — collapses synchronized polls to ~1 DB read per 4s.
-    // The owner check below still gates access; the socket pushes realtime so a
-    // ≤4s lag on the poll path is invisible.
-    const order: any = await cached('order:byid', req.params.id, 4000, () =>
-      prisma.order.findUnique({
-        where: { id: req.params.id },
-        include: {
-          items: true,
-          restaurant: true,
-          // Leveransbevis för order-tracking: foto (TTL 2 dygn), leveranssätt,
-          // kurirens notering. proofExpiresAt → klienten döljer fotot när det gått ut.
-          delivery: { select: { proofMethod: true, proofMessage: true, proofPhotoUrl: true, proofExpiresAt: true, courierId: true, status: true } },
+    const order: any = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: {
+        items: true,
+        restaurant: true,
+        // Tracking must be fresh for the iOS app and Live Activity. Do not cache:
+        // admin status changes and courier coordinates need to be visible on the
+        // next poll.
+        delivery: {
+          select: {
+            proofMethod: true,
+            proofMessage: true,
+            proofPhotoUrl: true,
+            proofExpiresAt: true,
+            courierId: true,
+            status: true,
+            courier: {
+              select: {
+                name: true,
+                phone: true,
+                vehicle: true,
+                currentLat: true,
+                currentLng: true,
+                lastSeenAt: true,
+              },
+            },
+          },
         },
-      })
-    );
+      },
+    });
 
     if (!order) {
       res.status(404).json({ error: 'Order hittades inte' });
@@ -1654,8 +1672,8 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     // For customer-facing view: while the order is still inside its
-    // DELIVERING window (computed by computeDeliveryWindowMs — currently 30 s
-    // for testing, normally 10–25 min), show DELIVERING; after that the row
+    // DELIVERING window (computed by computeDeliveryWindowMs — 10–20 min
+    // based on time/order load), show DELIVERING; after that the row
     // already reads DELIVERED and we serve that. Single source of truth so
     // the customer banner, the LA finaliser, and the LA dispatcher all
     // agree on the same window.
@@ -1707,6 +1725,13 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
+    const courierCanBeShown =
+      customerStatus === 'DELIVERING' &&
+      !(order.restaurant as any)?.selfDelivery &&
+      order.delivery?.courierId &&
+      typeof order.delivery?.courier?.currentLat === 'number' &&
+      typeof order.delivery?.courier?.currentLng === 'number';
+
     res.json({
       id: order.id,
       orderNumber: order.orderNumber,
@@ -1737,6 +1762,13 @@ router.get('/:id', async (req: Request, res: Response) => {
       selfDelivery: (order.restaurant as any)?.selfDelivery ?? false,
       restaurantLat: (order.restaurant as any)?.latitude ?? null,
       restaurantLng: (order.restaurant as any)?.longitude ?? null,
+      courierAssigned: Boolean(order.delivery?.courierId) && !(order.restaurant as any)?.selfDelivery,
+      courierLat: courierCanBeShown ? order.delivery.courier.currentLat : null,
+      courierLng: courierCanBeShown ? order.delivery.courier.currentLng : null,
+      courierName: courierCanBeShown ? order.delivery.courier.name : null,
+      courierPhone: courierCanBeShown ? order.delivery.courier.phone : null,
+      courierVehicle: courierCanBeShown ? order.delivery.courier.vehicle : null,
+      courierLastSeenAt: courierCanBeShown && order.delivery.courier.lastSeenAt ? order.delivery.courier.lastSeenAt.toISOString() : null,
       // Moms i % som restaurangen visar i kvittot (6/12). null = restaurangen
       // visar ingen momsrad → klienten döljer den.
       restaurantVatPercent: (order.restaurant as any)?.vatPercent ?? null,
@@ -2254,8 +2286,8 @@ router.post('/:id/review', async (req: Request, res: Response) => {
     const guestTag = order.id.replace(/-/g, '').slice(-4).toUpperCase();
     const reviewerName = rawName?.trim() ? rawName.trim() : `Gäst${guestTag}`;
 
-    await prisma.order.update({
-      where: { id: req.params.id },
+    const reviewClaim = await prisma.order.updateMany({
+      where: { id: req.params.id, rating: null },
       data: {
         rating,
         review: review || null,
@@ -2264,6 +2296,9 @@ router.post('/:id/review', async (req: Request, res: Response) => {
         customerName: reviewerName,
       } as any,
     });
+    if (reviewClaim.count === 0) {
+      return res.status(409).json({ error: 'Denna order har redan fått ett betyg', alreadyReviewed: true });
+    }
     bustCache('order:byid', req.params.id);
 
     if ((order as any).restaurantId) {
@@ -2282,13 +2317,13 @@ router.post('/:id/review', async (req: Request, res: Response) => {
 
     // Dpoints: belöna recensionen (text → review_text, annars review_rating).
     // Endast inloggade (userId). Idempotent + fail-safe i helpern.
-    await maybeAwardReviewPoints({
+    const dpoints = await maybeAwardReviewPoints({
       userId: (order as any).userId || reviewerUserId,
       orderId: order.id,
       hasText: typeof review === 'string' && review.trim().length > 0,
     });
 
-    res.json({ success: true });
+    res.json({ success: true, dpoints });
   } catch (error) {
     console.error('Review error:', error);
     res.status(500).json({ error: 'Kunde inte spara recension' });

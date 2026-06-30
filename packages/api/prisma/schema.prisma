@@ -424,6 +424,22 @@ model Deal {
   // på samma order. Om discountType=NONE och freeDelivery=true →
   // bara fri leverans, inget annat.
   freeDelivery          Boolean   @default(false)
+  // App-deals: styr korten som visas i kundappen. Deal är fortfarande
+  // den ekonomiska regeln; dessa fält är presentation, målgrupp och rotation.
+  appEnabled            Boolean   @default(false)
+  appPlacement          String    @default("HOME_TOP") // HOME_TOP | HOME_INLINE | CART | REWARDS | POST_ORDER
+  appAudience           String    @default("ALL")      // ALL | GUEST | LOGGED_IN | NEW_CUSTOMER | NEW_LOGGED_IN | RETURNING
+  appTemplate           String    @default("DEAL_HERO") // FREE_DELIVERY_HERO | FREE_DELIVERY_COMPACT | PERCENT | FIXED | DPOINTS | MISSION | RESTAURANT_SPOTLIGHT
+  appSize               String    @default("LARGE")    // LARGE | COMPACT
+  appRotating           Boolean   @default(true)
+  appWeight             Int       @default(10)
+  appClaimRequired      Boolean   @default(true)
+  appClaimExpiresMinutes Int?
+  appCooldownHours      Int?
+  appDpointsBonus       Int       @default(0)
+  appMissionType        String?
+  appCtaLabel           String?
+  appTheme              String?
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
   // Kedje-scopad deal: gäller alla platser i en Brand. När satt expanderas den
   // till applicableRestaurantIds (alla nuvarande platser) vid spar + medlems-
@@ -434,6 +450,8 @@ model Deal {
   @@index([isActive, restaurantId, validUntil])
   @@index([isActive, isGlobal])
   @@index([restaurantId, triggerType])
+  @@index([appEnabled, appPlacement])
+  @@index([appAudience])
   @@index([brandId])
 }
 

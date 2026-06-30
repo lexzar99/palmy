@@ -43,6 +43,20 @@ type Draft = {
   validFrom: string;
   validUntil: string;
   sortOrder: number;
+  appEnabled: boolean;
+  appPlacement: string;
+  appAudience: string;
+  appTemplate: string;
+  appSize: string;
+  appRotating: boolean;
+  appWeight: number;
+  appClaimRequired: boolean;
+  appClaimExpiresMinutes: string;
+  appCooldownHours: string;
+  appDpointsBonus: number;
+  appMissionType: string;
+  appCtaLabel: string;
+  appTheme: string;
 };
 
 const defaultDraft = (): Draft => ({
@@ -63,6 +77,20 @@ const defaultDraft = (): Draft => ({
   validFrom: "",
   validUntil: "",
   sortOrder: 0,
+  appEnabled: false,
+  appPlacement: "HOME_TOP",
+  appAudience: "ALL",
+  appTemplate: "DEAL_HERO",
+  appSize: "LARGE",
+  appRotating: true,
+  appWeight: 10,
+  appClaimRequired: true,
+  appClaimExpiresMinutes: "",
+  appCooldownHours: "",
+  appDpointsBonus: 0,
+  appMissionType: "",
+  appCtaLabel: "",
+  appTheme: "sunrise",
 });
 
 const SCOPE_OPTIONS: { value: DealScopeType; label: string; description: string; glyph: string }[] = [
@@ -113,7 +141,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         restaurantId: d.restaurantId || d.applicableRestaurantIds?.[0] || "",
         isGlobal: d.isGlobal,
         scopeType: d.scopeType,
-        discountType: (d.discountType === "FIXED_PRICE" ? "FIXED_PRICE" : d.discountType === "FIXED" ? "FIXED" : "PERCENTAGE") as DealDiscountType,
+        discountType: (d.discountType === "NONE" ? "NONE" : d.discountType === "FIXED_PRICE" ? "FIXED_PRICE" : d.discountType === "FIXED" ? "FIXED" : "PERCENTAGE") as DealDiscountType,
         discountValue: d.discountValue,
         minOrder: d.minOrder || 0,
         targetIds: d.targetIds || [],
@@ -123,6 +151,20 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         validFrom: d.validFrom ? d.validFrom.slice(0, 10) : "",
         validUntil: d.validUntil ? d.validUntil.slice(0, 10) : "",
         sortOrder: d.sortOrder || 0,
+        appEnabled: Boolean(d.appEnabled),
+        appPlacement: d.appPlacement || "HOME_TOP",
+        appAudience: d.appAudience || "ALL",
+        appTemplate: d.appTemplate || "DEAL_HERO",
+        appSize: d.appSize || "LARGE",
+        appRotating: d.appRotating !== false,
+        appWeight: d.appWeight ?? 10,
+        appClaimRequired: d.appClaimRequired !== false,
+        appClaimExpiresMinutes: d.appClaimExpiresMinutes ? String(d.appClaimExpiresMinutes) : "",
+        appCooldownHours: d.appCooldownHours ? String(d.appCooldownHours) : "",
+        appDpointsBonus: d.appDpointsBonus || 0,
+        appMissionType: d.appMissionType || "",
+        appCtaLabel: d.appCtaLabel || "",
+        appTheme: d.appTheme || "sunrise",
       });
       setInitialized(true);
     }
@@ -166,13 +208,27 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         validFrom: d.validFrom || null,
         validUntil: d.validUntil || null,
         sortOrder: d.sortOrder,
+        appEnabled: d.appEnabled,
+        appPlacement: d.appEnabled ? d.appPlacement : "HOME_TOP",
+        appAudience: d.appEnabled ? d.appAudience : "ALL",
+        appTemplate: d.appEnabled ? d.appTemplate : "DEAL_HERO",
+        appSize: d.appEnabled ? d.appSize : "LARGE",
+        appRotating: d.appEnabled ? d.appRotating : true,
+        appWeight: d.appEnabled ? d.appWeight : 10,
+        appClaimRequired: d.appEnabled ? d.appClaimRequired : true,
+        appClaimExpiresMinutes: d.appEnabled && d.appClaimExpiresMinutes ? Number(d.appClaimExpiresMinutes) : null,
+        appCooldownHours: d.appEnabled && d.appCooldownHours ? Number(d.appCooldownHours) : null,
+        appDpointsBonus: d.appEnabled ? d.appDpointsBonus : 0,
+        appMissionType: d.appEnabled ? d.appMissionType || null : null,
+        appCtaLabel: d.appEnabled ? d.appCtaLabel || null : null,
+        appTheme: d.appEnabled ? d.appTheme || null : null,
       };
       if (dealId) return updateAutomaticDeal(dealId, payload);
       return createAutomaticDeal(payload);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: dealsQueryKey });
-      router.push("/deals?tab=kampanjer");
+      router.push(draft.appEnabled ? "/deals?tab=app" : "/deals?tab=kampanjer");
     },
     onError: (err: unknown) => {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -194,6 +250,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
     if (!draft.isGlobal && !draft.restaurantId) { setError("Välj restaurang eller aktivera 'Alla restauranger'."); return; }
     if (!Number.isFinite(draft.discountValue) || draft.discountValue < 0) { setError("Rabattvärde måste vara ≥ 0."); return; }
     if (draft.discountType === "PERCENTAGE" && draft.discountValue > 100) { setError("Procent-rabatt får inte överstiga 100%."); return; }
+    if (draft.discountType === "NONE" && !draft.appEnabled) { setError("Ingen kontantrabatt kräver att App i Swift är aktivt, t.ex. fri leverans eller Dpoints."); return; }
     if (draft.scopeType === "MIN_ORDER" && draft.minOrder <= 0) { setError("Minimiorder måste vara > 0 för min-order-kampanj."); return; }
     if (draft.validFrom && draft.validUntil && draft.validFrom > draft.validUntil) { setError("Startdatum måste vara före slutdatum."); return; }
     setError(null);
@@ -204,11 +261,13 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
   if (isLoading) return <div className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar...</div>;
 
   const discountLabel =
-    draft.discountType === "PERCENTAGE" ? "Rabatt (%)" : draft.discountType === "FIXED_PRICE" ? "Fast pris (kr)" : "Rabattbelopp (kr)";
+    draft.discountType === "NONE" ? "Ingen kontantrabatt" : draft.discountType === "PERCENTAGE" ? "Rabatt (%)" : draft.discountType === "FIXED_PRICE" ? "Fast pris (kr)" : "Rabattbelopp (kr)";
 
   // Live badge-text för förhandsvisningen, speglar aktuellt rabattvärde/typ.
   const previewDiscount =
-    draft.discountType === "PERCENTAGE"
+    draft.discountType === "NONE"
+      ? (draft.appDpointsBonus > 0 ? `+${draft.appDpointsBonus} Dpoints` : "Fri leverans / app-only")
+      : draft.discountType === "PERCENTAGE"
       ? `${draft.discountValue}% rabatt`
       : draft.discountType === "FIXED_PRICE"
         ? `${draft.discountValue} kr fast pris`
@@ -313,18 +372,21 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                     className="w-auto"
                     aria-label={discountLabel}
                   >
+                    <option value="NONE">Ingen kontantrabatt</option>
                     <option value="PERCENTAGE">Procent (%)</option>
                     {supportsFixedPrice && <option value="FIXED_PRICE">Fast pris (kr)</option>}
                     {!supportsFixedPrice && <option value="FIXED">Fast belopp (kr)</option>}
                   </Select>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={draft.discountValue}
-                    onChange={(e) => set("discountValue", Number(e.target.value))}
-                    aria-label={discountLabel}
-                    className="w-24 border-2 border-[var(--accent)] text-right font-extrabold"
-                  />
+                  {draft.discountType !== "NONE" && (
+                    <Input
+                      type="number"
+                      min="0"
+                      value={draft.discountValue}
+                      onChange={(e) => set("discountValue", Number(e.target.value))}
+                      aria-label={discountLabel}
+                      className="w-24 border-2 border-[var(--accent)] text-right font-extrabold"
+                    />
+                  )}
                 </div>
               </div>
               {/* Min. ordervärde — endast meningsfullt för MIN_ORDER-scope */}
@@ -355,6 +417,122 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                 />
               </div>
             </div>
+          </Surface>
+
+          <Surface className="px-5 py-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className={CARD_TITLE}>App i Swift</p>
+                <p className="mt-1 text-xs font-medium text-[var(--text-muted)]">
+                  Styr korten som syns i hemskärmen, sticky hot deal och appens claim-flöde.
+                </p>
+              </div>
+              <label className="flex items-center gap-2 text-xs font-extrabold text-[var(--text-primary)]">
+                <input
+                  type="checkbox"
+                  checked={draft.appEnabled}
+                  onChange={(e) => set("appEnabled", e.target.checked)}
+                  className="h-4 w-4 accent-[var(--accent)]"
+                />
+                Aktiv
+              </label>
+            </div>
+
+            {draft.appEnabled && (
+              <div className="mt-4 grid gap-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <Field label="Placering">
+                    <Select value={draft.appPlacement} onChange={(e) => set("appPlacement", e.target.value)}>
+                      <option value="HOME_TOP">Hem topp</option>
+                      <option value="HOME_INLINE">Hem mellan restauranger</option>
+                      <option value="CART">Kassa</option>
+                      <option value="REWARDS">Rewards</option>
+                      <option value="POST_ORDER">Efter order</option>
+                    </Select>
+                  </Field>
+                  <Field label="Målgrupp">
+                    <Select value={draft.appAudience} onChange={(e) => set("appAudience", e.target.value)}>
+                      <option value="ALL">Alla</option>
+                      <option value="GUEST">Gäst</option>
+                      <option value="LOGGED_IN">Inloggad</option>
+                      <option value="NEW_CUSTOMER">Ny kund</option>
+                      <option value="NEW_LOGGED_IN">Ny inloggad kund</option>
+                      <option value="RETURNING">Återkommande</option>
+                    </Select>
+                  </Field>
+                  <Field label="Design">
+                    <Select value={draft.appTemplate} onChange={(e) => set("appTemplate", e.target.value)}>
+                      <option value="DEAL_HERO">Stor hero</option>
+                      <option value="TICKET">Rabatt-ticket</option>
+                      <option value="FREE_DELIVERY">Fri leverans</option>
+                      <option value="PRODUCT_SPOTLIGHT">Produkt/Restaurang</option>
+                      <option value="MISSION">Uppdrag</option>
+                    </Select>
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-4">
+                  <Field label="Storlek">
+                    <Select value={draft.appSize} onChange={(e) => set("appSize", e.target.value)}>
+                      <option value="LARGE">Stor</option>
+                      <option value="COMPACT">Liten</option>
+                    </Select>
+                  </Field>
+                  <Field label="Vikt/rotation">
+                    <Input type="number" min="1" value={draft.appWeight} onChange={(e) => set("appWeight", Number(e.target.value))} />
+                  </Field>
+                  <Field label="CTA">
+                    <Input value={draft.appCtaLabel} onChange={(e) => set("appCtaLabel", e.target.value)} placeholder="Hämta" />
+                  </Field>
+                  <Field label="Tema">
+                    <Select value={draft.appTheme} onChange={(e) => set("appTheme", e.target.value)}>
+                      <option value="sunrise">Orange premium</option>
+                      <option value="fresh">Grön fräsch</option>
+                      <option value="blue">Blå fri leverans</option>
+                      <option value="pink">Rosa rabatt</option>
+                      <option value="dark">Mörk launch</option>
+                    </Select>
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-4">
+                  <label className="flex min-h-[44px] items-center gap-2 rounded-xl border border-[var(--border-strong)] px-3 text-xs font-bold text-[var(--text-primary)]">
+                    <input type="checkbox" checked={draft.appRotating} onChange={(e) => set("appRotating", e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
+                    Roterar i appen
+                  </label>
+                  <label className="flex min-h-[44px] items-center gap-2 rounded-xl border border-[var(--border-strong)] px-3 text-xs font-bold text-[var(--text-primary)]">
+                    <input type="checkbox" checked={draft.appClaimRequired} onChange={(e) => set("appClaimRequired", e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
+                    Måste claimas
+                  </label>
+                  <Field label="Claim gäller (min)">
+                    <Input type="number" min="1" value={draft.appClaimExpiresMinutes} onChange={(e) => set("appClaimExpiresMinutes", e.target.value)} placeholder="1440" />
+                  </Field>
+                  <Field label="Cooldown (h)">
+                    <Input type="number" min="0" value={draft.appCooldownHours} onChange={(e) => set("appCooldownHours", e.target.value)} placeholder="24" />
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Field label="Dpoints bonus">
+                    <Input type="number" min="0" value={draft.appDpointsBonus} onChange={(e) => set("appDpointsBonus", Number(e.target.value))} />
+                  </Field>
+                  <Field label="Uppdrag">
+                    <Select
+                      value={draft.appMissionType}
+                      onChange={(e) => setDraft((prev) => ({
+                        ...prev,
+                        appMissionType: e.target.value,
+                        appTemplate: e.target.value ? "MISSION" : prev.appTemplate,
+                        discountType: e.target.value ? "NONE" : prev.discountType,
+                      }))}
+                    >
+                      <option value="">Ingen</option>
+                      <option value="THREE_ORDERS_WEEK">Köp 3 gånger / vecka</option>
+                    </Select>
+                  </Field>
+                </div>
+              </div>
+            )}
           </Surface>
 
           {/* Targets - only for item scopes */}

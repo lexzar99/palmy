@@ -1,0 +1,19 @@
+-- App-deals: presentation, audience and rotation metadata on existing Deal.
+-- The economic rule stays in Deal.discountType/discountValue/freeDelivery.
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appPlacement" TEXT NOT NULL DEFAULT 'HOME_TOP';
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appAudience" TEXT NOT NULL DEFAULT 'ALL';
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appTemplate" TEXT NOT NULL DEFAULT 'DEAL_HERO';
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appSize" TEXT NOT NULL DEFAULT 'LARGE';
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appRotating" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appWeight" INTEGER NOT NULL DEFAULT 10;
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appClaimRequired" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appClaimExpiresMinutes" INTEGER;
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appCooldownHours" INTEGER;
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appDpointsBonus" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appMissionType" TEXT;
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appCtaLabel" TEXT;
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "appTheme" TEXT;
+
+CREATE INDEX IF NOT EXISTS "Deal_appEnabled_appPlacement_idx" ON "Deal"("appEnabled", "appPlacement");
+CREATE INDEX IF NOT EXISTS "Deal_appAudience_idx" ON "Deal"("appAudience");
