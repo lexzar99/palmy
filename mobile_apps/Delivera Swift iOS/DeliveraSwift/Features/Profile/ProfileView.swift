@@ -70,20 +70,18 @@ struct ProfileView: View {
 
     private var loggedOutView: some View {
         VStack(alignment: .center, spacing: 18) {
-            VStack(spacing: 10) {
-                DpointsGlyph(size: 42)
-                    .shadow(color: DeliveraTheme.orange.opacity(0.18), radius: 16, y: 8)
-                Text("Fortsätt till Delivera")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
+            VStack(spacing: 8) {
+                Text("Logga in")
+                    .font(.system(size: 34, weight: .black, design: .rounded))
                     .foregroundStyle(DeliveraTheme.ink)
                     .multilineTextAlignment(.center)
-                Text("Logga in säkert. Vi kopplar alltid kontot till ett verifierat telefonnummer.")
-                    .font(.system(size: 14, weight: .bold))
+                Text("Fortsätt med telefon, Apple eller Google. Kontot kopplas säkert till ditt nummer.")
+                    .font(.system(size: 14, weight: .heavy))
                     .foregroundStyle(DeliveraTheme.muted)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.bottom, 4)
+            .padding(.bottom, 8)
 
             VStack(spacing: 10) {
                 SocialContinueButton(symbol: "phone.fill", title: "Fortsätt med telefon", foreground: DeliveraTheme.ink, background: .white, border: DeliveraTheme.line) {
@@ -99,7 +97,7 @@ struct ProfileView: View {
                 .frame(height: 56)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-                SocialContinueButton(symbol: "g.circle.fill", title: "Fortsätt med Google", foreground: .white, background: DeliveraTheme.ink, border: .clear) {
+                SocialContinueButton(symbol: "g.circle", title: "Fortsätt med Google", foreground: .white, background: DeliveraTheme.ink, border: .clear) {
                     Task { await startGoogle() }
                 }
             }

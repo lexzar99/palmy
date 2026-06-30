@@ -62,23 +62,10 @@ struct RewardsView: View {
 
     private var guestContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            RewardsHeroCard(balance: nil, title: "Poäng som blir mat", subtitle: "Samla Dpoints på beställningar, uppdrag och deals från Delivera.")
+            GuestRewardsHero(onOpenProfile: onOpenProfile)
+                .transition(.scale(scale: 0.98).combined(with: .opacity))
 
-            Button(action: onOpenProfile) {
-                HStack {
-                    DpointsGlyph(size: 22)
-                    Text("Registrera dig och börja samla")
-                    Spacer()
-                    Image(systemName: "arrow.right")
-                }
-                .font(.system(size: 15, weight: .black))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .frame(height: 58)
-                .background(DeliveraTheme.orange, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: DeliveraTheme.orange.opacity(0.26), radius: 20, y: 10)
-            }
-            .buttonStyle(.plain)
+            GuestRewardsPerks()
 
             rewardsCatalog(locked: true)
         }
@@ -381,6 +368,113 @@ private struct RewardsHeroCard: View {
                 in: RoundedRectangle(cornerRadius: 26, style: .continuous)
             )
             .shadow(color: DeliveraTheme.orange.opacity(0.25), radius: 28, y: 16)
+        }
+    }
+}
+
+private struct GuestRewardsHero: View {
+    let onOpenProfile: () -> Void
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            ZStack(alignment: .bottomLeading) {
+                ForEach(0..<8, id: \.self) { index in
+                    DpointsGlyph(size: CGFloat(16 + (index % 4) * 5))
+                        .opacity(0.10 + Double(index % 3) * 0.035)
+                        .rotationEffect(.degrees(t * 18 + Double(index) * 31))
+                        .offset(
+                            x: CGFloat(cos(t * 0.48 + Double(index))) * CGFloat(92 + index * 8) + 220,
+                            y: CGFloat(sin(t * 0.64 + Double(index))) * CGFloat(58 + index * 3) - 12
+                        )
+                }
+
+                Circle()
+                    .stroke(.white.opacity(0.16), lineWidth: 1)
+                    .frame(width: 220, height: 220)
+                    .scaleEffect(1 + 0.025 * sin(t * 0.8))
+                    .offset(x: 178, y: -54)
+
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Dpoints")
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .textCase(.uppercase)
+                        Text("Mat som ger tillbaka")
+                            .font(.system(size: 34, weight: .black, design: .rounded))
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                        Text("Logga in och använd poäng direkt på markerade produkter från restaurangerna.")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.76))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Button(action: onOpenProfile) {
+                        HStack(spacing: 10) {
+                            Text("Börja samla")
+                            Image(systemName: "arrow.right")
+                        }
+                        .font(.system(size: 15, weight: .black, design: .rounded))
+                        .foregroundStyle(DeliveraTheme.ink)
+                        .padding(.horizontal, 16)
+                        .frame(height: 48)
+                        .background(.white, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(22)
+            }
+            .frame(maxWidth: .infinity, minHeight: 236, alignment: .bottomLeading)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.05, green: 0.05, blue: 0.06),
+                        Color(red: 0.23, green: 0.11, blue: 0.08),
+                        DeliveraTheme.orange
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 28, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .stroke(.white.opacity(0.16), lineWidth: 1)
+            }
+            .shadow(color: DeliveraTheme.orange.opacity(0.22), radius: 28, y: 16)
+        }
+    }
+}
+
+private struct GuestRewardsPerks: View {
+    private let perks = [
+        ("Beställ", "Poäng på köp", "bag.fill"),
+        ("Lås upp", "Reward-varor", "sparkles"),
+        ("Använd", "Direkt i menyn", "bolt.fill")
+    ]
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ForEach(perks, id: \.0) { perk in
+                VStack(alignment: .leading, spacing: 7) {
+                    Image(systemName: perk.2)
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundStyle(DeliveraTheme.orange)
+                    Text(perk.0)
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .foregroundStyle(DeliveraTheme.ink)
+                    Text(perk.1)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(DeliveraTheme.muted)
+                        .lineLimit(1)
+                }
+                .padding(13)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.white.opacity(0.84), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+            }
         }
     }
 }
