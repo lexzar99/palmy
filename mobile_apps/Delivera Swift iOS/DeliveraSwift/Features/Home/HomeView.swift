@@ -2,6 +2,20 @@ import SwiftUI
 import MapKit
 import UIKit
 
+private extension ISO8601DateFormatter {
+    nonisolated(unsafe) static let deliveraInternet: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    nonisolated(unsafe) static let deliveraFractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+}
+
 struct HomeView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model = HomeViewModel()
@@ -23,6 +37,7 @@ struct HomeView: View {
     @AppStorage("delivera.activeOrderId") private var activeOrderId = ""
     @AppStorage("delivera.activeOrderPhone") private var activeOrderPhone = ""
     @AppStorage("delivera.activeOrderToken") private var activeOrderToken = ""
+    @AppStorage("delivera.activeOrderTerminalAt") private var activeOrderTerminalAt = 0.0
     @State private var searchQuery = ""
     @State private var showingAddressSheet = false
     @State private var restaurantPath: [String] = []
@@ -82,6 +97,7 @@ struct HomeView: View {
                             activeOrderId = order.id
                             activeOrderPhone = guestPhone.trimmingCharacters(in: .whitespacesAndNewlines)
                             activeOrderToken = order.accessToken ?? ""
+                            activeOrderTerminalAt = 0
                             isTrackingExpanded = true
                             selectedTab = .home
                             Task { await LiveActivityManager.shared.startOrUpdate(order: order) }
@@ -472,6 +488,7 @@ struct HomeView: View {
             activeOrderId = ""
             activeOrderPhone = ""
             activeOrderToken = ""
+            activeOrderTerminalAt = 0
             activeOrderTrackingError = nil
             isTrackingExpanded = false
         }
@@ -479,6 +496,23 @@ struct HomeView: View {
             debugTrackingOrderId = ""
         }
         triggerHomeEntrance()
+    }
+
+    private func clearActiveOrderState() {
+        activeHomeOrder = nil
+        activeOrderId = ""
+        activeOrderPhone = ""
+        activeOrderToken = ""
+        activeOrderTerminalAt = 0
+        activeOrderTrackingError = nil
+        isTrackingExpanded = false
+    }
+
+    private func shouldExpireActiveOrder(_ order: ActiveHomeOrder) -> Bool {
+        guard order.isTerminalForActiveTracking else { return false }
+        let startedAt = activeOrderTerminalAt > 0 ? activeOrderTerminalAt : Date().timeIntervalSince1970
+        let retention: TimeInterval = order.mode == .pickup ? 90 * 60 : 30 * 60
+        return Date().timeIntervalSince1970 - startedAt > retention
     }
 
     private func updateActivePickupOrderWithCurrentLocation(orderId: String) async {
@@ -536,10 +570,24 @@ struct HomeView: View {
                 let response = try await DeliveraAPI().customerOrder(id: currentOrder.id, phone: proofPhone, token: proofToken)
                 await MainActor.run {
                     guard activeHomeOrder?.id == initialOrder.id else { return }
+                    let previous = activeHomeOrder
                     let updated = activeHomeOrder?.applyingDatabaseOrder(response)
                     activeHomeOrder = updated
                     activeOrderTrackingError = nil
                     activeOrderId = currentOrder.id
+                    if let updated {
+                        let becameTerminal = updated.isTerminalForActiveTracking && previous?.isTerminalForActiveTracking != true
+                        if becameTerminal {
+                            activeOrderTerminalAt = Date().timeIntervalSince1970
+                        } else if !updated.isTerminalForActiveTracking {
+                            activeOrderTerminalAt = 0
+                        }
+                        if shouldExpireActiveOrder(updated) {
+                            clearActiveOrderState()
+                            Task { await LiveActivityManager.shared.end(orderId: updated.id) }
+                            return
+                        }
+                    }
                     if !proofPhone.isEmpty {
                         activeOrderPhone = proofPhone
                     }
@@ -571,13 +619,21 @@ struct HomeView: View {
 
         do {
             let response = try await DeliveraAPI().customerOrder(id: activeOrderId, phone: phone, token: token)
-            guard !HomeTrackingStatus.isRestorableTerminalStatus(response.status) else {
-                activeOrderId = ""
-                activeOrderPhone = ""
-                activeOrderToken = ""
+            let restored = ActiveHomeOrder.preview.applyingDatabaseOrder(response)
+            if restored.isTerminalForActiveTracking {
+                if activeOrderTerminalAt <= 0 {
+                    activeOrderTerminalAt = Date().timeIntervalSince1970
+                }
+                guard !shouldExpireActiveOrder(restored) else {
+                    clearActiveOrderState()
+                    return
+                }
+            }
+            guard !HomeTrackingStatus.isRestorableTerminalStatus(response.status) || !shouldExpireActiveOrder(restored) else {
+                clearActiveOrderState()
                 return
             }
-            activeHomeOrder = ActiveHomeOrder.preview.applyingDatabaseOrder(response)
+            activeHomeOrder = restored
             activeOrderToken = response.accessToken ?? token
             activeOrderTrackingError = nil
             isTrackingExpanded = false
@@ -806,6 +862,21 @@ enum HomeTrackingStatus: String, CaseIterable, Identifiable {
         }
     }
 
+    func color(for mode: OrderMode) -> Color {
+        if mode == .pickup, self == .delivering {
+            return Color(red: 0.07, green: 0.66, blue: 0.33)
+        }
+        return color
+    }
+
+    func isFinal(for mode: OrderMode) -> Bool {
+        mode == .pickup ? self == .delivering : self == .delivered
+    }
+
+    func finalEtaText(for mode: OrderMode) -> String {
+        mode == .pickup ? "Redo" : "Klar"
+    }
+
     func next(for mode: OrderMode) -> HomeTrackingStatus {
         let all = Self.trackingSteps(for: mode)
         let index = all.firstIndex(of: self) ?? 0
@@ -831,6 +902,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
     let statusTitle: String
     let statusSubtitle: String
     let etaText: String
+    let etaEndsAt: Date?
     let mode: OrderMode
     let address: String
     let total: Double
@@ -862,6 +934,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
         statusTitle: "På väg till dig",
         statusSubtitle: "Restaurangen packar klart. Vi följer ordern live.",
         etaText: "18 min",
+        etaEndsAt: Date().addingTimeInterval(18 * 60),
         mode: .delivery,
         address: "Malmö, Sweden",
         total: 199,
@@ -914,6 +987,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
             statusTitle: mode == .delivery ? "Ordern är igång" : "Förbereds",
             statusSubtitle: mode == .delivery ? "Vi visar live-status här när betalningen är klar." : "Vi säger till när den är redo att hämtas.",
             etaText: "\(restaurant.etaMinutes ?? 25) min",
+            etaEndsAt: Date().addingTimeInterval(TimeInterval((restaurant.etaMinutes ?? 25) * 60)),
             mode: mode,
             address: address,
             total: total,
@@ -957,8 +1031,29 @@ struct ActiveHomeOrder: Identifiable, Equatable {
         status.progress(for: mode)
     }
 
+    var displayStatusColor: Color {
+        status.color(for: mode)
+    }
+
     var trackingSteps: [HomeTrackingStatus] {
         HomeTrackingStatus.trackingSteps(for: mode)
+    }
+
+    var isTerminalForActiveTracking: Bool {
+        status.isFinal(for: mode)
+    }
+
+    var etaDisplayText: String {
+        guard !isTerminalForActiveTracking else { return status.finalEtaText(for: mode) }
+        return Self.etaText(from: etaEndsAt, fallbackMinutes: nil, fallbackText: etaText)
+    }
+
+    var remainingDisplayText: String {
+        guard !isTerminalForActiveTracking else { return status.finalEtaText(for: mode) }
+        guard let etaEndsAt else { return etaText }
+        let remaining = max(0, etaEndsAt.timeIntervalSinceNow)
+        let minutes = Int(ceil(remaining / 60))
+        return minutes <= 0 ? "snart" : "\(minutes) min"
     }
 
     func nextStatus() -> ActiveHomeOrder {
@@ -975,7 +1070,8 @@ struct ActiveHomeOrder: Identifiable, Equatable {
             status: status.next(for: mode),
             statusTitle: statusTitle,
             statusSubtitle: statusSubtitle,
-            etaText: status == .delivered ? "0 min" : etaText,
+            etaText: status.next(for: mode).isFinal(for: mode) ? status.next(for: mode).finalEtaText(for: mode) : etaText,
+            etaEndsAt: status.next(for: mode).isFinal(for: mode) ? nil : etaEndsAt,
             mode: mode,
             address: address,
             total: total,
@@ -1010,6 +1106,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
             statusTitle: statusTitle,
             statusSubtitle: statusSubtitle,
             etaText: etaText,
+            etaEndsAt: etaEndsAt,
             mode: mode,
             address: address,
             total: total,
@@ -1032,6 +1129,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
     func applyingDatabaseOrder(_ order: CustomerOrderResponse) -> ActiveHomeOrder {
         let nextMode: OrderMode = (order.type ?? "").uppercased() == "PICKUP" ? .pickup : mode
         let status = HomeTrackingStatus(apiStatus: order.status, mode: nextMode)
+        let apiEtaEndsAt = Self.parseAPIDate(order.etaEndsAt)
         let restaurantLat = order.restaurantLat ?? restaurantLatitude
         let restaurantLng = order.restaurantLng ?? restaurantLongitude
         let customerLat = order.deliveryLatitude ?? customerLatitude
@@ -1067,7 +1165,8 @@ struct ActiveHomeOrder: Identifiable, Equatable {
             status: status,
             statusTitle: status.title(for: nextMode),
             statusSubtitle: status.subtitle(for: nextMode),
-            etaText: order.estimatedTime.map { "\($0) min" } ?? etaText,
+            etaText: status.isFinal(for: nextMode) ? status.finalEtaText(for: nextMode) : Self.etaText(from: apiEtaEndsAt, fallbackMinutes: order.estimatedTime, fallbackText: etaText),
+            etaEndsAt: status.isFinal(for: nextMode) ? nil : apiEtaEndsAt,
             mode: nextMode,
             address: order.deliveryStreet ?? address,
             total: order.total,
@@ -1100,6 +1199,25 @@ struct ActiveHomeOrder: Identifiable, Equatable {
 
     var vatAmount: Double {
         total * restaurantVatPercent / (100 + restaurantVatPercent)
+    }
+
+    private static func etaText(from date: Date?, fallbackMinutes: Int?, fallbackText: String) -> String {
+        if let date {
+            let minutes = Int(ceil(max(0, date.timeIntervalSinceNow) / 60))
+            return minutes <= 0 ? "snart" : "\(minutes) min"
+        }
+        if let fallbackMinutes {
+            return "\(fallbackMinutes) min"
+        }
+        return fallbackText
+    }
+
+    private static func parseAPIDate(_ value: String?) -> Date? {
+        guard let value, !value.isEmpty else { return nil }
+        if let date = ISO8601DateFormatter.deliveraInternet.date(from: value) {
+            return date
+        }
+        return ISO8601DateFormatter.deliveraFractional.date(from: value)
     }
 }
 
@@ -1215,7 +1333,7 @@ private struct TrackingTakeoverTopBar: View {
                     .foregroundStyle(DeliveraTheme.ink)
                 HStack(spacing: 7) {
                     Circle()
-                        .fill(order.status.color)
+                        .fill(order.displayStatusColor)
                         .frame(width: 8, height: 8)
                     Text("\(order.displayStatusTitle) • \(order.restaurantName)")
                         .font(.system(size: 12, weight: .black))
@@ -1252,19 +1370,19 @@ private struct CollapsedTrackingBanner: View {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(order.status.color.opacity(0.16))
+                        .fill(order.displayStatusColor.opacity(0.16))
                         .frame(width: 48, height: 48)
                         .scaleEffect(pulse ? 1.08 : 0.94)
                     Image(systemName: order.mode == .delivery ? "bicycle" : "bag.fill")
                         .font(.system(size: 18, weight: .black))
-                        .foregroundStyle(order.status.color)
+                        .foregroundStyle(order.displayStatusColor)
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Pågående leverans")
                         .font(.system(size: 17, weight: .black, design: .rounded))
                         .foregroundStyle(DeliveraTheme.ink)
-                    Text("\(order.displayStatusTitle) • \(order.restaurantName) • \(order.etaText)")
+                    Text("\(order.displayStatusTitle) • \(order.restaurantName) • \(order.etaDisplayText)")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(DeliveraTheme.muted)
                         .lineLimit(1)
@@ -1275,12 +1393,12 @@ private struct CollapsedTrackingBanner: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12)
                     .frame(height: 34)
-                    .background(order.status.color, in: Capsule())
+                    .background(order.displayStatusColor, in: Capsule())
             }
             .padding(13)
             .background(.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(order.status.color.opacity(0.2), lineWidth: 1))
-            .shadow(color: order.status.color.opacity(0.16), radius: 22, y: 10)
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(order.displayStatusColor.opacity(0.2), lineWidth: 1))
+            .shadow(color: order.displayStatusColor.opacity(0.16), radius: 22, y: 10)
         }
         .buttonStyle(.plain)
         .onAppear {
@@ -1305,14 +1423,7 @@ private struct LiveActivityOrderBanner: View {
         order.mode == .delivery ? "Pågående order" : "Avhämtning"
     }
 
-    private var remainingText: String {
-        guard order.status != .delivered else { return "Klar" }
-        guard let minutes = Int(order.etaText.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) else {
-            return order.etaText
-        }
-        let remaining = max(0, Int((Double(minutes) * (1.0 - order.trackingProgress * 0.68)).rounded()))
-        return remaining == 0 ? "snart" : "\(remaining) min"
-    }
+    private var remainingText: String { order.remainingDisplayText }
 
     var body: some View {
         Button(action: onOpen) {
@@ -1320,22 +1431,22 @@ private struct LiveActivityOrderBanner: View {
                 HStack(spacing: 13) {
                     ZStack {
                         Circle()
-                            .fill(order.status.color.opacity(0.13))
+                            .fill(order.displayStatusColor.opacity(0.13))
                             .frame(width: 58, height: 58)
                             .scaleEffect(pulse ? 1.05 : 0.98)
                         Circle()
-                            .stroke(order.status.color.opacity(0.18), lineWidth: 1)
+                            .stroke(order.displayStatusColor.opacity(0.18), lineWidth: 1)
                             .frame(width: 58, height: 58)
                         Image(systemName: modeSymbol)
                             .font(.system(size: 20, weight: .black))
-                            .foregroundStyle(order.status.color)
+                            .foregroundStyle(order.displayStatusColor)
                     }
 
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 7) {
                             Text(eyebrow)
                                 .font(.system(size: 10, weight: .black))
-                                .foregroundStyle(order.status.color)
+                                .foregroundStyle(order.displayStatusColor)
                                 .textCase(.uppercase)
                             Text(order.displayOrderNumber)
                                 .font(.system(size: 10, weight: .black))
@@ -1351,8 +1462,8 @@ private struct LiveActivityOrderBanner: View {
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 9)
                                 .frame(height: 25)
-                                .background(order.status.color, in: Capsule())
-                            Text(order.status == .delivered ? remainingText : "\(remainingText) kvar")
+                                .background(order.displayStatusColor, in: Capsule())
+                            Text(order.isTerminalForActiveTracking ? remainingText : "\(remainingText) kvar")
                                 .font(.system(size: 12, weight: .black))
                                 .foregroundStyle(DeliveraTheme.ink)
                                 .lineLimit(1)
@@ -1376,7 +1487,7 @@ private struct LiveActivityOrderBanner: View {
                     .fill(.white)
                     .overlay(alignment: .topLeading) {
                         Circle()
-                            .fill(order.status.color.opacity(0.08))
+                            .fill(order.displayStatusColor.opacity(0.08))
                             .frame(width: 150, height: 150)
                             .blur(radius: 18)
                             .offset(x: -60, y: -86)
@@ -1384,9 +1495,9 @@ private struct LiveActivityOrderBanner: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .stroke(order.status.color.opacity(0.16), lineWidth: 1)
+                    .stroke(order.displayStatusColor.opacity(0.16), lineWidth: 1)
             }
-            .shadow(color: order.status.color.opacity(0.12), radius: 18, y: 8)
+            .shadow(color: order.displayStatusColor.opacity(0.12), radius: 18, y: 8)
             .shadow(color: .black.opacity(0.06), radius: 12, y: 6)
         }
         .buttonStyle(.plain)
@@ -1410,12 +1521,12 @@ private struct HomeOrderMiniProgress: View {
                 Capsule()
                     .fill(Color.black.opacity(0.07))
                 Capsule()
-                    .fill(status.color)
+                    .fill(order.displayStatusColor)
                     .frame(width: max(18, proxy.size.width * progress))
                 Circle()
                     .fill(.white)
                     .frame(width: 13, height: 13)
-                    .overlay(Circle().stroke(status.color, lineWidth: 4))
+                    .overlay(Circle().stroke(order.displayStatusColor, lineWidth: 4))
                     .offset(x: min(max(0, proxy.size.width * progress - 6.5), max(0, proxy.size.width - 13)))
             }
         }
@@ -1483,17 +1594,17 @@ private struct TrackingTakeoverView: View {
             Map(position: $camera, interactionModes: [.pan, .zoom, .rotate, .pitch]) {
                 if let routePolyline {
                     MapPolyline(routePolyline)
-                        .stroke(order.status.color, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                        .stroke(order.displayStatusColor, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
                 } else {
                     MapPolyline(coordinates: fallbackRouteCoordinates)
-                        .stroke(order.status.color, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
+                        .stroke(order.displayStatusColor, style: StrokeStyle(lineWidth: 7, lineCap: .round, lineJoin: .round))
                 }
                 Annotation(order.restaurantName, coordinate: CLLocationCoordinate2D(latitude: order.restaurantLatitude, longitude: order.restaurantLongitude)) {
                     MapPinBadge(symbol: "fork.knife", color: DeliveraTheme.ink)
                 }
                 if order.shouldShowCourierLocation {
                     Annotation(order.courierName ?? "Bud", coordinate: CLLocationCoordinate2D(latitude: order.liveCourierLatitude, longitude: order.liveCourierLongitude)) {
-                        MapPinBadge(symbol: "bicycle", color: order.status.color, pulsing: pulse)
+                        MapPinBadge(symbol: "bicycle", color: order.displayStatusColor, pulsing: pulse)
                     }
                 }
                 Annotation("Du", coordinate: CLLocationCoordinate2D(latitude: order.customerLatitude, longitude: order.customerLongitude)) {
@@ -1641,14 +1752,7 @@ private struct TrackingOrderBottomSheet: View {
     let onNextStatus: () -> Void
     let onDeleteOrder: () -> Void
 
-    private var remainingText: String {
-        guard order.status != .delivered else { return "Klar" }
-        guard let minutes = Int(order.etaText.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) else {
-            return order.etaText
-        }
-        let remaining = max(0, Int((Double(minutes) * (1.0 - order.trackingProgress * 0.72)).rounded()))
-        return remaining == 0 ? "snart" : "\(remaining) min"
-    }
+    private var remainingText: String { order.remainingDisplayText }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
@@ -1662,7 +1766,7 @@ private struct TrackingOrderBottomSheet: View {
                     Text(order.displayStatusTitle)
                         .font(.system(size: 27, weight: .black, design: .rounded))
                         .foregroundStyle(DeliveraTheme.ink)
-                    Text("\(order.restaurantName) • \(order.etaText)")
+                    Text("\(order.restaurantName) • \(order.etaDisplayText)")
                         .font(.system(size: 12, weight: .black))
                         .foregroundStyle(DeliveraTheme.orange)
                         .lineLimit(1)
@@ -1675,14 +1779,33 @@ private struct TrackingOrderBottomSheet: View {
                 VStack(spacing: 1) {
                     Text(remainingText)
                         .font(.system(size: 18, weight: .black, design: .rounded))
-                    Text(order.status == .delivered ? "status" : "kvar")
+                    Text(order.isTerminalForActiveTracking ? "status" : "kvar")
                         .font(.system(size: 9, weight: .black))
                         .opacity(0.72)
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 12)
                 .frame(height: 50)
-                .background(order.status.color, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(order.displayStatusColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+
+            if order.mode == .delivery, order.selfDelivery {
+                HStack(alignment: .top, spacing: 9) {
+                    Image(systemName: "car.side.fill")
+                        .font(.system(size: 12, weight: .black))
+                        .foregroundStyle(order.displayStatusColor)
+                    Text("Restaurangen levererar själv. Vi kan därför inte visa budets liveposition, men kartan visar avstånd och rutt så du kan följa läget tryggt.")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(DeliveraTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(11)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+            }
+
+            if order.mode == .pickup, order.isTerminalForActiveTracking {
+                ReadyPickupCelebration(color: order.displayStatusColor)
             }
 
             TrackingProgressStrip(order: order)
@@ -1781,12 +1904,69 @@ private struct TrackingPlainActions: View {
     }
 }
 
+private struct ReadyPickupCelebration: View {
+    let color: Color
+    @State private var pulse = false
+    @State private var sweep = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.18))
+                    .frame(width: 46, height: 46)
+                    .scaleEffect(pulse ? 1.18 : 0.9)
+                Circle()
+                    .stroke(color.opacity(0.35), lineWidth: 1)
+                    .frame(width: 46, height: 46)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(color, in: Circle())
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Redo att hämtas")
+                    .font(.system(size: 15, weight: .black, design: .rounded))
+                    .foregroundStyle(DeliveraTheme.ink)
+                Text("Visa ordernumret hos restaurangen.")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(DeliveraTheme.muted)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background {
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    .fill(color.opacity(0.10))
+                RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    .fill(.white.opacity(0.24))
+                    .frame(width: 74)
+                    .offset(x: sweep ? 310 : -90)
+                    .blur(radius: 10)
+            }
+        }
+        .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(color.opacity(0.20), lineWidth: 1))
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+            withAnimation(.easeInOut(duration: 2.1).repeatForever(autoreverses: false)) {
+                sweep = true
+            }
+        }
+    }
+}
+
 private struct TrackingProgressStrip: View {
     let order: ActiveHomeOrder
     @State private var animatedProgress = 0.0
     @State private var shimmer = false
 
     private var status: HomeTrackingStatus { order.status }
+    private var statusColor: Color { order.displayStatusColor }
     private var steps: [HomeTrackingStatus] { order.trackingSteps }
     private var progress: Double { order.trackingProgress }
 
@@ -1808,28 +1988,28 @@ private struct TrackingProgressStrip: View {
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    status.color.opacity(0.76),
-                                    status.color,
-                                    status.color.opacity(0.88)
+                                    statusColor.opacity(0.76),
+                                    statusColor,
+                                    statusColor.opacity(0.88)
                                 ],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
                         .frame(width: fillWidth)
-                        .shadow(color: status.color.opacity(0.25), radius: 10, y: 4)
+                        .shadow(color: statusColor.opacity(0.25), radius: 10, y: 4)
 
                     Capsule()
                         .fill(.white.opacity(0.36))
                         .frame(width: 42, height: 7)
                         .offset(x: shimmer ? max(0, fillWidth - 44) : 4)
-                        .opacity(status == .delivered ? 0 : 1)
+                        .opacity(order.isTerminalForActiveTracking ? 0 : 1)
 
                     Circle()
                         .fill(.white)
                         .frame(width: 18, height: 18)
-                        .overlay(Circle().stroke(status.color, lineWidth: 5))
-                        .shadow(color: status.color.opacity(0.24), radius: 10, y: 5)
+                        .overlay(Circle().stroke(statusColor, lineWidth: 5))
+                        .shadow(color: statusColor.opacity(0.24), radius: 10, y: 5)
                         .offset(x: min(max(0, fillWidth - 9), max(0, width - 18)))
                 }
             }
@@ -1839,7 +2019,7 @@ private struct TrackingProgressStrip: View {
                 ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
                     Text(step.shortTitle(for: order.mode))
                         .font(.system(size: 9, weight: index == currentStepIndex ? .black : .bold))
-                        .foregroundStyle(index <= currentStepIndex ? status.color : DeliveraTheme.muted.opacity(0.7))
+                        .foregroundStyle(index <= currentStepIndex ? statusColor : DeliveraTheme.muted.opacity(0.7))
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)
                         .frame(maxWidth: .infinity, alignment: step == .pending ? .leading : (step == .delivered ? .trailing : .center))
@@ -1988,17 +2168,17 @@ private struct HomeActiveOrderCard: View {
                 Map(position: $camera, interactionModes: [.pan, .zoom, .rotate, .pitch]) {
                     if let routePolyline {
                         MapPolyline(routePolyline)
-                            .stroke(order.status.color, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                            .stroke(order.displayStatusColor, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
                     } else {
                         MapPolyline(coordinates: fallbackRouteCoordinates)
-                            .stroke(order.status.color, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                            .stroke(order.displayStatusColor, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
                     }
                     Annotation(order.restaurantName, coordinate: CLLocationCoordinate2D(latitude: order.restaurantLatitude, longitude: order.restaurantLongitude)) {
                         MapPinBadge(symbol: "fork.knife", color: DeliveraTheme.ink)
                     }
                     if order.shouldShowCourierLocation {
                         Annotation(order.courierName ?? "Bud", coordinate: CLLocationCoordinate2D(latitude: order.liveCourierLatitude, longitude: order.liveCourierLongitude)) {
-                            MapPinBadge(symbol: "bicycle", color: order.status.color, pulsing: pulse)
+                            MapPinBadge(symbol: "bicycle", color: order.displayStatusColor, pulsing: pulse)
                         }
                     }
                     Annotation("Du", coordinate: CLLocationCoordinate2D(latitude: order.customerLatitude, longitude: order.customerLongitude)) {
@@ -2016,7 +2196,7 @@ private struct HomeActiveOrderCard: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
                         .frame(height: 31)
-                        .background(order.status.color.opacity(0.94), in: Capsule())
+                        .background(order.displayStatusColor.opacity(0.94), in: Capsule())
                     Spacer()
                     Button {
                         recenterMap()
@@ -2049,16 +2229,16 @@ private struct HomeActiveOrderCard: View {
                 }
                 Spacer()
                 VStack(spacing: 1) {
-                    Text(order.etaText)
+                    Text(order.remainingDisplayText)
                         .font(.system(size: 17, weight: .black, design: .rounded))
                         .foregroundStyle(.white)
-                    Text("kvar")
+                    Text(order.isTerminalForActiveTracking ? "status" : "kvar")
                         .font(.system(size: 9, weight: .black))
                         .foregroundStyle(.white.opacity(0.78))
                 }
                 .padding(.horizontal, 11)
                 .frame(height: 48)
-                .background(order.status.color, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(order.displayStatusColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
 
             HStack(spacing: 10) {
@@ -2292,7 +2472,7 @@ private struct ActiveOrderSheetView: View {
                 .font(.system(size: 20, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .frame(width: 48, height: 48)
-                .background(order.status.color, in: Circle())
+                .background(order.displayStatusColor, in: Circle())
             VStack(alignment: .leading, spacing: 2) {
                 Text(sheetTitle)
                     .font(.system(size: 28, weight: .black, design: .rounded))
@@ -2320,7 +2500,7 @@ private struct ActiveOrderSheetView: View {
             Divider()
             PlainTextLine(title: order.mode == .delivery ? "Leverans" : "Avhämtning", value: order.address)
             Divider()
-            PlainTextLine(title: "Tid", value: order.etaText)
+            PlainTextLine(title: "Tid", value: order.etaDisplayText)
             Divider()
             PlainTextLine(title: "Restaurang", value: order.restaurantName)
             if let legal = order.restaurantLegalName, !legal.isEmpty {

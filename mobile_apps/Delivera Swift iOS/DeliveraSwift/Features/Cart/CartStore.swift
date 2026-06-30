@@ -454,6 +454,9 @@ struct CustomerOrderResponse: Decodable {
     let courierVehicle: String?
     let courierLastSeenAt: String?
     let etaEndsAt: String?
+    let createdAt: String?
+    let preparingAt: String?
+    let deliveringAt: String?
     let accessToken: String?
     let items: [CustomerOrderItemResponse]
 }

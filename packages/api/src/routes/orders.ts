@@ -1668,8 +1668,8 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     // For customer-facing view: while the order is still inside its
-    // DELIVERING window (computed by computeDeliveryWindowMs — currently 30 s
-    // for testing, normally 10–25 min), show DELIVERING; after that the row
+    // DELIVERING window (computed by computeDeliveryWindowMs — 10–20 min
+    // based on time/order load), show DELIVERING; after that the row
     // already reads DELIVERED and we serve that. Single source of truth so
     // the customer banner, the LA finaliser, and the LA dispatcher all
     // agree on the same window.

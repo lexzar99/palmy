@@ -2,8 +2,9 @@
  * Per-order DELIVERING window (in ms).
  *
  * Rules:
- *   - Rush hours 17:00–19:59 (Europe/Stockholm): 25 minutes.
- *   - Other hours: deterministic pseudo-random 10–20 minutes seeded by orderId.
+ *   - Rush hours 17:00–19:59 (Europe/Stockholm): deterministic 18–20 minutes.
+ *   - Lunch 11:00–13:59: deterministic 14–18 minutes.
+ *   - Other hours: deterministic 10–20 minutes seeded by orderId.
  *
  * Determinism is required because the LA push (in admin.ts) and the
  * finalisation tick (in liveActivityFinalize.ts) both compute the window
@@ -14,11 +15,15 @@
 
 export function computeDeliveryWindowMs(deliveringAt: Date, orderId: string): number {
   const stockholmHour = stockholmHourOf(deliveringAt);
+  const seed = hashOrderId(orderId);
   if (stockholmHour >= 17 && stockholmHour < 20) {
-    return 25 * 60 * 1000;
+    return (18 + (seed % 3)) * 60 * 1000;
+  }
+  if (stockholmHour >= 11 && stockholmHour < 14) {
+    return (14 + (seed % 5)) * 60 * 1000;
   }
   // 10..20 inclusive (11 values)
-  const minutes = 10 + (hashOrderId(orderId) % 11);
+  const minutes = 10 + (seed % 11);
   return minutes * 60 * 1000;
 }
 
