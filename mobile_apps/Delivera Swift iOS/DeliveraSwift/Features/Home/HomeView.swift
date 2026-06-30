@@ -1222,7 +1222,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
     }
 }
 
-private extension HomeTrackingStatus {
+extension HomeTrackingStatus {
     static func isRestorableTerminalStatus(_ status: String) -> Bool {
         switch status.uppercased() {
         case "DELIVERED", "COMPLETED", "CANCELLED", "CANCELED", "REJECTED", "FAILED", "PAYMENT_FAILED":
@@ -2686,7 +2686,7 @@ private struct PlainInfoLine: View {
     }
 }
 
-private struct PlainTextLine: View {
+struct PlainTextLine: View {
     let title: String
     let value: String
 
@@ -2705,7 +2705,7 @@ private struct PlainTextLine: View {
     }
 }
 
-private struct ReceiptLine: View {
+struct ReceiptLine: View {
     let title: String
     let value: String
     var accent: Color? = nil
@@ -2723,12 +2723,12 @@ private struct ReceiptLine: View {
     }
 }
 
-private struct ReceiptExportFile: Identifiable {
+struct ReceiptExportFile: Identifiable {
     let id = UUID()
     let url: URL
 }
 
-private struct ShareSheet: UIViewControllerRepresentable {
+struct ShareSheet: UIViewControllerRepresentable {
     let activityItems: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
@@ -2738,14 +2738,14 @@ private struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-private func formatNumber(_ value: Double) -> String {
+func formatNumber(_ value: Double) -> String {
     if value.rounded() == value {
         return "\(Int(value))"
     }
     return String(format: "%.1f", value).replacingOccurrences(of: ".", with: ",")
 }
 
-private func makeReceiptPDF(order: ActiveHomeOrder, settings: PlatformSettings?) throws -> ReceiptExportFile {
+func makeReceiptPDF(order: ActiveHomeOrder, settings: PlatformSettings?) throws -> ReceiptExportFile {
     let fileName = "delivera-kvitto-\(order.displayOrderNumber.replacingOccurrences(of: "#", with: "")).pdf"
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
     let page = CGRect(x: 0, y: 0, width: 595, height: 842)

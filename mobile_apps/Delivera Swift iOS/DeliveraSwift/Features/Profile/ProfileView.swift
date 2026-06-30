@@ -2,6 +2,7 @@ import AuthenticationServices
 import SwiftUI
 
 struct ProfileView: View {
+    @Environment(\.openURL) private var openURL
     @AppStorage("delivera.authToken") private var authToken = ""
     @State private var profile: CustomerProfile?
     @State private var authStep: ProfileAuthStep = .start
@@ -51,8 +52,9 @@ struct ProfileView: View {
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 18)
+                    .padding(.top, profile == nil ? 0 : 18)
                     .padding(.bottom, 118)
+                    .frame(minHeight: profile == nil ? UIScreen.main.bounds.height - 120 : nil, alignment: profile == nil ? .center : .top)
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : 18)
                 }
@@ -67,19 +69,24 @@ struct ProfileView: View {
     }
 
     private var loggedOutView: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Profil")
-                    .font(.system(size: 34, weight: .black, design: .rounded))
+        VStack(alignment: .center, spacing: 18) {
+            VStack(spacing: 10) {
+                DpointsGlyph(size: 42)
+                    .shadow(color: DeliveraTheme.orange.opacity(0.18), radius: 16, y: 8)
+                Text("Fortsätt till Delivera")
+                    .font(.system(size: 30, weight: .black, design: .rounded))
                     .foregroundStyle(DeliveraTheme.ink)
-                Text("Fortsätt med telefon, Apple eller Google. Kontot kopplas alltid till ditt verifierade nummer.")
+                    .multilineTextAlignment(.center)
+                Text("Logga in säkert. Vi kopplar alltid kontot till ett verifierat telefonnummer.")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(DeliveraTheme.muted)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(.bottom, 4)
 
             VStack(spacing: 10) {
-                AuthMethodButton(symbol: "phone.fill", title: "Fortsätt med telefon", subtitle: "Verifiera med SMS", tint: DeliveraTheme.orange) {
+                SocialContinueButton(symbol: "phone.fill", title: "Fortsätt med telefon", foreground: DeliveraTheme.ink, background: .white, border: DeliveraTheme.line) {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
                         authStep = .phone
                         errorMessage = nil
@@ -92,10 +99,11 @@ struct ProfileView: View {
                 .frame(height: 56)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-                AuthMethodButton(symbol: "g.circle.fill", title: "Fortsätt med Google", subtitle: "Öppnas säkert via Supabase", tint: DeliveraTheme.ink) {
+                SocialContinueButton(symbol: "g.circle.fill", title: "Fortsätt med Google", foreground: .white, background: DeliveraTheme.ink, border: .clear) {
                     Task { await startGoogle() }
                 }
             }
+            .frame(maxWidth: 360)
 
             authFlowCard
 
@@ -103,8 +111,9 @@ struct ProfileView: View {
                 NoticeBanner(text: errorMessage)
             }
 
-            ProfileInfoLink()
+            ProfileInfoLinks { url in openURL(url) }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var authFlowCard: some View {
@@ -198,11 +207,6 @@ struct ProfileView: View {
                 .padding(.horizontal, 13)
                 .frame(height: 38)
                 .background(DeliveraTheme.ink, in: Capsule())
-            }
-
-            HStack(spacing: 10) {
-                ProfileMetric(title: "Status", value: profile.isVerified ? "Verifierad" : "Ej klar", symbol: "checkmark.seal.fill", tint: profile.isVerified ? .green : DeliveraTheme.orange)
-                ProfileMetric(title: "Dpoints", value: "Kommer", symbol: "diamond.fill", tint: DeliveraTheme.orange)
             }
 
             VStack(spacing: 10) {
@@ -422,11 +426,17 @@ private struct CustomerProfile: Codable, Hashable {
 
 struct ProfileOrder: Decodable, Identifiable, Hashable {
     let id: String
+    let orderNumber: String?
     let status: String
     let type: String?
     let total: Double
+    let deliveryFee: Double?
+    let discountAmount: Double?
+    let tipAmount: Double?
+    let deliveryStreet: String?
     let createdAt: String
     let restaurant: ProfileOrderRestaurant?
+    let items: [ProfileOrderItem]
 
     var displayDate: String {
         String(createdAt.prefix(10))
@@ -456,12 +466,86 @@ struct ProfileOrder: Decodable, Identifiable, Hashable {
         default: return DeliveraTheme.orange
         }
     }
+
+    var activeOrder: ActiveHomeOrder {
+        let mode: OrderMode = (type ?? "").uppercased() == "PICKUP" ? .pickup : .delivery
+        let restaurantName = restaurant?.name ?? "Restaurang"
+        let addressParts = [restaurant?.address, restaurant?.zip, restaurant?.city]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+        let orderLines = items.map { item in
+            ActiveOrderLine(
+                name: item.productName,
+                quantity: item.quantity,
+                unitPrice: item.basePrice,
+                extras: item.selectedExtras.compactMap { extra in
+                    let name = extra.extraName ?? extra.name
+                    guard let name, !name.isEmpty else { return nil }
+                    return "\(extra.quantity ?? 1)x \(name)"
+                }
+            )
+        }
+        return ActiveHomeOrder(
+            id: id,
+            accessToken: nil,
+            orderNumber: orderNumber,
+            restaurantName: restaurantName,
+            restaurantLegalName: restaurant?.legalName,
+            restaurantOrgNumber: restaurant?.organizationNumber,
+            restaurantAddress: addressParts.joined(separator: ", "),
+            restaurantPhone: restaurant?.phone,
+            restaurantVatPercent: Double(restaurant?.vatPercent ?? 12),
+            status: HomeTrackingStatus(apiStatus: status, mode: mode),
+            statusTitle: displayStatus,
+            statusSubtitle: "",
+            etaText: displayStatus,
+            etaEndsAt: nil,
+            mode: mode,
+            address: deliveryStreet ?? addressParts.joined(separator: ", "),
+            total: total,
+            deliveryFee: deliveryFee ?? 0,
+            discountAmount: discountAmount ?? 0,
+            items: orderLines,
+            selfDelivery: false,
+            courierName: nil,
+            courierAssigned: false,
+            courierHasLiveLocation: false,
+            restaurantLatitude: 55.6046,
+            restaurantLongitude: 13.0038,
+            customerLatitude: 55.5969,
+            customerLongitude: 13.0007,
+            courierLatitude: 55.6046,
+            courierLongitude: 13.0038
+        )
+    }
 }
 
 struct ProfileOrderRestaurant: Decodable, Hashable {
     let id: String?
     let name: String?
     let slug: String?
+    let address: String?
+    let zip: String?
+    let city: String?
+    let phone: String?
+    let legalName: String?
+    let organizationNumber: String?
+    let vatPercent: Int?
+}
+
+struct ProfileOrderItem: Decodable, Identifiable, Hashable {
+    let id: String
+    let productName: String
+    let basePrice: Double
+    let quantity: Int
+    let subtotal: Double
+    let selectedExtras: [ProfileOrderExtra]
+}
+
+struct ProfileOrderExtra: Decodable, Hashable {
+    let name: String?
+    let extraName: String?
+    let quantity: Int?
 }
 
 struct ProfileDeal: Decodable, Identifiable, Hashable {
@@ -683,37 +767,33 @@ private struct ProfileUpdateResponse: Decodable {
     let success: Bool?
 }
 
-private struct AuthMethodButton: View {
+private struct SocialContinueButton: View {
     let symbol: String
     let title: String
-    let subtitle: String
-    let tint: Color
+    let foreground: Color
+    let background: Color
+    let border: Color
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: symbol)
-                    .font(.system(size: 19, weight: .black))
-                    .foregroundStyle(.white)
-                    .frame(width: 48, height: 48)
-                    .background(tint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .black, design: .rounded))
-                        .foregroundStyle(DeliveraTheme.ink)
-                    Text(subtitle)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(DeliveraTheme.muted)
-                }
+                    .font(.system(size: 18, weight: .black))
+                    .frame(width: 24)
                 Spacer()
+                Text(title)
+                    .font(.system(size: 16, weight: .black, design: .rounded))
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .black))
-                    .foregroundStyle(DeliveraTheme.muted)
+                    .opacity(0.7)
+                    .frame(width: 24)
             }
-            .padding(12)
-            .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 16)
+            .frame(height: 56)
+            .background(background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(border, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -863,22 +943,34 @@ private struct ProfileMetric: View {
     }
 }
 
-private struct ProfileInfoLink: View {
+private struct ProfileInfoLinks: View {
+    let open: (URL) -> Void
+
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "info.circle.fill")
-                .font(.system(size: 15, weight: .black))
-            Text("Information, villkor och support finns i profilen efter inloggning.")
-                .font(.system(size: 12, weight: .bold))
+        HStack(spacing: 14) {
+            link("Support", "https://delivera.se/contact")
+            Text("•")
+            link("Villkor", "https://delivera.se/terms")
+            Text("•")
+            link("Policy", "https://delivera.se/privacy")
         }
+        .font(.system(size: 12, weight: .black))
         .foregroundStyle(DeliveraTheme.muted)
-        .padding(13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.top, 4)
+    }
+
+    private func link(_ title: String, _ url: String) -> some View {
+        Button(title) {
+            if let url = URL(string: url) {
+                open(url)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 
 private struct ProfilePanelPage: View {
+    @Environment(\.openURL) private var openURL
     let panel: ProfilePanel
     let profile: CustomerProfile?
     let orders: [ProfileOrder]
@@ -889,45 +981,56 @@ private struct ProfilePanelPage: View {
     let errorMessage: String?
     let onBack: () -> Void
     let onSaveProfile: () -> Void
+    @State private var selectedOrder: ProfileOrder?
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 12) {
-                    Button(action: onBack) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .black))
-                            .foregroundStyle(DeliveraTheme.ink)
-                            .frame(width: 46, height: 46)
-                            .background(.white, in: Circle())
-                            .overlay(Circle().stroke(DeliveraTheme.line, lineWidth: 1))
+        Group {
+            if let selectedOrder {
+                ProfileOrderDetailPage(order: selectedOrder) {
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
+                        self.selectedOrder = nil
                     }
-                    .buttonStyle(.plain)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(panelTitle)
-                            .font(.system(size: 29, weight: .black, design: .rounded))
-                            .foregroundStyle(DeliveraTheme.ink)
-                        Text(panelSubtitle)
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(DeliveraTheme.muted)
-                    }
-                    Spacer()
                 }
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        HStack(spacing: 12) {
+                            Button(action: onBack) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 17, weight: .black))
+                                    .foregroundStyle(DeliveraTheme.ink)
+                                    .frame(width: 46, height: 46)
+                                    .background(.white, in: Circle())
+                                    .overlay(Circle().stroke(DeliveraTheme.line, lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(panelTitle)
+                                    .font(.system(size: 29, weight: .black, design: .rounded))
+                                    .foregroundStyle(DeliveraTheme.ink)
+                                Text(panelSubtitle)
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(DeliveraTheme.muted)
+                            }
+                            Spacer()
+                        }
 
-                switch panel {
-                case .deals:
-                    dealsContent
-                case .orders:
-                    ordersContent
-                case .information:
-                    informationContent
-                case .settings:
-                    settingsContent
+                        switch panel {
+                        case .deals:
+                            dealsContent
+                        case .orders:
+                            ordersContent
+                        case .information:
+                            informationContent
+                        case .settings:
+                            settingsContent
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 18)
+                    .padding(.bottom, 118)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 18)
-            .padding(.bottom, 118)
         }
         .background(DeliveraTheme.appBackground.ignoresSafeArea())
     }
@@ -998,30 +1101,40 @@ private struct ProfilePanelPage: View {
         } else {
             VStack(spacing: 10) {
                 ForEach(orders) { order in
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(order.restaurant?.name ?? "Restaurang")
+                    Button {
+                        withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
+                            selectedOrder = order
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .firstTextBaseline) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(order.restaurant?.name ?? "Restaurang")
+                                        .font(.system(size: 16, weight: .black, design: .rounded))
+                                        .foregroundStyle(DeliveraTheme.ink)
+                                    Text(order.displayDate)
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(DeliveraTheme.muted)
+                                }
+                                Spacer()
+                                Text(order.totalText)
                                     .font(.system(size: 16, weight: .black, design: .rounded))
-                                    .foregroundStyle(DeliveraTheme.ink)
-                                Text(order.displayDate)
-                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(DeliveraTheme.orange)
+                            }
+                            HStack(spacing: 8) {
+                                ProfilePill(text: order.displayStatus, tint: order.statusTint)
+                                ProfilePill(text: order.type == "PICKUP" ? "Avhämtning" : "Leverans", tint: DeliveraTheme.ink)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .black))
                                     .foregroundStyle(DeliveraTheme.muted)
                             }
-                            Spacer()
-                            Text(order.totalText)
-                                .font(.system(size: 16, weight: .black, design: .rounded))
-                                .foregroundStyle(DeliveraTheme.orange)
                         }
-                        HStack(spacing: 8) {
-                            ProfilePill(text: order.displayStatus, tint: order.statusTint)
-                            ProfilePill(text: order.type == "PICKUP" ? "Avhämtning" : "Leverans", tint: DeliveraTheme.ink)
-                            Spacer()
-                        }
+                        .padding(15)
+                        .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
                     }
-                    .padding(15)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -1029,9 +1142,15 @@ private struct ProfilePanelPage: View {
 
     private var informationContent: some View {
         VStack(spacing: 10) {
-            ProfileInfoRow(symbol: "bubble.left.and.bubble.right.fill", title: "Support", subtitle: "Kontakta oss om en order eller betalning.")
-            ProfileInfoRow(symbol: "shield.checkered", title: "Trygg beställning", subtitle: "Betalning, kvitto och status sparas säkert.")
-            ProfileInfoRow(symbol: "doc.text.fill", title: "Villkor", subtitle: "Köpvillkor, integritet och Dpoints-regler.")
+            ProfileInfoRow(symbol: "bubble.left.and.bubble.right.fill", title: "Support", subtitle: "Kontakta oss om en order eller betalning.") {
+                openURL(URL(string: "https://delivera.se/contact")!)
+            }
+            ProfileInfoRow(symbol: "shield.checkered", title: "Integritet", subtitle: "Hur vi hanterar konto, plats och betalningsdata.") {
+                openURL(URL(string: "https://delivera.se/privacy")!)
+            }
+            ProfileInfoRow(symbol: "doc.text.fill", title: "Villkor", subtitle: "Köpvillkor, integritet och Dpoints-regler.") {
+                openURL(URL(string: "https://delivera.se/terms")!)
+            }
         }
     }
 
@@ -1069,6 +1188,137 @@ private struct ProfilePanelPage: View {
     }
 }
 
+private struct ProfileOrderDetailPage: View {
+    let order: ProfileOrder
+    let onBack: () -> Void
+    @State private var platformSettings: PlatformSettings?
+    @State private var exportFile: ReceiptExportFile?
+    @State private var exportError: String?
+
+    private var activeOrder: ActiveHomeOrder { order.activeOrder }
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 12) {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .black))
+                            .foregroundStyle(DeliveraTheme.ink)
+                            .frame(width: 46, height: 46)
+                            .background(.white, in: Circle())
+                            .overlay(Circle().stroke(DeliveraTheme.line, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(activeOrder.restaurantName)
+                            .font(.system(size: 27, weight: .black, design: .rounded))
+                            .foregroundStyle(DeliveraTheme.ink)
+                            .lineLimit(1)
+                        Text("\(activeOrder.displayOrderNumber) • \(order.displayDate)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(DeliveraTheme.muted)
+                    }
+                    Spacer()
+                }
+
+                VStack(alignment: .leading, spacing: 0) {
+                    PlainTextLine(title: "Status", value: order.displayStatus)
+                    Divider()
+                    PlainTextLine(title: order.type == "PICKUP" ? "Avhämtning" : "Leverans", value: activeOrder.address)
+                    if let legal = activeOrder.restaurantLegalName, !legal.isEmpty {
+                        Divider()
+                        PlainTextLine(title: "Juridiskt namn", value: legal)
+                    }
+                    if let org = activeOrder.restaurantOrgNumber, !org.isEmpty {
+                        Divider()
+                        PlainTextLine(title: "Org.nr", value: org)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
+                .background(.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Artiklar")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundStyle(DeliveraTheme.ink)
+                    ForEach(activeOrder.items) { item in
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text("\(item.quantity)x \(item.name)")
+                                Spacer()
+                                Text(priceText(item.total))
+                            }
+                            .font(.system(size: 14, weight: .black))
+                            if !item.extras.isEmpty {
+                                Text(item.extras.joined(separator: ", "))
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(DeliveraTheme.muted)
+                            }
+                        }
+                    }
+                    Divider()
+                    ReceiptLine(title: "Delsumma", value: priceText(activeOrder.subtotal))
+                    ReceiptLine(title: activeOrder.mode == .pickup ? "Avhämtning" : "Leverans", value: activeOrder.deliveryFee > 0 ? priceText(activeOrder.deliveryFee) : "Fri")
+                    if activeOrder.discountAmount > 0 {
+                        ReceiptLine(title: "Rabatt", value: "-\(priceText(activeOrder.discountAmount))", accent: .green)
+                    }
+                    ReceiptLine(title: "Varav moms \(formatNumber(activeOrder.restaurantVatPercent))%", value: priceText(activeOrder.vatAmount))
+                    Divider()
+                    HStack {
+                        Text("Totalt")
+                        Spacer()
+                        Text(priceText(activeOrder.total))
+                    }
+                    .font(.system(size: 21, weight: .black, design: .rounded))
+
+                    Button {
+                        do {
+                            exportFile = try makeReceiptPDF(order: activeOrder, settings: platformSettings)
+                            exportError = nil
+                        } catch {
+                            exportError = error.localizedDescription
+                        }
+                    } label: {
+                        HStack {
+                            Text("Skapa nytt kvitto")
+                            Spacer()
+                            Image(systemName: "arrow.down.doc.fill")
+                        }
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 15)
+                        .frame(height: 50)
+                        .background(DeliveraTheme.ink, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+
+                    if let exportError {
+                        Text(exportError)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.red)
+                    }
+                }
+                .padding(16)
+                .background(.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 118)
+        }
+        .background(DeliveraTheme.appBackground.ignoresSafeArea())
+        .task {
+            platformSettings = try? await DeliveraAPI().settings()
+        }
+        .sheet(item: $exportFile) { file in
+            ShareSheet(activityItems: [file.url])
+        }
+    }
+}
+
 private struct ProfilePill: View {
     let text: String
     let tint: Color
@@ -1087,28 +1337,34 @@ private struct ProfileInfoRow: View {
     let symbol: String
     let title: String
     let subtitle: String
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .black))
-                .foregroundStyle(DeliveraTheme.orange)
-                .frame(width: 42, height: 42)
-                .background(DeliveraTheme.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 15, weight: .black))
-                    .foregroundStyle(DeliveraTheme.ink)
-                Text(subtitle)
-                    .font(.system(size: 12, weight: .bold))
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.system(size: 17, weight: .black))
+                    .foregroundStyle(DeliveraTheme.orange)
+                    .frame(width: 42, height: 42)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .black))
+                        .foregroundStyle(DeliveraTheme.ink)
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(DeliveraTheme.muted)
+                        .lineLimit(2)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 12, weight: .black))
                     .foregroundStyle(DeliveraTheme.muted)
-                    .lineLimit(2)
             }
-            Spacer()
+            .padding(14)
+            .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
         }
-        .padding(14)
-        .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+        .buttonStyle(.plain)
     }
 }
 

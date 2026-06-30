@@ -8,6 +8,12 @@ import AdyenCard
 import AdyenCheckout
 #endif
 
+private extension UIApplication {
+    func dismissKeyboard() {
+        sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+}
+
 struct CartView: View {
     @ObservedObject var cartStore: CartStore
     let isLoggedIn: Bool
@@ -100,7 +106,7 @@ struct CartView: View {
                     paymentSheet = nil
                 }
             )
-            .presentationDetents([.fraction(0.78)])
+            .presentationDetents([.height(620)])
             .presentationDragIndicator(.visible)
         }
     }
@@ -996,6 +1002,17 @@ private struct AdyenCheckoutSheet: View {
                     .foregroundStyle(DeliveraTheme.orange)
             }
             Spacer()
+            Button {
+                UIApplication.shared.dismissKeyboard()
+            } label: {
+                Text("Klar")
+                    .font(.system(size: 12, weight: .black))
+                    .foregroundStyle(DeliveraTheme.ink)
+                    .padding(.horizontal, 12)
+                    .frame(height: 34)
+                    .background(.white.opacity(0.9), in: Capsule())
+            }
+            .buttonStyle(.plain)
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .black))
@@ -1006,8 +1023,8 @@ private struct AdyenCheckoutSheet: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder
@@ -1090,7 +1107,7 @@ private struct NativePaymentMethodButton: View {
             }
             .foregroundStyle(selected ? .white : DeliveraTheme.ink)
             .frame(maxWidth: .infinity)
-            .frame(height: 58)
+            .frame(height: 50)
             .background(selected ? DeliveraTheme.ink : .white, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(selected ? DeliveraTheme.orange.opacity(0.35) : DeliveraTheme.line, lineWidth: 1))
             .shadow(color: selected ? DeliveraTheme.orange.opacity(0.18) : .clear, radius: 16, y: 8)
@@ -1133,7 +1150,7 @@ private struct NativeAdyenPaymentPanel: View {
                 onCompleted: onCompleted,
                 onFailed: onFailed
             )
-            .frame(minHeight: method == .card ? 360 : 300)
+            .frame(minHeight: method == .card ? 300 : 210)
             #else
             VStack(alignment: .leading, spacing: 10) {
                 Text("Kortbetalning är inte tillgänglig just nu.")
@@ -1148,7 +1165,7 @@ private struct NativeAdyenPaymentPanel: View {
             .background(Color.black.opacity(0.035), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             #endif
         }
-        .padding(14)
+        .padding(12)
         .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
         .cardShadow()

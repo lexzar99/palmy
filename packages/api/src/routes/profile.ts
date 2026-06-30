@@ -184,7 +184,23 @@ router.get('/orders', authenticateUser, async (req: any, res: any) => {
           ...(phoneVariants.length ? [{ customerPhone: { in: phoneVariants } }] : []),
         ],
       },
-      include: { restaurant: { select: { id: true, name: true, slug: true } }, items: true },
+      include: {
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            address: true,
+            zip: true,
+            city: true,
+            phone: true,
+            legalName: true,
+            organizationNumber: true,
+            vatPercent: true,
+          },
+        },
+        items: true,
+      },
       orderBy: { createdAt: 'desc' }
     });
     const serialized = orders.map((o: any) => ({
@@ -197,6 +213,7 @@ router.get('/orders', authenticateUser, async (req: any, res: any) => {
         ...it,
         basePrice: (it.basePrice ?? 0) / 100,
         subtotal: (it.subtotal ?? 0) / 100,
+        selectedExtras: typeof it.selectedExtras === 'string' ? JSON.parse(it.selectedExtras || '[]') : (it.selectedExtras || []),
       })),
       // accessToken läcker inte i klient-svar (servern verifierar mot DB)
       accessToken: undefined,
