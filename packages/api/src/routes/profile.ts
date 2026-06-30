@@ -161,11 +161,29 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
 // raw Prisma-rader → 350 kr-order visades som "35000 kr" i UI:t.
 router.get('/orders', authenticateUser, async (req: any, res: any) => {
   try {
+    const user = await (prisma as any).user.findUnique({
+      where: { id: req.user.id },
+      select: { phone: true },
+    });
+    const phone = (user?.phone || '').trim();
+    const phoneDigits = phone.replace(/\D/g, '');
+    const phoneVariants = phone
+      ? Array.from(new Set([
+          phone,
+          phone.startsWith('+') ? phone.slice(1) : `+${phoneDigits}`,
+          phoneDigits,
+        ].filter(Boolean)))
+      : [];
     const orders = await prisma.order.findMany({
       // OBS: filtrera INTE bort CANCELLED/REJECTED här. Home-skärmen läser samma
       // endpoint för att kunna visa "Avbruten"-kortet för en nyligen avvisad
       // order. Orderhistoriken döljer avbrutna client-side (OrdersListScreen).
-      where: { userId: req.user.id },
+      where: {
+        OR: [
+          { userId: req.user.id },
+          ...(phoneVariants.length ? [{ customerPhone: { in: phoneVariants } }] : []),
+        ],
+      },
       include: { restaurant: { select: { id: true, name: true, slug: true } }, items: true },
       orderBy: { createdAt: 'desc' }
     });

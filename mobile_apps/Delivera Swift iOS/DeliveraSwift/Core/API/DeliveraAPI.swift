@@ -66,6 +66,10 @@ struct DeliveraAPI {
         try await get("/api/dpoints/me")
     }
 
+    func dpointsMeDetailed(token: String) async throws -> RewardsMe {
+        try await getAuthorized("/api/dpoints/me", token: token)
+    }
+
     func dpointsRewards() async throws -> DpointsRewardsResponse {
         try await get("/api/dpoints/rewards")
     }
@@ -83,6 +87,18 @@ struct DeliveraAPI {
 
     func claimDpointsSignupBonusDetailed() async throws -> RewardsMe {
         try await postWithServerMessage("/api/dpoints/claim-signup", body: EmptyAPIRequest())
+    }
+
+    func claimDpointsSignupBonusDetailed(token: String) async throws -> RewardsMe {
+        try await postAuthorizedWithServerMessage("/api/dpoints/claim-signup", body: EmptyAPIRequest(), token: token)
+    }
+
+    func profileOrders(token: String) async throws -> [ProfileOrder] {
+        try await getAuthorized("/api/profile/orders", token: token)
+    }
+
+    func profileDeals(token: String) async throws -> [ProfileDeal] {
+        try await getAuthorized("/api/profile/deals", token: token)
     }
 
     func validateDiscount(code: String, subtotal: Double) async throws -> DiscountValidationResponse {
@@ -198,6 +214,26 @@ struct DeliveraAPI {
         return try decoder.decode(T.self, from: data)
     }
 
+    private func getAuthorized<T: Decodable>(_ path: String, token: String) async throws -> T {
+        let url = baseURL.appending(path: path.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.timeoutInterval = 15
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            if let error = try? decoder.decode(ServerErrorResponse.self, from: data), !error.error.isEmpty {
+                throw APIError.message(error.error)
+            }
+            throw APIError.requestFailed(http.statusCode)
+        }
+        return try decoder.decode(T.self, from: data)
+    }
+
     private func post<T: Decodable, Body: Encodable>(_ path: String, body: Body) async throws -> T {
         let url = baseURL.appending(path: path.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
         var request = URLRequest(url: url)
@@ -229,6 +265,33 @@ struct DeliveraAPI {
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else {
+            if let error = try? decoder.decode(ServerErrorResponse.self, from: data), !error.error.isEmpty {
+                throw APIError.message(error.error)
+            }
+            throw APIError.requestFailed(http.statusCode)
+        }
+        return try decoder.decode(T.self, from: data)
+    }
+
+    private func postAuthorizedWithServerMessage<T: Decodable, Body: Encodable>(
+        _ path: String,
+        body: Body,
+        token: String
+    ) async throws -> T {
+        let url = baseURL.appending(path: path.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         request.httpBody = try JSONEncoder().encode(body)
 
         let (data, response) = try await URLSession.shared.data(for: request)

@@ -1,13 +1,17 @@
 import SwiftUI
 
 struct RewardsView: View {
-    let isLoggedIn: Bool
+    let authToken: String
     let onOpenProfile: () -> Void
     let onOpenRestaurant: (String, String?) -> Void
 
     @StateObject private var model = RewardsViewModel()
     @State private var hasAppeared = false
     @State private var selectedPanel: RewardsPanel = .shop
+
+    private var isLoggedIn: Bool {
+        !authToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         ZStack {
@@ -30,14 +34,17 @@ struct RewardsView: View {
                 .offset(y: hasAppeared ? 0 : 22)
             }
             .refreshable {
-                await model.load(isLoggedIn: isLoggedIn, forceRefresh: true)
+                await model.load(authToken: authToken, forceRefresh: true)
             }
         }
         .task {
             withAnimation(.spring(response: 0.62, dampingFraction: 0.82)) {
                 hasAppeared = true
             }
-            await model.load(isLoggedIn: isLoggedIn)
+            await model.load(authToken: authToken)
+        }
+        .onChange(of: authToken) { _, newValue in
+            Task { await model.load(authToken: newValue, forceRefresh: true) }
         }
     }
 
@@ -81,7 +88,7 @@ struct RewardsView: View {
         VStack(alignment: .leading, spacing: 18) {
             if let signup = model.me?.signup, signup.claimable {
                 Button {
-                    Task { await model.claimSignupBonus() }
+                    Task { await model.claimSignupBonus(authToken: authToken) }
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "sparkles")
@@ -259,13 +266,15 @@ private final class RewardsViewModel: ObservableObject {
         return count > 0 ? "\(count) produkter från restaurangerna" : "Rewardable produkter visas här när de är aktiva."
     }
 
-    func load(isLoggedIn: Bool, forceRefresh: Bool = false) async {
+    func load(authToken: String, forceRefresh: Bool = false) async {
+        let token = authToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isLoggedIn = !token.isEmpty
         isLoading = true
         defer { isLoading = false }
 
         async let catalogTask = loadCatalog(forceRefresh: forceRefresh)
         async let rewardsTask = loadRewards()
-        async let meTask: RewardsMe? = isLoggedIn ? try? DeliveraAPI().dpointsMeDetailed() : nil
+        async let meTask: RewardsMe? = isLoggedIn ? try? DeliveraAPI().dpointsMeDetailed(token: token) : nil
 
         let catalog = await catalogTask
         let rewards = await rewardsTask
@@ -273,13 +282,17 @@ private final class RewardsViewModel: ObservableObject {
         earnRules = rewards?.earnRules ?? []
         if isLoggedIn {
             me = await meTask
+        } else {
+            me = nil
         }
     }
 
-    func claimSignupBonus() async {
+    func claimSignupBonus(authToken: String) async {
+        let token = authToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else { return }
         isClaiming = true
         defer { isClaiming = false }
-        me = try? await DeliveraAPI().claimDpointsSignupBonusDetailed()
+        me = try? await DeliveraAPI().claimDpointsSignupBonusDetailed(token: token)
     }
 
     private func loadCatalog(forceRefresh: Bool) async -> DpointsRewardProductsResponse? {

@@ -12,6 +12,10 @@ struct ProfileView: View {
     @State private var editName = ""
     @State private var editEmail = ""
     @State private var activePanel: ProfilePanel?
+    @State private var profileOrders: [ProfileOrder] = []
+    @State private var profileDeals: [ProfileDeal] = []
+    @State private var isPanelLoading = false
+    @State private var panelErrorMessage: String?
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var appeared = false
@@ -22,19 +26,36 @@ struct ProfileView: View {
         ZStack {
             DeliveraTheme.appBackground.ignoresSafeArea()
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
-                    if let profile {
-                        loggedInView(profile)
-                    } else {
-                        loggedOutView
+            if let activePanel {
+                ProfilePanelPage(
+                    panel: activePanel,
+                    profile: profile,
+                    orders: profileOrders,
+                    deals: profileDeals,
+                    editName: $editName,
+                    editEmail: $editEmail,
+                    isLoading: activePanel == .settings ? isLoading : isPanelLoading,
+                    errorMessage: activePanel == .settings ? errorMessage : panelErrorMessage,
+                    onBack: { withAnimation(.spring(response: 0.36, dampingFraction: 0.88)) { self.activePanel = nil } },
+                    onSaveProfile: { Task { await saveProfile() } }
+                )
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+                .task { await loadPanel(activePanel) }
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        if let profile {
+                            loggedInView(profile)
+                        } else {
+                            loggedOutView
+                        }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 18)
+                    .padding(.bottom, 118)
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : 18)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 18)
-                .padding(.bottom, 118)
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : 18)
             }
         }
         .task {
@@ -42,19 +63,6 @@ struct ProfileView: View {
                 appeared = true
             }
             await restoreProfile()
-        }
-        .sheet(item: $activePanel) { panel in
-            ProfilePanelSheet(
-                panel: panel,
-                profile: profile,
-                editName: $editName,
-                editEmail: $editEmail,
-                isLoading: isLoading,
-                errorMessage: errorMessage,
-                onSaveProfile: { Task { await saveProfile() } }
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
         }
     }
 
@@ -81,7 +89,8 @@ struct ProfileView: View {
                 AppleSignInButton { result in
                     Task { await handleApple(result) }
                 }
-                .frame(height: 58)
+                .frame(height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 AuthMethodButton(symbol: "g.circle.fill", title: "Fortsätt med Google", subtitle: "Öppnas säkert via Supabase", tint: DeliveraTheme.ink) {
                     Task { await startGoogle() }
@@ -323,6 +332,32 @@ struct ProfileView: View {
         isLoading = false
     }
 
+    @MainActor
+    private func loadPanel(_ panel: ProfilePanel) async {
+        guard !authToken.isEmpty else { return }
+        panelErrorMessage = nil
+        switch panel {
+        case .orders:
+            isPanelLoading = true
+            defer { isPanelLoading = false }
+            do {
+                profileOrders = try await DeliveraAPI().profileOrders(token: authToken)
+            } catch {
+                panelErrorMessage = error.localizedDescription
+            }
+        case .deals:
+            isPanelLoading = true
+            defer { isPanelLoading = false }
+            do {
+                profileDeals = try await DeliveraAPI().profileDeals(token: authToken)
+            } catch {
+                panelErrorMessage = error.localizedDescription
+            }
+        case .information, .settings:
+            break
+        }
+    }
+
     private func logout() {
         authToken = ""
         profile = nil
@@ -382,6 +417,86 @@ private struct CustomerProfile: Codable, Hashable {
         if !joined.isEmpty { return joined }
         if let name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return name }
         return "Din profil"
+    }
+}
+
+struct ProfileOrder: Decodable, Identifiable, Hashable {
+    let id: String
+    let status: String
+    let type: String?
+    let total: Double
+    let createdAt: String
+    let restaurant: ProfileOrderRestaurant?
+
+    var displayDate: String {
+        String(createdAt.prefix(10))
+    }
+
+    var totalText: String {
+        "\(Int(total.rounded())) kr"
+    }
+
+    var displayStatus: String {
+        switch status.uppercased() {
+        case "PENDING": return "Väntar"
+        case "PREPARING", "ACCEPTED": return "Tillagas"
+        case "READY": return "Redo"
+        case "DELIVERING", "OUT_FOR_DELIVERY": return "På väg"
+        case "DELIVERED", "COMPLETED": return "Levererad"
+        case "CANCELLED", "CANCELED", "REJECTED": return "Avbruten"
+        default: return status.capitalized
+        }
+    }
+
+    var statusTint: Color {
+        switch status.uppercased() {
+        case "READY", "DELIVERED", "COMPLETED": return .green
+        case "CANCELLED", "CANCELED", "REJECTED": return .red
+        case "DELIVERING", "OUT_FOR_DELIVERY": return Color(red: 0.17, green: 0.49, blue: 0.90)
+        default: return DeliveraTheme.orange
+        }
+    }
+}
+
+struct ProfileOrderRestaurant: Decodable, Hashable {
+    let id: String?
+    let name: String?
+    let slug: String?
+}
+
+struct ProfileDeal: Decodable, Identifiable, Hashable {
+    let id: String
+    let code: String?
+    let campaign: ProfileDealCampaign?
+
+    var title: String {
+        campaign?.title ?? campaign?.name ?? "Personlig deal"
+    }
+
+    var subtitle: String {
+        if let code, !code.isEmpty {
+            return "Kod: \(code)"
+        }
+        if let campaign {
+            return campaign.displayDiscount
+        }
+        return "Redo att användas i kassan"
+    }
+}
+
+struct ProfileDealCampaign: Decodable, Hashable {
+    let title: String?
+    let name: String?
+    let discountType: String?
+    let discountValue: Double?
+    let minOrder: Double?
+
+    var displayDiscount: String {
+        let value = discountValue ?? 0
+        if discountType == "PERCENTAGE" {
+            return "\(Int(value.rounded()))% rabatt"
+        }
+        return "\(Int(value.rounded())) kr rabatt"
     }
 }
 
@@ -763,35 +878,58 @@ private struct ProfileInfoLink: View {
     }
 }
 
-private struct ProfilePanelSheet: View {
+private struct ProfilePanelPage: View {
     let panel: ProfilePanel
     let profile: CustomerProfile?
+    let orders: [ProfileOrder]
+    let deals: [ProfileDeal]
     @Binding var editName: String
     @Binding var editEmail: String
     let isLoading: Bool
     let errorMessage: String?
+    let onBack: () -> Void
     let onSaveProfile: () -> Void
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 12) {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .black))
+                            .foregroundStyle(DeliveraTheme.ink)
+                            .frame(width: 46, height: 46)
+                            .background(.white, in: Circle())
+                            .overlay(Circle().stroke(DeliveraTheme.line, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(panelTitle)
+                            .font(.system(size: 29, weight: .black, design: .rounded))
+                            .foregroundStyle(DeliveraTheme.ink)
+                        Text(panelSubtitle)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(DeliveraTheme.muted)
+                    }
+                    Spacer()
+                }
+
                 switch panel {
                 case .deals:
-                    PlaceholderPanel(symbol: "ticket.fill", title: "Mina deals", message: "Dina sparade deals och personliga koder visas här när vi kopplar listan mot `/api/profile/deals`.")
+                    dealsContent
                 case .orders:
-                    PlaceholderPanel(symbol: "clock.arrow.circlepath", title: "Orderhistorik", message: "Här kommer tidigare ordrar, kvitton och recensioner ligga. Aktiva ordrar fortsätter visas på startsidan.")
+                    ordersContent
                 case .information:
-                    PlaceholderPanel(symbol: "info.circle.fill", title: "Information", message: "Support, villkor, integritet och kontakt samlas här så profilen inte känns rörig.")
+                    informationContent
                 case .settings:
                     settingsContent
                 }
-                Spacer()
             }
-            .padding(20)
-            .background(DeliveraTheme.appBackground.ignoresSafeArea())
-            .navigationTitle(panelTitle)
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 118)
         }
+        .background(DeliveraTheme.appBackground.ignoresSafeArea())
     }
 
     private var panelTitle: String {
@@ -803,10 +941,102 @@ private struct ProfilePanelSheet: View {
         }
     }
 
+    private var panelSubtitle: String {
+        switch panel {
+        case .deals: return "Personliga rabatter och erbjudanden"
+        case .orders: return "Tidigare köp, kvitton och recensioner"
+        case .information: return "Support, villkor och trygghet"
+        case .settings: return "Namn och e-post"
+        }
+    }
+
+    @ViewBuilder
+    private var dealsContent: some View {
+        if isLoading {
+            ProfileLoadingRows()
+        } else if let errorMessage {
+            NoticeBanner(text: errorMessage)
+        } else if deals.isEmpty {
+            PlaceholderPanel(symbol: "ticket.fill", title: "Inga deals än", message: "När du får personliga erbjudanden hamnar de här direkt.")
+        } else {
+            VStack(spacing: 10) {
+                ForEach(deals) { deal in
+                    HStack(spacing: 12) {
+                        Image(systemName: "ticket.fill")
+                            .font(.system(size: 18, weight: .black))
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(DeliveraTheme.orange, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(deal.title)
+                                .font(.system(size: 15, weight: .black))
+                                .foregroundStyle(DeliveraTheme.ink)
+                                .lineLimit(1)
+                            Text(deal.subtitle)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(DeliveraTheme.muted)
+                                .lineLimit(2)
+                        }
+                        Spacer()
+                    }
+                    .padding(14)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var ordersContent: some View {
+        if isLoading {
+            ProfileLoadingRows()
+        } else if let errorMessage {
+            NoticeBanner(text: errorMessage)
+        } else if orders.isEmpty {
+            PlaceholderPanel(symbol: "clock.arrow.circlepath", title: "Ingen historik än", message: "När du beställer med ditt verifierade nummer visas ordern här.")
+        } else {
+            VStack(spacing: 10) {
+                ForEach(orders) { order in
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(order.restaurant?.name ?? "Restaurang")
+                                    .font(.system(size: 16, weight: .black, design: .rounded))
+                                    .foregroundStyle(DeliveraTheme.ink)
+                                Text(order.displayDate)
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(DeliveraTheme.muted)
+                            }
+                            Spacer()
+                            Text(order.totalText)
+                                .font(.system(size: 16, weight: .black, design: .rounded))
+                                .foregroundStyle(DeliveraTheme.orange)
+                        }
+                        HStack(spacing: 8) {
+                            ProfilePill(text: order.displayStatus, tint: order.statusTint)
+                            ProfilePill(text: order.type == "PICKUP" ? "Avhämtning" : "Leverans", tint: DeliveraTheme.ink)
+                            Spacer()
+                        }
+                    }
+                    .padding(15)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+                }
+            }
+        }
+    }
+
+    private var informationContent: some View {
+        VStack(spacing: 10) {
+            ProfileInfoRow(symbol: "bubble.left.and.bubble.right.fill", title: "Support", subtitle: "Kontakta oss om en order eller betalning.")
+            ProfileInfoRow(symbol: "shield.checkered", title: "Trygg beställning", subtitle: "Betalning, kvitto och status sparas säkert.")
+            ProfileInfoRow(symbol: "doc.text.fill", title: "Villkor", subtitle: "Köpvillkor, integritet och Dpoints-regler.")
+        }
+    }
+
     private var settingsContent: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Text("Profil")
-                .font(.system(size: 20, weight: .black, design: .rounded))
             TextField("Namn", text: $editName)
                 .profileInput()
             TextField("E-post", text: $editEmail)
@@ -835,6 +1065,73 @@ private struct ProfilePanelSheet: View {
                 ProfilePrimaryLabel(title: isLoading ? "Sparar..." : "Spara", symbol: "checkmark")
             }
             .disabled(isLoading)
+        }
+    }
+}
+
+private struct ProfilePill: View {
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .black))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(tint.opacity(0.10), in: Capsule())
+    }
+}
+
+private struct ProfileInfoRow: View {
+    let symbol: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .black))
+                .foregroundStyle(DeliveraTheme.orange)
+                .frame(width: 42, height: 42)
+                .background(DeliveraTheme.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15, weight: .black))
+                    .foregroundStyle(DeliveraTheme.ink)
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(DeliveraTheme.muted)
+                    .lineLimit(2)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+    }
+}
+
+private struct ProfileLoadingRows: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            ForEach(0..<4, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(.white.opacity(0.86))
+                    .frame(height: index == 0 ? 82 : 74)
+                    .overlay(alignment: .leading) {
+                        HStack(spacing: 12) {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(DeliveraTheme.orange.opacity(0.10))
+                                .frame(width: 44, height: 44)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Capsule().fill(Color.black.opacity(0.08)).frame(width: 160, height: 12)
+                                Capsule().fill(Color.black.opacity(0.055)).frame(width: 110, height: 10)
+                            }
+                        }
+                        .padding(14)
+                    }
+            }
         }
     }
 }

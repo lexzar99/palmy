@@ -38,6 +38,7 @@ struct HomeView: View {
     @AppStorage("delivera.activeOrderPhone") private var activeOrderPhone = ""
     @AppStorage("delivera.activeOrderToken") private var activeOrderToken = ""
     @AppStorage("delivera.activeOrderTerminalAt") private var activeOrderTerminalAt = 0.0
+    @AppStorage("delivera.authToken") private var authToken = ""
     @State private var searchQuery = ""
     @State private var showingAddressSheet = false
     @State private var restaurantPath: [String] = []
@@ -91,7 +92,7 @@ struct HomeView: View {
                 } else if selectedTab == .cart {
                     CartView(
                         cartStore: cartStore,
-                        isLoggedIn: false,
+                        isLoggedIn: !authToken.isEmpty,
                         onPaymentCompleted: { order in
                             activeHomeOrder = order
                             activeOrderId = order.id
@@ -112,7 +113,7 @@ struct HomeView: View {
                     )
                 } else if selectedTab == .rewards {
                     RewardsView(
-                        isLoggedIn: false,
+                        authToken: authToken,
                         onOpenProfile: { selectedTab = .profile },
                         onOpenRestaurant: { slug, _ in
                             selectedTab = .home

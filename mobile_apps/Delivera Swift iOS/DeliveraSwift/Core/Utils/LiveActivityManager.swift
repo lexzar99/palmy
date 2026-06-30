@@ -104,11 +104,20 @@ final class LiveActivityManager: @unchecked Sendable {
             status: liveActivityStatus(for: order),
             statusText: order.displayStatusTitle,
             progressStep: liveActivityStep(for: order),
-            etaMinutes: Int(order.etaText.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()),
+            etaMinutes: liveActivityEtaMinutes(for: order),
             driverName: order.shouldShowCourierLocation ? order.courierName : nil,
             orderType: order.mode == .pickup ? "PICKUP" : "DELIVERY",
-            etaEndsAt: nil
+            etaEndsAt: order.etaEndsAt?.timeIntervalSince1970
         )
+    }
+
+    private func liveActivityEtaMinutes(for order: ActiveHomeOrder) -> Int? {
+        guard !order.isTerminalForActiveTracking else { return nil }
+        if let etaEndsAt = order.etaEndsAt {
+            return max(0, Int(ceil(etaEndsAt.timeIntervalSinceNow / 60)))
+        }
+        let digits = order.etaText.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+        return Int(digits)
     }
 
     private func liveActivityStatus(for order: ActiveHomeOrder) -> String {
