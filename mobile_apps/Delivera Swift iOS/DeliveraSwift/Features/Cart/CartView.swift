@@ -127,25 +127,47 @@ struct CartView: View {
             TimelineView(.animation) { timeline in
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 ZStack {
-                    ForEach(0..<4, id: \.self) { index in
+                    ForEach(0..<3, id: \.self) { index in
                         let phase = t + Double(index) * 0.72
                         Circle()
-                            .fill(index.isMultiple(of: 2) ? DeliveraTheme.orange.opacity(0.14) : DeliveraTheme.gold.opacity(0.13))
-                            .scaleEffect(0.62 + 0.16 * sin(phase))
-                            .offset(
-                                x: CGFloat(cos(phase * 0.9)) * CGFloat(38 + index * 11),
-                                y: CGFloat(sin(phase * 1.1)) * CGFloat(22 + index * 7)
-                            )
+                            .stroke(index.isMultiple(of: 2) ? DeliveraTheme.orange.opacity(0.18) : DeliveraTheme.gold.opacity(0.18), lineWidth: 1.4)
+                            .frame(width: CGFloat(118 + index * 58), height: CGFloat(118 + index * 58))
+                            .scaleEffect(1 + 0.035 * sin(phase))
                     }
-                    DpointsGlyph(size: 72)
-                        .rotationEffect(.degrees(emptyAnimation ? 4 : -4))
-                        .shadow(color: DeliveraTheme.orange.opacity(0.24), radius: 28, y: 14)
-                    Image(systemName: "bag.fill")
-                        .font(.system(size: 26, weight: .black))
-                        .foregroundStyle(.white)
-                        .offset(y: emptyAnimation ? -4 : 4)
+
+                    EmptyCartFloatingBite(symbol: "takeoutbag.and.cup.and.straw.fill", phase: t, x: -94, y: -28, tint: DeliveraTheme.orange)
+                    EmptyCartFloatingBite(symbol: "fork.knife", phase: t + 0.55, x: 88, y: -38, tint: DeliveraTheme.gold)
+                    EmptyCartFloatingBite(symbol: "sparkles", phase: t + 1.05, x: 72, y: 54, tint: Color(red: 0.17, green: 0.49, blue: 0.31))
+
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 36, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [DeliveraTheme.orange, Color(red: 0.98, green: 0.50, blue: 0.18)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 112, height: 112)
+                            .rotationEffect(.degrees(emptyAnimation ? 3 : -3))
+                            .shadow(color: DeliveraTheme.orange.opacity(0.28), radius: 30, y: 18)
+                        Image(systemName: "bag.fill")
+                            .font(.system(size: 42, weight: .black))
+                            .foregroundStyle(.white)
+                            .offset(y: emptyAnimation ? -3 : 3)
+                        Circle()
+                            .fill(.white.opacity(0.22))
+                            .frame(width: 20, height: 20)
+                            .offset(x: 30 + CGFloat(sin(t * 1.2)) * 4, y: -32)
+                    }
+
+                    DpointsGlyph(size: 30)
+                        .rotationEffect(.degrees(t * 24))
+                        .offset(x: CGFloat(cos(t * 0.8)) * 112, y: CGFloat(sin(t * 0.8)) * 74)
+                        .shadow(color: DeliveraTheme.orange.opacity(0.22), radius: 14, y: 8)
                 }
-                .aspectRatio(1.45, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .frame(height: 250)
             }
 
             VStack(spacing: 7) {
@@ -1169,6 +1191,26 @@ private struct NativeAdyenPaymentPanel: View {
         .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
         .cardShadow()
+    }
+}
+
+private struct EmptyCartFloatingBite: View {
+    let symbol: String
+    let phase: TimeInterval
+    let x: CGFloat
+    let y: CGFloat
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 20, weight: .black))
+            .foregroundStyle(tint)
+            .frame(width: 56, height: 56)
+            .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+            .shadow(color: tint.opacity(0.14), radius: 16, y: 8)
+            .rotationEffect(.degrees(sin(phase * 0.9) * 7))
+            .offset(x: x + CGFloat(cos(phase * 0.7)) * 8, y: y + CGFloat(sin(phase * 0.9)) * 8)
     }
 }
 

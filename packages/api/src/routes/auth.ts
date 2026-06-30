@@ -67,7 +67,15 @@ const GOOGLE_OAUTH_CLIENT_IDS = (process.env.GOOGLE_OAUTH_CLIENT_ID || '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
-const APPLE_OAUTH_CLIENT_ID = process.env.APPLE_OAUTH_CLIENT_ID || '';
+const APPLE_OAUTH_CLIENT_IDS = [
+  process.env.APPLE_OAUTH_CLIENT_ID,
+  process.env.APPLE_IOS_BUNDLE_ID,
+  process.env.APPLE_OAUTH_CLIENT_IDS,
+  'se.delivera.swift',
+]
+  .flatMap((value) => (value || '').split(','))
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 const googleAuthClient = GOOGLE_OAUTH_CLIENT_IDS.length
   ? new OAuth2Client(GOOGLE_OAUTH_CLIENT_IDS[0])
@@ -125,16 +133,17 @@ function appleGetKey(header: any, callback: any) {
 async function verifyAppleIdToken(
   idToken: string,
 ): Promise<VerifiedOAuthPayload> {
-  if (!APPLE_OAUTH_CLIENT_ID) {
-    throw new Error('APPLE_OAUTH_CLIENT_ID är inte konfigurerad');
+  if (!APPLE_OAUTH_CLIENT_IDS.length) {
+    throw new Error('Apple OAuth audience är inte konfigurerad');
   }
+  const appleAudiences = APPLE_OAUTH_CLIENT_IDS as [string, ...string[]];
   const decoded: any = await new Promise((resolve, reject) => {
     jwt.verify(
       idToken,
       appleGetKey,
       {
         algorithms: ['RS256'],
-        audience: APPLE_OAUTH_CLIENT_ID,
+        audience: appleAudiences,
         issuer: 'https://appleid.apple.com',
       },
       (err, payload) => {

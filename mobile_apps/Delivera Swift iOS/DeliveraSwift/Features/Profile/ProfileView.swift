@@ -94,10 +94,8 @@ struct ProfileView: View {
                 AppleSignInButton { result in
                     Task { await handleApple(result) }
                 }
-                .frame(height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-                SocialContinueButton(symbol: "g.circle", title: "Fortsätt med Google", foreground: .white, background: DeliveraTheme.ink, border: .clear) {
+                SocialContinueButton(symbol: "google.logo", title: "Fortsätt med Google", foreground: .white, background: DeliveraTheme.ink, border: .clear) {
                     Task { await startGoogle() }
                 }
             }
@@ -295,6 +293,9 @@ struct ProfileView: View {
         errorMessage = nil
         do {
             let payload = try result.get()
+            guard payload.identityToken.split(separator: ".").count == 3 else {
+                throw APIError.message("Apple skickade ingen giltig inloggningstoken. Testa igen.")
+            }
             let response = try await api.oauthToken(
                 provider: "apple",
                 idToken: payload.identityToken,
@@ -309,7 +310,15 @@ struct ProfileView: View {
                 authStep = .linkPhone
             }
         } catch {
-            errorMessage = error.localizedDescription
+            if let authError = error as? ASAuthorizationError {
+                if authError.code == .canceled {
+                    errorMessage = nil
+                } else {
+                    errorMessage = "Apple kunde inte auktorisera inloggningen. Kontrollera att Sign in with Apple är aktivt för appen och testa igen."
+                }
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
         isLoading = false
     }
@@ -776,9 +785,14 @@ private struct SocialContinueButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .font(.system(size: 18, weight: .black))
-                    .frame(width: 22)
+                if symbol == "google.logo" {
+                    GoogleLogoMark(size: 19)
+                        .frame(width: 22, height: 22)
+                } else {
+                    Image(systemName: symbol)
+                        .font(.system(size: 18, weight: .black))
+                        .frame(width: 22)
+                }
                 Text(title)
                     .font(.system(size: 16, weight: .black, design: .rounded))
             }
@@ -793,6 +807,38 @@ private struct SocialContinueButton: View {
     }
 }
 
+private struct GoogleLogoMark: View {
+    let size: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .trim(from: 0.02, to: 0.26)
+                .stroke(Color(red: 0.25, green: 0.52, blue: 0.96), style: StrokeStyle(lineWidth: size * 0.2, lineCap: .round))
+                .rotationEffect(.degrees(-18))
+            Circle()
+                .trim(from: 0.28, to: 0.48)
+                .stroke(Color(red: 0.20, green: 0.66, blue: 0.33), style: StrokeStyle(lineWidth: size * 0.2, lineCap: .round))
+                .rotationEffect(.degrees(-18))
+            Circle()
+                .trim(from: 0.50, to: 0.70)
+                .stroke(Color(red: 0.98, green: 0.74, blue: 0.18), style: StrokeStyle(lineWidth: size * 0.2, lineCap: .round))
+                .rotationEffect(.degrees(-18))
+            Circle()
+                .trim(from: 0.72, to: 0.96)
+                .stroke(Color(red: 0.91, green: 0.26, blue: 0.21), style: StrokeStyle(lineWidth: size * 0.2, lineCap: .round))
+                .rotationEffect(.degrees(-18))
+            Path { path in
+                path.move(to: CGPoint(x: size * 0.52, y: size * 0.50))
+                path.addLine(to: CGPoint(x: size * 0.94, y: size * 0.50))
+            }
+            .stroke(Color(red: 0.25, green: 0.52, blue: 0.96), style: StrokeStyle(lineWidth: size * 0.18, lineCap: .square))
+        }
+        .frame(width: size, height: size)
+        .background(.white, in: Circle())
+    }
+}
+
 private struct AppleIdentityPayload {
     let identityToken: String
     let userIdentifier: String
@@ -800,65 +846,71 @@ private struct AppleIdentityPayload {
     let fullName: String?
 }
 
-private struct AppleSignInButton: UIViewRepresentable {
+private struct AppleSignInButton: View {
     let onResult: (Result<AppleIdentityPayload, Error>) -> Void
+    @StateObject private var coordinator = AppleSignInCoordinator()
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onResult: onResult)
-    }
-
-    func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
-        let button = ASAuthorizationAppleIDButton(type: .continue, style: .black)
-        button.cornerRadius = 18
-        button.addTarget(context.coordinator, action: #selector(Coordinator.start), for: .touchUpInside)
-        return button
-    }
-
-    func updateUIView(_ uiView: ASAuthorizationAppleIDButton, context: Context) {}
-
-    final class Coordinator: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
-        let onResult: (Result<AppleIdentityPayload, Error>) -> Void
-
-        init(onResult: @escaping (Result<AppleIdentityPayload, Error>) -> Void) {
-            self.onResult = onResult
-        }
-
-        @objc func start() {
-            let request = ASAuthorizationAppleIDProvider().createRequest()
-            request.requestedScopes = [.fullName, .email]
-            let controller = ASAuthorizationController(authorizationRequests: [request])
-            controller.delegate = self
-            controller.presentationContextProvider = self
-            controller.performRequests()
-        }
-
-        func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-            UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap(\.windows)
-                .first { $0.isKeyWindow } ?? UIWindow()
-        }
-
-        func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                  let data = credential.identityToken,
-                  let token = String(data: data, encoding: .utf8) else {
-                onResult(.failure(APIError.message("Apple kunde inte returnera en identitet.")))
-                return
+    var body: some View {
+        Button {
+            coordinator.start(onResult: onResult)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "apple.logo")
+                    .font(.system(size: 19, weight: .black))
+                    .frame(width: 22)
+                Text("Fortsätt med Apple")
+                    .font(.system(size: 16, weight: .black, design: .rounded))
             }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .frame(height: 56)
+            .background(DeliveraTheme.ink, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
 
-            let name = PersonNameComponentsFormatter().string(from: credential.fullName ?? PersonNameComponents()).trimmingCharacters(in: .whitespacesAndNewlines)
-            onResult(.success(AppleIdentityPayload(
-                identityToken: token,
-                userIdentifier: credential.user,
-                email: credential.email,
-                fullName: name.isEmpty ? nil : name
-            )))
+private final class AppleSignInCoordinator: NSObject, ObservableObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    private var onResult: ((Result<AppleIdentityPayload, Error>) -> Void)?
+
+    func start(onResult: @escaping (Result<AppleIdentityPayload, Error>) -> Void) {
+        self.onResult = onResult
+        let request = ASAuthorizationAppleIDProvider().createRequest()
+        request.requestedScopes = [.fullName, .email]
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        controller.delegate = self
+        controller.presentationContextProvider = self
+        controller.performRequests()
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow } ?? UIWindow()
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let data = credential.identityToken,
+              let token = String(data: data, encoding: .utf8),
+              token.split(separator: ".").count == 3 else {
+            onResult?(.failure(APIError.message("Apple kunde inte returnera en giltig identitet.")))
+            return
         }
 
-        func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-            onResult(.failure(error))
-        }
+        let name = PersonNameComponentsFormatter().string(from: credential.fullName ?? PersonNameComponents()).trimmingCharacters(in: .whitespacesAndNewlines)
+        onResult?(.success(AppleIdentityPayload(
+            identityToken: token,
+            userIdentifier: credential.user,
+            email: credential.email,
+            fullName: name.isEmpty ? nil : name
+        )))
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        onResult?(.failure(error))
     }
 }
 
