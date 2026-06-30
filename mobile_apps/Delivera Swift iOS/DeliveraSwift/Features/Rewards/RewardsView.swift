@@ -110,7 +110,8 @@ struct RewardsView: View {
             RewardsHeroCard(
                 balance: model.me?.balance,
                 title: "\(model.me?.balance ?? 0) Dpoints",
-                subtitle: "Använd poäng direkt på markerade produkter."
+                subtitle: "Använd poäng direkt på markerade produkter.",
+                transactionCount: min((model.me?.transactions.count ?? 0), 10)
             )
 
             panelPicker
@@ -207,7 +208,9 @@ struct RewardsView: View {
     private var history: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionTitle(title: "Historik", subtitle: "Senaste Dpoints-rörelser")
-            let transactions = model.me?.transactions ?? []
+            let transactions = (model.me?.transactions ?? [])
+                .sorted { $0.sortDate > $1.sortDate }
+                .prefix(10)
             if transactions.isEmpty {
                 Text("Ingen historik än.")
                     .font(.system(size: 14, weight: .bold))
@@ -216,13 +219,13 @@ struct RewardsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             } else {
-                ForEach(transactions.prefix(10)) { tx in
+                ForEach(Array(transactions)) { tx in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(tx.displayTitle)
                                 .font(.system(size: 14, weight: .black))
                                 .foregroundStyle(DeliveraTheme.ink)
-                            Text(tx.createdAt.prefix(10))
+                            Text(tx.displayDate)
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(DeliveraTheme.muted)
                         }
@@ -298,17 +301,18 @@ private struct RewardsHeroCard: View {
     let balance: Int?
     let title: String
     let subtitle: String
+    var transactionCount: Int = 0
 
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             ZStack(alignment: .leading) {
-                ForEach(0..<3, id: \.self) { index in
+                ForEach(0..<4, id: \.self) { index in
                     Circle()
-                        .stroke(.white.opacity(0.09), lineWidth: 1.5)
-                        .frame(width: CGFloat(118 + index * 74), height: CGFloat(118 + index * 74))
+                        .stroke(.white.opacity(0.10), lineWidth: 1.4)
+                        .frame(width: CGFloat(96 + index * 62), height: CGFloat(96 + index * 62))
                         .scaleEffect(1 + 0.035 * sin(t * 0.9 + Double(index)))
-                        .offset(x: CGFloat(210 - index * 14), y: CGFloat(-18 + index * 20))
+                        .offset(x: CGFloat(222 - index * 16), y: CGFloat(-28 + index * 18))
                 }
 
                 Rectangle()
@@ -324,44 +328,62 @@ private struct RewardsHeroCard: View {
                     .offset(x: CGFloat((sin(t * 0.45) + 1) * 180 - 48))
                     .blur(radius: 10)
 
-                ForEach(0..<7, id: \.self) { index in
-                    DpointsGlyph(size: CGFloat(18 + index * 4))
-                        .opacity(0.11 + Double(index % 2) * 0.06)
-                        .rotationEffect(.degrees(t * 24 + Double(index) * 24))
+                ForEach(0..<10, id: \.self) { index in
+                    DpointsGlyph(size: CGFloat(13 + (index % 5) * 5))
+                        .opacity(0.10 + Double(index % 3) * 0.05)
+                        .rotationEffect(.degrees(t * 28 + Double(index) * 24))
                         .offset(
-                            x: CGFloat(cos(t * 0.7 + Double(index))) * CGFloat(98 + index * 8) + 194,
-                            y: CGFloat(sin(t * 0.95 + Double(index))) * CGFloat(34 + index * 6)
+                            x: CGFloat(cos(t * 0.62 + Double(index))) * CGFloat(80 + index * 7) + 218,
+                            y: CGFloat(sin(t * 0.82 + Double(index))) * CGFloat(40 + index * 4)
                         )
                 }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    ZStack {
-                        Circle()
-                            .fill(.white.opacity(0.16))
-                            .frame(width: 62, height: 62)
-                            .scaleEffect(1 + 0.04 * sin(t * 1.1))
-                        DpointsGlyph(size: 42)
-                            .rotationEffect(.degrees(sin(t * 0.7) * 7))
-                            .shadow(color: .white.opacity(0.28), radius: 18, y: 8)
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .fill(.white.opacity(0.16))
+                                .frame(width: 58, height: 58)
+                                .scaleEffect(1 + 0.05 * sin(t * 1.1))
+                            DpointsGlyph(size: 38)
+                                .rotationEffect(.degrees(sin(t * 0.7) * 7))
+                                .shadow(color: .white.opacity(0.28), radius: 18, y: 8)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(balance == nil ? "Rewards" : "Din saldo")
+                                .font(.system(size: 12, weight: .black, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.68))
+                                .textCase(.uppercase)
+                            Text(balance == nil ? title : "\(balance ?? 0)")
+                                .font(.system(size: balance == nil ? 30 : 52, weight: .black, design: .rounded))
+                                .foregroundStyle(.white)
+                                .contentTransition(.numericText())
+                        }
                     }
-                    Text(balance == nil ? title : "\(balance ?? 0)")
-                        .font(.system(size: balance == nil ? 30 : 46, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
+
                     Text(balance == nil ? subtitle : "Dpoints")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.78))
+                        .font(.system(size: 16, weight: .black, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.84))
                     if balance != nil {
+                        HStack(spacing: 8) {
+                            RewardsHeroPill(text: "10 senaste", value: "\(transactionCount)")
+                            RewardsHeroPill(text: "Direkt i menyn", value: "Köp")
+                        }
                         Text(subtitle)
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(.white.opacity(0.70))
                     }
                 }
                 .padding(22)
             }
-            .frame(maxWidth: .infinity, minHeight: 188, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: balance == nil ? 188 : 218, alignment: .leading)
             .background(
                 LinearGradient(
-                    colors: [DeliveraTheme.orange, Color(red: 0.08, green: 0.08, blue: 0.09)],
+                    colors: [
+                        Color(red: 0.05, green: 0.05, blue: 0.06),
+                        Color(red: 0.30, green: 0.13, blue: 0.08),
+                        DeliveraTheme.orange
+                    ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ),
@@ -369,6 +391,25 @@ private struct RewardsHeroCard: View {
             )
             .shadow(color: DeliveraTheme.orange.opacity(0.25), radius: 28, y: 16)
         }
+    }
+}
+
+private struct RewardsHeroPill: View {
+    let text: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(value)
+                .font(.system(size: 12, weight: .black, design: .rounded))
+            Text(text)
+                .font(.system(size: 11, weight: .bold))
+                .opacity(0.78)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(.white.opacity(0.14), in: Capsule())
     }
 }
 
@@ -893,6 +934,17 @@ struct DpointsTransaction: Decodable, Identifiable {
     let balanceAfter: Int
     let createdAt: String
 
+    var sortDate: Date {
+        RewardsDateFormatter.parse(createdAt) ?? .distantPast
+    }
+
+    var displayDate: String {
+        guard let date = RewardsDateFormatter.parse(createdAt) else {
+            return "Datum saknas"
+        }
+        return RewardsDateFormatter.medium.string(from: date)
+    }
+
     var displayTitle: String {
         if let reason, !reason.isEmpty { return reason }
         switch type {
@@ -904,5 +956,25 @@ struct DpointsTransaction: Decodable, Identifiable {
         case "REVERSAL": return "Återtag"
         default: return type
         }
+    }
+}
+
+private enum RewardsDateFormatter {
+    static let medium: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "sv_SE")
+        formatter.dateFormat = "d MMM yyyy"
+        return formatter
+    }()
+
+    static func parse(_ value: String) -> Date? {
+        let withFraction = ISO8601DateFormatter()
+        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = withFraction.date(from: value) {
+            return date
+        }
+        let normal = ISO8601DateFormatter()
+        normal.formatOptions = [.withInternetDateTime]
+        return normal.date(from: value)
     }
 }

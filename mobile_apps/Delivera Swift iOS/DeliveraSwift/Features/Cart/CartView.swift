@@ -25,6 +25,7 @@ struct CartView: View {
     @AppStorage("delivera.cart.guestName") private var guestName = ""
     @AppStorage("delivera.cart.guestPhone") private var guestPhone = ""
     @AppStorage("delivera.cart.note") private var note = ""
+    @AppStorage("delivera.authToken") private var authToken = ""
     @State private var coupon = ""
     @State private var tip = 0.0
     @State private var showContact = true
@@ -37,6 +38,7 @@ struct CartView: View {
     @State private var paymentSheet: AdyenCheckoutState?
     @State private var pendingPaymentOrderId: String?
     @State private var pendingHomeOrder: ActiveHomeOrder?
+    @State private var cachedCustomerProfile: AuthenticatedCustomerProfile?
     @FocusState private var isTextInputFocused: Bool
 
     var body: some View {
@@ -106,7 +108,7 @@ struct CartView: View {
                     paymentSheet = nil
                 }
             )
-            .presentationDetents([.height(620)])
+            .presentationDetents([.height(610)])
             .presentationDragIndicator(.visible)
         }
     }
@@ -444,16 +446,18 @@ struct CartView: View {
         defer { isStartingPayment = false }
 
         do {
+            let identity = try await resolvedCustomerIdentity(trimmedName: trimmedName, trimmedPhone: trimmedPhone)
+            let destination = normalizedDeliveryDestination(for: restaurant)
             let request = CartOrderRequest(
                 restaurantId: restaurant.id,
                 restaurantSlug: restaurant.slug,
                 type: cartStore.orderMode == .delivery ? "DELIVERY" : "PICKUP",
                 paymentMethod: "ADYEN",
-                customerName: isLoggedIn ? "Profilkund" : trimmedName,
-                customerPhone: isLoggedIn ? "0000000000" : trimmedPhone,
+                customerName: identity.name,
+                customerPhone: identity.phone,
                 customerEmail: nil,
-                deliveryStreet: cartStore.orderMode == .delivery ? cartStore.address : nil,
-                deliveryCity: cartStore.orderMode == .delivery ? restaurant.city : nil,
+                deliveryStreet: destination.street,
+                deliveryCity: destination.city,
                 deliveryZip: nil,
                 deliveryLatitude: cartStore.deliveryCoordinate?.lat,
                 deliveryLongitude: cartStore.deliveryCoordinate?.lng,
@@ -508,6 +512,7 @@ struct CartView: View {
                 total: total,
                 coordinate: cartStore.deliveryCoordinate,
                 accessToken: order.accessToken,
+                dpointsEarned: order.dpointsEarned ?? order.pointsEarned,
                 deliveryFee: cartStore.deliveryFee,
                 discountAmount: cartStore.discount,
                 items: cartStore.items.map { item in
@@ -554,16 +559,18 @@ struct CartView: View {
         defer { isStartingPayment = false }
 
         do {
+            let identity = try await resolvedCustomerIdentity(trimmedName: trimmedName, trimmedPhone: trimmedPhone)
+            let destination = normalizedDeliveryDestination(for: restaurant)
             let request = CartOrderRequest(
                 restaurantId: restaurant.id,
                 restaurantSlug: restaurant.slug,
                 type: cartStore.orderMode == .delivery ? "DELIVERY" : "PICKUP",
                 paymentMethod: "TEST",
-                customerName: isLoggedIn ? "Profilkund" : trimmedName,
-                customerPhone: isLoggedIn ? "0000000000" : trimmedPhone,
+                customerName: identity.name,
+                customerPhone: identity.phone,
                 customerEmail: nil,
-                deliveryStreet: cartStore.orderMode == .delivery ? cartStore.address : nil,
-                deliveryCity: cartStore.orderMode == .delivery ? restaurant.city : nil,
+                deliveryStreet: destination.street,
+                deliveryCity: destination.city,
                 deliveryZip: nil,
                 deliveryLatitude: cartStore.deliveryCoordinate?.lat,
                 deliveryLongitude: cartStore.deliveryCoordinate?.lng,
@@ -612,6 +619,7 @@ struct CartView: View {
                 coordinate: cartStore.deliveryCoordinate,
                 accessToken: order.accessToken,
                 status: .accepted,
+                dpointsEarned: order.dpointsEarned ?? order.pointsEarned,
                 deliveryFee: cartStore.deliveryFee,
                 discountAmount: cartStore.discount,
                 items: cartStore.items.map { item in
@@ -628,6 +636,82 @@ struct CartView: View {
         } catch {
             paymentError = error.localizedDescription
         }
+    }
+
+    private func resolvedCustomerIdentity(trimmedName: String, trimmedPhone: String) async throws -> CartCustomerIdentity {
+        guard isLoggedIn else {
+            return CartCustomerIdentity(name: trimmedName, phone: trimmedPhone)
+        }
+
+        let token = authToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            throw APIError.message("Logga in igen innan du beställer.")
+        }
+
+        let profile: AuthenticatedCustomerProfile
+        if let cachedCustomerProfile {
+            profile = cachedCustomerProfile
+        } else {
+            profile = try await DeliveraAPI().authenticatedProfile(token: token)
+            cachedCustomerProfile = profile
+        }
+
+        let phone = profile.phone?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard phone.count >= 6 else {
+            throw APIError.message("Telefonnummer saknas på profilen. Lägg till nummer innan du beställer.")
+        }
+
+        let name = profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guestName = name.isEmpty ? "Kund" : name
+        guestPhone = phone
+        return CartCustomerIdentity(name: guestName, phone: phone)
+    }
+
+    private func normalizedDeliveryDestination(for restaurant: Restaurant) -> CartDeliveryDestination {
+        guard cartStore.orderMode == .delivery else {
+            return CartDeliveryDestination(street: nil, city: nil)
+        }
+
+        let rawAddress = cartStore.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        let city = inferredCity(from: rawAddress) ?? restaurant.city?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let street = stripTrailingCity(city, from: rawAddress)
+        return CartDeliveryDestination(
+            street: street.isEmpty ? rawAddress : street,
+            city: city?.isEmpty == false ? city : nil
+        )
+    }
+
+    private func inferredCity(from address: String) -> String? {
+        let parts = address
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard let last = parts.last else { return nil }
+        guard last.localizedCaseInsensitiveCompare("Sweden") != .orderedSame,
+              last.localizedCaseInsensitiveCompare("Sverige") != .orderedSame else {
+            return parts.dropLast().last
+        }
+
+        let tokens = last.split(separator: " ").map(String.init)
+        let withoutZip = tokens.drop { token in
+            token.allSatisfy(\.isNumber)
+        }
+        let city = withoutZip.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        return city.isEmpty ? last : city
+    }
+
+    private func stripTrailingCity(_ city: String?, from address: String) -> String {
+        var clean = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let city = city?.trimmingCharacters(in: .whitespacesAndNewlines), !city.isEmpty else {
+            return clean
+        }
+        let endings = [", \(city)", " \(city)"]
+        let lowercased = clean.lowercased()
+        for ending in endings where lowercased.hasSuffix(ending.lowercased()) {
+            clean.removeLast(ending.count)
+            return clean.trimmingCharacters(in: CharacterSet(charactersIn: ", ").union(.whitespacesAndNewlines))
+        }
+        return clean
     }
 
     private func verifyNativeAdyenPayment(sessionId: String, sessionResult: String) async -> Result<Void, Error> {
@@ -733,6 +817,16 @@ private struct CartItemRow: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+private struct CartCustomerIdentity {
+    let name: String
+    let phone: String
+}
+
+private struct CartDeliveryDestination {
+    let street: String?
+    let city: String?
 }
 
 private struct RecommendedProductCard: View {
@@ -982,7 +1076,7 @@ private struct AdyenCheckoutSheet: View {
             DeliveraTheme.appBackground.ignoresSafeArea()
             VStack(spacing: 0) {
                 paymentHeader
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 9) {
                     HStack(spacing: 8) {
                         ForEach(NativePaymentMethod.availableMethods) { method in
                             NativePaymentMethodButton(method: method, selected: selectedMethod == method) {
@@ -1006,9 +1100,14 @@ private struct AdyenCheckoutSheet: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+                .padding(.bottom, 12)
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            UIApplication.shared.dismissKeyboard()
+        }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 
     private var paymentHeader: some View {
@@ -1045,8 +1144,8 @@ private struct AdyenCheckoutSheet: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
     }
 
     @ViewBuilder
@@ -1129,7 +1228,7 @@ private struct NativePaymentMethodButton: View {
             }
             .foregroundStyle(selected ? .white : DeliveraTheme.ink)
             .frame(maxWidth: .infinity)
-            .frame(height: 50)
+            .frame(height: 46)
             .background(selected ? DeliveraTheme.ink : .white, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(selected ? DeliveraTheme.orange.opacity(0.35) : DeliveraTheme.line, lineWidth: 1))
             .shadow(color: selected ? DeliveraTheme.orange.opacity(0.18) : .clear, radius: 16, y: 8)
@@ -1172,7 +1271,7 @@ private struct NativeAdyenPaymentPanel: View {
                 onCompleted: onCompleted,
                 onFailed: onFailed
             )
-            .frame(minHeight: method == .card ? 300 : 210)
+            .frame(minHeight: method == .card ? 330 : 165)
             #else
             VStack(alignment: .leading, spacing: 10) {
                 Text("Kortbetalning är inte tillgänglig just nu.")
@@ -1187,7 +1286,7 @@ private struct NativeAdyenPaymentPanel: View {
             .background(Color.black.opacity(0.035), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             #endif
         }
-        .padding(12)
+        .padding(10)
         .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
         .cardShadow()

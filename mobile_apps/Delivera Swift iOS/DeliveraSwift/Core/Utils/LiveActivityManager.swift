@@ -10,6 +10,7 @@ final class LiveActivityManager: @unchecked Sendable {
     #if canImport(ActivityKit)
     private var activities: [String: Activity<OrderActivityAttributes>] = [:]
     private var tokenTasks: [String: Task<Void, Never>] = [:]
+    private var startingOrderIds = Set<String>()
     #endif
 
     private init() {}
@@ -19,12 +20,22 @@ final class LiveActivityManager: @unchecked Sendable {
         guard #available(iOS 16.2, *) else { return }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
-        if let activity = activities[order.id] ?? Activity<OrderActivityAttributes>.activities.first(where: { $0.attributes.orderId == order.id }) {
+        let existingMatches = Activity<OrderActivityAttributes>.activities.filter { $0.attributes.orderId == order.id }
+        if let activity = activities[order.id] ?? existingMatches.first {
             activities[order.id] = activity
+            for duplicate in existingMatches.dropFirst() {
+                await duplicate.end(nil, dismissalPolicy: .immediate)
+            }
             await update(order: order)
             observePushToken(orderId: order.id)
             return
         }
+        if startingOrderIds.contains(order.id) {
+            await update(order: order)
+            return
+        }
+        startingOrderIds.insert(order.id)
+        defer { startingOrderIds.remove(order.id) }
 
         let attributes = OrderActivityAttributes(
             orderId: order.id,

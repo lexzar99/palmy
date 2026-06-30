@@ -535,7 +535,10 @@ struct HomeView: View {
     }
 
     private func earnedDpoints(for order: ActiveHomeOrder) -> Int {
-        Int((order.total * dpointsEarnRate).rounded())
+        if let dpointsEarned = order.dpointsEarned {
+            return max(0, dpointsEarned)
+        }
+        return Int((order.total * dpointsEarnRate).rounded())
     }
 
     private func loadDpointsEarnRate() async {
@@ -681,6 +684,12 @@ struct HomeView: View {
             }
 
             let coordinate = deliveryCoordinate ?? Coordinate(lat: 55.5969, lng: 13.0007)
+            let trackingCity = activeCityName ?? restaurant.city ?? "Malmö"
+            var trackingStreet = activeAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+            for ending in [", \(trackingCity)", " \(trackingCity)"] where trackingStreet.lowercased().hasSuffix(ending.lowercased()) {
+                trackingStreet.removeLast(ending.count)
+                trackingStreet = trackingStreet.trimmingCharacters(in: CharacterSet(charactersIn: ", ").union(.whitespacesAndNewlines))
+            }
             let request = CartOrderRequest(
                 restaurantId: restaurant.id,
                 restaurantSlug: restaurant.slug,
@@ -689,8 +698,8 @@ struct HomeView: View {
                 customerName: "Jalle Test",
                 customerPhone: "0700000000",
                 customerEmail: nil,
-                deliveryStreet: activeAddress,
-                deliveryCity: restaurant.city ?? activeCityName ?? "Malmö",
+                deliveryStreet: trackingStreet,
+                deliveryCity: trackingCity,
                 deliveryZip: nil,
                 deliveryLatitude: coordinate.lat,
                 deliveryLongitude: coordinate.lng,
@@ -724,6 +733,7 @@ struct HomeView: View {
                 coordinate: coordinate,
                 accessToken: response.accessToken,
                 status: .delivering,
+                dpointsEarned: response.dpointsEarned ?? response.pointsEarned,
                 deliveryFee: 0,
                 discountAmount: 0,
                 items: [
@@ -907,6 +917,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
     let mode: OrderMode
     let address: String
     let total: Double
+    let dpointsEarned: Int?
     let deliveryFee: Double
     let discountAmount: Double
     let items: [ActiveOrderLine]
@@ -939,6 +950,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
         mode: .delivery,
         address: "Malmö, Sweden",
         total: 199,
+        dpointsEarned: 20,
         deliveryFee: 0,
         discountAmount: 0,
         items: [
@@ -965,6 +977,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
         coordinate: Coordinate?,
         accessToken: String? = nil,
         status: HomeTrackingStatus = .pending,
+        dpointsEarned: Int? = nil,
         deliveryFee: Double = 0,
         discountAmount: Double = 0,
         items: [ActiveOrderLine] = []
@@ -992,6 +1005,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
             mode: mode,
             address: address,
             total: total,
+            dpointsEarned: dpointsEarned,
             deliveryFee: mode == .pickup ? 0 : deliveryFee,
             discountAmount: discountAmount,
             items: lines,
@@ -1076,6 +1090,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
             mode: mode,
             address: address,
             total: total,
+            dpointsEarned: dpointsEarned,
             deliveryFee: deliveryFee,
             discountAmount: discountAmount,
             items: items,
@@ -1111,6 +1126,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
             mode: mode,
             address: address,
             total: total,
+            dpointsEarned: dpointsEarned,
             deliveryFee: deliveryFee,
             discountAmount: discountAmount,
             items: items,
@@ -1171,6 +1187,7 @@ struct ActiveHomeOrder: Identifiable, Equatable {
             mode: nextMode,
             address: order.deliveryStreet ?? address,
             total: order.total,
+            dpointsEarned: order.dpointsEarned ?? order.pointsEarned ?? dpointsEarned,
             deliveryFee: order.deliveryFee ?? deliveryFee,
             discountAmount: order.discountAmount ?? discountAmount,
             items: lineItems.isEmpty ? items : lineItems,
@@ -2305,8 +2322,14 @@ private struct HomeActiveOrderCard: View {
 private extension MKMapRect {
     var paddedForTracking: MKMapRect {
         let widthPadding = max(size.width * 0.28, 900)
-        let heightPadding = max(size.height * 0.42, 1200)
-        return insetBy(dx: -widthPadding, dy: -heightPadding)
+        let topPadding = max(size.height * 0.35, 900)
+        let bottomPadding = max(size.height * 1.75, 3_200)
+        return MKMapRect(
+            x: origin.x - widthPadding,
+            y: origin.y - topPadding,
+            width: size.width + widthPadding * 2,
+            height: size.height + topPadding + bottomPadding
+        )
     }
 }
 

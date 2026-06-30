@@ -101,6 +101,10 @@ struct DeliveraAPI {
         try await getAuthorized("/api/profile/deals", token: token)
     }
 
+    func authenticatedProfile(token: String) async throws -> AuthenticatedCustomerProfile {
+        try await getAuthorized("/api/profile", token: token)
+    }
+
     func validateDiscount(code: String, subtotal: Double) async throws -> DiscountValidationResponse {
         try await postWithServerMessage(
             "/api/discount/validate",

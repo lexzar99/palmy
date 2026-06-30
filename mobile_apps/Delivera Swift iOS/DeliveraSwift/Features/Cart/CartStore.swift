@@ -413,9 +413,32 @@ struct CartOrderResponse: Decodable {
     let id: String?
     let estimatedTime: Int?
     let accessToken: String?
+    let dpointsEarned: Int?
+    let pointsEarned: Int?
 
     var resolvedOrderId: String? {
         orderId ?? id
+    }
+}
+
+struct AuthenticatedCustomerProfile: Decodable, Hashable {
+    let id: String?
+    let name: String?
+    let firstName: String?
+    let lastName: String?
+    let phone: String?
+    let email: String?
+
+    var displayName: String {
+        let joined = [firstName, lastName]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        if !joined.isEmpty { return joined }
+        if let cleanName = name?.trimmingCharacters(in: .whitespacesAndNewlines), !cleanName.isEmpty {
+            return cleanName
+        }
+        return "Kund"
     }
 }
 

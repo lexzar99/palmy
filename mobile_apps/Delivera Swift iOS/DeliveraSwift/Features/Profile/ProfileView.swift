@@ -209,7 +209,7 @@ struct ProfileView: View {
                 ProfileMenuRow(symbol: "ticket.fill", title: "Mina deals", subtitle: "Rabatter och sparade erbjudanden") { activePanel = .deals }
                 ProfileMenuRow(symbol: "clock.arrow.circlepath", title: "Orderhistorik", subtitle: "Kvitton, recensioner och tidigare köp") { activePanel = .orders }
                 ProfileMenuRow(symbol: "info.circle.fill", title: "Information", subtitle: "Villkor, integritet och support") { activePanel = .information }
-                ProfileMenuRow(symbol: "gearshape.fill", title: "Inställningar", subtitle: "Namn, e-post och konto") {
+                ProfileMenuRow(symbol: "gearshape.fill", title: "Inställningar", subtitle: "Namn och telefon") {
                     editName = profile.name ?? ""
                     editEmail = profile.email ?? ""
                     activePanel = .settings
@@ -446,7 +446,10 @@ struct ProfileOrder: Decodable, Identifiable, Hashable {
     let items: [ProfileOrderItem]
 
     var displayDate: String {
-        String(createdAt.prefix(10))
+        guard let date = ProfileDateFormatter.parse(createdAt) else {
+            return "Datum saknas"
+        }
+        return ProfileDateFormatter.medium.string(from: date)
     }
 
     var totalText: String {
@@ -510,6 +513,7 @@ struct ProfileOrder: Decodable, Identifiable, Hashable {
             mode: mode,
             address: deliveryStreet ?? addressParts.joined(separator: ", "),
             total: total,
+            dpointsEarned: nil,
             deliveryFee: deliveryFee ?? 0,
             discountAmount: discountAmount ?? 0,
             items: orderLines,
@@ -572,6 +576,29 @@ struct ProfileDeal: Decodable, Identifiable, Hashable {
             return campaign.displayDiscount
         }
         return "Redo att användas i kassan"
+    }
+}
+
+private enum ProfileDateFormatter {
+    static let medium: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "sv_SE")
+        formatter.dateFormat = "d MMM yyyy"
+        return formatter
+    }()
+
+    static func parse(_ value: String) -> Date? {
+        let isoWithFraction = ISO8601DateFormatter()
+        isoWithFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = isoWithFraction.date(from: value) {
+            return date
+        }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        if let date = iso.date(from: value) {
+            return date
+        }
+        return nil
     }
 }
 
@@ -835,7 +862,6 @@ private struct GoogleLogoMark: View {
             .stroke(Color(red: 0.25, green: 0.52, blue: 0.96), style: StrokeStyle(lineWidth: size * 0.18, lineCap: .square))
         }
         .frame(width: size, height: size)
-        .background(.white, in: Circle())
     }
 }
 
@@ -1079,6 +1105,8 @@ private struct ProfilePanelPage: View {
             }
         }
         .background(DeliveraTheme.appBackground.ignoresSafeArea())
+        .contentShape(Rectangle())
+        .simultaneousGesture(swipeBackGesture)
     }
 
     private var panelTitle: String {
@@ -1095,7 +1123,7 @@ private struct ProfilePanelPage: View {
         case .deals: return "Personliga rabatter och erbjudanden"
         case .orders: return "Tidigare köp, kvitton och recensioner"
         case .information: return "Support, villkor och trygghet"
-        case .settings: return "Namn och e-post"
+        case .settings: return "Namn och telefon"
         }
     }
 
@@ -1108,79 +1136,75 @@ private struct ProfilePanelPage: View {
         } else if deals.isEmpty {
             PlaceholderPanel(symbol: "ticket.fill", title: "Inga deals än", message: "När du får personliga erbjudanden hamnar de här direkt.")
         } else {
-            VStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 14) {
+                ProfileDealsHero(count: deals.count)
                 ForEach(deals) { deal in
-                    HStack(spacing: 12) {
-                        Image(systemName: "ticket.fill")
-                            .font(.system(size: 18, weight: .black))
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(DeliveraTheme.orange, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(deal.title)
-                                .font(.system(size: 15, weight: .black))
-                                .foregroundStyle(DeliveraTheme.ink)
-                                .lineLimit(1)
-                            Text(deal.subtitle)
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(DeliveraTheme.muted)
-                                .lineLimit(2)
-                        }
-                        Spacer()
-                    }
-                    .padding(14)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+                    ProfileDealFeatureCard(deal: deal)
                 }
             }
         }
     }
 
-    @ViewBuilder
+    private var swipeBackGesture: some Gesture {
+        DragGesture(minimumDistance: 18, coordinateSpace: .local)
+            .onEnded { value in
+                guard value.startLocation.x < 28, value.translation.width > 76, abs(value.translation.height) < 80 else { return }
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
+                    if selectedOrder != nil {
+                        selectedOrder = nil
+                    } else {
+                        onBack()
+                    }
+                }
+            }
+    }
+
     private var ordersContent: some View {
-        if isLoading {
-            ProfileLoadingRows()
-        } else if let errorMessage {
-            NoticeBanner(text: errorMessage)
-        } else if orders.isEmpty {
-            PlaceholderPanel(symbol: "clock.arrow.circlepath", title: "Ingen historik än", message: "När du beställer med ditt verifierade nummer visas ordern här.")
-        } else {
-            VStack(spacing: 10) {
-                ForEach(orders) { order in
-                    Button {
-                        withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
-                            selectedOrder = order
-                        }
-                    } label: {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack(alignment: .firstTextBaseline) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(order.restaurant?.name ?? "Restaurang")
+        Group {
+            if isLoading {
+                ProfileLoadingRows()
+            } else if let errorMessage {
+                NoticeBanner(text: errorMessage)
+            } else if orders.isEmpty {
+                PlaceholderPanel(symbol: "clock.arrow.circlepath", title: "Ingen historik än", message: "När du beställer med ditt verifierade nummer visas ordern här.")
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(orders) { order in
+                        Button {
+                            withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
+                                selectedOrder = order
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(alignment: .firstTextBaseline) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(order.restaurant?.name ?? "Restaurang")
+                                            .font(.system(size: 16, weight: .black, design: .rounded))
+                                            .foregroundStyle(DeliveraTheme.ink)
+                                        Text(order.displayDate)
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundStyle(DeliveraTheme.muted)
+                                    }
+                                    Spacer()
+                                    Text(order.totalText)
                                         .font(.system(size: 16, weight: .black, design: .rounded))
-                                        .foregroundStyle(DeliveraTheme.ink)
-                                    Text(order.displayDate)
-                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(DeliveraTheme.orange)
+                                }
+                                HStack(spacing: 8) {
+                                    ProfilePill(text: order.displayStatus, tint: order.statusTint)
+                                    ProfilePill(text: order.type == "PICKUP" ? "Avhämtning" : "Leverans", tint: DeliveraTheme.ink)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .black))
                                         .foregroundStyle(DeliveraTheme.muted)
                                 }
-                                Spacer()
-                                Text(order.totalText)
-                                    .font(.system(size: 16, weight: .black, design: .rounded))
-                                    .foregroundStyle(DeliveraTheme.orange)
                             }
-                            HStack(spacing: 8) {
-                                ProfilePill(text: order.displayStatus, tint: order.statusTint)
-                                ProfilePill(text: order.type == "PICKUP" ? "Avhämtning" : "Leverans", tint: DeliveraTheme.ink)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .black))
-                                    .foregroundStyle(DeliveraTheme.muted)
-                            }
+                            .padding(15)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
                         }
-                        .padding(15)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
@@ -1203,10 +1227,6 @@ private struct ProfilePanelPage: View {
     private var settingsContent: some View {
         VStack(alignment: .leading, spacing: 13) {
             TextField("Namn", text: $editName)
-                .profileInput()
-            TextField("E-post", text: $editEmail)
-                .keyboardType(.emailAddress)
-                .textInputAutocapitalization(.never)
                 .profileInput()
             VStack(alignment: .leading, spacing: 4) {
                 Text("Telefonnummer")
@@ -1231,6 +1251,86 @@ private struct ProfilePanelPage: View {
             }
             .disabled(isLoading)
         }
+    }
+}
+
+private struct ProfileDealsHero: View {
+    let count: Int
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            ZStack(alignment: .leading) {
+                ForEach(0..<4, id: \.self) { index in
+                    Circle()
+                        .stroke(.white.opacity(0.12), lineWidth: 1.2)
+                        .frame(width: CGFloat(92 + index * 50), height: CGFloat(92 + index * 50))
+                        .scaleEffect(1 + 0.03 * sin(t * 0.8 + Double(index)))
+                        .offset(x: CGFloat(188 - index * 8), y: CGFloat(-28 + index * 18))
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("\(count) aktiva")
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .textCase(.uppercase)
+                    Text("Deals redo att användas")
+                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("Dina personliga erbjudanden ligger här och kan användas direkt i kassan.")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.74))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(20)
+            }
+            .frame(maxWidth: .infinity, minHeight: 154, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [DeliveraTheme.ink, Color(red: 0.22, green: 0.12, blue: 0.08), DeliveraTheme.orange],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+            )
+            .shadow(color: DeliveraTheme.orange.opacity(0.18), radius: 24, y: 12)
+        }
+    }
+}
+
+private struct ProfileDealFeatureCard: View {
+    let deal: ProfileDeal
+
+    var body: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(deal.title)
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .foregroundStyle(DeliveraTheme.ink)
+                    .lineLimit(2)
+                Text(deal.subtitle)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(DeliveraTheme.muted)
+                    .lineLimit(2)
+                if let code = deal.code, !code.isEmpty {
+                    Text(code)
+                        .font(.system(size: 13, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .frame(height: 34)
+                        .background(DeliveraTheme.orange, in: Capsule())
+                }
+            }
+            Spacer()
+            Image(systemName: "ticket.fill")
+                .font(.system(size: 34, weight: .black))
+                .foregroundStyle(DeliveraTheme.orange)
+                .rotationEffect(.degrees(-10))
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
+        .background(.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(DeliveraTheme.line, lineWidth: 1))
+        .cardShadow()
     }
 }
 
