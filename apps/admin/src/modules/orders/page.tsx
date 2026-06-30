@@ -10,20 +10,18 @@ import { NotesPanel } from "@/shared/components/notes-panel";
 import { Badge, Button, EmptyState, ErrorPanel, Input, Modal, PageHeader, Surface, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, orderTypeLabel } from "@/shared/utils/format";
 
-// Order-resans steg i ordning. Leverans har ett extra "Levereras"-steg;
-// avhämtning hoppar direkt från Redo till klar.
-const DELIVERY_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING", "DELIVERED"] as const;
-const PICKUP_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERED"] as const;
+const DELIVERY_STEPS = ["PENDING", "PREPARING", "DELIVERING", "DELIVERED"] as const;
+const PICKUP_STEPS = ["PENDING", "PREPARING", "READY"] as const;
 const CANCEL_STATUSES = ["CANCELLED", "REJECTED", "DELIVERY_FAILED"];
 
 function stepLabel(status: string, isDelivery: boolean): string {
   switch (status) {
-    case "PENDING": return "Mottagen";
-    case "ACCEPTED": return "Accepterad";
+    case "PENDING": return "Väntar";
+    case "ACCEPTED": return "Tillagas";
     case "PREPARING": return "Tillagas";
-    case "READY": return "Redo";
-    case "DELIVERING": return "Levereras";
-    case "DELIVERED": return isDelivery ? "Levererad" : "Upphämtad";
+    case "READY": return isDelivery ? "Redo" : "Redo att hämtas";
+    case "DELIVERING": return "På väg";
+    case "DELIVERED": return "Levererad";
     default: return status;
   }
 }
@@ -32,25 +30,28 @@ function stepLabel(status: string, isDelivery: boolean): string {
 // primära knappen så admin slipper gissa bland sex likadana knappar.
 function nextAction(status: string, isDelivery: boolean): { status: string; label: string } | null {
   switch (status) {
-    case "PENDING": return { status: "ACCEPTED", label: "Acceptera order" };
+    case "PENDING": return { status: "PREPARING", label: "Acceptera och sätt tid" };
     case "ACCEPTED": return { status: "PREPARING", label: "Markera som tillagas" };
-    case "PREPARING": return { status: "READY", label: "Markera som redo" };
-    case "READY": return isDelivery ? { status: "DELIVERING", label: "Skicka iväg" } : { status: "DELIVERED", label: "Markera upphämtad" };
+    case "PREPARING": return isDelivery ? { status: "DELIVERING", label: "Markera på väg" } : { status: "READY", label: "Redo att hämtas" };
     case "DELIVERING": return { status: "DELIVERED", label: "Markera levererad" };
     default: return null;
   }
 }
 
-const ALL_STATUS_ACTIONS: Array<[string, string]> = [
-  ["ACCEPTED", "Accepterad"],
-  ["PREPARING", "Tillagas"],
-  ["READY", "Redo"],
-  ["DELIVERING", "Levereras"],
+const DELIVERY_STATUS_ACTIONS: Array<[string, string]> = [
+  ["PREPARING", "Accepterad / tillagas"],
+  ["DELIVERING", "På väg"],
   ["DELIVERED", "Levererad"],
   ["CANCELLED", "Avbruten"],
 ];
 
-const statusOptions = ["ALL", "PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERED", "CANCELLED"] as const;
+const PICKUP_STATUS_ACTIONS: Array<[string, string]> = [
+  ["PREPARING", "Accepterad / tillagas"],
+  ["READY", "Redo att hämtas"],
+  ["CANCELLED", "Avbruten"],
+];
+
+const statusOptions = ["ALL", "PENDING", "PREPARING", "READY", "DELIVERING", "DELIVERED", "CANCELLED"] as const;
 
 // "Time in current status" — picks the most relevant timestamp on the order
 // based on its current status. Falls back to updatedAt then createdAt.
@@ -280,8 +281,9 @@ export function OrderDetailsModal({
   const isDelivery = order?.type === "DELIVERY";
   const next = order ? nextAction(order.status, isDelivery) : null;
   const isCancelled = order ? CANCEL_STATUSES.includes(order.status) : false;
-  const isDone = order?.status === "DELIVERED";
+  const isDone = order ? (isDelivery ? order.status === "DELIVERED" : order.status === "READY") : false;
   const isLive = order ? ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(order.status) : false;
+  const manualStatusActions = isDelivery ? DELIVERY_STATUS_ACTIONS : PICKUP_STATUS_ACTIONS;
 
   const applyStatus = (status: string) =>
     statusMutation.mutate({ status, nextEstimatedTime: estimatedTime === "" ? null : Number(estimatedTime) });
@@ -580,7 +582,7 @@ export function OrderDetailsModal({
                 {isCancelled ? (
                   <p className="mt-2 text-[13px] text-[var(--text-secondary)]">Ordern är {orderStatusLabel(order.status).toLowerCase()}.</p>
                 ) : isDone ? (
-                  <p className="mt-2 flex items-center gap-1.5 text-[13px] text-[var(--success)]"><CheckCircle2 size={14} /> Ordern är slutförd.</p>
+                  <p className="mt-2 flex items-center gap-1.5 text-[13px] text-[var(--success)]"><CheckCircle2 size={14} /> {isDelivery ? "Ordern är slutförd." : "Ordern är redo att hämtas."}</p>
                 ) : (
                   <>
                     <p className="mt-1.5 text-[13px] text-[var(--text-secondary)]">Just nu: {orderStatusLabel(order.status)}</p>
@@ -604,7 +606,7 @@ export function OrderDetailsModal({
 
                 {showStatusOverride && (
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    {ALL_STATUS_ACTIONS.map(([status, label]) => (
+                    {manualStatusActions.map(([status, label]) => (
                       <Button
                         key={status}
                         variant={status === "CANCELLED" ? "danger" : "secondary"}

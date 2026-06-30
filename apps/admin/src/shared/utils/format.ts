@@ -37,13 +37,13 @@ export const orderStatusLabel = (status: string | null | undefined) => {
     case "PENDING":
       return "Väntar";
     case "ACCEPTED":
-      return "Accepterad";
+      return "Tillagas";
     case "PREPARING":
       return "Tillagas";
     case "READY":
-      return "Redo";
+      return "Redo att hämtas";
     case "DELIVERING":
-      return "Levereras";
+      return "På väg";
     case "DELIVERED":
       return "Levererad";
     case "DELIVERY_FAILED":

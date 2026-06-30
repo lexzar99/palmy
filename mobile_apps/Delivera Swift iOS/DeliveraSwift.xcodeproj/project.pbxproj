@@ -1,0 +1,793 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 70;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5FD9FE76C7B419125D71AE4F /* OrderLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 829A3F5553C0BC04C2C121F8 /* OrderLiveActivityWidget.swift */; };
+		A00100000000000000000001 /* DeliveraSwiftApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000001 /* DeliveraSwiftApp.swift */; };
+		A00100000000000000000002 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000002 /* AppConfig.swift */; };
+		A00100000000000000000003 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000003 /* APIError.swift */; };
+		A00100000000000000000004 /* DeliveraAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000004 /* DeliveraAPI.swift */; };
+		A00100000000000000000005 /* DeliveraTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000005 /* DeliveraTheme.swift */; };
+		A00100000000000000000006 /* RemoteImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000006 /* RemoteImage.swift */; };
+		A00100000000000000000007 /* Array+Uniqued.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000007 /* Array+Uniqued.swift */; };
+		A00100000000000000000008 /* Restaurant.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000008 /* Restaurant.swift */; };
+		A00100000000000000000009 /* Sponsor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000009 /* Sponsor.swift */; };
+		A0010000000000000000000A /* City.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000A /* City.swift */; };
+		A0010000000000000000000B /* HomeCategorySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000B /* HomeCategorySection.swift */; };
+		A0010000000000000000000C /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000C /* HomeViewModel.swift */; };
+		A0010000000000000000000D /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000D /* HomeView.swift */; };
+		A0010000000000000000000E /* HomeComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000E /* HomeComponents.swift */; };
+		A0010000000000000000000F /* SponsorCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000F /* SponsorCard.swift */; };
+		A00100000000000000000010 /* RestaurantCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000010 /* RestaurantCard.swift */; };
+		A00100000000000000000011 /* AddressSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000011 /* AddressSheetView.swift */; };
+		A00100000000000000000012 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000012 /* Assets.xcassets */; };
+		A00100000000000000000013 /* PlacePrediction.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000015 /* PlacePrediction.swift */; };
+		A00100000000000000000014 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000016 /* LocationService.swift */; };
+		A00100000000000000000015 /* RestaurantAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000017 /* RestaurantAvailability.swift */; };
+		A00100000000000000000016 /* Menu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000018 /* Menu.swift */; };
+		A00100000000000000000017 /* RestaurantDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000019 /* RestaurantDetailViewModel.swift */; };
+		A00100000000000000000018 /* RestaurantDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000001A /* RestaurantDetailView.swift */; };
+		A00100000000000000000019 /* ZoneValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000001B /* ZoneValidation.swift */; };
+		A0010000000000000000001A /* RestaurantReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000001C /* RestaurantReview.swift */; };
+		A0010000000000000000001B /* CartStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000001D /* CartStore.swift */; };
+		A0010000000000000000001C /* CartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000001E /* CartView.swift */; };
+		A0010000000000000000001D /* RewardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000001F /* RewardsView.swift */; };
+		A0010000000000000000001E /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000020 /* ProfileView.swift */; };
+		A0010000000000000000001F /* OrderActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000021 /* OrderActivityAttributes.swift */; };
+		A00100000000000000000020 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000022 /* LiveActivityManager.swift */; };
+		A00B00000000000000000001 /* Adyen in Frameworks */ = {isa = PBXBuildFile; productRef = A00C00000000000000000001 /* Adyen */; };
+		A00B00000000000000000002 /* AdyenActions in Frameworks */ = {isa = PBXBuildFile; productRef = A00C00000000000000000002 /* AdyenActions */; };
+		A00B00000000000000000003 /* AdyenCard in Frameworks */ = {isa = PBXBuildFile; productRef = A00C00000000000000000003 /* AdyenCard */; };
+		A00B00000000000000000004 /* AdyenCheckout in Frameworks */ = {isa = PBXBuildFile; productRef = A00C00000000000000000004 /* AdyenCheckout */; };
+		A6060A8517C0665C336DF159 /* DeliveraSwiftOrderWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 59F7E3279A9168D6C4507F3C /* DeliveraSwiftOrderWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DD10D58F22657A721EA50E29 /* OrderActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000021 /* OrderActivityAttributes.swift */; };
+		E41CB74679BC84C78970F1DF /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0D709AA1CA3FF8F393A330F /* Foundation.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		28F3285D416CB9C9450C77D2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00800000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A2618A51D115D56882976D0C;
+			remoteInfo = DeliveraSwiftOrderWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4F46679AF9092A9E3C005289 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A6060A8517C0665C336DF159 /* DeliveraSwiftOrderWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		59F7E3279A9168D6C4507F3C /* DeliveraSwiftOrderWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DeliveraSwiftOrderWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6C549052FE22BF57292EBC08 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		829A3F5553C0BC04C2C121F8 /* OrderLiveActivityWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OrderLiveActivityWidget.swift; sourceTree = "<group>"; };
+		A00200000000000000000001 /* DeliveraSwiftApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeliveraSwiftApp.swift; sourceTree = "<group>"; };
+		A00200000000000000000002 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		A00200000000000000000003 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
+		A00200000000000000000004 /* DeliveraAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeliveraAPI.swift; sourceTree = "<group>"; };
+		A00200000000000000000005 /* DeliveraTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeliveraTheme.swift; sourceTree = "<group>"; };
+		A00200000000000000000006 /* RemoteImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImage.swift; sourceTree = "<group>"; };
+		A00200000000000000000007 /* Array+Uniqued.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Array+Uniqued.swift"; sourceTree = "<group>"; };
+		A00200000000000000000008 /* Restaurant.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Restaurant.swift; sourceTree = "<group>"; };
+		A00200000000000000000009 /* Sponsor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sponsor.swift; sourceTree = "<group>"; };
+		A0020000000000000000000A /* City.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = City.swift; sourceTree = "<group>"; };
+		A0020000000000000000000B /* HomeCategorySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCategorySection.swift; sourceTree = "<group>"; };
+		A0020000000000000000000C /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
+		A0020000000000000000000D /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		A0020000000000000000000E /* HomeComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeComponents.swift; sourceTree = "<group>"; };
+		A0020000000000000000000F /* SponsorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SponsorCard.swift; sourceTree = "<group>"; };
+		A00200000000000000000010 /* RestaurantCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestaurantCard.swift; sourceTree = "<group>"; };
+		A00200000000000000000011 /* AddressSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressSheetView.swift; sourceTree = "<group>"; };
+		A00200000000000000000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A00200000000000000000013 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00200000000000000000014 /* DeliveraSwift.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DeliveraSwift.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00200000000000000000015 /* PlacePrediction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlacePrediction.swift; sourceTree = "<group>"; };
+		A00200000000000000000016 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		A00200000000000000000017 /* RestaurantAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestaurantAvailability.swift; sourceTree = "<group>"; };
+		A00200000000000000000018 /* Menu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Menu.swift; sourceTree = "<group>"; };
+		A00200000000000000000019 /* RestaurantDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestaurantDetailViewModel.swift; sourceTree = "<group>"; };
+		A0020000000000000000001A /* RestaurantDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestaurantDetailView.swift; sourceTree = "<group>"; };
+		A0020000000000000000001B /* ZoneValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneValidation.swift; sourceTree = "<group>"; };
+		A0020000000000000000001C /* RestaurantReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestaurantReview.swift; sourceTree = "<group>"; };
+		A0020000000000000000001D /* CartStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartStore.swift; sourceTree = "<group>"; };
+		A0020000000000000000001E /* CartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartView.swift; sourceTree = "<group>"; };
+		A0020000000000000000001F /* RewardsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardsView.swift; sourceTree = "<group>"; };
+		A00200000000000000000020 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		A00200000000000000000021 /* OrderActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderActivityAttributes.swift; sourceTree = "<group>"; };
+		A00200000000000000000022 /* LiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
+		F0D709AA1CA3FF8F393A330F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A00300000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00B00000000000000000001 /* Adyen in Frameworks */,
+				A00B00000000000000000002 /* AdyenActions in Frameworks */,
+				A00B00000000000000000003 /* AdyenCard in Frameworks */,
+				A00B00000000000000000004 /* AdyenCheckout in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B4B99BA920318FA5D78D412F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E41CB74679BC84C78970F1DF /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		215E15ECEC4EB41463F4AED5 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				F0D709AA1CA3FF8F393A330F /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		3F727F827D3C51E9D2760374 /* DeliveraSwiftOrderWidget */ = {
+			isa = PBXGroup;
+			children = (
+				829A3F5553C0BC04C2C121F8 /* OrderLiveActivityWidget.swift */,
+				6C549052FE22BF57292EBC08 /* Info.plist */,
+			);
+			path = DeliveraSwiftOrderWidget;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A00400000000000000000002 /* DeliveraSwift */,
+				A00400000000000000000014 /* Products */,
+				B9AFFC3F56E2CCD2F9BA9F36 /* Frameworks */,
+				3F727F827D3C51E9D2760374 /* DeliveraSwiftOrderWidget */,
+			);
+			sourceTree = "<group>";
+		};
+		A00400000000000000000002 /* DeliveraSwift */ = {
+			isa = PBXGroup;
+			children = (
+				A00400000000000000000003 /* App */,
+				A00400000000000000000005 /* Core */,
+				A0040000000000000000000A /* Models */,
+				A0040000000000000000000B /* Features */,
+				A00400000000000000000012 /* Resources */,
+			);
+			path = DeliveraSwift;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000003 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000001 /* DeliveraSwiftApp.swift */,
+				A00200000000000000000002 /* AppConfig.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000005 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				A00400000000000000000006 /* API */,
+				A00400000000000000000007 /* DesignSystem */,
+				A00400000000000000000008 /* Utils */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000006 /* API */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000003 /* APIError.swift */,
+				A00200000000000000000004 /* DeliveraAPI.swift */,
+			);
+			path = API;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000007 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000005 /* DeliveraTheme.swift */,
+				A00200000000000000000006 /* RemoteImage.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000008 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000007 /* Array+Uniqued.swift */,
+				A00200000000000000000017 /* RestaurantAvailability.swift */,
+				A00200000000000000000022 /* LiveActivityManager.swift */,
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
+		A0040000000000000000000A /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000008 /* Restaurant.swift */,
+				A00200000000000000000009 /* Sponsor.swift */,
+				A0020000000000000000000A /* City.swift */,
+				A0020000000000000000000B /* HomeCategorySection.swift */,
+				A00200000000000000000015 /* PlacePrediction.swift */,
+				A00200000000000000000018 /* Menu.swift */,
+				A0020000000000000000001B /* ZoneValidation.swift */,
+				A0020000000000000000001C /* RestaurantReview.swift */,
+				A00200000000000000000021 /* OrderActivityAttributes.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A0040000000000000000000B /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				A0040000000000000000000C /* Home */,
+				A0040000000000000000000D /* Address */,
+				A00400000000000000000015 /* Restaurant */,
+				A00400000000000000000016 /* Cart */,
+				A00400000000000000000017 /* Rewards */,
+				A00400000000000000000018 /* Profile */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		A0040000000000000000000C /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				A0020000000000000000000C /* HomeViewModel.swift */,
+				A0020000000000000000000D /* HomeView.swift */,
+				A0020000000000000000000E /* HomeComponents.swift */,
+				A0020000000000000000000F /* SponsorCard.swift */,
+				A00200000000000000000010 /* RestaurantCard.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		A0040000000000000000000D /* Address */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000011 /* AddressSheetView.swift */,
+				A00200000000000000000016 /* LocationService.swift */,
+			);
+			path = Address;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000012 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000012 /* Assets.xcassets */,
+				A00200000000000000000013 /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000014 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000014 /* DeliveraSwift.app */,
+				59F7E3279A9168D6C4507F3C /* DeliveraSwiftOrderWidget.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000015 /* Restaurant */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000019 /* RestaurantDetailViewModel.swift */,
+				A0020000000000000000001A /* RestaurantDetailView.swift */,
+			);
+			path = Restaurant;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000016 /* Cart */ = {
+			isa = PBXGroup;
+			children = (
+				A0020000000000000000001D /* CartStore.swift */,
+				A0020000000000000000001E /* CartView.swift */,
+			);
+			path = Cart;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000017 /* Rewards */ = {
+			isa = PBXGroup;
+			children = (
+				A0020000000000000000001F /* RewardsView.swift */,
+			);
+			path = Rewards;
+			sourceTree = "<group>";
+		};
+		A00400000000000000000018 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000020 /* ProfileView.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		B9AFFC3F56E2CCD2F9BA9F36 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				215E15ECEC4EB41463F4AED5 /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00500000000000000000001 /* DeliveraSwift */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00900000000000000000002 /* Build configuration list for PBXNativeTarget "DeliveraSwift" */;
+			buildPhases = (
+				A00600000000000000000001 /* Sources */,
+				A00300000000000000000001 /* Frameworks */,
+				A00700000000000000000001 /* Resources */,
+				4F46679AF9092A9E3C005289 /* Embed App Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5309380F872AA05E41814DAD /* PBXTargetDependency */,
+			);
+			name = DeliveraSwift;
+			packageProductDependencies = (
+				A00C00000000000000000001 /* Adyen */,
+				A00C00000000000000000002 /* AdyenActions */,
+				A00C00000000000000000003 /* AdyenCard */,
+				A00C00000000000000000004 /* AdyenCheckout */,
+			);
+			productName = DeliveraSwift;
+			productReference = A00200000000000000000014 /* DeliveraSwift.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A2618A51D115D56882976D0C /* DeliveraSwiftOrderWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 81684C6E0D282578BE3DAF56 /* Build configuration list for PBXNativeTarget "DeliveraSwiftOrderWidget" */;
+			buildPhases = (
+				A8BC4F8658524524206D7668 /* Sources */,
+				B4B99BA920318FA5D78D412F /* Frameworks */,
+				B03CE85B83B9AB1E964E0E49 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DeliveraSwiftOrderWidget;
+			productName = DeliveraSwiftOrderWidget;
+			productReference = 59F7E3279A9168D6C4507F3C /* DeliveraSwiftOrderWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00800000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2640;
+				LastUpgradeCheck = 2640;
+				TargetAttributes = {
+					A00500000000000000000001 = {
+						CreatedOnToolsVersion = 26.4;
+					};
+				};
+			};
+			buildConfigurationList = A00900000000000000000001 /* Build configuration list for PBXProject "DeliveraSwift" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A00400000000000000000001;
+			packageReferences = (
+				A00D00000000000000000001 /* XCRemoteSwiftPackageReference "adyen-ios" */,
+			);
+			productRefGroup = A00400000000000000000014 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A00500000000000000000001 /* DeliveraSwift */,
+				A2618A51D115D56882976D0C /* DeliveraSwiftOrderWidget */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A00700000000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00100000000000000000012 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B03CE85B83B9AB1E964E0E49 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A00600000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00100000000000000000001 /* DeliveraSwiftApp.swift in Sources */,
+				A00100000000000000000002 /* AppConfig.swift in Sources */,
+				A00100000000000000000003 /* APIError.swift in Sources */,
+				A00100000000000000000004 /* DeliveraAPI.swift in Sources */,
+				A00100000000000000000005 /* DeliveraTheme.swift in Sources */,
+				A00100000000000000000006 /* RemoteImage.swift in Sources */,
+				A00100000000000000000007 /* Array+Uniqued.swift in Sources */,
+				A00100000000000000000008 /* Restaurant.swift in Sources */,
+				A00100000000000000000009 /* Sponsor.swift in Sources */,
+				A0010000000000000000000A /* City.swift in Sources */,
+				A0010000000000000000000B /* HomeCategorySection.swift in Sources */,
+				A0010000000000000000000C /* HomeViewModel.swift in Sources */,
+				A0010000000000000000000D /* HomeView.swift in Sources */,
+				A0010000000000000000000E /* HomeComponents.swift in Sources */,
+				A0010000000000000000000F /* SponsorCard.swift in Sources */,
+				A00100000000000000000010 /* RestaurantCard.swift in Sources */,
+				A00100000000000000000011 /* AddressSheetView.swift in Sources */,
+				A00100000000000000000013 /* PlacePrediction.swift in Sources */,
+				A00100000000000000000014 /* LocationService.swift in Sources */,
+				A00100000000000000000015 /* RestaurantAvailability.swift in Sources */,
+				A00100000000000000000016 /* Menu.swift in Sources */,
+				A00100000000000000000017 /* RestaurantDetailViewModel.swift in Sources */,
+				A00100000000000000000018 /* RestaurantDetailView.swift in Sources */,
+				A00100000000000000000019 /* ZoneValidation.swift in Sources */,
+				A0010000000000000000001A /* RestaurantReview.swift in Sources */,
+				A0010000000000000000001B /* CartStore.swift in Sources */,
+				A0010000000000000000001C /* CartView.swift in Sources */,
+				A0010000000000000000001D /* RewardsView.swift in Sources */,
+				A0010000000000000000001E /* ProfileView.swift in Sources */,
+				A0010000000000000000001F /* OrderActivityAttributes.swift in Sources */,
+				A00100000000000000000020 /* LiveActivityManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A8BC4F8658524524206D7668 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DD10D58F22657A721EA50E29 /* OrderActivityAttributes.swift in Sources */,
+				5FD9FE76C7B419125D71AE4F /* OrderLiveActivityWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5309380F872AA05E41814DAD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = DeliveraSwiftOrderWidget;
+			target = A2618A51D115D56882976D0C /* DeliveraSwiftOrderWidget */;
+			targetProxy = 28F3285D416CB9C9450C77D2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		8E6AB229674B2065A4B758AE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3KDGPYZXHH;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DeliveraSwiftOrderWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = se.delivera.swift.OrderWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A00A00000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A00A00000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A00A00000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 3KDGPYZXHH;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DeliveraSwift/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = se.delivera.swift;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A00A00000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3KDGPYZXHH;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DeliveraSwift/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = se.delivera.swift;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		DE9E49F4FACC291B32570DB4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3KDGPYZXHH;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DeliveraSwiftOrderWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = se.delivera.swift.OrderWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		81684C6E0D282578BE3DAF56 /* Build configuration list for PBXNativeTarget "DeliveraSwiftOrderWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8E6AB229674B2065A4B758AE /* Release */,
+				DE9E49F4FACC291B32570DB4 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00900000000000000000001 /* Build configuration list for PBXProject "DeliveraSwift" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00A00000000000000000001 /* Debug */,
+				A00A00000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00900000000000000000002 /* Build configuration list for PBXNativeTarget "DeliveraSwift" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00A00000000000000000003 /* Debug */,
+				A00A00000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A00D00000000000000000001 /* XCRemoteSwiftPackageReference "adyen-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Adyen/adyen-ios";
+			requirement = {
+				branch = develop;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A00C00000000000000000001 /* Adyen */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00D00000000000000000001 /* XCRemoteSwiftPackageReference "adyen-ios" */;
+			productName = Adyen;
+		};
+		A00C00000000000000000002 /* AdyenActions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00D00000000000000000001 /* XCRemoteSwiftPackageReference "adyen-ios" */;
+			productName = AdyenActions;
+		};
+		A00C00000000000000000003 /* AdyenCard */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00D00000000000000000001 /* XCRemoteSwiftPackageReference "adyen-ios" */;
+			productName = AdyenCard;
+		};
+		A00C00000000000000000004 /* AdyenCheckout */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00D00000000000000000001 /* XCRemoteSwiftPackageReference "adyen-ios" */;
+			productName = AdyenCheckout;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A00800000000000000000001 /* Project object */;
+}

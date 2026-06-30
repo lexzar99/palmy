@@ -735,14 +735,26 @@ router.patch('/orders/:id/status', async (req, res) => {
       return;
     }
 
+    const allowedStatusByType =
+      existing.type === 'PICKUP'
+        ? new Set(['PREPARING', 'READY', 'REJECTED', 'CANCELLED'])
+        : new Set(['PREPARING', 'DELIVERING', 'DELIVERED', 'DELIVERY_FAILED', 'REJECTED', 'CANCELLED']);
+
+    if (!allowedStatusByType.has(status)) {
+      res.status(400).json({
+        error:
+          existing.type === 'PICKUP'
+            ? 'Avhämtningsorder kan bara ändras till tillagas, redo att hämtas, nekad eller avbruten.'
+            : 'Leveransorder kan bara ändras till tillagas, på väg, levererad, misslyckad, nekad eller avbruten.',
+      });
+      return;
+    }
+
     if (!isSuperAdmin(req as AuthRequest) && existing.restaurantId !== adminRestaurantId) {
       res.status(403).json({ error: 'Du kan bara uppdatera orders för din restaurang' });
       return;
     }
 
-    // When marking as DELIVERING: store as DELIVERED in DB immediately,
-    // but tell the customer it's "DELIVERING" with a timestamp so the
-    // customer sees "PÅ VÄG" for 10-15 minutes then auto-transitions to "LEVERERAD"
     const isPreparingTransition = status === 'PREPARING';
     const isDeliveringTransition = status === 'DELIVERING';
     // Test-order i VI-LEVERERAR-flödet (platform-delivery): vid READY finns inget
@@ -755,7 +767,7 @@ router.patch('/orders/:id/status', async (req, res) => {
       existing.type === 'DELIVERY' &&
       !existing.restaurant?.selfDelivery &&
       isTestOrder(existing);
-    const dbStatus = (isDeliveringTransition || isTestDeliveryReady) ? 'DELIVERED' : status;
+    const dbStatus = isTestDeliveryReady ? 'DELIVERED' : status;
     const customerStatus = isTestDeliveryReady ? 'DELIVERED' : status; // Always send the requested status to the customer
 
     const order = await prisma.order.update({
@@ -772,6 +784,7 @@ router.patch('/orders/:id/status', async (req, res) => {
         ...(status === 'DELIVERED' && !isDeliveringTransition ? { deliveringAt: null } : {}),
       },
     });
+    bustCache('order:byid', order.id);
 
     // Avvisad/avbruten order → backend-auktoritativ Dpoints-återföring:
     // claw-backa intjänade poäng + återbetala inlösta. Idempotent via

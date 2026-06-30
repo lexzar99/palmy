@@ -15,7 +15,7 @@ import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, type Ca
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
-import { bustCache, cached } from '../lib/ttlCache';
+import { bustCache } from '../lib/ttlCache';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
 import { getDpointsSettings, awardOrderPointsIfNotAwarded, resolveDpointsCourierFeeOre, maybeAwardReviewPoints } from '../lib/dpoints';
@@ -1576,22 +1576,36 @@ router.get('/status-batch', async (req: Request, res: Response) => {
 // ID-gissning inte avslöjar vilka ordrar som existerar.
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    // Cache 4s by id: order-tracking AND the app-wide banner both poll this every
-    // 15s for the SAME order — collapses synchronized polls to ~1 DB read per 4s.
-    // The owner check below still gates access; the socket pushes realtime so a
-    // ≤4s lag on the poll path is invisible.
-    const order: any = await cached('order:byid', req.params.id, 4000, () =>
-      prisma.order.findUnique({
-        where: { id: req.params.id },
-        include: {
-          items: true,
-          restaurant: true,
-          // Leveransbevis för order-tracking: foto (TTL 2 dygn), leveranssätt,
-          // kurirens notering. proofExpiresAt → klienten döljer fotot när det gått ut.
-          delivery: { select: { proofMethod: true, proofMessage: true, proofPhotoUrl: true, proofExpiresAt: true, courierId: true, status: true } },
+    const order: any = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: {
+        items: true,
+        restaurant: true,
+        // Tracking must be fresh for the iOS app and Live Activity. Do not cache:
+        // admin status changes and courier coordinates need to be visible on the
+        // next poll.
+        delivery: {
+          select: {
+            proofMethod: true,
+            proofMessage: true,
+            proofPhotoUrl: true,
+            proofExpiresAt: true,
+            courierId: true,
+            status: true,
+            courier: {
+              select: {
+                name: true,
+                phone: true,
+                vehicle: true,
+                currentLat: true,
+                currentLng: true,
+                lastSeenAt: true,
+              },
+            },
+          },
         },
-      })
-    );
+      },
+    });
 
     if (!order) {
       res.status(404).json({ error: 'Order hittades inte' });
@@ -1707,6 +1721,14 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
+    const courierCanBeShown =
+      customerStatus === 'DELIVERING' &&
+      !(order.restaurant as any)?.selfDelivery &&
+      order.delivery?.courierId &&
+      order.delivery?.status === 'PICKED_UP' &&
+      typeof order.delivery?.courier?.currentLat === 'number' &&
+      typeof order.delivery?.courier?.currentLng === 'number';
+
     res.json({
       id: order.id,
       orderNumber: order.orderNumber,
@@ -1737,6 +1759,13 @@ router.get('/:id', async (req: Request, res: Response) => {
       selfDelivery: (order.restaurant as any)?.selfDelivery ?? false,
       restaurantLat: (order.restaurant as any)?.latitude ?? null,
       restaurantLng: (order.restaurant as any)?.longitude ?? null,
+      courierAssigned: Boolean(order.delivery?.courierId) && !(order.restaurant as any)?.selfDelivery,
+      courierLat: courierCanBeShown ? order.delivery.courier.currentLat : null,
+      courierLng: courierCanBeShown ? order.delivery.courier.currentLng : null,
+      courierName: courierCanBeShown ? order.delivery.courier.name : null,
+      courierPhone: courierCanBeShown ? order.delivery.courier.phone : null,
+      courierVehicle: courierCanBeShown ? order.delivery.courier.vehicle : null,
+      courierLastSeenAt: courierCanBeShown && order.delivery.courier.lastSeenAt ? order.delivery.courier.lastSeenAt.toISOString() : null,
       // Moms i % som restaurangen visar i kvittot (6/12). null = restaurangen
       // visar ingen momsrad → klienten döljer den.
       restaurantVatPercent: (order.restaurant as any)?.vatPercent ?? null,
