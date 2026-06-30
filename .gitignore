@@ -40,6 +40,7 @@ Thumbs.db
 
 # Mobile Apps (Isolated)
 # mobile_apps/
+mobile_apps/Delivera Swift iOS/
 
 # Project-wide ignore — block every .env variant, allow only .env.example
 **/.env
