@@ -21,6 +21,7 @@ import {
   segmentLabel,
   type DealCampaignRecord,
 } from "@/modules/deals/campaigns-api";
+import { apiGet } from "@/shared/api/client";
 import { useToast } from "@/shared/components/toast";
 import { discountsQueryKey, getDiscounts, createDiscount, updateDiscount, deleteDiscount, type DiscountRecord } from "@/modules/coupons/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Toggle } from "@/shared/components/ui";
@@ -29,7 +30,7 @@ import { cn } from "@/shared/utils/cn";
 import { formatDate } from "@/shared/utils/format";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
 
-type Tab = "bogo" | "kampanjer" | "auto" | "kupongkoder";
+type Tab = "bogo" | "kampanjer" | "auto" | "kupongkoder" | "iappen";
 
 type CouponForm = {
   code: string;
@@ -186,6 +187,7 @@ export function DealsPage() {
     { id: "kampanjer", label: "Kampanjer", count: kampanjDeals.filter((d) => d.isActive).length },
     { id: "auto", label: "Auto-kampanjer", count: (campaigns.data || []).filter((c) => c.status === "ACTIVE").length },
     { id: "kupongkoder", label: "Kupongkoder", count: (discounts.data || []).filter((d) => d.isActive).length },
+    { id: "iappen", label: "I appen nu", count: 0 },
   ];
 
   const changeTab = (t: Tab) => {
@@ -280,6 +282,9 @@ export function DealsPage() {
           deletePending={deleteCampaignMutation.isPending}
         />
       )}
+
+      {/* I appen nu: exakt det kund-feeden returnerar, per placering */}
+      {tab === "iappen" && <AppFeedPreview />}
 
       {/* Kupongkoder tab */}
       {tab === "kupongkoder" && (
@@ -567,7 +572,7 @@ function CampaignTable({
   onDelete: (c: DealCampaignRecord) => void;
   deletePending: boolean;
 }) {
-  const cols = "1.4fr 0.9fr 0.7fr 0.6fr 0.5fr 1fr 150px";
+  const cols = "1.4fr 0.9fr 0.7fr 0.6fr 0.5fr 0.9fr 1fr 150px";
   const statusTone = (status: string): TypeTone =>
     status === "ACTIVE" ? "success" : status === "SCHEDULED" ? "info" : status === "PAUSED" ? "warning" : status === "DONE" ? "neutral" : "neutral";
   return (
@@ -588,6 +593,7 @@ function CampaignTable({
             <span>Status</span>
             <span>Giltig</span>
             <span>Cap</span>
+            <span>Utfall</span>
             <span>Senast körd</span>
             <span />
           </div>
@@ -608,6 +614,9 @@ function CampaignTable({
               <span><TypeBadge tone={statusTone(c.status)}>{campaignStatusLabel(c.status)}</TypeBadge></span>
               <span className="text-[var(--text-secondary)]">{c.validDays} d</span>
               <span className="text-[var(--text-secondary)]">{c.capPerCustomer}</span>
+              <span className="text-[var(--text-secondary)]">
+                {c.stats ? `${c.stats.assigned} ut · ${c.stats.redeemed} in` : "–"}
+              </span>
               <span className="text-[var(--text-secondary)]">{c.lastRunAt ? formatDate(c.lastRunAt) : "Aldrig"}</span>
               <span className="flex items-center justify-end gap-2">
                 <Button variant="secondary" onClick={() => onRun(c)} disabled={runPending}><Play size={13} /> Kör nu</Button>
@@ -620,5 +629,96 @@ function CampaignTable({
         </div>
       )}
     </Surface>
+  );
+}
+
+
+// ── I appen nu ───────────────────────────────────────────────────────────────
+// Läser samma publika feed som Swift-appen (GET /api/deals/app) så admin ser
+// exakt vad kunderna ser, per placering. Inget eget urval eller filter här.
+
+interface AppFeedDeal {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  badge?: string | null;
+  audience: string;
+  claimRequired: boolean;
+  missionType?: string | null;
+  freeDelivery: boolean;
+  discountPercent?: number | null;
+  amountKr?: number | null;
+  dpointsBonus?: number | null;
+  minOrderKr: number;
+  restaurant?: { name: string } | null;
+}
+
+const APP_FEED_PLACEMENTS: { key: string; label: string; hint: string }[] = [
+  { key: "HOME_TOP", label: "Hemskärmen", hint: "Deal-rälsen under sponsorkorten" },
+  { key: "REWARDS", label: "Rewards", hint: "Uppdrag och extra-erbjudanden under Tjäna" },
+  { key: "CART", label: "Kassan", hint: "Visas i varukorgen" },
+];
+
+function appFeedValue(deal: AppFeedDeal): string {
+  if (deal.freeDelivery) return "Fri leverans";
+  if (deal.discountPercent) return `-${deal.discountPercent}%`;
+  if (deal.amountKr) return `-${deal.amountKr} kr`;
+  if (deal.dpointsBonus) return `+${deal.dpointsBonus} p`;
+  return deal.badge || "";
+}
+
+function AppFeedPreview() {
+  const feeds = useQuery({
+    queryKey: ["deals", "app-feed-preview"],
+    queryFn: async () => {
+      const results = await Promise.all(
+        APP_FEED_PLACEMENTS.map((p) =>
+          apiGet<{ deals: AppFeedDeal[] }>(`/deals/app?placement=${p.key}&limit=20&loggedIn=1`)
+            .then((r) => [p.key, r.deals] as const)
+            .catch(() => [p.key, [] as AppFeedDeal[]] as const),
+        ),
+      );
+      return Object.fromEntries(results) as Record<string, AppFeedDeal[]>;
+    },
+    refetchOnWindowFocus: false,
+  });
+
+  if (feeds.isLoading) {
+    return <Surface className="px-6 py-14 text-center text-sm text-[var(--text-secondary)]">Läser app-feeden...</Surface>;
+  }
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-3">
+      {APP_FEED_PLACEMENTS.map((placement) => {
+        const deals = feeds.data?.[placement.key] ?? [];
+        return (
+          <Surface key={placement.key} className="p-0 overflow-hidden">
+            <div className="border-b border-[var(--border-subtle)] px-4 py-3">
+              <div className="text-[13px] font-extrabold">{placement.label}</div>
+              <div className="text-[11.5px] text-[var(--text-muted)]">{placement.hint}</div>
+            </div>
+            {deals.length === 0 ? (
+              <div className="px-4 py-8 text-center text-[12.5px] text-[var(--text-muted)]">Tomt. Inget visas här i appen.</div>
+            ) : (
+              deals.map((deal, i) => (
+                <div key={deal.id} className={cn("px-4 py-3", i !== deals.length - 1 && "border-b border-[var(--row-divider)]")}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[13px] font-bold">{deal.title}</span>
+                    <span className="shrink-0 text-[12px] font-extrabold">{appFeedValue(deal)}</span>
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11.5px] text-[var(--text-muted)]">
+                    <span>{deal.restaurant?.name || "Alla restauranger"}</span>
+                    {deal.minOrderKr > 0 && <span>min {deal.minOrderKr} kr</span>}
+                    {deal.missionType && <span>uppdrag</span>}
+                    {deal.claimRequired && !deal.missionType && <span>hämtas av kund</span>}
+                    <span>{deal.audience === "ALL" ? "alla" : deal.audience.toLowerCase().replace(/_/g, " ")}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </Surface>
+        );
+      })}
+    </div>
   );
 }

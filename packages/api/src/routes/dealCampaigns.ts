@@ -105,7 +105,21 @@ router.get('/preview', authenticate, requireSuperAdmin, async (req, res) => {
 
 router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
   const campaigns = await prisma.dealCampaign.findMany({ orderBy: { createdAt: 'desc' } });
-  res.json({ campaigns });
+  // Mätning per kampanj: tilldelat vs inlöst (UserDeal.metadata.campaignId).
+  const withStats = await Promise.all(
+    campaigns.map(async (campaign) => {
+      const [assigned, redeemed] = await Promise.all([
+        (prisma as any).userDeal.count({
+          where: { metadata: { path: ['campaignId'], equals: campaign.id } },
+        }),
+        (prisma as any).userDeal.count({
+          where: { metadata: { path: ['campaignId'], equals: campaign.id }, status: 'USED' },
+        }),
+      ]);
+      return { ...campaign, stats: { assigned, redeemed } };
+    }),
+  );
+  res.json({ campaigns: withStats });
 });
 
 router.get('/:id', authenticate, requireSuperAdmin, async (req, res) => {

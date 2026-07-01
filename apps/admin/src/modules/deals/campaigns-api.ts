@@ -37,6 +37,7 @@ export interface DealCampaignRecord {
   lastRunAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  stats?: { assigned: number; redeemed: number };
 }
 
 export interface DealCampaignInput {
