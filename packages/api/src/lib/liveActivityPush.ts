@@ -424,6 +424,7 @@ export async function sendApnsAlert(opts: {
   token: string;            // raw hex APNs device token (NOT ExponentPushToken)
   title: string;
   body: string;
+  topic?: string;            // optional override, e.g. courier app bundle id
   collapseId?: string;      // e.g. `order-${orderId}` to replace prior pushes
   data?: Record<string, unknown>;
   threadId?: string;        // groups alerts in Notification Center
@@ -455,7 +456,7 @@ export async function sendApnsAlert(opts: {
 
   await sendApns({
     token: opts.token,
-    topic: APNS_BUNDLE_ID!, // alert pushes use the bare bundle id
+    topic: opts.topic || APNS_BUNDLE_ID!, // alert pushes use the bare bundle id
     pushType: 'alert',
     payload,
     priority: '10',

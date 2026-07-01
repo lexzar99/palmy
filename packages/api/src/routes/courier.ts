@@ -9,7 +9,9 @@ import { authenticate, requireSuperAdmin, type AuthRequest } from '../middleware
 import { saveSubscription, removeSubscription, getVapidPublicKey, notifyCouriersOrderReady } from '../lib/courierPush';
 import { sendOrderStatusPush } from '../lib/customerPush';
 import { registerCourierFcmToken, clearCourierFcmToken, sendCourierFcm, sendTestFcm, isFcmConfigured } from '../lib/courierFcm';
+import { clearCourierApnsToken, registerCourierApnsToken, sendTestCourierApns } from '../lib/courierApns';
 import { uploadToR2, deleteFromR2, r2Enabled } from '../lib/r2';
+import { estimateOrderEta, etaResponseFields, getCourierActiveDeliveries, refreshCourierActiveEtas, refreshOrderEta } from '../lib/orderEta';
 
 // Leveransbild sparas i 2 dygn och raderas sedan permanent (cleanup-jobbet).
 const PROOF_PHOTO_TTL_MS = 2 * 24 * 60 * 60 * 1000;
@@ -66,6 +68,7 @@ function jobFromOrder(order: any, ratePerKm: number) {
     vehicle: distanceKm > 2 ? 'CAR' : 'BIKE',
     payout: payOre / 100,
     tip: (order.tipAmount ?? 0) / 100,
+    ...etaResponseFields(order),
     expiresAt: Date.now() + 3_600_000,
     items: (order.items ?? []).map((i: any) => ({ qty: i.quantity, name: i.productName })),
   };
@@ -111,6 +114,12 @@ function emitOrderStatus(order: any) {
       orderId: order.id,
       status: order.status,
       deliveringAt: order.deliveringAt ?? null,
+      etaReadyAt: order.etaReadyAt ?? null,
+      etaPickupAt: order.etaPickupAt ?? null,
+      etaCustomerAt: order.etaCustomerAt ?? null,
+      etaCustomerMin: order.etaCustomerMin ?? null,
+      etaPriorityScore: order.etaPriorityScore ?? null,
+      etaReason: order.etaReason ?? null,
     });
     void sendOrderStatusPush(order.id, order.status);
     io.to('admin-room').emit('order:updated', { orderId: order.id });
@@ -191,27 +200,44 @@ router.get('/jobs', requireCourier, async (req: CourierRequest, res) => {
       orderBy: { createdAt: 'asc' },
       take: 40,
     });
+    const activeDeliveries = await getCourierActiveDeliveries(courier.id);
 
-    // Sortera uppdragen på BÅDE pris och närhet: bäst betalda + närmaste
-    // hämtning först. Poäng = (ersättning + dricks) − straff·(avstånd från
-    // kurirens nuvarande position till restaurangen). Saknas kurir-position
-    // faller vi tillbaka på högsta ersättning. Närhet bryter jämna pris-lägen.
+    // Sortera uppdragen på pris, närhet OCH tidspress. ETA:n simulerar budets
+    // aktiva stopp och lägger alltid pickup före dropoff för varje order.
     const DISTANCE_PENALTY_PER_KM = 6; // kr/km — balanserar ~typiska ersättningar
     const here = (typeof courier.currentLat === 'number' && typeof courier.currentLng === 'number')
       ? { lat: courier.currentLat as number, lng: courier.currentLng as number }
       : null;
     const scored = orders.map((o) => {
       const job = jobFromOrder(o, courier.ratePerKm);
+      const eta = estimateOrderEta(o, { courier, activeDeliveries, appendAsCandidate: true });
       const r = o.restaurant as any;
       const pickupDistKm = (here && r?.latitude != null && r?.longitude != null)
         ? Math.round(haversineKm(here.lat, here.lng, r.latitude, r.longitude) * 10) / 10
         : null;
       const value = (job.payout ?? 0) + (job.tip ?? 0);
-      const score = pickupDistKm != null ? value - DISTANCE_PENALTY_PER_KM * pickupDistKm : value;
-      return { job: { ...job, pickupDistanceKm: pickupDistKm }, score, value, dist: pickupDistKm ?? Infinity };
+      const timePressure = (eta.etaPriorityScore ?? 0) * 0.65;
+      const score = (pickupDistKm != null ? value - DISTANCE_PENALTY_PER_KM * pickupDistKm : value) + timePressure;
+      return {
+        job: {
+          ...job,
+          pickupDistanceKm: pickupDistKm,
+          etaReadyAt: eta.etaReadyAt,
+          etaPickupAt: eta.etaPickupAt,
+          etaCustomerAt: eta.etaCustomerAt,
+          etaCustomerMin: eta.etaCustomerMin,
+          etaPriorityScore: eta.etaPriorityScore,
+          etaReason: eta.etaReason,
+        },
+        score,
+        value,
+        dist: pickupDistKm ?? Infinity,
+        etaMin: eta.etaCustomerMin ?? Infinity,
+      };
     });
     scored.sort((a, b) =>
-      b.score - a.score || // bäst poäng (pris vägt mot avstånd) först
+      b.score - a.score || // bäst poäng (pris + tidspress vägt mot avstånd) först
+      a.etaMin - b.etaMin ||
       a.dist - b.dist || // sen närmast
       b.value - a.value, // sen dyrast
     );
@@ -231,7 +257,9 @@ router.get('/jobs/:orderId', requireCourier, async (req: CourierRequest, res) =>
   if (!order || order.delivery || !AVAILABLE_ORDER_STATUSES.includes(order.status) || order.restaurant?.selfDelivery) {
     return res.status(404).json({ error: 'Ordern är inte längre tillgänglig' });
   }
-  res.json(jobFromOrder(order, req.courier.ratePerKm));
+  const activeDeliveries = await getCourierActiveDeliveries(req.courier.id);
+  const eta = estimateOrderEta(order, { courier: req.courier, activeDeliveries, appendAsCandidate: true });
+  res.json({ ...jobFromOrder(order, req.courier.ratePerKm), ...eta });
 });
 
 router.get('/active', requireCourier, async (req: CourierRequest, res) => {
@@ -292,7 +320,9 @@ router.post('/jobs/:orderId/accept', requireCourier, async (req: CourierRequest,
         orderNumber: order.orderNumber,
       });
     }
-    res.json(activeFromDelivery(delivery));
+    await refreshCourierActiveEtas(courier.id, { courier });
+    const full = await prisma.delivery.findUnique({ where: { id: delivery.id }, include: { order: { include: { restaurant: true, items: true } } } });
+    res.json(activeFromDelivery(full));
   } catch (e: any) {
     // DB-race: Delivery.orderId är unik → bara EN kurir kan skapa leveransen.
     // Den som hann först (bäst connection) vinner; resten får TAKEN.
@@ -307,7 +337,9 @@ router.post('/deliveries/:id/picked-up', requireCourier, async (req: CourierRequ
   if (!d) return res.status(404).json({ error: 'Leveransen hittades inte' });
   await prisma.delivery.update({ where: { id: d.id }, data: { status: 'PICKED_UP', pickedUpAt: new Date() } });
   const order = await prisma.order.update({ where: { id: d.orderId }, data: { status: 'DELIVERING', deliveringAt: new Date() } });
-  emitOrderStatus(order);
+  const etaByOrder = await refreshCourierActiveEtas(req.courier.id, { courier: req.courier });
+  const eta = etaByOrder.get(d.orderId) ?? null;
+  emitOrderStatus({ ...order, ...(eta ?? {}) });
   const full = await prisma.delivery.findUnique({ where: { id: d.id }, include: { order: { include: { restaurant: true, items: true } } } });
   res.json(activeFromDelivery(full));
 });
@@ -365,7 +397,9 @@ router.post('/deliveries/:id/complete', requireCourier, async (req: CourierReque
     },
   });
   const order = await prisma.order.update({ where: { id: d.orderId }, data: { status: 'DELIVERED' } });
-  emitOrderStatus(order);
+  const eta = await refreshOrderEta(d.orderId, { courierId: req.courier.id, courier: req.courier });
+  void refreshCourierActiveEtas(req.courier.id, { courier: req.courier }).catch(() => null);
+  emitOrderStatus({ ...order, ...(eta ?? {}) });
 
   // Kurirens notering + leveranssätt landar som order-Note → syns i admin så att
   // support direkt ser hur maten lämnats och vad kuriren skrivit.
@@ -414,9 +448,10 @@ router.post('/location', requireCourier, async (req: CourierRequest, res) => {
   // Broadcast till kundens order-rum för live-tracking (visas vid PICKED_UP).
   try {
     const io = getIO();
-    const active = await prisma.delivery.findMany({ where: { courierId: req.courier.id, status: 'PICKED_UP' }, select: { orderId: true } });
+    const active = await prisma.delivery.findMany({ where: { courierId: req.courier.id, status: { in: ACTIVE_STATUSES } }, select: { orderId: true, status: true } });
+    void refreshCourierActiveEtas(req.courier.id, { courier: { ...req.courier, currentLat: lat, currentLng: lng } }).catch(() => null);
     for (const a of active) io.to(`order:${a.orderId}`).emit('courier:location', { orderId: a.orderId, lat, lng });
-    io.to('admin-room').emit('courier:location', { courierId: req.courier.id, lat, lng });
+    io.to('admin-room').emit('courier:location', { courierId: req.courier.id, name: req.courier.name, lat, lng, lastSeenAt: new Date().toISOString() });
   } catch {
     /* ignorera */
   }
@@ -446,14 +481,18 @@ router.post('/push/unsubscribe', requireCourier, async (req: CourierRequest, res
   res.json({ ok: true });
 });
 
-// ---- Native push (FCM) för Flutter-appen --------------------------------
-// Registreras vid login/online och vid token-refresh. Notiser når kuriren
-// även när appen är HELT stängd (Android direkt, iOS via APNs).
+// ---- Native push för Flutter/Swift-kurirappar ----------------------------
+// Flutter skickar FCM-token. Swift iOS skickar rå APNs device token
+// (`platform: ios-apns`) och servern levererar direkt på kurirappens topic.
 router.post('/push/register', requireCourier, async (req: CourierRequest, res) => {
   try {
     const { token, platform } = req.body || {};
     if (!token || typeof token !== 'string') return res.status(400).json({ error: 'Token saknas' });
-    await registerCourierFcmToken(req.courier.id, token, platform);
+    if (platform === 'ios-apns' || platform === 'apns') {
+      await registerCourierApnsToken(req.courier.id, token, 'ios-apns');
+    } else {
+      await registerCourierFcmToken(req.courier.id, token, platform);
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: (e as Error)?.message || 'Kunde inte registrera token' });
@@ -461,7 +500,7 @@ router.post('/push/register', requireCourier, async (req: CourierRequest, res) =
 });
 
 router.post('/push/unregister', requireCourier, async (req: CourierRequest, res) => {
-  await clearCourierFcmToken(req.courier.id);
+  await Promise.all([clearCourierFcmToken(req.courier.id), clearCourierApnsToken(req.courier.id)]);
   res.json({ ok: true });
 });
 
@@ -470,11 +509,13 @@ router.post('/push/unregister', requireCourier, async (req: CourierRequest, res)
 router.get('/push/status', requireCourier, async (req: CourierRequest, res) => {
   const c = await prisma.courier.findUnique({
     where: { id: req.courier.id },
-    select: { fcmToken: true, fcmPlatform: true },
+    select: { fcmToken: true, fcmPlatform: true, apnsDeviceToken: true, apnsPlatform: true },
   });
   res.json({
-    hasToken: !!c?.fcmToken,
-    platform: c?.fcmPlatform ?? null,
+    hasToken: !!c?.fcmToken || !!c?.apnsDeviceToken,
+    hasFcmToken: !!c?.fcmToken,
+    hasApnsToken: !!c?.apnsDeviceToken,
+    platform: c?.apnsPlatform ?? c?.fcmPlatform ?? null,
     fcmConfigured: isFcmConfigured(),
   });
 });
@@ -482,6 +523,22 @@ router.get('/push/status', requireCourier, async (req: CourierRequest, res) => {
 // Skicka en testnotis till BUDET SJÄLV (isolerar token+leverans från order-
 // flödet). Returnerar om token finns + om FCM-sändningen lyckades.
 router.post('/push/test', requireCourier, async (req: CourierRequest, res) => {
+  const c = await prisma.courier.findUnique({
+    where: { id: req.courier.id },
+    select: { apnsDeviceToken: true },
+  });
+  if (c?.apnsDeviceToken) {
+    const apns = await sendTestCourierApns(req.courier.id);
+    res.json({
+      hasToken: true,
+      sent: apns.ok ? 1 : 0,
+      fcmConfigured: isFcmConfigured(),
+      stage: apns.stage,
+      status: null,
+      detail: apns.detail ?? null,
+    });
+    return;
+  }
   const r = await sendTestFcm(req.courier.id);
   res.json({
     hasToken: r.stage !== 'token',
@@ -508,9 +565,13 @@ router.get('/history', requireCourier, async (req: CourierRequest, res) => {
         id: d.id,
         orderNumber: d.order.orderNumber,
         restaurantName: d.order.restaurant?.name ?? 'Restaurang',
+        dropoffName: d.order.customerName,
+        dropoffAddress: dropoffAddress(d.order),
+        proofMethod: d.proofMethod ?? null,
         deliveredAt: (d.deliveredAt ?? d.updatedAt).toISOString(),
         distanceKm: d.distanceKm,
         payout: d.payOre / 100,
+        tip: (d.order.tipAmount ?? 0) / 100,
         // "hur lång tid du tog på dig" (accept → levererad), i minuter.
         totalMin: a && del ? Math.round((del - a) / 60000) : null,
       };
@@ -556,6 +617,9 @@ adminCourierRouter.get('/', async (_req: AuthRequest, res) => {
         vehicle: c.vehicle,
         online: c.online,
         isActive: c.isActive,
+        currentLat: c.currentLat,
+        currentLng: c.currentLng,
+        lastSeenAt: c.lastSeenAt,
         ratePerKm: c.ratePerKm / 100,
         todayEarnings: (t?._sum.payOre ?? 0) / 100,
         todayDeliveries: t?._count._all ?? 0,

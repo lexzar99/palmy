@@ -30,6 +30,8 @@ export interface AdminOrder {
   deliveryStreet?: string | null;
   deliveryZip?: string | null;
   deliveryCity?: string | null;
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
   deliveryInstructions?: string | null;
   note?: string | null;
   total: number;
@@ -42,6 +44,11 @@ export interface AdminOrder {
   estimatedTime?: number | null;
   restaurantName?: string;
   restaurantId?: string;
+  restaurantAddress?: string | null;
+  restaurantCity?: string | null;
+  restaurantLat?: number | null;
+  restaurantLng?: number | null;
+  restaurantSelfDelivery?: boolean | null;
   items: OrderItem[];
   paymentMethod?: string | null;
   stripePaymentIntentId?: string | null;
@@ -60,6 +67,9 @@ export interface AdminOrder {
     name: string | null;
     phone: string | null;
     vehicle: string | null;
+    currentLat?: number | null;
+    currentLng?: number | null;
+    lastSeenAt?: string | null;
     deliveryStatus: string;
     acceptedAt: string | null;
     pickedUpAt: string | null;

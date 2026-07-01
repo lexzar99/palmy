@@ -9,6 +9,9 @@ export interface CourierRow {
   vehicle: "BIKE" | "CAR";
   online: boolean;
   isActive: boolean;
+  currentLat?: number | null;
+  currentLng?: number | null;
+  lastSeenAt?: string | null;
   ratePerKm: number; // kr
   todayEarnings: number;
   todayDeliveries: number;

@@ -14,6 +14,7 @@ import {
 } from "@/modules/couriers/api";
 import { OrderDetailsModal } from "@/modules/orders/page";
 import { Badge, Button, EmptyState, ErrorPanel, Input, LoadingPanel, MetricCard, PageHeader, Surface, Tabs } from "@/shared/components/ui";
+import { LiveMap } from "@/shared/components/live-map";
 import { formatCurrency, formatDateTime } from "@/shared/utils/format";
 
 type Tab = "info" | "orders" | "login" | "stats";
@@ -214,40 +215,29 @@ export function CourierDetailPage({ id }: { id: string }) {
           )}
         </div>
 
-        {/* Live position — stylad platshållarkarta (ingen kartberoende i panelen). */}
+        {/* Live position */}
         <Surface className="relative overflow-hidden p-0">
           <span className="absolute left-3.5 top-3.5 z-[2] inline-flex items-center gap-1.5 rounded-full bg-[var(--bg-panel)] px-3 py-1.5 text-[11.5px] font-extrabold text-[var(--text-primary)] shadow-[0_2px_8px_rgba(0,0,0,0.12)]">
             <span className="inline-block h-[7px] w-[7px] rounded-full" style={{ background: "var(--success)" }} />
             Live position
           </span>
-          <div
-            className="relative h-full min-h-[380px]"
-            style={{
-              background: "#E7EAE6",
-              backgroundImage:
-                "linear-gradient(rgba(17,17,19,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(17,17,19,.05) 1px,transparent 1px)",
-              backgroundSize: "32px 32px",
-            }}
-          >
-            <div className="absolute left-0 right-0 h-[13px]" style={{ top: "46%", background: "rgba(17,17,19,.05)" }} />
-            <div className="absolute bottom-0 top-0 w-[13px]" style={{ left: "32%", background: "rgba(17,17,19,.05)" }} />
-            <svg width="100%" height="100%" viewBox="0 0 480 400" preserveAspectRatio="none" className="absolute inset-0">
-              <path d="M90 320 C 180 280, 160 150, 320 120" fill="none" stroke="#F0531C" strokeWidth="5" strokeLinecap="round" strokeDasharray="2 13" />
-            </svg>
-            {/* Start-prick */}
-            <span className="absolute h-[18px] w-[18px] rounded-full border-[5px] border-[#111113] bg-white" style={{ left: 80, top: 308 }} />
-            {/* Mål-prick */}
-            <span className="absolute h-5 w-5 rounded-full border-[3px] border-white shadow-[0_2px_8px_rgba(0,0,0,.2)]" style={{ left: 312, top: 110, background: "#F0531C" }} />
-            {/* Kurir-markör */}
-            <span className="absolute flex h-11 w-11 items-center justify-center rounded-full border-4 border-white bg-[#111113] shadow-[0_6px_16px_rgba(0,0,0,.3)]" style={{ left: 198, top: 188 }}>
-              <Vehicle size={22} color="#fff" />
-            </span>
-            {!hasPosition && (
-              <span className="absolute bottom-3 right-3 rounded-md bg-[var(--bg-panel)]/90 px-2 py-1 text-[10px] font-semibold text-[var(--text-muted)]">
-                Ingen liveposition
-              </span>
-            )}
-          </div>
+          <LiveMap
+            height={380}
+            markers={
+              hasPosition
+                ? [
+                    {
+                      id: profile.id,
+                      label: profile.name,
+                      subtitle: session.lastSeenAt ? `Senast sedd ${formatDateTime(session.lastSeenAt)}` : "Liveposition",
+                      lat: session.currentLat,
+                      lng: session.currentLng,
+                      tone: "courier",
+                    },
+                  ]
+                : []
+            }
+          />
         </Surface>
       </div>
 

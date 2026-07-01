@@ -61,6 +61,8 @@ export async function pushLiveActivityForOrder(
       estimatedTime: true,
       preparingAt: true,
       deliveringAt: true,
+      etaCustomerAt: true,
+      etaCustomerMin: true,
       liveActivityToken: true,
     },
   });
@@ -89,7 +91,12 @@ export async function pushLiveActivityForOrder(
   }
 
   let etaEndsAt: Date | null = null;
-  if (customerStatus === 'PREPARING' && order.preparingAt && order.estimatedTime) {
+  if (
+    order.etaCustomerAt &&
+    !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(customerStatus)
+  ) {
+    etaEndsAt = new Date(order.etaCustomerAt);
+  } else if (customerStatus === 'PREPARING' && order.preparingAt && order.estimatedTime) {
     etaEndsAt = new Date(
       new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000,
     );
@@ -108,7 +115,7 @@ export async function pushLiveActivityForOrder(
       token: order.liveActivityToken,
       serverStatus: customerStatus,
       orderType: order.type,
-      etaMinutes: order.estimatedTime ?? null,
+      etaMinutes: order.etaCustomerMin ?? order.estimatedTime ?? null,
       etaEndsAt,
       alertBody: options.alertBody,
     });

@@ -13,6 +13,7 @@
 import webpush from 'web-push';
 import prisma from './prisma';
 import { sendCourierFcm } from './courierFcm';
+import { sendCourierApns } from './courierApns';
 
 const PUBLIC_KEY = (process.env.VAPID_PUBLIC_KEY || '').trim();
 const PRIVATE_KEY = (process.env.VAPID_PRIVATE_KEY || '').trim();
@@ -181,6 +182,13 @@ export async function notifyCouriersOfNewJob(opts: {
         body,
         data: { type: 'NEW_JOB', city: restaurant.city },
       }),
+      sendCourierApns(courierIds, {
+        title,
+        body,
+        data: { type: 'NEW_JOB', city: restaurant.city },
+        sound: 'new_order',
+        collapseId: `new-job-${restaurant.city}`,
+      }),
     ]);
   } catch (e) {
     console.warn('[courierPush] notifyCouriersOfNewJob fel:', (e as Error)?.message);
@@ -232,6 +240,13 @@ export async function notifyCouriersOrderReady(opts: {
           body,
           data: { type: 'ORDER_READY', orderId: opts.orderId },
           ...READY_SOUND,
+        }),
+        sendCourierApns([delivery.courierId], {
+          title,
+          body,
+          data: { type: 'ORDER_READY', orderId: opts.orderId },
+          sound: READY_SOUND.sound,
+          collapseId: `ready-${opts.orderId}`,
         }),
       ]);
     }

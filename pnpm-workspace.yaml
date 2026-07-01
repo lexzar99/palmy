@@ -5,14 +5,21 @@ allowBuilds:
   ',': true
   /: true
   '@': true
+  '@prisma/client': true
+  '@prisma/engines': true
+  '@sentry/cli': true
   a: true
   c: true
   e: true
+  esbuild: true
   i: true
   l: true
   m: true
   n: true
   p: true
+  prisma: true
   r: true
   s: true
+  sharp: true
   t: true
+  unrs-resolver: true

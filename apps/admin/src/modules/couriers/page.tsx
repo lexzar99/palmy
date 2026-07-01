@@ -17,6 +17,7 @@ import {
   type CourierApplication,
 } from "@/modules/couriers/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
+import { LiveMap } from "@/shared/components/live-map";
 import { formatCurrency, formatDate } from "@/shared/utils/format";
 
 type Tab = "couriers" | "applications" | "rates";
@@ -171,6 +172,16 @@ export function CouriersPage() {
   const todaySum = rows.reduce((s, c) => s + c.todayEarnings, 0);
   const visibleRows =
     courierFilter === "online" ? rows.filter((c) => c.online) : courierFilter === "paused" ? rows.filter((c) => !c.online) : rows;
+  const liveMarkers = visibleRows
+    .filter((c) => c.currentLat != null && c.currentLng != null)
+    .map((c) => ({
+      id: c.id,
+      label: c.name,
+      subtitle: `${c.online ? "Online" : "Offline"} · ${c.city}${c.lastSeenAt ? ` · ${formatDate(c.lastSeenAt)}` : ""}`,
+      lat: c.currentLat,
+      lng: c.currentLng,
+      tone: "courier" as const,
+    }));
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "couriers", label: "Kurirer" },
@@ -226,6 +237,15 @@ export function CouriersPage() {
             <MetricCard label="Online nu" value={String(onlineCount)} />
             <MetricCard label="Utbetalt idag" value={formatCurrency(todaySum)} />
           </div>
+          <Surface className="p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[13px] font-black text-[var(--text-primary)]">Livekarta</p>
+                <p className="text-xs font-semibold text-[var(--text-muted)]">{liveMarkers.length} kurirer med position</p>
+              </div>
+            </div>
+            <LiveMap markers={liveMarkers} height={320} onMarkerClick={(marker) => router.push(`/couriers/${marker.id}`)} />
+          </Surface>
           <Surface className="overflow-hidden p-0">
             {couriers.isLoading ? (
               <div className="flex items-center gap-2 px-6 py-6 text-sm text-[var(--text-secondary)]"><Loader2 size={16} className="animate-spin" /> Laddar…</div>

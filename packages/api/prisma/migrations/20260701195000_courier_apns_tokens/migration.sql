@@ -1,0 +1,2 @@
+ALTER TABLE "Courier" ADD COLUMN IF NOT EXISTS "apnsDeviceToken" TEXT;
+ALTER TABLE "Courier" ADD COLUMN IF NOT EXISTS "apnsPlatform" TEXT;

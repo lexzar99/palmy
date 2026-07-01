@@ -7,6 +7,7 @@ import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, MapPin, Ph
 import { bulkRefundOrders, deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
 import { CustomerModal } from "@/modules/customers/page";
 import { NotesPanel } from "@/shared/components/notes-panel";
+import { LiveMap } from "@/shared/components/live-map";
 import { Badge, Button, EmptyState, ErrorPanel, Input, Modal, PageHeader, Surface, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, orderTypeLabel } from "@/shared/utils/format";
 
@@ -284,6 +285,34 @@ export function OrderDetailsModal({
   const isDone = order ? (isDelivery ? order.status === "DELIVERED" : order.status === "READY") : false;
   const isLive = order ? ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(order.status) : false;
   const manualStatusActions = isDelivery ? DELIVERY_STATUS_ACTIONS : PICKUP_STATUS_ACTIONS;
+  const deliveryMapMarkers = order && isDelivery
+    ? [
+        {
+          id: "pickup",
+          label: order.restaurantName || "Restaurang",
+          subtitle: [order.restaurantAddress, order.restaurantCity].filter(Boolean).join(", "),
+          lat: order.restaurantLat,
+          lng: order.restaurantLng,
+          tone: "pickup" as const,
+        },
+        {
+          id: "dropoff",
+          label: order.customerName || "Kund",
+          subtitle: [order.deliveryStreet, order.deliveryZip, order.deliveryCity].filter(Boolean).join(", "),
+          lat: order.deliveryLatitude,
+          lng: order.deliveryLongitude,
+          tone: "dropoff" as const,
+        },
+        {
+          id: "courier",
+          label: order.courier?.name || "Kurir",
+          subtitle: order.courier?.lastSeenAt ? `Senast sedd ${formatDateTime(order.courier.lastSeenAt)}` : "Liveposition",
+          lat: order.courier?.currentLat,
+          lng: order.courier?.currentLng,
+          tone: "courier" as const,
+        },
+      ]
+    : [];
 
   const applyStatus = (status: string) =>
     statusMutation.mutate({ status, nextEstimatedTime: estimatedTime === "" ? null : Number(estimatedTime) });
@@ -423,6 +452,16 @@ export function OrderDetailsModal({
                         <p className="text-[14px] font-semibold tabular-nums">{order.courier.totalMin != null ? `${order.courier.totalMin}m` : "–"}</p>
                         <p className="mt-0.5 text-[10px] uppercase tracking-wide text-[var(--text-muted)]">Totalt</p>
                       </div>
+                    </div>
+                  )}
+
+                  {isDelivery && (
+                    <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="card-label">Livekarta</p>
+                        {order.courier.lastSeenAt && <span className="text-[11px] font-semibold text-[var(--text-muted)]">{formatDateTime(order.courier.lastSeenAt)}</span>}
+                      </div>
+                      <LiveMap markers={deliveryMapMarkers} height={190} />
                     </div>
                   )}
 

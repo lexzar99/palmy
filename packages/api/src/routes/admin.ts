@@ -17,6 +17,7 @@ import { isTestOrder } from '../lib/testOrderDetection';
 import { sendOrderStatusPush } from '../lib/customerPush';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
 import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
+import { etaResponseFields, refreshOrderEta } from '../lib/orderEta';
 import { ALLOW_WIPE_ORDERS } from '../lib/config';
 import { sanitizeError } from '../lib/errors';
 import { menuCacheBust } from './menu';
@@ -634,11 +635,11 @@ router.get('/orders/:id', async (req, res) => {
     const order = await prisma.order.findUnique({
       where: { id: req.params.id },
       include: {
-        restaurant: { select: { name: true } },
+        restaurant: { select: { name: true, address: true, city: true, latitude: true, longitude: true, selfDelivery: true } },
         items: {
           include: { product: { select: { name: true } } },
         },
-        delivery: { include: { courier: { select: { id: true, name: true, phone: true, vehicle: true, city: true } } } },
+        delivery: { include: { courier: { select: { id: true, name: true, phone: true, vehicle: true, city: true, currentLat: true, currentLng: true, lastSeenAt: true } } } },
       },
     });
 
@@ -666,6 +667,9 @@ router.get('/orders/:id', async (req, res) => {
           name: dlv.courier?.name ?? null,
           phone: dlv.courier?.phone ?? null,
           vehicle: dlv.courier?.vehicle ?? null,
+          currentLat: dlv.courier?.currentLat ?? null,
+          currentLng: dlv.courier?.currentLng ?? null,
+          lastSeenAt: dlv.courier?.lastSeenAt ?? null,
           deliveryStatus: dlv.status,
           acceptedAt: dlv.acceptedAt ?? null,
           pickedUpAt: dlv.pickedUpAt ?? null,
@@ -696,6 +700,11 @@ router.get('/orders/:id', async (req, res) => {
         subtotal: i.subtotal / 100,
       })),
       restaurantName: order.restaurant?.name || 'Okänd restaurang',
+      restaurantAddress: order.restaurant?.address ?? null,
+      restaurantCity: order.restaurant?.city ?? null,
+      restaurantLat: order.restaurant?.latitude ?? null,
+      restaurantLng: order.restaurant?.longitude ?? null,
+      restaurantSelfDelivery: order.restaurant?.selfDelivery ?? null,
     };
     res.json(showFullPII ? base : maskOrderPII(base));
   } catch {
@@ -770,7 +779,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     const dbStatus = isTestDeliveryReady ? 'DELIVERED' : status;
     const customerStatus = isTestDeliveryReady ? 'DELIVERED' : status; // Always send the requested status to the customer
 
-    const order = await prisma.order.update({
+    let order = await prisma.order.update({
       where: { id: req.params.id },
       data: {
         status: dbStatus,
@@ -784,6 +793,11 @@ router.patch('/orders/:id/status', async (req, res) => {
         ...(status === 'DELIVERED' && !isDeliveringTransition ? { deliveringAt: null } : {}),
       },
     });
+    const refreshedEta = await refreshOrderEta(order.id).catch((e: any) => {
+      console.warn('[admin] order ETA refresh failed:', e?.message);
+      return null;
+    });
+    if (refreshedEta) order = { ...order, ...refreshedEta };
     bustCache('order:byid', order.id);
 
     // Avvisad/avbruten order → backend-auktoritativ Dpoints-återföring:
@@ -816,7 +830,9 @@ router.patch('/orders/:id/status', async (req, res) => {
     // For DELIVERING transition, send DELIVERING status to customer (they'll see "PÅ VÄG")
     // The client will auto-switch to DELIVERED after 10-15 min based on deliveringAt
     const preparingAtTs = isPreparingTransition ? new Date() : (order.preparingAt ? new Date(order.preparingAt) : null);
-    const emitEtaEndsAt = (customerStatus === 'PREPARING' && preparingAtTs && order.estimatedTime)
+    const emitEtaEndsAt = order.etaCustomerAt
+      ? new Date(order.etaCustomerAt).toISOString()
+      : (customerStatus === 'PREPARING' && preparingAtTs && order.estimatedTime)
       ? new Date(preparingAtTs.getTime() + order.estimatedTime * 60_000).toISOString()
       : undefined;
     getIO().to(`order:${order.id}`).emit('order:status', {
@@ -824,6 +840,7 @@ router.patch('/orders/:id/status', async (req, res) => {
       status: customerStatus,
       estimatedTime: order.estimatedTime,
       etaEndsAt: emitEtaEndsAt,
+      ...etaResponseFields(order),
       deliveringAt: isDeliveringTransition ? new Date().toISOString() : undefined,
     });
     // Web push till kundens enhet (om den prenumererat) — "Din mat är på väg"
@@ -922,7 +939,9 @@ router.patch('/orders/:id/status', async (req, res) => {
           }
         } else if (status === 'DELIVERING') {
           title = "🚗 Maten är på väg!";
-          body = "Föraren är på väg - förväntas framme om ca 20 minuter.";
+          body = order.etaCustomerMin
+            ? `Föraren är på väg - förväntas framme om ca ${order.etaCustomerMin} minuter.`
+            : "Föraren är på väg.";
         } else if (status === 'DELIVERED') {
           title = "✅ Levererad!";
           body = "Hoppas det smakade!";
@@ -2921,6 +2940,20 @@ const formatDealForAdmin = (deal: any) => ({
   // Skalning-fält (default 1/1 = nuvarande beteende, "1 gratis per order").
   bogoRewardsPerTrigger: (deal as any).bogoRewardsPerTrigger ?? 1,
   bogoMaxRewardsPerOrder: (deal as any).bogoMaxRewardsPerOrder ?? null,
+  appEnabled: Boolean(deal.appEnabled),
+  appPlacement: deal.appPlacement || 'HOME_TOP',
+  appAudience: deal.appAudience || 'ALL',
+  appTemplate: deal.appTemplate || 'DEAL_HERO',
+  appSize: deal.appSize || 'LARGE',
+  appRotating: deal.appRotating !== false,
+  appWeight: deal.appWeight ?? 10,
+  appClaimRequired: deal.appClaimRequired !== false,
+  appClaimExpiresMinutes: deal.appClaimExpiresMinutes ?? null,
+  appCooldownHours: deal.appCooldownHours ?? null,
+  appDpointsBonus: deal.appDpointsBonus ?? 0,
+  appMissionType: deal.appMissionType ?? null,
+  appCtaLabel: deal.appCtaLabel ?? null,
+  appTheme: deal.appTheme ?? null,
 });
 
 // Deaktivera deals som krockar med scope för en NYAKTIVERAD deal eller en
@@ -3008,7 +3041,7 @@ const resyncBrandDealScopes = async (brandId: string): Promise<void> => {
 // validFrom > validUntil mm. innan vi rör databasen.
 const DealInputSchema = z.object({
   title: z.string().min(1, 'Titel krävs').optional(),
-  discountType: z.enum(['PERCENTAGE', 'FIXED', 'FIXED_PRICE']).optional(),
+  discountType: z.enum(['NONE', 'PERCENTAGE', 'FIXED', 'FIXED_PRICE']).optional(),
   discountValue: z.number().or(z.string().transform((s) => Number(s))).optional(),
   validFrom: z.union([z.string(), z.date(), z.null()]).optional(),
   validUntil: z.union([z.string(), z.date(), z.null()]).optional(),
@@ -3020,6 +3053,10 @@ const DealInputSchema = z.object({
   triggerQuantity: z.number().int().min(1).optional(),
   maxUsages: z.number().int().min(1).nullable().optional(),
   minOrder: z.number().min(0).optional(),
+  appWeight: z.number().int().min(1).max(100).optional(),
+  appClaimExpiresMinutes: z.number().int().min(1).nullable().optional(),
+  appCooldownHours: z.number().int().min(0).nullable().optional(),
+  appDpointsBonus: z.number().int().min(0).optional(),
 }).passthrough();
 
 const validateDealPayload = (body: any): string | null => {
@@ -3132,6 +3169,27 @@ const normalizeDealInputForDb = (body: any) => {
       discountType === 'FIXED' || discountType === 'FIXED_PRICE'
         ? normalizeMoneyToOre(discountValueRaw)
         : Math.round(discountValueRaw);
+  }
+
+  if (body.appEnabled !== undefined) next.appEnabled = Boolean(body.appEnabled);
+  if (body.appRotating !== undefined) next.appRotating = Boolean(body.appRotating);
+  if (body.appClaimRequired !== undefined) next.appClaimRequired = Boolean(body.appClaimRequired);
+  if (body.appPlacement !== undefined) next.appPlacement = String(body.appPlacement || 'HOME_TOP').toUpperCase();
+  if (body.appAudience !== undefined) next.appAudience = String(body.appAudience || 'ALL').toUpperCase();
+  if (body.appTemplate !== undefined) next.appTemplate = String(body.appTemplate || 'DEAL_HERO').toUpperCase();
+  if (body.appSize !== undefined) next.appSize = String(body.appSize || 'LARGE').toUpperCase();
+  if (body.appTheme !== undefined) next.appTheme = body.appTheme ? String(body.appTheme) : null;
+  if (body.appCtaLabel !== undefined) next.appCtaLabel = body.appCtaLabel ? String(body.appCtaLabel) : null;
+  if (body.appMissionType !== undefined) next.appMissionType = body.appMissionType ? String(body.appMissionType).toUpperCase() : null;
+  if (body.appWeight !== undefined) next.appWeight = Math.max(1, Math.min(100, Math.round(Number(body.appWeight) || 10)));
+  if (body.appDpointsBonus !== undefined) next.appDpointsBonus = Math.max(0, Math.round(Number(body.appDpointsBonus) || 0));
+  if (body.appClaimExpiresMinutes !== undefined) {
+    const n = Number(body.appClaimExpiresMinutes);
+    next.appClaimExpiresMinutes = Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+  }
+  if (body.appCooldownHours !== undefined) {
+    const n = Number(body.appCooldownHours);
+    next.appCooldownHours = Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
   }
 
   if (body.minOrder !== undefined) {

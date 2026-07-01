@@ -25,6 +25,7 @@ import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { sendOrderStatusPush } from '../lib/customerPush';
+import { etaResponseFields, refreshOrderEta } from '../lib/orderEta';
 
 const router = Router();
 const STOCKHOLM_TIMEZONE = 'Europe/Stockholm';
@@ -1014,16 +1015,20 @@ router.post('/', async (req: Request, res: Response) => {
       const deliveryDiscountOre = wantsFreeDelivery ? deliveryFee : 0;
 
       const totalDealOre = subtotalDiscountOre + deliveryDiscountOre;
-      if (totalDealOre > 0) {
+      const userDealMeta = (userDeal.metadata || {}) as any;
+      const appDpointsBonus = userDealMeta.appMissionType ? 0 : Math.max(0, Number(userDealMeta.appDpointsBonus || 0));
+      if (totalDealOre > 0 || appDpointsBonus > 0) {
         // discountAmount absorberar BÅDA komponenterna. Order-formel är
         // total = subtotal - discountAmount + deliveryFee. Med freeDelivery:
         // discountAmount = subtotalDisc + deliveryFee → leveransen blir gratis.
-        discountAmount = totalDealOre;
-        appliedDeal = null;
-        validatedCode = undefined;
-        // UserDeal vinner → välkomst-auto-erbjudandet gäller inte.
-        welcomeAppliedTitle = null;
-        welcomeAppliedDealId = null;
+        if (totalDealOre > 0) {
+          discountAmount = totalDealOre;
+          appliedDeal = null;
+          validatedCode = undefined;
+          // UserDeal vinner → välkomst-auto-erbjudandet gäller inte.
+          welcomeAppliedTitle = null;
+          welcomeAppliedDealId = null;
+        }
         appliedUserDealId = userDeal.id;
         appliedUserDealAmountKr = Math.round(totalDealOre / 100);
       }
@@ -1286,6 +1291,11 @@ router.post('/', async (req: Request, res: Response) => {
       }
       throw new OrderValidationError('Kunde inte skapa order just nu, försök igen.');
     }
+    const createdEta = await refreshOrderEta(order.id).catch((e: any) => {
+      console.warn('[order] initial ETA failed:', e?.message);
+      return null;
+    });
+    if (createdEta) order = { ...order, ...createdEta };
 
     // Dpoints: ledger-rad för poängen som reserverats/dragits vid order-skapande
     // (saldot är redan atomiskt draget ovan; detta är historik + balanceAfter).
@@ -1427,6 +1437,7 @@ router.post('/', async (req: Request, res: Response) => {
       total: order.total / 100,
       appliedDealTitle: order.appliedDealTitle,
       estimatedTime: order.estimatedTime ?? estimatedTime,
+      ...etaResponseFields(order),
       // Klienten ska skicka tokenen som ?token= på order-tracking-URL:n så
       // gäst-redirect efter Stripe (utan auth-header) får tillgång inom 30 min.
       accessToken: order.accessToken,
@@ -1698,7 +1709,12 @@ router.get('/:id', async (req: Request, res: Response) => {
     // hit zero. Computed from anchor timestamps + the originally agreed-on
     // duration so it stays stable across re-fetches and reboots.
     let etaEndsAt: string | null = null;
-    if (customerStatus === 'PREPARING' && order.preparingAt && order.estimatedTime) {
+    if (
+      order.etaCustomerAt &&
+      !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(customerStatus)
+    ) {
+      etaEndsAt = new Date(order.etaCustomerAt).toISOString();
+    } else if (customerStatus === 'PREPARING' && order.preparingAt && order.estimatedTime) {
       etaEndsAt = new Date(new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000).toISOString();
     } else if (customerStatus === 'DELIVERING' && order.deliveringAt) {
       const deliveringAtDate = new Date(order.deliveringAt);
@@ -1725,7 +1741,6 @@ router.get('/:id', async (req: Request, res: Response) => {
       customerStatus === 'DELIVERING' &&
       !(order.restaurant as any)?.selfDelivery &&
       order.delivery?.courierId &&
-      order.delivery?.status === 'PICKED_UP' &&
       typeof order.delivery?.courier?.currentLat === 'number' &&
       typeof order.delivery?.courier?.currentLng === 'number';
 
@@ -1772,6 +1787,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       // Budets aktiva orderantal (bara satt under leverans) — driver ETA-spannet.
       courierActiveOrders,
       etaEndsAt,
+      ...etaResponseFields(order),
       restaurantName: order.restaurant?.name || 'Okänd restaurang',
       restaurantAddress: order.restaurant?.address || '',
       restaurantZip: order.restaurant?.zip || '',
@@ -1910,6 +1926,8 @@ router.post('/:id/debug-la-push', authenticate, requireSuperAdmin, blockInProduc
         estimatedTime: true,
         preparingAt: true,
         deliveringAt: true,
+        etaCustomerAt: true,
+        etaCustomerMin: true,
       },
     });
     if (!order) {
@@ -1922,7 +1940,12 @@ router.post('/:id/debug-la-push', authenticate, requireSuperAdmin, blockInProduc
       });
     }
     let etaEndsAt: Date | null = null;
-    if (status === 'PREPARING' && order.preparingAt && order.estimatedTime) {
+    if (
+      order.etaCustomerAt &&
+      !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(status)
+    ) {
+      etaEndsAt = new Date(order.etaCustomerAt);
+    } else if (status === 'PREPARING' && order.preparingAt && order.estimatedTime) {
       etaEndsAt = new Date(new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000);
     } else if (status === 'PREPARING' && order.estimatedTime) {
       etaEndsAt = new Date(Date.now() + order.estimatedTime * 60_000);
@@ -1939,7 +1962,7 @@ router.post('/:id/debug-la-push', authenticate, requireSuperAdmin, blockInProduc
         token: order.liveActivityToken,
         serverStatus: status,
         orderType: order.type,
-        etaMinutes: order.estimatedTime ?? null,
+        etaMinutes: order.etaCustomerMin ?? order.estimatedTime ?? null,
         etaEndsAt,
       });
       console.log(`[debug-la-push] ✅ order=${orderId} status=${status}`);
@@ -2137,14 +2160,16 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       if (newStatus === 'DELIVERING' || newStatus === 'OUT_FOR_DELIVERY') data.deliveringAt = new Date();
       if (newStatus === 'DELIVERED' || newStatus === 'COMPLETED') data.deliveringAt = null;
 
-      const updated = await prisma.order.update({
+      let updated = await prisma.order.update({
         where: { id: orderId },
         data,
-        select: { id: true, status: true },
+        select: { id: true, status: true, etaReadyAt: true, etaPickupAt: true, etaCustomerAt: true, etaCustomerMin: true, etaPriorityScore: true, etaReason: true },
       });
+      const refreshedEta = await refreshOrderEta(orderId).catch(() => null);
+      if (refreshedEta) updated = { ...updated, ...refreshedEta };
 
       try {
-        getIO()?.to(`order:${orderId}`).emit('order:status', { id: orderId, orderId, status: updated.status });
+        getIO()?.to(`order:${orderId}`).emit('order:status', { id: orderId, orderId, status: updated.status, ...etaResponseFields(updated) });
         getIO()?.to('admin-room').emit('order:updated', { id: orderId, orderId, status: updated.status });
         if (order.restaurantId) getIO()?.to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: orderId, orderId, status: updated.status });
         void sendOrderStatusPush(orderId, updated.status);
@@ -2168,15 +2193,17 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       return res.status(409).json({ error: `Kan inte gå från ${order.status} till DELIVERED` });
     }
 
-    const updated = await prisma.order.update({
+    let updated = await prisma.order.update({
       where: { id: orderId },
       data: { status: 'DELIVERED' },
-      select: { id: true, status: true },
+      select: { id: true, status: true, etaReadyAt: true, etaPickupAt: true, etaCustomerAt: true, etaCustomerMin: true, etaPriorityScore: true, etaReason: true },
     });
+    const refreshedEta = await refreshOrderEta(orderId).catch(() => null);
+    if (refreshedEta) updated = { ...updated, ...refreshedEta };
 
     // Notify any connected clients (restaurant, admin, customer mirrors).
     try {
-      getIO()?.to(`order:${orderId}`).emit('order:status', { id: orderId, orderId, status: 'DELIVERED' });
+      getIO()?.to(`order:${orderId}`).emit('order:status', { id: orderId, orderId, status: 'DELIVERED', ...etaResponseFields(updated) });
       // Även admin-rummet så order-listan uppdateras direkt (annars syns
       // kund-mockens auto-DELIVERED först vid nästa poll).
       getIO()?.to('admin-room').emit('order:updated', { id: orderId, orderId, status: 'DELIVERED' });
@@ -2283,8 +2310,8 @@ router.post('/:id/review', async (req: Request, res: Response) => {
     const guestTag = order.id.replace(/-/g, '').slice(-4).toUpperCase();
     const reviewerName = rawName?.trim() ? rawName.trim() : `Gäst${guestTag}`;
 
-    await prisma.order.update({
-      where: { id: req.params.id },
+    const reviewClaim = await prisma.order.updateMany({
+      where: { id: req.params.id, rating: null },
       data: {
         rating,
         review: review || null,
@@ -2293,6 +2320,9 @@ router.post('/:id/review', async (req: Request, res: Response) => {
         customerName: reviewerName,
       } as any,
     });
+    if (reviewClaim.count === 0) {
+      return res.status(409).json({ error: 'Denna order har redan fått ett betyg', alreadyReviewed: true });
+    }
     bustCache('order:byid', req.params.id);
 
     if ((order as any).restaurantId) {
@@ -2311,13 +2341,13 @@ router.post('/:id/review', async (req: Request, res: Response) => {
 
     // Dpoints: belöna recensionen (text → review_text, annars review_rating).
     // Endast inloggade (userId). Idempotent + fail-safe i helpern.
-    await maybeAwardReviewPoints({
+    const dpoints = await maybeAwardReviewPoints({
       userId: (order as any).userId || reviewerUserId,
       orderId: order.id,
       hasText: typeof review === 'string' && review.trim().length > 0,
     });
 
-    res.json({ success: true });
+    res.json({ success: true, dpoints });
   } catch (error) {
     console.error('Review error:', error);
     res.status(500).json({ error: 'Kunde inte spara recension' });

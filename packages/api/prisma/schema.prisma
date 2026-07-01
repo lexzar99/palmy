@@ -195,6 +195,12 @@ model Order {
   discountUsageCounted  Boolean     @default(false)
   preparingAt           DateTime?   // When admin moved order into PREPARING — anchor for the countdown shown in the LiveActivity widget
   deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer + LA on-the-way countdown)
+  etaReadyAt            DateTime?   // Backend ETA: när maten förväntas vara klar hos restaurangen
+  etaPickupAt           DateTime?   // Backend ETA: när bud förväntas ha hämtat ordern
+  etaCustomerAt         DateTime?   // Backend ETA: när ordern förväntas vara hos kunden
+  etaCustomerMin        Int?        // Minuter från senaste beräkningen till etaCustomerAt
+  etaPriorityScore      Float?      // Högre = mer tidskritisk vid kurir-prioritering
+  etaReason             String?     // Kort läsbar förklaring för admin/kurir/kund
   scheduledFor          DateTime?   // Customer-requested delivery/pickup time (null = ASAP)
   liveActivityToken     String?     // iOS Live Activity push token (per-activity, lets backend push state updates to Dynamic Island)
   createdAt             DateTime    @default(now())
@@ -224,6 +230,8 @@ model Order {
   // Super-admin globala status-vyer (utan restaurantId) + abandoned-städning.
   @@index([status, createdAt])
   @@index([paymentStatus, createdAt])
+  @@index([etaCustomerAt])
+  @@index([restaurantId, etaCustomerAt])
 }
 
 // --- Kurir-domän (Fas 3) ---
@@ -251,6 +259,8 @@ model Courier {
   // (FCM proxar iOS via APNs). Notiser når kuriren även när appen är helt stängd.
   fcmToken         String?
   fcmPlatform      String?    // "ios" | "android" — info/debug
+  apnsDeviceToken  String?    // Native Swift iOS-kurir: rå APNs device token
+  apnsPlatform     String?    // "ios" — info/debug
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   deliveries        Delivery[]

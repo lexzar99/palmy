@@ -38,6 +38,13 @@
       "runtimeArgs": ["--port", "5180"],
       "port": 5180,
       "autoPort": true
+    },
+    {
+      "name": "trackmock",
+      "cwd": "/Users/jalle/testa/tmp/trackmock",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8771"],
+      "port": 8771
     }
   ]
 }

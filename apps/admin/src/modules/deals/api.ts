@@ -1,7 +1,7 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
 
 export type DealScopeType = "RESTAURANT" | "PRODUCT" | "CATEGORY" | "COMBO" | "MIN_ORDER";
-export type DealDiscountType = "PERCENTAGE" | "FIXED" | "FIXED_PRICE";
+export type DealDiscountType = "NONE" | "PERCENTAGE" | "FIXED" | "FIXED_PRICE";
 
 export interface AutomaticDealRecord {
   id: string;
@@ -48,6 +48,21 @@ export interface AutomaticDealRecord {
   // Skalning (se schema.prisma — bogoRewardsPerTrigger + bogoMaxRewardsPerOrder)
   bogoRewardsPerTrigger?: number | null;
   bogoMaxRewardsPerOrder?: number | null;
+  freeDelivery?: boolean;
+  appEnabled?: boolean;
+  appPlacement?: "HOME_TOP" | "HOME_INLINE" | "CART" | "REWARDS" | "POST_ORDER" | string;
+  appAudience?: "ALL" | "GUEST" | "LOGGED_IN" | "NEW_CUSTOMER" | "NEW_LOGGED_IN" | "RETURNING" | string;
+  appTemplate?: string;
+  appSize?: "LARGE" | "COMPACT" | string;
+  appRotating?: boolean;
+  appWeight?: number;
+  appClaimRequired?: boolean;
+  appClaimExpiresMinutes?: number | null;
+  appCooldownHours?: number | null;
+  appDpointsBonus?: number;
+  appMissionType?: string | null;
+  appCtaLabel?: string | null;
+  appTheme?: string | null;
 }
 
 export interface DiscountCodeRecord {
