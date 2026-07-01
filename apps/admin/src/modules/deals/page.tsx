@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, RefreshCw, ChevronRight } from "lucide-react";
+import { Plus, RefreshCw, ChevronRight, Play, Trash2 } from "lucide-react";
 import {
   dealsQueryKey,
   dealRestaurantsQueryKey,
@@ -12,6 +12,16 @@ import {
   updateAutomaticDeal,
   type AutomaticDealRecord,
 } from "@/modules/deals/api";
+import {
+  campaignStatusLabel,
+  dealCampaignsQueryKey,
+  deleteDealCampaign,
+  getDealCampaigns,
+  runDealCampaign,
+  segmentLabel,
+  type DealCampaignRecord,
+} from "@/modules/deals/campaigns-api";
+import { useToast } from "@/shared/components/toast";
 import { discountsQueryKey, getDiscounts, createDiscount, updateDiscount, deleteDiscount, type DiscountRecord } from "@/modules/coupons/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Toggle } from "@/shared/components/ui";
 import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
@@ -19,7 +29,7 @@ import { cn } from "@/shared/utils/cn";
 import { formatDate } from "@/shared/utils/format";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
 
-type Tab = "bogo" | "kampanjer" | "kupongkoder";
+type Tab = "bogo" | "kampanjer" | "auto" | "kupongkoder";
 
 type CouponForm = {
   code: string;
@@ -49,9 +59,10 @@ export function DealsPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
 
   const tabParam = searchParams.get("tab") as Tab | null;
-  const [tab, setTab] = useState<Tab>(tabParam || "bogo");
+  const [tab, setTab] = useState<Tab>(tabParam || "kampanjer");
   const [filterRestaurantId, setFilterRestaurantId] = useState<string | null>(null);
 
   // Kupong modal state
@@ -69,6 +80,22 @@ export function DealsPage() {
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
   const allRestaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
   const discounts = useQuery({ queryKey: discountsQueryKey, queryFn: getDiscounts });
+  const campaigns = useQuery({ queryKey: dealCampaignsQueryKey, queryFn: getDealCampaigns });
+
+  const runCampaignMutation = useMutation({
+    mutationFn: (id: string) => runDealCampaign(id),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: dealCampaignsQueryKey });
+      showToast({ type: "success", message: `Tilldelade ${result.assigned}, hoppade över ${result.skipped}.` });
+    },
+    onError: () => showToast({ type: "error", message: "Kunde inte köra kampanj." }),
+  });
+
+  const deleteCampaignMutation = useMutation({
+    mutationFn: (id: string) => deleteDealCampaign(id),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: dealCampaignsQueryKey }); },
+    onError: () => showToast({ type: "error", message: "Kunde inte radera kampanj." }),
+  });
 
   useEffect(() => { if (!couponModalOpen) setCouponError(null); }, [couponModalOpen]);
 
@@ -157,6 +184,7 @@ export function DealsPage() {
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "bogo", label: "BOGO", count: bogoDeals.filter((d) => d.isActive).length },
     { id: "kampanjer", label: "Kampanjer", count: kampanjDeals.filter((d) => d.isActive).length },
+    { id: "auto", label: "Auto-kampanjer", count: (campaigns.data || []).filter((c) => c.status === "ACTIVE").length },
     { id: "kupongkoder", label: "Kupongkoder", count: (discounts.data || []).filter((d) => d.isActive).length },
   ];
 
@@ -178,6 +206,7 @@ export function DealsPage() {
             <Button variant="secondary" onClick={() => void automaticDeals.refetch()} aria-label="Uppdatera"><RefreshCw size={14} /></Button>
             {tab === "bogo" && <Button variant="primary" onClick={() => router.push("/deals/bogo/new")}><Plus size={15} /> Ny BOGO-deal</Button>}
             {tab === "kampanjer" && <Button variant="primary" onClick={() => router.push("/deals/kampanj/new")}><Plus size={15} /> Ny kampanj</Button>}
+            {tab === "auto" && <Button variant="primary" onClick={() => router.push("/deals/auto/new")}><Plus size={15} /> Ny kampanj</Button>}
             {tab === "kupongkoder" && <Button variant="primary" onClick={() => { setEditingCoupon(null); setCouponForm(emptyCouponForm()); setCouponModalOpen(true); }}><Plus size={15} /> Ny kupongkod</Button>}
           </>
         }
@@ -236,6 +265,19 @@ export function DealsPage() {
           onOpen={(deal) => router.push(`/deals/kampanj/${deal.id}`)}
           onToggle={(deal, next) => toggleDealMutation.mutate({ id: deal.id, isActive: next })}
           togglePending={toggleDealMutation.isPending}
+        />
+      )}
+
+      {/* Auto-kampanjer tab */}
+      {tab === "auto" && (
+        <CampaignTable
+          campaigns={campaigns.data || []}
+          loading={campaigns.isLoading}
+          onOpen={(c) => router.push(`/deals/auto/${c.id}`)}
+          onRun={(c) => runCampaignMutation.mutate(c.id)}
+          runPending={runCampaignMutation.isPending}
+          onDelete={(c) => { if (!confirm(`Radera ${c.title}?`)) return; deleteCampaignMutation.mutate(c.id); }}
+          deletePending={deleteCampaignMutation.isPending}
         />
       )}
 
@@ -498,6 +540,79 @@ function DealTable({
               <span className="flex justify-end">
                 <button type="button" onClick={() => onOpen(deal)} aria-label={`Öppna ${deal.title}`} className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
                   <ChevronRight size={18} />
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Surface>
+  );
+}
+
+function CampaignTable({
+  campaigns,
+  loading,
+  onOpen,
+  onRun,
+  runPending,
+  onDelete,
+  deletePending,
+}: {
+  campaigns: DealCampaignRecord[];
+  loading: boolean;
+  onOpen: (c: DealCampaignRecord) => void;
+  onRun: (c: DealCampaignRecord) => void;
+  runPending: boolean;
+  onDelete: (c: DealCampaignRecord) => void;
+  deletePending: boolean;
+}) {
+  const cols = "1.4fr 0.9fr 0.7fr 0.6fr 0.5fr 1fr 150px";
+  const statusTone = (status: string): TypeTone =>
+    status === "ACTIVE" ? "success" : status === "SCHEDULED" ? "info" : status === "PAUSED" ? "warning" : status === "DONE" ? "neutral" : "neutral";
+  return (
+    <Surface className="overflow-hidden p-0">
+      {loading ? (
+        <div className="px-6 py-14 text-center text-sm text-[var(--text-secondary)]">Laddar...</div>
+      ) : campaigns.length === 0 ? (
+        <div className="p-6"><EmptyState title="Inga auto-kampanjer" description="Skapa en kampanj som tilldelar deals till kunder efter segment." /></div>
+      ) : (
+        <div role="table">
+          <div
+            role="row"
+            className="grid items-center gap-3 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+            style={{ gridTemplateColumns: cols }}
+          >
+            <span>Kampanj</span>
+            <span>Segment</span>
+            <span>Status</span>
+            <span>Giltig</span>
+            <span>Cap</span>
+            <span>Senast körd</span>
+            <span />
+          </div>
+          {campaigns.map((c, i, arr) => (
+            <div
+              key={c.id}
+              role="row"
+              className={cn("grid items-center gap-3 px-[18px] py-[13px] text-[13px] transition-colors hover:bg-[var(--bg-hover)]", i !== arr.length - 1 && "border-b border-[var(--row-divider)]")}
+              style={{ gridTemplateColumns: cols }}
+            >
+              <span className="min-w-0">
+                <button type="button" onClick={() => onOpen(c)} className="block truncate text-left font-bold tracking-[-0.01em] hover:text-[var(--accent-ink)]">
+                  {c.title}
+                </button>
+                <span className="block truncate text-[11.5px] text-[var(--text-muted)]">{c.variants?.length ?? 0} mallar</span>
+              </span>
+              <span className="truncate text-[var(--text-secondary)]">{segmentLabel(c.segment)}</span>
+              <span><TypeBadge tone={statusTone(c.status)}>{campaignStatusLabel(c.status)}</TypeBadge></span>
+              <span className="text-[var(--text-secondary)]">{c.validDays} d</span>
+              <span className="text-[var(--text-secondary)]">{c.capPerCustomer}</span>
+              <span className="text-[var(--text-secondary)]">{c.lastRunAt ? formatDate(c.lastRunAt) : "Aldrig"}</span>
+              <span className="flex items-center justify-end gap-2">
+                <Button variant="secondary" onClick={() => onRun(c)} disabled={runPending}><Play size={13} /> Kör nu</Button>
+                <button type="button" onClick={() => onDelete(c)} disabled={deletePending} aria-label={`Radera ${c.title}`} className="text-[var(--text-muted)] transition-colors hover:text-[var(--danger-text)] disabled:opacity-40">
+                  <Trash2 size={16} />
                 </button>
               </span>
             </div>

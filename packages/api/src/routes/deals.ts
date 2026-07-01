@@ -334,7 +334,42 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
       }),
     );
 
-    res.json({ deals: eligible, context: { placement, isLoggedIn, orderCount } });
+    // Motor-tilldelade deals (DealCampaign): redan bundna till kunden, visas
+    // först på HOME_TOP. Ingen claim behövs; kassans /quote är sanning.
+    let assigned: any[] = [];
+    if (req.user?.id && placement === 'HOME_TOP') {
+      const assignedRows = await (prisma as any).userDeal.findMany({
+        where: {
+          userId: req.user.id,
+          type: 'CAMPAIGN',
+          status: 'ACTIVE',
+          OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+        },
+        include: {
+          deal: {
+            include: {
+              restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      assigned = assignedRows
+        .filter((row: any) => row.deal)
+        .map((row: any) => ({
+          ...formatAppDeal(row.deal, row.id, null),
+          claimRequired: false,
+          checkoutApplicable: true,
+          ctaLabel: row.deal.appCtaLabel || 'Använd',
+          validUntil: row.expiresAt,
+          userDealId: row.id,
+        }));
+    }
+
+    const assignedIds = new Set(assigned.map((d) => d.id));
+    const merged = [...assigned, ...eligible.filter((d) => !assignedIds.has(d.id))].slice(0, limit);
+
+    res.json({ deals: merged, context: { placement, isLoggedIn, orderCount } });
   } catch (error) {
     console.error('[deals/app] error:', error);
     res.status(500).json({ error: 'Kunde inte hämta app-deals' });

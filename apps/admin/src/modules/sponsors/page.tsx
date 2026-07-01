@@ -17,8 +17,10 @@ import {
   type SponsorRecord,
   type TrackingAdRecord,
 } from "@/modules/sponsors/api";
+import { getRestaurantOverview, restaurantsQueryKey } from "@/modules/restaurants/api";
 import { Button, EmptyState, ErrorPanel, Field, Input, Select } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
+import { useToast } from "@/shared/components/toast";
 import { cn } from "@/shared/utils/cn";
 
 type Tab = "sponsors" | "ads";
@@ -84,6 +86,7 @@ function sponsorToDraft(sponsor?: SponsorRecord | null): SponsorDraft {
     tier: sponsor?.tier || "Partner",
     tagline: sponsor?.tagline || sponsor?.infoText || "",
     color: sponsor?.color || colorFromText(sponsor?.name),
+    ctaText: sponsor?.ctaText || "",
     ctaLink: sponsor?.ctaLink || "",
     linkTarget: sponsor?.linkTarget || "",
     linkType: sponsor?.linkType || "EXTERNAL",
@@ -332,9 +335,11 @@ function PhonePreview({ tab, adDraft, sponsorDraft, sponsors }: { tab: Tab; adDr
 
 export function SponsorsPage() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>("ads");
   const sponsors = useQuery({ queryKey: sponsorsQueryKey, queryFn: getSponsors });
   const ads = useQuery({ queryKey: adsQueryKey, queryFn: getAds });
+  const restaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
 
   const [selectedSponsorId, setSelectedSponsorId] = useState<string | null>(null);
   const [selectedAdId, setSelectedAdId] = useState<string | null>(null);
@@ -355,6 +360,7 @@ export function SponsorsPage() {
         tagline: draft.tagline,
         infoText: draft.tagline,
         color: draft.color,
+        ctaText: draft.ctaText,
         ctaLink: draft.ctaLink,
         linkTarget: draft.linkTarget,
         linkType: draft.linkType,
@@ -369,6 +375,10 @@ export function SponsorsPage() {
       await queryClient.invalidateQueries({ queryKey: sponsorsQueryKey });
       setSelectedSponsorId(saved.id);
       setSponsorDraft(sponsorToDraft(saved));
+      showToast({ type: "success", message: "Partner sparad" });
+    },
+    onError: (e: any) => {
+      showToast({ type: "error", message: e?.response?.data?.error || "Kunde inte spara partner." });
     },
   });
 
@@ -582,12 +592,35 @@ export function SponsorsPage() {
                 </div>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2">
-                  <Field label="Partnernamn"><Input value={sponsorDraft.name} onChange={(e) => setSponsorDraft((d) => ({ ...d, name: e.target.value }))} /></Field>
+                  <div className="md:col-span-2"><Field label="Titel"><Input value={sponsorDraft.name} placeholder="20% på Palmyra Pizzeria" onChange={(e) => setSponsorDraft((d) => ({ ...d, name: e.target.value }))} /></Field></div>
+                  <div className="md:col-span-2"><Field label="Brödtext"><Input value={sponsorDraft.tagline || ""} placeholder="Fredagsmat hos Palmyra" onChange={(e) => setSponsorDraft((d) => ({ ...d, tagline: e.target.value }))} /></Field></div>
+                  <Field label="CTA-text"><Input value={sponsorDraft.ctaText || ""} placeholder="Se meny" onChange={(e) => setSponsorDraft((d) => ({ ...d, ctaText: e.target.value }))} /></Field>
+                  <Field label="Länktyp"><Select value={sponsorDraft.linkType} onChange={(e) => setSponsorDraft((d) => ({ ...d, linkType: e.target.value as SponsorDraft["linkType"] }))}><option value="NONE">Ingen</option><option value="RESTAURANT">Restaurang</option><option value="EXTERNAL">Extern länk</option></Select></Field>
+                  {sponsorDraft.linkType === "RESTAURANT" ? (
+                    <div className="md:col-span-2">
+                      <Field label="Restaurang">
+                        <Select
+                          value={sponsorDraft.linkTarget || ""}
+                          onChange={(e) => setSponsorDraft((d) => ({ ...d, linkTarget: e.target.value }))}
+                        >
+                          <option value="">Välj restaurang</option>
+                          {(restaurants.data || []).map((restaurant) => (
+                            <option key={restaurant.id} value={restaurant.slug}>{restaurant.name}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                      {restaurants.isLoading ? (
+                        <p className="mt-1.5 text-[11px] font-semibold text-[#6b6b73]">Laddar restauranger...</p>
+                      ) : sponsorDraft.linkTarget && !(restaurants.data || []).some((r) => r.slug === sponsorDraft.linkTarget) ? (
+                        <p className="mt-1.5 text-[11px] font-semibold text-[#B23C12]">Sparad slug: {sponsorDraft.linkTarget}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {sponsorDraft.linkType === "EXTERNAL" ? (
+                    <div className="md:col-span-2"><Field label="Extern länk"><Input value={sponsorDraft.ctaLink || ""} placeholder="https://" onChange={(e) => setSponsorDraft((d) => ({ ...d, ctaLink: e.target.value }))} /></Field></div>
+                  ) : null}
                   <Field label="Kategori"><Input value={sponsorDraft.category || ""} onChange={(e) => setSponsorDraft((d) => ({ ...d, category: e.target.value }))} /></Field>
                   <Field label="Nivå"><Select value={sponsorDraft.tier || "Partner"} onChange={(e) => setSponsorDraft((d) => ({ ...d, tier: e.target.value }))}><option>Huvudpartner</option><option>Partner</option></Select></Field>
-                  <Field label="Länktyp"><Select value={sponsorDraft.linkType} onChange={(e) => setSponsorDraft((d) => ({ ...d, linkType: e.target.value as SponsorDraft["linkType"] }))}><option value="NONE">Ingen länk</option><option value="EXTERNAL">Extern URL</option><option value="RESTAURANT">Restaurang</option><option value="DEAL">Deal</option></Select></Field>
-                  <div className="md:col-span-2"><Field label="Tagline"><Input value={sponsorDraft.tagline || ""} onChange={(e) => setSponsorDraft((d) => ({ ...d, tagline: e.target.value }))} /></Field></div>
-                  <Field label="CTA / URL"><Input value={sponsorDraft.ctaLink || ""} onChange={(e) => setSponsorDraft((d) => ({ ...d, ctaLink: e.target.value, linkTarget: e.target.value }))} /></Field>
                   <Field label="Färg"><Input value={sponsorDraft.color || ""} onChange={(e) => setSponsorDraft((d) => ({ ...d, color: e.target.value }))} /></Field>
                   <div className="md:col-span-2">
                     <ImageUploadField label="Kortbild / helbild" kind="misc" value={sponsorDraft.imageUrl || ""} onChange={(url) => setSponsorDraft((d) => ({ ...d, imageUrl: url }))} />
