@@ -18,6 +18,7 @@ import {
   type TrackingAdRecord,
 } from "@/modules/sponsors/api";
 import { getRestaurantOverview, restaurantsQueryKey } from "@/modules/restaurants/api";
+import { dealsQueryKey, getAutomaticDeals } from "@/modules/deals/api";
 import { Button, EmptyState, ErrorPanel, Field, Input, Select } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { useToast } from "@/shared/components/toast";
@@ -90,6 +91,8 @@ function sponsorToDraft(sponsor?: SponsorRecord | null): SponsorDraft {
     ctaLink: sponsor?.ctaLink || "",
     linkTarget: sponsor?.linkTarget || "",
     linkType: sponsor?.linkType || "EXTERNAL",
+    cardType: sponsor?.cardType || "RESTAURANT",
+    dealId: sponsor?.dealId || "",
     isActive: sponsor?.isActive ?? true,
     isClickable: sponsor?.isClickable ?? true,
     imageOnly: sponsor?.imageOnly ?? (sponsor?.showName === false),
@@ -340,6 +343,7 @@ export function SponsorsPage() {
   const sponsors = useQuery({ queryKey: sponsorsQueryKey, queryFn: getSponsors });
   const ads = useQuery({ queryKey: adsQueryKey, queryFn: getAds });
   const restaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
+  const appDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
 
   const [selectedSponsorId, setSelectedSponsorId] = useState<string | null>(null);
   const [selectedAdId, setSelectedAdId] = useState<string | null>(null);
@@ -364,6 +368,8 @@ export function SponsorsPage() {
         ctaLink: draft.ctaLink,
         linkTarget: draft.linkTarget,
         linkType: draft.linkType,
+        cardType: draft.cardType,
+        dealId: draft.cardType === "DEAL" ? draft.dealId : undefined,
         isActive: draft.isActive,
         isClickable: draft.linkType !== "NONE" && draft.isClickable,
         imageOnly: draft.imageOnly,
@@ -595,6 +601,27 @@ export function SponsorsPage() {
                   <div className="md:col-span-2"><Field label="Titel"><Input value={sponsorDraft.name} placeholder="20% på Palmyra Pizzeria" onChange={(e) => setSponsorDraft((d) => ({ ...d, name: e.target.value }))} /></Field></div>
                   <div className="md:col-span-2"><Field label="Brödtext"><Input value={sponsorDraft.tagline || ""} placeholder="Fredagsmat hos Palmyra" onChange={(e) => setSponsorDraft((d) => ({ ...d, tagline: e.target.value }))} /></Field></div>
                   <Field label="CTA-text"><Input value={sponsorDraft.ctaText || ""} placeholder="Se meny" onChange={(e) => setSponsorDraft((d) => ({ ...d, ctaText: e.target.value }))} /></Field>
+                  <Field label="Korttyp">
+                    <Select value={sponsorDraft.cardType || "RESTAURANT"} onChange={(e) => setSponsorDraft((d) => ({ ...d, cardType: e.target.value as SponsorRecord["cardType"] }))}>
+                      <option value="RESTAURANT">Partner/Restaurang</option>
+                      <option value="DEAL">Deal (claim i kortet)</option>
+                      <option value="AD">Annons (märks)</option>
+                      <option value="TEXT">Text/Kampanj</option>
+                    </Select>
+                  </Field>
+                  {sponsorDraft.cardType === "DEAL" ? (
+                    <div className="md:col-span-2">
+                      <Field label="Koppla deal">
+                        <Select value={sponsorDraft.dealId || ""} onChange={(e) => setSponsorDraft((d) => ({ ...d, dealId: e.target.value }))}>
+                          <option value="">Välj app-deal</option>
+                          {(appDeals.data || []).filter((deal) => deal.appEnabled && deal.isActive).map((deal) => (
+                            <option key={deal.id} value={deal.id}>{deal.title}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <p className="mt-1.5 text-[11px] font-semibold text-[#6b6b73]">Kortet visar dealens värde och en Hämta-knapp direkt.</p>
+                    </div>
+                  ) : null}
                   <Field label="Länktyp"><Select value={sponsorDraft.linkType} onChange={(e) => setSponsorDraft((d) => ({ ...d, linkType: e.target.value as SponsorDraft["linkType"] }))}><option value="NONE">Ingen</option><option value="RESTAURANT">Restaurang</option><option value="EXTERNAL">Extern länk</option></Select></Field>
                   {sponsorDraft.linkType === "RESTAURANT" ? (
                     <div className="md:col-span-2">

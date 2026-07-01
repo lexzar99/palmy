@@ -22,7 +22,9 @@ export type EngineKey =
   | 'trending'
   | 'comeback'
   | 'streak_card'
-  | 'surprise_bonus';
+  | 'surprise_bonus'
+  | 'occasions'
+  | 'weather_pulse';
 
 export interface EngineDef {
   key: EngineKey;
@@ -102,6 +104,20 @@ export const ENGINE_DEFS: EngineDef[] = [
     description: 'Pågående uppdrag med progress visas på hemskärmen, inte bara under Rewards.',
     defaultParams: {},
     paramLabels: {},
+  },
+  {
+    key: 'occasions',
+    title: 'Occasions-kalendern',
+    description: 'Återkommande tillfällen (fredagsmys, lönehelg) blir kort automatiskt de dagar och timmar de gäller. Redigera tillfällena nedan.',
+    defaultParams: {},
+    paramLabels: {},
+  },
+  {
+    key: 'weather_pulse',
+    title: 'Väder-pulsen',
+    description: 'Regn eller snö i stan (SMHI, gratis) ger ett comfort-kort. Ingen API-nyckel behövs.',
+    defaultParams: { lat: 55.7, lon: 13.19 },
+    paramLabels: { lat: 'Latitud', lon: 'Longitud' },
   },
   {
     key: 'surprise_bonus',
@@ -601,6 +617,95 @@ async function buildStreakCard(userId: string) {
   };
 }
 
+// ── Occasions: admin-skapade återkommande tillfällen ────────────────────────
+// Lagras i EngineSetting key='occasions_data', params = { items: [...] }.
+export type OccasionItem = {
+  id: string;
+  name: string;
+  title: string;
+  subtitle?: string;
+  theme?: string;
+  days: number[]; // 0=söndag ... 6=lördag
+  startHour: number;
+  endHour: number;
+  active: boolean;
+};
+
+export async function readOccasions(): Promise<OccasionItem[]> {
+  const row = await (prisma as any).engineSetting.findUnique({ where: { key: 'occasions_data' } }).catch(() => null);
+  const items = ((row?.params as any)?.items || []) as OccasionItem[];
+  return Array.isArray(items) ? items : [];
+}
+
+export async function writeOccasions(items: OccasionItem[]): Promise<void> {
+  await (prisma as any).engineSetting.upsert({
+    where: { key: 'occasions_data' },
+    create: { key: 'occasions_data', enabled: true, params: { items } },
+    update: { params: { items } },
+  });
+}
+
+async function buildOccasion() {
+  const now = new Date();
+  const items = await readOccasions();
+  const matching = items.filter(
+    (o) => o.active && o.days?.includes(now.getDay()) && now.getHours() >= (o.startHour ?? 0) && now.getHours() < (o.endHour ?? 24),
+  );
+  if (!matching.length) return null;
+  const pick = dailyPick(matching, 'occasion');
+  if (!pick) return null;
+  return {
+    type: 'OCCASION',
+    id: `occasion:${pick.id}`,
+    theme: pick.theme || themeForKey(`occasion:${pick.id}`),
+    title: pick.title,
+    subtitle: pick.subtitle || null,
+  };
+}
+
+// ── Väder-pulsen: SMHI:s öppna prognos-API (gratis, nyckellöst) ─────────────
+const RAINY_SYMBOLS = new Set([8, 9, 10, 12, 13, 14, 18, 19, 20, 21, 15, 16, 17, 25, 26, 27]);
+
+async function fetchWeatherSymbol(lat: number, lon: number): Promise<number | null> {
+  try {
+    const url = `https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/${lon.toFixed(4)}/lat/${lat.toFixed(4)}/data.json`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!response.ok) return null;
+    const data: any = await response.json();
+    const first = data?.timeSeries?.[0];
+    const symbol = first?.parameters?.find((p: any) => p.name === 'Wsymb2')?.values?.[0];
+    return typeof symbol === 'number' ? symbol : null;
+  } catch {
+    return null;
+  }
+}
+
+async function buildWeather(params: Record<string, number>) {
+  const lat = params.lat || 55.7;
+  const lon = params.lon || 13.19;
+  const symbol = await cachedWeather(lat, lon);
+  if (symbol === null || !RAINY_SYMBOLS.has(symbol)) return null;
+  const snowy = symbol >= 15 && symbol <= 17 || symbol >= 25;
+  return {
+    type: 'WEATHER',
+    id: 'weather',
+    theme: 'midnight',
+    title: snowy ? 'Snöar ute. Stanna inne.' : 'Regnar ute. Vi kör.',
+    subtitle: 'Maten kommer till dig, du myser.',
+  };
+}
+
+// 30 min-cache i minnet (vädret ändras inte per request).
+let weatherCache: { key: string; value: number | null; expiresAt: number } | null = null;
+async function cachedWeather(lat: number, lon: number): Promise<number | null> {
+  const key = `${lat}:${lon}`;
+  const now = Date.now();
+  if (weatherCache && weatherCache.key === key && weatherCache.expiresAt > now) return weatherCache.value;
+  const value = await fetchWeatherSymbol(lat, lon);
+  weatherCache = { key, value, expiresAt: now + 30 * 60 * 1000 };
+  return value;
+}
+
 // ── Dygnspulsen: hälsning efter tid på dygnet (server-styrd copy) ───────────
 export function greetingForNow(date = new Date()): string {
   const hour = date.getHours();
@@ -629,6 +734,8 @@ export async function buildHomePulse(userId: string | null): Promise<{ greeting:
     userId && settings.points_nudge.enabled ? buildPointsNudge(userId, settings.points_nudge.params) : Promise.resolve(null),
     userId && settings.comeback.enabled ? buildComeback(userId, settings.comeback.params) : Promise.resolve(null),
     userId && settings.streak_card.enabled ? buildStreakCard(userId) : Promise.resolve(null),
+    settings.occasions.enabled ? buildOccasion() : Promise.resolve(null),
+    settings.weather_pulse.enabled ? buildWeather(settings.weather_pulse.params) : Promise.resolve(null),
   ];
   const results = await Promise.allSettled(jobs);
   const modules = results
@@ -637,7 +744,7 @@ export async function buildHomePulse(userId: string | null): Promise<{ greeting:
 
   // Personligt + hero har förtur; resten roterar dagligen om det finns fler
   // än plats. Appen interfolierar modulerna mellan restaurangsektionerna.
-  const priorityTypes = new Set(['CHAMPION', 'DAILY_DROP', 'POINTS_NUDGE', 'STREAK', 'COMEBACK']);
+  const priorityTypes = new Set(['CHAMPION', 'DAILY_DROP', 'POINTS_NUDGE', 'STREAK', 'COMEBACK', 'OCCASION', 'WEATHER']);
   const priority = modules.filter((m) => priorityTypes.has(m.type));
   const rest = modules
     .filter((m) => !priorityTypes.has(m.type))

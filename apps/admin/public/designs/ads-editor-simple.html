@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Delivera Admin - Annons skapare</title>
+  <style>
+    :root {
+      --bg: #f7f7f5;
+      --panel: #ffffff;
+      --soft: #fbfaf8;
+      --ink: #161617;
+      --muted: #62626a;
+      --faint: #9a9aa2;
+      --line: rgba(22, 22, 23, 0.1);
+      --line-soft: rgba(22, 22, 23, 0.06);
+      --orange: #f0531c;
+      --orange-dark: #c94312;
+      --orange-soft: #fff0ea;
+      --green: #168a47;
+      --green-soft: #e8f5ed;
+      --amber: #9a5a00;
+      --amber-soft: #fff5df;
+      --shadow: 0 18px 44px rgba(22, 22, 23, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, select, textarea { font: inherit; }
+
+    .page {
+      width: min(1080px, calc(100vw - 44px));
+      margin: 0 auto;
+      padding: 34px 0 48px;
+    }
+
+    .top {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .eyebrow {
+      margin: 0 0 7px;
+      color: var(--orange-dark);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 31px;
+      line-height: 1.04;
+      letter-spacing: -0.04em;
+    }
+
+    .lead {
+      max-width: 640px;
+      margin: 9px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .primary {
+      border: 0;
+      border-radius: 8px;
+      background: var(--orange);
+      color: #fff;
+      padding: 12px 15px;
+      font-size: 13px;
+      font-weight: 900;
+      box-shadow: 0 10px 24px rgba(240, 83, 28, 0.24);
+    }
+
+    .ghost {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .notice {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      border: 1px solid rgba(240, 83, 28, 0.18);
+      border-radius: 8px;
+      background: var(--orange-soft);
+      padding: 14px 16px;
+      margin-bottom: 18px;
+    }
+
+    .notice strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 950;
+      letter-spacing: -0.02em;
+    }
+
+    .notice span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.4;
+    }
+
+    .spec {
+      color: var(--orange-dark);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 13px 14px;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 10.5px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 7px;
+      font-size: 23px;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(420px, 1.08fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      overflow: hidden;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      border-bottom: 1px solid var(--line-soft);
+      padding: 15px 17px;
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 950;
+      letter-spacing: -0.02em;
+    }
+
+    .panel-head p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .campaign {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      border-bottom: 1px solid var(--line-soft);
+      padding: 14px 17px;
+    }
+
+    .campaign:last-child { border-bottom: 0; }
+
+    .brand {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 11px;
+    }
+
+    .logo {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      flex: none;
+      border-radius: 8px;
+      background: #111113;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: -0.04em;
+    }
+
+    .logo.green { background: #0c7f42; }
+    .logo.blue { background: #1f3f8c; }
+    .logo.red { background: #9f1d22; }
+
+    .brand strong,
+    .brand small {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .brand strong {
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .brand small {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .campaign-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+    }
+
+    .pill {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 10.5px;
+      font-weight: 950;
+    }
+
+    .pill.green {
+      border: 1px solid rgba(22, 138, 71, 0.16);
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .pill.amber {
+      border: 1px solid rgba(154, 90, 0, 0.14);
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    .amount {
+      color: var(--ink);
+      font-size: 12.5px;
+      font-weight: 950;
+      letter-spacing: -0.02em;
+    }
+
+    .form {
+      padding: 17px;
+    }
+
+    .form-title {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 10.5px;
+      font-weight: 950;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 10.5px;
+      font-weight: 950;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+      color: var(--ink);
+      padding: 10px 11px;
+      outline: none;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    textarea {
+      min-height: 66px;
+      resize: vertical;
+    }
+
+    .span { grid-column: 1 / -1; }
+
+    .upload {
+      border: 1px dashed rgba(240, 83, 28, 0.38);
+      border-radius: 8px;
+      background: var(--orange-soft);
+      padding: 13px;
+    }
+
+    .upload strong {
+      display: block;
+      font-size: 13px;
+      font-weight: 950;
+    }
+
+    .upload span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .preview-area {
+      margin-top: 17px;
+      border-top: 1px solid var(--line-soft);
+      padding-top: 16px;
+    }
+
+    .phone {
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fdfcfb;
+      padding: 14px;
+    }
+
+    .mobile-space {
+      width: 343px;
+      max-width: 100%;
+    }
+
+    .tracking-card {
+      height: 72px;
+      border: 1px solid rgba(240, 83, 28, 0.17);
+      border-radius: 20px;
+      background: #fff;
+      padding: 13px 14px;
+      margin-bottom: 12px;
+    }
+
+    .tracking-card strong {
+      display: block;
+      font-size: 15px;
+      font-weight: 950;
+      letter-spacing: -0.03em;
+    }
+
+    .tracking-line {
+      height: 8px;
+      margin-top: 12px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: #ececea;
+    }
+
+    .tracking-line span {
+      display: block;
+      width: 62%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--orange);
+    }
+
+    .ad-banner {
+      position: relative;
+      width: 343px;
+      max-width: 100%;
+      height: 156px;
+      overflow: hidden;
+      border-radius: 20px;
+      background:
+        linear-gradient(90deg, rgba(9, 10, 12, 0.86) 0%, rgba(9, 10, 12, 0.56) 48%, rgba(9, 10, 12, 0.05) 100%),
+        radial-gradient(circle at 78% 50%, rgba(240, 83, 28, 0.78) 0 13%, transparent 14%),
+        linear-gradient(135deg, #1e1f21, #f2d5ca 66%, #fff4ed);
+      padding: 15px;
+      color: #fff;
+    }
+
+    .ad-label {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--orange);
+      padding: 4px 8px;
+      font-size: 9.5px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .ad-banner h3 {
+      width: 63%;
+      margin: 33px 0 3px;
+      font-size: 20px;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: -0.04em;
+    }
+
+    .ad-banner p {
+      width: 66%;
+      margin: 0;
+      color: rgba(255, 255, 255, 0.84);
+      font-size: 12.5px;
+      line-height: 1.25;
+      font-weight: 750;
+    }
+
+    .mark {
+      position: absolute;
+      right: 17px;
+      bottom: 16px;
+      display: grid;
+      place-items: center;
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.94);
+      color: #0c7f42;
+      font-size: 18px;
+      font-weight: 950;
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.15);
+    }
+
+    .rules {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .rule {
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: var(--soft);
+      padding: 10px;
+    }
+
+    .rule span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 950;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .rule strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 12.5px;
+      font-weight: 950;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 9px;
+      border-top: 1px solid var(--line-soft);
+      margin: 17px -17px -17px;
+      padding: 14px 17px;
+      background: var(--soft);
+    }
+
+    @media (max-width: 940px) {
+      .page { width: min(100vw - 28px, 760px); padding-top: 24px; }
+      .top { align-items: flex-start; flex-direction: column; }
+      .notice { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .workspace { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+      .span { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Annons skapare</p>
+        <h1>Små banners efter tracking</h1>
+        <p class="lead">Det här är ett eget annonssystem för betalda externa annonser. Sponsorkort i hem är stora kort och hanteras separat.</p>
+      </div>
+      <button class="primary" type="button">Skapa annons</button>
+    </header>
+
+    <section class="notice">
+      <div>
+        <strong>Endast tracking-annonser</strong>
+        <span>Annonsen visas direkt under kundens order tracking. Den ska vara liten, tydligt märkt med ANNONS och ha egen layout från sponsorkorten.</span>
+      </div>
+      <div class="spec">Appformat: 88% bredd, 156 px höjd</div>
+    </section>
+
+    <section class="stats" aria-label="Annonsöversikt">
+      <article class="stat"><span>Aktiva annonser</span><strong>5</strong></article>
+      <article class="stat"><span>Månadens intäkt</span><strong>18 400 kr</strong></article>
+      <article class="stat"><span>Planerade</span><strong>2</strong></article>
+      <article class="stat"><span>Pausade</span><strong>1</strong></article>
+    </section>
+
+    <section class="workspace">
+      <aside class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Annonser</h2>
+            <p>Små banners som visas efter tracking.</p>
+          </div>
+          <button class="ghost" type="button">Filter</button>
+        </div>
+
+        <article class="campaign">
+          <div class="brand">
+            <span class="logo green">CO</span>
+            <span><strong>Coop Lund</strong><small>27 jun - 14 jul</small></span>
+          </div>
+          <div class="campaign-meta">
+            <span class="pill green">Aktiv</span>
+            <span class="amount">7 500 kr</span>
+          </div>
+        </article>
+
+        <article class="campaign">
+          <div class="brand">
+            <span class="logo blue">AB</span>
+            <span><strong>Akademibokhandeln</strong><small>1 jul - 31 jul</small></span>
+          </div>
+          <div class="campaign-meta">
+            <span class="pill amber">Planerad</span>
+            <span class="amount">12 000 kr</span>
+          </div>
+        </article>
+
+        <article class="campaign">
+          <div class="brand">
+            <span class="logo red">AL</span>
+            <span><strong>Tryggt Hem Alarm</strong><small>Utkast</small></span>
+          </div>
+          <div class="campaign-meta">
+            <span class="pill amber">Utkast</span>
+            <span class="amount">4 900 kr</span>
+          </div>
+        </article>
+      </aside>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Ny annons</h2>
+            <p>Allt här styr bara den lilla tracking-bannern.</p>
+          </div>
+          <button class="ghost" type="button">Rensa</button>
+        </div>
+
+        <div class="form">
+          <p class="form-title">Företag</p>
+          <div class="grid">
+            <label>Företag
+              <input value="Coop Lund" />
+            </label>
+            <label>Kategori
+              <select>
+                <option>Matbutik</option>
+                <option>Bokhandel</option>
+                <option>Alarm & säkerhet</option>
+                <option>Lokalt företag</option>
+              </select>
+            </label>
+            <label>Kontakt
+              <input value="Sara Andersson" />
+            </label>
+            <label>Pris
+              <input value="7 500 kr" />
+            </label>
+          </div>
+
+          <p class="form-title" style="margin-top:17px;">Banner</p>
+          <div class="grid">
+            <label class="span">Rubrik
+              <input value="Handla snabbt efter maten" />
+            </label>
+            <label class="span">Underrubrik
+              <input value="Veckans erbjudanden hos Coop nära dig" />
+            </label>
+            <label>Start
+              <input type="date" value="2026-06-27" />
+            </label>
+            <label>Slut
+              <input type="date" value="2026-07-14" />
+            </label>
+            <label>CTA
+              <input value="Se erbjudande" />
+            </label>
+            <label>Länk
+              <input value="https://coop.se/lund" />
+            </label>
+            <div class="upload span">
+              <strong>Annonsbild</strong>
+              <span>Designa för appens lilla banner. Viktig text ska ligga till vänster, eftersom logga/bild ofta ligger till höger.</span>
+            </div>
+          </div>
+
+          <div class="preview-area">
+            <p class="form-title">Preview i hem</p>
+            <div class="phone">
+              <div class="mobile-space">
+                <div class="tracking-card">
+                  <strong>Budet är på väg</strong>
+                  <div class="tracking-line"><span></span></div>
+                </div>
+                <article class="ad-banner" aria-label="Annonsförhandsvisning">
+                  <span class="ad-label">Annons</span>
+                  <h3>Handla snabbt efter maten</h3>
+                  <p>Veckans erbjudanden hos Coop nära dig</p>
+                  <span class="mark">Coop</span>
+                </article>
+              </div>
+            </div>
+
+            <div class="rules">
+              <div class="rule"><span>Placering</span><strong>Efter tracking</strong></div>
+              <div class="rule"><span>System</span><strong>Separat från sponsorkort</strong></div>
+              <div class="rule"><span>Visas när</span><strong>Aktiv order finns</strong></div>
+              <div class="rule"><span>Märkning</span><strong>ANNONS synlig</strong></div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="ghost" type="button">Spara utkast</button>
+            <button class="primary" type="button">Publicera annons</button>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

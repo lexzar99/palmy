@@ -11,6 +11,9 @@ export interface SponsorRecord {
   ctaLink?: string;
   linkType?: "NONE" | "EXTERNAL" | "DEAL" | "RESTAURANT";
   linkTarget?: string;
+  cardType?: "RESTAURANT" | "DEAL" | "AD" | "TEXT";
+  dealId?: string;
+  videoUrl?: string;
   showName?: boolean;
   imageOnly?: boolean;
   category?: string;

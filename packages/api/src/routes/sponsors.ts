@@ -19,6 +19,14 @@ interface Sponsor {
   id: string;
   name: string;
   imageUrl: string;
+  videoUrl?: string;
+  // Korttyp styr layouten i appen:
+  // RESTAURANT = partnerkort (tier-guld), DEAL = claim-knapp direkt i kortet,
+  // AD = extern annons (märks "Annons"), TEXT = budskap/kampanj utan bild-krav.
+  cardType?: 'RESTAURANT' | 'DEAL' | 'AD' | 'TEXT';
+  dealId?: string;
+  headline?: string;
+  bodyText?: string;
   isActive: boolean;
   isClickable: boolean;
   infoText?: string;
@@ -76,7 +84,38 @@ router.get('/', async (_req, res) => {
   try {
     // Cache 60s: sponsors change rarely and are identical for everyone.
     const all = await cached('sponsors:public', 'all', 60_000, () => readSponsors());
-    res.json(all.filter(s => s.isActive).sort((a, b) => a.sortOrder - b.sortOrder));
+    const now = new Date();
+    const visible = all
+      .filter(s => s.isActive)
+      // Schemafönster: startsAt/endsAt respekteras (tomt = alltid).
+      .filter(s => (!s.startsAt || new Date(s.startsAt) <= now) && (!s.endsAt || new Date(s.endsAt) >= now))
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    // DEAL-kort berikas med dealens värde så appen kan visa och claima direkt.
+    const dealIds = visible.filter(s => (s.cardType === 'DEAL' || s.linkType === 'DEAL') && s.dealId).map(s => s.dealId as string);
+    let dealById = new Map<string, any>();
+    if (dealIds.length) {
+      const deals = await prisma.deal.findMany({
+        where: { id: { in: dealIds }, isActive: true, appEnabled: true },
+        select: { id: true, title: true, discountType: true, discountValue: true, freeDelivery: true, minOrder: true, appDpointsBonus: true, appMissionType: true },
+      });
+      dealById = new Map(deals.map((d) => [d.id, d]));
+    }
+    const payload = visible.map(s => {
+      const deal = s.dealId ? dealById.get(s.dealId) : null;
+      if (!deal) return s;
+      const valueLabel = deal.freeDelivery
+        ? 'Fri leverans'
+        : deal.discountType === 'PERCENTAGE'
+          ? `${deal.discountValue}% rabatt`
+          : deal.discountType === 'FIXED'
+            ? `${Math.round(deal.discountValue) / 100} kr rabatt`
+            : deal.appDpointsBonus > 0
+              ? `+${deal.appDpointsBonus} Dpoints`
+              : '';
+      return { ...s, dealInfo: { id: deal.id, title: deal.title, valueLabel, minOrderKr: Math.round(deal.minOrder || 0) / 100 } };
+    });
+    res.json(payload);
   } catch {
     res.status(500).json({ error: 'Kunde inte hämta sponsorer' });
   }
@@ -95,14 +134,21 @@ router.get('/all', authenticate, requireSuperAdmin, async (_req, res) => {
 // ── POST /api/sponsors — create sponsor ──────────────────────────────────────
 router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, imageUrl, isClickable, infoText, ctaText, ctaLink, linkType, linkTarget, showName, imageOnly, category, tier, tagline, color, startsAt, endsAt } = req.body;
-    if (!name || !imageUrl) return res.status(400).json({ error: 'name och imageUrl krävs' });
+    const { name, imageUrl, videoUrl, cardType, dealId, headline, bodyText, isClickable, infoText, ctaText, ctaLink, linkType, linkTarget, showName, imageOnly, category, tier, tagline, color, startsAt, endsAt } = req.body;
+    const resolvedCardType = ['RESTAURANT', 'DEAL', 'AD', 'TEXT'].includes(String(cardType)) ? cardType : 'RESTAURANT';
+    // TEXT-kort behöver ingen bild; övriga kräver den som tidigare.
+    if (!name || (!imageUrl && resolvedCardType !== 'TEXT')) return res.status(400).json({ error: 'name och imageUrl krävs' });
 
     const sponsors = await readSponsors();
     const newSponsor: Sponsor = {
       id: Math.random().toString(36).slice(2, 12),
       name: String(name),
-      imageUrl: String(imageUrl),
+      imageUrl: String(imageUrl || ''),
+      videoUrl: videoUrl || undefined,
+      cardType: resolvedCardType,
+      dealId: dealId || undefined,
+      headline: headline || undefined,
+      bodyText: bodyText || undefined,
       isActive: true,
       isClickable: Boolean(isClickable),
       infoText: infoText || undefined,
