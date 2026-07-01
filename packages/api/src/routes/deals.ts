@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
+import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { evaluateDeal, formatDealForClient, isBasketDeal, isDealAvailableNow, parseDealProductIds, type CartItemForBogo } from '../lib/deals';
 import { cached } from '../lib/ttlCache';
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
+import { authenticateUser, authenticateUserOptional } from './auth';
 
 const router = Router();
 
@@ -72,6 +74,433 @@ const parseJsonArray = (raw: string | null | undefined) => {
     return [];
   }
 };
+
+const normalizeAudience = (value: unknown) => String(value || 'ALL').toUpperCase();
+const normalizePlacement = (value: unknown) => String(value || 'HOME_TOP').toUpperCase();
+const oreToKr = (value: unknown) => Math.round(Number(value || 0)) / 100;
+
+const appAudienceMatches = (deal: any, ctx: { isLoggedIn: boolean; orderCount: number | null }) => {
+  const audience = normalizeAudience(deal.appAudience);
+  if (audience === 'ALL') return true;
+  if (audience === 'GUEST') return !ctx.isLoggedIn;
+  if (audience === 'LOGGED_IN') return ctx.isLoggedIn;
+  if (audience === 'NEW_CUSTOMER') return ctx.orderCount === null || ctx.orderCount === 0;
+  if (audience === 'NEW_LOGGED_IN') return ctx.isLoggedIn && (ctx.orderCount === null || ctx.orderCount === 0);
+  if (audience === 'RETURNING') return (ctx.orderCount ?? 0) > 0;
+  return true;
+};
+
+const isMissionDeal = (deal: any) => Boolean(deal.appMissionType) || String(deal.appTemplate || '').toUpperCase() === 'MISSION';
+
+const missionTargetForDeal = (deal: any) => {
+  const meta = (deal.metadata || {}) as any;
+  const raw = Number(meta.missionTarget || meta.target || 0);
+  return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 3;
+};
+
+const missionProgressForDeal = async (userId: string | undefined, deal: any, userDeal?: any) => {
+  if (!userId || !isMissionDeal(deal)) return null;
+  const target = missionTargetForDeal(deal);
+  const windowDays = 7;
+  const windowStart = userDeal?.createdAt || new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const count = await prisma.order.count({
+    where: {
+      userId,
+      pointsAwarded: true,
+      createdAt: { gte: windowStart },
+      status: { notIn: ['CANCELLED', 'REJECTED'] },
+    },
+  });
+  const completed = userDeal?.status === 'USED' || count >= target;
+  return {
+    target,
+    count: Math.min(count, target),
+    remaining: Math.max(0, target - count),
+    completed,
+    windowDays,
+    rewardPoints: Math.max(0, Math.round(Number(deal.appDpointsBonus || 0))),
+    claimed: Boolean(userDeal),
+  };
+};
+
+const formatAppDeal = (deal: any, userDealId?: string | null, missionProgress?: any) => {
+  const mission = isMissionDeal(deal);
+  const fixedKr =
+    deal.discountType === 'FIXED' || deal.discountType === 'FIXED_PRICE'
+      ? oreToKr(deal.discountValue)
+      : null;
+  const percent = deal.discountType === 'PERCENTAGE' ? Number(deal.discountValue || 0) : null;
+  const minOrderKr = oreToKr(deal.minOrder);
+  const restaurant = deal.restaurant
+    ? {
+        id: deal.restaurant.id,
+        name: deal.restaurant.name,
+        slug: deal.restaurant.slug,
+        imageUrl: deal.restaurant.imageUrl || deal.restaurant.heroImageUrl || null,
+        cuisine: deal.restaurant.cuisine || null,
+      }
+    : null;
+
+  const fallbackBadge = deal.freeDelivery
+    ? 'Fri leverans'
+    : percent
+      ? `${percent}% rabatt`
+      : fixedKr
+        ? `${fixedKr} kr rabatt`
+        : deal.appDpointsBonus > 0
+          ? `+${deal.appDpointsBonus} Dpoints`
+          : 'Deal';
+  const subtitle = missionProgress
+    ? missionProgress.completed
+      ? `Uppdrag klart. ${missionProgress.rewardPoints} Dpoints är på väg in.`
+      : `${missionProgress.count}/${missionProgress.target} beställningar denna vecka`
+    : deal.description || '';
+
+  return {
+    id: deal.id,
+    title: deal.title,
+    subtitle,
+    badge: deal.badgeText || fallbackBadge,
+    imageUrl: deal.imageUrl || restaurant?.imageUrl || null,
+    ctaLabel: deal.appCtaLabel || (deal.appClaimRequired ? 'Hämta' : 'Visa'),
+    placement: deal.appPlacement || 'HOME_TOP',
+    audience: deal.appAudience || 'ALL',
+    template: deal.appTemplate || 'DEAL_HERO',
+    size: deal.appSize || 'LARGE',
+    rotating: deal.appRotating !== false,
+    weight: deal.appWeight ?? 10,
+    claimRequired: deal.appClaimRequired !== false,
+    claimExpiresMinutes: deal.appClaimExpiresMinutes ?? null,
+    cooldownHours: deal.appCooldownHours ?? null,
+    dpointsBonus: deal.appDpointsBonus ?? 0,
+    missionType: deal.appMissionType || null,
+    missionProgress: missionProgress || null,
+    checkoutApplicable: !mission,
+    theme: deal.appTheme || null,
+    discountType: deal.discountType,
+    discountPercent: percent,
+    amountKr: fixedKr,
+    freeDelivery: !!deal.freeDelivery,
+    minOrderKr,
+    restaurant,
+    restaurantId: deal.restaurantId || null,
+    isGlobal: !!deal.isGlobal,
+    applicableRestaurantIds: parseJsonArray(deal.applicableRestaurantIds),
+    validUntil: deal.validUntil,
+    userDealId: userDealId || null,
+  };
+};
+
+const AppDealQuoteSchema = z.object({
+  userDealId: z.string().min(1),
+  subtotalKr: z.number().nonnegative(),
+  deliveryFeeKr: z.number().nonnegative().optional().default(0),
+  orderMode: z.enum(['DELIVERY', 'PICKUP', 'delivery', 'pickup']).optional().default('DELIVERY'),
+});
+
+const calculateUserDealQuote = (userDeal: any, input: z.infer<typeof AppDealQuoteSchema>) => {
+  const subtotalOre = Math.round(input.subtotalKr * 100);
+  const deliveryFeeOre = Math.round((input.deliveryFeeKr || 0) * 100);
+  const isDelivery = String(input.orderMode).toUpperCase() === 'DELIVERY';
+  const metadata = (userDeal.metadata || {}) as any;
+  const minOrderKr = Math.max(0, Number(metadata.minOrderKr || 0));
+
+  if ((metadata.appMissionType || userDeal.type === 'APP_MISSION') && !metadata.appTemplate?.includes?.('CHECKOUT')) {
+    return {
+      applicable: false,
+      reason: 'MISSION_NOT_CHECKOUT',
+      minOrderKr,
+      subtotalDiscountOre: 0,
+      deliveryDiscountOre: 0,
+      discountAmountOre: 0,
+      dpointsBonus: 0,
+    };
+  }
+
+  if (minOrderKr > 0 && subtotalOre < minOrderKr * 100) {
+    return {
+      applicable: false,
+      reason: 'MIN_ORDER',
+      minOrderKr,
+      subtotalDiscountOre: 0,
+      deliveryDiscountOre: 0,
+      discountAmountOre: 0,
+      dpointsBonus: Math.max(0, Math.round(Number(metadata.appDpointsBonus || 0))),
+    };
+  }
+
+  const isLegacyFreeDeliveryType = userDeal.discountType === 'FREE_DELIVERY';
+  const wantsFreeDelivery = Boolean(userDeal.freeDelivery) || isLegacyFreeDeliveryType;
+  let subtotalDiscountOre = 0;
+  if (!isLegacyFreeDeliveryType) {
+    if (userDeal.discountPercent && userDeal.discountPercent > 0) {
+      subtotalDiscountOre = Math.round((subtotalOre * Number(userDeal.discountPercent)) / 100);
+    } else if (userDeal.amountKr && userDeal.amountKr > 0) {
+      subtotalDiscountOre = Math.round(Number(userDeal.amountKr) * 100);
+    }
+  }
+  subtotalDiscountOre = Math.min(Math.max(0, subtotalDiscountOre), subtotalOre);
+  const deliveryDiscountOre = wantsFreeDelivery && isDelivery ? deliveryFeeOre : 0;
+  const discountAmountOre = Math.min(subtotalOre + deliveryFeeOre, subtotalDiscountOre + deliveryDiscountOre);
+
+  return {
+    applicable: discountAmountOre > 0 || Number(metadata.appDpointsBonus || 0) > 0,
+    reason: null,
+    minOrderKr,
+    subtotalDiscountOre,
+    deliveryDiscountOre,
+    discountAmountOre,
+    dpointsBonus: Math.max(0, Math.round(Number(metadata.appDpointsBonus || 0))),
+  };
+};
+
+// GET /api/deals/app — roterande app-kort för Swift home/cart/rewards.
+// Query: placement=HOME_TOP, limit=6, loggedIn=1, phone=...
+router.get('/app', authenticateUserOptional, async (req: any, res) => {
+  try {
+    const placement = normalizePlacement(req.query.placement);
+    const limit = Math.max(1, Math.min(12, Number(req.query.limit) || 8));
+    const isLoggedIn = Boolean(req.user?.id) || req.query.loggedIn === '1' || req.query.loggedIn === 'true';
+    const phone = typeof req.query.phone === 'string' ? req.query.phone.trim() : '';
+    const now = new Date();
+
+    let orderCount: number | null = null;
+    if (req.user?.id) {
+      orderCount = await prisma.order.count({
+        where: { userId: req.user.id, status: { notIn: ['CANCELLED', 'REJECTED'] } },
+      });
+    } else if (phone) {
+      orderCount = await prisma.order.count({
+        where: { customerPhone: phone, status: { notIn: ['CANCELLED', 'REJECTED'] } },
+      });
+    }
+
+    const claimedRows = req.user?.id
+      ? await (prisma as any).userDeal.findMany({
+          where: {
+            userId: req.user.id,
+            status: { in: ['ACTIVE', 'RESERVED', 'USED'] },
+            dealId: { not: null },
+            OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
+          },
+          select: { id: true, dealId: true, status: true, metadata: true, createdAt: true },
+        })
+      : [];
+    const claimedByDealId = new Map<string, any>(
+      claimedRows
+        .filter((row: any) => row.dealId)
+        .map((row: any) => [row.dealId, row]),
+    );
+    const unavailableClaimedDealIds = new Set(
+      claimedRows
+        .filter((row: any) => row.dealId && (row.status === 'RESERVED' || row.status === 'USED'))
+        .map((row: any) => row.dealId),
+    );
+
+    const deals = await prisma.deal.findMany({
+      where: {
+        appEnabled: true,
+        isActive: true,
+        isPersonalTemplate: false,
+        appPlacement: placement,
+        OR: [{ validFrom: null }, { validFrom: { lte: now } }],
+        AND: [{ OR: [{ validUntil: null }, { validUntil: { gte: now } }] }],
+      },
+      include: {
+        restaurant: {
+          select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true },
+        },
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      take: 80,
+    });
+
+    const eligiblePairs = deals
+      .filter((deal) => isDealAvailableNow(deal, now))
+      .filter((deal) => appAudienceMatches(deal, { isLoggedIn, orderCount }))
+      .filter((deal) => isMissionDeal(deal) || !unavailableClaimedDealIds.has(deal.id))
+      .map((deal) => ({
+        deal,
+        score: (deal.appRotating === false ? 10_000 : 0) + (deal.sortOrder || 0) - Math.random() * Math.max(1, deal.appWeight || 10),
+      }))
+      .sort((a, b) => a.score - b.score)
+      .slice(0, limit);
+
+    const eligible = await Promise.all(
+      eligiblePairs.map(async ({ deal }) => {
+        const claim = claimedByDealId.get(deal.id);
+        const progress = await missionProgressForDeal(req.user?.id, deal, claim);
+        return formatAppDeal(deal, claim?.status === 'ACTIVE' ? claim.id : null, progress);
+      }),
+    );
+
+    res.json({ deals: eligible, context: { placement, isLoggedIn, orderCount } });
+  } catch (error) {
+    console.error('[deals/app] error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta app-deals' });
+  }
+});
+
+// POST /api/deals/app/:id/claim — gör en app-deal betalningsbar i kassan.
+router.post('/app/:id/claim', authenticateUser, async (req: any, res) => {
+  try {
+    const deal = await prisma.deal.findUnique({ where: { id: req.params.id } });
+    if (!deal || !deal.appEnabled || !deal.isActive || deal.isPersonalTemplate) {
+      return res.status(404).json({ error: 'Erbjudandet hittades inte' });
+    }
+    if (!isDealAvailableNow(deal)) {
+      return res.status(400).json({ error: 'Erbjudandet är inte längre aktivt' });
+    }
+
+    const existing = await (prisma as any).userDeal.findFirst({
+      where: {
+        userId: req.user.id,
+        dealId: deal.id,
+        status: { in: ['ACTIVE', 'RESERVED'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing && existing.status !== 'EXPIRED') {
+      const progress = await missionProgressForDeal(req.user.id, deal, existing);
+      return res.json({ claimed: true, deal: formatAppDeal(deal, existing.id, progress), userDeal: existing });
+    }
+
+    const orderCount = await prisma.order.count({
+      where: { userId: req.user.id, status: { notIn: ['CANCELLED', 'REJECTED'] } },
+    });
+    if (!appAudienceMatches(deal, { isLoggedIn: true, orderCount })) {
+      return res.status(403).json({ error: 'Erbjudandet gäller inte för ditt konto' });
+    }
+
+    const maxUsesPerCustomer = Math.max(0, Math.round(Number(deal.maxUsesPerCustomer || 0)));
+    if (maxUsesPerCustomer > 0) {
+      const usageCount = await (prisma as any).userDeal.count({
+        where: {
+          userId: req.user.id,
+          dealId: deal.id,
+          status: { in: ['RESERVED', 'USED'] },
+        },
+      });
+      if (usageCount >= maxUsesPerCustomer) {
+        return res.status(409).json({ error: 'Du har redan använt det här erbjudandet' });
+      }
+    }
+
+    const cooldownHours = Math.max(0, Math.round(Number(deal.appCooldownHours || 0)));
+    if (cooldownHours > 0) {
+      const cooldownStart = new Date(Date.now() - cooldownHours * 60 * 60 * 1000);
+      const recentUsed = await (prisma as any).userDeal.findFirst({
+        where: {
+          userId: req.user.id,
+          dealId: deal.id,
+          status: 'USED',
+          usedAt: { gte: cooldownStart },
+        },
+        orderBy: { usedAt: 'desc' },
+      });
+      if (recentUsed) {
+        const progress = await missionProgressForDeal(req.user.id, deal, recentUsed);
+        return res.json({
+          claimed: false,
+          reason: 'COOLDOWN',
+          deal: formatAppDeal(deal, null, progress),
+          userDeal: null,
+        });
+      }
+    }
+
+    const expiresAt = deal.appClaimExpiresMinutes
+      ? new Date(Date.now() + deal.appClaimExpiresMinutes * 60_000)
+      : deal.validUntil || null;
+    const mission = isMissionDeal(deal);
+    const amountKr = !mission && deal.discountType === 'FIXED' ? Math.round(oreToKr(deal.discountValue)) : null;
+    const discountPercent = !mission && deal.discountType === 'PERCENTAGE' ? deal.discountValue : null;
+    const userDeal = await (prisma as any).userDeal.create({
+      data: {
+        userId: req.user.id,
+        dealId: deal.id,
+        type: mission ? 'APP_MISSION' : 'APP_DEAL',
+        status: 'ACTIVE',
+        amountKr,
+        discountPercent,
+        discountType: mission ? 'NONE' : deal.freeDelivery && deal.discountType === 'NONE' ? 'NONE' : deal.discountType,
+        freeDelivery: mission ? false : !!deal.freeDelivery,
+        expiresAt,
+        metadata: {
+          title: deal.title,
+          minOrderKr: oreToKr(deal.minOrder),
+          appDpointsBonus: mission ? 0 : deal.appDpointsBonus || 0,
+          appMissionType: deal.appMissionType || null,
+          missionRewardPoints: mission ? deal.appDpointsBonus || 0 : 0,
+          missionTarget: missionTargetForDeal(deal),
+          missionWindowDays: 7,
+          appTemplate: deal.appTemplate || null,
+        },
+      },
+    });
+    await prisma.deal.update({ where: { id: deal.id }, data: { usageCount: { increment: 1 } } }).catch(() => null);
+    const progress = await missionProgressForDeal(req.user.id, deal, userDeal);
+    res.status(201).json({ claimed: true, deal: formatAppDeal(deal, userDeal.id, progress), userDeal });
+  } catch (error: any) {
+    console.error('[deals/app claim] error:', error?.message);
+    res.status(500).json({ error: 'Kunde inte hämta erbjudandet' });
+  }
+});
+
+// POST /api/deals/app/quote — lätt server-sanning för Swift-kassan.
+// Order-endpointen är fortfarande sista valideringen/reservationen.
+router.post('/app/quote', authenticateUser, async (req: any, res) => {
+  try {
+    const data = AppDealQuoteSchema.parse(req.body);
+    const userDeal = await (prisma as any).userDeal.findFirst({
+      where: {
+        id: data.userDealId,
+        userId: req.user.id,
+        status: 'ACTIVE',
+        OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+      },
+      include: {
+        deal: {
+          include: {
+            restaurant: {
+              select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!userDeal) {
+      return res.status(404).json({
+        applicable: false,
+        reason: 'NOT_FOUND',
+        discountAmountKr: 0,
+        deliveryDiscountKr: 0,
+        subtotalDiscountKr: 0,
+        dpointsBonus: 0,
+        deal: null,
+      });
+    }
+
+    const quote = calculateUserDealQuote(userDeal, data);
+    res.json({
+      applicable: quote.applicable,
+      reason: quote.reason,
+      minOrderKr: quote.minOrderKr,
+      discountAmountKr: quote.discountAmountOre / 100,
+      deliveryDiscountKr: quote.deliveryDiscountOre / 100,
+      subtotalDiscountKr: quote.subtotalDiscountOre / 100,
+      dpointsBonus: quote.dpointsBonus,
+      deal: userDeal.deal ? formatAppDeal(userDeal.deal, userDeal.id, null) : null,
+    });
+  } catch (error: any) {
+    if (error?.name === 'ZodError') {
+      return res.status(400).json({ error: 'Ogiltig deal-quote' });
+    }
+    console.error('[deals/app quote] error:', error?.message);
+    res.status(500).json({ error: 'Kunde inte räkna ut erbjudandet' });
+  }
+});
 
 // GET /api/deals/:id/restaurants
 // Returnerar dealen + alla restauranger som matchar (för att kunna bygga
