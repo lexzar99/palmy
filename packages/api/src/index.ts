@@ -69,6 +69,8 @@ import apiHealthAdminRoutes from './routes/apiHealthAdmin';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
+import { runDueDealCampaigns } from './lib/dealAssignment';
+import dealCampaignRoutes from './routes/dealCampaigns';
 import { startStripeReconciliation } from './lib/stripeReconcile';
 import { startPaymentReconciliation } from './lib/payments/reconcile';
 import { startLiveActivityFinalizer } from './lib/liveActivityFinalize';
@@ -301,6 +303,7 @@ app.use('/api/cities', citiesRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/campaigns', campaignRoutes);
+app.use('/api/admin/deal-campaigns', dealCampaignRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/admin/reports', reportRoutes);
 // uploadRoutes monteras direkt på /api/admin så routern's egna paths
@@ -416,6 +419,7 @@ const PORT = Number(process.env.PORT || 4000);
     // Run daily maintenance once on startup
     runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Early run error:', err));
     runDailyCleanup().catch(err => console.error('[Cleanup] Early run error:', err));
+    runDueDealCampaigns().catch(err => console.error('[DealCampaign] Early run error:', err));
 
     // Betal-reconciliation — båda providers samtidigt under migreringen.
     // Stripe-reconcile rör bara ordrar med stripePaymentIntentId; Mollie-
@@ -427,6 +431,7 @@ const PORT = Number(process.env.PORT || 4000);
     setInterval(() => {
       runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Scheduled run error:', err));
       runDailyCleanup().catch(err => console.error('[Cleanup] Scheduled run error:', err));
+      runDueDealCampaigns().catch(err => console.error('[DealCampaign] Scheduled run error:', err));
     }, 24 * 60 * 60 * 1000);
 
     // Restaurant Status Watchdog (checks every minute)

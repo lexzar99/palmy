@@ -12,6 +12,7 @@ import { resolveOrCreateCity } from '../lib/cityResolver';
 import { cached, bustCache, bustRestaurantCaches } from '../lib/ttlCache';
 import { revalidateWebRestaurant } from '../lib/revalidate';
 import { menuCacheBust } from './menu';
+import { isDealAvailableNow, parseApplicableRestaurantIds, parseDealProductIds } from '../lib/deals';
 
 const router = Router();
 
@@ -85,7 +86,9 @@ const restaurantSchema = z.object({
   pausedUntil: z.string().datetime().nullable().optional(),
 });
 
-const formatRestaurant = (restaurant: any, includeMenu = false) => {
+type DealSummary = { dealMaxPercent: number; dealCoversAll: boolean };
+
+const formatRestaurant = (restaurant: any, includeMenu = false, dealSummary?: DealSummary) => {
   const activeOrdersCount = (restaurant.orders || []).length;
   // Effektiv ETA: override > beräknad > legacy etaMinutes > 40, clampad 25–55.
   // Detta är det värde som visas för kunden. Kunder ser aldrig
@@ -158,6 +161,10 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
   cityId: restaurant.cityId ?? null,
   deliveryRadius: restaurant.deliveryRadius ?? 5.0,
   deliveryZones: parseJson<any[]>(restaurant.deliveryZones, []),
+  // Rabatt-sammanfattning för kortbadge: högsta procentrabatt just nu +
+  // om den täcker hela menyn (platt) eller bara vissa kategorier/produkter.
+  dealMaxPercent: dealSummary?.dealMaxPercent ?? 0,
+  dealCoversAll: dealSummary?.dealCoversAll ?? false,
   menu: includeMenu
     ? (restaurant.categories || []).map((cat: any) => ({
         id: cat.id,
@@ -197,6 +204,78 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
       }))
     : undefined,
   };
+};
+
+// Hämtar alla aktiva procent-deals EN gång och grupperar per restaurang (ingen
+// N+1). En deal räknas som FLAT (täcker hela menyn) om den inte är scopad till
+// kategori/produkt; annars SCOPED. dealCoversAll = FLAT-max är minst lika hög
+// som SCOPED-max. BOGO/combo och mall-deals exkluderas (BOGO är inte procent).
+const buildDealSummaries = async (restaurants: { id: string; brandId?: string | null }[]) => {
+  const summaries = new Map<string, DealSummary>();
+  if (restaurants.length === 0) return summaries;
+
+  const now = new Date();
+  const candidateDeals = await prisma.deal.findMany({
+    where: {
+      isActive: true,
+      discountType: 'PERCENTAGE',
+      isPersonalTemplate: false,
+      isTemplate: false,
+      triggerType: { notIn: ['BOGO_CATEGORY', 'COMBO'] },
+      OR: [{ validFrom: null }, { validFrom: { lte: now } }],
+      AND: [{ OR: [{ validUntil: null }, { validUntil: { gte: now } }] }],
+    },
+  });
+
+  // Per-restaurang: [maxFlat, maxScoped]. Restaurang tas med här ovan i where,
+  // men usage-cap-filtret (isDealAvailableNow) körs per deal i JS nedan.
+  const perRestaurant = new Map<string, { maxFlat: number; maxScoped: number }>();
+  for (const r of restaurants) perRestaurant.set(r.id, { maxFlat: 0, maxScoped: 0 });
+  const brandById = new Map<string, string>();
+  for (const r of restaurants) if (r.brandId) brandById.set(r.id, r.brandId);
+
+  for (const deal of candidateDeals) {
+    if (!isDealAvailableNow(deal, now)) continue;
+
+    const value = Number(deal.discountValue || 0);
+    if (!(value > 0)) continue;
+
+    // FLAT = ingen kategori-/produkt-scoping. SCOPED = riktad.
+    const isScoped =
+      (deal.triggerType && deal.triggerType !== 'NONE') ||
+      !!deal.triggerCategoryId ||
+      !!deal.rewardCategoryId ||
+      parseDealProductIds(deal.comboProductIds).length > 0 ||
+      parseDealProductIds(deal.bogoTriggerProductIds).length > 0 ||
+      parseDealProductIds(deal.bogoRewardProductIds).length > 0;
+
+    const applicableIds = parseApplicableRestaurantIds(deal.applicableRestaurantIds);
+    const applicableSet = new Set(applicableIds);
+
+    for (const r of restaurants) {
+      const applies =
+        deal.isGlobal === true ||
+        deal.restaurantId === r.id ||
+        applicableSet.has(r.id) ||
+        (!!deal.brandId && brandById.get(r.id) === deal.brandId);
+      if (!applies) continue;
+
+      const bucket = perRestaurant.get(r.id)!;
+      if (isScoped) bucket.maxScoped = Math.max(bucket.maxScoped, value);
+      else bucket.maxFlat = Math.max(bucket.maxFlat, value);
+    }
+  }
+
+  for (const [id, { maxFlat, maxScoped }] of perRestaurant) {
+    const dealMaxPercent = Math.max(maxFlat, maxScoped);
+    if (dealMaxPercent <= 0) continue;
+    summaries.set(id, {
+      dealMaxPercent,
+      dealCoversAll: maxFlat > 0 && maxFlat >= maxScoped,
+    });
+  }
+
+  return summaries;
 };
 
 // Seed data
@@ -313,7 +392,9 @@ router.get('/', async (req, res) => {
       orderBy: { featuredClass: 'asc' },
     });
 
-    return restaurants.map(r => formatRestaurant(r, withMenu === '1'));
+    const dealSummaries = await buildDealSummaries(restaurants);
+
+    return restaurants.map(r => formatRestaurant(r, withMenu === '1', dealSummaries.get(r.id)));
     });
 
     res.json(out);

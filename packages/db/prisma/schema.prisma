@@ -411,6 +411,8 @@ model Deal {
   // som mall av referral-systemet som snapshotar dess värden in i
   // UserDeal-rader per användare. true = exklusivt för referral/welcome.
   isPersonalTemplate    Boolean   @default(false)
+  // Engine-mall för DealCampaign-motorn (mall + variant). Se api-schemat.
+  isTemplate            Boolean   @default(false)
   // Stackbar fri-leverans-flagga. Kan kombineras med discountType
   // PERCENTAGE/FIXED → kunden får t.ex. "25% rabatt + fri leverans"
   // på samma order. Om discountType=NONE och freeDelivery=true →
@@ -427,6 +429,25 @@ model Deal {
   @@index([isActive, isGlobal])
   @@index([restaurantId, triggerType])
   @@index([brandId])
+}
+
+// DealCampaign — mall + variant-motorn (speglad från api-schemat).
+model DealCampaign {
+  id             String    @id @default(cuid())
+  title          String
+  status         String    @default("DRAFT")
+  segment        String    @default("ALL")
+  restaurantId   String?
+  brandId        String?
+  variants       Json      @default("[]")
+  capPerCustomer Int       @default(1)
+  validDays      Int       @default(7)
+  scheduledAt    DateTime?
+  lastRunAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, scheduledAt])
 }
 
 model HomeCategorySection {

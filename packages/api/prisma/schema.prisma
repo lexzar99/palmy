@@ -419,6 +419,10 @@ model Deal {
   // som mall av referral-systemet som snapshotar dess värden in i
   // UserDeal-rader per användare. true = exklusivt för referral/welcome.
   isPersonalTemplate    Boolean   @default(false)
+  // Engine-mall: används av DealCampaign-motorn som en variant-mall.
+  // Syns INTE i browse-feeden (/api/deals/app hämtar bara appEnabled &&
+  // !isTemplate); motorn snapshotar dess värden till per-kund UserDeal-rader.
+  isTemplate            Boolean   @default(false)
   // Stackbar fri-leverans-flagga. Kan kombineras med discountType
   // PERCENTAGE/FIXED → kunden får t.ex. "25% rabatt + fri leverans"
   // på samma order. Om discountType=NONE och freeDelivery=true →
@@ -453,6 +457,29 @@ model Deal {
   @@index([appEnabled, appPlacement])
   @@index([appAudience])
   @@index([brandId])
+}
+
+// DealCampaign — mall + variant-motorn. En kampanj riktar ett segment och
+// delar ut EN deal per kund (deterministisk slump över variant-poolen).
+// Motorn (lib/dealAssignment.ts) snapshotar vald variant-mall (en Deal med
+// isTemplate=true) till en per-kund UserDeal (type=CAMPAIGN). Allt styrs från
+// admin; inga hårdkodade regler.
+model DealCampaign {
+  id             String    @id @default(cuid())
+  title          String
+  status         String    @default("DRAFT")  // DRAFT | SCHEDULED | ACTIVE | PAUSED | DONE
+  segment        String    @default("ALL")    // ALL | new_users_7d | inactive_30d | active_repeaters
+  restaurantId   String?                       // scope för snapshottad deal (null = mallens egen scope)
+  brandId        String?
+  variants       Json      @default("[]")      // [{ dealTemplateId: string, weight: number }]
+  capPerCustomer Int       @default(1)
+  validDays      Int       @default(7)         // UserDeal.expiresAt = tilldelning + validDays
+  scheduledAt    DateTime?
+  lastRunAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, scheduledAt])
 }
 
 model HomeCategorySection {

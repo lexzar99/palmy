@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Gift, Percent, Plus, RefreshCw, ChevronRight, Sparkles, Truck, Coins, Flame } from "lucide-react";
+import { Plus, RefreshCw, ChevronRight, Play, Trash2 } from "lucide-react";
 import {
-  createAutomaticDeal,
   dealsQueryKey,
   dealRestaurantsQueryKey,
   getAutomaticDeals,
@@ -13,6 +12,16 @@ import {
   updateAutomaticDeal,
   type AutomaticDealRecord,
 } from "@/modules/deals/api";
+import {
+  campaignStatusLabel,
+  dealCampaignsQueryKey,
+  deleteDealCampaign,
+  getDealCampaigns,
+  runDealCampaign,
+  segmentLabel,
+  type DealCampaignRecord,
+} from "@/modules/deals/campaigns-api";
+import { useToast } from "@/shared/components/toast";
 import { discountsQueryKey, getDiscounts, createDiscount, updateDiscount, deleteDiscount, type DiscountRecord } from "@/modules/coupons/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Toggle } from "@/shared/components/ui";
 import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
@@ -20,7 +29,7 @@ import { cn } from "@/shared/utils/cn";
 import { formatDate } from "@/shared/utils/format";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
 
-type Tab = "app" | "bogo" | "kampanjer" | "kupongkoder";
+type Tab = "bogo" | "kampanjer" | "auto" | "kupongkoder";
 
 type CouponForm = {
   code: string;
@@ -45,15 +54,15 @@ const isPopupDeal = (deal: AutomaticDealRecord) =>
   Boolean(deal.popupHeadline?.trim() || deal.popupBody?.trim() || deal.popupCode?.trim());
 
 const isBogoDeal = (deal: AutomaticDealRecord) => deal.triggerType === "BOGO_CATEGORY";
-const isAppDeal = (deal: AutomaticDealRecord) => deal.appEnabled === true;
 
 export function DealsPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
 
   const tabParam = searchParams.get("tab") as Tab | null;
-  const [tab, setTab] = useState<Tab>(tabParam || "app");
+  const [tab, setTab] = useState<Tab>(tabParam || "kampanjer");
   const [filterRestaurantId, setFilterRestaurantId] = useState<string | null>(null);
 
   // Kupong modal state
@@ -71,6 +80,22 @@ export function DealsPage() {
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
   const allRestaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
   const discounts = useQuery({ queryKey: discountsQueryKey, queryFn: getDiscounts });
+  const campaigns = useQuery({ queryKey: dealCampaignsQueryKey, queryFn: getDealCampaigns });
+
+  const runCampaignMutation = useMutation({
+    mutationFn: (id: string) => runDealCampaign(id),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: dealCampaignsQueryKey });
+      showToast({ type: "success", message: `Tilldelade ${result.assigned}, hoppade över ${result.skipped}.` });
+    },
+    onError: () => showToast({ type: "error", message: "Kunde inte köra kampanj." }),
+  });
+
+  const deleteCampaignMutation = useMutation({
+    mutationFn: (id: string) => deleteDealCampaign(id),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: dealCampaignsQueryKey }); },
+    onError: () => showToast({ type: "error", message: "Kunde inte radera kampanj." }),
+  });
 
   useEffect(() => { if (!couponModalOpen) setCouponError(null); }, [couponModalOpen]);
 
@@ -110,19 +135,6 @@ export function DealsPage() {
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: dealsQueryKey }); },
   });
 
-  const quickCreateAppDealMutation = useMutation({
-    mutationFn: (payload: Record<string, unknown>) => createAutomaticDeal(payload),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: dealsQueryKey });
-      changeTab("app");
-    },
-  });
-
-  const patchAppDealMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) => updateAutomaticDeal(id, payload),
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: dealsQueryKey }); },
-  });
-
   // Aktivera/inaktivera kupongkod direkt från listan.
   const toggleCouponMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => updateDiscount(id, { isActive }),
@@ -151,14 +163,8 @@ export function DealsPage() {
     return all.filter((d) => d.restaurantId === filterRestaurantId || d.isGlobal);
   }, [automaticDeals.data, filterRestaurantId]);
 
-  const appDeals = useMemo(() => {
-    const all = (automaticDeals.data || []).filter(isAppDeal);
-    if (!filterRestaurantId) return all;
-    return all.filter((d) => d.isGlobal || d.restaurantId === filterRestaurantId || d.applicableRestaurantIds?.includes(filterRestaurantId));
-  }, [automaticDeals.data, filterRestaurantId]);
-
   const kampanjDeals = useMemo(() => {
-    const all = (automaticDeals.data || []).filter((d) => !isBogoDeal(d) && !isAppDeal(d));
+    const all = (automaticDeals.data || []).filter((d) => !isBogoDeal(d));
     if (!filterRestaurantId) return all;
     return all.filter((d) => d.isGlobal || d.restaurantId === filterRestaurantId || d.applicableRestaurantIds?.includes(filterRestaurantId));
   }, [automaticDeals.data, filterRestaurantId]);
@@ -176,9 +182,9 @@ export function DealsPage() {
   }
 
   const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: "app", label: "App-deals", count: appDeals.filter((d) => d.isActive).length },
     { id: "bogo", label: "BOGO", count: bogoDeals.filter((d) => d.isActive).length },
     { id: "kampanjer", label: "Kampanjer", count: kampanjDeals.filter((d) => d.isActive).length },
+    { id: "auto", label: "Auto-kampanjer", count: (campaigns.data || []).filter((c) => c.status === "ACTIVE").length },
     { id: "kupongkoder", label: "Kupongkoder", count: (discounts.data || []).filter((d) => d.isActive).length },
   ];
 
@@ -198,9 +204,9 @@ export function DealsPage() {
         actions={
           <>
             <Button variant="secondary" onClick={() => void automaticDeals.refetch()} aria-label="Uppdatera"><RefreshCw size={14} /></Button>
-            {tab === "app" && <Button variant="primary" onClick={() => quickCreateAppDealMutation.mutate(appDealPresetPayload("free-delivery"))} disabled={quickCreateAppDealMutation.isPending}><Plus size={15} /> Snabb fri leverans</Button>}
             {tab === "bogo" && <Button variant="primary" onClick={() => router.push("/deals/bogo/new")}><Plus size={15} /> Ny BOGO-deal</Button>}
             {tab === "kampanjer" && <Button variant="primary" onClick={() => router.push("/deals/kampanj/new")}><Plus size={15} /> Ny kampanj</Button>}
+            {tab === "auto" && <Button variant="primary" onClick={() => router.push("/deals/auto/new")}><Plus size={15} /> Ny kampanj</Button>}
             {tab === "kupongkoder" && <Button variant="primary" onClick={() => { setEditingCoupon(null); setCouponForm(emptyCouponForm()); setCouponModalOpen(true); }}><Plus size={15} /> Ny kupongkod</Button>}
           </>
         }
@@ -232,19 +238,6 @@ export function DealsPage() {
         </div>
       </div>
 
-      {tab === "app" && (
-        <AppDealsPanel
-          deals={appDeals}
-          creating={quickCreateAppDealMutation.isPending}
-          onCreate={(preset) => quickCreateAppDealMutation.mutate(appDealPresetPayload(preset))}
-          onOpen={(deal) => router.push(`/deals/kampanj/${deal.id}`)}
-          onToggle={(deal, next) => toggleDealMutation.mutate({ id: deal.id, isActive: next })}
-          togglePending={toggleDealMutation.isPending}
-          onPatch={(deal, payload) => patchAppDealMutation.mutate({ id: deal.id, payload })}
-          patchPending={patchAppDealMutation.isPending}
-        />
-      )}
-
       {/* BOGO tab */}
       {tab === "bogo" && (
         <DealTable
@@ -272,6 +265,19 @@ export function DealsPage() {
           onOpen={(deal) => router.push(`/deals/kampanj/${deal.id}`)}
           onToggle={(deal, next) => toggleDealMutation.mutate({ id: deal.id, isActive: next })}
           togglePending={toggleDealMutation.isPending}
+        />
+      )}
+
+      {/* Auto-kampanjer tab */}
+      {tab === "auto" && (
+        <CampaignTable
+          campaigns={campaigns.data || []}
+          loading={campaigns.isLoading}
+          onOpen={(c) => router.push(`/deals/auto/${c.id}`)}
+          onRun={(c) => runCampaignMutation.mutate(c.id)}
+          runPending={runCampaignMutation.isPending}
+          onDelete={(c) => { if (!confirm(`Radera ${c.title}?`)) return; deleteCampaignMutation.mutate(c.id); }}
+          deletePending={deleteCampaignMutation.isPending}
         />
       )}
 
@@ -418,294 +424,6 @@ export function DealsPage() {
 
 // ---- Helpers ----
 
-type AppDealPreset = "free-delivery" | "percent" | "fixed" | "dpoints" | "mission";
-
-function appDealPresetPayload(preset: AppDealPreset): Record<string, unknown> {
-  const base = {
-    appEnabled: true,
-    appPlacement: "HOME_TOP",
-    appRotating: true,
-    appWeight: 10,
-    appClaimRequired: true,
-    appClaimExpiresMinutes: 240,
-    appCooldownHours: 24,
-    isActive: true,
-    isGlobal: true,
-    showOnSite: true,
-    popupEnabled: false,
-    scopeType: "MIN_ORDER",
-    minOrder: 149,
-    maxUsesPerCustomer: 1,
-    validFrom: new Date().toISOString(),
-  };
-  switch (preset) {
-    case "free-delivery":
-      return {
-        ...base,
-        title: "Fri leverans idag",
-        description: "Hämta dealen och få fri leverans på nästa order.",
-        badgeText: "Fri leverans",
-        appTemplate: "FREE_DELIVERY_HERO",
-        appAudience: "ALL",
-        appCtaLabel: "Hämta",
-        appTheme: "sky",
-        discountType: "NONE",
-        discountValue: 0,
-        freeDelivery: true,
-      };
-    case "percent":
-      return {
-        ...base,
-        title: "20% på din nästa order",
-        description: "Gäller när villkoren matchar i kassan.",
-        badgeText: "20%",
-        appTemplate: "PERCENT",
-        appAudience: "NEW_CUSTOMER",
-        appCtaLabel: "Spara",
-        appTheme: "orange",
-        discountType: "PERCENTAGE",
-        discountValue: 20,
-      };
-    case "fixed":
-      return {
-        ...base,
-        title: "50 kr rabatt",
-        description: "Ett snabbt kort för kunder som behöver en liten knuff.",
-        badgeText: "50 kr",
-        appTemplate: "FIXED",
-        appAudience: "RETURNING",
-        appCtaLabel: "Hämta",
-        appTheme: "rose",
-        discountType: "FIXED",
-        discountValue: 50,
-        minOrder: 199,
-      };
-    case "dpoints":
-      return {
-        ...base,
-        title: "Bonus på Dpoints",
-        description: "Tjäna extra Dpoints när du slutför ordern.",
-        badgeText: "+75 Dpoints",
-        appTemplate: "DPOINTS",
-        appAudience: "LOGGED_IN",
-        appCtaLabel: "Aktivera",
-        appTheme: "amber",
-        discountType: "NONE",
-        discountValue: 0,
-        appDpointsBonus: 75,
-      };
-    case "mission":
-      return {
-        ...base,
-        title: "Köp 3 gånger denna vecka",
-        description: "Uppdrag för inloggade kunder. Backend håller koll på claims.",
-        badgeText: "Uppdrag",
-        appTemplate: "MISSION",
-        appAudience: "LOGGED_IN",
-        appMissionType: "THREE_ORDERS_WEEK",
-        appCtaLabel: "Starta",
-        appTheme: "green",
-        discountType: "NONE",
-        discountValue: 0,
-        appDpointsBonus: 150,
-        appClaimExpiresMinutes: 10080,
-      };
-  }
-}
-
-function AppDealsPanel({
-  deals,
-  creating,
-  onCreate,
-  onOpen,
-  onToggle,
-  togglePending,
-  onPatch,
-  patchPending,
-}: {
-  deals: AutomaticDealRecord[];
-  creating: boolean;
-  onCreate: (preset: AppDealPreset) => void;
-  onOpen: (deal: AutomaticDealRecord) => void;
-  onToggle: (deal: AutomaticDealRecord, next: boolean) => void;
-  togglePending: boolean;
-  onPatch: (deal: AutomaticDealRecord, payload: Record<string, unknown>) => void;
-  patchPending: boolean;
-}) {
-  const presets: Array<{ id: AppDealPreset; title: string; subtitle: string; icon: React.ReactNode; tone: string }> = [
-    { id: "free-delivery", title: "Fri leverans", subtitle: "Hero eller litet kort, claimad i appen", icon: <Truck size={18} />, tone: "from-sky-500 to-cyan-300" },
-    { id: "percent", title: "Procent", subtitle: "Ny kund, ny inloggad eller alla", icon: <Percent size={18} />, tone: "from-orange-500 to-amber-300" },
-    { id: "fixed", title: "Kr rabatt", subtitle: "Winback eller returning-kunder", icon: <Gift size={18} />, tone: "from-rose-500 to-orange-300" },
-    { id: "dpoints", title: "Dpoints", subtitle: "Bonus som betalas ut efter order", icon: <Coins size={18} />, tone: "from-yellow-500 to-orange-400" },
-    { id: "mission", title: "Uppdrag", subtitle: "Köp 3 gånger, streaks och rewards", icon: <Sparkles size={18} />, tone: "from-emerald-500 to-lime-300" },
-  ];
-  const audienceOptions = [
-    ["ALL", "Alla"],
-    ["GUEST", "Gäst"],
-    ["LOGGED_IN", "Inloggad"],
-    ["NEW_CUSTOMER", "Ny kund"],
-    ["NEW_LOGGED_IN", "Ny inloggad"],
-    ["RETURNING", "Återkommande"],
-  ];
-  const placementOptions = [
-    ["HOME_TOP", "Home"],
-    ["HOME_INLINE", "Feed"],
-    ["CART", "Cart"],
-    ["REWARDS", "Rewards"],
-    ["POST_ORDER", "Efter order"],
-  ];
-
-  return (
-    <div className="grid gap-5">
-      <Surface className="p-5">
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[var(--text-muted)]">App-deals</p>
-            <h2 className="mt-1 text-xl font-black tracking-[-0.03em] text-[var(--text-primary)]">Roterande kort i Swift</h2>
-            <p className="mt-1 max-w-2xl text-sm text-[var(--text-secondary)]">
-              Skapa deals som kan visas på startsidan, claimas av kunden och auto-valideras i kassan via UserDeal.
-            </p>
-          </div>
-          <Badge tone="info">{deals.length} kort</Badge>
-        </div>
-        <div className="grid gap-3 md:grid-cols-5">
-          {presets.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              disabled={creating}
-              onClick={() => onCreate(preset.id)}
-              className="group overflow-hidden rounded-[18px] border border-[var(--border-subtle)] bg-[var(--surface-secondary)] p-0 text-left transition hover:-translate-y-0.5 hover:border-[var(--accent)] disabled:opacity-60"
-            >
-              <div className={cn("h-20 bg-gradient-to-br p-4 text-white", preset.tone)}>
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white shadow-sm backdrop-blur">
-                  {preset.icon}
-                </div>
-              </div>
-              <div className="p-4">
-                <p className="font-black tracking-[-0.02em] text-[var(--text-primary)]">{preset.title}</p>
-                <p className="mt-1 text-xs font-semibold leading-snug text-[var(--text-muted)]">{preset.subtitle}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </Surface>
-
-      <Surface className="overflow-hidden p-0">
-        {deals.length === 0 ? (
-          <div className="p-6"><EmptyState title="Inga app-deals än" description="Skapa en snabbmall ovan så syns den i Swift via /api/deals/app." /></div>
-        ) : (
-          <div role="table">
-            <div
-              role="row"
-              className="grid items-center gap-3 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
-              style={{ gridTemplateColumns: "1.35fr 0.75fr 0.9fr 0.9fr 1fr 86px 76px 40px" }}
-            >
-              <span>Kort</span>
-              <span>Typ</span>
-              <span>Målgrupp</span>
-              <span>Placering</span>
-              <span>Villkor</span>
-              <span>Rotation</span>
-              <span>Status</span>
-              <span />
-            </div>
-            {deals.map((deal, i) => (
-              <div
-                key={deal.id}
-                role="row"
-                className={cn("grid items-center gap-3 px-[18px] py-[14px] text-[13px] transition-colors hover:bg-[var(--bg-hover)]", i !== deals.length - 1 && "border-b border-[var(--row-divider)]")}
-                style={{ gridTemplateColumns: "1.35fr 0.75fr 0.9fr 0.9fr 1fr 86px 76px 40px" }}
-              >
-                <span className="min-w-0">
-                  <button type="button" onClick={() => onOpen(deal)} className="flex min-w-0 items-center gap-3 text-left">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgba(255,78,28,0.12)] text-[var(--accent-ink)]">
-                      {deal.appTemplate === "DPOINTS" ? <Coins size={17} /> : deal.freeDelivery ? <Truck size={17} /> : <Flame size={17} />}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate font-black tracking-[-0.02em] text-[var(--text-primary)]">{deal.title}</span>
-                      <span className="block truncate text-xs font-semibold text-[var(--text-muted)]">{deal.description || deal.badgeText || "Appkort"}</span>
-                    </span>
-                  </button>
-                </span>
-                <span><TypeBadge tone={deal.appTemplate === "DPOINTS" ? "warning" : deal.freeDelivery ? "info" : "accent"}>{appTemplateLabel(deal)}</TypeBadge></span>
-                <span>
-                  <Select
-                    value={deal.appAudience || "ALL"}
-                    disabled={patchPending}
-                    onChange={(event) => onPatch(deal, { appAudience: event.target.value })}
-                    className="h-9 text-xs font-bold"
-                  >
-                    {audienceOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </Select>
-                </span>
-                <span>
-                  <Select
-                    value={deal.appPlacement || "HOME_TOP"}
-                    disabled={patchPending}
-                    onChange={(event) => onPatch(deal, { appPlacement: event.target.value })}
-                    className="h-9 text-xs font-bold"
-                  >
-                    {placementOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </Select>
-                </span>
-                <span className="truncate text-[var(--text-secondary)]">{appDealValueLabel(deal)}</span>
-                <span><Toggle checked={deal.appRotating !== false} disabled={patchPending} onChange={(next) => onPatch(deal, { appRotating: next })} /></span>
-                <span><Toggle checked={deal.isActive} disabled={togglePending} onChange={(next) => onToggle(deal, next)} /></span>
-                <span className="flex justify-end">
-                  <button type="button" onClick={() => onOpen(deal)} aria-label={`Öppna ${deal.title}`} className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
-                    <ChevronRight size={18} />
-                  </button>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Surface>
-    </div>
-  );
-}
-
-function appTemplateLabel(deal: AutomaticDealRecord): string {
-  if (deal.freeDelivery) return "Fri leverans";
-  if (deal.appTemplate === "DPOINTS") return "Dpoints";
-  if (deal.appTemplate === "MISSION") return "Uppdrag";
-  if (deal.discountType === "PERCENTAGE") return "Procent";
-  if (deal.discountType === "FIXED") return "Kr";
-  return "Kort";
-}
-
-function appDealValueLabel(deal: AutomaticDealRecord): string {
-  const parts: string[] = [];
-  if (deal.freeDelivery) parts.push("fri leverans");
-  if (deal.discountType === "PERCENTAGE") parts.push(`${deal.discountValue}%`);
-  if (deal.discountType === "FIXED") parts.push(`${deal.discountValue} kr`);
-  if ((deal.appDpointsBonus ?? 0) > 0) parts.push(`+${deal.appDpointsBonus} Dpoints`);
-  if ((deal.minOrder ?? 0) > 0) parts.push(`min ${deal.minOrder} kr`);
-  return parts.join(" + ") || "Visningskort";
-}
-
-function audienceLabel(value?: string): string {
-  switch (value) {
-    case "GUEST": return "Gäst";
-    case "LOGGED_IN": return "Inloggad";
-    case "NEW_CUSTOMER": return "Ny kund";
-    case "NEW_LOGGED_IN": return "Ny inloggad";
-    case "RETURNING": return "Återkommande";
-    default: return "Alla";
-  }
-}
-
-function placementLabel(value?: string): string {
-  switch (value) {
-    case "HOME_INLINE": return "Feed";
-    case "CART": return "Cart";
-    case "REWARDS": return "Rewards";
-    case "POST_ORDER": return "Efter order";
-    default: return "Home";
-  }
-}
-
 /** Tonad typ-badge. "accent" mappar till badge-accent (orange), övriga till Badge-toner. */
 type TypeTone = "accent" | "info" | "success" | "warning" | "neutral";
 
@@ -822,6 +540,79 @@ function DealTable({
               <span className="flex justify-end">
                 <button type="button" onClick={() => onOpen(deal)} aria-label={`Öppna ${deal.title}`} className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
                   <ChevronRight size={18} />
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Surface>
+  );
+}
+
+function CampaignTable({
+  campaigns,
+  loading,
+  onOpen,
+  onRun,
+  runPending,
+  onDelete,
+  deletePending,
+}: {
+  campaigns: DealCampaignRecord[];
+  loading: boolean;
+  onOpen: (c: DealCampaignRecord) => void;
+  onRun: (c: DealCampaignRecord) => void;
+  runPending: boolean;
+  onDelete: (c: DealCampaignRecord) => void;
+  deletePending: boolean;
+}) {
+  const cols = "1.4fr 0.9fr 0.7fr 0.6fr 0.5fr 1fr 150px";
+  const statusTone = (status: string): TypeTone =>
+    status === "ACTIVE" ? "success" : status === "SCHEDULED" ? "info" : status === "PAUSED" ? "warning" : status === "DONE" ? "neutral" : "neutral";
+  return (
+    <Surface className="overflow-hidden p-0">
+      {loading ? (
+        <div className="px-6 py-14 text-center text-sm text-[var(--text-secondary)]">Laddar...</div>
+      ) : campaigns.length === 0 ? (
+        <div className="p-6"><EmptyState title="Inga auto-kampanjer" description="Skapa en kampanj som tilldelar deals till kunder efter segment." /></div>
+      ) : (
+        <div role="table">
+          <div
+            role="row"
+            className="grid items-center gap-3 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+            style={{ gridTemplateColumns: cols }}
+          >
+            <span>Kampanj</span>
+            <span>Segment</span>
+            <span>Status</span>
+            <span>Giltig</span>
+            <span>Cap</span>
+            <span>Senast körd</span>
+            <span />
+          </div>
+          {campaigns.map((c, i, arr) => (
+            <div
+              key={c.id}
+              role="row"
+              className={cn("grid items-center gap-3 px-[18px] py-[13px] text-[13px] transition-colors hover:bg-[var(--bg-hover)]", i !== arr.length - 1 && "border-b border-[var(--row-divider)]")}
+              style={{ gridTemplateColumns: cols }}
+            >
+              <span className="min-w-0">
+                <button type="button" onClick={() => onOpen(c)} className="block truncate text-left font-bold tracking-[-0.01em] hover:text-[var(--accent-ink)]">
+                  {c.title}
+                </button>
+                <span className="block truncate text-[11.5px] text-[var(--text-muted)]">{c.variants?.length ?? 0} mallar</span>
+              </span>
+              <span className="truncate text-[var(--text-secondary)]">{segmentLabel(c.segment)}</span>
+              <span><TypeBadge tone={statusTone(c.status)}>{campaignStatusLabel(c.status)}</TypeBadge></span>
+              <span className="text-[var(--text-secondary)]">{c.validDays} d</span>
+              <span className="text-[var(--text-secondary)]">{c.capPerCustomer}</span>
+              <span className="text-[var(--text-secondary)]">{c.lastRunAt ? formatDate(c.lastRunAt) : "Aldrig"}</span>
+              <span className="flex items-center justify-end gap-2">
+                <Button variant="secondary" onClick={() => onRun(c)} disabled={runPending}><Play size={13} /> Kör nu</Button>
+                <button type="button" onClick={() => onDelete(c)} disabled={deletePending} aria-label={`Radera ${c.title}`} className="text-[var(--text-muted)] transition-colors hover:text-[var(--danger-text)] disabled:opacity-40">
+                  <Trash2 size={16} />
                 </button>
               </span>
             </div>
