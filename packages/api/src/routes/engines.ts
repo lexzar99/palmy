@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { ENGINE_DEFS, getEngineSettings, readOccasions, writeOccasions, type EngineKey, type OccasionItem } from '../lib/homePulse';
+import { readABTests, writeABTests, abTestStats, type ABTestItem } from '../lib/abTests';
 
 const router = Router();
 router.use(authenticate, requireSuperAdmin);
@@ -84,6 +85,55 @@ router.put('/occasions', async (req, res) => {
     if (error?.name === 'ZodError') return res.status(400).json({ error: 'Ogiltiga tillfällen' });
     console.error('[occasions put] error:', error?.message);
     res.status(500).json({ error: 'Kunde inte spara tillfällena' });
+  }
+});
+
+// ── A/B-tester: två deals mot varandra, deterministisk split per kund ───────
+router.get('/ab-tests', async (_req, res) => {
+  try {
+    const items = await readABTests();
+    const dealIds = [...new Set(items.flatMap((t) => [t.dealAId, t.dealBId]).filter(Boolean))];
+    const deals = dealIds.length
+      ? await prisma.deal.findMany({ where: { id: { in: dealIds } }, select: { id: true, title: true } })
+      : [];
+    const titleById = new Map(deals.map((d) => [d.id, d.title]));
+    const withStats = await Promise.all(
+      items.map(async (test) => ({
+        ...test,
+        dealATitle: titleById.get(test.dealAId) || test.dealAId,
+        dealBTitle: titleById.get(test.dealBId) || test.dealBId,
+        stats: await abTestStats(test),
+      })),
+    );
+    res.json({ items: withStats });
+  } catch (error: any) {
+    console.error('[ab-tests get] error:', error?.message);
+    res.status(500).json({ error: 'Kunde inte läsa A/B-testerna' });
+  }
+});
+
+const ABTestSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      dealAId: z.string().min(1),
+      dealBId: z.string().min(1),
+      active: z.boolean(),
+      createdAt: z.string().optional(),
+    }),
+  ),
+});
+
+router.put('/ab-tests', async (req, res) => {
+  try {
+    const data = ABTestSchema.parse(req.body);
+    await writeABTests(data.items as ABTestItem[]);
+    res.json({ items: data.items });
+  } catch (error: any) {
+    if (error?.name === 'ZodError') return res.status(400).json({ error: 'Ogiltiga A/B-tester' });
+    console.error('[ab-tests put] error:', error?.message);
+    res.status(500).json({ error: 'Kunde inte spara A/B-testerna' });
   }
 });
 

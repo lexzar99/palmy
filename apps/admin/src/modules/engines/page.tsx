@@ -39,6 +39,17 @@ interface UnderperformerSuggestion {
   restaurant: { id: string; name: string; slug: string };
 }
 
+interface ABTestRecord {
+  id: string;
+  name: string;
+  dealAId: string;
+  dealBId: string;
+  active: boolean;
+  dealATitle?: string;
+  dealBTitle?: string;
+  stats?: { a: { claims: number; redeemed: number }; b: { claims: number; redeemed: number } };
+}
+
 interface EngineEventRecord {
   id: string;
   engine: string;
@@ -143,6 +154,8 @@ export function EnginesPage() {
           );
         })}
       </div>
+
+      <ABTestsPanel />
 
       <UnderperformersPanel />
 
@@ -321,6 +334,105 @@ function OccasionsPanel() {
             </button>
           </div>
         ))
+      )}
+    </Surface>
+  );
+}
+
+
+// ── A/B-tester: den mot den, deterministisk split, utfall per variant ───────
+
+function ABTestsPanel() {
+  const qc = useQueryClient();
+  const tests = useQuery({
+    queryKey: ["engines", "ab-tests"],
+    queryFn: () => apiGet<{ items: ABTestRecord[] }>("/admin/engines/ab-tests"),
+    refetchOnWindowFocus: false,
+  });
+  const appDeals = useQuery({ queryKey: ["engines", "ab-deals"], queryFn: () => apiGet<{ id: string; title: string; appEnabled?: boolean }[]>("/admin/deals") });
+  const [draft, setDraft] = useState<ABTestRecord[] | null>(null);
+  const items = draft ?? tests.data?.items ?? [];
+
+  const saveMutation = useMutation({
+    mutationFn: (next: ABTestRecord[]) =>
+      apiPut("/admin/engines/ab-tests", { items: next.map(({ id, name, dealAId, dealBId, active }) => ({ id, name, dealAId, dealBId, active })) }),
+    onSuccess: () => {
+      setDraft(null);
+      void qc.invalidateQueries({ queryKey: ["engines", "ab-tests"] });
+    },
+  });
+
+  const update = (id: string, patch: Partial<ABTestRecord>) =>
+    setDraft(items.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+
+  const dealOptions = (appDeals.data || []).filter((d: any) => d.appEnabled);
+  const conversion = (v?: { claims: number; redeemed: number }) =>
+    v && v.claims > 0 ? `${v.claims} claims · ${v.redeemed} inlösta (${Math.round((v.redeemed / v.claims) * 100)}%)` : `${v?.claims ?? 0} claims`;
+
+  return (
+    <Surface className="overflow-hidden p-0">
+      <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-5 py-3">
+        <div>
+          <div className="text-[13px] font-extrabold">A/B-tester</div>
+          <div className="text-[11.5px] text-[var(--text-muted)]">Två deals mot varandra. Varje kund ser EN variant (stabil split), utfallet mäts här.</div>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            onClick={() =>
+              setDraft([...items, { id: `ab${Date.now().toString(36)}`, name: "Nytt test", dealAId: "", dealBId: "", active: false }])
+            }
+          >
+            Nytt test
+          </Button>
+          <Button variant="primary" disabled={!draft || saveMutation.isPending} onClick={() => draft && saveMutation.mutate(draft)}>
+            Spara
+          </Button>
+        </div>
+      </div>
+      {items.length === 0 ? (
+        <div className="px-5 py-8 text-center text-[12.5px] text-[var(--text-muted)]">Inga tester. Ställ en deal mot en annan och se vilken som konverterar.</div>
+      ) : (
+        items.map((test, i) => {
+          const aWins = (test.stats?.a.redeemed ?? 0) > (test.stats?.b.redeemed ?? 0);
+          const bWins = (test.stats?.b.redeemed ?? 0) > (test.stats?.a.redeemed ?? 0);
+          return (
+            <div key={test.id} className={cn("flex flex-wrap items-center gap-3 px-5 py-3", i !== items.length - 1 && "border-b border-[var(--row-divider)]")}>
+              <input
+                className="h-9 w-40 rounded-lg border border-[var(--border-subtle)] bg-transparent px-2 text-[12.5px] font-bold"
+                value={test.name}
+                onChange={(e) => update(test.id, { name: e.target.value })}
+              />
+              <div className="flex flex-col gap-0.5">
+                <select
+                  className="h-8 w-56 rounded-lg border border-[var(--border-subtle)] bg-transparent px-1 text-[12px] font-bold"
+                  value={test.dealAId}
+                  onChange={(e) => update(test.id, { dealAId: e.target.value })}
+                >
+                  <option value="">Variant A...</option>
+                  {dealOptions.map((d: any) => <option key={d.id} value={d.id}>{d.title}</option>)}
+                </select>
+                {test.stats && <span className={cn("text-[11px]", aWins ? "font-extrabold" : "text-[var(--text-muted)]")}>A: {conversion(test.stats.a)}{aWins ? " · leder" : ""}</span>}
+              </div>
+              <span className="text-[11px] font-extrabold text-[var(--text-muted)]">VS</span>
+              <div className="flex flex-col gap-0.5">
+                <select
+                  className="h-8 w-56 rounded-lg border border-[var(--border-subtle)] bg-transparent px-1 text-[12px] font-bold"
+                  value={test.dealBId}
+                  onChange={(e) => update(test.id, { dealBId: e.target.value })}
+                >
+                  <option value="">Variant B...</option>
+                  {dealOptions.map((d: any) => <option key={d.id} value={d.id}>{d.title}</option>)}
+                </select>
+                {test.stats && <span className={cn("text-[11px]", bWins ? "font-extrabold" : "text-[var(--text-muted)]")}>B: {conversion(test.stats.b)}{bWins ? " · leder" : ""}</span>}
+              </div>
+              <Toggle checked={test.active} onChange={(next) => update(test.id, { active: next })} />
+              <button type="button" className="text-[11px] font-bold text-[var(--text-muted)] underline" onClick={() => setDraft(items.filter((x) => x.id !== test.id))}>
+                Ta bort
+              </button>
+            </div>
+          );
+        })
       )}
     </Surface>
   );

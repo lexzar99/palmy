@@ -7,6 +7,7 @@ import { cached } from '../lib/ttlCache';
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 import { authenticateUser, authenticateUserOptional } from './auth';
 import { themeForKey } from '../lib/themeRotation';
+import { abHiddenDealIds } from '../lib/abTests';
 
 const router = Router();
 
@@ -252,9 +253,19 @@ const calculateUserDealQuote = (userDeal: any, input: z.infer<typeof AppDealQuot
   const deliveryDiscountOre = wantsFreeDelivery && isDelivery ? deliveryFeeOre : 0;
   const discountAmountOre = Math.min(subtotalOre + deliveryFeeOre, subtotalDiscountOre + deliveryDiscountOre);
 
+  const applicable = discountAmountOre > 0 || Number(metadata.appDpointsBonus || 0) > 0;
+  // Förklara VARFÖR dealen inte gäller (annars ser det ut som en bugg):
+  // fri leverans-deal + 0 kr i avgift = redan gratis; pickup = gäller ej.
+  let notApplicableReason: string | null = null;
+  if (!applicable && wantsFreeDelivery && subtotalDiscountOre === 0) {
+    notApplicableReason = !isDelivery ? 'PICKUP_ONLY' : deliveryFeeOre === 0 ? 'ALREADY_FREE_DELIVERY' : 'NO_VALUE';
+  } else if (!applicable) {
+    notApplicableReason = 'NO_VALUE';
+  }
+
   return {
-    applicable: discountAmountOre > 0 || Number(metadata.appDpointsBonus || 0) > 0,
-    reason: null,
+    applicable,
+    reason: notApplicableReason,
     minOrderKr,
     subtotalDiscountOre,
     deliveryDiscountOre,
@@ -300,11 +311,11 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
         .filter((row: any) => row.dealId)
         .map((row: any) => [row.dealId, row]),
     );
-    // ACTIVE claims ska SYNAS (kortet visar "Använd"/"Vald i kassan" via
-    // userDealId). Bara förbrukade/reserverade döljs tills claimen löper ut.
+    // Claimade deals döljs från feeden (ägarens beslut): efter claim bor
+    // dealen i kassan och i profilens "Mina deals", inte kvar på hemskärmen.
     const unavailableClaimedDealIds = new Set(
       claimedRows
-        .filter((row: any) => row.dealId && (row.status === 'RESERVED' || row.status === 'USED'))
+        .filter((row: any) => row.dealId && (row.status === 'ACTIVE' || row.status === 'RESERVED' || row.status === 'USED'))
         .map((row: any) => row.dealId),
     );
 
@@ -326,8 +337,12 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
       take: 80,
     });
 
+    // A/B: varje kund ser bara sin tilldelade variant av ett aktivt test.
+    const abHidden = await abHiddenDealIds(req.user?.id || null);
+
     const eligiblePairs = deals
       .filter((deal) => isDealAvailableNow(deal, now))
+      .filter((deal) => !abHidden.has(deal.id))
       .filter((deal) => appAudienceMatches(deal, { isLoggedIn, orderCount }))
       .filter((deal) => isMissionDeal(deal) || !unavailableClaimedDealIds.has(deal.id))
       .map((deal) => ({

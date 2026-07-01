@@ -560,7 +560,12 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
         const jwt = require('jsonwebtoken');
         const { JWT_SECRET } = require('../lib/config');
         const payload: any = jwt.verify(token, JWT_SECRET);
-        if (payload?.id && payload.id !== inviter.id) {
+        if (payload?.id) {
+          // Egen kod = tydligt nej (tidigare skapades en tyst PENDING-rad
+          // som såg ut som ett serverfel i kassan).
+          if (payload.id === inviter.id) {
+            return res.status(400).json({ error: 'Det här är din egen kod. Dela den med en vän i stället.' });
+          }
           inviteeUserId = payload.id;
         }
       } catch {

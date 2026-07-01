@@ -198,6 +198,19 @@ async function buildChampion(params: Record<string, number>) {
     select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, comingSoon: true },
   });
   if (!restaurant || restaurant.comingSoon) return null;
+
+  // Upp till 5 bilder som appen roterar: hero + logga + toppsäljarnas bilder.
+  const topProducts = await prisma.product.findMany({
+    where: { isActive: true, imageUrl: { not: null }, category: { isActive: true, restaurant: { id: restaurant.id } } },
+    select: { imageUrl: true },
+    orderBy: { updatedAt: 'desc' },
+    take: 4,
+  });
+  const images = [restaurant.heroImageUrl, restaurant.imageUrl, ...topProducts.map((p) => p.imageUrl)]
+    .filter((url): url is string => Boolean(url))
+    .filter((url, index, list) => list.indexOf(url) === index)
+    .slice(0, 5);
+
   await logEngineEvent('champion', `Veckans favorit: ${restaurant.name} (${pick._count._all} ordrar/7d)`, {
     restaurantId: restaurant.id,
     orders7d: pick._count._all,
@@ -209,6 +222,7 @@ async function buildChampion(params: Record<string, number>) {
     title: 'Veckans favorit',
     subtitle: `${pick._count._all} beställningar senaste veckan`,
     restaurant: restaurantDto(restaurant),
+    images,
   };
 }
 
