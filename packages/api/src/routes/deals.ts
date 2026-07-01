@@ -2,7 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
-import { evaluateDeal, formatDealForClient, isBasketDeal, isDealAvailableNow, parseDealProductIds, type CartItemForBogo } from '../lib/deals';
+import { evaluateDeal, formatDealForClient, isBasketDeal, isDealAvailableNow, parseDealProductIds, userDealRestaurantScope, type CartItemForBogo } from '../lib/deals';
 import { cached } from '../lib/ttlCache';
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 import { authenticateUser, authenticateUserOptional } from './auth';
@@ -196,6 +196,7 @@ const AppDealQuoteSchema = z.object({
   subtotalKr: z.number().nonnegative(),
   deliveryFeeKr: z.number().nonnegative().optional().default(0),
   orderMode: z.enum(['DELIVERY', 'PICKUP', 'delivery', 'pickup']).optional().default('DELIVERY'),
+  restaurantId: z.string().optional(),
 });
 
 const calculateUserDealQuote = (userDeal: any, input: z.infer<typeof AppDealQuoteSchema>) => {
@@ -291,9 +292,11 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
         .filter((row: any) => row.dealId)
         .map((row: any) => [row.dealId, row]),
     );
+    // ACTIVE claims ska SYNAS (kortet visar "Använd"/"Vald i kassan" via
+    // userDealId). Bara förbrukade/reserverade döljs tills claimen löper ut.
     const unavailableClaimedDealIds = new Set(
       claimedRows
-        .filter((row: any) => row.dealId && (row.status === 'ACTIVE' || row.status === 'RESERVED' || row.status === 'USED'))
+        .filter((row: any) => row.dealId && (row.status === 'RESERVED' || row.status === 'USED'))
         .map((row: any) => row.dealId),
     );
 
@@ -514,6 +517,21 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
         subtotalDiscountKr: 0,
         dpointsBonus: 0,
         deal: null,
+      });
+    }
+
+    // Restaurang-scopad deal får inte prissättas i en annan restaurangs kassa.
+    const scope = userDealRestaurantScope(userDeal.deal);
+    if (scope && data.restaurantId && !scope.includes(data.restaurantId)) {
+      return res.json({
+        applicable: false,
+        reason: 'RESTAURANT_SCOPE',
+        minOrderKr: null,
+        discountAmountKr: 0,
+        deliveryDiscountKr: 0,
+        subtotalDiscountKr: 0,
+        dpointsBonus: 0,
+        deal: userDeal.deal ? formatAppDeal(userDeal.deal, userDeal.id, null) : null,
       });
     }
 

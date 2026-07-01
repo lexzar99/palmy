@@ -107,6 +107,16 @@ export const parseApplicableRestaurantIds = (raw: string | null | undefined) => 
   }
 };
 
+// Restaurang-scope för en UserDeal, härlett från mall-dealen.
+// null = gäller överallt, annars lista av tillåtna restaurang-id:n.
+export const userDealRestaurantScope = (deal: any): string[] | null => {
+  if (!deal || deal.isGlobal) return null;
+  const ids = parseApplicableRestaurantIds(deal.applicableRestaurantIds).filter(Boolean);
+  if (ids.length) return ids;
+  if (deal.restaurantId) return [deal.restaurantId];
+  return null;
+};
+
 export const getDealScopeType = (deal: Pick<DealLike, 'triggerType'>): DealScopeType => {
   if (deal.triggerType === 'PRODUCT') return 'PRODUCT';
   if (deal.triggerType === 'CATEGORY' || deal.triggerType === 'BOGO_CATEGORY') return 'CATEGORY';

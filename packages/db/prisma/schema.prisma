@@ -419,6 +419,7 @@ model Deal {
   // bara fri leverans, inget annat.
   freeDelivery          Boolean   @default(false)
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
+  userDeals             UserDeal[]
   // Kedje-scopad deal: gäller alla platser i en Brand. När satt expanderas den
   // till applicableRestaurantIds (alla nuvarande platser) vid spar + medlems-
   // ändring, så framtida platser ärver automatiskt. restaurantId/isGlobal = null/false.
@@ -967,6 +968,7 @@ model UserDeal {
   createdAt       DateTime  @default(now())
 
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deal            Deal?     @relation(fields: [dealId], references: [id], onDelete: SetNull)
 
   @@index([userId, status])
   @@index([type])

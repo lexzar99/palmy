@@ -336,12 +336,10 @@ export function publicShareBase(): string {
 // Customer endpoints (mountas under /api/account/)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Hård feature-flag: referral-systemet är avstängt för launch. Endpointen
-// returnerar fortfarande 200 så klienter inte 5xx:ar, men `enabled: false`
-// gör att alla referral-UI:n i web + RN gömmer sig automatiskt (de
-// kollar redan på den flaggan). Aktivera igen genom att sätta
-// REFERRALS_DISABLED=false i env eller ta bort denna check.
-const REFERRALS_DISABLED = (process.env.REFERRALS_DISABLED ?? 'true').toLowerCase() !== 'false';
+// Feature-flag: Wolt-stil referral (kod i kassan) är PÅ som default.
+// Admin styr på/av via settings.referralEnabled; env-flaggan finns kvar som
+// nödbroms (sätt REFERRALS_DISABLED=true för att hårdstänga utan deploy).
+const REFERRALS_DISABLED = (process.env.REFERRALS_DISABLED ?? 'false').toLowerCase() === 'true';
 
 // GET /api/account/referral
 router.get('/referral', authenticateUser, async (req: any, res: any) => {
@@ -612,6 +610,7 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
     // Inviter-rewarden ges DIREKT — anti-abuse hanteras av cap-checken som
     // räknar status='ORDERED' rewards per inviter senaste 30 dagar.
     let dealsCreatedFor = { invitee: 0, inviter: 0 };
+    let firstInviteeUserDealId: string | null = null;
     if (inviteeUserId) {
       try {
         const snapshot = await snapshotReferralDeal();
@@ -620,7 +619,7 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
         if (snapshot) {
           // Invitee får sina kuponger
           for (let i = 0; i < couponsPerSide; i++) {
-            await (prisma as any).userDeal.create({
+            const createdUserDeal = await (prisma as any).userDeal.create({
               data: {
                 userId: inviteeUserId,
                 dealId: snapshot.dealId,
@@ -638,6 +637,7 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
                 },
               },
             });
+            if (!firstInviteeUserDealId) firstInviteeUserDealId = createdUserDeal.id;
             dealsCreatedFor.invitee++;
           }
           // Inviter-rewarden hanteras i maybeTriggerReferralReward (vid
@@ -650,7 +650,8 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
       }
     }
 
-    res.json({ ok: true, inviterName, dealsCreated: dealsCreatedFor.invitee });
+    // userDealId → klienten kan applicera kupongen direkt i kassan (Wolt-flöde).
+    res.json({ ok: true, inviterName, dealsCreated: dealsCreatedFor.invitee, userDealId: firstInviteeUserDealId });
   } catch (err: any) {
     console.error('[redeem-code] error:', err?.message);
     res.status(500).json({ error: 'Serverfel' });

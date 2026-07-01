@@ -11,7 +11,7 @@ import {
   DEFAULT_ESTIMATED_PICKUP_TIME,
   DEFAULT_MIN_ORDER_AMOUNT,
 } from '../lib/restaurantSettings';
-import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, type CartItemForBogo } from '../lib/deals';
+import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, userDealRestaurantScope, type CartItemForBogo } from '../lib/deals';
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
@@ -983,9 +983,15 @@ router.post('/', async (req: Request, res: Response) => {
           status: 'ACTIVE',
           OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
         },
+        include: { deal: true },
       });
       if (!userDeal) {
         throw new OrderValidationError('Kupongen är inte längre giltig');
+      }
+      // Restaurang-scopad deal gäller bara i sin restaurangs kassa.
+      const dealScope = userDealRestaurantScope(userDeal.deal);
+      if (dealScope && !dealScope.includes(restaurant.id)) {
+        throw new OrderValidationError('Kupongen gäller inte på den här restaurangen');
       }
       const minOrderKr = (userDeal.metadata as any)?.minOrderKr ?? 0;
       if (subtotal < minOrderKr * 100) {
