@@ -8,6 +8,10 @@ type ProviderCredentials = {
   clientSecret: string;
 };
 
+type NextAuthRouteContext = {
+  params: Promise<{ nextauth: string[] }>;
+};
+
 declare module "next-auth" {
   interface Session extends DefaultSession {
     platformToken?: string;
@@ -201,7 +205,7 @@ function createAuthHandler() {
   });
 }
 
-async function handleAuth(request: Request, context: RouteContext<"/api/auth/[...nextauth]">) {
+async function handleAuth(request: Request, context: NextAuthRouteContext) {
   try {
     const handler = createAuthHandler();
     return handler(request, context);

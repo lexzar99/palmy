@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerPlatformAccessToken } from "@/lib/platformSession";
 
+type PlatformRouteContext = {
+  params: Promise<{ path: string[] }>;
+};
+
 function getRequiredApiUrl() {
   // Server-side: API_URL prioriteras. Fallback: NEXT_PUBLIC_API_URL
   // (alltid satt eftersom client behöver den) → sista fallback prod-Railway
@@ -78,27 +82,27 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
   }
 }
 
-export async function GET(request: NextRequest, context: RouteContext<"/api/platform/[...path]">) {
+export async function GET(request: NextRequest, context: PlatformRouteContext) {
   const { path } = await context.params;
   return proxyRequest(request, path);
 }
 
-export async function POST(request: NextRequest, context: RouteContext<"/api/platform/[...path]">) {
+export async function POST(request: NextRequest, context: PlatformRouteContext) {
   const { path } = await context.params;
   return proxyRequest(request, path);
 }
 
-export async function PUT(request: NextRequest, context: RouteContext<"/api/platform/[...path]">) {
+export async function PUT(request: NextRequest, context: PlatformRouteContext) {
   const { path } = await context.params;
   return proxyRequest(request, path);
 }
 
-export async function PATCH(request: NextRequest, context: RouteContext<"/api/platform/[...path]">) {
+export async function PATCH(request: NextRequest, context: PlatformRouteContext) {
   const { path } = await context.params;
   return proxyRequest(request, path);
 }
 
-export async function DELETE(request: NextRequest, context: RouteContext<"/api/platform/[...path]">) {
+export async function DELETE(request: NextRequest, context: PlatformRouteContext) {
   const { path } = await context.params;
   return proxyRequest(request, path);
 }
