@@ -16,7 +16,13 @@ export type EngineKey =
   | 'hot_products'
   | 'new_menu_items'
   | 'fastest_today'
-  | 'points_nudge';
+  | 'points_nudge'
+  | 'daily_drop'
+  | 'new_restaurants'
+  | 'trending'
+  | 'comeback'
+  | 'streak_card'
+  | 'surprise_bonus';
 
 export interface EngineDef {
   key: EngineKey;
@@ -58,9 +64,51 @@ export const ENGINE_DEFS: EngineDef[] = [
   {
     key: 'fastest_today',
     title: 'Snabbast idag',
-    description: 'Räknar dagens levererade ordrar och nuvarande kö per restaurang. De snabbaste lyfts fram.',
-    defaultParams: { minDeliveredToday: 3, maxItems: 4 },
-    paramLabels: { minDeliveredToday: 'Min levererade idag', maxItems: 'Max restauranger' },
+    description: 'Räknar dagens levererade ordrar och nuvarande kö per restaurang. Bara restauranger under tidstaket visas — långsamma dagar göms.',
+    defaultParams: { minDeliveredToday: 3, maxItems: 4, maxAvgMinutes: 45 },
+    paramLabels: { minDeliveredToday: 'Min levererade idag', maxItems: 'Max restauranger', maxAvgMinutes: 'Tidstak (min)' },
+  },
+  {
+    key: 'daily_drop',
+    title: 'Dagens drop',
+    description: 'En utvald bestseller per dag med tidsfönster och nedräkning. Ny produkt och nytt tema imorgon.',
+    defaultParams: { minPriceKr: 70, startHour: 15, endHour: 21 },
+    paramLabels: { minPriceKr: 'Prisgolv (kr)', startHour: 'Startar (timme)', endHour: 'Slutar (timme)' },
+  },
+  {
+    key: 'new_restaurants',
+    title: 'Ny i stan',
+    description: 'Nyöppnade restauranger får en egen räls i två veckor. Helt automatiskt.',
+    defaultParams: { windowDays: 14, maxItems: 6 },
+    paramLabels: { windowDays: 'Fönster (dagar)', maxItems: 'Max restauranger' },
+  },
+  {
+    key: 'trending',
+    title: 'Trendar',
+    description: 'Restauranger med störst ordertillväxt mot förra veckan.',
+    defaultParams: { minOrders: 5, maxItems: 4 },
+    paramLabels: { minOrders: 'Min ordrar denna vecka', maxItems: 'Max restauranger' },
+  },
+  {
+    key: 'comeback',
+    title: 'Vi saknar dig',
+    description: 'Kund som gillade en restaurang men inte beställt på länge påminns varsamt.',
+    defaultParams: { minOrders: 2, quietDays: 21 },
+    paramLabels: { minOrders: 'Min tidigare ordrar', quietDays: 'Tyst i (dagar)' },
+  },
+  {
+    key: 'streak_card',
+    title: 'Uppdrag på hemskärmen',
+    description: 'Pågående uppdrag med progress visas på hemskärmen, inte bara under Rewards.',
+    defaultParams: {},
+    paramLabels: {},
+  },
+  {
+    key: 'surprise_bonus',
+    title: 'Överraskningen',
+    description: 'En liten poängbonus på var N:e order, deterministiskt utvald. Variabel belöning, budgeterad och loggad.',
+    defaultParams: { points: 25, everyNOrders: 7 },
+    paramLabels: { points: 'Bonuspoäng', everyNOrders: 'Var N:e order' },
   },
   {
     key: 'points_nudge',
@@ -275,6 +323,7 @@ async function buildFastestToday(params: Record<string, number>) {
     entry.minutesSum += minutes;
     stats.set(order.restaurantId, entry);
   }
+  const maxAvg = params.maxAvgMinutes || 45;
   const candidates = [...stats.entries()]
     .filter(([, s]) => s.total >= (params.minDeliveredToday || 3))
     .map(([restaurantId, s]) => {
@@ -283,6 +332,8 @@ async function buildFastestToday(params: Record<string, number>) {
       // Kö väger in: snabb historik men full kö just nu ska inte lova snabbt.
       return { restaurantId, avgMinutes, activeNow, deliveredToday: s.total, score: avgMinutes * (1 + activeNow * 0.15) };
     })
+    // Tidstaket: "snabbast" måste faktiskt vara snabbt. 77 min visas aldrig.
+    .filter((c) => c.avgMinutes <= maxAvg)
     .sort((a, b) => a.score - b.score)
     .slice(0, params.maxItems || 4);
   if (!candidates.length) return null;
@@ -366,28 +417,230 @@ async function buildPointsNudge(userId: string, params: Record<string, number>) 
   };
 }
 
-// ── Kompositören: max N moduler per dag, roterande urval ────────────────────
-const MAX_MODULES = 3;
+// ── Dagens drop: EN utvald bestseller per dag, tidsfönster + nedräkning ─────
+async function buildDailyDrop(params: Record<string, number>) {
+  const now = new Date();
+  const hour = now.getHours();
+  const startHour = params.startHour ?? 15;
+  const endHour = params.endHour ?? 21;
+  if (hour < startHour || hour >= endHour) return null;
 
-export async function buildHomePulse(userId: string | null): Promise<{ modules: any[] }> {
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  const minPriceOre = Math.round((params.minPriceKr || 70) * 100);
+  const grouped = await (prisma.orderItem.groupBy as any)({
+    by: ['productId'],
+    where: { createdAt: { gte: since }, basePrice: { gte: minPriceOre }, order: { status: { notIn: EXCLUDED_STATUSES } } },
+    _sum: { quantity: true },
+    orderBy: { _sum: { quantity: 'desc' } },
+    take: 10,
+  });
+  if (!(grouped as any[]).length) return null;
+  const pick = dailyPick(grouped as any[], 'daily_drop');
+  if (!pick) return null;
+  const product = await prisma.product.findFirst({
+    where: { id: pick.productId, isActive: true },
+    include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, comingSoon: true } } } } },
+  });
+  const restaurant = (product as any)?.category?.restaurant;
+  if (!product || !restaurant || restaurant.comingSoon) return null;
+  const endsAt = new Date(now);
+  endsAt.setHours(endHour, 0, 0, 0);
+  await logEngineEvent('daily_drop', `Dagens drop: ${product.name} hos ${restaurant.name}`, { productId: product.id });
+  return {
+    type: 'DAILY_DROP',
+    id: `daily_drop:${product.id}`,
+    theme: themeForKey(`drop:${product.id}`, now),
+    title: 'Dagens drop',
+    subtitle: `Ikväll till ${String(endHour).padStart(2, '0')}:00`,
+    endsAt: endsAt.toISOString(),
+    product: {
+      productId: product.id,
+      name: product.name,
+      priceKr: Math.round(product.price) / 100,
+      imageUrl: product.imageUrl || null,
+      restaurant: restaurantDto(restaurant),
+    },
+  };
+}
+
+// ── Ny i stan: nyöppnade restauranger, automatisk räls i två veckor ─────────
+async function buildNewRestaurants(params: Record<string, number>) {
+  const since = new Date(Date.now() - (params.windowDays || 14) * 24 * 60 * 60 * 1000);
+  const restaurants = await prisma.restaurant.findMany({
+    where: { comingSoon: false, createdAt: { gte: since } },
+    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true },
+    orderBy: { createdAt: 'desc' },
+    take: params.maxItems || 6,
+  });
+  if (!restaurants.length) return null;
+  return {
+    type: 'NEW_RESTAURANTS',
+    id: 'new_restaurants',
+    theme: themeForKey('module:new_restaurants'),
+    title: 'Ny i stan',
+    subtitle: 'Nyöppnat nära dig',
+    restaurants: restaurants.map(restaurantDto),
+  };
+}
+
+// ── Trendar: störst ordertillväxt mot förra veckan ──────────────────────────
+async function buildTrending(params: Record<string, number>) {
+  const now = Date.now();
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const [thisWeek, lastWeek] = await Promise.all([
+    (prisma.order.groupBy as any)({
+      by: ['restaurantId'],
+      where: { createdAt: { gte: new Date(now - weekMs) }, status: { notIn: EXCLUDED_STATUSES }, restaurantId: { not: null } },
+      _count: { _all: true },
+    }),
+    (prisma.order.groupBy as any)({
+      by: ['restaurantId'],
+      where: { createdAt: { gte: new Date(now - 2 * weekMs), lt: new Date(now - weekMs) }, status: { notIn: EXCLUDED_STATUSES }, restaurantId: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
+  const lastByRestaurant = new Map<string, number>((lastWeek as any[]).map((g) => [g.restaurantId, g._count._all]));
+  const minOrders = params.minOrders || 5;
+  const candidates = (thisWeek as any[])
+    .filter((g) => g._count._all >= minOrders)
+    .map((g) => {
+      const prev = lastByRestaurant.get(g.restaurantId) || 0;
+      const growth = prev > 0 ? (g._count._all - prev) / prev : g._count._all >= minOrders ? 1 : 0;
+      return { restaurantId: g.restaurantId, orders: g._count._all, growthPct: Math.round(growth * 100) };
+    })
+    .filter((c) => c.growthPct >= 20)
+    .sort((a, b) => b.growthPct - a.growthPct)
+    .slice(0, params.maxItems || 4);
+  if (!candidates.length) return null;
+  const restaurants = await prisma.restaurant.findMany({
+    where: { id: { in: candidates.map((c) => c.restaurantId) }, comingSoon: false },
+    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true },
+  });
+  const byId = new Map(restaurants.map((r) => [r.id, r]));
+  const items = candidates
+    .map((c) => {
+      const restaurant = byId.get(c.restaurantId);
+      if (!restaurant) return null;
+      return { ...restaurantDto(restaurant), growthPct: c.growthPct };
+    })
+    .filter(Boolean);
+  if (!items.length) return null;
+  return {
+    type: 'TRENDING',
+    id: 'trending',
+    theme: themeForKey('module:trending'),
+    title: 'Trendar i stan',
+    subtitle: 'Växer snabbast just nu',
+    restaurants: items,
+  };
+}
+
+// ── Vi saknar dig: gillad restaurang, tyst i N dagar (personlig) ────────────
+async function buildComeback(userId: string, params: Record<string, number>) {
+  const quietSince = new Date(Date.now() - (params.quietDays || 21) * 24 * 60 * 60 * 1000);
+  const grouped = await (prisma.order.groupBy as any)({
+    by: ['restaurantId'],
+    where: { userId, status: { notIn: EXCLUDED_STATUSES }, restaurantId: { not: null } },
+    _count: { _all: true },
+    _max: { createdAt: true },
+  });
+  const candidates = (grouped as any[])
+    .filter((g) => g._count._all >= (params.minOrders || 2) && g._max.createdAt && new Date(g._max.createdAt) < quietSince)
+    .sort((a, b) => b._count._all - a._count._all);
+  if (!candidates.length) return null;
+  const pick = dailyPick(candidates, `comeback:${userId}`);
+  if (!pick) return null;
+  const restaurant = await prisma.restaurant.findFirst({
+    where: { id: pick.restaurantId, comingSoon: false },
+    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true },
+  });
+  if (!restaurant) return null;
+  return {
+    type: 'COMEBACK',
+    id: `comeback:${restaurant.id}`,
+    theme: themeForKey(`comeback:${restaurant.id}`),
+    title: `${restaurant.name} saknar dig`,
+    subtitle: `${pick._count._all} beställningar tidigare. Dags igen?`,
+    restaurant: restaurantDto(restaurant),
+  };
+}
+
+// ── Uppdrag på hemskärmen: pågående mission med progress ────────────────────
+async function buildStreakCard(userId: string) {
+  const mission = await (prisma as any).userDeal.findFirst({
+    where: {
+      userId,
+      type: 'APP_MISSION',
+      status: 'ACTIVE',
+      OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+    },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, createdAt: true, metadata: true },
+  });
+  if (!mission) return null;
+  const meta = (mission.metadata || {}) as any;
+  const target = Math.max(1, Math.round(Number(meta.missionTarget || 3)));
+  const rewardPoints = Math.max(0, Math.round(Number(meta.missionRewardPoints || 0)));
+  const allTime = String(meta.appMissionType || '').toUpperCase() === 'TOTAL_ORDERS';
+  const count = await prisma.order.count({
+    where: {
+      userId,
+      pointsAwarded: true,
+      ...(allTime ? {} : { createdAt: { gte: mission.createdAt } }),
+      status: { notIn: EXCLUDED_STATUSES },
+    },
+  });
+  if (count >= target) return null; // klart uppdrag firas i Rewards, inte här
+  return {
+    type: 'STREAK',
+    id: `streak:${mission.id}`,
+    theme: themeForKey(`streak:${mission.id}`),
+    title: meta.title || 'Ditt uppdrag',
+    subtitle: `${Math.min(count, target)} av ${target} · ${rewardPoints} p väntar`,
+    progress: { count: Math.min(count, target), target, rewardPoints },
+  };
+}
+
+// ── Dygnspulsen: hälsning efter tid på dygnet (server-styrd copy) ───────────
+export function greetingForNow(date = new Date()): string {
+  const hour = date.getHours();
+  const isFriday = date.getDay() === 5;
+  if (isFriday && hour >= 15) return 'Fredag. Du vet vad som gäller.';
+  if (hour >= 5 && hour < 10) return 'God morgon';
+  if (hour >= 10 && hour < 14) return 'Lunchdags?';
+  if (hour >= 14 && hour < 17) return 'Sugen på något?';
+  if (hour >= 17 && hour < 22) return 'Dags för middag';
+  return 'Kvällshungrig?';
+}
+
+// ── Kompositören: max N moduler per dag, roterande urval ────────────────────
+const MAX_MODULES = 6;
+
+export async function buildHomePulse(userId: string | null): Promise<{ greeting: string; modules: any[] }> {
   const settings = await getEngineSettings();
   const jobs: Promise<any>[] = [
     settings.champion.enabled ? buildChampion(settings.champion.params) : Promise.resolve(null),
     settings.hot_products.enabled ? buildHotProducts(settings.hot_products.params) : Promise.resolve(null),
     settings.new_menu_items.enabled ? buildNewMenuItems(settings.new_menu_items.params) : Promise.resolve(null),
     settings.fastest_today.enabled ? buildFastestToday(settings.fastest_today.params) : Promise.resolve(null),
+    settings.daily_drop.enabled ? buildDailyDrop(settings.daily_drop.params) : Promise.resolve(null),
+    settings.new_restaurants.enabled ? buildNewRestaurants(settings.new_restaurants.params) : Promise.resolve(null),
+    settings.trending.enabled ? buildTrending(settings.trending.params) : Promise.resolve(null),
     userId && settings.points_nudge.enabled ? buildPointsNudge(userId, settings.points_nudge.params) : Promise.resolve(null),
+    userId && settings.comeback.enabled ? buildComeback(userId, settings.comeback.params) : Promise.resolve(null),
+    userId && settings.streak_card.enabled ? buildStreakCard(userId) : Promise.resolve(null),
   ];
   const results = await Promise.allSettled(jobs);
   const modules = results
     .map((r) => (r.status === 'fulfilled' ? r.value : null))
     .filter(Boolean) as any[];
 
-  // Champion (hero) och poäng-knuffen (personlig) har förtur; resten roterar
-  // dagligen om det finns fler än plats. Hemskärmen ska andas.
-  const priority = modules.filter((m) => m.type === 'CHAMPION' || m.type === 'POINTS_NUDGE');
+  // Personligt + hero har förtur; resten roterar dagligen om det finns fler
+  // än plats. Appen interfolierar modulerna mellan restaurangsektionerna.
+  const priorityTypes = new Set(['CHAMPION', 'DAILY_DROP', 'POINTS_NUDGE', 'STREAK', 'COMEBACK']);
+  const priority = modules.filter((m) => priorityTypes.has(m.type));
   const rest = modules
-    .filter((m) => m.type !== 'CHAMPION' && m.type !== 'POINTS_NUDGE')
+    .filter((m) => !priorityTypes.has(m.type))
     .sort((a, b) => dailyScore(`slot:${a.type}`) - dailyScore(`slot:${b.type}`));
   const picked = [...priority, ...rest].slice(0, MAX_MODULES);
 
@@ -395,5 +648,5 @@ export async function buildHomePulse(userId: string | null): Promise<{ modules: 
   if (!settings.theme_rotation.enabled) {
     for (const module of picked) module.theme = 'sky';
   }
-  return { modules: picked };
+  return { greeting: greetingForNow(), modules: picked };
 }

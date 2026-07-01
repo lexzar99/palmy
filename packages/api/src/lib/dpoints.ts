@@ -364,6 +364,9 @@ export async function awardOrderPointsIfNotAwarded(orderId: string): Promise<voi
       cap: settings.dpointsMaxBalance,
     }).catch((e) => console.error('[dpoints] app-deal missions error:', e?.message));
 
+    await maybeSurpriseBonus({ userId, orderId, cap: settings.dpointsMaxBalance })
+      .catch((e) => console.error('[dpoints] surprise bonus error:', e?.message));
+
     // Invite-belöning (200 till båda) — på samma vinnande path så den triggar
     // oavsett finalize-väg (webb-direkt, Adyen-webhook, reconcile). Idempotent
     // (atomisk REGISTERED→ORDERED i maybeRewardInvite), så dubbla anrop är ofarliga.
@@ -580,6 +583,53 @@ export async function evaluateOrderEarnRules(opts: {
   } catch (e: any) {
     console.error('[dpoints] order_streak error:', e?.message);
   }
+}
+
+// Överraskningen: liten poängbonus på var N:e order. Deterministisk (hash av
+// order-id, ingen slump) så den inte kan spammas fram, styrd via Motorn
+// (EngineSetting 'surprise_bonus') och loggad i EngineEvent.
+const fnvHash = (input: string): number => {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+};
+
+export async function maybeSurpriseBonus(opts: { userId: string; orderId: string; cap?: number }): Promise<void> {
+  const { userId, orderId, cap = 0 } = opts;
+  const setting = await (prisma as any).engineSetting.findUnique({ where: { key: 'surprise_bonus' } }).catch(() => null);
+  const enabled = setting ? Boolean(setting.enabled) : true;
+  if (!enabled) return;
+  const params = (setting?.params as any) || {};
+  const points = Math.max(1, Math.round(Number(params.points || 25)));
+  const everyN = Math.max(2, Math.round(Number(params.everyNOrders || 7)));
+  if (fnvHash(orderId) % everyN !== 0) return;
+
+  // Idempotens: en överraskning per order.
+  const existing = await prisma.pointsTransaction.findFirst({
+    where: { userId, metadata: { path: ['surpriseOrderId'], equals: orderId } },
+    select: { id: true },
+  });
+  if (existing) return;
+
+  await recordPointsTx({
+    userId,
+    amount: points,
+    type: 'CAMPAIGN',
+    reason: 'En liten överraskning från oss',
+    metadata: { engine: 'surprise_bonus', surpriseOrderId: orderId },
+    cap,
+  });
+  await (prisma as any).engineEvent.create({
+    data: {
+      id: `ev${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+      engine: 'surprise_bonus',
+      message: `+${points} p överraskning på order ${orderId.slice(-6)}`,
+      meta: { orderId, points },
+    },
+  }).catch(() => null);
 }
 
 export async function evaluateAppDealMissions(opts: {
