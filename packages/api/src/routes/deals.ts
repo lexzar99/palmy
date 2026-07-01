@@ -293,7 +293,7 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
     );
     const unavailableClaimedDealIds = new Set(
       claimedRows
-        .filter((row: any) => row.dealId && (row.status === 'RESERVED' || row.status === 'USED'))
+        .filter((row: any) => row.dealId && (row.status === 'ACTIVE' || row.status === 'RESERVED' || row.status === 'USED'))
         .map((row: any) => row.dealId),
     );
 

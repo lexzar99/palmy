@@ -303,23 +303,34 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
 
     if (!user?.phone) return res.json([]);
 
-    const allDeals = await (prisma as any).customerDeal.findMany({
-      where: {
-        OR: [
-          { userId: req.user.id },
-          { phone: user.phone }
-        ],
-        isUsed: false,
-        campaign: {
-          isActive: true,
+    const [allDeals, appUserDeals] = await Promise.all([
+      (prisma as any).customerDeal.findMany({
+        where: {
           OR: [
-            { validUntil: null },
-            { validUntil: { gte: new Date() } }
-          ]
-        }
-      },
-      include: { campaign: true }
-    });
+            { userId: req.user.id },
+            { phone: user.phone }
+          ],
+          isUsed: false,
+          campaign: {
+            isActive: true,
+            OR: [
+              { validUntil: null },
+              { validUntil: { gte: new Date() } }
+            ]
+          }
+        },
+        include: { campaign: true }
+      }),
+      (prisma as any).userDeal.findMany({
+        where: {
+          userId: req.user.id,
+          status: 'ACTIVE',
+          type: { not: 'APP_MISSION' },
+          OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
 
     // Application-level filter: only return deals where usageCount < maxUsages
     const activDeals = allDeals.filter((d: any) => d.usageCount < (d.maxUsages || 1));
@@ -345,7 +356,47 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
       };
     });
 
-    res.json(formatted);
+    const formattedAppDeals = appUserDeals.map((deal: any) => {
+      const metadata = (deal.metadata || {}) as any;
+      const minOrderKr = Math.max(0, Number(metadata.minOrderKr || 0));
+      const title = metadata.title || 'Personlig deal';
+      const discountType = deal.freeDelivery
+        ? 'FREE_DELIVERY'
+        : deal.discountPercent
+          ? 'PERCENTAGE'
+          : 'FIXED';
+      const discountValue = deal.freeDelivery
+        ? 0
+        : deal.discountPercent
+          ? Number(deal.discountPercent || 0)
+          : Number(deal.amountKr || 0);
+      return {
+        id: deal.id,
+        userDealId: deal.id,
+        code: null,
+        source: 'APP_DEAL',
+        status: deal.status,
+        expiresAt: deal.expiresAt,
+        amountKr: Number(deal.amountKr || 0),
+        discountPercent: deal.discountPercent,
+        freeDelivery: !!deal.freeDelivery,
+        minOrderKr,
+        dpointsBonus: Math.max(0, Math.round(Number(metadata.appDpointsBonus || 0))),
+        campaign: {
+          id: deal.dealId || deal.id,
+          title,
+          name: title,
+          description: metadata.description || null,
+          discountType,
+          discountValue,
+          minOrder: minOrderKr,
+          freeDelivery: !!deal.freeDelivery,
+          appDpointsBonus: Math.max(0, Math.round(Number(metadata.appDpointsBonus || 0))),
+        },
+      };
+    });
+
+    res.json([...formattedAppDeals, ...formatted]);
   } catch (error) {
     console.error('Fetch deals error:', error);
     res.status(500).json({ error: 'Kunde inte hämta erbjudanden' });
@@ -572,7 +623,7 @@ router.post('/orders/:id/review', authenticateUser, async (req: any, res: any) =
       include: { items: { select: { productId: true } } },
     });
     if (!order) return res.status(404).json({ error: 'Order hittades inte' });
-    if (!['DELIVERED', 'READY'].includes(order.status)) {
+    if (!['DELIVERED', 'READY', 'COMPLETED'].includes(order.status)) {
       return res.status(400).json({ error: 'Du kan bara betygsätta levererade ordrar' });
     }
     if (order.rating) {
@@ -585,8 +636,8 @@ router.post('/orders/:id/review', authenticateUser, async (req: any, res: any) =
       ? likedItemIds.filter((id: unknown): id is string => typeof id === 'string' && validProductIds.has(id))
       : [];
 
-    await prisma.order.update({
-      where: { id: req.params.id },
+    const reviewClaim = await prisma.order.updateMany({
+      where: { id: req.params.id, rating: null },
       data: {
         rating,
         review: review || null,
@@ -594,6 +645,9 @@ router.post('/orders/:id/review', authenticateUser, async (req: any, res: any) =
         likedItemIds: JSON.stringify(cleanLikedIds),
       } as any,
     });
+    if (reviewClaim.count === 0) {
+      return res.status(409).json({ error: 'Du har redan betygsatt denna order', alreadyReviewed: true });
+    }
 
     // Update restaurant average rating from real data
     if (order.restaurantId) {
@@ -612,13 +666,13 @@ router.post('/orders/:id/review', authenticateUser, async (req: any, res: any) =
 
     // Dpoints: belöna recensionen (text → review_text, annars review_rating).
     // Idempotent + fail-safe i helpern.
-    await maybeAwardReviewPoints({
+    const dpoints = await maybeAwardReviewPoints({
       userId: req.user.id,
       orderId: order.id,
       hasText: typeof review === 'string' && review.trim().length > 0,
     });
 
-    res.json({ success: true });
+    res.json({ success: true, dpoints });
   } catch (error) {
     console.error('Review error:', error);
     res.status(500).json({ error: 'Kunde inte spara recension' });
