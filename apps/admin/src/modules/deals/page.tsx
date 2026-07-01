@@ -30,7 +30,7 @@ import { cn } from "@/shared/utils/cn";
 import { formatDate } from "@/shared/utils/format";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
 
-type Tab = "bogo" | "kampanjer" | "auto" | "kupongkoder" | "iappen";
+type Tab = "bogo" | "kampanjer" | "auto" | "appdeals" | "kupongkoder" | "iappen";
 
 type CouponForm = {
   code: string;
@@ -164,6 +164,11 @@ export function DealsPage() {
     return all.filter((d) => d.restaurantId === filterRestaurantId || d.isGlobal);
   }, [automaticDeals.data, filterRestaurantId]);
 
+  const appDeals = useMemo(
+    () => (automaticDeals.data || []).filter((d) => d.appEnabled),
+    [automaticDeals.data],
+  );
+
   const kampanjDeals = useMemo(() => {
     const all = (automaticDeals.data || []).filter((d) => !isBogoDeal(d));
     if (!filterRestaurantId) return all;
@@ -186,6 +191,7 @@ export function DealsPage() {
     { id: "bogo", label: "BOGO", count: bogoDeals.filter((d) => d.isActive).length },
     { id: "kampanjer", label: "Kampanjer", count: kampanjDeals.filter((d) => d.isActive).length },
     { id: "auto", label: "Auto-kampanjer", count: (campaigns.data || []).filter((c) => c.status === "ACTIVE").length },
+    { id: "appdeals", label: "App-deals", count: appDeals.filter((d) => d.isActive).length },
     { id: "kupongkoder", label: "Kupongkoder", count: (discounts.data || []).filter((d) => d.isActive).length },
     { id: "iappen", label: "I appen nu", count: 0 },
   ];
@@ -209,6 +215,7 @@ export function DealsPage() {
             {tab === "bogo" && <Button variant="primary" onClick={() => router.push("/deals/bogo/new")}><Plus size={15} /> Ny BOGO-deal</Button>}
             {tab === "kampanjer" && <Button variant="primary" onClick={() => router.push("/deals/kampanj/new")}><Plus size={15} /> Ny kampanj</Button>}
             {tab === "auto" && <Button variant="primary" onClick={() => router.push("/deals/auto/new")}><Plus size={15} /> Ny kampanj</Button>}
+            {tab === "appdeals" && <Button variant="primary" onClick={() => router.push("/deals/kampanj/new")}><Plus size={15} /> Ny app-deal</Button>}
             {tab === "kupongkoder" && <Button variant="primary" onClick={() => { setEditingCoupon(null); setCouponForm(emptyCouponForm()); setCouponModalOpen(true); }}><Plus size={15} /> Ny kupongkod</Button>}
           </>
         }
@@ -280,6 +287,16 @@ export function DealsPage() {
           runPending={runCampaignMutation.isPending}
           onDelete={(c) => { if (!confirm(`Radera ${c.title}?`)) return; deleteCampaignMutation.mutate(c.id); }}
           deletePending={deleteCampaignMutation.isPending}
+        />
+      )}
+
+      {/* App-deals: allt som är appEnabled — kort, uppdrag, fri leverans */}
+      {tab === "appdeals" && (
+        <AppDealsTable
+          deals={appDeals}
+          onOpen={(deal) => router.push(`/deals/kampanj/${deal.id}`)}
+          onToggle={(deal, next) => toggleDealMutation.mutate({ id: deal.id, isActive: next })}
+          togglePending={toggleDealMutation.isPending}
         />
       )}
 
@@ -720,5 +737,88 @@ function AppFeedPreview() {
         );
       })}
     </div>
+  );
+}
+
+
+// ── App-deals: deals och uppdrag som lever i Swift-appen ────────────────────
+
+const APP_PLACEMENT_LABELS: Record<string, string> = {
+  HOME_TOP: "Hemskärmen",
+  HOME_INLINE: "Hemskärmen (inline)",
+  CART: "Kassan",
+  REWARDS: "Rewards",
+  POST_ORDER: "Efter order",
+};
+
+function appDealValueLabel(deal: AutomaticDealRecord): string {
+  if (deal.appMissionType) return `Uppdrag · +${deal.appDpointsBonus ?? 0} p`;
+  if (deal.freeDelivery) return "Fri leverans";
+  if (deal.discountType === "PERCENTAGE") return `-${deal.discountValue}%`;
+  if (deal.discountType === "FIXED") return `-${deal.discountValue} kr`;
+  if ((deal.appDpointsBonus ?? 0) > 0) return `+${deal.appDpointsBonus} p`;
+  return "–";
+}
+
+function AppDealsTable({
+  deals,
+  onOpen,
+  onToggle,
+  togglePending,
+}: {
+  deals: AutomaticDealRecord[];
+  onOpen: (deal: AutomaticDealRecord) => void;
+  onToggle: (deal: AutomaticDealRecord, next: boolean) => void;
+  togglePending: boolean;
+}) {
+  const cols = "1.6fr 0.9fr 1fr 0.9fr 0.7fr 90px";
+  if (deals.length === 0) {
+    return (
+      <Surface className="p-6">
+        <EmptyState title="Inga app-deals" description="Skapa en kampanj och slå på 'Visa i appen' så hamnar den här." />
+      </Surface>
+    );
+  }
+  return (
+    <Surface className="overflow-hidden p-0">
+      <div role="table">
+        <div
+          role="row"
+          className="grid items-center gap-3 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+          style={{ gridTemplateColumns: cols }}
+        >
+          <span>Titel</span>
+          <span>Värde</span>
+          <span>Placering</span>
+          <span>Målgrupp</span>
+          <span>Hämtad</span>
+          <span>Status</span>
+        </div>
+        {deals.map((deal, i, arr) => (
+          <div
+            key={deal.id}
+            role="row"
+            className={cn("grid items-center gap-3 px-[18px] py-[13px] text-[13px] transition-colors hover:bg-[var(--bg-hover)]", i !== arr.length - 1 && "border-b border-[var(--row-divider)]")}
+            style={{ gridTemplateColumns: cols }}
+          >
+            <span className="min-w-0">
+              <button type="button" onClick={() => onOpen(deal)} className="block truncate text-left font-bold tracking-[-0.01em] hover:text-[var(--accent-ink)]">
+                {deal.title}
+              </button>
+              <span className="block truncate text-[11.5px] text-[var(--text-muted)]">
+                {deal.appMissionType ? `Uppdrag · mål ${deal.triggerQuantity ?? 3}` : deal.appClaimRequired ? "Hämtas av kund" : "Visas direkt"}
+              </span>
+            </span>
+            <span className="font-extrabold">{appDealValueLabel(deal)}</span>
+            <span className="text-[var(--text-secondary)]">{APP_PLACEMENT_LABELS[deal.appPlacement ?? "HOME_TOP"] ?? deal.appPlacement}</span>
+            <span className="text-[var(--text-secondary)]">{(deal.appAudience ?? "ALL") === "ALL" ? "Alla" : (deal.appAudience ?? "").toLowerCase().replace(/_/g, " ")}</span>
+            <span className="text-[var(--text-secondary)]">{deal.usageCount ?? 0}×</span>
+            <span>
+              <Toggle checked={deal.isActive} onChange={(next) => onToggle(deal, next)} disabled={togglePending} />
+            </span>
+          </div>
+        ))}
+      </div>
+    </Surface>
   );
 }

@@ -603,17 +603,20 @@ export async function evaluateAppDealMissions(opts: {
   for (const mission of missions) {
     const meta = (mission.metadata || {}) as any;
     const missionType = String(meta.appMissionType || '').toUpperCase();
-    if (missionType !== 'THREE_ORDERS_WEEK') continue;
+    const knownTypes = ['THREE_ORDERS_WEEK', 'ORDER_COUNT_WINDOW', 'TOTAL_ORDERS'];
+    if (!knownTypes.includes(missionType)) continue;
 
-    const target = Math.max(2, Math.round(Number(meta.missionTarget || 3)));
+    const target = Math.max(1, Math.round(Number(meta.missionTarget || 3)));
     const rewardPoints = Math.max(0, Math.round(Number(meta.missionRewardPoints || 0)));
     if (rewardPoints <= 0) continue;
 
+    // TOTAL_ORDERS = milstolpe (all-time), övriga räknar inom uppdragsfönstret.
+    const allTime = missionType === 'TOTAL_ORDERS';
     const paidCount = await prisma.order.count({
       where: {
         userId,
         pointsAwarded: true,
-        createdAt: { gte: mission.createdAt, lte: orderDate },
+        ...(allTime ? { createdAt: { lte: orderDate } } : { createdAt: { gte: mission.createdAt, lte: orderDate } }),
         status: { notIn: ['CANCELLED', 'REJECTED'] },
       },
     });

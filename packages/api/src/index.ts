@@ -46,6 +46,8 @@ import paymentsRoutes from './routes/paymentsMollie';
 import discountRoutes from './routes/discount';
 import settingsRoutes from './routes/settings';
 import dealsRoutes from './routes/deals';
+import homePulseRoutes from './routes/homePulse';
+import enginesRoutes from './routes/engines';
 import restaurantsRoutes from './routes/restaurants';
 import citiesRoutes from './routes/cities';
 import profileRoutes from './routes/profile';
@@ -298,6 +300,8 @@ app.use('/api/payments', paymentsRoutes); // Mollie (web: /create, /status, /web
 app.use('/api/discount', discountRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/deals', dealsRoutes);
+app.use('/api/home', homePulseRoutes);
+app.use('/api/admin/engines', enginesRoutes);
 app.use('/api/restaurants', restaurantsRoutes);
 app.use('/api/cities', citiesRoutes);
 app.use('/api/profile', profileRoutes);

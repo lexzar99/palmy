@@ -6,6 +6,7 @@ import { evaluateDeal, formatDealForClient, isBasketDeal, isDealAvailableNow, pa
 import { cached } from '../lib/ttlCache';
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 import { authenticateUser, authenticateUserOptional } from './auth';
+import { themeForKey } from '../lib/themeRotation';
 
 const router = Router();
 
@@ -92,22 +93,29 @@ const appAudienceMatches = (deal: any, ctx: { isLoggedIn: boolean; orderCount: n
 
 const isMissionDeal = (deal: any) => Boolean(deal.appMissionType) || String(deal.appTemplate || '').toUpperCase() === 'MISSION';
 
+// Uppdragets mål bor i Deal.triggerQuantity (admin-styrt, återanvänt fält).
 const missionTargetForDeal = (deal: any) => {
-  const meta = (deal.metadata || {}) as any;
-  const raw = Number(meta.missionTarget || meta.target || 0);
+  const raw = Number(deal.triggerQuantity || 0);
   return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 3;
 };
+
+// TOTAL_ORDERS = milstolpe (räknar alla ordrar, inget tidsfönster).
+const isAllTimeMission = (deal: any) =>
+  String(deal.appMissionType || '').toUpperCase() === 'TOTAL_ORDERS';
 
 const missionProgressForDeal = async (userId: string | undefined, deal: any, userDeal?: any) => {
   if (!userId || !isMissionDeal(deal)) return null;
   const target = missionTargetForDeal(deal);
-  const windowDays = 7;
-  const windowStart = userDeal?.createdAt || new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const allTime = isAllTimeMission(deal);
+  const windowDays = allTime ? 0 : 7;
+  const windowStart = allTime
+    ? undefined
+    : userDeal?.createdAt || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const count = await prisma.order.count({
     where: {
       userId,
       pointsAwarded: true,
-      createdAt: { gte: windowStart },
+      ...(windowStart ? { createdAt: { gte: windowStart } } : {}),
       status: { notIn: ['CANCELLED', 'REJECTED'] },
     },
   });
@@ -176,7 +184,7 @@ const formatAppDeal = (deal: any, userDealId?: string | null, missionProgress?: 
     missionType: deal.appMissionType || null,
     missionProgress: missionProgress || null,
     checkoutApplicable: !mission,
-    theme: deal.appTheme || null,
+    theme: deal.appTheme || themeForKey(`deal:${deal.id}`),
     discountType: deal.discountType,
     discountPercent: percent,
     amountKr: fixedKr,
@@ -471,7 +479,7 @@ router.post('/app/:id/claim', authenticateUser, async (req: any, res) => {
           appMissionType: deal.appMissionType || null,
           missionRewardPoints: mission ? deal.appDpointsBonus || 0 : 0,
           missionTarget: missionTargetForDeal(deal),
-          missionWindowDays: 7,
+          missionWindowDays: isAllTimeMission(deal) ? 0 : 7,
           appTemplate: deal.appTemplate || null,
         },
       },

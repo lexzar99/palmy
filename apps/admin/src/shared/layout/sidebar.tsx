@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
+  Zap,
   Gauge,
   AlertTriangle,
   BellRing,
@@ -81,6 +82,7 @@ const SECTIONS: NavSection[] = [
       { href: "/receipts", label: "Kvitton", icon: ReceiptText },
       { href: "/users", label: "Användare", icon: Users },
       { href: "/dpoints", label: "Lojalitet", icon: Coins },
+      { href: "/engines", label: "Motorn", icon: Zap },
       { href: "/api-health", label: "API-status", icon: Gauge },
       { href: "/platform-settings", label: "Inställningar", icon: Building2 },
       { href: "/crisis", label: "Krisverktyg", icon: AlertTriangle },

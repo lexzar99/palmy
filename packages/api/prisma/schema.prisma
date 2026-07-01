@@ -1395,3 +1395,21 @@ model ApiUsageCounter {
   @@unique([service, period])
   @@index([service])
 }
+
+// ── Puls-motorerna (autonoma hemskärmsmoduler, admin → Motorn) ──────────────
+model EngineSetting {
+  key       String   @id
+  enabled   Boolean  @default(true)
+  params    Json     @default("{}")
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model EngineEvent {
+  id        String   @id
+  engine    String
+  message   String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([engine, createdAt])
+}
