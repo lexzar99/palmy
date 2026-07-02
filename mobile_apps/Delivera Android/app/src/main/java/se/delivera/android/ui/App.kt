@@ -57,6 +57,7 @@ import se.delivera.android.ui.cart.CartStore
 import se.delivera.android.ui.home.DealCardAction
 import se.delivera.android.ui.home.HomeScreen
 import se.delivera.android.ui.home.HomeViewModel
+import se.delivera.android.ui.order.OrderTrackingScreen
 import se.delivera.android.ui.profile.ProfileScreen
 import se.delivera.android.ui.restaurant.RestaurantDetailScreen
 import se.delivera.android.ui.rewards.RewardsScreen
@@ -80,6 +81,8 @@ fun DeliveraApp() {
 
     var selectedTab by rememberSaveable { mutableStateOf(HomeTab.Home) }
     var selectedRestaurant by remember { mutableStateOf<Restaurant?>(null) }
+    var activeOrderId by rememberSaveable { mutableStateOf(Prefs.getString("delivera.pendingOrderId", "")) }
+    var activeOrderToken by rememberSaveable { mutableStateOf(Prefs.getString("delivera.pendingOrderToken", "")) }
     var showingAddressSheet by remember { mutableStateOf(false) }
 
     var orderMode by rememberSaveable { mutableStateOf(OrderMode.Delivery) }
@@ -178,6 +181,24 @@ fun DeliveraApp() {
     }
 
     // Restaurant detail takes over the whole screen (SwiftUI NavigationStack push).
+    if (activeOrderId.isNotBlank()) {
+        OrderTrackingScreen(
+            orderId = activeOrderId,
+            phone = Prefs.getString(Prefs.KEY_GUEST_PHONE, ""),
+            accessToken = activeOrderToken,
+            authToken = authToken,
+            onBackHome = {
+                activeOrderId = ""
+                activeOrderToken = ""
+                Prefs.setString("delivera.pendingOrderId", "")
+                Prefs.setString("delivera.pendingOrderToken", "")
+                selectedTab = HomeTab.Home
+            }
+        )
+        return
+    }
+
+    // Restaurant detail takes over the whole screen (SwiftUI NavigationStack push).
     val detail = selectedRestaurant
     if (detail != null) {
         RestaurantDetailScreen(
@@ -222,7 +243,11 @@ fun DeliveraApp() {
                 authToken = authToken,
                 isLoggedIn = authToken.isNotBlank(),
                 onExploreRestaurants = { selectedTab = HomeTab.Home },
-                onOpenProfile = { selectedTab = HomeTab.Profile }
+                onOpenProfile = { selectedTab = HomeTab.Profile },
+                onOrderCreated = { id, token ->
+                    activeOrderId = id
+                    activeOrderToken = token.orEmpty()
+                }
             )
             HomeTab.Rewards -> RewardsScreen(
                 authToken = authToken,

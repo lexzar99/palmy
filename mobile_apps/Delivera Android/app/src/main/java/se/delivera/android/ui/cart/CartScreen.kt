@@ -49,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -57,6 +58,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import se.delivera.android.data.CartOrderItemRequest
+import se.delivera.android.data.CartOrderRequest
 import se.delivera.android.data.DeliveraApi
 import se.delivera.android.data.HomeAppDeal
 import se.delivera.android.data.OrderMode
@@ -66,6 +69,7 @@ import se.delivera.android.ui.components.Entrance
 import se.delivera.android.ui.theme.DeliveraTheme
 import kotlin.math.max
 import kotlin.math.roundToInt
+import java.util.UUID
 
 @Composable
 fun CartScreen(
@@ -73,9 +77,11 @@ fun CartScreen(
     authToken: String,
     isLoggedIn: Boolean,
     onExploreRestaurants: () -> Unit,
-    onOpenProfile: () -> Unit
+    onOpenProfile: () -> Unit,
+    onOrderCreated: (orderId: String, accessToken: String?) -> Unit
 ) {
     val api = remember { DeliveraApi() }
+    val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     var guestName by remember { mutableStateOf("") }
     var guestPhone by remember { mutableStateOf("") }
@@ -92,6 +98,8 @@ fun CartScreen(
     var codeOk by remember { mutableStateOf<Boolean?>(null) }
     var isApplyingCode by remember { mutableStateOf(false) }
     var paymentError by remember { mutableStateOf<String?>(null) }
+    var paymentBusy by remember { mutableStateOf(false) }
+    var paymentMessage by remember { mutableStateOf<String?>(null) }
 
     val activeDeal = remember(Prefs.getString(Prefs.KEY_ACTIVE_USER_DEAL_SNAPSHOT, "")) {
         runCatching {
@@ -141,15 +149,78 @@ fun CartScreen(
 
     fun startPaymentCheck() {
         paymentError = null
-        if (!isLoggedIn && guestName.trim().length < 2) {
+        paymentMessage = null
+        if (paymentBusy) return
+        val resolvedName = if (isLoggedIn) guestName.trim().ifBlank { "Kund" } else guestName.trim()
+        val resolvedPhone = if (isLoggedIn) {
+            guestPhone.trim().ifBlank { Prefs.getString(Prefs.KEY_GUEST_PHONE, "") }
+        } else {
+            guestPhone.trim()
+        }
+        if (resolvedName.length < 2) {
             showContact = true
             paymentError = "Skriv namn innan betalning."
             return
         }
-        if (!isLoggedIn && guestPhone.trim().length < 6) {
+        if (resolvedPhone.length < 6) {
             showContact = true
             paymentError = "Skriv ett giltigt telefonnummer."
             return
+        }
+        val restaurant = cartStore.restaurant.value
+        if (restaurant == null || cartStore.items.isEmpty()) {
+            paymentError = "Lägg till något i varukorgen först."
+            return
+        }
+        scope.launch {
+            paymentBusy = true
+            try {
+                val activeUserDealId = Prefs.getString(Prefs.KEY_ACTIVE_USER_DEAL_ID, "").ifBlank { null }
+                val request = CartOrderRequest(
+                    restaurantId = restaurant.id,
+                    restaurantSlug = restaurant.slug,
+                    type = if (cartStore.orderMode.value == OrderMode.Delivery) "DELIVERY" else "PICKUP",
+                    customerName = resolvedName,
+                    customerPhone = resolvedPhone,
+                    deliveryStreet = if (cartStore.orderMode.value == OrderMode.Delivery) cartStore.address.value else null,
+                    deliveryCity = if (cartStore.orderMode.value == OrderMode.Delivery) Prefs.getString(Prefs.KEY_DELIVERY_CITY, "") else null,
+                    deliveryLatitude = Prefs.getDouble(Prefs.KEY_DELIVERY_LAT, 0.0).takeIf { it != 0.0 },
+                    deliveryLongitude = Prefs.getDouble(Prefs.KEY_DELIVERY_LNG, 0.0).takeIf { it != 0.0 },
+                    note = note.ifBlank { null },
+                    discountCode = coupon.trim().takeIf { codeOk == true && it.isNotBlank() },
+                    userDealId = activeUserDealId,
+                    items = cartStore.items.map {
+                        CartOrderItemRequest(productId = it.product.id, quantity = it.quantity)
+                    },
+                    lat = Prefs.getDouble(Prefs.KEY_DELIVERY_LAT, 0.0).takeIf { it != 0.0 },
+                    lng = Prefs.getDouble(Prefs.KEY_DELIVERY_LNG, 0.0).takeIf { it != 0.0 },
+                    pendingPayment = true,
+                    tip = tip.takeIf { it > 0.0 }
+                )
+                val order = api.createOrder(
+                    request = request,
+                    idempotencyKey = "android-${UUID.randomUUID()}",
+                    token = authToken.ifBlank { null }
+                )
+                val orderId = order.resolvedOrderId ?: error("Servern returnerade inget order-ID.")
+                onOrderCreated(orderId, order.accessToken)
+                val payment = api.createAdyenPayment(orderId, "delivera://order/$orderId")
+                val checkoutUrl = payment.checkoutUrl
+                if (!checkoutUrl.isNullOrBlank()) {
+                    Prefs.setString("delivera.pendingOrderId", orderId)
+                    order.accessToken?.let { Prefs.setString("delivera.pendingOrderToken", it) }
+                    cartStore.clear()
+                    uriHandler.openUri(checkoutUrl)
+                } else if (payment.session != null) {
+                    paymentMessage = "Order skapad. Native Adyen-session är redo: ${payment.session.id}"
+                } else {
+                    paymentMessage = "Order skapad. Öppna Mina beställningar för status."
+                }
+            } catch (e: Throwable) {
+                paymentError = e.message ?: "Betalningen kunde inte startas."
+            } finally {
+                paymentBusy = false
+            }
         }
     }
 
@@ -248,6 +319,8 @@ fun CartScreen(
                             total = total,
                             earnedPoints = earnedPoints,
                             paymentError = paymentError,
+                            paymentMessage = paymentMessage,
+                            busy = paymentBusy,
                             onPay = ::startPaymentCheck
                         )
                     }
@@ -522,6 +595,8 @@ private fun TotalsCard(
     total: Double,
     earnedPoints: Int,
     paymentError: String?,
+    paymentMessage: String?,
+    busy: Boolean,
     onPay: () -> Unit
 ) {
     Column(
@@ -541,12 +616,15 @@ private fun TotalsCard(
         paymentError?.let {
             Text(it, fontSize = 12.sp, fontWeight = FontWeight.Black, color = DeliveraTheme.orange)
         }
+        paymentMessage?.let {
+            Text(it, fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF2F8F4E))
+        }
         Row(
             Modifier.fillMaxWidth().height(58.dp).clip(RoundedCornerShape(18.dp)).background(DeliveraTheme.ink)
-                .clickable { onPay() }.padding(horizontal = 18.dp),
+                .clickable(enabled = !busy) { onPay() }.padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Betala", fontSize = 17.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Text(if (busy) "Startar..." else "Betala", fontSize = 17.sp, fontWeight = FontWeight.Black, color = Color.White)
             Spacer(Modifier.weight(1f))
             Text(price(total), fontSize = 19.sp, fontWeight = FontWeight.Black, color = Color.White)
         }

@@ -122,6 +122,59 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
     suspend fun claimSignupBonus(token: String): DpointsSignupClaimResponse =
         decodeDelivera(postRaw("/api/dpoints/claim-signup", "{}", bearer(token)))
 
+    suspend fun lookupPhone(phone: String) {
+        postRaw("/api/auth/lookup-phone", deliveraJson.encodeToString(mapOf("phone" to phone)))
+    }
+
+    suspend fun sendPhoneOtp(phone: String) {
+        postSupabaseRaw("/auth/v1/otp", deliveraJson.encodeToString(SupabaseOtpBody(phone = phone)))
+    }
+
+    suspend fun verifyPhoneOtp(phone: String, code: String): SupabaseSessionResponse =
+        decodeDelivera(
+            postSupabaseRaw(
+                "/auth/v1/verify",
+                deliveraJson.encodeToString(SupabaseVerifyBody(phone = phone, token = code))
+            )
+        )
+
+    suspend fun exchangePhoneToken(supabaseAccessToken: String): PlatformAuthResponse =
+        decodeDelivera(postRaw("/api/auth/phone-token", "{}", bearer(supabaseAccessToken)))
+
+    suspend fun profile(token: String): CustomerProfile =
+        decodeDelivera(getRaw("/api/profile", headers = bearer(token)))
+
+    suspend fun profileOrders(token: String): List<ProfileOrder> {
+        val raw = getRaw("/api/profile/orders", headers = bearer(token))
+        return runCatching { deliveraJson.decodeFromString<ProfileOrdersResponse>(raw).orders }
+            .getOrElse { deliveraJson.decodeFromString(raw) }
+    }
+
+    suspend fun createOrder(request: CartOrderRequest, idempotencyKey: String, token: String?): CartOrderResponse {
+        val headers = mutableMapOf("Idempotency-Key" to idempotencyKey)
+        if (!token.isNullOrBlank()) headers["Authorization"] = "Bearer $token"
+        return decodeDelivera(postRaw("/api/orders", deliveraJson.encodeToString(request), headers))
+    }
+
+    suspend fun createAdyenPayment(orderId: String, returnUrl: String): AdyenPaymentCreateResponse =
+        decodeDelivera(
+            postRaw(
+                "/api/payments/create",
+                deliveraJson.encodeToString(
+                    AdyenPaymentCreateRequest(orderId = orderId, returnUrl = returnUrl)
+                )
+            )
+        )
+
+    suspend fun customerOrder(id: String, phone: String?, accessToken: String?, authToken: String?): CustomerOrderResponse {
+        val query = buildMap {
+            if (!phone.isNullOrBlank()) put("phone", phone)
+            if (!accessToken.isNullOrBlank()) put("token", accessToken)
+        }
+        val headers = if (!authToken.isNullOrBlank()) bearer(authToken) else emptyMap()
+        return decodeDelivera(getRaw("/api/orders/$id", query, headers))
+    }
+
     suspend fun autocompletePlaces(input: String, sessionToken: String): List<PlacePrediction> {
         if (input.trim().length < 3) return emptyList()
         val response: PlacesAutocompleteResponse = decodeDelivera(
@@ -184,6 +237,17 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")
         headers.forEach { (k, v) -> builder.header(k, v) }
+        execute(builder.build())
+    }
+
+    private suspend fun postSupabaseRaw(path: String, bodyJson: String): String = withContext(Dispatchers.IO) {
+        val url = (AppConfig.supabaseURL.trimEnd('/') + "/" + path.trim('/'))
+        val builder = Request.Builder()
+            .url(url)
+            .post(bodyJson.toRequestBody(jsonMedia))
+            .header("Content-Type", "application/json")
+            .header("apikey", AppConfig.supabaseAnonKey)
+            .header("Authorization", "Bearer ${AppConfig.supabaseAnonKey}")
         execute(builder.build())
     }
 

@@ -233,6 +233,197 @@ data class ReferralRedeemResponse(
 )
 
 /* ------------------------------------------------------------------ */
+/* Auth / profile / orders                                             */
+/* ------------------------------------------------------------------ */
+
+@Serializable
+data class SupabaseOtpBody(
+    val phone: String,
+    val channel: String = "sms"
+)
+
+@Serializable
+data class SupabaseVerifyBody(
+    val phone: String,
+    val token: String,
+    val type: String = "sms"
+)
+
+@Serializable
+data class SupabaseSessionResponse(
+    @SerialName("access_token") val accessToken: String,
+    @SerialName("refresh_token") val refreshToken: String? = null
+)
+
+@Serializable
+data class PlatformAuthResponse(
+    val token: String,
+    val user: CustomerProfile
+)
+
+@Serializable
+data class CustomerProfile(
+    val id: String? = null,
+    val name: String? = null,
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val profileComplete: Boolean? = null,
+    val needsPhone: Boolean? = null,
+    val needsName: Boolean? = null
+) {
+    val displayName: String
+        get() {
+            val joined = listOfNotNull(firstName?.trim(), lastName?.trim())
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+            return joined.ifBlank { name?.trim().orEmpty() }.ifBlank { "Kund" }
+        }
+}
+
+@Serializable
+data class ProfileOrdersResponse(val orders: List<ProfileOrder> = emptyList())
+
+@Serializable
+data class ProfileOrder(
+    val id: String,
+    val orderNumber: String? = null,
+    val status: String,
+    val type: String? = null,
+    val total: Double = 0.0,
+    val restaurantName: String? = null,
+    val createdAt: String? = null,
+    val rating: Int? = null,
+    val reviewedAt: String? = null,
+    val items: List<ProfileOrderItem> = emptyList()
+)
+
+@Serializable
+data class ProfileOrderItem(
+    val id: String? = null,
+    val productName: String? = null,
+    val quantity: Int = 1,
+    val subtotal: Double? = null
+)
+
+@Serializable
+data class CartOrderRequest(
+    val restaurantId: String? = null,
+    val restaurantSlug: String? = null,
+    val type: String,
+    val paymentMethod: String? = "ADYEN",
+    val customerName: String,
+    val customerPhone: String,
+    val customerEmail: String? = null,
+    val deliveryStreet: String? = null,
+    val deliveryCity: String? = null,
+    val deliveryZip: String? = null,
+    val deliveryLatitude: Double? = null,
+    val deliveryLongitude: Double? = null,
+    val deliveryNote: String? = null,
+    val note: String? = null,
+    val discountCode: String? = null,
+    val userDealId: String? = null,
+    val items: List<CartOrderItemRequest>,
+    val stripePaymentIntentId: String? = null,
+    val lat: Double? = null,
+    val lng: Double? = null,
+    val pendingPayment: Boolean = true,
+    val tip: Double? = null
+)
+
+@Serializable
+data class CartOrderItemRequest(
+    val productId: String,
+    val quantity: Int,
+    val note: String? = null,
+    val selectedExtras: List<CartOrderExtraRequest> = emptyList(),
+    val paidWithPoints: Boolean? = null
+)
+
+@Serializable
+data class CartOrderExtraRequest(
+    val groupId: String,
+    val groupName: String,
+    val extraId: String,
+    val extraName: String,
+    val priceAddon: Double,
+    val quantity: Int = 1
+)
+
+@Serializable
+data class CartOrderResponse(
+    val orderId: String? = null,
+    val id: String? = null,
+    val accessToken: String? = null,
+    val dpointsEarned: Int? = null,
+    val pointsEarned: Int? = null
+) {
+    val resolvedOrderId: String?
+        get() = orderId ?: id
+}
+
+@Serializable
+data class AdyenPaymentCreateRequest(
+    val orderId: String,
+    val returnUrl: String,
+    val channel: String = "Android",
+    val storePaymentMethod: Boolean = false
+)
+
+@Serializable
+data class AdyenPaymentCreateResponse(
+    val provider: String? = null,
+    val paymentRef: String? = null,
+    val checkoutUrl: String? = null,
+    val session: AdyenSession? = null,
+    val total: Double? = null,
+    val discountAmount: Double? = null
+)
+
+@Serializable
+data class AdyenSession(
+    val id: String,
+    val sessionData: String
+)
+
+@Serializable
+data class CustomerOrderResponse(
+    val id: String,
+    val orderNumber: String? = null,
+    val status: String,
+    val type: String? = null,
+    val total: Double = 0.0,
+    val dpointsEarned: Int? = null,
+    val pointsEarned: Int? = null,
+    val deliveryFee: Double? = null,
+    val discountAmount: Double? = null,
+    val paymentStatus: String? = null,
+    val paymentMethod: String? = null,
+    val rating: Int? = null,
+    val reviewedAt: String? = null,
+    val estimatedTime: Int? = null,
+    val customerPhone: String? = null,
+    val deliveryStreet: String? = null,
+    val restaurantName: String? = null,
+    val restaurantPhone: String? = null,
+    val restaurantAddress: String? = null,
+    val restaurantCity: String? = null,
+    val etaEndsAt: String? = null,
+    val createdAt: String? = null,
+    val items: List<CustomerOrderItemResponse> = emptyList()
+)
+
+@Serializable
+data class CustomerOrderItemResponse(
+    val productName: String,
+    val quantity: Int,
+    val basePrice: Double? = null,
+    val subtotal: Double? = null
+)
+
+/* ------------------------------------------------------------------ */
 /* Sponsors / ads / deals                                              */
 /* ------------------------------------------------------------------ */
 
