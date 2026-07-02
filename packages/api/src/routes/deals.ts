@@ -424,6 +424,55 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
   }
 });
 
+// POST /api/deals/app/favorite/claim — Din favorit: 10% på kundens mest
+// beställda artikel, bara via favorit-modalen. Skapar en FIXED UserDeal på
+// 10% av produktpriset; ordern kräver att produkten faktiskt ligger i korgen.
+router.post('/app/favorite/claim', authenticateUser, async (req: any, res) => {
+  try {
+    const productId = String(req.body?.productId || '').trim();
+    if (!productId) return res.status(400).json({ error: 'productId saknas' });
+
+    const { favoriteCandidates, getEngineSettings } = await import('../lib/homePulse');
+    const settings = await getEngineSettings();
+    const params = settings.favorite_product.params;
+    const candidates = await favoriteCandidates(req.user.id, params);
+    const candidate = candidates.find((c) => c.product.id === productId);
+    if (!candidate) return res.status(403).json({ error: 'Det här är inte din favorit än' });
+
+    const existing = await (prisma as any).userDeal.findFirst({
+      where: { userId: req.user.id, type: 'FAVORITE_PRODUCT', status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }] },
+    });
+    if (existing) return res.json({ claimed: true, userDealId: existing.id, amountKr: existing.amountKr, title: (existing.metadata as any)?.title || 'Din favorit' });
+
+    const priceOre = Math.min(candidate.product.price, candidate.product.discountPrice || candidate.product.price);
+    const percent = Math.max(5, Math.round(params.percent || 10));
+    const amountKr = Math.max(1, Math.round((priceOre * percent) / 100 / 100));
+    const userDeal = await (prisma as any).userDeal.create({
+      data: {
+        userId: req.user.id,
+        dealId: null,
+        type: 'FAVORITE_PRODUCT',
+        status: 'ACTIVE',
+        amountKr,
+        discountType: 'FIXED',
+        freeDelivery: false,
+        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+        metadata: {
+          title: `Din favorit: ${candidate.product.name}`,
+          favoriteProductId: candidate.product.id,
+          restaurantId: candidate.restaurant.id,
+          percent,
+          minOrderKr: 0,
+        },
+      },
+    });
+    res.status(201).json({ claimed: true, userDealId: userDeal.id, amountKr, title: `Din favorit: ${candidate.product.name}` });
+  } catch (error: any) {
+    console.error('[deals/app favorite claim] error:', error?.message);
+    res.status(500).json({ error: 'Kunde inte aktivera favoriten' });
+  }
+});
+
 // POST /api/deals/app/:id/claim — gör en app-deal betalningsbar i kassan.
 router.post('/app/:id/claim', authenticateUser, async (req: any, res) => {
   try {

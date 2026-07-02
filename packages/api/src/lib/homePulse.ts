@@ -14,10 +14,11 @@ export type EngineKey =
   | 'theme_rotation'
   | 'champion'
   | 'hot_products'
-  | 'new_menu_items'
+  | 'favorite_product'
   | 'fastest_today'
   | 'points_nudge'
   | 'daily_drop'
+  | 'new_menu_items'
   | 'new_restaurants'
   | 'trending'
   | 'comeback'
@@ -57,11 +58,11 @@ export const ENGINE_DEFS: EngineDef[] = [
     paramLabels: { minPriceKr: 'Prisgolv (kr)', maxItems: 'Max produkter', windowHours: 'Fönster (timmar)' },
   },
   {
-    key: 'new_menu_items',
-    title: 'Nytt på menyn',
-    description: 'Nya produkter hos etablerade partners blir kort automatiskt. Bulk-skydd: helt nya restauranger och massuppladdningar räknas inte som nyheter.',
-    defaultParams: { windowDays: 10, minRestaurantAgeDays: 14, bulkThreshold: 8, maxItems: 4 },
-    paramLabels: { windowDays: 'Nyhetsfönster (dagar)', minRestaurantAgeDays: 'Min restaurangålder (dagar)', bulkThreshold: 'Bulk-gräns (produkter)', maxItems: 'Max kort' },
+    key: 'favorite_product',
+    title: 'Din favorit',
+    description: 'Kundens mest beställda artikel (3+ köp, över prisgolvet) får ett specialkort med 10% direkt i modalen. Försvinner efter köp, kommer tillbaka efter en paus som anpassas till kundens aktivitet.',
+    defaultParams: { minPriceKr: 100, minCount: 3, percent: 10, activeCooldownDays: 5, quietCooldownDays: 2 },
+    paramLabels: { minPriceKr: 'Prisgolv (kr)', minCount: 'Min antal köp', percent: 'Rabatt (%)', activeCooldownDays: 'Paus aktiv kund (dagar)', quietCooldownDays: 'Paus tyst kund (dagar)' },
   },
   {
     key: 'fastest_today',
@@ -76,6 +77,13 @@ export const ENGINE_DEFS: EngineDef[] = [
     description: 'En utvald bestseller per dag med tidsfönster och nedräkning. Ny produkt och nytt tema imorgon.',
     defaultParams: { minPriceKr: 70, startHour: 15, endHour: 21 },
     paramLabels: { minPriceKr: 'Prisgolv (kr)', startHour: 'Startar (timme)', endHour: 'Slutar (timme)' },
+  },
+  {
+    key: 'new_menu_items',
+    title: 'Nytt på menyn',
+    description: 'Nya rätter hos etablerade partners lyfts som en egen räls. Bulkändringar filtreras bort.',
+    defaultParams: { windowDays: 10, minRestaurantAgeDays: 14, bulkThreshold: 8, maxItems: 4 },
+    paramLabels: { windowDays: 'Fönster (dagar)', minRestaurantAgeDays: 'Min restaurangålder', bulkThreshold: 'Bulkgräns', maxItems: 'Max produkter' },
   },
   {
     key: 'new_restaurants',
@@ -136,6 +144,7 @@ export const ENGINE_DEFS: EngineDef[] = [
 ];
 
 export type EngineSettings = Record<EngineKey, { enabled: boolean; params: Record<string, number> }>;
+export const PREVIEW_ALL_MODULES_KEY = 'preview_all_modules';
 
 export async function getEngineSettings(): Promise<EngineSettings> {
   const rows = await (prisma as any).engineSetting.findMany().catch(() => []);
@@ -149,6 +158,28 @@ export async function getEngineSettings(): Promise<EngineSettings> {
     };
   }
   return result;
+}
+
+export async function isPreviewAllModulesEnabled(): Promise<boolean> {
+  const row = await (prisma as any).engineSetting.findUnique({ where: { key: PREVIEW_ALL_MODULES_KEY } }).catch(() => null);
+  return Boolean(row?.enabled);
+}
+
+export async function setPreviewAllModulesEnabled(enabled: boolean): Promise<boolean> {
+  await (prisma as any).engineSetting.upsert({
+    where: { key: PREVIEW_ALL_MODULES_KEY },
+    create: { key: PREVIEW_ALL_MODULES_KEY, enabled, params: {} },
+    update: { enabled, params: {} },
+  });
+  await (prisma as any).engineEvent.create({
+    data: {
+      id: `ev${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+      engine: 'preview_all_modules',
+      message: enabled ? 'Testläge på: alla moduler visas i appen' : 'Testläge av: normal rotation gäller',
+      meta: { enabled },
+    },
+  }).catch(() => null);
+  return enabled;
 }
 
 // Loggar till Motorn-sidan. Dedupe: samma motor + samma meddelande som senaste
@@ -178,6 +209,34 @@ const restaurantDto = (r: any) => ({
   heroImageUrl: r.heroImageUrl || null,
   rating: r.rating ?? null,
 });
+
+const productDto = (p: any) => ({
+  productId: p.id,
+  name: p.name,
+  priceKr: Math.round(p.price || 0) / 100,
+  imageUrl: p.imageUrl || null,
+  restaurant: restaurantDto(p.category.restaurant),
+});
+
+async function previewRestaurants(limit = 4) {
+  const restaurants = await prisma.restaurant.findMany({
+    where: { comingSoon: false },
+    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true },
+    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    take: limit,
+  });
+  return restaurants.map(restaurantDto);
+}
+
+async function previewProducts(limit = 4) {
+  const products = await prisma.product.findMany({
+    where: { isActive: true, category: { isActive: true, restaurant: { comingSoon: false } } },
+    include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true } } } } },
+    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    take: limit,
+  });
+  return (products as any[]).map(productDto);
+}
 
 // ── Champion: mest beställda restaurangen senaste 7 dagarna ────────────────
 async function buildChampion(params: Record<string, number>) {
@@ -222,6 +281,26 @@ async function buildChampion(params: Record<string, number>) {
     title: 'Veckans favorit',
     subtitle: `${pick._count._all} beställningar senaste veckan`,
     restaurant: restaurantDto(restaurant),
+    images,
+  };
+}
+
+async function previewChampion() {
+  const restaurants = await previewRestaurants(1);
+  const restaurant = restaurants[0];
+  if (!restaurant) return null;
+  const products = await previewProducts(4);
+  const images = [restaurant.heroImageUrl, restaurant.imageUrl, ...products.map((p) => p.imageUrl)]
+    .filter((url): url is string => Boolean(url))
+    .filter((url, index, list) => list.indexOf(url) === index)
+    .slice(0, 5);
+  return {
+    type: 'CHAMPION',
+    id: `preview:champion:${restaurant.id}`,
+    theme: themeForKey(`preview:champion:${restaurant.id}`),
+    title: 'Veckans favorit',
+    subtitle: 'Populär nära dig',
+    restaurant,
     images,
   };
 }
@@ -275,6 +354,19 @@ async function buildHotProducts(params: Record<string, number>) {
   };
 }
 
+async function previewHotProducts() {
+  const products = await previewProducts(8);
+  if (!products.length) return null;
+  return {
+    type: 'HOT_PRODUCTS',
+    id: 'preview:hot_products',
+    theme: themeForKey('preview:hot_products'),
+    title: 'Hetast just nu',
+    subtitle: 'Mest beställt de senaste dagarna',
+    products,
+  };
+}
+
 // ── Nytt på menyn: nya produkter hos ETABLERADE partners (bulk-skydd) ───────
 async function buildNewMenuItems(params: Record<string, number>) {
   const windowStart = new Date(Date.now() - (params.windowDays || 10) * 24 * 60 * 60 * 1000);
@@ -323,6 +415,19 @@ async function buildNewMenuItems(params: Record<string, number>) {
     title: 'Nytt på menyn',
     subtitle: 'Färska tillskott hos dina lokala',
     items: items.slice(0, params.maxItems || 4),
+  };
+}
+
+async function previewNewMenuItems() {
+  const items = await previewProducts(4);
+  if (!items.length) return null;
+  return {
+    type: 'NEW_MENU_ITEMS',
+    id: 'preview:new_menu_items',
+    theme: themeForKey('preview:new_menu_items'),
+    title: 'Nytt på menyn',
+    subtitle: 'Färska tillskott hos dina lokala',
+    items,
   };
 }
 
@@ -395,6 +500,23 @@ async function buildFastestToday(params: Record<string, number>) {
   };
 }
 
+async function previewFastestToday() {
+  const restaurants = (await previewRestaurants(4)).map((r, index) => ({
+    ...r,
+    avgMinutesToday: 22 + index * 4,
+    deliveredToday: 8 - index,
+  }));
+  if (!restaurants.length) return null;
+  return {
+    type: 'FASTEST_TODAY',
+    id: 'preview:fastest_today',
+    theme: themeForKey('preview:fastest_today'),
+    title: 'Snabbast idag',
+    subtitle: 'Räknat på dagens riktiga leveranser',
+    restaurants,
+  };
+}
+
 // ── Nästan framme: reward-produkt kunden är ~70 % nära (visas ibland) ───────
 function rewardPointsPrice(product: { price: number; rewardPointsMultiplier?: number | null; rewardPointsPrice?: number | null }): number {
   if (typeof product.rewardPointsPrice === 'number' && product.rewardPointsPrice > 0) return Math.ceil(product.rewardPointsPrice);
@@ -447,13 +569,35 @@ async function buildPointsNudge(userId: string, params: Record<string, number>) 
   };
 }
 
+async function previewPointsNudge() {
+  const products = await previewProducts(1);
+  const product = products[0];
+  if (!product) return null;
+  const costPoints = Math.max(120, Math.round(product.priceKr * 1.5));
+  return {
+    type: 'POINTS_NUDGE',
+    id: `preview:points_nudge:${product.productId}`,
+    theme: themeForKey(`preview:points_nudge:${product.productId}`),
+    title: 'Nästan framme',
+    product: {
+      productId: product.productId,
+      name: product.name,
+      imageUrl: product.imageUrl,
+      costPoints,
+      restaurant: product.restaurant,
+    },
+    balance: Math.max(10, Math.round(costPoints * 0.7)),
+    remainingPoints: Math.max(1, Math.round(costPoints * 0.3)),
+  };
+}
+
 // ── Dagens drop: EN utvald bestseller per dag, tidsfönster + nedräkning ─────
-async function buildDailyDrop(params: Record<string, number>) {
+async function buildDailyDrop(params: Record<string, number>, force = false) {
   const now = new Date();
   const hour = now.getHours();
   const startHour = params.startHour ?? 15;
   const endHour = params.endHour ?? 21;
-  if (hour < startHour || hour >= endHour) return null;
+  if (!force && (hour < startHour || hour >= endHour)) return null;
 
   const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
   const minPriceOre = Math.round((params.minPriceKr || 70) * 100);
@@ -493,6 +637,25 @@ async function buildDailyDrop(params: Record<string, number>) {
   };
 }
 
+async function previewDailyDrop(params: Record<string, number>) {
+  const real = await buildDailyDrop(params, true);
+  if (real) return real;
+  const products = await previewProducts(1);
+  const product = products[0];
+  if (!product) return null;
+  const endsAt = new Date();
+  endsAt.setHours(Math.max(endsAt.getHours() + 2, 21), 0, 0, 0);
+  return {
+    type: 'DAILY_DROP',
+    id: `preview:daily_drop:${product.productId}`,
+    theme: themeForKey(`preview:daily_drop:${product.productId}`),
+    title: 'Dagens drop',
+    subtitle: 'Ikväll till 21:00',
+    endsAt: endsAt.toISOString(),
+    product,
+  };
+}
+
 // ── Ny i stan: nyöppnade restauranger, automatisk räls i två veckor ─────────
 async function buildNewRestaurants(params: Record<string, number>) {
   const since = new Date(Date.now() - (params.windowDays || 14) * 24 * 60 * 60 * 1000);
@@ -510,6 +673,19 @@ async function buildNewRestaurants(params: Record<string, number>) {
     title: 'Ny i stan',
     subtitle: 'Nyöppnat nära dig',
     restaurants: restaurants.map(restaurantDto),
+  };
+}
+
+async function previewNewRestaurants() {
+  const restaurants = await previewRestaurants(6);
+  if (!restaurants.length) return null;
+  return {
+    type: 'NEW_RESTAURANTS',
+    id: 'preview:new_restaurants',
+    theme: themeForKey('preview:new_restaurants'),
+    title: 'Ny i stan',
+    subtitle: 'Nyöppnat nära dig',
+    restaurants,
   };
 }
 
@@ -565,6 +741,22 @@ async function buildTrending(params: Record<string, number>) {
   };
 }
 
+async function previewTrending() {
+  const restaurants = (await previewRestaurants(4)).map((r, index) => ({
+    ...r,
+    growthPct: 42 - index * 7,
+  }));
+  if (!restaurants.length) return null;
+  return {
+    type: 'TRENDING',
+    id: 'preview:trending',
+    theme: themeForKey('preview:trending'),
+    title: 'Trendar i stan',
+    subtitle: 'Växer snabbast just nu',
+    restaurants,
+  };
+}
+
 // ── Vi saknar dig: gillad restaurang, tyst i N dagar (personlig) ────────────
 async function buildComeback(userId: string, params: Record<string, number>) {
   const quietSince = new Date(Date.now() - (params.quietDays || 21) * 24 * 60 * 60 * 1000);
@@ -592,6 +784,20 @@ async function buildComeback(userId: string, params: Record<string, number>) {
     title: `${restaurant.name} saknar dig`,
     subtitle: `${pick._count._all} beställningar tidigare. Dags igen?`,
     restaurant: restaurantDto(restaurant),
+  };
+}
+
+async function previewComeback() {
+  const restaurants = await previewRestaurants(1);
+  const restaurant = restaurants[0];
+  if (!restaurant) return null;
+  return {
+    type: 'COMEBACK',
+    id: `preview:comeback:${restaurant.id}`,
+    theme: themeForKey(`preview:comeback:${restaurant.id}`),
+    title: `${restaurant.name} saknar dig`,
+    subtitle: 'Dags igen?',
+    restaurant,
   };
 }
 
@@ -631,6 +837,17 @@ async function buildStreakCard(userId: string) {
   };
 }
 
+async function previewStreakCard() {
+  return {
+    type: 'STREAK',
+    id: 'preview:streak',
+    theme: themeForKey('preview:streak'),
+    title: 'Ditt uppdrag',
+    subtitle: '2 av 3 · 50 p väntar',
+    progress: { count: 2, target: 3, rewardPoints: 50 },
+  };
+}
+
 // ── Occasions: admin-skapade återkommande tillfällen ────────────────────────
 // Lagras i EngineSetting key='occasions_data', params = { items: [...] }.
 export type OccasionItem = {
@@ -659,12 +876,14 @@ export async function writeOccasions(items: OccasionItem[]): Promise<void> {
   });
 }
 
-async function buildOccasion() {
+async function buildOccasion(force = false) {
   const now = new Date();
   const items = await readOccasions();
-  const matching = items.filter(
-    (o) => o.active && o.days?.includes(now.getDay()) && now.getHours() >= (o.startHour ?? 0) && now.getHours() < (o.endHour ?? 24),
-  );
+  const matching = force
+    ? items.filter((o) => o.active)
+    : items.filter(
+        (o) => o.active && o.days?.includes(now.getDay()) && now.getHours() >= (o.startHour ?? 0) && now.getHours() < (o.endHour ?? 24),
+      );
   if (!matching.length) return null;
   const pick = dailyPick(matching, 'occasion');
   if (!pick) return null;
@@ -674,6 +893,18 @@ async function buildOccasion() {
     theme: pick.theme || themeForKey(`occasion:${pick.id}`),
     title: pick.title,
     subtitle: pick.subtitle || null,
+  };
+}
+
+async function previewOccasion() {
+  const real = await buildOccasion(true);
+  if (real) return real;
+  return {
+    type: 'OCCASION',
+    id: 'preview:occasion',
+    theme: 'ember',
+    title: 'Fredagsmys?',
+    subtitle: 'Något gott nära dig',
   };
 }
 
@@ -694,11 +925,11 @@ async function fetchWeatherSymbol(lat: number, lon: number): Promise<number | nu
   }
 }
 
-async function buildWeather(params: Record<string, number>) {
+async function buildWeather(params: Record<string, number>, force = false) {
   const lat = params.lat || 55.7;
   const lon = params.lon || 13.19;
   const symbol = await cachedWeather(lat, lon);
-  if (symbol === null || !RAINY_SYMBOLS.has(symbol)) return null;
+  if (!force && (symbol === null || !RAINY_SYMBOLS.has(symbol))) return null;
   const snowy = symbol >= 15 && symbol <= 17 || symbol >= 25;
   return {
     type: 'WEATHER',
@@ -707,6 +938,10 @@ async function buildWeather(params: Record<string, number>) {
     title: snowy ? 'Snöar ute. Stanna inne.' : 'Regnar ute. Vi kör.',
     subtitle: 'Maten kommer till dig, du myser.',
   };
+}
+
+async function previewWeather(params: Record<string, number>) {
+  return buildWeather(params, true);
 }
 
 // 30 min-cache i minnet (vädret ändras inte per request).
@@ -718,6 +953,101 @@ async function cachedWeather(lat: number, lon: number): Promise<number | null> {
   const value = await fetchWeatherSymbol(lat, lon);
   weatherCache = { key, value, expiresAt: now + 30 * 60 * 1000 };
   return value;
+}
+
+// ── Din favorit: mest beställda artikeln (3+ köp, över prisgolvet) ──────────
+// Roterar bland kandidaterna dag för dag. Försvinner medan en claim är aktiv
+// och under en paus efter köp — pausen är kortare för tysta kunder (de behöver
+// en anledning att komma tillbaka) och längre för aktiva.
+export async function favoriteCandidates(userId: string, params: Record<string, number>) {
+  const minPriceOre = Math.round((params.minPriceKr || 100) * 100);
+  const minCount = Math.max(2, Math.round(params.minCount || 3));
+  const grouped = await (prisma.orderItem.groupBy as any)({
+    by: ['productId'],
+    where: {
+      basePrice: { gte: minPriceOre },
+      order: { userId, status: { notIn: EXCLUDED_STATUSES } },
+    },
+    _sum: { quantity: true },
+    orderBy: { _sum: { quantity: 'desc' } },
+    take: 8,
+  });
+  const strong = (grouped as any[]).filter((g) => (g._sum.quantity || 0) >= minCount);
+  if (!strong.length) return [];
+  const products = await prisma.product.findMany({
+    where: { id: { in: strong.map((g) => g.productId) }, isActive: true, price: { gte: minPriceOre } },
+    include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, comingSoon: true } } } } },
+  });
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return strong
+    .map((g) => {
+      const product = byId.get(g.productId) as any;
+      const restaurant = product?.category?.restaurant;
+      if (!product || !restaurant || restaurant.comingSoon) return null;
+      return { product, restaurant, timesOrdered: g._sum.quantity || 0 };
+    })
+    .filter(Boolean) as { product: any; restaurant: any; timesOrdered: number }[];
+}
+
+async function buildFavoriteProduct(userId: string, params: Record<string, number>) {
+  // Aktiv favorit-claim ute? Då visas inget kort (den ligger i kassan).
+  const active = await (prisma as any).userDeal.findFirst({
+    where: { userId, type: 'FAVORITE_PRODUCT', status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }] },
+    select: { id: true },
+  });
+  if (active) return null;
+
+  // Paus efter köp: aktiva kunder får vänta längre, tysta lockas tillbaka fortare.
+  const lastUsed = await (prisma as any).userDeal.findFirst({
+    where: { userId, type: 'FAVORITE_PRODUCT', status: 'USED' },
+    orderBy: { usedAt: 'desc' },
+    select: { usedAt: true },
+  });
+  if (lastUsed?.usedAt) {
+    const recentOrders = await prisma.order.count({
+      where: { userId, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }, status: { notIn: EXCLUDED_STATUSES } },
+    });
+    const cooldownDays = recentOrders >= 2 ? (params.activeCooldownDays || 5) : (params.quietCooldownDays || 2);
+    if (new Date(lastUsed.usedAt).getTime() > Date.now() - cooldownDays * 24 * 60 * 60 * 1000) return null;
+  }
+
+  const candidates = await favoriteCandidates(userId, params);
+  if (!candidates.length) return null;
+  // Rotation: 4 köp och 6 köp av två olika artiklar → varannan gång var.
+  const pick = dailyPick(candidates, `favorite:${userId}`);
+  if (!pick) return null;
+  const priceOre = Math.min(pick.product.price, pick.product.discountPrice || pick.product.price);
+  const percent = Math.max(5, Math.round(params.percent || 10));
+  return {
+    type: 'FAVORITE',
+    id: `favorite:${pick.product.id}`,
+    theme: themeForKey(`favorite:${pick.product.id}`),
+    title: 'Din favorit',
+    subtitle: `Du har beställt den ${pick.timesOrdered} gånger`,
+    percent,
+    product: {
+      productId: pick.product.id,
+      name: pick.product.name,
+      priceKr: Math.round(priceOre) / 100,
+      imageUrl: pick.product.imageUrl || null,
+      restaurant: restaurantDto(pick.restaurant),
+    },
+  };
+}
+
+async function previewFavoriteProduct(params: Record<string, number>) {
+  const products = await previewProducts(1);
+  const product = products[0];
+  if (!product) return null;
+  return {
+    type: 'FAVORITE',
+    id: `preview:favorite:${product.productId}`,
+    theme: themeForKey(`preview:favorite:${product.productId}`),
+    title: 'Din favorit',
+    subtitle: 'Du har beställt den 4 gånger',
+    percent: Math.max(5, Math.round(params.percent || 10)),
+    product,
+  };
 }
 
 // ── Dygnspulsen: hälsning efter tid på dygnet (server-styrd copy) ───────────
@@ -737,19 +1067,26 @@ const MAX_MODULES = 6;
 
 export async function buildHomePulse(userId: string | null): Promise<{ greeting: string; modules: any[] }> {
   const settings = await getEngineSettings();
+  const previewAll = await isPreviewAllModulesEnabled();
+  const buildForPreview = async (normal: Promise<any>, preview: () => Promise<any>) => {
+    const module = await normal.catch(() => null);
+    return module || (previewAll ? preview() : null);
+  };
+  const engineOn = (key: EngineKey) => previewAll || settings[key].enabled;
   const jobs: Promise<any>[] = [
-    settings.champion.enabled ? buildChampion(settings.champion.params) : Promise.resolve(null),
-    settings.hot_products.enabled ? buildHotProducts(settings.hot_products.params) : Promise.resolve(null),
-    settings.new_menu_items.enabled ? buildNewMenuItems(settings.new_menu_items.params) : Promise.resolve(null),
-    settings.fastest_today.enabled ? buildFastestToday(settings.fastest_today.params) : Promise.resolve(null),
-    settings.daily_drop.enabled ? buildDailyDrop(settings.daily_drop.params) : Promise.resolve(null),
-    settings.new_restaurants.enabled ? buildNewRestaurants(settings.new_restaurants.params) : Promise.resolve(null),
-    settings.trending.enabled ? buildTrending(settings.trending.params) : Promise.resolve(null),
-    userId && settings.points_nudge.enabled ? buildPointsNudge(userId, settings.points_nudge.params) : Promise.resolve(null),
-    userId && settings.comeback.enabled ? buildComeback(userId, settings.comeback.params) : Promise.resolve(null),
-    userId && settings.streak_card.enabled ? buildStreakCard(userId) : Promise.resolve(null),
-    settings.occasions.enabled ? buildOccasion() : Promise.resolve(null),
-    settings.weather_pulse.enabled ? buildWeather(settings.weather_pulse.params) : Promise.resolve(null),
+    engineOn('champion') ? buildForPreview(buildChampion(settings.champion.params), previewChampion) : Promise.resolve(null),
+    engineOn('hot_products') ? buildForPreview(buildHotProducts(settings.hot_products.params), previewHotProducts) : Promise.resolve(null),
+    engineOn('favorite_product') && userId ? buildForPreview(buildFavoriteProduct(userId, settings.favorite_product.params), () => previewFavoriteProduct(settings.favorite_product.params)) : previewAll ? previewFavoriteProduct(settings.favorite_product.params) : Promise.resolve(null),
+    engineOn('fastest_today') ? buildForPreview(buildFastestToday(settings.fastest_today.params), previewFastestToday) : Promise.resolve(null),
+    engineOn('daily_drop') ? buildForPreview(buildDailyDrop(settings.daily_drop.params, previewAll), () => previewDailyDrop(settings.daily_drop.params)) : Promise.resolve(null),
+    engineOn('new_menu_items') ? buildForPreview(buildNewMenuItems(settings.new_menu_items.params), previewNewMenuItems) : Promise.resolve(null),
+    engineOn('new_restaurants') ? buildForPreview(buildNewRestaurants(settings.new_restaurants.params), previewNewRestaurants) : Promise.resolve(null),
+    engineOn('trending') ? buildForPreview(buildTrending(settings.trending.params), previewTrending) : Promise.resolve(null),
+    engineOn('points_nudge') && userId ? buildForPreview(buildPointsNudge(userId, settings.points_nudge.params), previewPointsNudge) : previewAll ? previewPointsNudge() : Promise.resolve(null),
+    engineOn('comeback') && userId ? buildForPreview(buildComeback(userId, settings.comeback.params), previewComeback) : previewAll ? previewComeback() : Promise.resolve(null),
+    engineOn('streak_card') && userId ? buildForPreview(buildStreakCard(userId), previewStreakCard) : previewAll ? previewStreakCard() : Promise.resolve(null),
+    engineOn('occasions') ? buildForPreview(buildOccasion(previewAll), previewOccasion) : Promise.resolve(null),
+    engineOn('weather_pulse') ? buildForPreview(buildWeather(settings.weather_pulse.params, previewAll), () => previewWeather(settings.weather_pulse.params)) : Promise.resolve(null),
   ];
   const results = await Promise.allSettled(jobs);
   const modules = results
@@ -758,12 +1095,12 @@ export async function buildHomePulse(userId: string | null): Promise<{ greeting:
 
   // Personligt + hero har förtur; resten roterar dagligen om det finns fler
   // än plats. Appen interfolierar modulerna mellan restaurangsektionerna.
-  const priorityTypes = new Set(['CHAMPION', 'DAILY_DROP', 'POINTS_NUDGE', 'STREAK', 'COMEBACK', 'OCCASION', 'WEATHER']);
+  const priorityTypes = new Set(['CHAMPION', 'DAILY_DROP', 'POINTS_NUDGE', 'STREAK', 'COMEBACK', 'OCCASION', 'WEATHER', 'FAVORITE']);
   const priority = modules.filter((m) => priorityTypes.has(m.type));
   const rest = modules
     .filter((m) => !priorityTypes.has(m.type))
     .sort((a, b) => dailyScore(`slot:${a.type}`) - dailyScore(`slot:${b.type}`));
-  const picked = [...priority, ...rest].slice(0, MAX_MODULES);
+  const picked = previewAll ? [...priority, ...rest] : [...priority, ...rest].slice(0, MAX_MODULES);
 
   // Tema-rotation avstängd → neutralt tema på allt.
   if (!settings.theme_rotation.enabled) {

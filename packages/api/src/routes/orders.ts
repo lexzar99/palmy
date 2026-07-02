@@ -993,6 +993,18 @@ router.post('/', async (req: Request, res: Response) => {
       if (dealScope && !dealScope.includes(restaurant.id)) {
         throw new OrderValidationError('Kupongen gäller inte på den här restaurangen');
       }
+      // Din favorit: rabatten gäller bara när favoriten ligger i beställningen
+      // hos sin restaurang.
+      const favoriteMeta = (userDeal.metadata || {}) as any;
+      if (favoriteMeta.favoriteProductId) {
+        if (favoriteMeta.restaurantId && favoriteMeta.restaurantId !== restaurant.id) {
+          throw new OrderValidationError('Favorit-rabatten gäller hos en annan restaurang');
+        }
+        const hasFavorite = (data.items || []).some((item: any) => item.productId === favoriteMeta.favoriteProductId);
+        if (!hasFavorite) {
+          throw new OrderValidationError('Lägg din favorit i beställningen för att använda rabatten');
+        }
+      }
       const minOrderKr = (userDeal.metadata as any)?.minOrderKr ?? 0;
       if (subtotal < minOrderKr * 100) {
         throw new OrderValidationError(

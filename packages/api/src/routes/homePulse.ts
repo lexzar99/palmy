@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { buildHomePulse } from '../lib/homePulse';
+import { buildHomePulse, isPreviewAllModulesEnabled } from '../lib/homePulse';
 import { cached } from '../lib/ttlCache';
 import { authenticateUserOptional } from './auth';
 
@@ -10,7 +10,8 @@ const router = Router();
 router.get('/pulse', authenticateUserOptional, async (req: any, res) => {
   try {
     const userId: string | null = req.user?.id || null;
-    const payload = userId
+    const previewAll = await isPreviewAllModulesEnabled();
+    const payload = userId || previewAll
       ? await buildHomePulse(userId)
       : await cached('home:pulse', 'anon', 300_000, () => buildHomePulse(null));
     res.json(payload);

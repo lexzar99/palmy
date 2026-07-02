@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { Eye, RefreshCw } from "lucide-react";
 import { apiGet, apiPatch, apiPost, apiPut } from "@/shared/api/client";
 import { Button, EmptyState, ErrorPanel, PageHeader, Surface, Toggle } from "@/shared/components/ui";
 import { cn } from "@/shared/utils/cn";
@@ -17,6 +17,11 @@ interface EngineRecord {
   paramLabels: Record<string, string>;
   enabled: boolean;
   params: Record<string, number>;
+}
+
+interface EnginesResponse {
+  previewAllModules: boolean;
+  engines: EngineRecord[];
 }
 
 interface OccasionItem {
@@ -64,7 +69,7 @@ export function EnginesPage() {
   const qc = useQueryClient();
   const engines = useQuery({
     queryKey: enginesKey,
-    queryFn: () => apiGet<{ engines: EngineRecord[] }>("/admin/engines"),
+    queryFn: () => apiGet<EnginesResponse>("/admin/engines"),
   });
   const events = useQuery({
     queryKey: engineEventsKey,
@@ -75,6 +80,14 @@ export function EnginesPage() {
   const patchMutation = useMutation({
     mutationFn: ({ key, body }: { key: string; body: { enabled?: boolean; params?: Record<string, number> } }) =>
       apiPatch(`/admin/engines/${key}`, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: enginesKey });
+      void qc.invalidateQueries({ queryKey: engineEventsKey });
+    },
+  });
+
+  const previewMutation = useMutation({
+    mutationFn: (enabled: boolean) => apiPatch<{ previewAllModules: boolean }>("/admin/engines/preview-all", { enabled }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: enginesKey });
       void qc.invalidateQueries({ queryKey: engineEventsKey });
@@ -102,6 +115,32 @@ export function EnginesPage() {
         title="Motorn"
         actions={<Button variant="secondary" onClick={() => { void engines.refetch(); void events.refetch(); }} aria-label="Uppdatera"><RefreshCw size={14} /></Button>}
       />
+
+      <Surface className="p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)]">
+              <Eye size={16} />
+            </span>
+            <div className="min-w-0">
+              <div className="text-[14px] font-extrabold">Visa allt i appen</div>
+              <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--text-secondary)]">
+                Testläge för Swift. Alla hemskärmsmoduler visas samtidigt tills du stänger av.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-[11.5px] font-bold text-[var(--text-muted)]">
+              {engines.data.previewAllModules ? "På" : "Av"}
+            </span>
+            <Toggle
+              checked={engines.data.previewAllModules}
+              onChange={(next) => previewMutation.mutate(next)}
+              disabled={previewMutation.isPending}
+            />
+          </div>
+        </div>
+      </Surface>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {engines.data.engines.map((engine) => {

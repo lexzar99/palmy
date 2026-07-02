@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
-import { ENGINE_DEFS, getEngineSettings, readOccasions, writeOccasions, type EngineKey, type OccasionItem } from '../lib/homePulse';
+import { bustCache } from '../lib/ttlCache';
+import { ENGINE_DEFS, getEngineSettings, isPreviewAllModulesEnabled, readOccasions, setPreviewAllModulesEnabled, writeOccasions, type EngineKey, type OccasionItem } from '../lib/homePulse';
 import { readABTests, writeABTests, abTestStats, type ABTestItem } from '../lib/abTests';
 
 const router = Router();
@@ -13,6 +14,7 @@ router.get('/', async (_req, res) => {
   try {
     const settings = await getEngineSettings();
     res.json({
+      previewAllModules: await isPreviewAllModulesEnabled(),
       engines: ENGINE_DEFS.map((def) => ({
         key: def.key,
         title: def.title,
@@ -25,6 +27,24 @@ router.get('/', async (_req, res) => {
   } catch (error: any) {
     console.error('[engines list] error:', error?.message);
     res.status(500).json({ error: 'Kunde inte läsa motorerna' });
+  }
+});
+
+const PreviewSchema = z.object({
+  enabled: z.boolean(),
+});
+
+// PATCH /api/admin/engines/preview-all — testläge: visa alla Swift-moduler.
+router.patch('/preview-all', async (req, res) => {
+  try {
+    const data = PreviewSchema.parse(req.body);
+    const enabled = await setPreviewAllModulesEnabled(data.enabled);
+    bustCache('home:pulse', 'anon');
+    res.json({ previewAllModules: enabled });
+  } catch (error: any) {
+    if (error?.name === 'ZodError') return res.status(400).json({ error: 'Ogiltigt testläge' });
+    console.error('[engines preview-all] error:', error?.message);
+    res.status(500).json({ error: 'Kunde inte spara testläget' });
   }
 });
 
