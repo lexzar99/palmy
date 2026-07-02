@@ -45,14 +45,18 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
     suspend fun sponsors(): List<Sponsor> = decodeDelivera(getRaw("/api/sponsors"))
 
     suspend fun homeAppDeals(isLoggedIn: Boolean, token: String?): HomeAppDealsResponse {
+        return appDeals("HOME_TOP", 8, isLoggedIn, token)
+    }
+
+    suspend fun appDeals(placement: String, limit: Int = 8, isLoggedIn: Boolean, token: String?): HomeAppDealsResponse {
         val headers = mutableMapOf<String, String>()
         if (!token.isNullOrBlank()) headers["Authorization"] = "Bearer $token"
         return decodeDelivera(
             getRaw(
                 "/api/deals/app",
                 mapOf(
-                    "placement" to "HOME_TOP",
-                    "limit" to "8",
+                    "placement" to placement,
+                    "limit" to limit.toString(),
                     "loggedIn" to if (isLoggedIn) "1" else "0",
                     "_t" to now()
                 ),

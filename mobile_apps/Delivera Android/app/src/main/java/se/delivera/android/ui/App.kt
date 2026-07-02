@@ -52,10 +52,14 @@ import se.delivera.android.data.Prefs
 import se.delivera.android.data.Restaurant
 import se.delivera.android.data.deliveraJson
 import se.delivera.android.ui.address.AddressSheet
+import se.delivera.android.ui.cart.CartScreen
+import se.delivera.android.ui.cart.CartStore
 import se.delivera.android.ui.home.DealCardAction
 import se.delivera.android.ui.home.HomeScreen
 import se.delivera.android.ui.home.HomeViewModel
+import se.delivera.android.ui.profile.ProfileScreen
 import se.delivera.android.ui.restaurant.RestaurantDetailScreen
+import se.delivera.android.ui.rewards.RewardsScreen
 import se.delivera.android.ui.theme.DeliveraTheme
 
 enum class HomeTab(val title: String, val icon: ImageVector) {
@@ -72,6 +76,7 @@ fun DeliveraApp() {
     val authToken by Prefs.authTokenState
     val scope = rememberCoroutineScope()
     val api = remember { DeliveraApi() }
+    val cartStore = remember { CartStore() }
 
     var selectedTab by rememberSaveable { mutableStateOf(HomeTab.Home) }
     var selectedRestaurant by remember { mutableStateOf<Restaurant?>(null) }
@@ -177,6 +182,8 @@ fun DeliveraApp() {
         RestaurantDetailScreen(
             restaurant = detail,
             orderMode = orderMode,
+            activeAddress = if (orderMode == OrderMode.Delivery) deliveryAddress else pickupCity,
+            cartStore = cartStore,
             onBack = { selectedRestaurant = null },
             onOpenCart = { selectedRestaurant = null; selectedTab = HomeTab.Cart }
         )
@@ -208,13 +215,30 @@ fun DeliveraApp() {
                 },
                 onToggleFavorite = ::toggleFavorite
             )
-            HomeTab.Cart -> PlaceholderScreen("Varukorg", "Kassan (Adyen) portas i nästa steg.")
-            HomeTab.Rewards -> PlaceholderScreen("Belöningar", "Dpoints, hero-kort och belöningsprodukter portas i nästa steg.")
-            HomeTab.Profile -> PlaceholderScreen("Profil", "Inloggning, orderhistorik och inställningar portas i nästa steg.")
+            HomeTab.Cart -> CartScreen(
+                cartStore = cartStore,
+                isLoggedIn = authToken.isNotBlank(),
+                onExploreRestaurants = { selectedTab = HomeTab.Home },
+                onOpenProfile = { selectedTab = HomeTab.Profile }
+            )
+            HomeTab.Rewards -> RewardsScreen(
+                authToken = authToken,
+                onOpenProfile = { selectedTab = HomeTab.Profile },
+                onClaimedDeal = { deal ->
+                    if (deal.missionType.isNullOrBlank()) activateDealInCart(deal)
+                    homeVm.replaceDeal(deal)
+                }
+            )
+            HomeTab.Profile -> ProfileScreen(
+                authToken = authToken,
+                favoriteCount = favorites.size,
+                onOpenHome = { selectedTab = HomeTab.Home }
+            )
         }
 
         FloatingBottomNav(
             selectedTab = selectedTab,
+            cartCount = cartStore.count,
             onSelect = { selectedTab = it },
             modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 20.dp, vertical = 20.dp)
         )
@@ -261,7 +285,7 @@ fun PlaceholderScreen(title: String, subtitle: String) {
 }
 
 @Composable
-private fun FloatingBottomNav(selectedTab: HomeTab, onSelect: (HomeTab) -> Unit, modifier: Modifier = Modifier) {
+private fun FloatingBottomNav(selectedTab: HomeTab, cartCount: Int, onSelect: (HomeTab) -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier
             .fillMaxWidth()
@@ -286,7 +310,14 @@ private fun FloatingBottomNav(selectedTab: HomeTab, onSelect: (HomeTab) -> Unit,
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Icon(tab.icon, null, tint = if (selected) DeliveraTheme.orange else DeliveraTheme.muted, modifier = Modifier.size(21.dp))
+                Box(contentAlignment = Alignment.TopEnd) {
+                    Icon(tab.icon, null, tint = if (selected) DeliveraTheme.orange else DeliveraTheme.muted, modifier = Modifier.size(21.dp))
+                    if (tab == HomeTab.Cart && cartCount > 0) {
+                        Box(Modifier.size(15.dp).clip(CircleShape).background(DeliveraTheme.orange), contentAlignment = Alignment.Center) {
+                            Text(if (cartCount > 9) "9+" else "$cartCount", fontSize = 8.sp, fontWeight = FontWeight.Black, color = Color.White)
+                        }
+                    }
+                }
                 Spacer(Modifier.height(3.dp))
                 Text(tab.title, fontSize = 11.sp, fontWeight = FontWeight.Black, color = if (selected) DeliveraTheme.orange else DeliveraTheme.muted, maxLines = 1)
             }
