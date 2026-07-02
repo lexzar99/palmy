@@ -135,7 +135,101 @@ data class MenuExtra(
 data class DpointsMe(
     val enabled: Boolean,
     val balance: Int,
-    val valuePerKr: Double
+    val valuePerKr: Double,
+    val signup: DpointsSignupClaim? = null,
+    val streak: DpointsStreak? = null,
+    val transactions: List<DpointsTransaction> = emptyList()
+)
+
+@Serializable
+data class DpointsSignupClaim(
+    val claimable: Boolean = false,
+    val bonusPoints: Int = 0
+)
+
+@Serializable
+data class DpointsStreak(
+    val count: Int = 0,
+    val target: Int = 0
+)
+
+@Serializable
+data class DpointsTransaction(
+    val id: String,
+    val amount: Int,
+    val type: String? = null,
+    val reason: String? = null,
+    val balanceAfter: Int? = null,
+    val createdAt: String? = null
+)
+
+@Serializable
+data class DpointsRewardsResponse(
+    val enabled: Boolean = false,
+    val valuePerKr: Double? = null,
+    val rewards: List<DpointsReward> = emptyList(),
+    val earnRules: List<DpointsEarnRule> = emptyList(),
+    val streakTarget: Int? = null
+)
+
+@Serializable
+data class DpointsReward(
+    val id: String,
+    val title: String,
+    val description: String? = null,
+    val pointsCost: Int,
+    val discountType: String? = null,
+    val discountValue: Int? = null,
+    val minOrderKr: Int? = null,
+    val freeDelivery: Boolean? = null,
+    val validDays: Int? = null,
+    val imageUrl: String? = null
+)
+
+@Serializable
+data class DpointsEarnRule(
+    val key: String,
+    val label: String,
+    val points: Int,
+    val repeat: String? = null
+)
+
+@Serializable
+data class DpointsSignupClaimResponse(
+    val ok: Boolean = false,
+    val points: Int = 0,
+    val balance: Int = 0
+)
+
+@Serializable
+data class DiscountValidationRequest(
+    val code: String,
+    val subtotal: Double
+)
+
+@Serializable
+data class DiscountValidationResponse(
+    val valid: Boolean = false,
+    val code: String? = null,
+    val description: String? = null,
+    val type: String? = null,
+    val value: Double? = null,
+    val discountAmount: Double = 0.0,
+    val minOrder: Double? = null,
+    val freeDelivery: Boolean = false
+)
+
+@Serializable
+data class ReferralRedeemRequest(
+    val code: String
+)
+
+@Serializable
+data class ReferralRedeemResponse(
+    val ok: Boolean? = null,
+    val message: String? = null,
+    val userDealId: String? = null,
+    val deal: HomeAppDeal? = null
 )
 
 /* ------------------------------------------------------------------ */

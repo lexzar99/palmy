@@ -25,9 +25,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
@@ -169,7 +169,7 @@ fun AddressSheet(
                 ModeChip("Leverans", Icons.Filled.ElectricBolt, draftMode == OrderMode.Delivery, Modifier.weight(1f)) {
                     draftMode = OrderMode.Delivery
                 }
-                ModeChip("Avhämtning", Icons.Filled.DirectionsWalk, draftMode == OrderMode.Pickup, Modifier.weight(1f)) {
+                ModeChip("Avhämtning", Icons.AutoMirrored.Filled.DirectionsWalk, draftMode == OrderMode.Pickup, Modifier.weight(1f)) {
                     draftMode = OrderMode.Pickup
                     draftPickupCity = draftDeliveryCity.ifBlank { draftPickupCity.ifBlank { cities.firstOrNull()?.name.orEmpty() } }
                 }

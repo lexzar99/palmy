@@ -2,6 +2,8 @@ package se.delivera.android.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -12,6 +14,7 @@ import java.util.concurrent.TimeUnit
 
 class ApiException(message: String) : Exception(message)
 
+@OptIn(ExperimentalSerializationApi::class)
 val deliveraJson = Json {
     ignoreUnknownKeys = true
     explicitNulls = false
@@ -68,6 +71,28 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
     suspend fun claimHomeAppDeal(id: String, token: String): HomeAppDealClaimResponse =
         decodeDelivera(postRaw("/api/deals/app/$id/claim", "{}", bearer(token)))
 
+    suspend fun validateDiscount(code: String, subtotal: Double, token: String?): DiscountValidationResponse {
+        val headers = if (!token.isNullOrBlank()) bearer(token) else emptyMap()
+        return decodeDelivera(
+            postRaw(
+                "/api/discount/validate",
+                deliveraJson.encodeToString(DiscountValidationRequest(code = code.trim().uppercase(), subtotal = subtotal)),
+                headers
+            )
+        )
+    }
+
+    suspend fun redeemReferralCode(code: String, token: String?): ReferralRedeemResponse {
+        val headers = if (!token.isNullOrBlank()) bearer(token) else emptyMap()
+        return decodeDelivera(
+            postRaw(
+                "/api/account/redeem-code",
+                deliveraJson.encodeToString(ReferralRedeemRequest(code = code.trim().uppercase())),
+                headers
+            )
+        )
+    }
+
     suspend fun trackingAds(): List<TrackingAd> = decodeDelivera(getRaw("/api/ads"))
 
     suspend fun homePulse(token: String?): HomePulseResponse {
@@ -90,7 +115,12 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
     suspend fun restaurantReviews(slug: String): RestaurantReviewsResponse =
         decodeDelivera(getRaw("/api/restaurants/$slug/reviews"))
 
-    suspend fun dpointsMe(): DpointsMe = decodeDelivera(getRaw("/api/dpoints/me"))
+    suspend fun dpointsRewards(): DpointsRewardsResponse = decodeDelivera(getRaw("/api/dpoints/rewards"))
+
+    suspend fun dpointsMe(token: String): DpointsMe = decodeDelivera(getRaw("/api/dpoints/me", headers = bearer(token)))
+
+    suspend fun claimSignupBonus(token: String): DpointsSignupClaimResponse =
+        decodeDelivera(postRaw("/api/dpoints/claim-signup", "{}", bearer(token)))
 
     suspend fun autocompletePlaces(input: String, sessionToken: String): List<PlacePrediction> {
         if (input.trim().length < 3) return emptyList()

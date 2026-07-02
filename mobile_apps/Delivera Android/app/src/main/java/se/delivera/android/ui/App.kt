@@ -85,6 +85,7 @@ fun DeliveraApp() {
     var orderMode by rememberSaveable { mutableStateOf(OrderMode.Delivery) }
     var selectedCuisine by rememberSaveable { mutableStateOf("Alla") }
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    var favoritesOnly by rememberSaveable { mutableStateOf(false) }
     var favorites by remember { mutableStateOf(loadFavorites()) }
     var activeUserDealId by remember { mutableStateOf(Prefs.getString(Prefs.KEY_ACTIVE_USER_DEAL_ID, "")) }
     var claimingDealId by remember { mutableStateOf<String?>(null) }
@@ -196,6 +197,7 @@ fun DeliveraApp() {
                 viewModel = homeVm,
                 orderMode = orderMode,
                 selectedCuisine = selectedCuisine,
+                favoritesOnly = favoritesOnly,
                 searchQuery = searchQuery,
                 address = if (orderMode == OrderMode.Delivery) deliveryAddress else pickupCity,
                 favorites = favorites,
@@ -203,10 +205,10 @@ fun DeliveraApp() {
                 isLoggedIn = authToken.isNotBlank(),
                 activeUserDealId = activeUserDealId,
                 claimingDealId = claimingDealId,
-                onSearchChange = { searchQuery = it },
-                onSelectCuisine = { selectedCuisine = it },
+                onSearchChange = { searchQuery = it; favoritesOnly = false },
+                onSelectCuisine = { selectedCuisine = it; favoritesOnly = false },
                 onAddressTap = { showingAddressSheet = true },
-                onFavoritesTap = { /* Favorites sheet TODO */ },
+                onFavoritesTap = { if (favorites.isNotEmpty()) favoritesOnly = !favoritesOnly },
                 onDealAction = ::handleDealAction,
                 onClaimSponsorDeal = ::claimSponsorDeal,
                 onOpenRestaurant = { slug ->
@@ -217,6 +219,7 @@ fun DeliveraApp() {
             )
             HomeTab.Cart -> CartScreen(
                 cartStore = cartStore,
+                authToken = authToken,
                 isLoggedIn = authToken.isNotBlank(),
                 onExploreRestaurants = { selectedTab = HomeTab.Home },
                 onOpenProfile = { selectedTab = HomeTab.Profile }

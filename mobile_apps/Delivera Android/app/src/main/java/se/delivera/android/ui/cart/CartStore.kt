@@ -83,6 +83,15 @@ class CartStore {
         if (index >= 0) items[index] = items[index].copy(quantity = items[index].quantity + 1)
     }
 
+    fun addRecommended(product: MenuProduct) {
+        val index = items.indexOfFirst { it.product.id == product.id }
+        if (index >= 0) {
+            items[index] = items[index].copy(quantity = items[index].quantity + 1)
+        } else {
+            items.add(CartItem(product))
+        }
+    }
+
     fun decrement(item: CartItem) {
         val index = items.indexOfFirst { it.product.id == item.product.id }
         if (index < 0) return

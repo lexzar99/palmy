@@ -21,8 +21,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -50,7 +50,7 @@ import se.delivera.android.data.OrderMode
 import se.delivera.android.ui.theme.DeliveraTheme
 
 fun OrderMode.icon(): ImageVector =
-    if (this == OrderMode.Delivery) Icons.Filled.ElectricBolt else Icons.Filled.DirectionsWalk
+    if (this == OrderMode.Delivery) Icons.Filled.ElectricBolt else Icons.AutoMirrored.Filled.DirectionsWalk
 
 @Composable
 fun HomeHeader(
@@ -78,7 +78,7 @@ fun HomeHeader(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        if (mode == OrderMode.Delivery) "DELIVER TO" else "PICKUP IN",
+                        if (mode == OrderMode.Delivery) "LEVERERA TILL" else "HÄMTA I",
                         fontSize = 10.sp, fontWeight = FontWeight.Bold, color = DeliveraTheme.muted
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
