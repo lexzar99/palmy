@@ -432,17 +432,19 @@ router.post('/app/favorite/claim', authenticateUser, async (req: any, res) => {
     const productId = String(req.body?.productId || '').trim();
     if (!productId) return res.status(400).json({ error: 'productId saknas' });
 
+    // Befintlig aktiv favorit-claim vinner alltid — dubbeltryck eller ett
+    // hunnet-bli-gammalt kort ska ge kupongen, inte ett tyst fel.
+    const existing = await (prisma as any).userDeal.findFirst({
+      where: { userId: req.user.id, type: 'FAVORITE_PRODUCT', status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }] },
+    });
+    if (existing) return res.json({ claimed: true, userDealId: existing.id, amountKr: existing.amountKr, title: (existing.metadata as any)?.title || 'Din favorit' });
+
     const { favoriteCandidates, getEngineSettings } = await import('../lib/homePulse');
     const settings = await getEngineSettings();
     const params = settings.favorite_product.params;
     const candidates = await favoriteCandidates(req.user.id, params);
     const candidate = candidates.find((c) => c.product.id === productId);
     if (!candidate) return res.status(403).json({ error: 'Det här är inte din favorit än' });
-
-    const existing = await (prisma as any).userDeal.findFirst({
-      where: { userId: req.user.id, type: 'FAVORITE_PRODUCT', status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }] },
-    });
-    if (existing) return res.json({ claimed: true, userDealId: existing.id, amountKr: existing.amountKr, title: (existing.metadata as any)?.title || 'Din favorit' });
 
     const priceOre = Math.min(candidate.product.price, candidate.product.discountPrice || candidate.product.price);
     const percent = Math.max(5, Math.round(params.percent || 10));
