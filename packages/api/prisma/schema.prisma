@@ -804,6 +804,10 @@ model Restaurant {
   etaOverrideMinutes   Int?               // Manuell admin-override. Om satt åsidosätter etaCalculatedMinutes
   isOpen         Boolean      @default(true)
   comingSoon     Boolean      @default(false)
+  // Utkast: agent-onboarding (MENU_AGENT). Osynlig i alla kund-ytor, kan inte
+  // ta emot ordrar. Bara SUPER_ADMIN publicerar (draft=false); MENU_AGENT kan
+  // bara skriva mot restauranger där draft=true.
+  draft          Boolean      @default(false)
   tags           String       @default("[]")
   openingHours   String       @default("{}")
   createdAt      DateTime     @default(now())

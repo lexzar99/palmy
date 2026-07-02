@@ -753,6 +753,8 @@ model Restaurant {
   etaCalculatedMinutes Int?               // Auto-beräknad ETA baserad på senaste 20 ordrarnas createdAt → deliveringAt (clampad 25–55 min). null = för få ordrar än
   etaOverrideMinutes   Int?               // Manuell admin-override. Om satt åsidosätter etaCalculatedMinutes
   isOpen         Boolean      @default(true)
+  // Utkast: agent-onboarding (MENU_AGENT), se packages/api/prisma/schema.prisma.
+  draft          Boolean      @default(false)
   tags           String       @default("[]")
   openingHours   String       @default("{}")
   createdAt      DateTime     @default(now())

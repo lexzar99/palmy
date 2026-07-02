@@ -10,6 +10,16 @@ import axios from 'axios';
 const router = Router();
 router.use(authenticate);
 
+// GLOBAL_VIEWER ("Falken") är read-only i hela systemet — uppladdning är en
+// skriv-operation. MENU_AGENT ("Kocken"/"Studion") behöver den för menybilder.
+router.use((req: Request, res: Response, next) => {
+  if ((req as AuthRequest).admin?.role === 'GLOBAL_VIEWER') {
+    res.status(403).json({ error: 'Read-only-konto kan inte ladda upp filer' });
+    return;
+  }
+  next();
+});
+
 // Skydd mot att en RESTAURANT_ADMIN/STAFF för restaurang A laddar upp bilder
 // under restaurang B:s prefix (menu-hijacking). SUPER_ADMIN passerar alltid.
 // Returnerar true om OK, skickar 403 och returnerar false om scope inte matchar.
@@ -22,6 +32,9 @@ const assertRestaurantScope = (
   const adminReq = req as AuthRequest;
   const role = adminReq.admin?.role;
   if (role === 'SUPER_ADMIN') return true;
+  // MENU_AGENT laddar upp menybilder för utkast-restauranger (draft-låset
+  // ligger i admin-modulens menuAgentDraftGate när bilden sen kopplas).
+  if (role === 'MENU_AGENT') return true;
   if (adminReq.admin?.restaurantId === restaurantId) return true;
   res
     .status(403)

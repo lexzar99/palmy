@@ -334,6 +334,11 @@ router.post('/', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Ogiltig restaurang' });
       return;
     }
+    // Utkast (agent-onboarding) kan aldrig ta emot ordrar.
+    if ((restaurant as any).draft) {
+      res.status(400).json({ error: 'Restaurangen tar inte emot beställningar ännu' });
+      return;
+    }
 
     // Validate scheduled time if provided
     if (data.scheduledFor) {

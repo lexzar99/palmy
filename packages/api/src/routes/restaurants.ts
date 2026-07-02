@@ -63,6 +63,8 @@ const restaurantSchema = z.object({
   featuredClass: z.any().optional(),
   isOpen: z.boolean().optional(),
   comingSoon: z.boolean().optional(),
+  // Utkast (agent-onboarding). Bara SUPER_ADMIN kan sätta/ändra flaggan.
+  draft: z.boolean().optional(),
   rating: z.any().optional(),
   ratingCount: z.any().optional(),
   openingHours: z.any().optional(),
@@ -137,6 +139,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false, dealSummary?: De
     }
   })(),
   comingSoon: restaurant.comingSoon ?? false,
+  draft: restaurant.draft ?? false,
   manualIsOpen: restaurant.isOpen,
   pausedUntil: restaurant.pausedUntil
     ? new Date(restaurant.pausedUntil).toISOString()
@@ -361,12 +364,31 @@ router.post('/seed', authenticate, async (req: AuthRequest, res) => {
 router.get('/', async (req, res) => {
   try {
     const { withMenu, city } = req.query;
+
+    // Utkast-restauranger (agent-onboarding) är osynliga publikt. Admins ser
+    // dem (admin-panelen listar via samma endpoint med Bearer-token).
+    let includeDrafts = false;
+    const listAuthHeader = req.headers.authorization;
+    const listToken = listAuthHeader?.startsWith('Bearer ') ? listAuthHeader.split(' ')[1] : null;
+    if (listToken) {
+      try {
+        includeDrafts = Boolean(await resolveAdminSessionFromToken(listToken));
+      } catch {
+        includeDrafts = false;
+      }
+    }
+
     // Cache 20s: the public restaurant list is identical for all anonymous
     // callers (home/search/discover share it); also caches the per-row
     // formatRestaurant CPU. Collapses the herd to one query+format per window.
-    const out = await cached('rest:list', `${withMenu === '1' ? 'menu' : 'lite'}|${(city as string) || ''}`, 20_000, async () => {
+    // Draft-synlighet är en egen cache-dimension så admin-svar aldrig läcker
+    // till anonyma anrop.
+    const out = await cached('rest:list', `${withMenu === '1' ? 'menu' : 'lite'}|${(city as string) || ''}|d${includeDrafts ? 1 : 0}`, 20_000, async () => {
     const restaurants = await prisma.restaurant.findMany({
-      where: city ? { city: city as string } : {},
+      where: {
+        ...(city ? { city: city as string } : {}),
+        ...(includeDrafts ? {} : { draft: false }),
+      },
       include: {
         ...(withMenu === '1' ? {
           categories: {
@@ -405,12 +427,20 @@ router.get('/', async (req, res) => {
 
 router.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
-    if (req.admin?.role !== 'SUPER_ADMIN') {
+    // MENU_AGENT ("Kocken") får skapa restauranger, men de blir ALLTID
+    // utkast (draft=true, osynliga för kunder) och agenten kan inte skapa
+    // login-konton (adminPassword strippas). Publicering görs av SUPER_ADMIN.
+    const isMenuAgent = req.admin?.role === 'MENU_AGENT';
+    if (req.admin?.role !== 'SUPER_ADMIN' && !isMenuAgent) {
       res.status(403).json({ error: 'Kräver super admin-behörighet' });
       return;
     }
 
     const payload = restaurantSchema.parse(req.body);
+    if (isMenuAgent) {
+      payload.draft = true;
+      payload.adminPassword = undefined;
+    }
     const slug = slugify(payload.slug || payload.name);
     const data: any = {
       name: payload.name,
@@ -428,6 +458,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       featuredClass: payload.featuredClass !== undefined ? Number(payload.featuredClass) : undefined,
       isOpen: payload.isOpen,
       comingSoon: payload.comingSoon,
+      draft: payload.draft ?? false,
       rating: payload.rating !== undefined ? Number(payload.rating) : undefined,
       ratingCount: payload.ratingCount !== undefined ? Number(payload.ratingCount) : undefined,
       deliveryFee: kr(Number(payload.deliveryFee ?? 0)),
@@ -532,7 +563,13 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
 
     const id = existingRestaurant.id;
 
-    if (req.admin?.role !== 'SUPER_ADMIN') {
+    if (req.admin?.role === 'MENU_AGENT') {
+      // Menyagenten får bara ändra utkast. Publicerade restauranger är låsta.
+      if (!(existingRestaurant as any).draft) {
+        res.status(403).json({ error: 'Menyagenten kan bara ändra utkast-restauranger. Publicerade restauranger är låsta.' });
+        return;
+      }
+    } else if (req.admin?.role !== 'SUPER_ADMIN') {
       const rid = req.admin?.restaurantId;
       if (!rid || rid !== id) {
         res.status(403).json({ error: 'Du kan bara uppdatera din egen restaurang' });
@@ -541,6 +578,11 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     }
 
     const payload = restaurantSchema.partial().parse(req.body);
+    if (req.admin?.role === 'MENU_AGENT') {
+      // Agenten kan varken publicera (draft=false) eller skapa login-konton.
+      payload.draft = undefined;
+      payload.adminPassword = undefined;
+    }
     
     // Build update payload explicitly to avoid accidentally passing unsupported keys.
     const data: any = {};
@@ -581,6 +623,8 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.featuredClass !== undefined) data.featuredClass = toSafeNum(payload.featuredClass);
     if (payload.isOpen !== undefined) data.isOpen = payload.isOpen;
     if (payload.comingSoon !== undefined) data.comingSoon = payload.comingSoon;
+    // Publicera/avpublicera utkast är super admin-exklusivt.
+    if (payload.draft !== undefined && req.admin?.role === 'SUPER_ADMIN') data.draft = payload.draft;
     if (payload.rating !== undefined) data.rating = toSafeNum(payload.rating);
     if (payload.ratingCount !== undefined) data.ratingCount = toSafeNum(payload.ratingCount);
     
@@ -961,16 +1005,24 @@ router.get('/:slug', async (req, res) => {
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
     let canViewSensitiveAdminFields = false;
+    let isAdminSession = false;
 
     if (token) {
       try {
         const session = await resolveAdminSessionFromToken(token);
+        isAdminSession = Boolean(session);
         canViewSensitiveAdminFields = Boolean(
           session && (session.role === 'SUPER_ADMIN' || session.restaurantId === data.restaurantId)
         );
       } catch {
         canViewSensitiveAdminFields = false;
       }
+    }
+
+    // Utkast är osynliga för alla utom inloggade admins (inkl. menyagenten
+    // som behöver läsa tillbaka sitt eget bygge).
+    if ((data.formatted as any)?.draft && !isAdminSession) {
+      return res.status(404).json({ error: 'Restaurang hittades inte' });
     }
 
     return res.json(

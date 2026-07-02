@@ -33,9 +33,9 @@ type AdminRecord = {
 };
 
 const getRestaurantScope = async (admin: AdminRecord, payload: AdminJwtPayload) => {
-  // GLOBAL_VIEWER: read-only systemkonto utan restaurang-koppling, samma
-  // (tomma) scope som SUPER_ADMIN. Writes blockeras av autoRoleGate nedan.
-  if (admin.role === 'SUPER_ADMIN' || admin.role === 'GLOBAL_VIEWER') {
+  // GLOBAL_VIEWER/MENU_AGENT: systemkonton utan restaurang-koppling, samma
+  // (tomma) scope som SUPER_ADMIN. Writes gates av autoRoleGate nedan.
+  if (admin.role === 'SUPER_ADMIN' || admin.role === 'GLOBAL_VIEWER' || admin.role === 'MENU_AGENT') {
     return {
       restaurantId: null,
       restaurantSlug: null,
@@ -181,6 +181,12 @@ export const isSuperAdmin = requireSuperAdmin;
 const WRITE_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'RESTAURANT_ADMIN', 'STAFF']);
 const DELETE_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'RESTAURANT_ADMIN']);
 
+// MENU_AGENT ("Kocken", Hermes-menyagenten): får ENDAST skapa/ändra meny-
+// resurser, aldrig radera. Det inre låset (bara utkast-restauranger,
+// draft=true) enforceas av menuAgentDraftGate i routes/admin.ts — det här är
+// yttre skalet som stänger resten av admin-modulen.
+const MENU_AGENT_WRITE_PATHS = /^\/(categories|products|extra-groups|extras)(\/|$)/;
+
 export const requireWriteAccess = (
   req: AuthRequest,
   res: Response,
@@ -222,6 +228,15 @@ export const autoRoleGate = (
   // (Detta middleware körs ALLTID efter authenticate.)
   if (!role) {
     res.status(401).json({ error: 'Inte autentiserad' });
+    return;
+  }
+
+  if (role === 'MENU_AGENT' && method !== 'GET') {
+    if (method === 'DELETE' || !MENU_AGENT_WRITE_PATHS.test(req.path)) {
+      res.status(403).json({ error: 'Menyagenten får bara skapa och ändra meny-resurser' });
+      return;
+    }
+    next();
     return;
   }
 

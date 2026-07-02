@@ -121,14 +121,81 @@ async function revalidateWebMenu(restaurantId: string | null) {
 // gäller fortfarande för känsliga ops (wipe, refund, staff-management).
 router.use(autoRoleGate);
 
-// GLOBAL_VIEWER: read-only systemkonto (Hermes-monitorn "Falken"). Får samma
-// globala läs-scope som SUPER_ADMIN i denna modul, men kan aldrig skriva:
-// rollen finns inte i WRITE_ROLES/DELETE_ROLES så autoRoleGate (rad 122)
-// blockerar POST/PATCH/PUT/DELETE, och requireSuperAdmin-gatade routes
-// (staff, audit-log, customer-search, GDPR-export, login-creds) förblir
-// stängda. Kund-PII förblir maskerad via canSeeCustomerPII.
+// menuAgentDraftGate: MENU_AGENT får bara skriva mot UTKAST-restauranger
+// (Restaurant.draft=true). Resolvar vilken restaurang requesten pekar på
+// (via path-resursen OCH alla mål-referenser i body: restaurantId,
+// categoryId, categoryIds) och kräver att SAMTLIGA är utkast. Globala
+// resurser (restaurantId=null) är låsta — annars hade agenten kunnat påverka
+// alla restauranger via en global kategori/tillvalsgrupp.
+router.use(async (req: AuthRequest, res, next) => {
+  if (req.admin?.role !== 'MENU_AGENT' || req.method.toUpperCase() === 'GET') return next();
+  try {
+    const p = req.path;
+    const ids = new Set<string>();
+    let ownsNothing = false; // path-resursen saknar restaurang (global) → block
+    let m: RegExpMatchArray | null;
+
+    const addCategoryOwner = async (categoryId: string) => {
+      const cat = await prisma.category.findUnique({ where: { id: categoryId }, select: { restaurantId: true } });
+      if (cat?.restaurantId) ids.add(cat.restaurantId); else ownsNothing = true;
+    };
+
+    if (p === '/categories' || p === '/extra-groups') {
+      if (req.body?.restaurantId) ids.add(String(req.body.restaurantId)); else ownsNothing = true;
+    } else if ((m = p.match(/^\/categories\/([^/]+)$/))) {
+      const cat = await prisma.category.findUnique({ where: { id: m[1] }, select: { restaurantId: true } });
+      if (cat?.restaurantId) ids.add(cat.restaurantId); else ownsNothing = true;
+    } else if (p === '/products') {
+      if (req.body?.categoryId) await addCategoryOwner(String(req.body.categoryId)); else ownsNothing = true;
+    } else if ((m = p.match(/^\/products\/([^/]+)$/))) {
+      const prod = await prisma.product.findUnique({ where: { id: m[1] }, select: { category: { select: { restaurantId: true } } } });
+      if (prod?.category?.restaurantId) ids.add(prod.category.restaurantId); else ownsNothing = true;
+    } else if ((m = p.match(/^\/extra-groups\/([^/]+)$/))) {
+      const grp = await prisma.extraGroup.findUnique({ where: { id: m[1] }, select: { restaurantId: true } });
+      if (grp?.restaurantId) ids.add(grp.restaurantId); else ownsNothing = true;
+    } else if ((m = p.match(/^\/extras\/([^/]+)$/))) {
+      const extra = await prisma.extra.findUnique({ where: { id: m[1] }, select: { extraGroup: { select: { restaurantId: true } } } });
+      if (extra?.extraGroup?.restaurantId) ids.add(extra.extraGroup.restaurantId); else ownsNothing = true;
+    } else {
+      res.status(403).json({ error: 'Menyagenten får bara ändra kategorier, produkter och tillvalsgrupper' });
+      return;
+    }
+
+    // Mål-referenser i body (flytt/koppling) måste också peka på utkast.
+    if (req.body?.restaurantId) ids.add(String(req.body.restaurantId));
+    if (req.body?.categoryId) await addCategoryOwner(String(req.body.categoryId));
+    if (Array.isArray(req.body?.categoryIds)) {
+      for (const cid of req.body.categoryIds) await addCategoryOwner(String(cid));
+    }
+
+    if (ownsNothing || ids.size === 0) {
+      res.status(403).json({ error: 'Menyagenten måste jobba mot en specifik utkast-restaurang, globala resurser är låsta' });
+      return;
+    }
+    const restaurants = await prisma.restaurant.findMany({
+      where: { id: { in: Array.from(ids) } },
+      select: { id: true, draft: true },
+    });
+    if (restaurants.length !== ids.size || restaurants.some((r) => !(r as any).draft)) {
+      res.status(403).json({ error: 'Menyagenten kan bara ändra utkast-restauranger. Publicerade restauranger är låsta.' });
+      return;
+    }
+    next();
+  } catch (err) {
+    console.error('[menuAgentDraftGate] error:', err);
+    res.status(500).json({ error: 'Serverfel i menyagent-kontrollen' });
+  }
+});
+
+// OBS: namnet betyder i praktiken "har globalt scope i denna modul".
+// GLOBAL_VIEWER ("Falken"): read-only — autoRoleGate blockerar alla writes.
+// MENU_AGENT ("Kocken"): global read + writes ENDAST på meny-resurser
+// (autoRoleGate-allowlist) och ENDAST mot utkast-restauranger
+// (menuAgentDraftGate nedan). requireSuperAdmin-gatade routes (staff,
+// audit-log, customer-search, GDPR-export, login-creds) förblir stängda för
+// båda, och kund-PII förblir maskerad via canSeeCustomerPII.
 const isSuperAdmin = (req: AuthRequest) =>
-  req.admin?.role === 'SUPER_ADMIN' || req.admin?.role === 'GLOBAL_VIEWER';
+  req.admin?.role === 'SUPER_ADMIN' || req.admin?.role === 'GLOBAL_VIEWER' || req.admin?.role === 'MENU_AGENT';
 
 // Roll som får se ofiltrerad customer-PII (full telefon, email, adress).
 // STAFF och VIEWER ser maskerad data för GDPR-skäl — de behöver veta att en

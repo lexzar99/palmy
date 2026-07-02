@@ -478,6 +478,7 @@ router.get('/free-delivery', async (req, res) => {
     const restaurants = await prisma.restaurant.findMany({
       where: {
         isOpen: true,
+        draft: false,
         ...(cityId ? { cityId: cityId as string } : {}),
       },
       include: { city_relation: true },
