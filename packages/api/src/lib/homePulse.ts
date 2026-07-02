@@ -18,7 +18,6 @@ export type EngineKey =
   | 'fastest_today'
   | 'points_nudge'
   | 'daily_drop'
-  | 'new_menu_items'
   | 'new_restaurants'
   | 'trending'
   | 'comeback'
@@ -74,16 +73,9 @@ export const ENGINE_DEFS: EngineDef[] = [
   {
     key: 'daily_drop',
     title: 'Dagens drop',
-    description: 'En utvald bestseller per dag med tidsfönster och nedräkning. Ny produkt och nytt tema imorgon.',
-    defaultParams: { minPriceKr: 70, startHour: 15, endHour: 21 },
+    description: 'En utvald rätt (över prisgolvet) per dag med tidsfönster och nedräkning. Ny rätt och nytt tema imorgon.',
+    defaultParams: { minPriceKr: 100, startHour: 15, endHour: 21 },
     paramLabels: { minPriceKr: 'Prisgolv (kr)', startHour: 'Startar (timme)', endHour: 'Slutar (timme)' },
-  },
-  {
-    key: 'new_menu_items',
-    title: 'Nytt på menyn',
-    description: 'Nya rätter hos etablerade partners lyfts som en egen räls. Bulkändringar filtreras bort.',
-    defaultParams: { windowDays: 10, minRestaurantAgeDays: 14, bulkThreshold: 8, maxItems: 4 },
-    paramLabels: { windowDays: 'Fönster (dagar)', minRestaurantAgeDays: 'Min restaurangålder', bulkThreshold: 'Bulkgräns', maxItems: 'Max produkter' },
   },
   {
     key: 'new_restaurants',
@@ -258,17 +250,8 @@ async function buildChampion(params: Record<string, number>) {
   });
   if (!restaurant || restaurant.comingSoon) return null;
 
-  // Upp till 5 bilder som appen roterar: hero + logga + toppsäljarnas bilder.
-  const topProducts = await prisma.product.findMany({
-    where: { isActive: true, imageUrl: { not: null }, category: { isActive: true, restaurant: { id: restaurant.id } } },
-    select: { imageUrl: true },
-    orderBy: { updatedAt: 'desc' },
-    take: 4,
-  });
-  const images = [restaurant.heroImageUrl, restaurant.imageUrl, ...topProducts.map((p) => p.imageUrl)]
-    .filter((url): url is string => Boolean(url))
-    .filter((url, index, list) => list.indexOf(url) === index)
-    .slice(0, 5);
+  // Endast restaurangens hero-banner (ägarbeslut, ingen bildrotation).
+  const images = [restaurant.heroImageUrl || restaurant.imageUrl].filter((url): url is string => Boolean(url));
 
   await logEngineEvent('champion', `Veckans favorit: ${restaurant.name} (${pick._count._all} ordrar/7d)`, {
     restaurantId: restaurant.id,
@@ -289,11 +272,7 @@ async function previewChampion() {
   const restaurants = await previewRestaurants(1);
   const restaurant = restaurants[0];
   if (!restaurant) return null;
-  const products = await previewProducts(4);
-  const images = [restaurant.heroImageUrl, restaurant.imageUrl, ...products.map((p) => p.imageUrl)]
-    .filter((url): url is string => Boolean(url))
-    .filter((url, index, list) => list.indexOf(url) === index)
-    .slice(0, 5);
+  const images = [restaurant.heroImageUrl || restaurant.imageUrl].filter((url): url is string => Boolean(url));
   return {
     type: 'CHAMPION',
     id: `preview:champion:${restaurant.id}`,
@@ -600,7 +579,7 @@ async function buildDailyDrop(params: Record<string, number>, force = false) {
   if (!force && (hour < startHour || hour >= endHour)) return null;
 
   const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
-  const minPriceOre = Math.round((params.minPriceKr || 70) * 100);
+  const minPriceOre = Math.round((params.minPriceKr || 100) * 100);
   const grouped = await (prisma.orderItem.groupBy as any)({
     by: ['productId'],
     where: { createdAt: { gte: since }, basePrice: { gte: minPriceOre }, order: { status: { notIn: EXCLUDED_STATUSES } } },
@@ -1079,7 +1058,6 @@ export async function buildHomePulse(userId: string | null): Promise<{ greeting:
     engineOn('favorite_product') && userId ? buildForPreview(buildFavoriteProduct(userId, settings.favorite_product.params), () => previewFavoriteProduct(settings.favorite_product.params)) : previewAll ? previewFavoriteProduct(settings.favorite_product.params) : Promise.resolve(null),
     engineOn('fastest_today') ? buildForPreview(buildFastestToday(settings.fastest_today.params), previewFastestToday) : Promise.resolve(null),
     engineOn('daily_drop') ? buildForPreview(buildDailyDrop(settings.daily_drop.params, previewAll), () => previewDailyDrop(settings.daily_drop.params)) : Promise.resolve(null),
-    engineOn('new_menu_items') ? buildForPreview(buildNewMenuItems(settings.new_menu_items.params), previewNewMenuItems) : Promise.resolve(null),
     engineOn('new_restaurants') ? buildForPreview(buildNewRestaurants(settings.new_restaurants.params), previewNewRestaurants) : Promise.resolve(null),
     engineOn('trending') ? buildForPreview(buildTrending(settings.trending.params), previewTrending) : Promise.resolve(null),
     engineOn('points_nudge') && userId ? buildForPreview(buildPointsNudge(userId, settings.points_nudge.params), previewPointsNudge) : previewAll ? previewPointsNudge() : Promise.resolve(null),
