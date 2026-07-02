@@ -366,10 +366,13 @@ router.get('/', async (req, res) => {
     const { withMenu, city } = req.query;
 
     // Utkast-restauranger (agent-onboarding) är osynliga publikt. Admins ser
-    // dem (admin-panelen listar via samma endpoint med Bearer-token).
+    // dem. Admin-panelen kör cookie-auth (admin_token, HttpOnly) med Bearer
+    // som legacy-fallback — läs cookien FÖRST, samma ordning som authenticate.
     let includeDrafts = false;
     const listAuthHeader = req.headers.authorization;
-    const listToken = listAuthHeader?.startsWith('Bearer ') ? listAuthHeader.split(' ')[1] : null;
+    const listCookieToken = (req as any).cookies?.admin_token as string | undefined;
+    const listToken = listCookieToken
+      || (listAuthHeader?.startsWith('Bearer ') ? listAuthHeader.split(' ')[1] : null);
     if (listToken) {
       try {
         includeDrafts = Boolean(await resolveAdminSessionFromToken(listToken));
@@ -1002,8 +1005,11 @@ router.get('/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Restaurang hittades inte' });
     }
 
+    // Cookie först (admin-panelens primära auth), Bearer som fallback.
     const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    const cookieToken = (req as any).cookies?.admin_token as string | undefined;
+    const token = cookieToken
+      || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
     let canViewSensitiveAdminFields = false;
     let isAdminSession = false;
 
