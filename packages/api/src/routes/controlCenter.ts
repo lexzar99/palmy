@@ -55,7 +55,9 @@ const severityRank: Record<string, number> = {
 router.get('/control-center', async (req, res) => {
   try {
     const authReq = req as AuthRequest;
-    if (authReq.admin?.role !== 'SUPER_ADMIN') {
+    // GROWTH_AGENT ("Torget") får LÄSA control-center för smart deal-targeting
+    // (vilka restauranger som säljer dåligt/bra). Read-only, ingen skrivrätt här.
+    if (authReq.admin?.role !== 'SUPER_ADMIN' && authReq.admin?.role !== 'GROWTH_AGENT') {
       return res.status(403).json({ error: 'Kräver super admin-behörighet' });
     }
 

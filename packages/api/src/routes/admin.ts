@@ -198,7 +198,11 @@ router.use(async (req: AuthRequest, res, next) => {
 // audit-log, customer-search, GDPR-export, login-creds) förblir stängda för
 // båda, och kund-PII förblir maskerad via canSeeCustomerPII.
 const isSuperAdmin = (req: AuthRequest) =>
-  req.admin?.role === 'SUPER_ADMIN' || req.admin?.role === 'GLOBAL_VIEWER' || req.admin?.role === 'MENU_AGENT';
+  req.admin?.role === 'SUPER_ADMIN' || req.admin?.role === 'GLOBAL_VIEWER' || req.admin?.role === 'MENU_AGENT' || req.admin?.role === 'GROWTH_AGENT';
+
+// GROWTH_AGENT ("Torget"): pengar-backstop. Allt den skapar föds inaktivt och
+// den får aldrig aktivera (isActive=true). Bara SUPER_ADMIN aktiverar.
+const isGrowthAgent = (req: AuthRequest) => req.admin?.role === 'GROWTH_AGENT';
 
 // Roll som får se ofiltrerad customer-PII (full telefon, email, adress).
 // STAFF och VIEWER ser maskerad data för GDPR-skäl — de behöver veta att en
@@ -2032,7 +2036,9 @@ router.post('/products', async (req, res) => {
         price: Math.round(data.price * 100),
         categoryId: data.categoryId,
         imageUrl: data.imageUrl ?? null,
-        isActive: data.isActive ?? true,
+        // GROWTH_AGENT-backstop: nya produkter på LIVE-restauranger föds dolda
+        // (isActive=false) tills Jalle granskar och aktiverar.
+        isActive: isGrowthAgent(req as AuthRequest) ? false : (data.isActive ?? true),
         isVegan: data.isVegan ?? false,
         isVegetarian: data.isVegetarian ?? false,
         isGlutenFree: data.isGlutenFree ?? false,
@@ -3614,6 +3620,9 @@ router.post('/deals', async (req, res) => {
     // Kedje-scope expanderas sist så restaurantId=null + applicable=alla platser.
     await applyBrandDealScope(normalized as any);
 
+    // GROWTH_AGENT-backstop: deals föds ALLTID inaktiva. Bara Jalle aktiverar.
+    if (isGrowthAgent(req as AuthRequest)) (normalized as any).isActive = false;
+
     await deactivateConflictingDeals({
       restaurantId: (normalized.restaurantId as string | null | undefined) || null,
       isActive: normalized.isActive !== false,
@@ -3659,6 +3668,11 @@ router.patch('/deals/:id', async (req, res) => {
       if (existing.restaurantId !== rid) {
         return res.status(403).json({ error: 'Ej behörig' });
       }
+    }
+
+    // GROWTH_AGENT får aldrig aktivera en deal (isActive=true). Bara Jalle.
+    if (isGrowthAgent(req as AuthRequest) && data.isActive === true) {
+      return res.status(403).json({ error: 'Tillväxtagenten kan inte aktivera deals. Jalle aktiverar i admin.' });
     }
 
     const prevScopeType = getDealScopeType({ triggerType: existing.triggerType });
@@ -4617,6 +4631,15 @@ router.post('/discounts', async (req, res) => {
     else if (parsedRestaurantIds.length === 1) discountData.restaurantId = parsedRestaurantIds[0];
     else discountData.restaurantId = null;
 
+    // GROWTH_AGENT-backstop: kupongen föds inaktiv, och MÅSTE ha tak +
+    // utgångsdatum (ingen oändlig/obegränsad rabatt). Bara Jalle aktiverar.
+    if (isGrowthAgent(req as AuthRequest)) {
+      if (!discountData.maxUsages || !discountData.validUntil) {
+        return res.status(400).json({ error: 'Tillväxtagenten måste sätta maxUsages (tak) och validUntil (utgång) på varje kupong' });
+      }
+      discountData.isActive = false;
+    }
+
     const discount = await prisma.discountCode.create({
       data: discountData,
     });
@@ -4642,6 +4665,10 @@ router.patch('/discounts/:id', async (req, res) => {
     }
 
     const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery } = req.body;
+    // GROWTH_AGENT får aldrig aktivera en kupong (isActive=true). Bara Jalle.
+    if (isGrowthAgent(req as AuthRequest) && isActive === true) {
+      return res.status(403).json({ error: 'Tillväxtagenten kan inte aktivera kuponger. Jalle aktiverar i admin.' });
+    }
     const updateData: any = {};
     if (isActive !== undefined) updateData.isActive = isActive;
     if (code) updateData.code = code.toUpperCase();

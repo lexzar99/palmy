@@ -35,7 +35,7 @@ type AdminRecord = {
 const getRestaurantScope = async (admin: AdminRecord, payload: AdminJwtPayload) => {
   // GLOBAL_VIEWER/MENU_AGENT: systemkonton utan restaurang-koppling, samma
   // (tomma) scope som SUPER_ADMIN. Writes gates av autoRoleGate nedan.
-  if (admin.role === 'SUPER_ADMIN' || admin.role === 'GLOBAL_VIEWER' || admin.role === 'MENU_AGENT') {
+  if (admin.role === 'SUPER_ADMIN' || admin.role === 'GLOBAL_VIEWER' || admin.role === 'MENU_AGENT' || admin.role === 'GROWTH_AGENT') {
     return {
       restaurantId: null,
       restaurantSlug: null,
@@ -190,6 +190,14 @@ const DELETE_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'RESTAURANT_ADMIN']);
 // body parsas inte förrän där), inte i menuAgentDraftGate.
 const MENU_AGENT_WRITE_PATHS = /^\/(categories|products|extra-groups|extras|upload-r2)(\/|$)/;
 
+// GROWTH_AGENT ("Torget", Hermes-tillväxtagenten): får skapa/ändra deals,
+// kupongkoder, per-kund-deals + meny-resurser (även på LIVE-restauranger),
+// aldrig radera. Pengar-backstop: deals/kuponger/nya produkter FÖDS inaktiva
+// (isActive=false) och bara SUPER_ADMIN kan aktivera (enforceas i handlers).
+// GROWTH_AGENT får ALDRIG köra kampanjmotorn (massutskick) eller röra
+// settings/personal/återbetalningar.
+const GROWTH_AGENT_WRITE_PATHS = /^\/(deals|discounts|customer-deals|products|categories|extra-groups|extras|upload-r2)(\/|$)/;
+
 export const requireWriteAccess = (
   req: AuthRequest,
   res: Response,
@@ -231,6 +239,15 @@ export const autoRoleGate = (
   // (Detta middleware körs ALLTID efter authenticate.)
   if (!role) {
     res.status(401).json({ error: 'Inte autentiserad' });
+    return;
+  }
+
+  if (role === 'GROWTH_AGENT' && method !== 'GET') {
+    if (method === 'DELETE' || !GROWTH_AGENT_WRITE_PATHS.test(req.path)) {
+      res.status(403).json({ error: 'Tillväxtagenten får bara skapa/ändra deals, kuponger och meny-resurser' });
+      return;
+    }
+    next();
     return;
   }
 

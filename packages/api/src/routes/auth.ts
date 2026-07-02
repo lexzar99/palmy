@@ -731,7 +731,7 @@ router.post('/login', authLimiter, async (req, res) => {
     let logoutCode: string | null = null;
     // GLOBAL_VIEWER/MENU_AGENT (Hermes-systemkonton) har inget restaurang-
     // scope: global read, skrivrätter gates av autoRoleGate + draft-gaten.
-    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'GLOBAL_VIEWER' && admin.role !== 'MENU_AGENT') {
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'GLOBAL_VIEWER' && admin.role !== 'MENU_AGENT' && admin.role !== 'GROWTH_AGENT') {
       const restaurant = await prisma.restaurant.findFirst({
         where: {
           OR: [
