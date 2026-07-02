@@ -95,6 +95,8 @@ export interface RestaurantFormPayload {
   featuredClass?: number;
   isOpen?: boolean;
   comingSoon?: boolean;
+  // Publicera utkast (bara super admin, servern ignorerar annat).
+  draft?: boolean;
   rating?: number;
   ratingCount?: number;
   adminPassword?: string;

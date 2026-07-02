@@ -197,9 +197,16 @@ function RestaurantRow({
           style={{ display: avatar ? "none" : "block", background: "linear-gradient(150deg,#F0D4A8,#DCB070)" }}
         />
         <span className="min-w-0">
-          <button type="button" onClick={onOpen} className="block truncate text-left font-bold tracking-[-0.01em] hover:text-[var(--accent-ink)]">
-            {r.name}
-          </button>
+          <span className="flex items-center gap-2">
+            <button type="button" onClick={onOpen} className="block truncate text-left font-bold tracking-[-0.01em] hover:text-[var(--accent-ink)]">
+              {r.name}
+            </button>
+            {r.draft && (
+              <span className="shrink-0 rounded-md border border-[var(--row-divider)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                Utkast
+              </span>
+            )}
+          </span>
           <span className="block truncate text-[11.5px] text-[var(--text-muted)]">{r.city || r.slug}</span>
         </span>
       </span>

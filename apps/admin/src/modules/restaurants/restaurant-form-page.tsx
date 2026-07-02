@@ -226,6 +226,21 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
     },
   });
 
+  // Publicera utkast (agent-onboarding): draft=false gör restaurangen synlig
+  // för kunder direkt. Bara super admin, servern avvisar andra.
+  const publishMutation = useMutation({ meta: { toast: false },
+    mutationFn: async () => patchRestaurant(restaurantId!, { draft: false }),
+    onSuccess: async () => {
+      showToast({ type: "success", message: "Restaurangen är publicerad" });
+      setInitialized(false);
+      await queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: detailQueryKey(restaurantId!) });
+    },
+    onError: (e: any) => {
+      showToast({ type: "error", message: e?.response?.data?.error || "Kunde inte publicera." });
+    },
+  });
+
   const deleteMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => { if (restaurantId) await deleteRestaurant(restaurantId); },
     onSuccess: async () => {
@@ -265,6 +280,24 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
           </>
         }
       />
+
+      {!isCreate && (detailData as any)?.draft && (
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--row-divider)] bg-[var(--bg-secondary,transparent)] px-4 py-3">
+          <p className="text-sm text-[var(--text-secondary)]">
+            <span className="font-bold text-[var(--text-primary)]">Utkast.</span> Syns inte för kunder och kan inte ta emot ordrar.
+          </p>
+          <Button
+            variant="primary"
+            onClick={() => {
+              if (!confirm(`Publicera ${form.name}? Den blir synlig i appen och webben direkt.`)) return;
+              publishMutation.mutate();
+            }}
+            disabled={publishMutation.isPending}
+          >
+            {publishMutation.isPending ? <><Loader2 size={14} className="animate-spin" /> Publicerar...</> : "Publicera"}
+          </Button>
+        </div>
+      )}
 
       {saveError && <p className="rounded-xl bg-[rgba(239,68,68,0.1)] px-4 py-3 text-sm text-red-400">{saveError}</p>}
 

@@ -24,6 +24,8 @@ export interface ControlCenterRestaurantSnapshot {
   commissionPct: number;
   isOpen: boolean;
   manualIsOpen: boolean;
+  // Utkast (agent-onboarding): syns inte för kunder förrän publicerad.
+  draft?: boolean;
   adminEmail: string | null;
   hasHours: boolean;
   hasVisuals: boolean;
