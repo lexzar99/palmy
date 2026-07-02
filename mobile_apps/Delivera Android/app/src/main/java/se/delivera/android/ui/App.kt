@@ -42,9 +42,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import org.json.JSONArray
+import se.delivera.android.data.CustomerOrderResponse
 import se.delivera.android.data.DeliveraApi
 import se.delivera.android.data.HomeAppDeal
 import se.delivera.android.data.OrderMode
@@ -57,6 +59,7 @@ import se.delivera.android.ui.cart.CartStore
 import se.delivera.android.ui.home.DealCardAction
 import se.delivera.android.ui.home.HomeScreen
 import se.delivera.android.ui.home.HomeViewModel
+import se.delivera.android.ui.home.OnboardingScreen
 import se.delivera.android.ui.order.OrderTrackingScreen
 import se.delivera.android.ui.profile.ProfileScreen
 import se.delivera.android.ui.restaurant.RestaurantDetailScreen
@@ -80,9 +83,25 @@ fun DeliveraApp() {
     val cartStore = remember { CartStore() }
 
     var selectedTab by rememberSaveable { mutableStateOf(HomeTab.Home) }
+    var hasSeenOnboarding by rememberSaveable {
+        mutableStateOf(Prefs.getString(Prefs.KEY_HAS_SEEN_ONBOARDING, "") == "1")
+    }
     var selectedRestaurant by remember { mutableStateOf<Restaurant?>(null) }
-    var activeOrderId by rememberSaveable { mutableStateOf(Prefs.getString("delivera.pendingOrderId", "")) }
-    var activeOrderToken by rememberSaveable { mutableStateOf(Prefs.getString("delivera.pendingOrderToken", "")) }
+    var activeOrderId by rememberSaveable {
+        mutableStateOf(
+            Prefs.getString(Prefs.KEY_ACTIVE_ORDER_ID, "")
+                .ifBlank { Prefs.getString("delivera.pendingOrderId", "") }
+        )
+    }
+    var activeOrderToken by rememberSaveable {
+        mutableStateOf(
+            Prefs.getString(Prefs.KEY_ACTIVE_ORDER_TOKEN, "")
+                .ifBlank { Prefs.getString("delivera.pendingOrderToken", "") }
+        )
+    }
+    var isTrackingExpanded by rememberSaveable { mutableStateOf(activeOrderId.isNotBlank()) }
+    var activeOrder by remember { mutableStateOf<CustomerOrderResponse?>(null) }
+    var activeOrderError by remember { mutableStateOf<String?>(null) }
     var showingAddressSheet by remember { mutableStateOf(false) }
 
     var orderMode by rememberSaveable { mutableStateOf(OrderMode.Delivery) }
@@ -100,6 +119,45 @@ fun DeliveraApp() {
     }
 
     LaunchedEffect(authToken) { homeVm.load(authToken) }
+
+    LaunchedEffect(activeOrderId, activeOrderToken, authToken) {
+        if (activeOrderId.isBlank()) {
+            activeOrder = null
+            activeOrderError = null
+            return@LaunchedEffect
+        }
+        while (true) {
+            runCatching {
+                api.customerOrder(
+                    id = activeOrderId,
+                    phone = Prefs.getString(Prefs.KEY_GUEST_PHONE, ""),
+                    accessToken = activeOrderToken,
+                    authToken = authToken
+                )
+            }.onSuccess {
+                activeOrder = it
+                activeOrderError = null
+            }.onFailure {
+                activeOrderError = it.message ?: "Kunde inte hämta ordern."
+            }
+            delay(12_000)
+        }
+    }
+
+    if (!hasSeenOnboarding) {
+        OnboardingScreen(
+            onContinue = {
+                hasSeenOnboarding = true
+                Prefs.setString(Prefs.KEY_HAS_SEEN_ONBOARDING, "1")
+            },
+            onLogin = {
+                hasSeenOnboarding = true
+                Prefs.setString(Prefs.KEY_HAS_SEEN_ONBOARDING, "1")
+                selectedTab = HomeTab.Profile
+            }
+        )
+        return
+    }
 
     fun toggleFavorite(r: Restaurant) {
         favorites = favorites.toMutableSet().apply { if (!add(r.id)) remove(r.id) }
@@ -180,18 +238,14 @@ fun DeliveraApp() {
         }
     }
 
-    // Restaurant detail takes over the whole screen (SwiftUI NavigationStack push).
-    if (activeOrderId.isNotBlank()) {
+    if (activeOrderId.isNotBlank() && isTrackingExpanded) {
         OrderTrackingScreen(
             orderId = activeOrderId,
             phone = Prefs.getString(Prefs.KEY_GUEST_PHONE, ""),
             accessToken = activeOrderToken,
             authToken = authToken,
             onBackHome = {
-                activeOrderId = ""
-                activeOrderToken = ""
-                Prefs.setString("delivera.pendingOrderId", "")
-                Prefs.setString("delivera.pendingOrderToken", "")
+                isTrackingExpanded = false
                 selectedTab = HomeTab.Home
             }
         )
@@ -247,6 +301,14 @@ fun DeliveraApp() {
                 onOrderCreated = { id, token ->
                     activeOrderId = id
                     activeOrderToken = token.orEmpty()
+                    isTrackingExpanded = true
+                    Prefs.setString(Prefs.KEY_ACTIVE_ORDER_ID, id)
+                    Prefs.setString(Prefs.KEY_ACTIVE_ORDER_TOKEN, token.orEmpty())
+                    Prefs.setString("delivera.pendingOrderId", "")
+                    Prefs.setString("delivera.pendingOrderToken", "")
+                    activeUserDealId = ""
+                    Prefs.setString(Prefs.KEY_ACTIVE_USER_DEAL_ID, "")
+                    Prefs.setString(Prefs.KEY_ACTIVE_USER_DEAL_SNAPSHOT, "")
                 }
             )
             HomeTab.Rewards -> RewardsScreen(
@@ -270,6 +332,27 @@ fun DeliveraApp() {
             onSelect = { selectedTab = it },
             modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 20.dp, vertical = 20.dp)
         )
+
+        if (activeOrderId.isNotBlank()) {
+            ActiveOrderBanner(
+                order = activeOrder,
+                error = activeOrderError,
+                onOpen = { isTrackingExpanded = true },
+                onDismiss = {
+                    activeOrderId = ""
+                    activeOrderToken = ""
+                    activeOrder = null
+                    activeOrderError = null
+                    Prefs.setString(Prefs.KEY_ACTIVE_ORDER_ID, "")
+                    Prefs.setString(Prefs.KEY_ACTIVE_ORDER_TOKEN, "")
+                    Prefs.setString("delivera.pendingOrderId", "")
+                    Prefs.setString("delivera.pendingOrderToken", "")
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 104.dp)
+            )
+        }
 
         if (showingAddressSheet) {
             AddressSheet(
@@ -295,6 +378,66 @@ fun DeliveraApp() {
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun ActiveOrderBanner(
+    order: CustomerOrderResponse?,
+    error: String?,
+    onOpen: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val status = order?.status
+    val isTerminal = status in setOf("DELIVERED", "COMPLETED", "CANCELLED", "REJECTED")
+    Row(
+        modifier
+            .fillMaxWidth()
+            .shadow(16.dp, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.18f), spotColor = Color.Black.copy(alpha = 0.18f))
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color.White)
+            .border(1.dp, DeliveraTheme.line, RoundedCornerShape(24.dp))
+            .clickable { onOpen() }
+            .padding(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(42.dp).clip(CircleShape).background(DeliveraTheme.orange.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.ShoppingBag, null, tint = DeliveraTheme.orange, modifier = Modifier.size(21.dp))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(activeOrderTitle(order), fontSize = 15.sp, fontWeight = FontWeight.Black, color = DeliveraTheme.ink, maxLines = 1)
+            Text(
+                order?.restaurantName ?: error ?: "Vi uppdaterar statusen.",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = DeliveraTheme.muted,
+                maxLines = 1
+            )
+        }
+        Text(
+            if (isTerminal) "Dölj" else "Visa",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Black,
+            color = DeliveraTheme.orange,
+            modifier = if (isTerminal) Modifier.clickable { onDismiss() } else Modifier
+        )
+    }
+}
+
+private fun activeOrderTitle(order: CustomerOrderResponse?): String {
+    val status = order?.status ?: return "Aktiv order"
+    val pickup = order.type == "PICKUP"
+    return when (status) {
+        "AWAITING_PAYMENT" -> "Betalning väntar"
+        "PENDING", "ACCEPTED" -> if (pickup) "Restaurangen tar emot" else "Vi skickar ordern"
+        "PREPARING" -> "Maten lagas"
+        "READY" -> if (pickup) "Klar att hämta" else "Redo för bud"
+        "DELIVERING" -> "På väg"
+        "DELIVERED", "COMPLETED" -> "Ordern är klar"
+        "CANCELLED", "REJECTED" -> "Ordern stoppades"
+        else -> "Aktiv order"
     }
 }
 

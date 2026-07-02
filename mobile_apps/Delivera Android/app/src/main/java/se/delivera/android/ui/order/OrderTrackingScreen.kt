@@ -24,14 +24,17 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.LocalDining
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import se.delivera.android.data.CustomerOrderResponse
 import se.delivera.android.data.DeliveraApi
 import se.delivera.android.ui.components.Entrance
@@ -58,8 +62,13 @@ fun OrderTrackingScreen(
     onBackHome: () -> Unit
 ) {
     val api = remember { DeliveraApi() }
+    val scope = rememberCoroutineScope()
     var order by remember { mutableStateOf<CustomerOrderResponse?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var reviewRating by remember { mutableStateOf(5) }
+    var reviewText by remember { mutableStateOf("") }
+    var reviewBusy by remember { mutableStateOf(false) }
+    var reviewMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(orderId, phone, accessToken, authToken) {
         while (true) {
@@ -106,6 +115,43 @@ fun OrderTrackingScreen(
                 item { Entrance { StatusHero(current) } }
                 item { StepStrip(current.status, current.type) }
                 item { ReceiptCard(current) }
+                if (current.isReviewable && current.rating == null) {
+                    item {
+                        ReviewCard(
+                            rating = reviewRating,
+                            text = reviewText,
+                            busy = reviewBusy,
+                            message = reviewMessage,
+                            onRating = { reviewRating = it },
+                            onText = { reviewText = it },
+                            onSubmit = {
+                                scope.launch {
+                                    reviewBusy = true
+                                    reviewMessage = null
+                                    runCatching {
+                                        api.reviewOrder(
+                                            orderId = current.id,
+                                            rating = reviewRating,
+                                            review = reviewText,
+                                            phone = phone,
+                                            accessToken = accessToken,
+                                            authToken = authToken
+                                        )
+                                    }.onSuccess { response ->
+                                        val points = response.dpoints?.points ?: 0
+                                        reviewMessage = if (points > 0) "+$points Dpoints lades till." else "Tack för din recension."
+                                        order = current.copy(rating = reviewRating)
+                                    }.onFailure {
+                                        reviewMessage = it.message ?: "Kunde inte spara recensionen."
+                                    }
+                                    reviewBusy = false
+                                }
+                            }
+                        )
+                    }
+                } else if (current.rating != null || reviewMessage != null) {
+                    item { ReviewThanksCard(reviewMessage ?: "Tack för recensionen.") }
+                }
                 if (current.items.isNotEmpty()) {
                     item { SectionTitle("Din order") }
                     items(current.items, key = { "${it.productName}-${it.quantity}-${it.subtotal}" }) { item ->
@@ -130,6 +176,69 @@ fun OrderTrackingScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ReviewCard(
+    rating: Int,
+    text: String,
+    busy: Boolean,
+    message: String?,
+    onRating: (Int) -> Unit,
+    onText: (String) -> Unit,
+    onSubmit: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White)
+            .border(1.dp, DeliveraTheme.line, RoundedCornerShape(22.dp)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Hur var ordern?", fontSize = 20.sp, fontWeight = FontWeight.Black, color = DeliveraTheme.ink)
+        Text("Sätt stjärnor och få Dpoints.", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DeliveraTheme.muted)
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            (1..5).forEach { value ->
+                Icon(
+                    Icons.Filled.Star,
+                    null,
+                    tint = if (value <= rating) DeliveraTheme.orange else DeliveraTheme.line,
+                    modifier = Modifier.size(34.dp).clickable { onRating(value) }
+                )
+            }
+        }
+        OutlinedTextField(
+            value = text,
+            onValueChange = onText,
+            label = { Text("Kort recension") },
+            minLines = 2,
+            maxLines = 3,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Text(
+            if (busy) "Skickar..." else "Skicka recension",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Black,
+            color = Color.White,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(16.dp))
+                .background(if (busy) DeliveraTheme.muted else DeliveraTheme.orange)
+                .clickable(enabled = !busy) { onSubmit() }
+                .padding(top = 14.dp)
+        )
+        message?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.Black, color = DeliveraTheme.orange) }
+    }
+}
+
+@Composable
+private fun ReviewThanksCard(message: String) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White)
+            .border(1.dp, DeliveraTheme.line, RoundedCornerShape(18.dp)).padding(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Filled.Star, null, tint = DeliveraTheme.orange, modifier = Modifier.size(20.dp))
+        Text(message, fontSize = 13.sp, fontWeight = FontWeight.Black, color = DeliveraTheme.ink)
     }
 }
 
@@ -267,3 +376,6 @@ private fun statusTitle(status: String, type: String?): String = when (status) {
     "DELIVERY_FAILED" -> "Leveransen misslyckades"
     else -> status
 }
+
+private val CustomerOrderResponse.isReviewable: Boolean
+    get() = status == "DELIVERED" || status == "COMPLETED" || status == "READY"

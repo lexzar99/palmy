@@ -27,8 +27,11 @@ object Prefs {
     const val KEY_RECENT_DELIVERY_ADDRESSES = "delivera.recentDeliveryAddresses"
     const val KEY_FAVORITES = "delivera.favoriteRestaurantIDs"
     const val KEY_GUEST_PHONE = "delivera.cart.guestPhone"
+    const val KEY_ACTIVE_ORDER_ID = "delivera.activeOrderId"
+    const val KEY_ACTIVE_ORDER_TOKEN = "delivera.activeOrderToken"
     const val KEY_ACTIVE_USER_DEAL_ID = "delivera.activeUserDealId"
     const val KEY_ACTIVE_USER_DEAL_SNAPSHOT = "delivera.activeUserDealSnapshot"
+    const val KEY_HAS_SEEN_ONBOARDING = "delivera.hasSeenOnboarding"
 
     val authTokenState = mutableStateOf("")
 

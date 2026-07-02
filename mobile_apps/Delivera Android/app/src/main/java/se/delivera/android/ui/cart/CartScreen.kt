@@ -151,18 +151,18 @@ fun CartScreen(
         paymentError = null
         paymentMessage = null
         if (paymentBusy) return
-        val resolvedName = if (isLoggedIn) guestName.trim().ifBlank { "Kund" } else guestName.trim()
-        val resolvedPhone = if (isLoggedIn) {
+        val initialName = if (isLoggedIn) guestName.trim().ifBlank { "Kund" } else guestName.trim()
+        val initialPhone = if (isLoggedIn) {
             guestPhone.trim().ifBlank { Prefs.getString(Prefs.KEY_GUEST_PHONE, "") }
         } else {
             guestPhone.trim()
         }
-        if (resolvedName.length < 2) {
+        if (!isLoggedIn && initialName.length < 2) {
             showContact = true
             paymentError = "Skriv namn innan betalning."
             return
         }
-        if (resolvedPhone.length < 6) {
+        if (!isLoggedIn && initialPhone.length < 6) {
             showContact = true
             paymentError = "Skriv ett giltigt telefonnummer."
             return
@@ -175,6 +175,19 @@ fun CartScreen(
         scope.launch {
             paymentBusy = true
             try {
+                var resolvedName = initialName
+                var resolvedPhone = initialPhone
+                if (isLoggedIn && authToken.isNotBlank()) {
+                    val profile = api.profile(authToken)
+                    resolvedName = profile.displayName
+                    resolvedPhone = profile.phone?.trim().orEmpty()
+                    if (resolvedPhone.isNotBlank()) Prefs.setString(Prefs.KEY_GUEST_PHONE, resolvedPhone)
+                }
+                if (resolvedName.length < 2 || resolvedPhone.length < 6) {
+                    showContact = true
+                    paymentError = "Telefonnummer saknas på profilen. Lägg till nummer innan du beställer."
+                    return@launch
+                }
                 val activeUserDealId = Prefs.getString(Prefs.KEY_ACTIVE_USER_DEAL_ID, "").ifBlank { null }
                 val request = CartOrderRequest(
                     restaurantId = restaurant.id,

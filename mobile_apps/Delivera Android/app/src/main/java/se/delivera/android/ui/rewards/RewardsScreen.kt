@@ -1,5 +1,6 @@
 package se.delivera.android.ui.rewards
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material3.Icon
@@ -40,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +55,7 @@ import se.delivera.android.data.DpointsEarnRule
 import se.delivera.android.data.DpointsMe
 import se.delivera.android.data.DpointsReward
 import se.delivera.android.data.HomeAppDeal
+import se.delivera.android.data.ReferralStatusResponse
 import se.delivera.android.ui.components.Entrance
 import se.delivera.android.ui.theme.DeliveraTheme
 
@@ -61,12 +66,14 @@ fun RewardsScreen(
     onClaimedDeal: (HomeAppDeal) -> Unit
 ) {
     val api = remember { DeliveraApi() }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isLoggedIn = authToken.isNotBlank()
     var me by remember { mutableStateOf<DpointsMe?>(null) }
     var rewards by remember { mutableStateOf<List<DpointsReward>>(emptyList()) }
     var earnRules by remember { mutableStateOf<List<DpointsEarnRule>>(emptyList()) }
     var missions by remember { mutableStateOf<List<HomeAppDeal>>(emptyList()) }
+    var referral by remember { mutableStateOf<ReferralStatusResponse?>(null) }
     var selectedPanel by remember { mutableStateOf(RewardsPanel.Shop) }
     var claimingId by remember { mutableStateOf<String?>(null) }
     var isClaimingSignup by remember { mutableStateOf(false) }
@@ -83,8 +90,11 @@ fun RewardsScreen(
                 runCatching { api.dpointsMe(authToken) }
                     .onSuccess { me = it }
                     .onFailure { error = it.message }
+                runCatching { api.referralStatus(authToken) }
+                    .onSuccess { referral = it }
             } else {
                 me = null
+                referral = null
             }
             runCatching { api.appDeals("REWARDS", 12, isLoggedIn, authToken.ifBlank { null }) }
                 .onSuccess { missions = it.deals; error = null }
@@ -150,6 +160,29 @@ fun RewardsScreen(
                 item {
                     Entrance(delayMillis = 70) {
                         RewardsHero(balance = me?.balance, loading = me == null, onOpenProfile = onOpenProfile)
+                    }
+                }
+                referral?.takeIf { it.enabled }?.let { ref ->
+                    item {
+                        Entrance(delayMillis = 85) {
+                            ReferralInviteCard(
+                                referral = ref,
+                                onShare = {
+                                    val url = ref.shareUrl.orEmpty()
+                                    val reward = ref.rewardLabel ?: ref.deal?.title ?: "en belöning"
+                                    val message = if (url.isNotBlank()) {
+                                        "Häng med mig på Delivera. Vi får båda $reward. $url"
+                                    } else {
+                                        "Använd min Delivera-kod ${ref.code.orEmpty()} så får vi båda $reward."
+                                    }
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, message)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "Dela Delivera"))
+                                }
+                            )
+                        }
                     }
                 }
                 item {
@@ -230,6 +263,63 @@ fun RewardsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ReferralInviteCard(referral: ReferralStatusResponse, onShare: () -> Unit) {
+    val reward = referral.rewardLabel ?: referral.deal?.title ?: "en belöning"
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White)
+            .border(1.dp, DeliveraTheme.line, RoundedCornerShape(22.dp)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(46.dp).clip(CircleShape).background(DeliveraTheme.orange.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.PersonAdd, null, tint = DeliveraTheme.orange, modifier = Modifier.size(22.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(if (referral.locked) "Värva vän låses upp efter första ordern" else "Värva vän", fontSize = 16.sp, fontWeight = FontWeight.Black, color = DeliveraTheme.ink)
+                Text(if (referral.locked) "Beställ en gång för att få din kod." else "Ni får båda $reward.", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DeliveraTheme.muted)
+            }
+        }
+        if (!referral.locked) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    referral.code ?: "DIN KOD",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black,
+                    color = DeliveraTheme.ink,
+                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.045f)).padding(horizontal = 14.dp, vertical = 12.dp)
+                )
+                Row(
+                    Modifier.clip(RoundedCornerShape(14.dp)).background(DeliveraTheme.ink).clickable { onShare() }.padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Share, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Text("Dela", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+                }
+            }
+            referral.stats?.let { stats ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ReferralStat("${stats.invited}", "inbjudna", Modifier.weight(1f))
+                    ReferralStat("${stats.registered}", "registrerade", Modifier.weight(1f))
+                    ReferralStat("${stats.ordered}", "beställt", Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReferralStat(value: String, label: String, modifier: Modifier) {
+    Column(
+        modifier.clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.04f)).padding(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Black, color = DeliveraTheme.ink)
+        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = DeliveraTheme.muted, maxLines = 1)
     }
 }
 

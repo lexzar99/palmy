@@ -93,6 +93,9 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
         )
     }
 
+    suspend fun referralStatus(token: String): ReferralStatusResponse =
+        decodeDelivera(getRaw("/api/account/referral", headers = bearer(token)))
+
     suspend fun trackingAds(): List<TrackingAd> = decodeDelivera(getRaw("/api/ads"))
 
     suspend fun homePulse(token: String?): HomePulseResponse {
@@ -173,6 +176,31 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
         }
         val headers = if (!authToken.isNullOrBlank()) bearer(authToken) else emptyMap()
         return decodeDelivera(getRaw("/api/orders/$id", query, headers))
+    }
+
+    suspend fun reviewOrder(
+        orderId: String,
+        rating: Int,
+        review: String?,
+        phone: String?,
+        accessToken: String?,
+        authToken: String?
+    ): OrderReviewResponse {
+        val headers = if (!authToken.isNullOrBlank()) bearer(authToken) else emptyMap()
+        return decodeDelivera(
+            postRaw(
+                "/api/orders/$orderId/review",
+                deliveraJson.encodeToString(
+                    OrderReviewRequest(
+                        rating = rating,
+                        review = review?.trim()?.takeIf { it.isNotBlank() },
+                        phone = phone?.takeIf { it.isNotBlank() },
+                        accessToken = accessToken?.takeIf { it.isNotBlank() }
+                    )
+                ),
+                headers
+            )
+        )
     }
 
     suspend fun autocompletePlaces(input: String, sessionToken: String): List<PlacePrediction> {

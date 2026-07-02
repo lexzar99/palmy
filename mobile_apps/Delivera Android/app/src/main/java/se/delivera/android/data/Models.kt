@@ -232,6 +232,37 @@ data class ReferralRedeemResponse(
     val deal: HomeAppDeal? = null
 )
 
+@Serializable
+data class ReferralStatusResponse(
+    val locked: Boolean = true,
+    val code: String? = null,
+    val shareUrl: String? = null,
+    val enabled: Boolean = false,
+    val rewardLabel: String? = null,
+    val couponsPerSide: Int? = null,
+    val deal: ReferralDealInfo? = null,
+    val stats: ReferralStats? = null
+)
+
+@Serializable
+data class ReferralStats(
+    val invited: Int = 0,
+    val registered: Int = 0,
+    val ordered: Int = 0,
+    val totalEarnedKr: Double? = null
+)
+
+@Serializable
+data class ReferralDealInfo(
+    val title: String? = null,
+    val discountType: String? = null,
+    val discountPercent: Double? = null,
+    val amountKr: Double? = null,
+    val freeDelivery: Boolean? = null,
+    val minOrderKr: Double? = null,
+    val validUntil: String? = null
+)
+
 /* ------------------------------------------------------------------ */
 /* Auth / profile / orders                                             */
 /* ------------------------------------------------------------------ */
@@ -421,6 +452,27 @@ data class CustomerOrderItemResponse(
     val quantity: Int,
     val basePrice: Double? = null,
     val subtotal: Double? = null
+)
+
+@Serializable
+data class OrderReviewRequest(
+    val rating: Int,
+    val review: String? = null,
+    val likedItemIds: List<String> = emptyList(),
+    val phone: String? = null,
+    val accessToken: String? = null
+)
+
+@Serializable
+data class OrderReviewResponse(
+    val success: Boolean = false,
+    val dpoints: ReviewDpointsResult? = null
+)
+
+@Serializable
+data class ReviewDpointsResult(
+    val points: Int? = null,
+    val balance: Int? = null
 )
 
 /* ------------------------------------------------------------------ */
