@@ -161,8 +161,10 @@ const formatAppDeal = (deal: any, userDealId?: string | null, missionProgress?: 
           : 'Deal';
   const subtitle = missionProgress
     ? missionProgress.completed
-      ? `Uppdrag klart. ${missionProgress.rewardPoints} Dpoints är på väg in.`
-      : `${missionProgress.count}/${missionProgress.target} beställningar denna vecka`
+      ? `Uppdrag klart. ${missionProgress.rewardPoints} Dpoints är dina.`
+      : missionProgress.windowDays > 0
+        ? `${missionProgress.count} av ${missionProgress.target} beställningar denna vecka`
+        : `${missionProgress.count} av ${missionProgress.target} beställningar`
     : deal.description || '';
 
   return {
@@ -295,6 +297,19 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
       });
     }
 
+    // Själv-läkning: uppfyllda uppdrag betalas ut när Rewards öppnas (täcker
+    // claims som gjordes innan direkt-utbetalningen fanns).
+    if (req.user?.id && placement === 'REWARDS') {
+      const { evaluateAppDealMissions, getDpointsSettings } = await import('../lib/dpoints');
+      const settings = await getDpointsSettings().catch(() => null);
+      await evaluateAppDealMissions({
+        userId: req.user.id,
+        orderId: 'rewards-check',
+        orderDate: now,
+        cap: settings?.dpointsMaxBalance ?? 0,
+      }).catch(() => null);
+    }
+
     const claimedRows = req.user?.id
       ? await (prisma as any).userDeal.findMany({
           where: {
@@ -311,11 +326,17 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
         .filter((row: any) => row.dealId)
         .map((row: any) => [row.dealId, row]),
     );
-    // Claimade deals döljs från feeden (ägarens beslut): efter claim bor
-    // dealen i kassan och i profilens "Mina deals", inte kvar på hemskärmen.
-    const unavailableClaimedDealIds = new Set(
+    // Claim-lägen: ACTIVE döljer vanliga deals (de bor i kassan + Mina deals)
+    // men uppdrag visas med progress. USED/RESERVED utan aktiv claim döljs
+    // helt — ett avklarat uppdrag ska inte stå kvar och tjata.
+    const activeClaimedDealIds = new Set(
       claimedRows
-        .filter((row: any) => row.dealId && (row.status === 'ACTIVE' || row.status === 'RESERVED' || row.status === 'USED'))
+        .filter((row: any) => row.dealId && row.status === 'ACTIVE')
+        .map((row: any) => row.dealId),
+    );
+    const spentClaimedDealIds = new Set(
+      claimedRows
+        .filter((row: any) => row.dealId && (row.status === 'RESERVED' || row.status === 'USED'))
         .map((row: any) => row.dealId),
     );
 
@@ -344,7 +365,8 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
       .filter((deal) => isDealAvailableNow(deal, now))
       .filter((deal) => !abHidden.has(deal.id))
       .filter((deal) => appAudienceMatches(deal, { isLoggedIn, orderCount }))
-      .filter((deal) => isMissionDeal(deal) || !unavailableClaimedDealIds.has(deal.id))
+      .filter((deal) => !(spentClaimedDealIds.has(deal.id) && !activeClaimedDealIds.has(deal.id)))
+      .filter((deal) => isMissionDeal(deal) || !activeClaimedDealIds.has(deal.id))
       .map((deal) => ({
         deal,
         score: (deal.appRotating === false ? 10_000 : 0) + (deal.sortOrder || 0) - Math.random() * Math.max(1, deal.appWeight || 10),
@@ -500,8 +522,21 @@ router.post('/app/:id/claim', authenticateUser, async (req: any, res) => {
       },
     });
     await prisma.deal.update({ where: { id: deal.id }, data: { usageCount: { increment: 1 } } }).catch(() => null);
-    const progress = await missionProgressForDeal(req.user.id, deal, userDeal);
-    res.status(201).json({ claimed: true, deal: formatAppDeal(deal, userDeal.id, progress), userDeal });
+    if (mission) {
+      // Redan uppfyllt mål (t.ex. milstolpe man passerat) betalas ut direkt,
+      // inte först vid nästa order.
+      const { evaluateAppDealMissions, getDpointsSettings } = await import('../lib/dpoints');
+      const settings = await getDpointsSettings().catch(() => null);
+      await evaluateAppDealMissions({
+        userId: req.user.id,
+        orderId: 'claim-check',
+        orderDate: new Date(),
+        cap: settings?.dpointsMaxBalance ?? 0,
+      }).catch((e: any) => console.error('[deals/app claim] mission eval error:', e?.message));
+    }
+    const refreshedUserDeal = await (prisma as any).userDeal.findUnique({ where: { id: userDeal.id } }).catch(() => userDeal);
+    const progress = await missionProgressForDeal(req.user.id, deal, refreshedUserDeal || userDeal);
+    res.status(201).json({ claimed: true, deal: formatAppDeal(deal, (refreshedUserDeal || userDeal).id, progress), userDeal: refreshedUserDeal || userDeal });
   } catch (error: any) {
     console.error('[deals/app claim] error:', error?.message);
     res.status(500).json({ error: 'Kunde inte hämta erbjudandet' });
