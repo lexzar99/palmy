@@ -15,18 +15,19 @@ import {
   Clock,
   Store,
   Truck,
-  ArrowRight,
   X,
   Sparkles,
   Info,
   Phone,
   Gift,
   ChevronRight,
-  Coins,
+  Heart,
+  ChevronDown,
+  Crown,
+  Flame,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
-import AddressPullDown from "@/components/AddressPullDown";
 import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DpointsHomeCard from "@/components/DpointsHomeCard";
@@ -130,6 +131,8 @@ const cuisineFilters = [
 ];
 
 const ORDER_TYPE_KEY = "platform_order_type";
+const ACTIVE_USER_DEAL_ID_KEY = "delivera.activeUserDealId";
+const ACTIVE_USER_DEAL_SNAPSHOT_KEY = "delivera.activeUserDealSnapshot";
 const ACTIVE_ORDER_KEY = "matgo_active_order_id";
 const ACTIVE_ORDER_TOKEN_KEY = "matgo_active_order_token";
 const ACTIVE_ORDER_PHONE_KEY = "matgo_active_order_phone";
@@ -143,9 +146,95 @@ const PROMO_CARD_GAP = 12;
 const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
 
 type PromoCardItem =
-  | { id: string; kind: "deal"; deal: DealCardData }
   | { id: string; kind: "sponsor"; sponsor: SponsorData }
-  | { id: string; kind: "dpoints"; card: SponsorCardData };
+  | { id: string; kind: "dpoints"; card: SponsorCardData }
+  | { id: string; kind: "appDeal"; appDeal: HomeAppDeal }
+  | { id: string; kind: "pulseChampion"; module: HomePulseModule }
+  | { id: string; kind: "pulseHighlight"; module: HomePulseModule; restaurant: PulseRailRestaurant; badge: string };
+
+type HomeAppDealMissionProgress = {
+  target: number;
+  count: number;
+  remaining: number;
+  completed: boolean;
+  windowDays: number;
+  rewardPoints: number;
+  claimed: boolean;
+};
+
+type HomeAppDeal = {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  badge?: string | null;
+  imageUrl?: string | null;
+  ctaLabel?: string | null;
+  placement?: string;
+  audience?: string;
+  template?: string;
+  size?: string;
+  claimRequired?: boolean;
+  dpointsBonus?: number | null;
+  missionType?: string | null;
+  missionProgress?: HomeAppDealMissionProgress | null;
+  checkoutApplicable?: boolean | null;
+  discountType?: string | null;
+  discountPercent?: number | null;
+  amountKr?: number | null;
+  freeDelivery?: boolean;
+  minOrderKr?: number;
+  restaurant?: { id: string; name: string; slug: string; imageUrl?: string | null; cuisine?: string | null } | null;
+  userDealId?: string | null;
+  theme?: string | null;
+};
+
+type PulseRestaurant = {
+  id: string;
+  name: string;
+  slug: string;
+  cuisine?: string | null;
+  imageUrl?: string | null;
+  heroImageUrl?: string | null;
+  rating?: number | null;
+};
+
+type PulseRailRestaurant = PulseRestaurant & {
+  avgMinutesToday?: number | null;
+  deliveredToday?: number | null;
+  growthPct?: number | null;
+};
+
+type PulseProduct = {
+  productId: string;
+  name: string;
+  priceKr: number;
+  imageUrl?: string | null;
+  restaurant: PulseRestaurant;
+};
+
+type HomePulseModule = {
+  type: string;
+  id: string;
+  theme?: string | null;
+  title: string;
+  subtitle?: string | null;
+  restaurant?: PulseRestaurant | null;
+  restaurants?: PulseRailRestaurant[] | null;
+  products?: PulseProduct[] | null;
+  items?: PulseProduct[] | null;
+  product?: (PulseProduct & { costPoints?: number; restaurant: PulseRestaurant }) | null;
+  balance?: number | null;
+  remainingPoints?: number | null;
+  endsAt?: string | null;
+  progress?: { count: number; target: number; rewardPoints: number } | null;
+  images?: string[] | null;
+  percent?: number | null;
+};
+
+type HomePulseResponse = {
+  greeting?: string | null;
+  modules: HomePulseModule[];
+};
 
 function readClosedOrderSeen() {
   if (typeof window === "undefined") return {};
@@ -196,12 +285,305 @@ function forgetClosedHomeOrder(orderId: string) {
   }
 }
 
+function absoluteMediaUrl(path?: string | null) {
+  if (!path) return "";
+  if (path.startsWith("/")) return `${API_URL}${path}`;
+  return path;
+}
+
+function pulseGradient(theme?: string | null) {
+  switch (theme) {
+    case "ember":
+      return "linear-gradient(135deg, #F0601F 0%, #B8291A 100%)";
+    case "forest":
+      return "linear-gradient(135deg, #21945C 0%, #0D5C3D 100%)";
+    case "midnight":
+      return "linear-gradient(135deg, #292E4D 0%, #0D1024 100%)";
+    case "gold":
+      return "linear-gradient(135deg, #DEA128 0%, #9E660D 100%)";
+    default:
+      return "linear-gradient(135deg, var(--deal-blue) 0%, var(--deal-blue-deep) 100%)";
+  }
+}
+
+function pulseChipColor(theme?: string | null) {
+  switch (theme) {
+    case "ember": return "#8C210F";
+    case "forest": return "#0A4D30";
+    case "midnight": return "#141633";
+    case "gold": return "#784D08";
+    default: return "var(--deal-blue-ink)";
+  }
+}
+
+function dealValueHeadline(deal: HomeAppDeal) {
+  const progress = deal.missionProgress;
+  if (deal.missionType && progress?.rewardPoints) return `+${progress.rewardPoints} Dpoints`;
+  if (deal.freeDelivery) return "Fri leverans";
+  if ((deal.discountPercent ?? 0) > 0) return `${deal.discountPercent}% rabatt`;
+  if ((deal.amountKr ?? 0) > 0) return `${deal.amountKr} kr rabatt`;
+  if ((deal.dpointsBonus ?? 0) > 0) return `+${deal.dpointsBonus} Dpoints`;
+  return deal.badge ?? "";
+}
+
+function dealCtaTitle(deal: HomeAppDeal, isActive: boolean) {
+  const progress = deal.missionProgress;
+  const isMission = Boolean(deal.missionType);
+  const isClaimed = Boolean(deal.userDealId);
+  if (isMission) {
+    if (progress?.completed) return "Klart!";
+    if (isClaimed && progress) return `${progress.count} av ${progress.target}`;
+    return deal.ctaLabel || "Starta uppdraget";
+  }
+  if (isActive) return "Vald i kassan";
+  if (isClaimed) return "Använd";
+  return deal.ctaLabel || (deal.claimRequired ? "Hämta" : "Beställ");
+}
+
+function SwiftSectionHeader({ title, subtitle }: { title: string; subtitle?: string | null }) {
+  return (
+    <div className="min-w-0">
+      <h2 className="text-[22px] font-black leading-tight tracking-normal text-[var(--ink)]">{title}</h2>
+      {!!subtitle && <p className="mt-0.5 text-[13px] font-semibold text-[var(--muted)]">{subtitle}</p>}
+    </div>
+  );
+}
+
+function DpointsGlyph({ size = 18 }: { size?: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="relative inline-block shrink-0"
+      style={{ width: size, height: size, borderRadius: size * 0.22, backgroundColor: "var(--orange)" }}
+    >
+      <span
+        className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 rotate-45 border-white"
+        style={{
+          width: size * 0.42,
+          height: size * 0.42,
+          borderWidth: Math.max(1.5, size * 0.11),
+          borderRadius: size * 0.1,
+        }}
+      />
+    </span>
+  );
+}
+
+function HomeAppDealCard({
+  deal,
+  activeUserDealId,
+  claiming,
+  fullWidth = false,
+  onAction,
+}: {
+  deal: HomeAppDeal;
+  activeUserDealId: string;
+  claiming: boolean;
+  fullWidth?: boolean;
+  onAction: (deal: HomeAppDeal) => void;
+}) {
+  const isClaimed = Boolean(deal.userDealId);
+  const isMission = Boolean(deal.missionType);
+  const isActive = Boolean(deal.userDealId && deal.userDealId === activeUserDealId);
+  const progress = deal.missionProgress;
+  const fraction = progress?.target ? Math.min(1, progress.count / progress.target) : 0;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onAction(deal)}
+      disabled={claiming || (isMission && isClaimed)}
+      className={`swift-deal-card ${fullWidth ? "w-full" : "w-[300px]"} shrink-0 text-left active:scale-[0.99] disabled:cursor-default`}
+      style={{ background: pulseGradient(deal.theme) }}
+    >
+      <div className="flex items-start gap-2.5">
+        <div className="min-w-0 flex-1">
+          {!!deal.badge && (
+            <span className="mb-1.5 inline-flex h-[22px] items-center rounded-full bg-white/90 px-2 text-[10px] font-black uppercase" style={{ color: pulseChipColor(deal.theme) }}>
+              {deal.badge}
+            </span>
+          )}
+          <h3 className="line-clamp-2 text-[19px] font-black leading-[1.08] tracking-normal text-white">{deal.title}</h3>
+          {!!deal.subtitle && <p className="mt-1.5 line-clamp-2 text-[12px] font-semibold leading-snug text-white/85">{deal.subtitle}</p>}
+        </div>
+        {!!dealValueHeadline(deal) && (
+          <span className="shrink-0 rounded-full bg-white px-2.5 py-1.5 text-[13px] font-black" style={{ color: pulseChipColor(deal.theme) }}>
+            {dealValueHeadline(deal)}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-auto pt-3">
+        {isMission && progress && isClaimed && (
+          <div className="mb-2.5">
+            <div className="h-[7px] overflow-hidden rounded-full bg-white/25">
+              <div className="h-full min-w-2 rounded-full bg-white" style={{ width: `${Math.max(7, fraction * 100)}%` }} />
+            </div>
+            <p className="mt-1.5 text-[11px] font-bold text-white/85">
+              {progress.completed
+                ? "Uppdraget klart, poängen är dina"
+                : progress.windowDays > 0
+                  ? `${progress.remaining} kvar inom ${progress.windowDays} dagar`
+                  : `${progress.remaining} beställningar kvar`}
+            </p>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          {deal.restaurant && (
+            <span className="min-w-0 flex items-center gap-1.5 text-[12px] font-bold text-white/90">
+              <Store size={12} strokeWidth={2.3} />
+              <span className="truncate">{deal.restaurant.name}</span>
+            </span>
+          )}
+          <span className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-full bg-white px-3.5 text-[13px] font-black" style={{ color: pulseChipColor(deal.theme) }}>
+            {claiming ? "..." : isActive ? "✓" : null}
+            {dealCtaTitle(deal, isActive)}
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function ChampionPromoCard({ module, onOpen }: { module: HomePulseModule; onOpen: (slug: string) => void }) {
+  const restaurant = module.restaurant;
+  if (!restaurant) return null;
+  const image = absoluteMediaUrl(module.images?.[0] || restaurant.heroImageUrl || restaurant.imageUrl);
+  return (
+    <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card group text-left">
+      {image ? <SmartImage src={image} alt={restaurant.name} sizes="(max-width: 640px) 88vw, 460px" className="absolute inset-0 h-full w-full object-cover" /> : <span className="absolute inset-0" style={{ background: pulseGradient(module.theme) }} />}
+      <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/75" />
+      <span className="absolute inset-x-0 bottom-0 p-4">
+        <span className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-full bg-[var(--gold)] px-2.5 text-[10px] font-black uppercase text-[#784D08]">
+          <Crown size={11} fill="currentColor" /> {module.title}
+        </span>
+        <span className="block truncate text-[24px] font-black leading-tight text-white">{restaurant.name}</span>
+        <span className="mt-1 flex items-center gap-2 text-[12px] font-bold text-white/90">
+          {module.subtitle}
+          {restaurant.rating ? <span className="text-[var(--gold)]">★ {restaurant.rating.toFixed(1)}</span> : null}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function HighlightPromoCard({ restaurant, badge, onOpen }: { restaurant: PulseRailRestaurant; badge: string; onOpen: (slug: string) => void }) {
+  const image = absoluteMediaUrl(restaurant.heroImageUrl || restaurant.imageUrl);
+  return (
+    <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card text-left">
+      {image ? <SmartImage src={image} alt={restaurant.name} sizes="(max-width: 640px) 88vw, 460px" className="absolute inset-0 h-full w-full object-cover" /> : <span className="absolute inset-0" style={{ background: pulseGradient("sky") }} />}
+      <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/70" />
+      <span className="absolute inset-x-0 bottom-0 p-4">
+        <span className="mb-1.5 inline-flex h-6 items-center rounded-full bg-white px-2.5 text-[10px] font-black uppercase text-[var(--ink)]">{badge}</span>
+        <span className="block truncate text-[24px] font-black leading-tight text-white">{restaurant.name}</span>
+        <span className="mt-1 flex items-center gap-2 text-[12px] font-bold text-white/90">
+          {restaurant.cuisine || "Restaurang"}
+          {restaurant.rating ? <span className="text-[var(--gold)]">★ {restaurant.rating.toFixed(1)}</span> : null}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function PulseMessageCard({ module }: { module: HomePulseModule }) {
+  return (
+    <div className="swift-message-card" style={{ background: pulseGradient(module.theme) }}>
+      <div className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[14px] bg-white/20 text-white">
+        {module.type === "WEATHER" ? <CloudRainIcon /> : <Sparkles size={20} fill="currentColor" />}
+      </div>
+      <div className="min-w-0">
+        <h3 className="truncate text-[16px] font-black leading-tight text-white">{module.title}</h3>
+        {!!module.subtitle && <p className="mt-1 line-clamp-2 text-[12px] font-bold leading-snug text-white/90">{module.subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
+function CloudRainIcon() {
+  return <span className="text-lg font-black">☔</span>;
+}
+
+function PulseProductRail({ module, onOpen }: { module: HomePulseModule; onOpen: (slug: string) => void }) {
+  const products = module.type === "NEW_MENU_ITEMS" ? module.items : module.products;
+  if (!products?.length) return null;
+  return (
+    <section className="space-y-3">
+      <div className="flex items-baseline gap-2">
+        {module.title === "Hetast just nu" && <Flame size={17} fill="var(--orange)" className="text-[var(--orange)]" />}
+        <SwiftSectionHeader title={module.title} subtitle={module.subtitle || ""} />
+      </div>
+      <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 px-5">
+        {products.map((product) => {
+          const image = absoluteMediaUrl(product.imageUrl);
+          return (
+            <button key={product.productId} type="button" onClick={() => onOpen(product.restaurant.slug)} className="swift-product-card">
+              <div className="relative h-[110px] w-full overflow-hidden bg-[var(--bg-deep)]">
+                {image ? <SmartImage src={image} alt={product.name} sizes="168px" className="h-full w-full object-cover" /> : <div className="h-full w-full" style={{ background: pulseGradient(module.theme) }} />}
+                {module.type === "NEW_MENU_ITEMS" && <span className="absolute left-2 top-2 rounded-full bg-[var(--orange)] px-2 py-1 text-[9px] font-black uppercase text-white">Nyhet</span>}
+              </div>
+              <div className="p-2.5 text-left">
+                <p className="truncate text-[13px] font-black text-[var(--ink)]">{product.name}</p>
+                <div className="mt-1 flex items-center gap-2 text-[11px] font-bold text-[var(--muted)]">
+                  <span className="min-w-0 truncate">{product.restaurant.name}</span>
+                  <span className="ml-auto shrink-0 text-[12px] font-black text-[var(--ink)]">{Math.round(product.priceKr)} kr</span>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function PulseRestaurantRail({ module, onOpen }: { module: HomePulseModule; onOpen: (slug: string) => void }) {
+  const restaurants = module.restaurants;
+  if (!restaurants?.length) return null;
+  return (
+    <section className="space-y-3">
+      <SwiftSectionHeader title={module.title} subtitle={module.subtitle || ""} />
+      <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 px-5">
+        {restaurants.map((restaurant) => (
+          <button key={restaurant.id} type="button" onClick={() => onOpen(restaurant.slug)} className="swift-chip-card">
+            <div className="h-12 w-12 overflow-hidden rounded-2xl bg-[var(--bg-deep)]">
+              {restaurant.imageUrl || restaurant.heroImageUrl ? (
+                <SmartImage src={absoluteMediaUrl(restaurant.imageUrl || restaurant.heroImageUrl)} alt={restaurant.name} sizes="48px" className="h-full w-full object-cover" />
+              ) : null}
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <p className="truncate text-[13px] font-black text-[var(--ink)]">{restaurant.name}</p>
+              <p className="truncate text-[11px] font-bold text-[var(--muted)]">
+                {restaurant.growthPct ? `+${restaurant.growthPct}% denna vecka` : restaurant.avgMinutesToday ? `${restaurant.avgMinutesToday} min idag` : restaurant.cuisine || "Restaurang"}
+              </p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PulseModuleSection({ module, onOpenRestaurant }: { module: HomePulseModule; onOpenRestaurant: (slug: string) => void }) {
+  if (["OCCASION", "WEATHER", "STREAK", "POINTS_NUDGE", "FAVORITE"].includes(module.type)) {
+    return <PulseMessageCard module={module} />;
+  }
+  if (["HOT_PRODUCTS", "NEW_MENU_ITEMS"].includes(module.type)) {
+    return <PulseProductRail module={module} onOpen={onOpenRestaurant} />;
+  }
+  if (["FASTEST_TODAY", "TRENDING", "NEW_RESTAURANTS"].includes(module.type)) {
+    return <PulseRestaurantRail module={module} onOpen={onOpenRestaurant} />;
+  }
+  return null;
+}
+
 export interface HomeInitialData {
   restaurants: Restaurant[];
   cities: City[];
   deals: any[];
   sponsors: SponsorData[];
   homeCategories: HomeCategorySection[];
+  appDeals?: HomeAppDeal[];
+  pulse?: HomePulseResponse;
 }
 
 /**
@@ -230,6 +612,9 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   
   const [cities, setCities] = useState<City[]>(initialData?.cities ?? []);
   const [deals, setDeals] = useState<any[]>(() => (initialData?.deals ?? []).filter((d: any) => d.isActive && d.showOnSite));
+  const [appDeals, setAppDeals] = useState<HomeAppDeal[]>(initialData?.appDeals ?? []);
+  const [pulseModules, setPulseModules] = useState<HomePulseModule[]>(initialData?.pulse?.modules ?? []);
+  const [homeGreeting, setHomeGreeting] = useState<string | null>(initialData?.pulse?.greeting ?? null);
   const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [sponsors, setSponsors] = useState<SponsorData[]>(initialData?.sponsors ?? []);
   const [homeCategorySections, setHomeCategorySections] = useState<HomeCategorySection[]>(initialData?.homeCategories ?? []);
@@ -277,10 +662,33 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [trackingAds, setTrackingAds] = useState<TrackingAd[]>([]);
   const [courierPositions, setCourierPositions] = useState<Record<string, { lat: number; lng: number }>>({});
+  const [activeUserDealId, setActiveUserDealId] = useState("");
+  const [claimingDealId, setClaimingDealId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      setActiveUserDealId(localStorage.getItem(ACTIVE_USER_DEAL_ID_KEY) || "");
+    } catch { /* noop */ }
+  }, []);
   useEffect(() => {
     axios.get("/api/platform/dpoints/me")
       .then((res) => setDpointsBalance(res.data?.enabled ? Number(res.data.balance ?? 0) : null))
       .catch(() => setDpointsBalance(null));
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    Promise.all([
+      axios.get(`/api/platform/deals/app`, { params: { placement: "HOME_TOP", limit: 8, loggedIn: "1", _t: Date.now() } }).catch(() => ({ data: { deals: appDeals } })),
+      axios.get(`/api/platform/home/pulse`, { params: { _t: Date.now() } }).catch(() => ({ data: { greeting: homeGreeting, modules: pulseModules } })),
+    ]).then(([dealsRes, pulseRes]) => {
+      if (Array.isArray(dealsRes.data?.deals)) setAppDeals(dealsRes.data.deals);
+      if (Array.isArray(pulseRes.data?.modules)) {
+        setPulseModules(pulseRes.data.modules);
+        setHomeGreeting(pulseRes.data.greeting ?? null);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
 
   useEffect(() => {
@@ -544,13 +952,17 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       axios.get(`${API_URL}/api/sponsors`).catch(() => ({ data: [] })),
       axios.get(`${API_URL}/api/home-categories`).catch(() => ({ data: [] })),
       axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })),
-    ]).then(([resRest, resCities, resDeals, resSponsors, resHomeCategories, resPersonal]) => {
+      axios.get(isLoggedIn ? `/api/platform/deals/app` : `${API_URL}/api/deals/app`, { params: { placement: "HOME_TOP", limit: 8, loggedIn: isLoggedIn ? "1" : "0", _t: Date.now() } }).catch(() => ({ data: { deals: initialData?.appDeals ?? [] } })),
+      axios.get(isLoggedIn ? `/api/platform/home/pulse` : `${API_URL}/api/home/pulse`, { params: { _t: Date.now() } }).catch(() => ({ data: initialData?.pulse ?? { modules: [] } })),
+    ]).then(([resRest, resCities, resDeals, resSponsors, resHomeCategories, resPersonal, resAppDeals, resPulse]) => {
       const restaurantsData = Array.isArray(resRest.data) ? resRest.data : [];
       const citiesData = Array.isArray(resCities.data) ? resCities.data : [];
       const dealsData = Array.isArray(resDeals.data) ? resDeals.data : [];
       const sponsorsData = Array.isArray(resSponsors.data) ? resSponsors.data : [];
       const homeCategoryData = Array.isArray(resHomeCategories.data) ? resHomeCategories.data : [];
       const personalDealsData = Array.isArray(resPersonal.data) ? resPersonal.data : [];
+      const appDealsData = Array.isArray(resAppDeals.data?.deals) ? resAppDeals.data.deals : [];
+      const pulseData = resPulse.data && typeof resPulse.data === "object" ? resPulse.data as HomePulseResponse : { modules: [] };
 
       setRestaurants(restaurantsData);
       setCities(citiesData);
@@ -558,6 +970,9 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       setSponsors(sponsorsData);
       setHomeCategorySections(homeCategoryData);
       setPersonalDeals(personalDealsData);
+      setAppDeals(appDealsData);
+      setPulseModules(Array.isArray(pulseData.modules) ? pulseData.modules : []);
+      setHomeGreeting(pulseData.greeting ?? null);
 
       // Persistera för nästa besök → instant paint utan skeleton (personalDeals
       // utelämnas medvetet: kontospecifikt, hämtas alltid färskt).
@@ -949,12 +1364,27 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   }, [homeCategorySections, restaurants, deals, deliveryOverrides, orderType, detectedCityName, cityFamilyIds, cityFamilyNames, zoneRestaurantIds]);
 
   const promoCards = useMemo<PromoCardItem[]>(() => {
-    const base = sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
+    const extras: PromoCardItem[] = [];
+    const champion = pulseModules.find((module) => module.type === "CHAMPION" && module.restaurant);
+    if (champion) extras.push({ id: `pulse-champion-${champion.id}`, kind: "pulseChampion", module: champion });
+    extras.push(...appDeals.slice(0, 7).map((appDeal) => ({ id: `app-deal-${appDeal.id}`, kind: "appDeal" as const, appDeal })));
+    const trending = pulseModules.find((module) => module.type === "TRENDING" && module.restaurants?.length);
+    const newInTown = pulseModules.find((module) => module.type === "NEW_RESTAURANTS" && module.restaurants?.length);
+    if (trending?.restaurants?.[0]) extras.push({ id: `pulse-trending-${trending.restaurants[0].id}`, kind: "pulseHighlight", module: trending, restaurant: trending.restaurants[0], badge: "Trendar" });
+    if (newInTown?.restaurants?.[0]) extras.push({ id: `pulse-new-${newInTown.restaurants[0].id}`, kind: "pulseHighlight", module: newInTown, restaurant: newInTown.restaurants[0], badge: "Ny i stan" });
+
+    const sponsorCards: PromoCardItem[] = sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
+    const base: PromoCardItem[] = [];
+    const max = Math.max(sponsorCards.length, extras.length);
+    for (let i = 0; i < max; i++) {
+      if (sponsorCards[i]) base.push(sponsorCards[i]);
+      if (extras[i]) base.push(extras[i]);
+    }
     // Dpoints-kortet ligger FÖRST i samma array → räknas av karusellen + prickarna.
     return dpointsCard
       ? [{ id: "dpoints-signup", kind: "dpoints" as const, card: dpointsCard }, ...base]
       : base;
-  }, [sponsors, dpointsCard]);
+  }, [sponsors, dpointsCard, appDeals, pulseModules]);
 
   const getDealForRestaurant = useCallback((restaurantId: string) => {
     return allDealCards.find(d => d.relatedRestaurantIds?.includes(restaurantId) || d.isGlobal);
@@ -1017,6 +1447,46 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
 
   const getCardImage = (r: Restaurant) => {
     return getImageSrc(r.heroImageUrl || r.imageUrl || "");
+  };
+
+  const activateAppDeal = (deal: HomeAppDeal) => {
+    const userDealId = deal.userDealId;
+    if (!userDealId) return;
+    try {
+      localStorage.setItem(ACTIVE_USER_DEAL_ID_KEY, userDealId);
+      localStorage.setItem(ACTIVE_USER_DEAL_SNAPSHOT_KEY, JSON.stringify(deal));
+    } catch { /* noop */ }
+    setActiveUserDealId(userDealId);
+    router.push("/cart");
+  };
+
+  const handleAppDealAction = async (deal: HomeAppDeal) => {
+    if (!isLoggedIn) {
+      router.push("/profile");
+      return;
+    }
+    if (deal.userDealId && !deal.missionType) {
+      activateAppDeal(deal);
+      return;
+    }
+    if (deal.missionType && deal.userDealId) return;
+    setClaimingDealId(deal.id);
+    try {
+      const res = await axios.post(`/api/platform/deals/app/${deal.id}/claim`, {});
+      const claimedDeal = res.data?.deal || deal;
+      setAppDeals((current) => current.map((item) => item.id === deal.id ? claimedDeal : item));
+      if (claimedDeal?.userDealId && !claimedDeal?.missionType) {
+        activateAppDeal(claimedDeal);
+      }
+    } catch (err: any) {
+      if (err?.response?.status === 401) router.push("/profile");
+    } finally {
+      setClaimingDealId(null);
+    }
+  };
+
+  const openRestaurantSlug = (slug: string) => {
+    router.push(`/restaurants/${slug}`);
   };
 
   const renderFeaturedRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[], options: { alwaysShow?: boolean } = {}) => {
@@ -1162,100 +1632,74 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
 
 
   return (
-    <div className="min-h-screen pb-36 md:pt-28" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
-      {/* ── MOBIL HEADER — kompakt adress/sök, ren CSS, kan aldrig glitcha ──
-          Tier 1 och Tier 2 är DIREKTA barn till den höga sid-diven — annars
-          slutar position:sticky fungera så fort man scrollat förbi en kort
-          wrapper (sticky stickar bara inom sin närmaste blockförälder).
-          Mobilen har ingen separat leverans/hämtning-toggle här; adressraden
-          öppnar AddressModal där läge + adress/stad väljs. Döljs på desktop. */}
-      <div
-        className="md:hidden sticky top-0 z-[1400]"
-        style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", paddingTop: "env(safe-area-inset-top, 0px)" }}
-      >
-        <div className="px-4 pt-2.5 pb-3">
+    <div className="delivera-app-bg min-h-screen pb-36 md:pt-24" style={{ color: "var(--text-primary)" }}>
+      <div className="sticky top-0 z-[1400] border-b border-[var(--border-muted)] bg-white/75 backdrop-blur-xl md:static md:border-0 md:bg-transparent md:backdrop-blur-0" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+        <header className="mx-auto max-w-7xl px-5 py-3.5 md:px-7 md:pb-6 md:pt-0">
+          {!!homeGreeting && (
+            <p className="mb-2 text-[15px] font-black leading-tight tracking-normal text-[var(--ink)]">{homeGreeting}</p>
+          )}
+
           <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <AddressPullDown
-                currentAddress={address}
-                zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : hasDeliveryCoords ? "ok" : null) : null}
-                onOpenFull={() => setShowAddressModal(true)}
-                orderType={orderType}
-                cityName={detectedCityName}
-                onSelect={handleQuickAddressSelect}
-                compact
-              />
-            </div>
+            <button type="button" onClick={() => setShowAddressModal(true)} className="min-w-0 flex flex-1 items-center gap-3 text-left">
+              <span className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-[rgba(240,79,26,0.12)] text-[var(--orange)]">
+                <MapPin size={18} fill="currentColor" strokeWidth={2.2} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[10px] font-bold uppercase tracking-normal text-[var(--muted)]">
+                  {orderType === "DELIVERY" ? "DELIVER TO" : "PICKUP IN"}
+                </span>
+                <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-[15px] font-black leading-tight tracking-normal text-[var(--ink)]">
+                    {address || detectedCityName || "Välj adress"}
+                  </span>
+                  <ChevronDown size={14} strokeWidth={2.6} className="shrink-0 text-[var(--ink)] opacity-70" />
+                </span>
+              </span>
+            </button>
+
             <Link
               href="/orders"
-              className="shrink-0 inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12px] font-bold"
-              style={{ backgroundColor: "var(--gold-soft)", color: "var(--color-gold-500)", border: "1px solid color-mix(in srgb, var(--color-gold-500) 24%, transparent)" }}
+              className="hidden h-9 shrink-0 items-center gap-1.5 rounded-full bg-[rgba(240,79,26,0.09)] px-3 text-[12px] font-black text-[var(--orange)] sm:inline-flex"
               aria-label="Dpoints"
             >
-              <Coins size={13} strokeWidth={2} />
+              <DpointsGlyph size={16} />
               <span className="tabular-nums">{dpointsBalance != null ? `${dpointsBalance.toLocaleString("sv-SE")} p` : "Dpoints"}</span>
             </Link>
-          </div>
-          <Link
-            href="/search"
-            aria-label={t("home.searchCta")}
-            className="mt-2 flex h-10 items-center gap-2 rounded-xl px-3 transition-colors active:opacity-80"
-            style={{ backgroundColor: "var(--bg-deep)" }}
-          >
-            <Search size={15} strokeWidth={2} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-            <span className="text-[13.5px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>{t("home.searchCta")}</span>
-          </Link>
-        </div>
-      </div>
-      <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16 pt-3 md:pt-0">
-        {/* DESKTOP SUBHEADER — adressblock till vänster, sök i mitten,
-            leverans/hämtning-segmentkontroll till höger. På mobil sköts detta
-            av den sticky toppbaren högst upp. */}
-        <header className="hidden md:block mb-6 sm:mb-8 relative">
-          <div className="flex items-center gap-4 lg:gap-6">
-            <div className="shrink-0 min-w-0 max-w-[300px]">
-              <AddressPullDown
-                currentAddress={address}
-                zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : hasDeliveryCoords ? "ok" : null) : null}
-                onOpenFull={() => setShowAddressModal(true)}
-                orderType={orderType}
-                cityName={detectedCityName}
-                onSelect={handleQuickAddressSelect}
-              />
-            </div>
 
-            {/* Sökfält */}
             <Link
-              href="/search"
-              className="flex-1 max-w-xl mx-auto flex h-12 items-center gap-2.5 rounded-xl px-4 transition-colors hover:opacity-90"
-              style={{ backgroundColor: "var(--bg-deep)" }}
+              href="/discover"
+              className="relative flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-white text-[var(--ink)] swift-card-shadow"
+              aria-label="Favoriter"
             >
-              <Search size={16} strokeWidth={2} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-              <span className="text-[14px] font-medium flex-1 truncate" style={{ color: "var(--text-secondary)" }}>
-                {t("home.searchCta")}
-              </span>
+              <Heart size={18} fill={favorites.size > 0 ? "var(--orange)" : "none"} strokeWidth={2.2} className={favorites.size > 0 ? "text-[var(--orange)]" : ""} />
+              {favorites.size > 0 && (
+                <span className="absolute -right-1 -top-1 flex min-h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[var(--orange)] px-1 text-[9px] font-black text-white">
+                  {favorites.size > 99 ? "99+" : favorites.size}
+                </span>
+              )}
             </Link>
+          </div>
 
-            {/* Leverans/Hämtning — segmentkontroll (monokrom + guld-streck, som i kassan) */}
-            <div className="shrink-0 flex rounded-[10px] overflow-hidden" style={{ border: "1px solid var(--line-strong)" }}>
-              {(["DELIVERY", "PICKUP"] as const).map((type, i) => {
-                const active = orderType === type;
-                return (
-                  <button
-                    key={type}
-                    onClick={() => toggleOrderType(type)}
-                    className="relative flex items-center justify-center gap-1.5 px-4 h-9 text-[12.5px] transition-colors"
-                    style={{ color: active ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: active ? 600 : 500, borderLeft: i === 1 ? "1px solid var(--line-strong)" : undefined }}
-                  >
-                    {type === "DELIVERY" ? <Truck size={14} /> : <Store size={14} />}
-                    {type === "DELIVERY" ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup")}
-                    {active && <span className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #F0531C)" }} />}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="mt-3">
+            <label className="flex h-10 flex-1 items-center gap-2 rounded-[13px] border border-[var(--line)] bg-white px-3">
+              <Search size={15} strokeWidth={2.2} className="shrink-0 text-[var(--muted)]" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Sök restaurang, sushi, pizza..."
+                className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[var(--ink)] outline-none placeholder:text-[var(--muted)] md:text-[14px]"
+              />
+              {query && (
+                <button type="button" onClick={() => setQuery("")} className="text-[var(--muted)]" aria-label="Rensa sök">
+                  <X size={16} fill="currentColor" />
+                </button>
+              )}
+            </label>
           </div>
         </header>
+      </div>
+
+      <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-5 sm:px-6 lg:px-10 xl:px-16 pt-5 md:pt-0">
 
         {activeOrders.length > 0 && activeCuisine === "Alla" && (
           <section className="mb-5">
@@ -1288,9 +1732,8 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             auto-skiftar var 5:e sekund, med prick-indikator under. ── */}
         {promoCards.length > 0 && (
           <section className="mb-5">
-            <div className="hidden lg:flex items-center gap-2 mb-3 px-1">
-              <Sparkles size={14} className="text-gold-500" />
-              <h2 className="text-lg sm:text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("home.section.current")}</h2>
+            <div className="mb-3 px-1">
+              <SwiftSectionHeader title="Aktuellt" subtitle="Partners, deals och veckans favorit" />
             </div>
             <div
               ref={promoRailRef}
@@ -1300,9 +1743,22 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             >
               {promoCards.map((item) => (
                 <div key={item.id} style={{ scrollSnapAlign: "start" }}>
-                  {item.kind === "dpoints"
-                    ? <DpointsHomeCard card={item.card} />
-                    : <SponsorCard sponsor={(item as any).sponsor} />}
+                  {item.kind === "dpoints" ? (
+                    <DpointsHomeCard card={item.card} />
+                  ) : item.kind === "sponsor" ? (
+                    <SponsorCard sponsor={item.sponsor} />
+                  ) : item.kind === "appDeal" ? (
+                    <HomeAppDealCard
+                      deal={item.appDeal}
+                      activeUserDealId={activeUserDealId}
+                      claiming={claimingDealId === item.appDeal.id}
+                      onAction={handleAppDealAction}
+                    />
+                  ) : item.kind === "pulseChampion" ? (
+                    <ChampionPromoCard module={item.module} onOpen={openRestaurantSlug} />
+                  ) : (
+                    <HighlightPromoCard restaurant={item.restaurant} badge={item.badge} onOpen={openRestaurantSlug} />
+                  )}
                 </div>
               ))}
             </div>
@@ -1327,6 +1783,15 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             )}
           </section>
         )}
+
+        {pulseModules
+          .filter((module) => ["COMEBACK", "STREAK", "POINTS_NUDGE", "OCCASION", "WEATHER", "FAVORITE"].includes(module.type))
+          .slice(0, 3)
+          .map((module) => (
+            <section key={module.id} className="mb-5">
+              <PulseModuleSection module={module} onOpenRestaurant={openRestaurantSlug} />
+            </section>
+          ))}
 
         {/* ── KATEGORIER — ramlösa text-tabbar med guld-underline för aktiv
             (samma språk som menysidans sticky kategori-rad). ── */}
@@ -1495,7 +1960,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
           ) : filtered.length === 0 ? (
             <EmptyState icon={Search} title={t("home.empty.title")} text={t("home.empty.sub")} />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 sm:gap-5">
                 {filtered.map((r, i) => {
                   const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
                   const isClosed = r.isOpen === false;
@@ -1530,14 +1995,13 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                         <Link
                           href={getRestaurantHref(r)}
                           onClick={(e) => handleRestaurantClick(e, r)}
-                          className="group block rounded-2xl overflow-hidden hover:shadow-[0_4px_16px_rgba(20,20,22,0.08)] transition-shadow duration-200 relative"
-                          style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 12px rgba(17,17,19,0.06)" }}
+                          className="group block overflow-hidden rounded-[20px] border border-[var(--line)] bg-white transition-shadow duration-200 relative swift-card-shadow"
                         >
                           {/* ── IMAGE ──────────────────────────────────────── */}
                           {/* Bigger image on mobile (was h-44 / 176px → 200px)
                               so restaurant cards feel substantial against the
                               now-smaller sponsor rail. Stable at sm+. */}
-                          <div className="h-[210px] sm:h-56 w-full overflow-hidden relative" style={{ backgroundColor: "var(--bg-deep)" }}>
+                          <div className="h-[178px] w-full overflow-hidden relative" style={{ backgroundColor: "var(--bg-deep)" }}>
                             {r.imageUrl || r.heroImageUrl ? (
                               <SmartImage src={getCardImage(r)} alt={r.name} sizes="(max-width: 768px) 260px, 25vw" className="h-full w-full object-cover" />
                             ) : (
@@ -1592,8 +2056,17 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                           </div>
 
                           {/* ── CARD FOOTER (minimal: namn + rating + leveranstid) ── */}
-                          <div className="px-4 py-3.5">
-                            <h3 className="text-base sm:text-lg font-bold tracking-tight leading-tight truncate group-hover:text-gold-600 transition-colors mb-1.5" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
+                          <div className="px-3.5 py-3.5">
+                            <div className="mb-2 flex items-start gap-2.5">
+                              <div className="min-w-0 flex-1">
+                                <h3 className="truncate text-[17px] font-black leading-tight tracking-normal text-[var(--ink)]">{r.name}</h3>
+                                <p className="mt-0.5 truncate text-[12px] font-semibold text-[var(--muted)]">{r.cuisine?.charAt(0).toUpperCase()}{r.cuisine?.slice(1) || r.description || "Restaurang"}</p>
+                              </div>
+                              <span className="inline-flex h-[26px] shrink-0 items-center gap-1 rounded-full bg-[var(--ink)] px-2 text-[12px] font-black text-white">
+                                <Star size={11} fill="var(--gold)" className="text-[var(--gold)]" />
+                                {(r.rating ?? 4.7).toFixed(1)}
+                              </span>
+                            </div>
                             {(() => {
                               const zi = zoneDeliveryInfo[r.id];
                               const showEta = orderType === "DELIVERY";
@@ -1601,19 +2074,16 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                                 ? (zi?.etaMinutes != null ? `${zi.etaMinutes} ${t("home.minutes")}` : (isOutOfZone ? "—" : `${r.etaMinutes ?? 30} ${t("home.minutes")}`))
                                 : null;
                               return (
-                                <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-secondary)" }}>
-                                  <span className="flex items-center gap-1">
-                                    <Star size={13} className="fill-gold-500 text-gold-500" />
-                                    <span className="font-black" style={{ color: "var(--text-primary)" }}>{(r.rating ?? 4.5).toFixed(1)}</span>
-                                    {r.ratingCount != null && r.ratingCount > 0 && (
-                                      <span className="opacity-60">({r.ratingCount})</span>
-                                    )}
-                                  </span>
+                                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] font-bold text-[rgba(15,15,18,0.66)]">
                                   {etaDisplay && (
-                                    <>
-                                      <span className="opacity-40">·</span>
-                                      <span className="flex items-center gap-1"><Clock size={12} /> {etaDisplay}</span>
-                                    </>
+                                    <span className="flex items-center gap-1"><Clock size={12} fill="currentColor" /> {etaDisplay}</span>
+                                  )}
+                                  <span className="flex items-center gap-1">
+                                    {orderType === "PICKUP" ? <Store size={12} /> : <Truck size={12} />}
+                                    {orderType === "PICKUP" ? "0 kr" : (zi?.deliveryFee ?? r.deliveryFee ?? 0) <= 0 ? "Gratis" : `${Math.round(zi?.deliveryFee ?? r.deliveryFee ?? 0)} kr`}
+                                  </span>
+                                  {r.city && (
+                                    <span className="flex min-w-0 items-center gap-1"><MapPin size={12} fill="currentColor" /> <span className="truncate">{r.city}</span></span>
                                   )}
                                   {isOutOfZone && (
                                     <>

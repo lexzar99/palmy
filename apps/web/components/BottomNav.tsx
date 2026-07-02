@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Diamond, Home, Heart, ShoppingBag, User } from "lucide-react";
+import { Diamond, Home, ShoppingBag, User } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -26,9 +26,8 @@ const BottomNav = () => {
 
   const navItems = [
     { href: "/", label: t("nav.home"), icon: Home },
-    { href: "/discover", label: t("nav.favorites"), icon: Heart },
     { href: "/cart", label: t("nav.cart"), icon: ShoppingBag, count: itemCount },
-    { href: "/orders", label: t("nav.myOrders"), icon: Diamond },
+    { href: "/orders", label: "Dpoints", icon: Diamond },
     { href: "/profile", label: t("nav.profile"), icon: User },
   ];
 
@@ -72,13 +71,12 @@ const BottomNav = () => {
             className="relative flex-1 touch-manipulation"
           >
             <div className="flex h-[56px] flex-col items-center justify-center gap-1 px-0.5">
-              {/* Aktiv ikon fylls med varumärkesguldet — guld markerar "här är du". */}
               <Icon
                 size={20}
                 strokeWidth={isActive ? 2.2 : 1.8}
-                fill={isActive ? "var(--color-gold-500, #F0531C)" : "none"}
+                fill="none"
                 className="shrink-0 transition-colors duration-150"
-                style={{ color: isActive ? "var(--color-gold-500, #F0531C)" : "var(--text-secondary)" }}
+                style={{ color: isActive ? "var(--color-gold-500, #F04F1A)" : "var(--text-secondary)" }}
               />
               <span
                 className={`max-w-full truncate text-[10.5px] leading-none transition-colors duration-150 ${isActive ? "font-semibold" : "font-medium"}`}
@@ -97,7 +95,7 @@ const BottomNav = () => {
                   exit={{ scale: 0.4, opacity: 0 }}
                   transition={{ type: "spring", stiffness: 700, damping: 18 }}
                   className="absolute top-1.5 right-[calc(50%-20px)] z-20 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
-                  style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416" }}
+                  style={{ backgroundColor: "var(--color-gold-500, #F04F1A)", color: "white" }}
                 >
                   {item.count}
                 </motion.span>

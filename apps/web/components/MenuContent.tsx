@@ -466,7 +466,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       if (restaurantId) params.restaurantId = restaurantId;
       if (restaurantSlug) params.slug = restaurantSlug;
       // format=normalized → mindre payload; rehydreras nedan till samma form.
-      const menuParams = { ...params, format: MENU_FORMAT_PARAM, v: "20260428" };
+      const menuParams = { ...params, format: MENU_FORMAT_PARAM, v: "20260702" };
 
       const [menuRes, restaurantRes, dealsRes] = await Promise.all([
         axios.get(`${API_URL}/api/menu/categories`, { params: menuParams }),

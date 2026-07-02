@@ -64,7 +64,7 @@ async function getMenu(
     // mindre payload för stora menyer (håller SSR-datan under cache-taket).
     // `bytes` mäts på det FAKTISKA (mindre) svaret → fler menyer ryms i SSR.
     const res = await fetch(
-      `${API_URL}/api/menu/categories?slug=${encodeURIComponent(slug)}&format=normalized&v=20260428`,
+      `${API_URL}/api/menu/categories?slug=${encodeURIComponent(slug)}&format=normalized&v=20260702`,
       { next: { revalidate: 300, tags: [`menu:${slug}`] } },
     );
     if (!res.ok) return null;

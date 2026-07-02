@@ -3,7 +3,7 @@
 @theme {
   /* Legacy gold names now map to the React app's orange brand scale. */
   --color-gold-400: #FFB39B;
-  --color-gold-500: #F0531C;
+  --color-gold-500: #F04F1A;
   --color-gold-600: #C83F12;
 }
 
@@ -13,19 +13,27 @@
    ─────────────────────────────────────────────────────────────────────────── */
 :root {
   --color-gold-400: #FFB39B;
-  --color-gold-500: #F0531C;
+  --color-gold-500: #F04F1A;
   --color-gold-600: #C83F12;
   --gold-400:     #FFB39B;
-  --gold-500:     #F0531C;
+  --gold-500:     #F04F1A;
   --gold-600:     #C83F12;
-  --orange:       #F0531C;
-  --bg-primary:   #FCFCF9;         /* Matchar React bgPrimary */
+  --orange:       #F04F1A;
+  --ink:          #0F0F12;
+  --muted:        #6E6B66;
+  --line:         rgba(0,0,0,0.065);
+  --gold:         #F0BA5C;
+  --deal-blue:    #1287F5;
+  --deal-blue-deep: #0A54D9;
+  --deal-blue-ink: #083D75;
+  --deal-blue-chip: #E0F2FF;
+  --bg-primary:   #FCFAF3;         /* Swift appBackground first stop */
   --bg-secondary: #FFFFFF;         /* Matchar React bgSecondary */
   --bg-tertiary:  #F6F6F1;         /* Matchar React bgTertiary */
   --bg-deep:      #F4F3EF;         /* Matchar React bgDeep */
   --bg-card:      #FFFFFF;
-  --text-primary: #111113;         /* Nästan svart – hög kontrast-rubrik */
-  --text-secondary: #5C5C61;       /* Mörkare metadata för bättre kontrast */
+  --text-primary: #0F0F12;         /* Swift DeliveraTheme.ink */
+  --text-secondary: #6E6B66;       /* Swift DeliveraTheme.muted */
   --glass-bg:     rgba(255,255,255,0.94);
   --glass-border: rgba(17,17,19,0.10);
   --border-muted: #EDEDEA;
@@ -34,7 +42,7 @@
   --skeleton-highlight: #F5F5F5;
   /* "Tyst & direkt"-tokens: orange som textfärg kräver mörkare nyans på vitt
      för att klara kontrast; mjuka statusytor ersätter genomskinliga färger. */
-  --gold-ink:     #F0531C;         /* Samma orange som brandfärgen */
+  --gold-ink:     #F04F1A;         /* Samma orange som brandfärgen */
   --gold-soft:    #FFF0EA;         /* Mjuk orangeyta (info, aktiv status) */
   --success-ink:  #2E7D4F;         /* Rabatter, levererat */
   --success-soft: #E6F1E8;
@@ -247,6 +255,70 @@
 .bg-dot-pattern {
   background-image: radial-gradient(var(--border-muted) 1px, transparent 1px);
   background-size: 32px 32px;
+}
+
+.delivera-app-bg {
+  background:
+    linear-gradient(135deg, #FCFAF3 0%, #F5FAF5 52%, #FCF5ED 100%);
+}
+
+.swift-card-shadow {
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.075);
+}
+
+.swift-deal-card {
+  min-height: 176px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.075);
+  overflow: hidden;
+}
+
+.swift-promo-card {
+  position: relative;
+  display: block;
+  width: min(88vw, 460px);
+  aspect-ratio: 2 / 1;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--bg-deep);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.075);
+}
+
+.swift-message-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-radius: 20px;
+  padding: 14px;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.075);
+}
+
+.swift-product-card {
+  width: 168px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.075);
+}
+
+.swift-chip-card {
+  display: flex;
+  width: 245px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 10px;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.075);
 }
 
 /* Safe-area utilities */

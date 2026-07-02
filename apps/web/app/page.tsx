@@ -22,12 +22,14 @@ async function getJson<T>(path: string): Promise<T | null> {
 }
 
 async function HomeData() {
-  const [restaurants, cities, deals, sponsors, homeCategories] = await Promise.all([
+  const [restaurants, cities, deals, sponsors, homeCategories, appDealsResponse, pulseResponse] = await Promise.all([
     getJson<any[]>("/api/restaurants"),
     getJson<any[]>("/api/cities"),
     getJson<any[]>("/api/deals"),
     getJson<any[]>("/api/sponsors"),
     getJson<any[]>("/api/home-categories"),
+    getJson<{ deals?: any[] }>("/api/deals/app?placement=HOME_TOP&limit=8&loggedIn=0"),
+    getJson<{ greeting?: string | null; modules?: any[] }>("/api/home/pulse"),
   ]);
 
   const initialData: HomeInitialData | null = Array.isArray(restaurants)
@@ -37,6 +39,11 @@ async function HomeData() {
         deals: Array.isArray(deals) ? deals : [],
         sponsors: Array.isArray(sponsors) ? sponsors : [],
         homeCategories: Array.isArray(homeCategories) ? homeCategories : [],
+        appDeals: Array.isArray(appDealsResponse?.deals) ? appDealsResponse.deals : [],
+        pulse: {
+          greeting: pulseResponse?.greeting ?? null,
+          modules: Array.isArray(pulseResponse?.modules) ? pulseResponse.modules : [],
+        },
       }
     : null;
 

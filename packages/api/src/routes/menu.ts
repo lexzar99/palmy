@@ -133,10 +133,7 @@ router.get('/categories', async (req, res) => {
     const queryActiveMenuByRestaurantId = async (rid: string | null) => {
       return prisma.category.findMany({
         where: {
-          OR: [
-            { restaurantId: rid },
-            { restaurantId: null }
-          ],
+          restaurantId: rid,
           isActive: true,
         },
         orderBy: { position: 'asc' },
