@@ -121,7 +121,14 @@ async function revalidateWebMenu(restaurantId: string | null) {
 // gäller fortfarande för känsliga ops (wipe, refund, staff-management).
 router.use(autoRoleGate);
 
-const isSuperAdmin = (req: AuthRequest) => req.admin?.role === 'SUPER_ADMIN';
+// GLOBAL_VIEWER: read-only systemkonto (Hermes-monitorn "Falken"). Får samma
+// globala läs-scope som SUPER_ADMIN i denna modul, men kan aldrig skriva:
+// rollen finns inte i WRITE_ROLES/DELETE_ROLES så autoRoleGate (rad 122)
+// blockerar POST/PATCH/PUT/DELETE, och requireSuperAdmin-gatade routes
+// (staff, audit-log, customer-search, GDPR-export, login-creds) förblir
+// stängda. Kund-PII förblir maskerad via canSeeCustomerPII.
+const isSuperAdmin = (req: AuthRequest) =>
+  req.admin?.role === 'SUPER_ADMIN' || req.admin?.role === 'GLOBAL_VIEWER';
 
 // Roll som får se ofiltrerad customer-PII (full telefon, email, adress).
 // STAFF och VIEWER ser maskerad data för GDPR-skäl — de behöver veta att en

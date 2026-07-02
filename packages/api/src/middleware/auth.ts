@@ -33,7 +33,9 @@ type AdminRecord = {
 };
 
 const getRestaurantScope = async (admin: AdminRecord, payload: AdminJwtPayload) => {
-  if (admin.role === 'SUPER_ADMIN') {
+  // GLOBAL_VIEWER: read-only systemkonto utan restaurang-koppling, samma
+  // (tomma) scope som SUPER_ADMIN. Writes blockeras av autoRoleGate nedan.
+  if (admin.role === 'SUPER_ADMIN' || admin.role === 'GLOBAL_VIEWER') {
     return {
       restaurantId: null,
       restaurantSlug: null,

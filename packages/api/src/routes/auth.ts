@@ -729,7 +729,9 @@ router.post('/login', authLimiter, async (req, res) => {
     let restaurantSlug: string | null = null;
     let restaurantName: string | null = null;
     let logoutCode: string | null = null;
-    if (admin.role !== 'SUPER_ADMIN') {
+    // GLOBAL_VIEWER (read-only systemkonto, t.ex. Hermes-monitorn) har inget
+    // restaurang-scope: global read utan write-rättigheter via autoRoleGate.
+    if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'GLOBAL_VIEWER') {
       const restaurant = await prisma.restaurant.findFirst({
         where: {
           OR: [
