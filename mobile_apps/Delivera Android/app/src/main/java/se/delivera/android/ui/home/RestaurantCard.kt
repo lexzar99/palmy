@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -79,6 +81,7 @@ fun RestaurantRail(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RestaurantCard(
     restaurant: Restaurant,
@@ -135,31 +138,32 @@ fun RestaurantCard(
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(restaurant.name, fontSize = 17.sp, fontWeight = FontWeight.Black, color = DeliveraTheme.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(restaurant.name, fontSize = 16.sp, fontWeight = FontWeight.Black, color = DeliveraTheme.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         restaurant.cuisine?.replaceFirstChar { it.uppercase() } ?: restaurant.description ?: "Restaurang",
-                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DeliveraTheme.muted, maxLines = 1, overflow = TextOverflow.Ellipsis
+                        fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, color = DeliveraTheme.muted, maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                 }
                 Spacer(Modifier.width(10.dp))
                 RatingBadge(value = restaurant.rating ?: 4.7)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Metric(metricSchedule, "${displayEta(restaurant)} min")
-                Metric(orderMode.icon(), feeText(restaurant, orderMode))
-                restaurant.city?.takeIf { it.isNotEmpty() }?.let { Metric(metricPlace, it) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Metric(metricSchedule, "${displayEta(restaurant)} min", Modifier.weight(0.75f))
+                Metric(orderMode.icon(), feeText(restaurant, orderMode), Modifier.weight(0.8f))
+                restaurant.city?.takeIf { it.isNotEmpty() }?.let { Metric(metricPlace, it, Modifier.weight(1f)) }
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DealBadges(restaurant: Restaurant, orderMode: OrderMode) {
     val status = RestaurantAvailability.statusLabel(restaurant)
     if (status != null) {
         BadgePill(status, if (restaurant.comingSoon == true) Icons.Filled.AutoAwesome else Icons.Filled.Bedtime, Color.Black.copy(alpha = 0.78f))
     } else {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             val featuredClass = restaurant.featuredClass
             if (featuredClass != null && featuredClass <= 1) {
                 BadgePill("Utvald", Icons.Filled.Star, Color(0.72f, 0.50f, 0.08f))
@@ -177,12 +181,12 @@ private fun DealBadges(restaurant: Restaurant, orderMode: OrderMode) {
 @Composable
 private fun BadgePill(text: String, icon: ImageVector?, background: Color) {
     Row(
-        Modifier.clip(RoundedCornerShape(50)).background(background).padding(horizontal = 10.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        Modifier.clip(RoundedCornerShape(50)).background(background).padding(horizontal = 8.dp, vertical = 4.5.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        icon?.let { Icon(it, null, tint = Color.White, modifier = Modifier.size(10.dp)) }
-        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White)
+        icon?.let { Icon(it, null, tint = Color.White, modifier = Modifier.size(9.dp)) }
+        Text(text, fontSize = 10.5.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 1)
     }
 }
 

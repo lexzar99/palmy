@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import se.delivera.android.data.HomeAppDeal
 import se.delivera.android.data.HomePulseModule
 import se.delivera.android.data.PulseProduct
@@ -103,6 +106,7 @@ fun HomeCarousel(
     var activeIndex by remember(items.map { it.stableId }) { mutableIntStateOf(0) }
     var isPlaying by remember { androidx.compose.runtime.mutableStateOf(true) }
     val safeActiveIndex = activeIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
+    val listState = rememberLazyListState()
 
     LaunchedEffect(items.map { it.stableId }, isPlaying) {
         activeIndex = safeActiveIndex
@@ -112,8 +116,20 @@ fun HomeCarousel(
         }
     }
 
+    LaunchedEffect(safeActiveIndex, items.map { it.stableId }) {
+        if (items.isNotEmpty()) listState.animateScrollToItem(safeActiveIndex)
+    }
+
+    LaunchedEffect(listState, items.map { it.stableId }) {
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .distinctUntilChanged()
+            .collect { index ->
+                if (index in items.indices) activeIndex = index
+            }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionHeader(title = "Aktuellt", subtitle = "Partners, deals och veckans favorit")
+        SectionHeader(title = "Aktuellt", subtitle = "Nytt och utvalt just nu")
 
         if (loading && items.isEmpty()) {
             Box(
@@ -125,6 +141,7 @@ fun HomeCarousel(
             BoxWithConstraints {
                 val cardWidth = maxWidth
                 LazyRow(
+                    state = listState,
                     horizontalArrangement = Arrangement.spacedBy(0.dp),
                     contentPadding = PaddingValues(end = 0.dp)
                 ) {
@@ -167,7 +184,10 @@ fun HomeCarousel(
                                 .height(8.dp)
                                 .clip(RoundedCornerShape(50))
                                 .background(if (index == safeActiveIndex) DeliveraTheme.ink else DeliveraTheme.ink.copy(alpha = 0.16f))
-                                .clickable { activeIndex = index }
+                                .clickable {
+                                    activeIndex = index
+                                    isPlaying = false
+                                }
                         )
                     }
                 }
@@ -211,10 +231,19 @@ private fun SponsorHeroCard(sponsor: Sponsor, onClaimDeal: (String) -> Unit) {
                 Modifier.align(Alignment.BottomStart).padding(start = 22.dp, end = 18.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
-                Text(category.uppercase(), fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White.copy(alpha = 0.92f), maxLines = 1)
-                Text(sponsor.headline?.takeIf { it.isNotBlank() } ?: sponsor.name, fontSize = 28.sp, lineHeight = 30.sp, fontWeight = FontWeight.Black, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                sponsor.tagline?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Color.White.copy(alpha = 0.94f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(category.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    sponsor.headline?.takeIf { it.isNotBlank() } ?: sponsor.name,
+                    fontSize = 22.sp,
+                    lineHeight = 24.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                val supporting = sponsor.bodyText?.takeIf { it.isNotBlank() } ?: sponsor.tagline?.takeIf { it.isNotBlank() }
+                supporting?.let {
+                    Text(it, fontSize = 13.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.9f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }

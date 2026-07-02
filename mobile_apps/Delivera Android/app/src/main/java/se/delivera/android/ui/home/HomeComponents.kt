@@ -209,10 +209,17 @@ fun RatingBadge(value: Double) {
 }
 
 @Composable
-fun Metric(icon: ImageVector, text: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+fun Metric(icon: ImageVector, text: String, modifier: Modifier = Modifier) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = DeliveraTheme.ink.copy(alpha = 0.66f), modifier = Modifier.size(12.dp))
-        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DeliveraTheme.ink.copy(alpha = 0.66f), maxLines = 1)
+        Text(
+            text,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = DeliveraTheme.ink.copy(alpha = 0.66f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

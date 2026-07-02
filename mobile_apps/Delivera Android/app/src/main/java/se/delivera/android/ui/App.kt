@@ -206,8 +206,7 @@ fun DeliveraApp() {
                     selectedRestaurant = homeVm.state.value.restaurants.firstOrNull { it.slug == slug }
                         ?: Restaurant.placeholder(slug)
                 },
-                onToggleFavorite = ::toggleFavorite,
-                onSponsorTap = { /* handled by carousel */ }
+                onToggleFavorite = ::toggleFavorite
             )
             HomeTab.Cart -> PlaceholderScreen("Varukorg", "Kassan (Adyen) portas i nästa steg.")
             HomeTab.Rewards -> PlaceholderScreen("Belöningar", "Dpoints, hero-kort och belöningsprodukter portas i nästa steg.")

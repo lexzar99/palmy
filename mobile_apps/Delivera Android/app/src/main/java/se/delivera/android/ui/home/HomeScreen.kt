@@ -54,8 +54,7 @@ fun HomeScreen(
     onDealAction: (DealCardAction) -> Unit,
     onClaimSponsorDeal: (String) -> Unit,
     onOpenRestaurant: (String) -> Unit,
-    onToggleFavorite: (Restaurant) -> Unit,
-    onSponsorTap: (Sponsor) -> Unit
+    onToggleFavorite: (Restaurant) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val visibleRestaurants = viewModel.filteredRestaurants(selectedCuisine, searchQuery, cityName)
