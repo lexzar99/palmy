@@ -226,18 +226,19 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
     },
   });
 
-  // Publicera utkast (agent-onboarding): draft=false gör restaurangen synlig
-  // för kunder direkt. Bara super admin, servern avvisar andra.
-  const publishMutation = useMutation({ meta: { toast: false },
-    mutationFn: async () => patchRestaurant(restaurantId!, { draft: false }),
-    onSuccess: async () => {
-      showToast({ type: "success", message: "Restaurangen är publicerad" });
+  // Draft-toggle (agent-onboarding): draft=true göms för kunder + låses upp för
+  // menyagenten (Kocken/Studion). draft=false publicerar och låser för agenten.
+  // Båda riktningarna är super admin-only, servern avvisar andra.
+  const setDraftMutation = useMutation({ meta: { toast: false },
+    mutationFn: async (nextDraft: boolean) => patchRestaurant(restaurantId!, { draft: nextDraft }),
+    onSuccess: async (_data, nextDraft) => {
+      showToast({ type: "success", message: nextDraft ? "Satt till utkast (agenten kan nu jobba)" : "Restaurangen är publicerad" });
       setInitialized(false);
       await queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
       await queryClient.invalidateQueries({ queryKey: detailQueryKey(restaurantId!) });
     },
     onError: (e: any) => {
-      showToast({ type: "error", message: e?.response?.data?.error || "Kunde inte publicera." });
+      showToast({ type: "error", message: e?.response?.data?.error || "Kunde inte ändra status." });
     },
   });
 
@@ -281,22 +282,39 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         }
       />
 
-      {!isCreate && (detailData as any)?.draft && (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--row-divider)] bg-[var(--bg-secondary,transparent)] px-4 py-3">
-          <p className="text-sm text-[var(--text-secondary)]">
-            <span className="font-bold text-[var(--text-primary)]">Utkast.</span> Syns inte för kunder och kan inte ta emot ordrar.
-          </p>
-          <Button
-            variant="primary"
-            onClick={() => {
-              if (!confirm(`Publicera ${form.name}? Den blir synlig i appen och webben direkt.`)) return;
-              publishMutation.mutate();
-            }}
-            disabled={publishMutation.isPending}
-          >
-            {publishMutation.isPending ? <><Loader2 size={14} className="animate-spin" /> Publicerar...</> : "Publicera"}
-          </Button>
-        </div>
+      {!isCreate && (
+        (() => {
+          const isDraft = Boolean((detailData as any)?.draft);
+          return (
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--row-divider)] px-4 py-3">
+              <p className="text-sm text-[var(--text-secondary)]">
+                {isDraft ? (
+                  <><span className="font-bold text-[var(--text-primary)]">Utkast.</span> Göms för kunder. Menyagenten kan bygga/ändra menyn.</>
+                ) : (
+                  <><span className="font-bold text-[var(--text-primary)]">Publicerad.</span> Synlig för kunder. Menyagenten är låst från att ändra.</>
+                )}
+              </p>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <span className="text-[12px] font-semibold" style={{ color: isDraft ? "var(--warning-text)" : "var(--success-text)" }}>
+                  {isDraft ? "Utkast" : "Publicerad"}
+                </span>
+                <Toggle
+                  checked={!isDraft}
+                  disabled={setDraftMutation.isPending}
+                  onChange={(nextPublished) => {
+                    if (nextPublished) {
+                      if (!confirm(`Publicera ${form.name}? Den blir synlig i appen och webben direkt.`)) return;
+                      setDraftMutation.mutate(false);
+                    } else {
+                      if (!confirm(`Gör ${form.name} till utkast? Den göms för kunder och menyagenten kan börja jobba på den.`)) return;
+                      setDraftMutation.mutate(true);
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })()
       )}
 
       {saveError && <p className="rounded-xl bg-[rgba(239,68,68,0.1)] px-4 py-3 text-sm text-red-400">{saveError}</p>}
