@@ -688,6 +688,9 @@ const userDealTitle = (userDeal: any): string => {
 };
 
 const userDealValueLabel = (userDeal: any): string => {
+  const meta = (userDeal.metadata || {}) as any;
+  // Din favorit lovar procent i modalen — kassan ska säga samma sak.
+  if (meta.favoriteProductId && meta.percent) return `${meta.percent}% på din favorit`;
   if (userDeal.freeDelivery) return 'Fri leverans';
   if (userDeal.discountPercent && userDeal.discountPercent > 0) return `${userDeal.discountPercent}% rabatt`;
   if (userDeal.amountKr && userDeal.amountKr > 0) return `${userDeal.amountKr} kr rabatt`;
@@ -711,13 +714,20 @@ router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
       // Uppdrag prissätts inte i kassan — de belönas efter köp.
       .filter((ud: any) => !(ud.metadata as any)?.appMissionType && !ud.deal?.appMissionType)
       .map((userDeal: any) => {
+        const meta = (userDeal.metadata || {}) as any;
+        // Din favorit gäller bara hos sin restaurang — listan ska säga det,
+        // inte först ordern.
+        const favoriteScopedOut = Boolean(
+          meta.favoriteProductId && meta.restaurantId && data.restaurantId && meta.restaurantId !== data.restaurantId,
+        );
         const scope = userDealRestaurantScope(userDeal.deal);
-        const scopedOut = scope && data.restaurantId && !scope.includes(data.restaurantId);
+        const scopedOut = (scope && data.restaurantId && !scope.includes(data.restaurantId)) || favoriteScopedOut;
         const quote = calculateUserDealQuote(userDeal, data);
         return {
           userDealId: userDeal.id,
           title: userDealTitle(userDeal),
           valueLabel: userDealValueLabel(userDeal),
+          favoritePercent: meta.favoriteProductId && meta.percent ? Math.round(Number(meta.percent)) : null,
           applicable: scopedOut ? false : quote.applicable,
           reason: scopedOut ? 'RESTAURANT_SCOPE' : quote.reason,
           minOrderKr: quote.minOrderKr,

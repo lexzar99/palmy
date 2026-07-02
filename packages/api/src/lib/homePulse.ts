@@ -53,8 +53,8 @@ export const ENGINE_DEFS: EngineDef[] = [
     key: 'hot_products',
     title: 'Hetast just nu',
     description: 'Mest beställda produkterna senaste 72 timmarna. Bara artiklar över prisgolvet.',
-    defaultParams: { minPriceKr: 70, maxItems: 8, windowHours: 72 },
-    paramLabels: { minPriceKr: 'Prisgolv (kr)', maxItems: 'Max produkter', windowHours: 'Fönster (timmar)' },
+    defaultParams: { minPriceKr: 70, maxItems: 5, windowHours: 72, maxPerRestaurant: 2 },
+    paramLabels: { minPriceKr: 'Prisgolv (kr)', maxItems: 'Max produkter', windowHours: 'Fönster (timmar)', maxPerRestaurant: 'Max per restaurang' },
   },
   {
     key: 'favorite_product',
@@ -307,21 +307,28 @@ async function buildHotProducts(params: Record<string, number>) {
     },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
-  const items = (grouped as any[])
-    .map((g) => {
-      const product = byId.get(g.productId) as any;
-      const restaurant = product?.category?.restaurant;
-      if (!product || !restaurant || restaurant.comingSoon) return null;
-      return {
-        productId: product.id,
-        name: product.name,
-        priceKr: Math.round(product.price) / 100,
-        imageUrl: product.imageUrl || null,
-        restaurant: restaurantDto(restaurant),
-      };
-    })
-    .filter(Boolean)
-    .slice(0, params.maxItems || 8);
+  // Max N artiklar totalt och max 2 per restaurang — bredd över stan,
+  // inte fem rätter från samma kök.
+  const maxItems = params.maxItems || 5;
+  const maxPerRestaurant = Math.max(1, params.maxPerRestaurant || 2);
+  const perRestaurant = new Map<string, number>();
+  const items: any[] = [];
+  for (const g of grouped as any[]) {
+    if (items.length >= maxItems) break;
+    const product = byId.get(g.productId) as any;
+    const restaurant = product?.category?.restaurant;
+    if (!product || !restaurant || restaurant.comingSoon) continue;
+    const used = perRestaurant.get(restaurant.id) || 0;
+    if (used >= maxPerRestaurant) continue;
+    perRestaurant.set(restaurant.id, used + 1);
+    items.push({
+      productId: product.id,
+      name: product.name,
+      priceKr: Math.round(product.price) / 100,
+      imageUrl: product.imageUrl || null,
+      restaurant: restaurantDto(restaurant),
+    });
+  }
   if (!items.length) return null;
   return {
     type: 'HOT_PRODUCTS',
