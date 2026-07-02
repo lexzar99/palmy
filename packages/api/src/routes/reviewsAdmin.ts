@@ -6,6 +6,10 @@ const router = Router();
 router.use(authenticate);
 
 const isSuperAdmin = (req: AuthRequest) => req.admin?.role === 'SUPER_ADMIN';
+// GLOBAL_VIEWER ("Falken") får LÄSA alla recensioner (morgonrapport +
+// recensions-vakt), men aldrig svara/ändra — write-routes gatar på isSuperAdmin.
+const canReadAllReviews = (req: AuthRequest) =>
+  req.admin?.role === 'SUPER_ADMIN' || req.admin?.role === 'GLOBAL_VIEWER';
 
 const requireRestaurantScope = (req: AuthRequest, res: any): string | null => {
   if (isSuperAdmin(req)) return null;
@@ -18,7 +22,7 @@ const requireRestaurantScope = (req: AuthRequest, res: any): string | null => {
 };
 
 const resolveReviewScope = async (req: AuthRequest, res: any) => {
-  if (isSuperAdmin(req)) {
+  if (canReadAllReviews(req)) {
     return req.query.restaurantId ? String(req.query.restaurantId) : null;
   }
 
@@ -50,7 +54,7 @@ const ensureReviewAccess = async (req: AuthRequest, res: any, orderId: string) =
 router.get('/', async (req, res) => {
   try {
     const restaurantId = await resolveReviewScope(req as AuthRequest, res);
-    if (!isSuperAdmin(req as AuthRequest) && !restaurantId) return;
+    if (!canReadAllReviews(req as AuthRequest) && !restaurantId) return;
 
     const reviews = await prisma.order.findMany({
       where: {
