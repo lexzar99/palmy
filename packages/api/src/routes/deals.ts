@@ -662,6 +662,86 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
   }
 });
 
+// POST /api/deals/app/my-deals — ALLA kundens aktiva deals quotade mot
+// varukorgen på en gång. Kassan visar dem som en väljbar lista: applicerbara
+// först, icke-applicerbara nedtonade med skäl. Löser "ibland i kassan, ibland
+// i Mina deals" — kassan är nu enda sanningen om vad du kan använda här.
+const MyDealsSchema = z.object({
+  subtotalKr: z.number().nonnegative(),
+  deliveryFeeKr: z.number().nonnegative().optional().default(0),
+  orderMode: z.enum(['DELIVERY', 'PICKUP', 'delivery', 'pickup']).optional().default('DELIVERY'),
+  restaurantId: z.string().optional(),
+});
+
+const userDealTitle = (userDeal: any): string => {
+  const meta = (userDeal.metadata || {}) as any;
+  if (meta.title) return String(meta.title);
+  if (userDeal.deal?.title) return String(userDeal.deal.title);
+  switch (userDeal.type) {
+    case 'WELCOME': return 'Välkomsterbjudande';
+    case 'REFERRAL_INVITEE':
+    case 'REFERRAL_INVITER': return 'Vänrabatt';
+    case 'FAVORITE_PRODUCT': return 'Din favorit';
+    case 'CAMPAIGN': return 'Ditt erbjudande';
+    default: return 'Rabatt';
+  }
+};
+
+const userDealValueLabel = (userDeal: any): string => {
+  if (userDeal.freeDelivery) return 'Fri leverans';
+  if (userDeal.discountPercent && userDeal.discountPercent > 0) return `${userDeal.discountPercent}% rabatt`;
+  if (userDeal.amountKr && userDeal.amountKr > 0) return `${userDeal.amountKr} kr rabatt`;
+  return '';
+};
+
+router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
+  try {
+    const data = MyDealsSchema.parse(req.body);
+    const userDeals = await (prisma as any).userDeal.findMany({
+      where: {
+        userId: req.user.id,
+        status: 'ACTIVE',
+        OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+      },
+      include: { deal: { select: { id: true, isGlobal: true, applicableRestaurantIds: true, restaurantId: true, appMissionType: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const items = userDeals
+      // Uppdrag prissätts inte i kassan — de belönas efter köp.
+      .filter((ud: any) => !(ud.metadata as any)?.appMissionType && !ud.deal?.appMissionType)
+      .map((userDeal: any) => {
+        const scope = userDealRestaurantScope(userDeal.deal);
+        const scopedOut = scope && data.restaurantId && !scope.includes(data.restaurantId);
+        const quote = calculateUserDealQuote(userDeal, data);
+        return {
+          userDealId: userDeal.id,
+          title: userDealTitle(userDeal),
+          valueLabel: userDealValueLabel(userDeal),
+          applicable: scopedOut ? false : quote.applicable,
+          reason: scopedOut ? 'RESTAURANT_SCOPE' : quote.reason,
+          minOrderKr: quote.minOrderKr,
+          discountAmountKr: scopedOut ? 0 : quote.discountAmountOre / 100,
+          deliveryDiscountKr: scopedOut ? 0 : quote.deliveryDiscountOre / 100,
+          dpointsBonus: scopedOut ? 0 : quote.dpointsBonus,
+          freeDelivery: !!userDeal.freeDelivery,
+        };
+      });
+
+    // Applicerbara först, störst rabatt överst; sedan icke-applicerbara.
+    items.sort((a: any, b: any) => {
+      if (a.applicable !== b.applicable) return a.applicable ? -1 : 1;
+      return b.discountAmountKr - a.discountAmountKr;
+    });
+
+    res.json({ deals: items });
+  } catch (error: any) {
+    if (error?.name === 'ZodError') return res.status(400).json({ error: 'Ogiltig förfrågan' });
+    console.error('[deals/app my-deals] error:', error?.message);
+    res.status(500).json({ error: 'Kunde inte hämta dina deals' });
+  }
+});
+
 // GET /api/deals/:id/restaurants
 // Returnerar dealen + alla restauranger som matchar (för att kunna bygga
 // en dedikerad /deals/[id]-sida i web/RN). Logik:
