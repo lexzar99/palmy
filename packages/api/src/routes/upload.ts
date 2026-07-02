@@ -80,8 +80,33 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
       res.status(503).json({ error: 'R2 är inte konfigurerat på servern — sätt R2_* env vars' });
       return;
     }
-    if (!req.file) {
-      res.status(400).json({ error: 'Ingen fil uppladdad' });
+
+    // Bild-källa: (a) uppladdad fil (multipart) eller (b) sourceUrl som servern
+    // hämtar själv. (b) låter menyagenten ta en bild direkt från nätet/Foodora
+    // utan att hantera binärdata i klienten.
+    let sourceBuffer: Buffer | null = req.file?.buffer ?? null;
+    if (!sourceBuffer) {
+      const sourceUrl = req.body.sourceUrl ? String(req.body.sourceUrl) : '';
+      if (sourceUrl) {
+        if (!/^https?:\/\//i.test(sourceUrl)) { res.status(400).json({ error: 'sourceUrl måste vara http(s)' }); return; }
+        try {
+          const resp = await axios.get<ArrayBuffer>(sourceUrl, {
+            responseType: 'arraybuffer',
+            timeout: 15000,
+            maxContentLength: 15 * 1024 * 1024,
+            headers: { 'User-Agent': 'Mozilla/5.0 Delivera-Studio/1.0' },
+          });
+          const ct = String(resp.headers['content-type'] || '');
+          if (!ct.startsWith('image/')) { res.status(400).json({ error: `sourceUrl gav inte en bild (${ct || 'okänd typ'})` }); return; }
+          sourceBuffer = Buffer.from(resp.data);
+        } catch (e: any) {
+          res.status(400).json({ error: `Kunde inte hämta sourceUrl: ${e?.message || 'fel'}` });
+          return;
+        }
+      }
+    }
+    if (!sourceBuffer) {
+      res.status(400).json({ error: 'Ingen fil uppladdad och ingen sourceUrl angiven' });
       return;
     }
     const kind = String(req.body.kind || 'misc') as 'hero' | 'logo' | 'category' | 'product' | 'extra' | 'misc';
@@ -90,6 +115,15 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
     const productId = req.body.productId ? String(req.body.productId) : null;
 
     if (!assertRestaurantScope(req, restaurantId, res)) return;
+
+    // MENU_AGENT (Kocken/Studion): får bara ladda upp till UTKAST-restauranger,
+    // aldrig till publicerade och aldrig utan restaurang-scope.
+    if ((req as AuthRequest).admin?.role === 'MENU_AGENT') {
+      if (!restaurantId) { res.status(403).json({ error: 'Menyagenten måste ange restaurantId (utkast) för bilduppladdning' }); return; }
+      const target = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { draft: true } });
+      if (!target) { res.status(404).json({ error: 'Restaurang hittades inte' }); return; }
+      if (!(target as any).draft) { res.status(403).json({ error: 'Menyagenten kan bara ladda upp till utkast-restauranger' }); return; }
+    }
 
     // Resolva slugs från DB så path:en blir kanonisk även om admin skriver
     // "ÅngermanlandsKött & Kebab"
@@ -138,14 +172,14 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
     if (kind === 'product' && !productSlug) { res.status(400).json({ error: 'Saknar produkt-slug' }); return; }
 
     // Konvertera till WebP
-    const webp = await toWebp(req.file.buffer);
+    const webp = await toWebp(sourceBuffer);
 
     // Bygg kanonisk nyckel
     let key: string;
     if (kind === 'misc') {
       // Unik webp-nyckel så plattform-bilder (t.ex. sponsorkort) inte krockar
       // med varandra när de saknar restaurang/kategori-kontext.
-      const base = String(req.body.filename || req.file.originalname || 'upload').replace(/\.[a-z0-9]+$/i, '');
+      const base = String(req.body.filename || req.file?.originalname || 'upload').replace(/\.[a-z0-9]+$/i, '');
       const fn = `${slugifyPathSegment(base) || 'upload'}-${Date.now()}.webp`;
       key = buildR2Key({ kind: 'misc', city: citySlug || undefined, restaurant: restaurantSlug || undefined, filename: fn });
     } else if (kind === 'hero') {
@@ -157,7 +191,7 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
     } else if (kind === 'extra') {
       // Per-option (Extra) bild: namnet kommer via fileBaseName (extra-namnet),
       // annars filens originalnamn. Kanonisk path → R2-matchning + template-import.
-      const extraBase = String(req.body.fileBaseName || req.file.originalname || 'extra').replace(/\.[a-z0-9]+$/i, '');
+      const extraBase = String(req.body.fileBaseName || req.file?.originalname || 'extra').replace(/\.[a-z0-9]+$/i, '');
       key = buildR2Key({ kind: 'extra', city: citySlug!, restaurant: restaurantSlug!, name: slugifyPathSegment(extraBase) || 'extra' });
     } else {
       key = buildR2Key({ kind: 'product', city: citySlug!, restaurant: restaurantSlug!, category: categorySlug!, product: productSlug! });

@@ -181,11 +181,14 @@ export const isSuperAdmin = requireSuperAdmin;
 const WRITE_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'RESTAURANT_ADMIN', 'STAFF']);
 const DELETE_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'RESTAURANT_ADMIN']);
 
-// MENU_AGENT ("Kocken", Hermes-menyagenten): får ENDAST skapa/ändra meny-
-// resurser, aldrig radera. Det inre låset (bara utkast-restauranger,
-// draft=true) enforceas av menuAgentDraftGate i routes/admin.ts — det här är
+// MENU_AGENT ("Kocken"/"Studion", Hermes-menyagenterna): får ENDAST skapa/ändra
+// meny-resurser + ladda upp produktbilder, aldrig radera. Det inre låset (bara
+// utkast-restauranger, draft=true) enforceas av menuAgentDraftGate i
+// routes/admin.ts (meny-resurser) och i upload-routen (bilder). Det här är
 // yttre skalet som stänger resten av admin-modulen.
-const MENU_AGENT_WRITE_PATHS = /^\/(categories|products|extra-groups|extras)(\/|$)/;
+// upload-r2 släpps igenom hit men draft-scopeas i upload-routen (multipart-
+// body parsas inte förrän där), inte i menuAgentDraftGate.
+const MENU_AGENT_WRITE_PATHS = /^\/(categories|products|extra-groups|extras|upload-r2)(\/|$)/;
 
 export const requireWriteAccess = (
   req: AuthRequest,

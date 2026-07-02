@@ -129,6 +129,9 @@ router.use(autoRoleGate);
 // alla restauranger via en global kategori/tillvalsgrupp.
 router.use(async (req: AuthRequest, res, next) => {
   if (req.admin?.role !== 'MENU_AGENT' || req.method.toUpperCase() === 'GET') return next();
+  // upload-r2: multipart-body parsas inte här (multer sitter i upload-routen).
+  // Släpp igenom, upload-routen kräver själv att målrestaurangen är utkast.
+  if (req.path === '/upload-r2') return next();
   try {
     const p = req.path;
     const ids = new Set<string>();
