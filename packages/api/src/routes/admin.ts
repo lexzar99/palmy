@@ -213,6 +213,14 @@ const canSeeCustomerPII = (req: AuthRequest): boolean => {
   return role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'RESTAURANT_ADMIN';
 };
 
+// Kund-läsning: SUPER_ADMIN + GLOBAL_VIEWER ("Kundvakten"/"Falken", read-only
+// data-agenter). GLOBAL_VIEWER ser kunder men med MASKERAD PII (canSeeCustomerPII
+// släpper inte in den) och kan aldrig skriva/radera (autoRoleGate blockerar).
+const canReadCustomers = (req: AuthRequest): boolean => {
+  const role = req.admin?.role;
+  return role === 'SUPER_ADMIN' || role === 'GLOBAL_VIEWER';
+};
+
 const maskPhone = (phone: string | null | undefined): string | null => {
   if (!phone) return null;
   // Behåll landkod + sista 2 siffrorna: "+4670*****12"
@@ -5104,7 +5112,57 @@ router.get('/analytics', async (req: any, res: any) => {
 
 // GET /api/admin/customers/search?q=...
 // Server-side söker namn/email/telefon. Returnerar de 50 första träffarna.
-router.get('/customers/search', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+// Kund-överblick för Kundvakten (read-only): antal, inloggade vs gäster, nya
+// registreringar, senaste. PII maskerad för GLOBAL_VIEWER. SUPER_ADMIN + GLOBAL_VIEWER.
+router.get('/customers/overview', authenticate, async (req: AuthRequest, res) => {
+  if (!canReadCustomers(req)) {
+    return res.status(403).json({ error: 'Kräver läsbehörighet för kunder' });
+  }
+  try {
+    const now = new Date();
+    const startToday = new Date(now); startToday.setHours(0, 0, 0, 0);
+    const week = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const month = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const u = (prisma as any).user;
+    const [total, guests, registered, newToday, newWeek, activeMonth, recent] = await Promise.all([
+      u.count({ where: { deletedAt: null } }),
+      u.count({ where: { deletedAt: null, isGuest: true } }),
+      u.count({ where: { deletedAt: null, isGuest: false } }),
+      u.count({ where: { deletedAt: null, isGuest: false, createdAt: { gte: startToday } } }),
+      u.count({ where: { deletedAt: null, isGuest: false, createdAt: { gte: week } } }),
+      prisma.order.findMany({ where: { createdAt: { gte: month }, userId: { not: null } }, select: { userId: true }, distinct: ['userId'] }),
+      u.findMany({
+        where: { deletedAt: null, isGuest: false },
+        select: { id: true, name: true, email: true, phone: true, createdAt: true },
+        take: 10, orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+    const showPII = canSeeCustomerPII(req);
+    res.json({
+      totalCustomers: total,
+      registered,            // inloggade (konto)
+      guests,                // gäst-checkout
+      newToday,
+      newThisWeek: newWeek,
+      activeLast30Days: activeMonth.length,
+      recentRegistrations: recent.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        email: showPII ? r.email : maskEmail(r.email),
+        phone: showPII ? r.phone : maskPhone(r.phone),
+        createdAt: r.createdAt,
+      })),
+    });
+  } catch (err) {
+    console.error('[customer-overview] error:', err);
+    res.status(500).json({ error: 'Kunde inte hämta kundöverblick' });
+  }
+});
+
+router.get('/customers/search', authenticate, async (req: AuthRequest, res) => {
+  if (!canReadCustomers(req)) {
+    return res.status(403).json({ error: 'Kräver läsbehörighet för kunder' });
+  }
   try {
     const q = String(req.query.q || '').trim();
     if (q.length < 2) {
@@ -5125,7 +5183,14 @@ router.get('/customers/search', authenticate, requireSuperAdmin, async (req: Aut
       take: 50,
       orderBy: { createdAt: 'desc' },
     });
-    res.json({ users });
+    const showPII = canSeeCustomerPII(req);
+    res.json({
+      users: users.map((usr: any) => ({
+        ...usr,
+        email: showPII ? usr.email : maskEmail(usr.email),
+        phone: showPII ? usr.phone : maskPhone(usr.phone),
+      })),
+    });
   } catch (err) {
     console.error('[customer-search] error:', err);
     res.status(500).json({ error: 'Sökning misslyckades' });
@@ -5133,7 +5198,10 @@ router.get('/customers/search', authenticate, requireSuperAdmin, async (req: Aut
 });
 
 // GET /api/admin/customers/:id/orders — orders för en specifik kund
-router.get('/customers/:id/orders', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+router.get('/customers/:id/orders', authenticate, async (req: AuthRequest, res) => {
+  if (!canReadCustomers(req)) {
+    return res.status(403).json({ error: 'Kräver läsbehörighet för kunder' });
+  }
   try {
     const orders = await prisma.order.findMany({
       where: { userId: req.params.id },
@@ -5141,12 +5209,14 @@ router.get('/customers/:id/orders', authenticate, requireSuperAdmin, async (req:
       take: 100,
       include: { restaurant: { select: { name: true, slug: true } } },
     });
+    const showPII = canSeeCustomerPII(req as AuthRequest);
     res.json({
       orders: orders.map((o) => ({
         ...o,
         total: o.total / 100,
         deliveryFee: o.deliveryFee / 100,
         discountAmount: o.discountAmount / 100,
+        customerPhone: showPII ? o.customerPhone : maskPhone(o.customerPhone),
         restaurantName: o.restaurant?.name || null,
       })),
     });
