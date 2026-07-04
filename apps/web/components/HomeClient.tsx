@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
-import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
+import { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DpointsHomeCard from "@/components/DpointsHomeCard";
 import type { SponsorCardData } from "@/lib/dpoints";
@@ -40,6 +40,7 @@ import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
 import { useCartStore } from "@/store/cartStore";
 import { useFavorites } from "@/lib/favoritesStore";
+import { addSkippedReviewOrderId, readSkippedReviewOrderIds } from "@/lib/reviewPrompt";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 interface Restaurant {
@@ -139,8 +140,14 @@ const ACTIVE_ORDER_PHONE_KEY = "matgo_active_order_phone";
 const ACTIVE_ORDERS_KEY = "matgo_active_orders";
 const CLOSED_ORDER_SEEN_KEY = "delivera_closed_order_seen_v1";
 const CLOSED_ORDER_VISIBLE_MS = 3 * 60 * 1000;
+// Levererade ordrar ligger kvar på hemskärmen en stund så recensionsprompten
+// hinner ses (Swift håller terminala ordrar i 15 min). Färskhets-guarden
+// hindrar gamla historik-ordrar från att dyka upp vid kall sidladdning.
+const DELIVERED_ORDER_VISIBLE_MS = 15 * 60 * 1000;
+const DELIVERED_MAX_AGE_MS = 3 * 60 * 60 * 1000;
 const ACTIVE_TRACKING_STATUSES = new Set(["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"]);
 const CLOSED_TRACKING_STATUSES = new Set(["CANCELLED", "REJECTED", "DELIVERY_FAILED"]);
+const DELIVERED_TRACKING_STATUSES = new Set(["DELIVERED", "COMPLETED"]);
 const PROMO_CARD_WIDTH = 260;
 const PROMO_CARD_GAP = 12;
 const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
@@ -258,12 +265,20 @@ function writeClosedOrderSeen(map: Record<string, number>) {
 function shouldShowTrackingOrderOnHome(order: any) {
   const status = String(order?.status || "").toUpperCase();
   if (ACTIVE_TRACKING_STATUSES.has(status)) return true;
-  if (!CLOSED_TRACKING_STATUSES.has(status)) return false;
+  const isDelivered = DELIVERED_TRACKING_STATUSES.has(status);
+  if (!CLOSED_TRACKING_STATUSES.has(status) && !isDelivered) return false;
   const orderId = String(order?.id || "");
   if (!orderId) return false;
+  if (isDelivered) {
+    // Bara färska leveranser — annars skulle gammal orderhistorik dyka upp
+    // som "levererad" på hemskärmen vid kall sidladdning.
+    const createdAt = order?.createdAt ? new Date(order.createdAt).getTime() : 0;
+    if (!createdAt || Number.isNaN(createdAt) || Date.now() - createdAt > DELIVERED_MAX_AGE_MS) return false;
+  }
+  const visibleMs = isDelivered ? DELIVERED_ORDER_VISIBLE_MS : CLOSED_ORDER_VISIBLE_MS;
   const seen = readClosedOrderSeen();
   const seenAt = Number(seen[orderId] || 0);
-  if (seenAt > 0) return Date.now() < seenAt + CLOSED_ORDER_VISIBLE_MS;
+  if (seenAt > 0) return Date.now() < seenAt + visibleMs;
   seen[orderId] = Date.now();
   writeClosedOrderSeen(seen);
   return true;
@@ -314,6 +329,23 @@ function pulseChipColor(theme?: string | null) {
     case "gold": return "#784D08";
     default: return "var(--deal-blue-ink)";
   }
+}
+
+// "Utvald"-badge (Swift-paritet, se RestaurantCard.dealBadges): guld för
+// toppnivån (featuredClass 1), silver för nivå 2. Krona-ikon.
+function FeaturedBadge({ featuredClass }: { featuredClass?: number | null }) {
+  const gold = featuredClass === 1;
+  const silver = featuredClass === 2;
+  if (!gold && !silver) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-0.5 rounded-md text-white"
+      style={{ backgroundColor: gold ? "#B7800D" : "#868A94" }}
+    >
+      <Crown size={11} strokeWidth={2.6} />
+      Utvald
+    </span>
+  );
 }
 
 function dealValueHeadline(deal: HomeAppDeal) {
@@ -664,6 +696,12 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   const [courierPositions, setCourierPositions] = useState<Record<string, { lat: number; lng: number }>>({});
   const [activeUserDealId, setActiveUserDealId] = useState("");
   const [claimingDealId, setClaimingDealId] = useState<string | null>(null);
+  // Recensionsprompt efter levererad order — skippade order-id delas med
+  // ordersidan och Swift-appen via delivera.skippedReviewOrderIds.
+  const [skippedReviewIds, setSkippedReviewIds] = useState<string[]>([]);
+  useEffect(() => {
+    setSkippedReviewIds(readSkippedReviewOrderIds());
+  }, []);
 
   useEffect(() => {
     try {
@@ -778,7 +816,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             const paymentStatus = String(order.paymentStatus || "").toUpperCase();
             if (status === "AWAITING_PAYMENT" || ["AWAITING_PAYMENT", "FAILED", "EXPIRED"].includes(paymentStatus)) return false;
             const shouldShow = shouldShowTrackingOrderOnHome(order);
-            if (!shouldShow && CLOSED_TRACKING_STATUSES.has(status)) forgetClosedHomeOrder(String(order.id || ""));
+            if (!shouldShow && (CLOSED_TRACKING_STATUSES.has(status) || DELIVERED_TRACKING_STATUSES.has(status))) forgetClosedHomeOrder(String(order.id || ""));
             return shouldShow;
           })
           .slice(0, 3);
@@ -1219,11 +1257,15 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         title: d.title,
         subtitle: d.description || (d.restaurant?.name ? t("home.deal.atRestaurant", { name: d.restaurant.name }) : t("home.deal.allRestaurants")),
         // BOGO har 0kr discount men ger gratisvara — visa det istället för "0 kr".
+        // Fri-leverans/NONE-deals har discountValue 0: visa deras badgeText
+        // ("Fri leverans") i stället för det felaktiga "0 kr".
         rewardLabel: isBogo
           ? t("home.deal.bogo")
           : d.discountType === "PERCENTAGE"
             ? `${d.discountValue}%`
-            : `${d.discountValue} ${t("common.kr")}`,
+            : Number(d.discountValue) > 0
+              ? `${d.discountValue} ${t("common.kr")}`
+              : (d.badgeText || ""),
         description: d.description,
         code: d.code,
         validUntil: d.validUntil,
@@ -1549,20 +1591,25 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                 style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 12px rgba(17,17,19,0.06)" }}
               >
                 {(() => {
-                  // Rak deal-chip uppe till vänster (ersätter den roterade
-                  // ribbonen). Flyttas ner under status-pillen om den syns.
+                  // Utvald-tier + deal-chip uppe till vänster (Swift-paritet).
+                  // Flyttas ner under status-pillen om den syns.
                   const badges = getBadgesForRestaurant(r.id);
-                  if (!badges.bogo && !badges.regular) return null;
+                  const regularLabel = badges.regular
+                    ? (badges.regular.discountPercent ? `−${badges.regular.discountPercent} %` : badges.regular.rewardLabel)
+                    : "";
+                  const showFeatured = r.featuredClass === 1 || r.featuredClass === 2;
+                  if (!showFeatured && !badges.bogo && !regularLabel) return null;
                   return (
                     <div className={`absolute ${railDimReason ? "top-11" : "top-3"} left-3 z-20 flex flex-wrap gap-1.5 max-w-[calc(100%-1.5rem)]`}>
+                      <FeaturedBadge featuredClass={r.featuredClass} />
                       {badges.bogo && (
                         <span className="bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
                           {t("home.deal.badge.bogo")}
                         </span>
                       )}
-                      {badges.regular && (
+                      {regularLabel && (
                         <span className="bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
-                          {badges.regular.discountPercent ? `−${badges.regular.discountPercent} %` : badges.regular.rewardLabel}
+                          {regularLabel}
                         </span>
                       )}
                     </div>
@@ -1713,14 +1760,42 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                   if (phone) qs.set("phone", phone);
                 } catch { /* noop */ }
                 const href = qs.toString() ? `/order/${order.id}?${qs.toString()}` : `/order/${order.id}`;
+                // Recensionsprompt (Swift-paritet): levererad, ej recenserad,
+                // ej skippad. "Recensera" öppnar ordersidans review-kort,
+                // "Skippa" sparas i delivera.skippedReviewOrderIds.
+                const orderStatus = String(order.status || "").toUpperCase();
+                const showReviewPrompt =
+                  DELIVERED_TRACKING_STATUSES.has(orderStatus) &&
+                  !(Number(order.rating || 0) > 0) &&
+                  !order.reviewedAt &&
+                  !skippedReviewIds.includes(String(order.id));
                 return (
-                  <OrderTrackingCard
-                    key={order.id}
-                    order={order}
-                    href={href}
-                    courier={courierPositions[String(order.id)]}
-                    className={index === 0 ? "" : "mt-2"}
-                  />
+                  <div key={order.id} className={index === 0 ? "" : "mt-2"}>
+                    <OrderTrackingCard
+                      order={order}
+                      href={href}
+                      courier={courierPositions[String(order.id)]}
+                    />
+                    {showReviewPrompt && (
+                      <div className="mt-2 flex gap-2">
+                        <Link
+                          href={href}
+                          className="flex h-10 flex-[2] items-center justify-center gap-1.5 rounded-xl text-[13px] font-black text-white active:scale-[0.99]"
+                          style={{ backgroundColor: "#2E7D4F" }}
+                        >
+                          <Star size={14} className="fill-current" /> Recensera +Dpoints
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => setSkippedReviewIds(addSkippedReviewOrderId(String(order.id)))}
+                          className="h-10 flex-1 rounded-xl text-[13px] font-bold active:scale-[0.99]"
+                          style={{ backgroundColor: "rgba(17,17,19,0.06)", color: "var(--text-secondary)" }}
+                        >
+                          Skippa
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -1977,7 +2052,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                           ? `Öppnar ${pausedUntilDate!.getHours().toString().padStart(2, "0")}:${pausedUntilDate!.getMinutes().toString().padStart(2, "0")}`
                           : (nextOpenLabel(r.openingHours) || "Stängd"))
                       : null;
-                  const injectDeal = (allDealCards.length > 0 && (i + 1) % 4 === 0) ? allDealCards[Math.floor(i / 4) % allDealCards.length] : null;
                   const isFav = favorites.has(r.id);
 
                   const toggleFav = (e: React.MouseEvent) => {
@@ -2037,17 +2111,22 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                                 färgglada pillerna. */}
                             {(() => {
                               const badges = getBadgesForRestaurant(r.id);
-                              if (!badges.bogo && !badges.regular) return null;
+                              const regularLabel = badges.regular
+                                ? (badges.regular.discountPercent ? `−${badges.regular.discountPercent} %` : badges.regular.rewardLabel)
+                                : "";
+                              const showFeatured = r.featuredClass === 1 || r.featuredClass === 2;
+                              if (!showFeatured && !badges.bogo && !regularLabel) return null;
                               return (
                                 <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[calc(100%-1.5rem)]">
+                                  <FeaturedBadge featuredClass={r.featuredClass} />
                                   {badges.bogo && (
                                     <span className="bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
                                       {t("home.deal.badge.bogo")}
                                     </span>
                                   )}
-                                  {badges.regular && (
+                                  {regularLabel && (
                                     <span className="bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
-                                      {badges.regular.discountPercent ? `−${badges.regular.discountPercent} %` : badges.regular.rewardLabel}
+                                      {regularLabel}
                                     </span>
                                   )}
                                 </div>
@@ -2097,13 +2176,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                           </div>
                         </Link>
                       </div>
-
-                      {/* Inline Deal Injection */}
-                      {injectDeal && (
-                        <div className="flex items-center justify-center w-full" style={{ padding: "0 10px" }}>
-                          <DealFlipCard deal={injectDeal} />
-                        </div>
-                      )}
                     </React.Fragment>
                   );
                 })}
