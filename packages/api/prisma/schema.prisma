@@ -50,6 +50,9 @@ model Product {
   // När true: hoppa över beskrivningen i menyn (för compact-items där beskrivning
   // inte behövs eller bara är brus). Admin-styrt.
   hideDescription     Boolean             @default(false)
+  // Valfri notering (AI/admin) som visas längst ner i produktmodalen i appen,
+  // skild från description. Null = ingen notering.
+  note                String?
   // Discount / sale fields for "Rea & rabatterat" section on home.
   // discountPercent overrides discountPrice if both are set.
   discountPercent     Int?                // 1-95 (%)

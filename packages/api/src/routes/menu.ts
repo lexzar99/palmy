@@ -196,8 +196,9 @@ router.get('/categories', async (req, res) => {
     };
 
     const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
-    const [categories] = await Promise.all([
+    const [categories, productPopularity] = await Promise.all([
       queryActiveMenuByRestaurantId(primaryRestaurantId),
+      queryProductPopularity(primaryRestaurantId),
     ]);
     const activeDeals = primaryRestaurantId
       ? await prisma.deal.findMany({
@@ -288,6 +289,12 @@ router.get('/categories', async (req, res) => {
         rewardable: !!prod.rewardable,
         rewardPointsMultiplier: (prod as any).rewardPointsMultiplier ?? 1.5,
         rewardPointsPrice: (prod as any).rewardPointsPrice ?? null,
+        // Popularitet (distinkta ordrar × 5 + cappad volym, 30 dagar). Klienten
+        // använder detta för "mest beställda tillgängliga"-fallbacken när en
+        // borttagen favorit inte längre finns i menyn.
+        orderScore: productPopularity.get(prod.id) ?? 0,
+        // AI/admin-notering som visas längst ner i produktmodalen (valfri).
+        note: (prod as any).note ?? null,
         ...extraGroupsField,
         });
       }),
