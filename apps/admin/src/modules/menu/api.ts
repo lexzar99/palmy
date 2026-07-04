@@ -59,6 +59,8 @@ export interface ProductRecord {
   // Visningsläge i menyn — "FULL" eller "COMPACT".
   displayMode?: "FULL" | "COMPACT";
   hideDescription?: boolean;
+  // Valfri notering som visas längst ner i produktmodalen i appen (skild från beskrivning).
+  note?: string | null;
   // Dpoints: köpbar med poäng.
   rewardable?: boolean;
   rewardPointsMultiplier?: number | null;

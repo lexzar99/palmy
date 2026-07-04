@@ -1637,6 +1637,8 @@ const ProductSchema = z.object({
   // Visningsläge i menyn: FULL (1-per-rad) eller COMPACT (2-per-rad).
   displayMode: z.enum(["FULL", "COMPACT"]).optional(),
   hideDescription: z.boolean().optional(),
+  // Valfri notering som visas längst ner i produktmodalen i appen.
+  note: z.string().nullable().optional(),
   // Discount fields
   discountPercent: z.number().int().min(1).max(95).nullable().optional(),
   discountPrice: z.number().positive().nullable().optional(),
@@ -2053,6 +2055,7 @@ router.post('/products', async (req, res) => {
         position: data.position ?? 0,
         displayMode: data.displayMode ?? "FULL",
         hideDescription: data.hideDescription ?? false,
+        note: data.note ?? null,
         discountPercent: data.discountPercent ?? null,
         discountPrice: data.discountPrice != null ? Math.round(data.discountPrice * 100) : null,
         discountImageUrl: data.discountImageUrl ?? null,

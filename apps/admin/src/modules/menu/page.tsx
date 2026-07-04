@@ -157,7 +157,7 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
 
 function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, restaurants, products, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; restaurants: DealRestaurantRef[]; products: DealProductRef[]; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, rewardable: false, rewardPointsMultiplier: 1.5, rewardPointsPrice: "" as string | number, localPriceLocked: false, discountActive: false, discountPercent: 0, extraGroupIds: [] as string[] });
+  const [form, setForm] = useState({ name: "", description: "", note: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, rewardable: false, rewardPointsMultiplier: 1.5, rewardPointsPrice: "" as string | number, localPriceLocked: false, discountActive: false, discountPercent: 0, extraGroupIds: [] as string[] });
   const [promotionModalOpen, setPromotionModalOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -168,6 +168,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
         ? {
             name: product.name,
             description: product.description || "",
+            note: product.note || "",
             price: product.price,
             categoryId: product.categoryId,
             imageUrl: product.imageUrl || "",
@@ -189,6 +190,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
         : {
             name: "",
             description: "",
+            note: "",
             price: 0,
             categoryId: categories[0]?.id || "",
             imageUrl: "",
@@ -330,6 +332,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             />
           </div>
           <div className="mt-4"><Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
+          <div className="mt-4"><Field label="Notering (visas längst ner i produktmodalen)"><Textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} /></Field></div>
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3.5">
             <div>
               <p className="text-[13px] font-semibold text-[var(--text-primary)]">Tillgänglig</p>
