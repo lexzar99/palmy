@@ -2,43 +2,9 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
-import supabaseAdmin from '../lib/supabase';
+import { deleteSupabaseAuthUser } from '../lib/supabaseUserDelete';
 
 const router = Router();
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const normPhone = (p?: string | null) => (p || '').replace(/[^\d]/g, '');
-
-// Radera även Supabase-auth-användaren när admin tar bort en kund — annars blir
-// det en orphan (Google- eller telefon-användare) som blockerar framtida signup
-// med samma nummer/e-post ("user with this number already exists"). Best-effort.
-async function deleteSupabaseAuthUser(u: { id: string; email: string | null; phone: string | null; oauthId: string | null }) {
-  if (!supabaseAdmin) return;
-  try {
-    // Radera ALLA Supabase-auth-användare som matchar kontot — primär (vår
-    // User.id eller oauthId) OCH separata användare med samma e-post/telefon
-    // (t.ex. en telefon-OTP-användare vid sidan av Google-användaren). Annars
-    // blir numret kvar som "upptaget" i Supabase och blockerar nästa verifiering.
-    const ids = new Set<string>();
-    if (UUID_RE.test(u.id)) ids.add(u.id);
-    if (u.oauthId && UUID_RE.test(u.oauthId)) ids.add(u.oauthId);
-    if (u.email || u.phone) {
-      const { data } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-      for (const su of ((data?.users as any[]) || [])) {
-        const emailMatch = u.email && su.email?.toLowerCase() === u.email.toLowerCase();
-        const phoneMatch = u.phone && su.phone && normPhone(su.phone) === normPhone(u.phone);
-        if (emailMatch || phoneMatch) ids.add(su.id);
-      }
-    }
-    for (const sid of ids) {
-      await supabaseAdmin.auth.admin.deleteUser(sid).catch((e: any) =>
-        console.error('[delete customer] Supabase delete', sid, e?.message),
-      );
-    }
-  } catch (e: any) {
-    console.error('[delete customer] Supabase cascade failed:', e?.message);
-  }
-}
 
 // GET /api/customers - List all users with order summary + fraud signals
 router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {

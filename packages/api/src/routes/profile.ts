@@ -5,6 +5,7 @@ import { authenticateUser } from './auth';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { maybeAwardReviewPoints } from '../lib/dpoints';
 import supabaseAdmin from '../lib/supabase';
+import { deleteSupabaseAuthUser } from '../lib/supabaseUserDelete';
 
 const router = Router();
 
@@ -772,27 +773,53 @@ router.get('/previously-ordered/:restaurantId', authenticateUser, async (req: an
 });
 
 // DELETE /api/profile - GDPR: Delete account
+// DELETE /api/profile — kundens egen kontoradering (App Store-krav). Vi HÅRD-
+// raderar inte User-raden: dels kraschar det på FK-relationer (Referral/UserDeal/
+// PointsTransaction), dels är kundens Supabase-JWT kvar giltig så authenticateUser
+// skulle tyst återskapa raden vid nästa anrop (samma anti-mönster som beskrivs i
+// customers.ts admin-radering). Istället: radera Supabase-auth-användaren, koppla
+// loss orders (affärspost som ska sparas) och soft-delete + scrubba all PII. Auth-
+// middleware avvisar deletedAt-konton med 401, klienten rensar sin token.
 router.delete('/', authenticateUser, async (req: any, res: any) => {
   try {
-    // 1. Identify user
     const userId = req.user.id;
-    
-    // 2. We don't delete orders (business record), but we disconnect them
-    // and anonymize the data in the order records if they were tied specifically to this user
+
+    // Hämta identifierare innan scrub så Supabase-cascade kan frigöra
+    // nummer/e-post/OAuth (annars blockerar de framtida signup).
+    const before = await (prisma as any).user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, phone: true, oauthId: true },
+    });
+    if (before) await deleteSupabaseAuthUser(before);
+
+    // Koppla loss orders (affärspost) från kunden istället för att radera dem.
     await prisma.order.updateMany({
       where: { userId },
-      data: { 
-        userId: null,
-        // Optional: Anonymize the order's PII fields if needed
-        // customerName: 'Anonymiserad kund',
-        // customerPhone: '0000000000',
-        // customerEmail: null,
-      }
+      data: { userId: null },
     });
 
-    // 3. Delete the user (SavedAddresses and CustomerDeals will be cascaded)
-    await prisma.user.delete({
-      where: { id: userId }
+    // Soft-delete + scrubba identifierande fält. Nulla unika slots (email/phone/
+    // oauth/referralCode) så framtida signup inte blockeras av tombstonen.
+    await (prisma as any).user.update({
+      where: { id: userId },
+      data: {
+        deletedAt: new Date(),
+        email: null,
+        phone: null,
+        name: '',
+        firstName: null,
+        lastName: null,
+        address: null,
+        city: null,
+        zip: null,
+        image: null,
+        pushToken: null,
+        apnsDeviceToken: null,
+        oauthProvider: null,
+        oauthId: null,
+        referralCode: null,
+        referredByCode: null,
+      },
     });
 
     res.json({ success: true, message: 'Ditt konto och all tillhörande data har raderats.' });
