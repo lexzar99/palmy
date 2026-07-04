@@ -51,7 +51,7 @@ const PAYMENT_OPTIONS: {
   subtitle: string;
 }[] = [
   { key: "APPLE_PAY", icon: Apple, title: "Apple Pay", subtitle: "Snabb betalning i kassan" },
-  { key: "CARD", icon: CreditCard, title: "Kort", subtitle: "Sparade kort via Adyen" },
+  { key: "CARD", icon: CreditCard, title: "Kort", subtitle: "Betala med kort i kassan" },
   { key: "SWISH", icon: Smartphone, title: "Swish", subtitle: "Betala med telefonnummer" },
 ];
 
@@ -960,7 +960,7 @@ function ProfileContent() {
           Apple-användare som saknar namn — Apple skickar fullName ENDAST
           vid första auktorisering. Om vi missade det (eller appen
           registrerades med tomt namn) måste användaren avregistrera Apple
-          för FoodGo i sina iCloud-inställningar och logga in igen.
+          för Delívera i sina iCloud-inställningar och logga in igen.
         */}
         {(user.oauthProvider === "apple" || user.oauthProvider === "supabase") &&
           (!user.firstName || !user.lastName) && (

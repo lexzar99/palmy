@@ -5,7 +5,6 @@ import Link from "next/link";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { fetchDpointsMe } from "@/lib/dpoints";
-import AdyenDropin from "@/components/AdyenDropin";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
@@ -37,7 +36,7 @@ import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/components/LiveOrderBanner";
-// Stripe borttaget — betalning sker via Adyen (provider-neutralt backend-lager).
+// Betalning sker via Mollie hosted checkout (provider-neutralt backend-lager).
 import ProductModal from "@/components/ProductModal";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
@@ -50,6 +49,8 @@ import {
   writeQuickAddresses,
 } from "@/lib/quickAddresses";
 import { PublicDeal, pickBestDeal, formatDealReward } from "@/lib/deals";
+import { readActiveUserDealId, writeActiveUserDeal, clearActiveUserDeal } from "@/lib/appDeal";
+import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
 // Account-deal från GET /api/account/deals — vi använder ACTIVE-deals av typ
@@ -109,7 +110,7 @@ function dealTypeLabel(type: string, t: (key: string, vars?: Record<string, stri
   return t("cart.dealType.fallback");
 }
 
-// Betalning sker via Adyen Web Drop-in (inline på kassan, se AdyenDropin).
+// Betalning sker via Mollie hosted checkout (redirect + status-polling vid retur).
 // Provider-väljaren bor i backend (PAYMENT_PROVIDER).
 
 /**
@@ -202,8 +203,8 @@ export default function CartPage() {
   useEffect(() => setMounted(true), []);
   const [error, setError] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
-  // När satt: visa Adyen Drop-in inline för denna order (komponenten hämtar sessionen).
-  const [adyenOrderId, setAdyenOrderId] = useState<string | null>(null);
+  // True när kunden återvänt från Mollie och vi pollar orderns betalstatus.
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
   const idempotencyKey = useRef<string>(
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
@@ -217,6 +218,29 @@ export default function CartPage() {
   // att applicera, vi skickar userDealId i order-payload.
   const [accountDeals, setAccountDeals] = useState<UserAccountDeal[]>([]);
   const [selectedAccountDealId, setSelectedAccountDealId] = useState<string | null>(null);
+  // Aktiv deal-kontraktet (Swift-paritet): kassan läser delivera.activeUserDealId
+  // vid mount och förväljer dealen. Servern quotar rabatten (enda sanningen),
+  // se appDealQuote-effekten nedan. Valet skrivs tillbaka till localStorage så
+  // hemskärmen visar samma aktiva deal.
+  const [appDealQuote, setAppDealQuote] = useState<{
+    userDealId: string;
+    applicable: boolean;
+    reason?: string | null;
+    minOrderKr?: number | null;
+    discountAmountKr: number;
+    dealTitle?: string | null;
+  } | null>(null);
+  // Feedback för vänkods-inlösen (Swift: referralRedeemMessage). ok styr
+  // grön/orange ikonfärg.
+  const [referralMessage, setReferralMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [applyingCode, setApplyingCode] = useState(false);
+  useEffect(() => {
+    // Förvälj aktiv deal från kontraktet (sätts av hemskärmens deals-rail,
+    // rewards eller en tidigare vänkod). Kassan nollar snapshot när den själv
+    // äger valet — Swift gör samma sak.
+    const stored = readActiveUserDealId();
+    if (stored) setSelectedAccountDealId(stored);
+  }, []);
   // Dpoints-saldo (för köp-med-poäng-guard i korgen). null = ej inloggad / av.
   const [dpointsBalance, setDpointsBalance] = useState<number | null>(null);
   const [showInsufficientPoints, setShowInsufficientPoints] = useState(false);
@@ -738,14 +762,60 @@ export default function CartPage() {
     () => accountDeals.find((d) => d.id === selectedAccountDealId) || null,
     [accountDeals, selectedAccountDealId],
   );
+  // Server-quotad rabatt (Swift-paritet): POST /api/deals/app/quote är enda
+  // sanningen för app-dealens belopp. Den lokala computeDealAmountKr används
+  // bara som direkt-preview tills quoten (för samma id) svarat — aldrig som facit.
   const accountDealDiscount = useMemo(() => {
+    if (!selectedAccountDealId) return 0;
+    if (appDealQuote && appDealQuote.userDealId === selectedAccountDealId) {
+      return appDealQuote.applicable ? appDealQuote.discountAmountKr : 0;
+    }
     if (!selectedAccountDeal) return 0;
     const minK = selectedAccountDeal.minOrderKr ?? 0;
     if (subtotal < minK) return 0;
     // deliveryFee skickas med för FREE_DELIVERY-deals så rabatten matchar
     // exakt det användaren skulle betalat i frakt.
     return computeDealAmountKr(selectedAccountDeal, subtotal, deliveryFee);
-  }, [selectedAccountDeal, subtotal, deliveryFee]);
+  }, [selectedAccountDealId, appDealQuote, selectedAccountDeal, subtotal, deliveryFee]);
+
+  // Quota vald deal mot servern när korgens belopp/läge/restaurang ändras.
+  // Debounce 350 ms så stepper-klick inte hammrar API:t. Vid 404 (dealen
+  // använd/utgången) släpps valet och kontraktet nollas; vid nätverksfel
+  // behålls senaste quoten — servern validerar ändå vid order.
+  useEffect(() => {
+    if (!user || !selectedAccountDealId || subtotal <= 0) {
+      setAppDealQuote(null);
+      return;
+    }
+    const dealIdAtRequest = selectedAccountDealId;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await axios.post(`/api/platform/deals/app/quote`, {
+          userDealId: dealIdAtRequest,
+          subtotalKr: subtotal,
+          deliveryFeeKr: orderType === "DELIVERY" ? deliveryFee : 0,
+          orderMode: orderType,
+          restaurantId: currentRestaurantId || undefined,
+        });
+        const d = res.data || {};
+        setAppDealQuote({
+          userDealId: dealIdAtRequest,
+          applicable: !!d.applicable,
+          reason: d.reason ?? null,
+          minOrderKr: typeof d.minOrderKr === "number" ? d.minOrderKr : null,
+          discountAmountKr: typeof d.discountAmountKr === "number" ? d.discountAmountKr : 0,
+          dealTitle: d.deal?.title ?? null,
+        });
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          setAppDealQuote(null);
+          setSelectedAccountDealId((current) => (current === dealIdAtRequest ? null : current));
+          if (readActiveUserDealId() === dealIdAtRequest) clearActiveUserDeal();
+        }
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [user, selectedAccountDealId, subtotal, deliveryFee, orderType, currentRestaurantId]);
 
   // Prioritet:
   //   1. Användarens EXPLICITA VAL (selectedPersonalDeal ELLER selectedAccountDealId)
@@ -955,7 +1025,52 @@ export default function CartPage() {
     }
   }, [currentRestaurantId]);
 
+  // Vänkods-fallback (Swift-paritet, CartView.applyCode): körs när rabatt-
+  // koden inte gäller. POST /api/account/redeem-code skapar REFERRAL_INVITEE-
+  // UserDeal direkt; svaret innehåller userDealId som appliceras i kassan.
+  // Returnerar true om koden hanterades (succé ELLER eget servermeddelande)
+  // så det generiska rabattkodsfelet döljs.
+  const tryRedeemReferral = async (code: string): Promise<boolean> => {
+    if (!user || !code) return false;
+    try {
+      const res = await axios.post(`/api/platform/account/redeem-code`, {
+        code,
+        deviceFingerprint: getDeviceFingerprint(),
+      });
+      const userDealId: string | undefined = res.data?.userDealId;
+      if (!res.data?.ok || !userDealId) return false;
+      // Dealen appliceras direkt + skrivs till aktiva deal-kontraktet.
+      // Snapshot nollas när kassan själv sätter dealen (som i Swift).
+      writeActiveUserDeal(userDealId);
+      setSelectedAccountDealId(userDealId);
+      setSelectedPersonalDeal(null);
+      setPromoCodeInput("");
+      setError(null);
+      const name = res.data?.inviterName || "en vän";
+      setReferralMessage({ ok: true, text: `Kod från ${name} aktiverad. Ha så gott!` });
+      // Hämta om account-deals så vänrabatten även syns som rad i listan.
+      void fetchContext();
+      return true;
+    } catch (err: any) {
+      const msg: string | undefined = err?.response?.data?.error;
+      // "hittades inte" = ingen vänkod heller → behåll rabattkodens generiska
+      // fel. Andra servermeddelanden (t.ex. "Du har redan använt en referral-
+      // kod") visas ordagrant.
+      if (msg && !/hittades inte/i.test(msg)) {
+        setError(null);
+        setReferralMessage({ ok: false, text: msg });
+        return true;
+      }
+      return false;
+    }
+  };
+
   const handleApplyPromo = async () => {
+    setReferralMessage(null);
+    if (!promoCodeInput.trim()) {
+      setError("Skriv en rabattkod först.");
+      return;
+    }
     const code = promoCodeInput.trim().toLowerCase();
     if (code === "test" || code === "testa") {
       setSelectedPersonalDeal({
@@ -979,6 +1094,7 @@ export default function CartPage() {
       return;
     }
 
+    setApplyingCode(true);
     try {
       // Använd page-level `subtotal` (= cartStore.getTotal()) istället för
       // att räkna ut lokalt. Tidigare lokal beräkning exkluderade extras
@@ -1016,11 +1132,16 @@ export default function CartPage() {
         });
         setSelectedAccountDealId(null);
       } else {
-        const err = await res.json();
-        setError(err.error || t("cart.errors.invalidPromo"));
+        // Rabattkoden gällde inte → Swift-fallbacken: prova väns referral-kod.
+        const err = await res.json().catch(() => ({} as any));
+        const handled = await tryRedeemReferral(promoCodeInput.trim());
+        if (!handled) setError(err.error || t("cart.errors.invalidPromo"));
       }
     } catch {
-      setError(t("cart.errors.invalidPromo"));
+      const handled = await tryRedeemReferral(promoCodeInput.trim());
+      if (!handled) setError(t("cart.errors.invalidPromo"));
+    } finally {
+      setApplyingCode(false);
     }
   };
 
@@ -1267,50 +1388,90 @@ export default function CartPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const redirectResult = params.get("redirectResult");
-    const storedOrderId = localStorage.getItem("pending_order_id");
+    const returnOrderId = params.get("payment_return");
+    if (!returnOrderId) return;
 
-    // Adyen redirect-metod (Swish/Klarna) returnerade hit med ?redirectResult.
-    // Montera Drop-in i resume-läge (den läser sessionen ur sessionStorage och
-    // kör submitDetails). När den är klar routar onCompleted till order-tracking.
-    if (!redirectResult || !storedOrderId) return;
+    // Mollie redirectade tillbaka hit efter kassan. Vi pollar orderns
+    // betalstatus (webhooken är sanningskällan). Redirect är inte bevis på
+    // betalning, så vi litar bara på PAID/FAILED från servern.
     paymentInFlightRef.current = false;
-    setAdyenOrderId(storedOrderId);
+    void finishMolliePayment(returnOrderId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Efter att Adyen-betalningen slutförts (kort: direkt; Swish/Klarna: efter
-  // redirect-retur). Redirect är inte bevis på betalning, order-tracking-sidan
-  // pollar backend och visar rätt status när webhooken finaliserat. Token+phone
-  // som auth-bevis så gäster kommer åt ordern.
+  // Efter att Mollie-betalningen slutförts (redirect-retur + poll). Redirect är
+  // inte bevis på betalning, order-tracking-sidan pollar backend och visar rätt
+  // status när webhooken finaliserat. Token+phone som auth-bevis så gäster
+  // kommer åt ordern. Phone faller tillbaka på localStorage efter redirecten,
+  // ifall formuläret hunnit återställas.
   const goToOrderTracking = (orderId: string) => {
     paymentInFlightRef.current = false;
     const storedToken = (typeof window !== "undefined" && localStorage.getItem("pending_order_token")) || "";
-    const phone = (formData.customerPhone || "").trim();
+    const storedPhone = (typeof window !== "undefined" && localStorage.getItem("pending_order_phone")) || "";
+    const phone = ((formData.customerPhone || "").trim() || storedPhone).trim();
     const qs = new URLSearchParams();
     if (storedToken) qs.set("token", storedToken);
     if (phone) qs.set("phone", phone);
     const url = qs.toString() ? `/order/${orderId}?${qs.toString()}` : `/order/${orderId}`;
     // Spara i lokal order-historik + registrera aktiv order så /orders OCH
     // LiveOrderBanner ser ordern. Gäster har inget konto — detta är källan.
-    // (Tappades vid Stripe→Adyen-omskrivningen, därav "ingen banner/historik".)
     saveOrderToHistory({
       id: orderId,
-      phone: formData.customerPhone,
+      phone: phone,
       createdAt: new Date().toISOString(),
       restaurantName: cartRestaurantSlug ?? null,
       restaurantSlug: cartRestaurantSlug ?? null,
       total: total,
     });
-    rememberActiveOrder(orderId, { token: storedToken || undefined, phone: formData.customerPhone });
+    rememberActiveOrder(orderId, { token: storedToken || undefined, phone });
     clearCart();
+    // Betald order förbrukar aktiva dealen — nolla kontraktets båda nycklar
+    // (Swift: HomeView nollar efter betald order).
+    clearActiveUserDeal();
+    setSelectedAccountDealId(null);
+    setAppDealQuote(null);
     try {
       localStorage.removeItem("pending_order_id");
       localStorage.removeItem("pending_order_token");
-      sessionStorage.removeItem("adyen.session");
+      localStorage.removeItem("pending_order_phone");
     } catch {
       /* noop */
     }
     router.replace(url);
+  };
+
+  // Pollar orderns betalstatus efter Mollie-returen. Webhooken flippar ordern
+  // till PAID, så vi ger den några sekunder. PAID → order-tracking. Terminalt
+  // fel → visa retry och behåll varukorgen. Timeout (webhook fördröjd) → routa
+  // till tracking ändå, den sidan fortsätter polla.
+  const finishMolliePayment = async (orderId: string) => {
+    setVerifyingPayment(true);
+    const clearReturnParam = () => {
+      try { window.history.replaceState({}, "", "/cart"); } catch { /* noop */ }
+    };
+    for (let attempt = 0; attempt < 8; attempt++) {
+      try {
+        const res = await axios.get(`${API_URL}/api/payments/status/${orderId}`);
+        const ps = String(res.data?.paymentStatus || "").toUpperCase();
+        if (ps === "PAID") {
+          clearReturnParam();
+          goToOrderTracking(orderId);
+          return;
+        }
+        if (["FAILED", "EXPIRED", "CANCELED", "CANCELLED"].includes(ps)) {
+          setVerifyingPayment(false);
+          clearReturnParam();
+          setError("Betalningen genomfördes inte. Försök igen eller välj ett annat betalsätt.");
+          return;
+        }
+      } catch {
+        /* nätverksfel: fortsätt polla */
+      }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    // Webhooken kan vara fördröjd. Routa till tracking som fortsätter polla.
+    clearReturnParam();
+    goToOrderTracking(orderId);
   };
 
   const buildOrderPayload = (paymentIntentId?: string) => {
@@ -1351,9 +1512,17 @@ export default function CartPage() {
       // kunden valt EGEN rabatt (kupong eller välkomst) eller explicit stängt
       // av auto-dealen. Säkerställer att frontend-total === backend-total.
       skipAutomaticDeal: !!(selectedPersonalDeal || selectedAccountDealId || automaticDealDismissed),
-      // Account-deal (WELCOME/REFERRAL_*) — backend matchar mot UserDeal.id
-      // och markerar den som USED när ordern slutförs.
-      userDealId: selectedAccountDeal?.id || undefined,
+      // App-deal (WELCOME/REFERRAL_*/CAMPAIGN) — backend matchar mot
+      // UserDeal.id och markerar den som USED när ordern slutförs. Skickas
+      // bara när serverns quote säger applicable (Swift-paritet); annars
+      // skulle backend avvisa ordern på t.ex. minOrder.
+      userDealId: (() => {
+        if (!selectedAccountDealId) return undefined;
+        if (appDealQuote?.userDealId === selectedAccountDealId) {
+          return appDealQuote.applicable ? selectedAccountDealId : undefined;
+        }
+        return accountDealDiscount > 0 ? selectedAccountDealId : undefined;
+      })(),
       restaurantId: useCartStore.getState().restaurantId || undefined,
       restaurantSlug: useCartStore.getState().restaurantSlug || undefined,
       lat: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lat; } catch { return undefined; } })(),
@@ -1400,6 +1569,10 @@ export default function CartPage() {
         rememberActiveOrder(orderId, { token: res.data?.accessToken, phone: formData.customerPhone });
       }
       clearCart();
+      // Nolla aktiva deal-kontraktet även i test-flödet (ordern är slutförd).
+      clearActiveUserDeal();
+      setSelectedAccountDealId(null);
+      setAppDealQuote(null);
       if (orderId) {
         // Test-flödet returnerar accessToken samma route som riktiga ordrar.
         const testToken = res.data?.accessToken;
@@ -1519,7 +1692,7 @@ export default function CartPage() {
       return;
     }
     // E-post är frivilligt — gäster anger bara namn + telefon. Inloggade har den
-    // förifylld ur profilen. Backend skickar shopperEmail som valfritt till Adyen.
+    // förifylld ur profilen. Backend skickar e-posten som valfritt till Mollie.
     // Anges en e-post måste den vara giltig; tom tillåts och skickas som undefined.
     if (!isTestFlow) {
       const emailValue = formData.customerEmail.trim();
@@ -1682,17 +1855,24 @@ export default function CartPage() {
       // (5-min grace-loopholen togs bort av säkerhetsskäl).
       localStorage.setItem("pending_order_id", orderId);
       if (orderToken) localStorage.setItem("pending_order_token", orderToken);
+      localStorage.setItem("pending_order_phone", (formData.customerPhone || "").trim());
       setPendingOrderId(orderId);
 
-      // Step 2: Visa Adyen Drop-in inline. Komponenten hämtar sessionen via
-      // backend /create och monterar betalningen på sidan (ingen full redirect
-      // för kort). Redirect-metoder (Swish/Klarna) återvänder via ?redirectResult.
-      // paymentInFlight hindrar pagehide från att abandona ordern under flödet.
+      // Step 2: Skapa Mollie hosted checkout och skicka kunden dit. Mollie
+      // redirectar tillbaka till returnUrl (?payment_return=orderId) efter
+      // betalningen, där vi pollar orderstatus. Webhooken finaliserar ordern,
+      // klienten flippar aldrig status själv. paymentInFlight hindrar pagehide
+      // från att abandona ordern under redirect-flödet.
       paymentInFlightRef.current = true;
-      setAdyenOrderId(orderId);
-      setTimeout(() => {
-        document.getElementById("adyen-payment")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 100);
+      const returnUrl = `${window.location.origin}/cart?payment_return=${orderId}`;
+      const payRes = await axios.post(`${API_URL}/api/payments/create`, { orderId, returnUrl, channel: "Web" });
+      const checkoutUrl: string | undefined = payRes.data?.checkoutUrl;
+      if (!checkoutUrl) {
+        paymentInFlightRef.current = false;
+        throw new Error(payRes.data?.details || payRes.data?.error || t("cart.errors.paymentUnavailable"));
+      }
+      window.location.href = checkoutUrl;
+      return;
     } catch (err: any) {
       setError(err.response?.data?.error || t("cart.errors.paymentUnavailable"));
     } finally {
@@ -1801,8 +1981,42 @@ export default function CartPage() {
   // var duplicerad (~150 rader ×2): account-deals, rabattkod, anteckning och
   // min-order-bannern. Nu EN definition per block — samma state/handlers,
   // bara olika placering i layouten.
-  const renderAccountDeals = () => accountDeals.length > 0 && (
+  // Aktiv deal från kontraktet som inte finns i account-deals-listan (t.ex.
+  // CAMPAIGN claimad på hemskärmen). Visas som egen rad med serverns quote
+  // som belopp så kunden kan se/välja bort den i kassan.
+  const activeExternalDeal =
+    selectedAccountDealId && !accountDeals.some((d) => d.id === selectedAccountDealId)
+      ? {
+          id: selectedAccountDealId,
+          title: (appDealQuote?.userDealId === selectedAccountDealId && appDealQuote?.dealTitle) || "Din deal",
+        }
+      : null;
+
+  const renderAccountDeals = () => (accountDeals.length > 0 || activeExternalDeal) && (
     <div className="space-y-2">
+      {activeExternalDeal && (
+        <button
+          type="button"
+          onClick={() => { setSelectedAccountDealId(null); clearActiveUserDeal(); }}
+          className="w-full flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-all text-left active:scale-[0.99]"
+          style={{ backgroundColor: "var(--gold-soft)", borderColor: "rgba(240,83,28,0.45)" }}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Check size={16} strokeWidth={2.5} style={{ color: "var(--gold-ink)" }} className="shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium truncate" style={{ color: "var(--gold-ink)" }}>{activeExternalDeal.title}</p>
+              {appDealQuote && !appDealQuote.applicable && appDealQuote.reason === "MIN_ORDER" && (appDealQuote.minOrderKr ?? 0) > 0 && (
+                <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                  Handla för minst {appDealQuote.minOrderKr} kr
+                </p>
+              )}
+            </div>
+          </div>
+          <span className="text-[12px] font-medium shrink-0" style={{ color: "var(--gold-ink)" }}>
+            −{accountDealDiscount.toFixed(0)} {t("common.kr")}
+          </span>
+        </button>
+      )}
       {accountDeals.map((d) => {
         const min = d.minOrderKr ?? 0;
         const meetsMin = subtotal >= min;
@@ -1815,8 +2029,16 @@ export default function CartPage() {
             type="button"
             disabled={disabled}
             onClick={() => {
-              if (isActive) { setSelectedAccountDealId(null); }
-              else { setSelectedAccountDealId(d.id); setSelectedPersonalDeal(null); setPromoCodeInput(""); }
+              // Valet speglas till aktiva deal-kontraktet (delivera.active-
+              // UserDealId) så hemskärmen visar samma val. Snapshot nollas
+              // när kassan sätter/byter deal (Swift-paritet).
+              if (isActive) { setSelectedAccountDealId(null); clearActiveUserDeal(); }
+              else {
+                setSelectedAccountDealId(d.id);
+                setSelectedPersonalDeal(null);
+                setPromoCodeInput("");
+                writeActiveUserDeal(d.id);
+              }
             }}
             className={`w-full flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-all text-left ${disabled ? "opacity-40 cursor-not-allowed" : "active:scale-[0.99]"}`}
             style={{
@@ -1857,25 +2079,35 @@ export default function CartPage() {
   );
 
   const renderPromoInput = () => (
-    <div className={`relative flex items-center transition-all ${selectedAccountDealId ? "opacity-40 pointer-events-none" : ""}`}>
-      <Tag size={15} className="absolute left-4 pointer-events-none" style={{ color: "var(--text-secondary)" }} />
-      <input
-        value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput}
-        onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); }}
-        disabled={!!selectedAccountDealId}
-        className="w-full border rounded-xl h-12 pl-11 pr-24 text-[14px] font-medium outline-none transition-all disabled:cursor-not-allowed"
-        style={{ backgroundColor: "var(--bg-deep)", borderColor: selectedPersonalDeal ? "rgba(240,83,28,0.45)" : "var(--border-muted)", color: selectedPersonalDeal ? "var(--gold-ink)" : "var(--text-primary)" }}
-        placeholder={selectedAccountDealId ? t("cart.discount.promoBlockedByReward") : selectedPersonalDeal ? t("cart.discount.promoApplied") : t("cart.discount.promoPlaceholder")}
-      />
-      <button
-        type="button"
-        disabled={!!selectedAccountDealId}
-        onClick={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCodeInput(""); } : handleApplyPromo}
-        className="absolute right-2 px-4 h-9 rounded-lg text-[13px] font-medium transition-all disabled:cursor-not-allowed active:scale-95"
-        style={selectedPersonalDeal ? { color: "#C0392B" } : { color: "var(--text-primary)" }}
-      >
-        {selectedPersonalDeal ? t("cart.discount.promoRemove") : t("cart.discount.promoCheck")}
-      </button>
+    <div className="space-y-2">
+      <div className={`relative flex items-center transition-all ${selectedAccountDealId ? "opacity-40 pointer-events-none" : ""}`}>
+        <Tag size={15} className="absolute left-4 pointer-events-none" style={{ color: "var(--text-secondary)" }} />
+        <input
+          value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput}
+          onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); setReferralMessage(null); }}
+          disabled={!!selectedAccountDealId}
+          className="w-full border rounded-xl h-12 pl-11 pr-24 text-[14px] font-medium outline-none transition-all disabled:cursor-not-allowed"
+          style={{ backgroundColor: "var(--bg-deep)", borderColor: selectedPersonalDeal ? "rgba(240,83,28,0.45)" : "var(--border-muted)", color: selectedPersonalDeal ? "var(--gold-ink)" : "var(--text-primary)" }}
+          placeholder={selectedAccountDealId ? t("cart.discount.promoBlockedByReward") : selectedPersonalDeal ? t("cart.discount.promoApplied") : t("cart.discount.promoPlaceholder")}
+        />
+        <button
+          type="button"
+          disabled={!!selectedAccountDealId || applyingCode}
+          onClick={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCodeInput(""); } : handleApplyPromo}
+          className="absolute right-2 px-4 h-9 rounded-lg text-[13px] font-medium transition-all disabled:cursor-not-allowed active:scale-95"
+          style={selectedPersonalDeal ? { color: "#C0392B" } : { color: "var(--text-primary)" }}
+        >
+          {applyingCode ? <Loader2 size={15} className="animate-spin" /> : selectedPersonalDeal ? t("cart.discount.promoRemove") : t("cart.discount.promoCheck")}
+        </button>
+      </div>
+      {/* Vänkods-feedback (Swift: referralRedeemMessage) — grön vid succé,
+          orange vid serverfel som "Du har redan använt en referral-kod". */}
+      {referralMessage && (
+        <p className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: referralMessage.ok ? "var(--success-ink, #1F6B41)" : "var(--gold-ink)" }}>
+          {referralMessage.ok ? <CheckCircle2 size={14} className="shrink-0" /> : <AlertCircle size={14} className="shrink-0" />}
+          {referralMessage.text}
+        </p>
+      )}
     </div>
   );
 
@@ -2326,25 +2558,16 @@ export default function CartPage() {
               ogillade). Sticky-positionen följer dokumentscrollen istället. */}
           <div className="lg:sticky lg:top-24">
              <AnimatePresence mode="wait">
-               {adyenOrderId ? (
-                  <motion.div key="adyen" id="adyen-payment" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} className="p-5 sm:p-7 rounded-2xl relative" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+               {verifyingPayment ? (
+                  <motion.div key="verifying" id="adyen-payment" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} className="p-5 sm:p-7 rounded-2xl relative" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                      <div className="mb-1 flex items-center gap-2 text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>
                         <CreditCard size={16} style={{ color: "var(--text-secondary)" }} /> Betalning
                      </div>
-                     <p className="mb-5 text-[12px]" style={{ color: "var(--text-secondary)" }}>Säkert betalningssteg</p>
-                     <AdyenDropin
-                       orderId={adyenOrderId}
-                       returnUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/cart`}
-                       onCompleted={() => goToOrderTracking(adyenOrderId)}
-                       onFailed={() => setError("Betalningen gick inte igenom. Kontrollera kortuppgifterna eller välj ett annat betalsätt.")}
-                       onError={(m) => setError(m)}
-                     />
-                     <p className="mt-4 text-center text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                        Säker betalning. Dina kortuppgifter skickas krypterat och sparas aldrig hos oss.
-                     </p>
-                     <button type="button" onClick={() => { setAdyenOrderId(null); paymentInFlightRef.current = false; }} className="mt-3 w-full text-[13px] font-medium transition-colors" style={{ color: "var(--text-secondary)" }}>
-                        Tillbaka
-                     </button>
+                     <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+                        <div className="h-7 w-7 animate-spin rounded-full" style={{ border: "2px solid var(--border-muted)", borderTopColor: "var(--text-primary)" }} />
+                        <p className="text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>Verifierar betalningen</p>
+                        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>Det tar bara en liten stund, stäng inte sidan.</p>
+                     </div>
                   </motion.div>
                ) : (
                   <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-4 sm:p-5 rounded-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>

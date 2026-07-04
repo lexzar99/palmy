@@ -42,7 +42,7 @@ export default async function OmOssPage() {
                 Dpoints på varje betald order och kan lösa in dem mot produkter och rabatter.
               </p>
               <p>
-                Snabb leverans, trygg betalning via Stripe och support när du behöver den. Det är vad Delívera finns till för.
+                Snabb leverans, trygg betalning via Mollie och support när du behöver den. Det är vad Delívera finns till för.
               </p>
             </>
           )}

@@ -84,9 +84,9 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
               En eventuell leveransavgift visas tydligt innan du bekräftar köpet.
             </p>
             <p className="mt-3 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              All kortbetalning hanteras av Stripe (Stripe Payments Europe Ltd., PCI-DSS-certifierad).
-              Delívera lagrar inga kortnummer eller CVC-koder, endast en token från Stripe används
-              för att slutföra köpet. Vid återbetalning krediteras samma kort som användes vid köpet.
+              All betalning hanteras av Mollie (Mollie B.V., PCI-DSS-certifierad betalningsförmedlare).
+              Delívera lagrar inga kortnummer eller CVC-koder, betalningen slutförs säkert hos Mollie.
+              Vid återbetalning krediteras samma betalsätt som användes vid köpet.
             </p>
           </section>
 
