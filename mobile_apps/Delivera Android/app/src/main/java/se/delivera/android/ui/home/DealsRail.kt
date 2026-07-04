@@ -286,7 +286,7 @@ private fun ctaTitle(deal: HomeAppDeal, isMission: Boolean, isClaimed: Boolean, 
     return deal.ctaLabel ?: if (deal.claimRequired) "Hämta" else "Beställ"
 }
 
-private object PulseThemes {
+internal object PulseThemes {
     fun gradient(theme: String?): Brush {
         val colors = when (theme) {
             "ember" -> listOf(Color(0.94f, 0.38f, 0.12f), Color(0.72f, 0.16f, 0.10f))

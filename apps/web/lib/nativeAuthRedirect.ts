@@ -17,6 +17,12 @@ export function getSafeNativeAuthRedirect(rawRedirect: string | null | undefined
       return parsed.toString();
     }
 
+    // Native Android-kundappen (se.delivera.android). Deep-link:
+    // delivera://auth/callback — Supabase-tokens bifogas som query av callbacken.
+    if (parsed.protocol === "delivera:" && parsed.hostname === "auth" && ALLOWED_FOODGO_AUTH_PATHS.has(parsed.pathname)) {
+      return parsed.toString();
+    }
+
     if (
       process.env.NODE_ENV !== "production" &&
       (parsed.protocol === "exp:" || parsed.protocol === "exps:") &&

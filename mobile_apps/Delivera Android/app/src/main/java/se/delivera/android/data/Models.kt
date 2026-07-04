@@ -2,9 +2,13 @@ package se.delivera.android.data
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 /* ------------------------------------------------------------------ */
 /* Restaurant                                                          */
@@ -227,6 +231,8 @@ data class ReferralRedeemRequest(
 @Serializable
 data class ReferralRedeemResponse(
     val ok: Boolean? = null,
+    val inviterName: String? = null,
+    val dealsCreated: Int? = null,
     val message: String? = null,
     val userDealId: String? = null,
     val deal: HomeAppDeal? = null
@@ -270,7 +276,8 @@ data class ReferralDealInfo(
 @Serializable
 data class SupabaseOtpBody(
     val phone: String,
-    val channel: String = "sms"
+    val channel: String = "sms",
+    @SerialName("should_create_user") val shouldCreateUser: Boolean = true
 )
 
 @Serializable
@@ -320,23 +327,78 @@ data class ProfileOrdersResponse(val orders: List<ProfileOrder> = emptyList())
 data class ProfileOrder(
     val id: String,
     val orderNumber: String? = null,
-    val status: String,
+    val status: String = "PENDING",
     val type: String? = null,
     val total: Double = 0.0,
-    val restaurantName: String? = null,
+    val deliveryFee: Double? = null,
+    val discountAmount: Double? = null,
+    val tipAmount: Double? = null,
+    val deliveryStreet: String? = null,
+    // The endpoint nests the restaurant (Swift ProfileOrderRestaurant); the
+    // flat restaurantName is kept as fallback for older payloads.
+    val restaurant: ProfileOrderRestaurant? = null,
+    @SerialName("restaurantName") private val restaurantNameRaw: String? = null,
     val createdAt: String? = null,
     val rating: Int? = null,
     val reviewedAt: String? = null,
     val items: List<ProfileOrderItem> = emptyList()
+) {
+    val restaurantName: String?
+        get() = restaurant?.name ?: restaurantNameRaw
+}
+
+@Serializable
+data class ProfileOrderRestaurant(
+    val id: String? = null,
+    val name: String? = null,
+    val slug: String? = null,
+    val address: String? = null,
+    val zip: String? = null,
+    val city: String? = null,
+    val phone: String? = null,
+    val legalName: String? = null,
+    val organizationNumber: String? = null,
+    val vatPercent: Int? = null
 )
 
 @Serializable
 data class ProfileOrderItem(
     val id: String? = null,
     val productName: String? = null,
+    val basePrice: Double? = null,
     val quantity: Int = 1,
-    val subtotal: Double? = null
-)
+    val subtotal: Double? = null,
+    // Extras can arrive as an array or as a JSON-encoded string, exactly like
+    // Swift's decodeFlexibleExtras. Kept raw and parsed lazily.
+    @SerialName("selectedExtras") private val selectedExtrasRaw: JsonElement? = null
+) {
+    val selectedExtras: List<ProfileOrderExtra>
+        get() = parseFlexibleExtras(selectedExtrasRaw)
+}
+
+@Serializable
+data class ProfileOrderExtra(
+    val name: String? = null,
+    @SerialName("extraName") private val extraNameRaw: String? = null,
+    val extraId: String? = null,
+    val quantity: Int? = null
+) {
+    val extraName: String?
+        get() = extraNameRaw ?: extraId
+}
+
+internal fun parseFlexibleExtras(element: JsonElement?): List<ProfileOrderExtra> {
+    if (element == null) return emptyList()
+    return runCatching {
+        when {
+            element is JsonArray ->
+                deliveraJson.decodeFromJsonElement<List<ProfileOrderExtra>>(element)
+            element is JsonPrimitive && element.isString ->
+                deliveraJson.decodeFromString<List<ProfileOrderExtra>>(element.content)
+            else -> emptyList()
+        }
+    }.getOrElse { emptyList() }
+}
 
 @Serializable
 data class CartOrderRequest(
@@ -387,6 +449,10 @@ data class CartOrderExtraRequest(
 data class CartOrderResponse(
     val orderId: String? = null,
     val id: String? = null,
+    // isLenient in deliveraJson lets a numeric orderNumber decode as String
+    // (Swift uses FlexibleOrderNumber for the same reason).
+    val orderNumber: String? = null,
+    val estimatedTime: Int? = null,
     val accessToken: String? = null,
     val dpointsEarned: Int? = null,
     val pointsEarned: Int? = null
@@ -437,12 +503,30 @@ data class CustomerOrderResponse(
     val estimatedTime: Int? = null,
     val customerPhone: String? = null,
     val deliveryStreet: String? = null,
+    val deliveryLatitude: Double? = null,
+    val deliveryLongitude: Double? = null,
+    val restaurantLat: Double? = null,
+    val restaurantLng: Double? = null,
     val restaurantName: String? = null,
     val restaurantPhone: String? = null,
     val restaurantAddress: String? = null,
     val restaurantCity: String? = null,
+    val restaurantLegalName: String? = null,
+    val restaurantOrgNr: String? = null,
+    val restaurantVatPercent: Double? = null,
+    val selfDelivery: Boolean? = null,
+    val courierAssigned: Boolean? = null,
+    val courierLat: Double? = null,
+    val courierLng: Double? = null,
+    val courierName: String? = null,
+    val courierPhone: String? = null,
+    val courierVehicle: String? = null,
+    val courierLastSeenAt: String? = null,
     val etaEndsAt: String? = null,
     val createdAt: String? = null,
+    val preparingAt: String? = null,
+    val deliveringAt: String? = null,
+    val accessToken: String? = null,
     val items: List<CustomerOrderItemResponse> = emptyList()
 )
 
@@ -451,7 +535,17 @@ data class CustomerOrderItemResponse(
     val productName: String,
     val quantity: Int,
     val basePrice: Double? = null,
-    val subtotal: Double? = null
+    val subtotal: Double? = null,
+    val selectedExtras: List<CartOrderExtraResponse>? = null
+)
+
+@Serializable
+data class CartOrderExtraResponse(
+    val groupName: String? = null,
+    val extraName: String? = null,
+    val name: String? = null,
+    val quantity: Int? = null,
+    val priceAddon: Double? = null
 )
 
 @Serializable
@@ -471,8 +565,10 @@ data class OrderReviewResponse(
 
 @Serializable
 data class ReviewDpointsResult(
+    val awarded: Boolean? = null,
     val points: Int? = null,
-    val balance: Int? = null
+    val balanceAfter: Int? = null,
+    val reason: String? = null
 )
 
 /* ------------------------------------------------------------------ */
@@ -770,6 +866,262 @@ data class RestaurantReview(
     val reply: String? = null,
     val likedItems: List<String>? = null,
     val createdAt: String? = null
+)
+
+/* ------------------------------------------------------------------ */
+/* Deals checkout (quote / my-deals / favorite claim)                  */
+/* ------------------------------------------------------------------ */
+
+// Alla mina deals quotade mot varukorgen på en gång (kassans väljbara lista).
+@Serializable
+data class MyDealsRequest(
+    val subtotalKr: Double,
+    val deliveryFeeKr: Double,
+    val orderMode: String,
+    val restaurantId: String? = null
+)
+
+@Serializable
+data class MyDealsResponse(val deals: List<MyDealItem> = emptyList())
+
+@Serializable
+data class MyDealItem(
+    val userDealId: String,
+    val title: String,
+    val valueLabel: String? = null,
+    val favoritePercent: Int? = null,
+    val applicable: Boolean = false,
+    val reason: String? = null,
+    val minOrderKr: Int? = null,
+    val discountAmountKr: Double = 0.0,
+    val deliveryDiscountKr: Double? = null,
+    val dpointsBonus: Int = 0,
+    val freeDelivery: Boolean? = null
+) {
+    val id: String get() = userDealId
+}
+
+@Serializable
+data class AppDealQuoteRequest(
+    val userDealId: String,
+    val subtotalKr: Double,
+    val deliveryFeeKr: Double,
+    val orderMode: String,
+    val restaurantId: String? = null
+)
+
+@Serializable
+data class AppDealQuoteResponse(
+    val applicable: Boolean = false,
+    val reason: String? = null,
+    val minOrderKr: Int? = null,
+    val discountAmountKr: Double = 0.0,
+    val deliveryDiscountKr: Double = 0.0,
+    val subtotalDiscountKr: Double = 0.0,
+    val dpointsBonus: Int = 0,
+    val deal: HomeAppDeal? = null
+)
+
+// Din favorit: aktivera 10%-rabatten (skapar kupongen för kassan).
+@Serializable
+data class FavoriteClaimResponse(
+    val claimed: Boolean = false,
+    val userDealId: String = "",
+    val amountKr: Int = 0,
+    val title: String = ""
+)
+
+/* ------------------------------------------------------------------ */
+/* Payments (Adyen verify) / order abandon                             */
+/* ------------------------------------------------------------------ */
+
+@Serializable
+data class AdyenVerifyRequest(
+    val orderId: String,
+    val sessionId: String,
+    val sessionResult: String
+)
+
+@Serializable
+data class AdyenVerifyResponse(
+    val paid: Boolean? = null,
+    val pending: Boolean? = null,
+    val failed: Boolean? = null,
+    val status: String? = null
+)
+
+@Serializable
+data class AbandonOrderRequest(val phone: String? = null)
+
+/* ------------------------------------------------------------------ */
+/* Auth (lookup / oauth / link-phone) + profile update                 */
+/* ------------------------------------------------------------------ */
+
+@Serializable
+data class PhoneLookupResponse(
+    val exists: Boolean = false,
+    val hasFullAccount: Boolean = false,
+    val isVerified: Boolean = false
+)
+
+@Serializable
+data class OAuthTokenBody(
+    val provider: String,
+    val idToken: String,
+    val email: String? = null,
+    val name: String? = null,
+    val providerId: String
+)
+
+@Serializable
+data class LinkPhoneRequest(val phone: String)
+
+@Serializable
+data class LinkPhoneResponse(val user: CustomerProfile)
+
+@Serializable
+data class ProfileUpdateBody(
+    val name: String,
+    val email: String? = null
+)
+
+@Serializable
+data class ProfileUpdateResponse(val success: Boolean? = null)
+
+/**
+ * Returnerar E.164 (+46...) eller null om numret inte är ett rimligt svenskt
+ * mobilnummer. Svenska mobilnummer är 9 siffror efter landskoden (7XXXXXXXX).
+ * Exakt samma regler som Swift-appens normalizeSwedishPhone.
+ */
+fun normalizeSwedishPhone(raw: String): String? {
+    val digits = raw.filter { it.isDigit() }
+    val national = when {
+        digits.startsWith("46") -> digits.drop(2)
+        digits.startsWith("0") -> digits.drop(1)
+        else -> digits
+    }
+    if (national.length != 9 || !national.startsWith("7")) return null
+    return "+46$national"
+}
+
+/* ------------------------------------------------------------------ */
+/* Profile deals (personliga deals-panelen)                            */
+/* ------------------------------------------------------------------ */
+
+@Serializable
+data class ProfileDeal(
+    val id: String,
+    val code: String? = null,
+    val userDealId: String? = null,
+    val source: String? = null,
+    val amountKr: Double? = null,
+    val discountPercent: Double? = null,
+    val freeDelivery: Boolean? = null,
+    val minOrderKr: Double? = null,
+    val dpointsBonus: Int? = null,
+    val campaign: ProfileDealCampaign? = null
+) {
+    val title: String
+        get() = campaign?.title ?: campaign?.name ?: "Personlig deal"
+
+    val subtitle: String
+        get() {
+            if (!code.isNullOrEmpty()) return "Kod: $code"
+            campaign?.let { return it.displayDiscount }
+            return "Redo att användas i kassan"
+        }
+}
+
+@Serializable
+data class ProfileDealCampaign(
+    val id: String? = null,
+    val title: String? = null,
+    val name: String? = null,
+    val description: String? = null,
+    val discountType: String? = null,
+    val discountValue: Double? = null,
+    val minOrder: Double? = null,
+    val freeDelivery: Boolean? = null,
+    val appDpointsBonus: Int? = null
+) {
+    val displayDiscount: String
+        get() {
+            if (freeDelivery == true || discountType == "FREE_DELIVERY") return "Fri leverans"
+            val value = discountValue ?: 0.0
+            if (discountType == "PERCENTAGE") return "${value.roundToInt()}% rabatt"
+            return "${value.roundToInt()} kr rabatt"
+        }
+}
+
+/* ------------------------------------------------------------------ */
+/* Rewards (detaljerad dpoints/me + reward-products)                   */
+/* ------------------------------------------------------------------ */
+
+@Serializable
+data class RewardsMe(
+    val enabled: Boolean = false,
+    val balance: Int = 0,
+    val valuePerKr: Double = 0.1,
+    val signup: SignupBonus? = null,
+    val streak: Streak? = null,
+    val transactions: List<DpointsTransaction> = emptyList()
+) {
+    @Serializable
+    data class SignupBonus(
+        val claimable: Boolean = false,
+        val bonusPoints: Int = 0,
+        val sponsorName: String? = null
+    )
+
+    @Serializable
+    data class Streak(
+        val target: Int = 0,
+        val count: Int = 0,
+        val ready: Boolean = false,
+        val readyInDays: Int = 0
+    )
+}
+
+@Serializable
+data class DpointsRewardProductsResponse(
+    val enabled: Boolean? = null,
+    val earnRate: Double? = null,
+    val restaurants: List<RewardRestaurant> = emptyList()
+)
+
+@Serializable
+data class RewardRestaurant(
+    val id: String,
+    val name: String,
+    val slug: String,
+    val cuisine: String? = null,
+    val imageUrl: String? = null,
+    val logoUrl: String? = null,
+    val products: List<RewardProduct> = emptyList()
+)
+
+@Serializable
+data class RewardProduct(
+    val id: String,
+    val name: String,
+    val description: String? = null,
+    val price: Double = 0.0,
+    val imageUrl: String? = null,
+    val categoryId: String? = null,
+    val categoryName: String? = null,
+    val pointsPrice: Int = 0,
+    val multiplier: Double? = null,
+    val tier: RewardTier? = null
+) {
+    val hasImage: Boolean
+        get() = imageUrl?.trim()?.isNotEmpty() == true
+}
+
+@Serializable
+data class RewardTier(
+    val key: String,
+    val label: String,
+    val rank: Int = 0
 )
 
 /* ------------------------------------------------------------------ */

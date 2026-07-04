@@ -1,18 +1,37 @@
 package se.delivera.android.ui.theme
 
+import android.graphics.BlurMaskFilter
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import se.delivera.android.data.MenuProduct
 
 /**
  * 1:1 port of DeliveraTheme.swift. Colours use the exact same float components
@@ -58,6 +77,82 @@ val cardShadowSpec = Shadow(
     offset = Offset(0f, 10f),
     blurRadius = 18f
 )
+
+/**
+ * Swift `cardShadow()`: black 7.5%, blur radius 18, offset y 10. Drawn with a
+ * real blur (BlurMaskFilter) instead of Compose elevation, which cannot express
+ * a soft, offset, low-alpha shadow.
+ */
+fun Modifier.cardShadow(cornerRadius: Dp = 20.dp): Modifier = drawBehind {
+    val paint = Paint()
+    val frameworkPaint = paint.asFrameworkPaint()
+    frameworkPaint.color = android.graphics.Color.argb((0.075f * 255).toInt(), 0, 0, 0)
+    frameworkPaint.maskFilter = BlurMaskFilter(18.dp.toPx(), BlurMaskFilter.Blur.NORMAL)
+    val offsetY = 10.dp.toPx()
+    val radius = cornerRadius.toPx()
+    drawIntoCanvas { canvas ->
+        canvas.drawRoundRect(
+            left = 0f,
+            top = offsetY,
+            right = size.width,
+            bottom = size.height + offsetY,
+            radiusX = radius,
+            radiusY = radius,
+            paint = paint
+        )
+    }
+}
+
+/** DpointsGlyph from DeliveraTheme.swift: orange rounded square with a rotated white diamond. */
+@Composable
+fun DpointsGlyph(size: Dp = 18.dp) {
+    Box(
+        Modifier
+            .size(size)
+            .clip(RoundedCornerShape(size * 0.22f))
+            .background(DeliveraTheme.orange),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            Modifier
+                .size(size * 0.42f)
+                .rotate(45f)
+                .border(
+                    width = maxOf(1.5.dp, size * 0.11f),
+                    color = Color.White,
+                    shape = RoundedCornerShape(size * 0.1f)
+                )
+        )
+    }
+}
+
+/** DpointsPriceBadge from DeliveraTheme.swift: shown only when the product is rewardable. */
+@Composable
+fun DpointsPriceBadge(
+    product: MenuProduct,
+    valuePerKr: Double = 10.0,
+    extrasTotal: Double = 0.0,
+    quantity: Int = 1
+) {
+    if (product.rewardable != true) return
+    Row(
+        Modifier
+            .height(26.dp)
+            .clip(RoundedCornerShape(50))
+            .background(DeliveraTheme.orange.copy(alpha = 0.09f))
+            .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        DpointsGlyph(size = 16.dp)
+        Text(
+            "${product.dpointsUnitCost(valuePerKr, extrasTotal) * quantity} Dpoints",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Black,
+            color = DeliveraTheme.orange
+        )
+    }
+}
 
 private val DeliveraColorScheme = lightColorScheme(
     primary = DeliveraTheme.orange,

@@ -20,8 +20,10 @@ import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,24 +44,34 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalUriHandler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import org.json.JSONArray
+import se.delivera.android.data.ApiException
 import se.delivera.android.data.CustomerOrderResponse
 import se.delivera.android.data.DeliveraApi
 import se.delivera.android.data.HomeAppDeal
+import se.delivera.android.data.HomePulseModule
 import se.delivera.android.data.OrderMode
 import se.delivera.android.data.Prefs
 import se.delivera.android.data.Restaurant
+import se.delivera.android.data.Sponsor
 import se.delivera.android.data.deliveraJson
 import se.delivera.android.ui.address.AddressSheet
 import se.delivera.android.ui.cart.CartScreen
 import se.delivera.android.ui.cart.CartStore
 import se.delivera.android.ui.home.DealCardAction
+import se.delivera.android.ui.home.FavoriteOfferSheet
+import se.delivera.android.ui.home.FavoritesSheet
 import se.delivera.android.ui.home.HomeScreen
 import se.delivera.android.ui.home.HomeViewModel
+import se.delivera.android.ui.home.MissionCelebrations
+import se.delivera.android.ui.home.MissionCompleteOverlay
 import se.delivera.android.ui.home.OnboardingScreen
+import se.delivera.android.ui.home.claimFavoriteDeal
+import se.delivera.android.ui.home.favoriteProduct
 import se.delivera.android.ui.order.OrderTrackingScreen
 import se.delivera.android.ui.profile.ProfileScreen
 import se.delivera.android.ui.restaurant.RestaurantDetailScreen
@@ -107,8 +119,14 @@ fun DeliveraApp() {
     var orderMode by rememberSaveable { mutableStateOf(OrderMode.Delivery) }
     var selectedCuisine by rememberSaveable { mutableStateOf("Alla") }
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var favoritesOnly by rememberSaveable { mutableStateOf(false) }
+    var showingFavoritesSheet by remember { mutableStateOf(false) }
+    var showDealLoginPrompt by remember { mutableStateOf(false) }
+    var favoriteOffer by remember { mutableStateOf<HomePulseModule?>(null) }
+    var isAddingFavorite by remember { mutableStateOf(false) }
+    var favoriteError by remember { mutableStateOf<String?>(null) }
     var favorites by remember { mutableStateOf(loadFavorites()) }
+    val missionCelebration by MissionCelebrations.current.collectAsState()
+    val uriHandler = LocalUriHandler.current
     var activeUserDealId by remember { mutableStateOf(Prefs.getString(Prefs.KEY_ACTIVE_USER_DEAL_ID, "")) }
     var claimingDealId by remember { mutableStateOf<String?>(null) }
     var deliveryAddress by remember { mutableStateOf(Prefs.getString(Prefs.KEY_DELIVERY_ADDRESS, "Malmö, Sweden")) }
@@ -183,12 +201,12 @@ fun DeliveraApp() {
 
     fun handleDealAction(action: DealCardAction) {
         when (action) {
-            DealCardAction.LoginRequired -> selectedTab = HomeTab.Profile
+            DealCardAction.LoginRequired -> showDealLoginPrompt = true
             is DealCardAction.Use -> activateDealInCart(action.deal)
             is DealCardAction.Claim -> {
                 val token = authToken.trim()
                 if (token.isEmpty() || claimingDealId != null) {
-                    if (token.isEmpty()) selectedTab = HomeTab.Profile
+                    if (token.isEmpty()) showDealLoginPrompt = true
                     return
                 }
                 scope.launch {
@@ -218,7 +236,7 @@ fun DeliveraApp() {
     fun claimSponsorDeal(dealId: String) {
         val token = authToken.trim()
         if (token.isEmpty() || claimingDealId != null) {
-            if (token.isEmpty()) selectedTab = HomeTab.Profile
+            if (token.isEmpty()) showDealLoginPrompt = true
             return
         }
         scope.launch {
@@ -234,6 +252,75 @@ fun DeliveraApp() {
                 homeVm.load(token)
             } finally {
                 claimingDealId = null
+            }
+        }
+    }
+
+    // Port of handleSponsorTap (HomeView.swift:746-760).
+    fun handleSponsorTap(sponsor: Sponsor) {
+        when ((sponsor.linkType ?: "").uppercase()) {
+            "RESTAURANT" -> {
+                val slug = (sponsor.linkTarget ?: sponsor.ctaLink ?: "").trim()
+                if (slug.isNotEmpty()) {
+                    selectedRestaurant = homeVm.state.value.restaurants.firstOrNull { it.slug == slug }
+                        ?: Restaurant.placeholder(slug)
+                }
+            }
+            "EXTERNAL" -> {
+                val link = sponsor.ctaLink?.trim().orEmpty()
+                if (link.isNotEmpty()) runCatching { uriHandler.openUri(link) }
+            }
+        }
+    }
+
+    // Port of openFavorite (HomeView.swift:687-744): claim the favorite
+    // discount, make it active for the cart, then open the restaurant.
+    fun openFavorite(module: HomePulseModule) {
+        val product = module.favoriteProduct ?: return
+        if (isAddingFavorite) return
+        val token = authToken.trim()
+        if (token.isEmpty()) {
+            favoriteOffer = null
+            showDealLoginPrompt = true
+            return
+        }
+        scope.launch {
+            isAddingFavorite = true
+            favoriteError = null
+            try {
+                val claim = api.claimFavoriteDeal(product.productId, token)
+                activeUserDealId = claim.userDealId
+                Prefs.setString(Prefs.KEY_ACTIVE_USER_DEAL_ID, claim.userDealId)
+                val snapshot = HomeAppDeal(
+                    id = "favorite:${product.productId}",
+                    title = claim.title,
+                    subtitle = "Rabatten gäller din favorit",
+                    badge = "Din favorit",
+                    imageUrl = product.imageUrl,
+                    ctaLabel = "Aktiv",
+                    placement = "HOME_TOP",
+                    audience = "LOGGED_IN",
+                    template = "DEAL_HERO",
+                    size = "LARGE",
+                    claimRequired = false,
+                    checkoutApplicable = true,
+                    discountType = "FIXED",
+                    amountKr = claim.amountKr,
+                    freeDelivery = false,
+                    minOrderKr = 0,
+                    userDealId = claim.userDealId,
+                    theme = module.theme
+                )
+                Prefs.setString(Prefs.KEY_ACTIVE_USER_DEAL_SNAPSHOT, deliveraJson.encodeToString(snapshot))
+                favoriteOffer = null
+                selectedRestaurant = homeVm.state.value.restaurants.firstOrNull { it.slug == product.restaurant.slug }
+                    ?: Restaurant.placeholder(product.restaurant.slug)
+            } catch (e: ApiException) {
+                favoriteError = e.message
+            } catch (e: Exception) {
+                favoriteError = "Kunde inte aktivera favoriten. Testa igen."
+            } finally {
+                isAddingFavorite = false
             }
         }
     }
@@ -272,7 +359,6 @@ fun DeliveraApp() {
                 viewModel = homeVm,
                 orderMode = orderMode,
                 selectedCuisine = selectedCuisine,
-                favoritesOnly = favoritesOnly,
                 searchQuery = searchQuery,
                 address = if (orderMode == OrderMode.Delivery) deliveryAddress else pickupCity,
                 favorites = favorites,
@@ -280,17 +366,20 @@ fun DeliveraApp() {
                 isLoggedIn = authToken.isNotBlank(),
                 activeUserDealId = activeUserDealId,
                 claimingDealId = claimingDealId,
-                onSearchChange = { searchQuery = it; favoritesOnly = false },
-                onSelectCuisine = { selectedCuisine = it; favoritesOnly = false },
+                onSearchChange = { searchQuery = it },
+                onSelectCuisine = { selectedCuisine = it },
                 onAddressTap = { showingAddressSheet = true },
-                onFavoritesTap = { if (favorites.isNotEmpty()) favoritesOnly = !favoritesOnly },
+                onFavoritesTap = { showingFavoritesSheet = true },
                 onDealAction = ::handleDealAction,
+                onTapSponsor = ::handleSponsorTap,
                 onClaimSponsorDeal = ::claimSponsorDeal,
+                onOpenFavorite = { favoriteOffer = it; favoriteError = null },
                 onOpenRestaurant = { slug ->
                     selectedRestaurant = homeVm.state.value.restaurants.firstOrNull { it.slug == slug }
                         ?: Restaurant.placeholder(slug)
                 },
-                onToggleFavorite = ::toggleFavorite
+                onToggleFavorite = ::toggleFavorite,
+                onRefresh = { homeVm.load(authToken) }
             )
             HomeTab.Cart -> CartScreen(
                 cartStore = cartStore,
@@ -352,6 +441,69 @@ fun DeliveraApp() {
                     .padding(horizontal = 20.dp)
                     .padding(bottom = 104.dp)
             )
+        }
+
+        if (showingFavoritesSheet) {
+            FavoritesSheet(
+                restaurants = homeState.restaurants.filter { favorites.contains(it.id) },
+                onDismiss = { showingFavoritesSheet = false },
+                onOpen = { restaurant ->
+                    showingFavoritesSheet = false
+                    selectedTab = HomeTab.Home
+                    selectedRestaurant = restaurant
+                },
+                onToggleFavorite = ::toggleFavorite
+            )
+        }
+
+        favoriteOffer?.let { module ->
+            val product = module.favoriteProduct
+            if (product != null) {
+                FavoriteOfferSheet(
+                    module = module,
+                    product = product,
+                    isWorking = isAddingFavorite,
+                    errorMessage = favoriteError,
+                    onAdd = { openFavorite(module) },
+                    onClose = { favoriteOffer = null; favoriteError = null }
+                )
+            }
+        }
+
+        // Port of the confirmationDialog (HomeView.swift:327-332), same copy.
+        if (showDealLoginPrompt) {
+            AlertDialog(
+                onDismissRequest = { showDealLoginPrompt = false },
+                containerColor = Color.White,
+                title = {
+                    Text("Logga in för att hämta dealen", fontSize = 17.sp, fontWeight = FontWeight.Black, color = DeliveraTheme.ink)
+                },
+                text = {
+                    Text(
+                        "Dina deals sparas på ditt konto så de följer med i kassan.",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = DeliveraTheme.muted
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showDealLoginPrompt = false
+                        selectedTab = HomeTab.Profile
+                    }) {
+                        Text("Logga in eller skapa konto", fontWeight = FontWeight.Black, color = DeliveraTheme.orange)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDealLoginPrompt = false }) {
+                        Text("Inte nu", fontWeight = FontWeight.Black, color = DeliveraTheme.muted)
+                    }
+                }
+            )
+        }
+
+        missionCelebration?.let { celebration ->
+            MissionCompleteOverlay(celebration = celebration) { MissionCelebrations.dismiss() }
         }
 
         if (showingAddressSheet) {

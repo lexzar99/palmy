@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SignalWifiConnectedNoInternet4
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -58,11 +59,15 @@ fun HomeHeader(
     favoriteCount: Int,
     mode: OrderMode,
     searchQuery: String,
+    greeting: String? = null,
     onSearchChange: (String) -> Unit,
     onAddressTap: () -> Unit,
     onFavoritesTap: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        greeting?.takeIf { it.isNotBlank() }?.let {
+            Text(it, fontSize = 15.sp, fontWeight = FontWeight.Black, color = DeliveraTheme.ink)
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
                 Modifier.clickable(onClick = onAddressTap),
@@ -190,7 +195,8 @@ fun NoticeBanner(text: String) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(Icons.Filled.Search, null, tint = DeliveraTheme.orange, modifier = Modifier.size(15.dp))
+        // Swift: wifi.exclamationmark.
+        Icon(Icons.Filled.SignalWifiConnectedNoInternet4, null, tint = DeliveraTheme.orange, modifier = Modifier.size(15.dp))
         Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DeliveraTheme.orange)
     }
 }

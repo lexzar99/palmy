@@ -71,6 +71,32 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
     suspend fun claimHomeAppDeal(id: String, token: String): HomeAppDealClaimResponse =
         decodeDelivera(postRaw("/api/deals/app/$id/claim", "{}", bearer(token)))
 
+    /** Kassans server-sanning för en aktiv deal. */
+    suspend fun quoteAppDeal(request: AppDealQuoteRequest, token: String): AppDealQuoteResponse =
+        decodeDelivera(postRaw("/api/deals/app/quote", deliveraJson.encodeToString(request), bearer(token)))
+
+    /** Alla mina deals quotade mot varukorgen (kassans väljbara lista). */
+    suspend fun myDeals(request: MyDealsRequest, token: String): MyDealsResponse =
+        decodeDelivera(postRaw("/api/deals/app/my-deals", deliveraJson.encodeToString(request), bearer(token)))
+
+    /** Din favorit: aktivera 10%-rabatten (skapar kupongen för kassan). */
+    suspend fun claimFavorite(productId: String, token: String): FavoriteClaimResponse =
+        decodeDelivera(
+            postRaw(
+                "/api/deals/app/favorite/claim",
+                deliveraJson.encodeToString(mapOf("productId" to productId)),
+                bearer(token)
+            )
+        )
+
+    suspend fun validateLocation(latitude: Double, longitude: Double): ZoneValidationResponse =
+        decodeDelivera(
+            postRaw(
+                "/api/cities/validate-location",
+                deliveraJson.encodeToString(ZoneValidationRequest(lat = latitude, lng = longitude))
+            )
+        )
+
     suspend fun validateDiscount(code: String, subtotal: Double, token: String?): DiscountValidationResponse {
         val headers = if (!token.isNullOrBlank()) bearer(token) else emptyMap()
         return decodeDelivera(
@@ -122,12 +148,24 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
 
     suspend fun dpointsMe(token: String): DpointsMe = decodeDelivera(getRaw("/api/dpoints/me", headers = bearer(token)))
 
-    suspend fun claimSignupBonus(token: String): DpointsSignupClaimResponse =
+    /** Detaljerad rewards-vy av samma endpoint (Swift dpointsMeDetailed). */
+    suspend fun dpointsMeDetailed(token: String): RewardsMe =
+        decodeDelivera(getRaw("/api/dpoints/me", headers = bearer(token)))
+
+    suspend fun dpointsRewardProducts(forceRefresh: Boolean = false): DpointsRewardProductsResponse =
+        decodeDelivera(
+            getRaw(
+                "/api/dpoints/reward-products",
+                if (forceRefresh) mapOf("refresh" to "1") else emptyMap()
+            )
+        )
+
+    // Swift dekodar hela RewardsMe ur claim-signup-svaret.
+    suspend fun claimSignupBonus(token: String): RewardsMe =
         decodeDelivera(postRaw("/api/dpoints/claim-signup", "{}", bearer(token)))
 
-    suspend fun lookupPhone(phone: String) {
-        postRaw("/api/auth/lookup-phone", deliveraJson.encodeToString(mapOf("phone" to phone)))
-    }
+    suspend fun lookupPhone(phone: String): PhoneLookupResponse =
+        decodeDelivera(postRaw("/api/auth/lookup-phone", deliveraJson.encodeToString(mapOf("phone" to phone))))
 
     suspend fun sendPhoneOtp(phone: String) {
         postSupabaseRaw("/auth/v1/otp", deliveraJson.encodeToString(SupabaseOtpBody(phone = phone)))
@@ -144,8 +182,56 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
     suspend fun exchangePhoneToken(supabaseAccessToken: String): PlatformAuthResponse =
         decodeDelivera(postRaw("/api/auth/phone-token", "{}", bearer(supabaseAccessToken)))
 
+    suspend fun oauthToken(
+        provider: String,
+        idToken: String,
+        email: String?,
+        name: String?,
+        providerId: String
+    ): PlatformAuthResponse =
+        decodeDelivera(
+            postRaw(
+                "/api/auth/oauth-token",
+                deliveraJson.encodeToString(
+                    OAuthTokenBody(
+                        provider = provider,
+                        idToken = idToken,
+                        email = email,
+                        name = name,
+                        providerId = providerId
+                    )
+                )
+            )
+        )
+
+    suspend fun linkPhone(phone: String, token: String): LinkPhoneResponse =
+        decodeDelivera(
+            postRaw(
+                "/api/profile/link-phone",
+                deliveraJson.encodeToString(LinkPhoneRequest(phone = phone)),
+                bearer(token)
+            )
+        )
+
     suspend fun profile(token: String): CustomerProfile =
         decodeDelivera(getRaw("/api/profile", headers = bearer(token)))
+
+    suspend fun updateProfile(token: String, name: String, email: String): ProfileUpdateResponse =
+        decodeDelivera(
+            patchRaw(
+                "/api/profile",
+                deliveraJson.encodeToString(
+                    ProfileUpdateBody(
+                        name = name.trim(),
+                        email = email.trim().ifBlank { null }
+                    )
+                ),
+                bearer(token)
+            )
+        )
+
+    suspend fun profileDeals(token: String): List<ProfileDeal> =
+        decodeDelivera(getRaw("/api/profile/deals", headers = bearer(token)))
 
     suspend fun profileOrders(token: String): List<ProfileOrder> {
         val raw = getRaw("/api/profile/orders", headers = bearer(token))
@@ -169,13 +255,34 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
             )
         )
 
+    suspend fun verifyAdyenPayment(orderId: String, sessionId: String, sessionResult: String): AdyenVerifyResponse =
+        decodeDelivera(
+            postRaw(
+                "/api/payments/adyen/verify",
+                deliveraJson.encodeToString(
+                    AdyenVerifyRequest(orderId = orderId, sessionId = sessionId, sessionResult = sessionResult)
+                )
+            )
+        )
+
     suspend fun customerOrder(id: String, phone: String?, accessToken: String?, authToken: String?): CustomerOrderResponse {
         val query = buildMap {
             if (!phone.isNullOrBlank()) put("phone", phone)
             if (!accessToken.isNullOrBlank()) put("token", accessToken)
+            put("_t", now())
         }
         val headers = if (!authToken.isNullOrBlank()) bearer(authToken) else emptyMap()
         return decodeDelivera(getRaw("/api/orders/$id", query, headers))
+    }
+
+    /** Fire-and-forget, precis som Swift (try? await). Fel sväljs medvetet. */
+    suspend fun abandonOrder(orderId: String, phone: String) {
+        runCatching {
+            postRaw(
+                "/api/orders/$orderId/abandon",
+                deliveraJson.encodeToString(AbandonOrderRequest(phone = phone.ifEmpty { null }))
+            )
+        }
     }
 
     suspend fun reviewOrder(
@@ -230,9 +337,6 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
             )
         )
 
-    // Profile & Rewards endpoints are added alongside those screens (exact
-    // response models live in ProfileModels.kt / RewardsModels.kt).
-
     fun bearer(token: String) = mapOf("Authorization" to "Bearer $token")
 
     /* ------------------------- transport ------------------------- */
@@ -261,6 +365,22 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
         val builder = Request.Builder()
             .url(url)
             .post(bodyJson.toRequestBody(jsonMedia))
+            .header("Content-Type", "application/json")
+            .header("Cache-Control", "no-cache")
+            .header("Pragma", "no-cache")
+        headers.forEach { (k, v) -> builder.header(k, v) }
+        execute(builder.build())
+    }
+
+    suspend fun patchRaw(
+        path: String,
+        bodyJson: String,
+        headers: Map<String, String> = emptyMap()
+    ): String = withContext(Dispatchers.IO) {
+        val url = (baseUrl.trimEnd('/') + "/" + path.trim('/'))
+        val builder = Request.Builder()
+            .url(url)
+            .patch(bodyJson.toRequestBody(jsonMedia))
             .header("Content-Type", "application/json")
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")

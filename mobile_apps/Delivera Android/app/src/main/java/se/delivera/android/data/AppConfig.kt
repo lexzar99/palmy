@@ -3,6 +3,10 @@ package se.delivera.android.data
 /** 1:1 with AppConfig.swift. Defaults point at production api.delivera.se. */
 object AppConfig {
     const val apiBaseURL = "https://api.delivera.se"
+    // Webbens origin, används för Supabase OAuth-callbacken (delad med web).
+    const val webOrigin = "https://delivera.se"
+    // Native deep-link som webbens /auth/callback skickar tillbaka tokens till.
+    const val authCallbackDeepLink = "delivera://auth/callback"
     const val adyenClientKey = "test_UXISGJQFT5HMVFEXRJZ4E3DWVA6MIVEC"
     const val adyenEnvironment = "test"
     const val supabaseURL = "https://qiviwmhunmqemqylmwkr.supabase.co"
