@@ -10,15 +10,15 @@ export type { PaymentProvider } from './types';
 export type { OrderForPayment } from './types';
 
 export function getPaymentProvider(): PaymentProvider {
-  const name = (process.env.PAYMENT_PROVIDER || 'adyen').toLowerCase();
+  const name = (process.env.PAYMENT_PROVIDER || 'mollie').toLowerCase();
   switch (name) {
-    case 'adyen':
-      return adyenProvider;
     case 'mollie':
-      return mollieProvider; // ligger kvar inaktiv, behålls för jämförelse/återgång
+      return mollieProvider;
+    case 'adyen':
+      return adyenProvider; // ligger kvar för jämförelse/återgång, ej aktiv vid lansering
     // case 'stripe': return stripeProvider; // gammal Stripe-kod ligger kvar (RN), provider-stub ej byggd
     default:
-      console.warn(`[payments] okänd PAYMENT_PROVIDER "${name}" — faller tillbaka på adyen`);
-      return adyenProvider;
+      console.warn(`[payments] okänd PAYMENT_PROVIDER "${name}" — faller tillbaka på mollie`);
+      return mollieProvider;
   }
 }
