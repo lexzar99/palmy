@@ -979,6 +979,10 @@ router.post('/', async (req: Request, res: Response) => {
     // amountKr behålls som legacy-fallback för deals skapade innan
     // percent-migreringen (vissa kan ha gamla 50 kr-rabatter i DB).
     let appliedUserDealId: string | null = null;
+    // Ren fri leverans-deal (ingen subtotal-rabatt) är ÅTERANVÄNDBAR till sitt
+    // slutdatum: den reserveras/förbrukas inte per order utan gäller varje
+    // order tills expiresAt passerat (kupongen försvinner då via valideringen).
+    let recurringFreeDelivery = false;
     let appliedUserDealAmountKr: number | null = null;
     if (data.userDealId && authenticatedUserId) {
       const userDeal = await (prisma as any).userDeal.findFirst({
@@ -1054,6 +1058,7 @@ router.post('/', async (req: Request, res: Response) => {
         }
         appliedUserDealId = userDeal.id;
         appliedUserDealAmountKr = Math.round(totalDealOre / 100);
+        recurringFreeDelivery = wantsFreeDelivery && subtotalDiscountOre === 0;
       }
     }
 
@@ -1348,7 +1353,9 @@ router.post('/', async (req: Request, res: Response) => {
     // skapad med rabatten. I praktiken nästintill omöjligt eftersom samma
     // user måste ha två concurrent checkouts. Hard-rollback skulle kräva
     // refund-flow vilket är overkill för v1.
-    if (appliedUserDealId) {
+    // Recurring fri leverans reserveras INTE — den ska gälla varje order till
+    // slutdatumet (finalize rör bara RESERVED, så den förblir ACTIVE).
+    if (appliedUserDealId && !recurringFreeDelivery) {
       const reservedCount = await (prisma as any).userDeal.updateMany({
         where: { id: appliedUserDealId, userId: authenticatedUserId, status: 'ACTIVE' },
         data: { status: 'RESERVED', usedOnOrderId: order.id },
