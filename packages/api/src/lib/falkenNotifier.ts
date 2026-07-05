@@ -35,6 +35,13 @@ const cfg = () => ({
 
 const ageMin = (d: Date) => Math.floor((Date.now() - d.getTime()) / 60_000);
 
+const carMode = () => ['car', 'brief'].includes((process.env.FALKEN_TELEGRAM_MODE || '').toLowerCase());
+
+function line(kind: 'decision' | 'fix' | 'info', text: string) {
+  const prefix = kind === 'decision' ? 'Beslut' : kind === 'fix' ? 'Fixat' : 'Info';
+  return carMode() ? `${prefix}: ${text}` : `${prefix}: ${text}`;
+}
+
 async function sendTelegram(text: string) {
   const { botToken, chatId } = cfg();
   if (!botToken || !chatId) return;
@@ -112,25 +119,25 @@ async function tick() {
 
     if (!prev) {
       seen.set(o.id, { status: o.status, createdAt: o.createdAt, flags: new Set() });
-      if (o.status === 'PENDING') emit(`🆕 Ny order ${num} hos ${rest}, ${kr} kr.`, 'order:new', o);
-      else if (!TERMINAL.has(o.status)) emit(`🆕 Order ${num} hos ${rest}, ${kr} kr (status ${o.status}).`, 'order:new', o);
+      if (o.status === 'PENDING') emit(line('decision', `Ny order ${num} hos ${rest}, ${kr} kr. Väntar på accept.`), 'order:new', o);
+      else if (!TERMINAL.has(o.status)) emit(line('info', `Order ${num} hos ${rest}, ${kr} kr. Status ${o.status}.`), 'order:new', o);
     } else if (prev.status !== o.status) {
       prev.status = o.status;
-      if (o.status === 'ACCEPTED') emit(`✅ ${rest} accepterade ${num}.`, 'order:accepted', o);
-      else if (o.status === 'DELIVERING') emit(`🛵 Kuriren är på väg med ${num} från ${rest}.`, 'order:delivering', o);
-      else if (o.status === 'DELIVERED') emit(`📦 ${num} levererad (${rest}). Total tid ${ageMin(o.createdAt)} min.`, 'order:delivered', o);
-      else if (o.status === 'REJECTED') emit(`❌ ${rest} avvisade ${num} (${kr} kr).`, 'order:rejected', o);
-      else if (o.status === 'CANCELLED') emit(`❌ ${num} hos ${rest} avbröts (${kr} kr).`, 'order:cancelled', o);
+      if (o.status === 'ACCEPTED') emit(line('fix', `${rest} accepterade ${num}.`), 'order:accepted', o);
+      else if (o.status === 'DELIVERING') emit(line('info', `Kuriren är på väg med ${num} från ${rest}.`), 'order:delivering', o);
+      else if (o.status === 'DELIVERED') emit(line('fix', `${num} levererad från ${rest}. Total tid ${ageMin(o.createdAt)} min.`), 'order:delivered', o);
+      else if (o.status === 'REJECTED') emit(line('decision', `${rest} avvisade ${num}, ${kr} kr. Kolla om kund behöver hjälp.`), 'order:rejected', o);
+      else if (o.status === 'CANCELLED') emit(line('decision', `${num} hos ${rest} avbröts, ${kr} kr. Kolla om kund behöver hjälp.`), 'order:cancelled', o);
     }
 
     const entry = seen.get(o.id)!;
     if (o.status === 'PENDING' && ageMin(o.createdAt) >= STUCK_PENDING_MIN && !entry.flags.has('stuck_pending')) {
       entry.flags.add('stuck_pending');
-      emit(`⚠️ Ingen har accepterat ${num} hos ${rest}, ${ageMin(o.createdAt)} min nu.`, 'order:stuck_pending', o);
+      emit(line('decision', `Ingen har accepterat ${num} hos ${rest}, ${ageMin(o.createdAt)} min nu.`), 'order:stuck_pending', o);
     }
     if (o.status === 'READY' && ageMin(o.updatedAt) >= STUCK_READY_MIN && !entry.flags.has('stuck_ready')) {
       entry.flags.add('stuck_ready');
-      emit(`⚠️ ${num} hos ${rest} har stått klar i ${ageMin(o.updatedAt)} min utan att hämtas.`, 'order:stuck_ready', o);
+      emit(line('decision', `${num} hos ${rest} har stått klar i ${ageMin(o.updatedAt)} min utan att hämtas.`), 'order:stuck_ready', o);
     }
   }
 

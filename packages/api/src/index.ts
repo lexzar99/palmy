@@ -194,6 +194,19 @@ app.use(cookieParser());
 app.use(express.static('public'));
 
 // Rate limiting
+const AI_AGENT_LOGIN_IDS = new Set([
+  'falken@delivera.se',
+  'kundvakten@delivera.se',
+  'kocken@delivera.se',
+  'studion@delivera.se',
+  'torget@delivera.se',
+]);
+
+const loginIdFromBody = (body: any) =>
+  String(body?.identifier || body?.email || '').trim().toLowerCase();
+
+const isAiAgentLogin = (req: express.Request) => AI_AGENT_LOGIN_IDS.has(loginIdFromBody(req.body));
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -247,7 +260,7 @@ const orderLimiter = rateLimit({
 
 const adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 8,
+  max: (req) => (isAiAgentLogin(req) ? 80 : 8),
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,

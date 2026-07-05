@@ -32,14 +32,28 @@ import jwksClient from 'jwks-rsa';
 
 const router = Router();
 
+const AI_AGENT_LOGIN_IDS = new Set([
+  'falken@delivera.se',
+  'kundvakten@delivera.se',
+  'kocken@delivera.se',
+  'studion@delivera.se',
+  'torget@delivera.se',
+]);
+
+const isAiAgentLogin = (req: any) => {
+  const loginId = String(req.body?.identifier || req.body?.email || '').trim().toLowerCase();
+  return AI_AGENT_LOGIN_IDS.has(loginId);
+};
+
 // ── Rate-limit på auth-endpoints ────────────────────────────────────────────
 // Foodora-style: 10 försök per IP per 10 min → 5 min lockout. Generöst nog
 // att fat-fingers inte låser ute riktiga användare, snålt nog att stoppa bots.
 const authLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minuter
-  max: 10,
+  max: (req) => (isAiAgentLogin(req) ? 120 : 10),
   standardHeaders: true, // returnerar RateLimit-* headers
   legacyHeaders: false,
+  skipSuccessfulRequests: true,
   message: {
     error: 'För många försök. Försök igen om några minuter.',
     retryAfter: 300, // klient kan visa nedräkning (5 min)
