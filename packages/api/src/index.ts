@@ -68,6 +68,8 @@ import paymentMethodsRoutes from './routes/paymentMethods';
 import dpointsRoutes from './routes/dpoints';
 import dpointsAdminRoutes from './routes/dpointsAdmin';
 import apiHealthAdminRoutes from './routes/apiHealthAdmin';
+import opsAdminRoutes from './routes/opsAdmin';
+import { recordRateLimitHit, recordRequest } from './lib/opsMetrics';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
@@ -207,6 +209,21 @@ const loginIdFromBody = (body: any) =>
 
 const isAiAgentLogin = (req: express.Request) => AI_AGENT_LOGIN_IDS.has(loginIdFromBody(req.body));
 
+// 429-händelser loggas till opsMetrics så vakt-cronen (Falken) ser vem som
+// slår i vilken limiter via GET /api/admin/ops. `key` identifierar aktören
+// (IP, telefon eller inloggnings-id beroende på limiter).
+const opsRateLimitHandler =
+  (limiterName: string, key: (req: express.Request) => string) =>
+  (req: express.Request, res: express.Response, _next: express.NextFunction, options: any) => {
+    recordRateLimitHit(limiterName, req.originalUrl.split('?')[0], req.ip || '', key(req));
+    res.status(options.statusCode).json(options.message);
+  };
+
+const clientIp = (req: express.Request) => {
+  const cf = req.headers['cf-connecting-ip'];
+  return (typeof cf === 'string' && cf) || req.ip || 'anon';
+};
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -214,6 +231,7 @@ const limiter = rateLimit({
   skip: (req) => {
     return ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
   },
+  handler: opsRateLimitHandler('general', clientIp),
 });
 
 // Bred missbruks-broms som täcker ÄVEN GET (limitern ovan hoppar över läs-
@@ -235,6 +253,18 @@ const abuseLimiter = rateLimit({
     const cf = req.headers['cf-connecting-ip'];
     return (typeof cf === 'string' && cf) || req.ip || 'anon';
   },
+  handler: opsRateLimitHandler('abuse', clientIp),
+});
+
+// Request-timing för opsMetrics: räknar 5xx och långsamma svar (>2s) per
+// route. Ligger före limiters så även 429-trafik syns i totalen.
+app.use('/api', (req, res, next) => {
+  const startedAt = process.hrtime.bigint();
+  res.on('finish', () => {
+    const ms = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    recordRequest(req.method, req.originalUrl.split('?')[0], res.statusCode, ms);
+  });
+  next();
 });
 
 app.use('/api/', abuseLimiter);
@@ -256,6 +286,10 @@ const orderLimiter = rateLimit({
     const idem = req.headers['idempotency-key'];
     return phone || (typeof idem === 'string' ? idem : '') || req.ip || 'order';
   },
+  handler: opsRateLimitHandler('order', (req) => {
+    const phone = typeof req.body?.customerPhone === 'string' ? req.body.customerPhone.trim() : '';
+    return phone || req.ip || 'order';
+  }),
 });
 
 const adminLoginLimiter = rateLimit({
@@ -266,6 +300,7 @@ const adminLoginLimiter = rateLimit({
   skipSuccessfulRequests: true,
   keyGenerator: (req) => `${req.ip}:${String(req.body?.identifier || req.body?.email || '').trim().toLowerCase()}`,
   message: { error: 'För många admin-inloggningar. Vänta 15 minuter och försök igen.' },
+  handler: opsRateLimitHandler('admin-login', (req) => loginIdFromBody(req.body) || req.ip || 'anon'),
 });
 
 const sessionVerifyLimiter = rateLimit({
@@ -275,6 +310,7 @@ const sessionVerifyLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => `${req.ip}:verify`,
   message: { error: 'För många sessionskontroller. Vänta en stund och försök igen.' },
+  handler: opsRateLimitHandler('session-verify', clientIp),
 });
 
 app.use('/api/orders', orderLimiter);
@@ -299,6 +335,7 @@ app.use('/api/admin/printing', printingRoutes);
 app.use('/api/admin', referralsAdmin);
 app.use('/api/admin/dpoints', dpointsAdminRoutes);
 app.use('/api/admin/api-health', apiHealthAdminRoutes);
+app.use('/api/admin/ops', opsAdminRoutes);
 app.use('/api/account', authRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/account', paymentMethodsRoutes);

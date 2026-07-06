@@ -4,13 +4,15 @@
  * användning denna månad vs ev. free-tier-gräns. Exponerar ALDRIG nyckelvärden.
  */
 import { Router } from 'express';
-import { authenticate, requireSuperAdmin } from '../middleware/auth';
+import { authenticate, requireOpsViewer } from '../middleware/auth';
 import { getApiHealth } from '../lib/apiHealth';
 import { getCapacityMetrics } from '../lib/capacity';
 
 const router = Router();
 
-router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
+// requireOpsViewer: SUPER_ADMIN + GLOBAL_VIEWER (Falken analyserar drift).
+// Svaret exponerar aldrig nyckelvärden, bara status/metrik.
+router.get('/', authenticate, requireOpsViewer, async (_req, res) => {
   try {
     const [health, capacity] = await Promise.all([getApiHealth(), getCapacityMetrics()]);
     res.json({ ...health, capacity });

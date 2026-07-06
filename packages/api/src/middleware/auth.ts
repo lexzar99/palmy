@@ -168,6 +168,21 @@ export const requireSuperAdmin = (
 
 export const isSuperAdmin = requireSuperAdmin;
 
+// Drift-/hälsodata: läsbar för SUPER_ADMIN och GLOBAL_VIEWER (Falken).
+// Svaren innehåller aldrig nyckelvärden — bara status, mätvärden och counters.
+export const requireOpsViewer = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const role = req.admin?.role;
+  if (role !== 'SUPER_ADMIN' && role !== 'GLOBAL_VIEWER') {
+    res.status(403).json({ error: 'Kräver super admin- eller viewer-behörighet' });
+    return;
+  }
+  next();
+};
+
 // RBAC-rolle-matrix (gäller efter `authenticate`):
 //   - SUPER_ADMIN: allt
 //   - ADMIN / RESTAURANT_ADMIN: allt inom egen restaurang (read + write + delete)
