@@ -3,6 +3,7 @@
  *
  *   POST /api/payments/create           skapa betalning → { checkoutUrl, paymentRef }
  *   POST /api/payments/webhooks/mollie  Mollie async-notis → finalisera (sanningskälla)
+ *   GET  /api/payments/return           app/webb-retur efter hosted checkout
  *   GET  /api/payments/status/:orderId  klient-polling efter redirect-retur
  *   POST /api/payments/refund           admin-refund
  *
@@ -211,6 +212,77 @@ router.post('/webhooks/mollie', async (req, res) => {
     console.error('[payments/webhook mollie] error:', err?.message || err);
   }
   res.status(200).json({ received: true });
+});
+
+// GET /api/payments/return — Mollie redirectUrl för native/web.
+// Vi litar fortfarande bara på PSP-status: om Mollie säger paid finaliserar vi
+// direkt här som snabb backup till webhook/reconcile, sedan skickas appen tillbaka
+// via URL scheme. Webben får en enkel stäng-sida.
+router.get('/return', async (req, res) => {
+  const orderId = typeof req.query.orderId === 'string' ? req.query.orderId : '';
+  const app = typeof req.query.app === 'string' ? req.query.app : '';
+  let paymentStatus = 'UNKNOWN';
+
+  if (orderId) {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { id: true, paymentStatus: true, paymentProvider: true, molliePaymentId: true },
+      });
+      if (order) {
+        paymentStatus = order.paymentStatus || paymentStatus;
+        const provider = getPaymentProvider();
+        if (
+          order.paymentStatus !== 'PAID' &&
+          order.paymentProvider === provider.name &&
+          provider.name === 'mollie' &&
+          order.molliePaymentId
+        ) {
+          const remote = await provider.getRemoteStatus(order.molliePaymentId);
+          if (remote.state === 'paid') {
+            const finalized = await finalizePaymentSuccess(order.id, {
+              provider: provider.name,
+              ref: order.molliePaymentId,
+              amountReceivedOre: remote.amountReceivedOre ?? 0,
+            });
+            paymentStatus = finalized.paymentStatus || 'PAID';
+          } else if (remote.state === 'failed' || remote.state === 'canceled' || remote.state === 'expired') {
+            await finalizePaymentFailed(order.id, { provider: provider.name, ref: order.molliePaymentId, reason: remote.state });
+            paymentStatus = 'FAILED';
+          } else {
+            paymentStatus = order.paymentStatus || 'PENDING';
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('[payments/return] error:', err?.message || err);
+    }
+  }
+
+  const appUrl = `viaeats://payment/return?orderId=${encodeURIComponent(orderId)}&paymentStatus=${encodeURIComponent(paymentStatus)}`;
+  if (app === 'viaeats') {
+    res.type('html').send(`<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Betalning klar</title>
+  <meta http-equiv="refresh" content="0;url=${appUrl}">
+  <script>window.location.replace(${JSON.stringify(appUrl)});</script>
+</head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px">
+  <p>Betalningen kontrolleras. Du kan återgå till appen.</p>
+  <p><a href="${appUrl}">Öppna appen</a></p>
+</body>
+</html>`);
+    return;
+  }
+
+  res.type('html').send(`<!doctype html>
+<html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Betalning klar</title></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px">
+  <p>Betalningen kontrolleras. Du kan stänga fönstret.</p>
+</body></html>`);
 });
 
 // POST /api/payments/webhooks/adyen — Adyen standard-webhook (HMAC-signerad JSON).
