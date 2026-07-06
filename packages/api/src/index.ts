@@ -69,6 +69,7 @@ import dpointsRoutes from './routes/dpoints';
 import dpointsAdminRoutes from './routes/dpointsAdmin';
 import apiHealthAdminRoutes from './routes/apiHealthAdmin';
 import opsAdminRoutes from './routes/opsAdmin';
+import hermesRoutes from './routes/hermes';
 import { recordRateLimitHit, recordRequest } from './lib/opsMetrics';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyLoyaltyChecks } from './lib/loyalty';
@@ -359,6 +360,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/admin/deal-campaigns', dealCampaignRoutes);
 app.use('/api/delivery', deliveryRoutes);
+app.use('/api/hermes', hermesRoutes);
 app.use('/api/admin/reports', reportRoutes);
 // uploadRoutes monteras direkt på /api/admin så routern's egna paths
 // (/upload, /upload-r2, /images/list, /images/exists, /images/auto-match,
