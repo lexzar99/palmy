@@ -275,8 +275,10 @@ const enrichQuoteItems = async (items: CartQuoteItem[]) => {
 
 const fixedPriceDiscountOre = (userDeal: any, items: CartQuoteItem[]) => {
   const metadata = (userDeal.metadata || {}) as any;
-  const targetIds = Array.isArray(metadata.targetIds) ? metadata.targetIds.filter((id: unknown): id is string => typeof id === 'string') : [];
-  const scopeType = String(metadata.scopeType || '').toUpperCase();
+  const metadataTargetIds = Array.isArray(metadata.targetIds) ? metadata.targetIds.filter((id: unknown): id is string => typeof id === 'string') : [];
+  const dealTargetIds = parseDealProductIds(userDeal.deal?.comboProductIds);
+  const targetIds = metadataTargetIds.length ? metadataTargetIds : dealTargetIds;
+  const scopeType = String(metadata.scopeType || userDeal.deal?.triggerType || '').toUpperCase();
   const fixedPriceOre = Math.round(Number(userDeal.amountKr || 0) * 100);
   if (fixedPriceOre <= 0 || targetIds.length === 0 || items.length === 0) return 0;
 
@@ -303,6 +305,18 @@ const calculateUserDealQuote = (userDeal: any, input: any, cartItems: CartQuoteI
     return {
       applicable: false,
       reason: 'MISSION_NOT_CHECKOUT',
+      minOrderKr,
+      subtotalDiscountOre: 0,
+      deliveryDiscountOre: 0,
+      discountAmountOre: 0,
+      dpointsBonus: 0,
+    };
+  }
+
+  if (metadata.favoriteProductId && cartItems.length > 0 && !cartItems.some((item) => item.productId === metadata.favoriteProductId)) {
+    return {
+      applicable: false,
+      reason: 'FAVORITE_ITEM_REQUIRED',
       minOrderKr,
       subtotalDiscountOre: 0,
       deliveryDiscountOre: 0,
@@ -818,6 +832,10 @@ router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
         deal: {
           select: {
             id: true,
+            triggerType: true,
+            comboProductIds: true,
+            discountType: true,
+            discountValue: true,
             isActive: true,
             appEnabled: true,
             validFrom: true,

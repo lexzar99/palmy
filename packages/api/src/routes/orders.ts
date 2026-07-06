@@ -1039,8 +1039,18 @@ router.post('/', async (req: Request, res: Response) => {
       if (!isLegacyFreeDeliveryType) {
         if (userDeal.discountType === 'FIXED_PRICE' && userDeal.amountKr && userDeal.amountKr > 0) {
           const meta = (userDeal.metadata || {}) as any;
-          const targetIds = Array.isArray(meta.targetIds) ? meta.targetIds.filter((id: unknown): id is string => typeof id === 'string') : [];
-          const scopeType = String(meta.scopeType || '').toUpperCase();
+          const metadataTargetIds = Array.isArray(meta.targetIds) ? meta.targetIds.filter((id: unknown): id is string => typeof id === 'string') : [];
+          const targetIds = metadataTargetIds.length
+            ? metadataTargetIds
+            : (() => {
+                try {
+                  const parsed = JSON.parse(userDeal.deal?.comboProductIds || '[]');
+                  return Array.isArray(parsed) ? parsed.filter((id: unknown): id is string => typeof id === 'string') : [];
+                } catch {
+                  return [];
+                }
+              })();
+          const scopeType = String(meta.scopeType || userDeal.deal?.triggerType || '').toUpperCase();
           const fixedPriceOre = Math.round(Number(userDeal.amountKr || 0) * 100);
           subtotalDiscountOre = data.items.reduce((sum: number, item: any) => {
             const product = productMap.get(item.productId) as any;
