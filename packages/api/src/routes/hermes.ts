@@ -58,7 +58,7 @@ const statusLabel = (status: string, paymentStatus?: string | null) => {
   if (p === 'REFUNDED') return 'återbetald';
   if (s === 'PENDING') return 'väntar på restaurangen';
   if (s === 'ACCEPTED') return 'accepterad';
-  if (s === 'PREPARING') return 'tillagas';
+  if (s === 'PREPARING') return 'under tillagning';
   if (s === 'READY') return 'klar för upphämtning';
   if (s === 'DELIVERING') return 'på väg';
   if (s === 'DELIVERED' || s === 'COMPLETED') return 'levererad';
@@ -141,7 +141,9 @@ const answerFor = (orders: any[]) => {
     return `Jag hittade flera ordrar. ${list}. Fråga vilken order kunden menar.`;
   }
   const o = orders[0];
-  const eta = o.etaAt ? ` ETA ${new Date(o.etaAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}.` : '';
+  const eta = o.etaAt
+    ? ` ETA ${new Date(o.etaAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Stockholm' })}.`
+    : '';
   return `Order ${o.orderNumber} är ${o.statusText} hos ${o.restaurantName}.${eta} ${o.nextStep}`;
 };
 
