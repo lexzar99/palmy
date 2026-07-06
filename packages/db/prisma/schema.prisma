@@ -32,7 +32,9 @@ model Product {
   slug                String              @unique
   description         String?
   price               Int
-  // Kedja: när true skriver master→plats-synken aldrig över priset (lokalt pris).
+  // Kedja: när true skriver master→plats-synken ALDRIG över detta pris — platsen
+  // håller sitt eget lokala pris (t.ex. dyrare på flygplatsen). Övriga fält
+  // synkas ändå. Sätts per produkt i admin. Default false = master styr priset.
   localPriceLocked    Boolean             @default(false)
   categoryId          String
   imageUrl            String?
@@ -85,11 +87,9 @@ model ExtraGroup {
   required      Boolean             @default(false)
   minSelections Int                 @default(0)
   maxSelections Int                 @default(99)
-  // Visningsstil i produktmodalen: "LIST" (radio/checkbox-rader) eller
-  // "BOX_IMAGE" (bild-kort som McDonald's "Välj tillbehör"). Sätts i admin.
+  // "LIST" (radio/checkbox-rader) eller "BOX_IMAGE" (bild-kort). Admin-satt.
   displayStyle  String              @default("LIST")
-  // Tillåt att samma tillval beställs i ett ANTAL (stepper per option), t.ex.
-  // "20 nuggets → 3 dippar". Summan bunden av min/maxSelections. Admin-toggle.
+  // Tillåt antal per option (stepper), summan bunden av min/maxSelections.
   allowQuantity Boolean             @default(false)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
@@ -115,7 +115,7 @@ model Extra {
   id           String     @id @default(cuid())
   name         String
   priceAddon   Int        @default(0)
-  // R2-bild för "BOX_IMAGE"-grupper (bild-kort i produktmodalen). null = ingen.
+  // R2-bild för BOX_IMAGE-grupper (bild-kort i produktmodalen).
   imageUrl     String?
   extraGroupId String
   isDefault    Boolean    @default(false)
@@ -161,6 +161,12 @@ model Order {
   userDealId            String?
   userDealAmountKr      Int?
   stripePaymentIntentId String?
+  // Provider-neutral betalning. paymentProvider = aktiv PSP vid order-tid.
+  // Legacy-ordrar (Stripe) defaultar till "stripe"; nya skapas som "adyen".
+  paymentProvider       String      @default("stripe")
+  molliePaymentId       String?
+  adyenSessionId        String?     // sätts vid /sessions (reconcile-uppslag)
+  adyenPspReference     String?     // backfillas av AUTHORISATION-webhooken (för refund)
   // 32-byte slumpad access-token för att tillåta gäst-bookmark/redirect-
   // åtkomst till order-tracking utan auth. Sätts vid order-skapande och
   // returneras till klienten EN gång. Användbar i 30 min (kollas i GET-
@@ -192,6 +198,12 @@ model Order {
   discountUsageCounted  Boolean     @default(false)
   preparingAt           DateTime?   // When admin moved order into PREPARING — anchor for the countdown shown in the LiveActivity widget
   deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer + LA on-the-way countdown)
+  etaReadyAt            DateTime?   // Backend ETA: när maten förväntas vara klar hos restaurangen
+  etaPickupAt           DateTime?   // Backend ETA: när bud förväntas ha hämtat ordern
+  etaCustomerAt         DateTime?   // Backend ETA: när ordern förväntas vara hos kunden
+  etaCustomerMin        Int?        // Minuter från senaste beräkningen till etaCustomerAt
+  etaPriorityScore      Float?      // Högre = mer tidskritisk vid kurir-prioritering
+  etaReason             String?     // Kort läsbar förklaring för admin/kurir/kund
   scheduledFor          DateTime?   // Customer-requested delivery/pickup time (null = ASAP)
   liveActivityToken     String?     // iOS Live Activity push token (per-activity, lets backend push state updates to Dynamic Island)
   createdAt             DateTime    @default(now())
@@ -214,11 +226,15 @@ model Order {
   @@index([restaurantId, status, createdAt])
   @@index([customerPhone])
   @@index([stripePaymentIntentId])
+  @@index([molliePaymentId])
+  @@index([adyenPspReference])
   @@index([userId])
   @@index([appliedDealId])
   // Super-admin globala status-vyer (utan restaurantId) + abandoned-städning.
   @@index([status, createdAt])
   @@index([paymentStatus, createdAt])
+  @@index([etaCustomerAt])
+  @@index([restaurantId, etaCustomerAt])
 }
 
 // --- Kurir-domän (Fas 3) ---
@@ -246,6 +262,8 @@ model Courier {
   // (FCM proxar iOS via APNs). Notiser når kuriren även när appen är helt stängd.
   fcmToken         String?
   fcmPlatform      String?    // "ios" | "android" — info/debug
+  apnsDeviceToken  String?    // Native Swift iOS-kurir: rå APNs device token
+  apnsPlatform     String?    // "ios" — info/debug
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   deliveries        Delivery[]
@@ -414,15 +432,33 @@ model Deal {
   // som mall av referral-systemet som snapshotar dess värden in i
   // UserDeal-rader per användare. true = exklusivt för referral/welcome.
   isPersonalTemplate    Boolean   @default(false)
-  // Engine-mall för DealCampaign-motorn (mall + variant). Se api-schemat.
+  // Engine-mall: används av DealCampaign-motorn som en variant-mall.
+  // Syns INTE i browse-feeden (/api/deals/app hämtar bara appEnabled &&
+  // !isTemplate); motorn snapshotar dess värden till per-kund UserDeal-rader.
   isTemplate            Boolean   @default(false)
   // Stackbar fri-leverans-flagga. Kan kombineras med discountType
   // PERCENTAGE/FIXED → kunden får t.ex. "25% rabatt + fri leverans"
   // på samma order. Om discountType=NONE och freeDelivery=true →
   // bara fri leverans, inget annat.
   freeDelivery          Boolean   @default(false)
-  appCtaAction          String?   @default("CLAIM")
+  // App-deals: styr korten som visas i kundappen. Deal är fortfarande
+  // den ekonomiska regeln; dessa fält är presentation, målgrupp och rotation.
+  appEnabled            Boolean   @default(false)
+  appPlacement          String    @default("HOME_TOP") // HOME_TOP | HOME_INLINE | CART | REWARDS | POST_ORDER
+  appAudience           String    @default("ALL")      // ALL | GUEST | LOGGED_IN | NEW_CUSTOMER | NEW_LOGGED_IN | RETURNING
+  appTemplate           String    @default("DEAL_HERO") // FREE_DELIVERY_HERO | FREE_DELIVERY_COMPACT | PERCENT | FIXED | DPOINTS | MISSION | RESTAURANT_SPOTLIGHT
+  appSize               String    @default("LARGE")    // LARGE | COMPACT
+  appRotating           Boolean   @default(true)
+  appWeight             Int       @default(10)
+  appClaimRequired      Boolean   @default(true)
+  appClaimExpiresMinutes Int?
+  appCooldownHours      Int?
+  appDpointsBonus       Int       @default(0)
+  appMissionType        String?
+  appCtaLabel           String?
+  appCtaAction          String?   @default("CLAIM") // CLAIM | CART | RESTAURANT | REWARDS | URL
   appCtaTarget          String?
+  appTheme              String?
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
   userDeals             UserDeal[]
   // Kedje-scopad deal: gäller alla platser i en Brand. När satt expanderas den
@@ -434,20 +470,26 @@ model Deal {
   @@index([isActive, restaurantId, validUntil])
   @@index([isActive, isGlobal])
   @@index([restaurantId, triggerType])
+  @@index([appEnabled, appPlacement])
+  @@index([appAudience])
   @@index([brandId])
 }
 
-// DealCampaign — mall + variant-motorn (speglad från api-schemat).
+// DealCampaign — mall + variant-motorn. En kampanj riktar ett segment och
+// delar ut EN deal per kund (deterministisk slump över variant-poolen).
+// Motorn (lib/dealAssignment.ts) snapshotar vald variant-mall (en Deal med
+// isTemplate=true) till en per-kund UserDeal (type=CAMPAIGN). Allt styrs från
+// admin; inga hårdkodade regler.
 model DealCampaign {
   id             String    @id @default(cuid())
   title          String
-  status         String    @default("DRAFT")
-  segment        String    @default("ALL")
-  restaurantId   String?
+  status         String    @default("DRAFT")  // DRAFT | SCHEDULED | ACTIVE | PAUSED | DONE
+  segment        String    @default("ALL")    // ALL | new_users_7d | inactive_30d | active_repeaters
+  restaurantId   String?                       // scope för snapshottad deal (null = mallens egen scope)
   brandId        String?
-  variants       Json      @default("[]")
+  variants       Json      @default("[]")      // [{ dealTemplateId: string, weight: number }]
   capPerCustomer Int       @default(1)
-  validDays      Int       @default(7)
+  validDays      Int       @default(7)         // UserDeal.expiresAt = tilldelning + validDays
   scheduledAt    DateTime?
   lastRunAt      DateTime?
   createdAt      DateTime  @default(now())
@@ -719,7 +761,11 @@ model RestaurantSettings {
   // [{ "maxKm": 1, "feeKr": 39 }, ...] sorterad lågt→högt. Tom = fall tillbaka
   // till dpointsCourierCost (platt). Bortom sista tier:n gäller sista avgiften.
   dpointsCourierTiers String    @default("[]")
+  // Intjänings-regler (JSON [{key,label,points,enabled}]) — hur många Vpoints
+  // varje handling ger (värva vän, recensioner, osv). Null = standarduppsättning.
   dpointsEarnRules    String?
+  // Antal betalda ordrar inom 7 dagar som krävs för streak-bonusen (order_streak).
+  // Repeterbar: efter utdelning gäller 7 dagars cooldown innan nästa kan tjänas.
   dpointsStreakTarget Int       @default(3)
 }
 
@@ -750,6 +796,10 @@ model Restaurant {
   organizationNumber   String?     // ex: "559123-4567"
   imageUrl       String?
   heroImageUrl   String?
+  // Bild för den virtuella "Erbjudanden"-tilen i menyns huvudkategori-switcher.
+  // Tilen genereras automatiskt från rabatterade produkter och har ingen egen
+  // DB-rad → bilden lagras här per restaurang. null = ingen bild (visar fallback).
+  offersImageUrl String?
   rating         Float?       @default(4.6)
   ratingCount    Int?         @default(120)
   deliveryFee    Int          @default(0)
@@ -758,7 +808,10 @@ model Restaurant {
   etaCalculatedMinutes Int?               // Auto-beräknad ETA baserad på senaste 20 ordrarnas createdAt → deliveringAt (clampad 25–55 min). null = för få ordrar än
   etaOverrideMinutes   Int?               // Manuell admin-override. Om satt åsidosätter etaCalculatedMinutes
   isOpen         Boolean      @default(true)
-  // Utkast: agent-onboarding (MENU_AGENT), se packages/api/prisma/schema.prisma.
+  comingSoon     Boolean      @default(false)
+  // Utkast: agent-onboarding (MENU_AGENT). Osynlig i alla kund-ytor, kan inte
+  // ta emot ordrar. Bara SUPER_ADMIN publicerar (draft=false); MENU_AGENT kan
+  // bara skriva mot restauranger där draft=true.
   draft          Boolean      @default(false)
   tags           String       @default("[]")
   openingHours   String       @default("{}")
@@ -805,7 +858,8 @@ model Restaurant {
   payouts        RestaurantPayout[]
   printers       RestaurantPrinter[]
 
-  // Kedjekoppling — se api-schemat för doc. null = fristående.
+  // Kedjekoppling: en plats kan tillhöra ett Brand (t.ex. "Max", "BK").
+  // null = fristående restaurang. Menyn synkas från brandets master-plats.
   brandId        String?
   brand          Brand?             @relation(fields: [brandId], references: [id], onDelete: SetNull)
 
@@ -818,13 +872,18 @@ model Restaurant {
   @@index([brandId])
 }
 
-// Kedja/varumärke som grupperar flera platser. Master-platsens meny synkas
-// till övriga. Lokala undantag bevaras (isActive, localPriceLocked, deals).
+// Kedja/varumärke som grupperar flera platser (Restaurant). En plats utses
+// till master (masterRestaurantId) — dess meny är källan, och "Synka alla
+// platser" kopierar den till övriga platser i brandet. Lokala undantag
+// (slutsålt via Product.isActive, prisundantag via Product.localPriceLocked,
+// plats-specifika erbjudanden via Deal.applicableRestaurantIds) bevaras.
 model Brand {
   id                 String       @id @default(cuid())
   name               String
   slug               String       @unique
   logoUrl            String?
+  // Mjuk pekare (ingen relation, undviker cirkulär master↔plats). Master är
+  // en av restaurangerna i `restaurants`.
   masterRestaurantId String?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
