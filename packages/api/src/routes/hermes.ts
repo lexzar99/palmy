@@ -177,6 +177,50 @@ const nextStep = (order: any) => {
   return 'Svara försiktigt och eskalera om kunden behöver mer hjälp.';
 };
 
+const supportPlaybook = {
+  tone: {
+    calm: 'Lugn kund: svara tydligt, kort och guida nästa steg.',
+    worried: 'Fundersam/orolig kund: bekräfta, förklara vad du kollar och fråga en sak i taget.',
+    angry: 'Arg kund: visa empati, ta ansvar i språket, erbjud callback och skapa rapport.',
+    veryAngry: 'Ganska arg kund: be om ursäkt för upplevelsen, sammanfatta vad du gör, erbjud callback och restaurangnummer om relevant.',
+  },
+  allowedOffers: [
+    'Skicka problemrapport till support.',
+    'Be support ringa upp kunden och läsa tillbaka namn och nummer.',
+    'Ge restaurangens direktnummer när det finns.',
+    'Förklara orderstatus, betalstatus, ETA och varför något verkar försenat utifrån tool-data.',
+    'Be kunden välja annat callbacknummer än numret på beställningen.',
+  ],
+  limits: [
+    'Lova inte återbetalning direkt.',
+    'Säg att support behöver kontrollera order och betalning först.',
+    'Hitta inte på väder, budposition eller intern info som inte finns i tool-svaret.',
+    'Läs inte upp full intern payload eller hemligheter.',
+  ],
+  problemTypes: {
+    foodQuality: {
+      examples: ['kall pizza', 'kall mat', 'spilld dricka', 'läckt påse', 'fel beställning', 'saknad pommes', 'saknad dricka', 'saknad vara', 'fel rätt', 'oätlig mat', 'allergi'],
+      response: 'Visa tydlig empati. Säg att du skickar till support. Erbjud callback. Fråga om support ska ringa numret på beställningen eller ett annat nummer. Erbjud restaurangnummer om det finns.',
+      reportType: 'FOOD_QUALITY',
+    },
+    appIssue: {
+      examples: ['ordern försvann', 'appen visar fel', 'kan inte se ordern', 'login strular', 'checkout fastnade'],
+      response: 'Säg att du skickar appfelet vidare och kollar ordern. Skapa rapport. Erbjud callback om kunden är frustrerad eller inte kan följa sin order.',
+      reportType: 'APP_ISSUE',
+    },
+    payment: {
+      examples: ['pengar drogs', 'betalning misslyckades', 'vill ha pengar tillbaka', 'ingen order efter betalning'],
+      response: 'Kontrollera order och betalstatus. Lova inte refund. Erbjud callback från support.',
+      reportType: 'PAYMENT',
+    },
+    deliveryDelay: {
+      examples: ['väntat länge', 'ETA passerad', 'bud saknas', 'order står still'],
+      response: 'Förklara statusålder och passerad ETA. Skapa rapport vid grov försening. Erbjud callback och restaurangnummer.',
+      reportType: 'DELIVERY',
+    },
+  },
+};
+
 const summarizeOrder = async (order: any) => {
   const now = new Date();
   const loadWindowStart = new Date(now.getTime() - 60 * 60_000);
@@ -195,6 +239,9 @@ const summarizeOrder = async (order: any) => {
         quantity: item.quantity,
       }))
     : [];
+  const itemsText = items.length
+    ? items.map((item: any) => `${item.quantity || 1} x ${item.name}`).join(', ')
+    : null;
   const delivery = order.delivery
     ? {
         status: order.delivery.status,
@@ -251,6 +298,7 @@ const summarizeOrder = async (order: any) => {
     etaText: eta?.text || null,
     etaMinutes: order.etaCustomerMin ?? order.estimatedTime ?? null,
     items,
+    itemsText,
     delivery,
     deliveryPositionKnown,
     deliveryNote,
@@ -265,6 +313,20 @@ const summarizeOrder = async (order: any) => {
     supportOffer: (statusAgeMinutes || 0) >= 45 || eta?.isPast
       ? 'Erbjud att skicka problemrapport till support. Erbjud också restaurangens nummer om kunden vill prata direkt med restaurangen.'
       : 'Erbjud att fortsätta hålla koll och ge restaurangens nummer om kunden vill.',
+    supportActions: {
+      canCreateReport: true,
+      canRequestCallback: true,
+      canShareRestaurantPhone: Boolean(restaurantPhone),
+      canExplainPaymentStatus: true,
+      canExplainEta: Boolean(eta),
+      canConfirmOrderItems: Boolean(itemsText),
+      reportTool: 'viaeats_issue_report',
+    },
+    callbackGuidance: 'Vid frustration, matproblem, appfel, betalproblem eller grov försening: erbjud callback. Fråga vilket nummer support ska ringa. Läs tillbaka namn och nummer. Skicka report med callbackRequested=true.',
+    refundGuidance: 'Lova inte återbetalning direkt. Säg att support kan titta på ersättning eller återbetalning när ordern och betalningen är kontrollerad.',
+    restaurantContactText: restaurantPhone
+      ? `Restaurangens direktnummer är ${restaurantPhone}.`
+      : 'Restaurangens direktnummer saknas i systemet.',
     foodIssueGuidance: restaurantPhone
       ? `Vid kall mat, spilld mat eller saknad vara: be om ursäkt, fråga om kunden vill ha direktnummer till restaurangen och ge ${restaurantPhone}. Skicka även en problemrapport.`
       : 'Vid kall mat, spilld mat eller saknad vara: be om ursäkt och skicka en problemrapport. Restaurangnummer saknas.',
@@ -367,8 +429,9 @@ router.get('/orders/lookup', requireHermesToken, async (req, res) => {
       orders: summaries,
       answer: answerFor(summaries),
       instruction: summaries.length
-        ? 'Svara kort på svenska utifrån answer och nextStep. Gissa inte mer än tool-resultatet.'
+        ? 'Svara på naturlig svenska utifrån answer, nextStep, supportPlaybook och orderns guidance-fält. Erbjud hjälp själv när kunden är frustrerad. Gissa inte mer än tool-resultatet.'
         : 'Fråga efter ordernummer eller telefonnummer. Säg inte att du har dubbelkollat om tool-resultatet saknas.',
+      supportPlaybook,
     });
   } catch (error) {
     console.error('[hermes/orders/lookup] error:', error);
