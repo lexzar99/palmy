@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delivera — Brand Identity</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap');
+
+/* ── Källa: exakt ur projektet ─────────────────────────────────────────────────
+   Guld/neutraler/status  ·  apps/web/app/globals.css + src/theme/palette.ts (Silk)
+   Mörka ytor/radier/Outfit ·  mobile_apps/*/lib/core/theme.dart (Ember Studio)
+   Märke, ikoner, mallar, banners ·  Delivera-Brand-Assets/* + apps/web/public  ·  Inter
+   ──────────────────────────────────────────────────────────────────────────── */
+:root{
+  --gold-400:#F4D086; --gold-500:#E7B24B; --gold-600:#C28E2E;
+  --gold-ink:#8A6512; --gold-soft:#FBF4E4;
+  --white:#FFFFFF; --offwhite:#FCFCF9; --deep:#F4F4F2; --frost:#F5F5F2; --cream:#FBF6EC;
+  --ink:#111113; --ink-flutter:#1C1C1E; --sec:#5C5C61; --sec-flutter:#6E6E73;
+  --midnight:#09090B; --storm:#0E0E10; --deepsea:#18181B; --steel:#202024;
+  --success:#2E7D4F; --danger:#DC2626; --info:#2563EB; --orange:#FF7A00;
+  --blue:#38BDF8; --lavender:#C084FC; --preorder:#8B5CF6;
+  --hair:rgba(17,17,19,0.14); --line-strong:rgba(17,17,19,0.22);
+  --shadow:0 10px 30px rgba(17,17,19,0.11);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+html{background:#e9e9e7;}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--ink);line-height:1.5;
+  -webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","ss01";}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+
+@page{size:A4;margin:0;}
+.page{width:210mm;min-height:297mm;background:var(--white);position:relative;margin:0 auto;
+  padding:19mm 18mm 15mm;page-break-after:always;overflow:hidden;}
+.page:last-child{page-break-after:auto;}
+@media screen{.page{box-shadow:0 2px 18px rgba(0,0,0,.12);margin:14px auto;}body{padding:8px 0;}}
+
+/* ── Dark "Ember" feature pages (Färg · Tema · Hero · Avslut) ─────────────────*/
+.page.dark{background:#09090B !important;color:#ECECEE;}
+.page.dark h2.sec{color:#fff;}
+.page.dark .lead{color:#b7b7be;}
+.page.dark .eyebrow,.page.dark .grouplbl{color:var(--gold-400);}
+.page.dark .rule{background:rgba(255,255,255,.12);}
+.page.dark .goldrule{background:var(--gold-500);}
+.page.dark .foot{border-top-color:rgba(255,255,255,.14);color:#8a8a90;}
+.page.dark .card{background:#141417;border-color:rgba(255,255,255,.10);box-shadow:0 12px 34px rgba(0,0,0,.45);}
+.page.dark .sw{background:#141417;border-color:rgba(255,255,255,.10);}
+.page.dark .sw .meta .nm{color:#fff;}
+.page.dark .sw .meta .hx{color:#c4c4cb;}
+.page.dark .sw .meta .ro{color:#86868d;}
+.page.dark table.nuance th{color:#86868d;}
+.page.dark table.nuance td{border-bottom-color:rgba(255,255,255,.10);color:#c4c4cb;}
+.page.dark table.nuance td:first-child{color:#fff;}
+.page.dark .pr{background:#141417;border-color:rgba(255,255,255,.10);}
+.page.dark .pr .t{color:#fff;} .page.dark .pr p{color:#a6a6ad;}
+.page.dark .rb{background:#202024;border-color:rgba(255,255,255,.08);color:#c4c4cb;}
+.page.dark .bn{background:#141417;border-color:rgba(255,255,255,.10);}
+.page.dark .bn .cap .v{color:#fff;} .page.dark .bn .cap .c{color:#a6a6ad;}
+.page.dark .src{color:#b7b7be;} .page.dark .src .mono{color:#fff;}
+.page.dark .darkpanel{background:#0E0E10;border:1px solid rgba(255,255,255,.10);}
+/* Light "Silk" island kept light on a dark page (theme demo) */
+.page.dark .silkcard{background:#fff;color:#111113;box-shadow:0 14px 38px rgba(0,0,0,.5);}
+.page.dark .silkcard .eyebrow{color:#8A6512;}
+.page.dark .silkcard .btn.cta{background:#E7B24B;color:#111113;}
+.page.dark .silkcard .btn.ghost{background:#fff;color:#111113;border-color:rgba(17,17,19,.22);}
+.page.dark .silkcard .inputdemo{background:#fff;color:#5C5C61;border-color:rgba(17,17,19,.22);}
+.page.dark .silkcard .chipdemo{background:#F4F4F2;color:#111113;border-color:rgba(17,17,19,.14);}
+.page.dark .silkcard p{color:#6f6f77;}
+.page.dark .silkcard .mono{color:#111113;}
+
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-ink);}
+h2.sec{font-size:29px;font-weight:800;letter-spacing:-.8px;line-height:1.05;color:var(--ink);margin-top:6px;}
+.lead{font-size:14px;color:var(--sec);max-width:62ch;line-height:1.6;}
+.kicker{display:flex;align-items:baseline;gap:14px;margin-bottom:22px;}
+.kicker .num{font-size:12px;font-weight:800;color:var(--ink);background:var(--gold-500);letter-spacing:.02em;padding:4px 9px;border-radius:7px;}
+.rule{height:1px;background:var(--hair);border:0;}
+.goldrule{height:3px;width:46px;background:var(--gold-500);border:0;border-radius:2px;}
+.foot{position:absolute;left:18mm;right:18mm;bottom:9mm;display:flex;justify-content:space-between;
+  font-size:10px;letter-spacing:.04em;color:#6f6f77;border-top:1px solid var(--hair);padding-top:7px;}
+.grouplbl{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-ink);margin:18px 0 9px;}
+
+/* Cover */
+.cover{display:flex;flex-direction:column;justify-content:space-between;padding:24mm 18mm;background:var(--midnight);}
+.lockplate{align-self:center;background:#fff;border-radius:24px;padding:34px 48px;box-shadow:0 24px 70px rgba(0,0,0,.55);}
+.cover .lock{width:120mm;max-width:100%;height:auto;display:block;}
+.cover h1{font-size:74px;font-weight:800;letter-spacing:-2.8px;line-height:.95;margin-top:2mm;color:#fff;}
+.cover h1 .g{color:var(--gold-500);}
+.cover .sub{font-size:15px;color:#b7b7be;margin-top:14px;max-width:56ch;line-height:1.6;}
+.metarow{display:flex;gap:40px;margin-top:28px;}
+.metarow .m .l{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#7e7e86;font-weight:700;}
+.metarow .m .v{font-size:13px;color:#fff;font-weight:600;margin-top:3px;}
+.cover .foot{border-top-color:rgba(255,255,255,.14);color:#7e7e86;}
+.coverchip{display:inline-flex;align-items:center;gap:8px;background:var(--gold-500);color:var(--ink);
+  font-size:12px;font-weight:800;padding:7px 14px;border-radius:999px;align-self:flex-start;letter-spacing:.02em;}
+
+/* Contents */
+.toc{list-style:none;margin-top:8px;}
+.toc li{display:flex;align-items:baseline;gap:14px;padding:13px 0;border-bottom:1px solid var(--hair);}
+.toc .n{font-size:12px;font-weight:700;color:var(--gold-500);width:26px;flex:none;}
+.toc .t{font-size:16px;font-weight:600;color:var(--ink);}
+.toc .d{flex:1;border-bottom:1px dotted var(--line-strong);margin:0 8px 4px;}
+.toc .pg{font-size:12px;color:var(--sec);font-weight:600;}
+
+/* Cards / grids */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.card{border:1px solid var(--hair);border-radius:18px;background:var(--white);padding:18px;box-shadow:var(--shadow);}
+
+/* App ecosystem */
+.appcard{display:flex;gap:16px;align-items:flex-start;border:1px solid var(--hair);border-radius:18px;padding:16px;box-shadow:var(--shadow);}
+.appcard img,.appcard .adm{width:60px;height:60px;border-radius:15px;flex:none;object-fit:cover;border:1px solid var(--hair);}
+.adm{background:#0E0E10;display:flex;align-items:center;justify-content:center;font-family:'Outfit';font-weight:800;font-size:32px;color:#fff;}
+.adm b{color:var(--gold-500);}
+.appcard h3{font-size:16px;font-weight:700;letter-spacing:-.2px;}
+.appcard .role{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--gold-ink);margin-top:1px;}
+.appcard p{font-size:12px;color:var(--sec);margin-top:7px;line-height:1.5;}
+.appcard .tech{font-size:10.5px;color:#6f6f77;margin-top:8px;}
+
+/* Logo */
+.logostage{border:1px solid var(--hair);border-radius:18px;background:var(--white);padding:30px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);}
+.logostage img{width:130mm;max-width:82%;height:auto;}
+.logotile{border-radius:16px;display:flex;align-items:center;justify-content:center;padding:26px;height:120px;border:1px solid var(--hair);}
+.logotile img{max-width:80%;max-height:64px;height:auto;}
+.logotile.dark{background:var(--storm);border-color:transparent;}
+.logotile.light{background:var(--white);}
+.logotile.deep{background:var(--midnight);border-color:transparent;}
+.tilecap{font-size:11px;color:var(--sec);margin-top:7px;}
+.tilecap .mono{color:var(--ink);font-size:10.5px;}
+.symbolrow{display:flex;gap:18px;align-items:center;}
+.symbolrow img{width:92px;height:92px;border-radius:22px;border:1px solid var(--hair);}
+.dl{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:12.5px;}
+.dl dt{font-weight:700;color:var(--gold-ink);} .dl dd{color:var(--sec);}
+.dodont{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;}
+.dd{border:1px solid var(--hair);border-radius:14px;padding:14px;}
+.dd .h{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+.dd.do .h{color:var(--success);} .dd.no .h{color:var(--danger);}
+.dd li{font-size:12px;color:var(--sec);margin:6px 0 0 16px;line-height:1.45;}
+
+/* App icons (shipped) */
+.icontile{text-align:center;}
+.icontile img{width:100%;aspect-ratio:1;border-radius:24px;border:1px solid var(--hair);box-shadow:var(--shadow);}
+.icontile .n{font-size:13px;font-weight:700;margin-top:10px;}
+.icontile .m{font-size:11px;color:var(--sec);margin-top:2px;line-height:1.4;}
+table.nuance{width:100%;border-collapse:collapse;font-size:12px;}
+table.nuance th,table.nuance td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--hair);}
+table.nuance th{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#6f6f77;font-weight:700;}
+table.nuance td:first-child{font-weight:700;color:var(--ink);}
+
+/* Color swatches */
+.swgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+.sw{border:1px solid var(--hair);border-radius:14px;overflow:hidden;}
+.sw .chip{height:70px;display:flex;align-items:flex-end;padding:8px;}
+.sw .chip .star{margin-left:auto;font-size:11px;font-weight:800;}
+.sw .meta{padding:9px 10px 11px;}
+.sw .meta .nm{font-size:11.5px;font-weight:700;color:var(--ink);}
+.sw .meta .hx{font-size:10.5px;color:var(--sec);margin-top:1px;}
+.sw .meta .ro{font-size:10px;color:#6f6f77;margin-top:4px;line-height:1.35;}
+
+/* Type */
+.specimen{border:1px solid var(--hair);border-radius:18px;padding:20px 22px;box-shadow:var(--shadow);}
+.specimen .fam{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-ink);}
+.specimen .big{font-size:52px;font-weight:800;letter-spacing:-1.6px;line-height:1;margin-top:6px;}
+.specimen .ag{font-size:12.5px;color:var(--sec);margin-top:10px;}
+.weights{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:17px;}
+.scale{width:100%;border-collapse:collapse;font-size:12px;}
+.scale td{padding:8px;border-bottom:1px solid var(--hair);vertical-align:baseline;}
+.scale td:first-child{color:var(--sec);width:34%;}
+
+/* Theme */
+.btn{display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;border-radius:14px;padding:13px 22px;border:1px solid transparent;}
+.btn.cta{background:var(--gold-500);color:var(--ink);}
+.btn.ghost{background:#fff;color:var(--ink);border-color:var(--line-strong);}
+.radius-demo{display:flex;gap:14px;align-items:flex-end;}
+.rb{flex:1;background:var(--deep);border:1px solid var(--hair);text-align:center;font-size:11px;font-weight:700;color:var(--sec);padding:14px 6px 9px;}
+.darkpanel{background:var(--midnight);border-radius:18px;padding:18px;}
+.darkpanel .p{background:var(--deepsea);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;}
+.darkpanel .p2{background:var(--steel);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;margin-top:10px;}
+.inputdemo{border:1px solid var(--line-strong);border-radius:14px;padding:13px 14px;font-size:13px;color:var(--sec);background:#fff;}
+.chipdemo{display:inline-block;background:var(--deep);border:1px solid var(--hair);border-radius:10px;padding:7px 12px;font-size:12px;font-weight:600;color:var(--ink);}
+.principles{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.pr{border:1px solid var(--hair);border-radius:14px;padding:14px 15px;}
+.pr .t{font-size:13px;font-weight:700;display:flex;gap:8px;align-items:center;}
+.pr .t .d{width:7px;height:7px;border-radius:2px;background:var(--gold-500);flex:none;}
+.pr p{font-size:11.5px;color:var(--sec);margin-top:5px;line-height:1.45;}
+
+/* Wordmark library (contact sheets) */
+.libtone{display:inline-flex;gap:8px;align-items:center;font-size:11px;font-weight:700;color:var(--sec);}
+.dot{width:12px;height:12px;border-radius:4px;display:inline-block;border:1px solid var(--hair);}
+.gallery{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px;}
+.gallery figure{margin:0;}
+.gallery .ic img{width:100%;aspect-ratio:24/9;object-fit:cover;border-radius:14px;border:1px solid var(--hair);display:block;box-shadow:var(--shadow);}
+.gallery figcaption{font-size:10.5px;color:#6f6f77;margin-top:6px;text-align:center;letter-spacing:.04em;}
+
+/* Banners */
+.bannerrow{display:flex;flex-direction:column;gap:14px;margin-top:16px;}
+.bn{border:1px solid var(--hair);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
+.bn img{width:100%;display:block;}
+.bn .cap{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;font-size:11.5px;}
+.bn .cap .v{font-weight:700;color:var(--ink);} .bn .cap .c{color:var(--sec);}
+
+/* Templates */
+.tplgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;}
+.tpl{border:1px solid var(--hair);border-radius:16px;overflow:hidden;background:#fff;box-shadow:var(--shadow);}
+.tpl img{width:100%;display:block;background:#0d0c0a;}
+.tpl .cap{padding:10px 13px;}
+.tpl .cap .v{font-size:12.5px;font-weight:700;}
+.tpl .cap .x{font-size:10.5px;color:var(--sec);margin-top:2px;}
+.tpl .cap .px{font-size:10px;color:var(--gold-ink);font-weight:700;margin-top:3px;}
+
+/* Sources */
+.src{font-size:11px;color:var(--sec);line-height:1.7;}
+.src .mono{color:var(--ink);}
+</style>
+</head>
+<body>
+
+<!-- 1 · COVER -->
+<section class="page cover">
+  <div class="lockplate"><img class="lock" src="img/lockup.png" alt="Delivera"></div>
+  <div>
+    <div class="coverchip">Tyst &amp; direkt</div>
+    <h1>Brand <span class="g">Identity</span></h1>
+    <p class="sub">Det kompletta visuella systemet bakom Delivera. Logotyp, färg, typografi, ikoner, mallar och tema, draget direkt ur produkten, för web, kund-app, partner och bud.</p>
+    <div class="metarow">
+      <div class="m"><div class="l">Version</div><div class="v">1.0</div></div>
+      <div class="m"><div class="l">Datum</div><div class="v">2026-06-25</div></div>
+      <div class="m"><div class="l">Märke</div><div class="v">Delívera</div></div>
+      <div class="m"><div class="l">Ytor</div><div class="v">Web · iOS · Flutter</div></div>
+    </div>
+  </div>
+  <div class="foot"><span>Delivera Brand Identity</span><span>Källa: produktens design-tokens &amp; assets</span></div>
+</section>
+
+<!-- 2 · CONTENTS -->
+<section class="page">
+  <div class="kicker"><span class="num">—</span><div><div class="eyebrow">Innehåll</div></div></div>
+  <h2 class="sec">Vad som ligger i den här guiden.</h2>
+  <ul class="toc">
+    <li><span class="n">01</span><span class="t">Vilka vi är &amp; ekosystemet</span><span class="d"></span><span class="pg">03</span></li>
+    <li><span class="n">02</span><span class="t">Logotyp &amp; wordmark-varianter</span><span class="d"></span><span class="pg">04</span></li>
+    <li><span class="n">03</span><span class="t">Logotyp — konstruktion &amp; regler</span><span class="d"></span><span class="pg">05</span></li>
+    <li><span class="n">04</span><span class="t">App-ikoner (final)</span><span class="d"></span><span class="pg">06</span></li>
+    <li><span class="n">05</span><span class="t">Färg</span><span class="d"></span><span class="pg">07</span></li>
+    <li><span class="n">06</span><span class="t">Typografi</span><span class="d"></span><span class="pg">08</span></li>
+    <li><span class="n">07</span><span class="t">Tema &amp; komponenter</span><span class="d"></span><span class="pg">09</span></li>
+    <li><span class="n">08</span><span class="t">Wordmark-bibliotek — Kund · Partner · Courier · Admin</span><span class="d"></span><span class="pg">10</span></li>
+    <li><span class="n">09</span><span class="t">Hero-banners</span><span class="d"></span><span class="pg">14</span></li>
+    <li><span class="n">10</span><span class="t">Upload-mallar</span><span class="d"></span><span class="pg">15</span></li>
+    <li><span class="n">11</span><span class="t">Röst, ton &amp; källor</span><span class="d"></span><span class="pg">16</span></li>
+  </ul>
+  <div class="foot"><span>Delivera Brand Identity</span><span>Innehåll</span></div>
+</section>
+
+<!-- 3 · WHO WE ARE -->
+<section class="page">
+  <div class="kicker"><span class="num">01</span><div><div class="eyebrow">Vilka vi är</div></div></div>
+  <h2 class="sec">En plattform, fyra ytor.</h2>
+  <p class="lead" style="margin-top:12px;">Delivera är en matleverans-plattform. Kunden beställer från lokala restauranger och får maten levererad av bud eller restaurangens egna förare. Ett konto, knutet till telefonnumret, fungerar lika i webben och appen. Lösenordsfri inloggning via Apple, Google eller telefon. Live-spårning på varje order och Dpoints som lojalitet.</p>
+  <hr class="goldrule" style="margin:20px 0 16px;">
+  <div class="eyebrow" style="margin-bottom:12px;">Ekosystemet</div>
+  <div class="grid2">
+    <div class="appcard"><img src="img/icon-customer.png" alt=""><div>
+      <div class="role">Kund</div><h3>Delivera</h3>
+      <p>Beställ, följ leveransen live, tjäna Dpoints, bjud in vänner. Ljust system, vit yta, guld bara på köp-knappen.</p>
+      <div class="tech">Web · delivera.se (Next.js) &nbsp;·&nbsp; iOS · se.delivera.app (React Native)</div></div></div>
+    <div class="appcard"><img src="img/icon-partner.png" alt=""><div>
+      <div class="role">Restaurang</div><h3>Delivera Partner</h3>
+      <p>Ta emot och hantera order, meny och öppettider. Inloggning via enhets-parning på terminal. Mörkt Ember-tema med guld-accent.</p>
+      <div class="tech">Flutter · Android / iOS &nbsp;·&nbsp; ikon: bricka i hand</div></div></div>
+    <div class="appcard"><img src="img/icon-courier.png" alt=""><div>
+      <div class="role">Bud</div><h3>Delivera Courier</h3>
+      <p>Pass, jobberbjudanden, leverans-steg och GPS-position. Native, byggd för fält. Mörk yta med ljusguld.</p>
+      <div class="tech">Flutter · se.delivera.courier &nbsp;·&nbsp; ikon: bud på moped</div></div></div>
+    <div class="appcard"><div class="adm">D<b>í</b></div><div>
+      <div class="role">Plattform</div><h3>Delivera Admin</h3>
+      <p>Restauranger, order, kunder, Dpoints, leverans-zoner. Medvetet monokrom, svartvitt, guld hör till kund-appen.</p>
+      <div class="tech">Web · admin-panel (Vercel)</div></div></div>
+  </div>
+  <p style="font-size:11px;color:#6f6f77;margin-top:16px;line-height:1.6;">
+    Rygg: Express + Prisma + Supabase + Socket.IO (Railway). Web och admin på Vercel.
+    Betalningar via Adyen. Kartor via CARTO och Esri. Push via APNs och FCM.</p>
+  <div class="foot"><span>Delivera Brand Identity</span><span>01 · Vilka vi är &nbsp;·&nbsp; 03</span></div>
+</section>
+
+<!-- 4 · LOGO + WORDMARK VARIANTS -->
+<section class="page">
+  <div class="kicker"><span class="num">02</span><div><div class="eyebrow">Logotyp</div></div></div>
+  <h2 class="sec">Ord-märket Delívera.</h2>
+  <div class="logostage" style="margin-top:16px;"><img src="img/lockup.png" alt="Delivera lockup"></div>
+  <div class="grouplbl">Wordmark-varianter (transparent PNG)</div>
+  <div class="grid2">
+    <div><div class="logotile light"><img src="assets/Delivera-Brand-Assets/logos/delivera-wordmark-svart-transparent.png" alt=""></div>
+      <div class="tilecap">Svart, på ljus yta · <span class="mono">delivera-wordmark-svart</span></div></div>
+    <div><div class="logotile dark"><img src="assets/Delivera-Brand-Assets/logos/delivera-wordmark-guld-transparent.png" alt=""></div>
+      <div class="tilecap">Guld, på mörk yta · <span class="mono">delivera-wordmark-guld</span></div></div>
+    <div><div class="logotile deep"><img src="assets/Delivera-Brand-Assets/logos/delivera-wordmark-vit-transparent.png" alt=""></div>
+      <div class="tilecap">Vit, på mörk yta · <span class="mono">delivera-wordmark-vit</span></div></div>
+    <div><div class="logotile dark"><img src="assets/Delivera-Brand-Assets/logos/delivera-lockup-guld-tagline.png" alt=""></div>
+      <div class="tilecap">Lockup med tagline · <span class="mono">delivera-lockup-guld-tagline</span></div></div>
+  </div>
+  <div class="foot"><span>Delivera Brand Identity</span><span>02 · Logotyp &nbsp;·&nbsp; 04</span></div>
+</section>
+
+<!-- 5 · LOGO CONSTRUCTION -->
+<section class="page">
+  <div class="kicker"><span class="num">03</span><div><div class="eyebrow">Logotyp — konstruktion</div></div></div>
+  <h2 class="sec">D-monogrammet, del för del.</h2>
+  <div class="card" style="margin-top:16px;">
+    <div class="symbolrow">
+      <img src="img/icon-customer.png" alt="D-monogram">
+      <dl class="dl">
+        <dt>D-monogram</dt><dd>Den feta, rundade D:n bär hela märket.</dd>
+        <dt>Guld-í</dt><dd>Accenten på i:et i guld, märkets enda värme.</dd>
+        <dt>Strålar</dt><dd>Pommes/mat-motiv som fyller D:ns öppning.</dd>
+        <dt>Bett-skåran</dt><dd>Hörn-tugga uppe till vänster, ständig signatur.</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="dodont">
+    <div class="dd do"><div class="h">✓ Gör</div><ul>
+      <li>Mörkt märke på ljus yta, vitt märke på mörk.</li>
+      <li>Ge ord-märket fritt utrymme runt om, minst D:ns höjd.</li>
+      <li>Behåll guld-í och bett-skåran intakta.</li>
+    </ul></div>
+    <div class="dd no"><div class="h">✕ Gör inte</div><ul>
+      <li>Ingen glow, ingen gradient, inga skuggor på märket.</li>
+      <li>Färga inte om, tänj inte, rotera inte.</li>
+      <li>Lägg inte guld ord-märke på orolig bakgrund.</li>
+    </ul></div>
+  </div>
+  <p style="font-size:11.5px;color:var(--sec);margin-top:16px;line-height:1.6;">
+    Ord-märket skrivs <strong>Delívera</strong> med accent på i:et. Accenten är märkets enda
+    färgavvikelse och ska alltid vara i guld. Frizon runt logotypen motsvarar minst höjden på D:n.</p>
+  <div class="foot"><span>Delivera Brand Identity</span><span>03 · Konstruktion &nbsp;·&nbsp; 05</span></div>
+</section>
+
+<!-- 6 · APP ICONS (shipped) -->
+<section class="page">
+  <div class="kicker"><span class="num">04</span><div><div class="eyebrow">App-ikoner (final)</div></div></div>
+  <h2 class="sec">Samma D, ett motiv per roll.</h2>
+  <p class="lead" style="margin-top:12px;">De ikoner som ligger i apparna idag. Varje app bär samma D-monogram och bett-skåra. Insidan byter motiv efter rollen och nyansen skiftar per app. Simpla, platta ikoner, hög kontrast, inga gradienter.</p>
+  <div class="grid3" style="margin-top:18px;">
+    <div class="icontile"><img src="img/icon-customer.png" alt=""><div class="n">Delivera · Kund</div><div class="m">Guld-í och strålar. Ljus, svart på vit.</div></div>
+    <div class="icontile"><img src="img/icon-partner.png" alt=""><div class="n">Partner · Restaurang</div><div class="m">Bricka i hand. Mörk, brons-guld.</div></div>
+    <div class="icontile"><img src="img/icon-courier.png" alt=""><div class="n">Courier · Bud</div><div class="m">Bud på moped. Mörk, ljusguld.</div></div>
+  </div>
+  <div class="card" style="margin-top:18px;padding:6px 18px 8px;">
+    <table class="nuance">
+      <tr><th>App</th><th>Yta</th><th>Nyans</th><th>Motiv i D:n</th></tr>
+      <tr><td>Kund (web + React)</td><td>Ljus</td><td>Svart på cream/vit</td><td>Guld-í + strålar</td></tr>
+      <tr><td>Partner (Flutter)</td><td>Mörk</td><td>Brons</td><td>Bricka i hand</td></tr>
+      <tr><td>Courier (Flutter)</td><td>Mörk</td><td>Ljusguld</td><td>Bud på moped</td></tr>
+      <tr><td>Admin (web)</td><td>Mörk</td><td>Vit + guld-accent</td><td>Ren D-monogram</td></tr>
+    </table>
+  </div>
+  <p style="font-size:11px;color:#6f6f77;margin-top:12px;">Master-format 1024×1024. í i guldton som enda accent.</p>
+  <div class="foot"><span>Delivera Brand Identity</span><span>04 · App-ikoner &nbsp;·&nbsp; 06</span></div>
+</section>
+
+<!-- 7 · COLOR -->
+<section class="page dark" id="color">
+  <div class="kicker"><span class="num">05</span><div><div class="eyebrow">Färg</div></div></div>
+  <h2 class="sec">Guld på vitt. Inget annat behövs.</h2>
+  <p class="lead" style="margin-top:10px;">Guld är reserverat för märket och köp-knappar. Aldrig på ramar eller skuggor. Inga färger utanför paletten.</p>
+
+  <div class="grouplbl">Guld — signaturen</div>
+  <div class="swgrid">
+    <div class="sw"><div class="chip" style="background:#F4D086;"></div><div class="meta"><div class="nm">Guld 400</div><div class="hx mono">#F4D086</div><div class="ro">Highlight, ljusa stopp</div></div></div>
+    <div class="sw"><div class="chip" style="background:#E7B24B;"><span class="star" style="color:#1C1C1E;">★ primär</span></div><div class="meta"><div class="nm">Guld 500</div><div class="hx mono">#E7B24B</div><div class="ro">Märke + CTA</div></div></div>
+    <div class="sw"><div class="chip" style="background:#C28E2E;"></div><div class="meta"><div class="nm">Guld 600</div><div class="hx mono">#C28E2E</div><div class="ro">Djup, hover</div></div></div>
+    <div class="sw"><div class="chip" style="background:#8A6512;"></div><div class="meta"><div class="nm">Guld-bläck</div><div class="hx mono">#8A6512</div><div class="ro">Guld som text på ljust</div></div></div>
+    <div class="sw"><div class="chip" style="background:#FBF4E4;"></div><div class="meta"><div class="nm">Guld-mjuk</div><div class="hx mono">#FBF4E4</div><div class="ro">Mjuk yta, aktiv status</div></div></div>
+  </div>
+
+  <div class="grouplbl">Neutraler — ljust "Silk"</div>
+  <div class="swgrid">
+    <div class="sw"><div class="chip" style="background:#FFFFFF;border-bottom:1px solid var(--hair);"></div><div class="meta"><div class="nm">Vit</div><div class="hx mono">#FFFFFF</div><div class="ro">Bakgrund, kort</div></div></div>
+    <div class="sw"><div class="chip" style="background:#FCFCF9;border-bottom:1px solid var(--hair);"></div><div class="meta"><div class="nm">Off-white</div><div class="hx mono">#FCFCF9</div><div class="ro">App-bakgrund</div></div></div>
+    <div class="sw"><div class="chip" style="background:#F4F4F2;"></div><div class="meta"><div class="nm">Djup</div><div class="hx mono">#F4F4F2</div><div class="ro">Sektioner, input</div></div></div>
+    <div class="sw"><div class="chip" style="background:#111113;"></div><div class="meta"><div class="nm">Bläck</div><div class="hx mono">#111113</div><div class="ro">Primär text</div></div></div>
+    <div class="sw"><div class="chip" style="background:#5C5C61;"></div><div class="meta"><div class="nm">Sekundär</div><div class="hx mono">#5C5C61</div><div class="ro">Metadata</div></div></div>
+  </div>
+
+  <div class="grouplbl">Mörka ytor — "Ember" (partner · bud · admin)</div>
+  <div class="swgrid">
+    <div class="sw"><div class="chip" style="background:#09090B;"></div><div class="meta"><div class="nm">Midnatt</div><div class="hx mono">#09090B</div><div class="ro">Sid-bakgrund</div></div></div>
+    <div class="sw"><div class="chip" style="background:#0E0E10;"></div><div class="meta"><div class="nm">Storm</div><div class="hx mono">#0E0E10</div><div class="ro">Primär</div></div></div>
+    <div class="sw"><div class="chip" style="background:#18181B;"></div><div class="meta"><div class="nm">Deep</div><div class="hx mono">#18181B</div><div class="ro">Panel</div></div></div>
+    <div class="sw"><div class="chip" style="background:#202024;"></div><div class="meta"><div class="nm">Steel</div><div class="hx mono">#202024</div><div class="ro">Upphöjd panel</div></div></div>
+    <div class="sw"><div class="chip" style="background:#1C1C1E;"></div><div class="meta"><div class="nm">Bläck (app)</div><div class="hx mono">#1C1C1E</div><div class="ro">Text i Flutter</div></div></div>
+  </div>
+
+  <div class="grouplbl">Status &amp; accenter</div>
+  <div class="swgrid">
+    <div class="sw"><div class="chip" style="background:#2E7D4F;"></div><div class="meta"><div class="nm">Success</div><div class="hx mono">#2E7D4F</div><div class="ro">Levererat, rabatt</div></div></div>
+    <div class="sw"><div class="chip" style="background:#DC2626;"></div><div class="meta"><div class="nm">Danger</div><div class="hx mono">#DC2626</div><div class="ro">Fel, ångra</div></div></div>
+    <div class="sw"><div class="chip" style="background:#2563EB;"></div><div class="meta"><div class="nm">Info</div><div class="hx mono">#2563EB</div><div class="ro">Info, länkar</div></div></div>
+    <div class="sw"><div class="chip" style="background:#FF7A00;"></div><div class="meta"><div class="nm">Orange</div><div class="hx mono">#FF7A00</div><div class="ro">Obs, kampanj</div></div></div>
+    <div class="sw"><div class="chip" style="background:#38BDF8;"></div><div class="meta"><div class="nm">Brand-blå</div><div class="hx mono">#38BDF8</div><div class="ro">Leverans-accent</div></div></div>
+  </div>
+  <div class="foot"><span>Delivera Brand Identity</span><span>05 · Färg &nbsp;·&nbsp; 07</span></div>
+</section>
+
+<!-- 8 · TYPOGRAPHY -->
+<section class="page">
+  <div class="kicker"><span class="num">06</span><div><div class="eyebrow">Typografi</div></div></div>
+  <h2 class="sec">Inter bär allt. Outfit för rubriker.</h2>
+  <div class="grid2" style="margin-top:18px;">
+    <div class="specimen">
+      <div class="fam">Inter — primär</div>
+      <div class="big">Aa</div>
+      <div class="ag mono">ABCDEFGHIJKLM · abcdefghijklm · 0123456789 · åäö</div>
+      <div class="weights">
+        <span style="font-weight:400;">Regular</span><span style="font-weight:500;">Medium</span>
+        <span style="font-weight:600;">Semibold</span><span style="font-weight:700;">Bold</span>
+        <span style="font-weight:800;">Extrabold</span></div>
+      <p style="font-size:11.5px;color:var(--sec);margin-top:12px;line-height:1.5;">Web, kund-app och bröd-text i alla apparna. Lugn och neutral, bär "tyst &amp; direkt".</p>
+    </div>
+    <div class="specimen">
+      <div class="fam" style="font-family:'Outfit';">Outfit — display</div>
+      <div class="big" style="font-family:'Outfit';">Aa</div>
+      <div class="ag mono">ABCDEFGHIJKLM · abcdefghijklm · 0123456789</div>
+      <div class="weights" style="font-family:'Outfit';">
+        <span style="font-weight:500;">Medium</span><span style="font-weight:600;">Semibold</span>
+        <span style="font-weight:700;">Bold</span><span style="font-weight:800;">Extrabold</span></div>
+      <p style="font-size:11.5px;color:var(--sec);margin-top:12px;line-height:1.5;">Geometrisk display för stora rubriker och etiketter i Flutter-apparna. Stram letter-spacing.</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="eyebrow" style="margin-bottom:8px;">Typskala</div>
+    <table class="scale">
+      <tr><td>Display L</td><td><span style="font-size:30px;font-weight:800;letter-spacing:-1px;">Snabb leverans</span></td><td class="mono" style="color:#6f6f77;font-size:11px;">64 / 800 / −2.0</td></tr>
+      <tr><td>Headline L</td><td><span style="font-size:22px;font-weight:700;letter-spacing:-.4px;">Dina beställningar</span></td><td class="mono" style="color:#6f6f77;font-size:11px;">30 / 700 / −0.5</td></tr>
+      <tr><td>Title L</td><td><span style="font-size:17px;font-weight:700;">Leverans pågår</span></td><td class="mono" style="color:#6f6f77;font-size:11px;">18 / 700 / −0.2</td></tr>
+      <tr><td>Body L</td><td><span style="font-size:15px;font-weight:500;">Maten är på väg till dig.</span></td><td class="mono" style="color:#6f6f77;font-size:11px;">15 / 500 / 1.45</td></tr>
+      <tr><td>Label</td><td><span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Lägg till i varukorg</span></td><td class="mono" style="color:#6f6f77;font-size:11px;">11 / 700 / +0.8</td></tr>
+    </table>
+  </div>
+  <div class="foot"><span>Delivera Brand Identity</span><span>06 · Typografi &nbsp;·&nbsp; 08</span></div>
+</section>
+
+<!-- 9 · THEME -->
+<section class="page dark" id="theme">
+  <div class="kicker"><span class="num">07</span><div><div class="eyebrow">Tema &amp; komponenter</div></div></div>
+  <h2 class="sec">Platt, vitt, mjuka hörn.</h2>
+  <div class="grid2" style="margin-top:18px;">
+    <div class="card silkcard">
+      <div class="eyebrow" style="margin-bottom:12px;">Ljust "Silk" — kund &amp; web</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <span class="btn cta">Till kassan</span><span class="btn ghost">Avbryt</span></div>
+      <div class="inputdemo" style="margin-top:12px;">Leveransadress</div>
+      <div style="margin-top:12px;"><span class="chipdemo">Populärt</span> <span class="chipdemo">Öppet nu</span></div>
+      <p style="font-size:11px;color:#6f6f77;margin-top:12px;">Skugga <span class="mono">0 8px 24px rgba(17,17,19,.06)</span> · hårstreck <span class="mono">9% bläck</span></p>
+    </div>
+    <div class="darkpanel">
+      <div class="eyebrow" style="color:var(--gold-500);margin-bottom:12px;">Mörkt "Ember" — partner &amp; bud</div>
+      <div class="p"><span style="font-size:11px;font-weight:700;color:#fff;">Ny order · #1042</span></div>
+      <div class="p2"><span style="font-size:11px;font-weight:700;color:var(--gold-500);">Acceptera</span></div>
+      <div style="margin-top:14px;"><span class="btn cta">Markera klar</span></div>
+      <p style="font-size:11px;color:#8b8b92;margin-top:12px;">Panel <span class="mono" style="color:#d9d9de;">#18181B</span> · upphöjd <span class="mono" style="color:#d9d9de;">#202024</span></p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="eyebrow" style="margin-bottom:14px;">Hörnradie</div>
+    <div class="radius-demo">
+      <div class="rb" style="border-radius:10px;">Chip<br>10</div>
+      <div class="rb" style="border-radius:14px;height:64px;">Knapp · input<br>14</div>
+      <div class="rb" style="border-radius:18px;height:78px;">Panel · kort<br>18</div>
+      <div class="rb" style="border-radius:22px;height:92px;">Dialog<br>22</div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;padding:15px 18px;">
+    <div class="principles" style="grid-template-columns:1fr 1fr 1fr;">
+      <div class="pr"><div class="t"><span class="d"></span>Guld = CTA</div><p>Guld bara på köp och märke. Inte på ramar, inte på skuggor.</p></div>
+      <div class="pr"><div class="t"><span class="d"></span>Platt</div><p>Inga glow, inga gradienter på ytor. Mjuk skugga räcker.</p></div>
+      <div class="pr"><div class="t"><span class="d"></span>Mat mot vit</div><p>Vit bakgrund får maten att se godare ut. Ljust som standard.</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Delivera Brand Identity</span><span>07 · Tema &nbsp;·&nbsp; 09</span></div>
+</section>
+
+<!-- 10-13 · WORDMARK LIBRARY (4 pages, generated) -->
+<section class="page" data-libpage="customer">
+  <div class="kicker"><span class="num">08</span><div><div class="eyebrow">Wordmark-bibliotek</div></div></div>
+  <h2 class="sec">Kund — ljus.</h2>
+  <div style="margin-top:8px;"><span class="libtone"><span class="dot" style="background:#FBF6EC;"></span> Svart text på cream &nbsp;·&nbsp; 10 typsnitt &nbsp;·&nbsp; 1024×1024</span></div>
+  <div class="gallery" data-icons="customer"></div>
+  <p style="font-size:11px;color:#6f6f77;margin-top:14px;">Typografisk utforskning av ord-märket. Designerna: futura · avenir · helvetica · versaler · gemena · optima · underline · gillsans · serif · viktkontrast.</p>
+  <div class="foot"><span>Delivera Brand Identity</span><span>08 · Wordmark · Kund &nbsp;·&nbsp; 10</span></div>
+</section>
+
+<section class="page">
+  <div class="kicker"><span class="num">08</span><div><div class="eyebrow">Wordmark-bibliotek</div></div></div>
+  <h2 class="sec">Partner — mörk, brons.</h2>
+  <div style="margin-top:8px;"><span class="libtone"><span class="dot" style="background:#100d08;"></span> Brons-ord på svärta, ljus í &nbsp;·&nbsp; 10 typsnitt</span></div>
+  <div class="gallery" data-icons="business"></div>
+  <p style="font-size:11px;color:#6f6f77;margin-top:14px;">Samma 10 designer i Partner-nyans. Mörk yta, ord-märke i brons, accent-í i ljusguld.</p>
+  <div class="foot"><span>Delivera Brand Identity</span><span>08 · Wordmark · Partner &nbsp;·&nbsp; 11</span></div>
+</section>
+
+<section class="page">
+  <div class="kicker"><span class="num">08</span><div><div class="eyebrow">Wordmark-bibliotek</div></div></div>
+  <h2 class="sec">Courier — mörk, ljusguld.</h2>
+  <div style="margin-top:8px;"><span class="libtone"><span class="dot" style="background:#0a0a0b;"></span> Ljusguld-ord på svart, vit í &nbsp;·&nbsp; 10 typsnitt</span></div>
+  <div class="gallery" data-icons="courier"></div>
+  <p style="font-size:11px;color:#6f6f77;margin-top:14px;">Samma 10 designer i Courier-nyans. Mörk yta, ord-märke i ljusguld, accent-í i vitt.</p>
+  <div class="foot"><span>Delivera Brand Identity</span><span>08 · Wordmark · Courier &nbsp;·&nbsp; 12</span></div>
+</section>
+
+<section class="page">
+  <div class="kicker"><span class="num">08</span><div><div class="eyebrow">Wordmark-bibliotek</div></div></div>
+  <h2 class="sec">Admin — mörk, vit + guld.</h2>
+  <div style="margin-top:8px;"><span class="libtone"><span class="dot" style="background:#0a0a0a;"></span> Vitt ord på svart, guld-accent í &nbsp;·&nbsp; 10 typsnitt</span></div>
+  <div class="gallery" data-icons="admin"></div>
+  <p style="font-size:11px;color:#6f6f77;margin-top:14px;">Samma 10 designer i Admin-nyans. Monokrom mörk yta, vitt ord-märke, guld-accent enbart på í.</p>
+  <div class="foot"><span>Delivera Brand Identity</span><span>08 · Wordmark · Admin &nbsp;·&nbsp; 13</span></div>
+</section>
+
+<!-- 14 · HERO BANNERS -->
+<section class="page dark" id="hero">
+  <div class="kicker"><span class="num">09</span><div><div class="eyebrow">Hero-banners</div></div></div>
+  <h2 class="sec">Tre hero-förslag.</h2>
+  <p class="lead" style="margin-top:10px;">Hemside-hero 1600×500. Tre toner ur paletten: mörk, guld och ljus. Samma copy-stil, samma märke nere till höger.</p>
+  <div class="bannerrow">
+    <div class="bn"><img src="assets/Delivera-Brand-Assets/banners/hero-forslag-1-mork.png" alt="">
+      <div class="cap"><span class="v">1 · Mörk</span><span class="c">"Hungrig? Delívera fixar resten."</span></div></div>
+    <div class="bn"><img src="assets/Delivera-Brand-Assets/banners/hero-forslag-2-guld.png" alt="">
+      <div class="cap"><span class="v">2 · Guld</span><span class="c">"Snabbare än suget."</span></div></div>
+    <div class="bn"><img src="assets/Delivera-Brand-Assets/banners/hero-forslag-3-ljus.png" alt="">
+      <div class="cap"><span class="v">3 · Ljus</span><span class="c">"Din stad. Din mat. Delívera."</span></div></div>
+  </div>
+  <div class="foot"><span>Delivera Brand Identity</span><span>09 · Hero-banners &nbsp;·&nbsp; 14</span></div>
+</section>
+
+<!-- 15 · TEMPLATES -->
+<section class="page">
+  <div class="kicker"><span class="num">10</span><div><div class="eyebrow">Upload-mallar</div></div></div>
+  <h2 class="sec">Mallar med mått &amp; safe-area.</h2>
+  <p class="lead" style="margin-top:10px;">Format för det som laddas upp i admin och i restaurang-profilerna. Streckad ram = säker yta, kanterna kan beskäras.</p>
+  <div class="tplgrid">
+    <div class="tpl"><img src="assets/Delivera-Brand-Assets/templates/restaurang-logga-mall-1024x1024.png" alt=""><div class="cap"><div class="v">Restaurang-logga</div><div class="x">Kvadrat, centrera, enfärgad/transparent</div><div class="px">1024 × 1024</div></div></div>
+    <div class="tpl"><img src="assets/Delivera-Brand-Assets/templates/produktbild-mall-1000x1000.png" alt=""><div class="cap"><div class="v">Produktbild</div><div class="x">Maträtt centrerad, vit/enfärgad bakgrund</div><div class="px">1000 × 1000</div></div></div>
+    <div class="tpl"><img src="assets/Delivera-Brand-Assets/templates/kategoribild-mall-1000x1000.png" alt=""><div class="cap"><div class="v">Kategoribild</div><div class="x">Representativ bild, samma format som produkt</div><div class="px">1000 × 1000</div></div></div>
+    <div class="tpl"><img src="assets/Delivera-Brand-Assets/templates/restaurang-hero-mall-1600x500.png" alt=""><div class="cap"><div class="v">Restaurang hero</div><div class="x">Motiv &amp; text i mitten, kanter kan beskäras</div><div class="px">1600 × 500</div></div></div>
+    <div class="tpl"><img src="assets/Delivera-Brand-Assets/templates/sponsorkort-mall-1200x675.png" alt=""><div class="cap"><div class="v">Sponsorkort</div><div class="x">Logga + kort budskap, signup-rotationen</div><div class="px">1200 × 675</div></div></div>
+    <div class="tpl"><img src="assets/Delivera-Brand-Assets/templates/deal-banner-mall-1200x500.png" alt=""><div class="cap"><div class="v">Deal / kampanj-banner</div><div class="x">Visas på restaurangsidan vid "Visa som banner"</div><div class="px">1200 × 500</div></div></div>
+    <div class="tpl"><img src="assets/Delivera-Brand-Assets/templates/og-delning-mall-1200x630.png" alt=""><div class="cap"><div class="v">OG / social delning</div><div class="x">Förhandsvisning vid delning (FB / iMessage / X)</div><div class="px">1200 × 630</div></div></div>
+  </div>
+  <div class="foot"><span>Delivera Brand Identity</span><span>10 · Upload-mallar &nbsp;·&nbsp; 15</span></div>
+</section>
+
+<!-- 16 · VOICE + SOURCES -->
+<section class="page dark">
+  <div class="kicker"><span class="num">11</span><div><div class="eyebrow">Röst &amp; ton</div></div></div>
+  <h2 class="sec">Tyst &amp; direkt.</h2>
+  <p class="lead" style="margin-top:10px;">Kort copy, inga onödiga ord. Skriv som en människa, inte som en broschyr.</p>
+  <div class="principles" style="margin-top:18px;">
+    <div class="pr"><div class="t"><span class="d"></span>Kort och konkret</div><p>Säg vad som händer. "Maten är på väg", inte ett stycke förklaring.</p></div>
+    <div class="pr"><div class="t"><span class="d"></span>Inga em-dashes</div><p>Använd komma eller punkt. Aldrig långt tankstreck i gränssnittet.</p></div>
+    <div class="pr"><div class="t"><span class="d"></span>Admin är monokrom</div><p>Svartvitt i admin. Guldet och värmen hör till kund-appen.</p></div>
+    <div class="pr"><div class="t"><span class="d"></span>Rena fonts</div><p>Ingen skrivstil, ingen dekor. Inter och Outfit, inget annat.</p></div>
+  </div>
+  <hr class="rule" style="margin:24px 0 18px;">
+  <div class="eyebrow" style="margin-bottom:10px;">Sanningskälla i koden</div>
+  <p class="src">
+    Guld, neutraler, status &rarr; <span class="mono">apps/web/app/globals.css</span> · <span class="mono">src/theme/palette.ts</span><br>
+    Mörka ytor, radier, Outfit &rarr; <span class="mono">mobile_apps/*/lib/core/theme.dart</span><br>
+    Logotyp &rarr; <span class="mono">apps/web/public/delivera-lockup.png</span><br>
+    App-ikoner (final) &rarr; <span class="mono">assets/icon.png</span> · <span class="mono">assets/icon/app_icon.png</span> (1024²)<br>
+    Wordmark-bibliotek, mallar, banners, logos &rarr; <span class="mono">Delivera-Brand-Assets/</span>
+  </p>
+  <div style="margin-top:30px;display:flex;align-items:center;gap:14px;">
+    <div class="adm" style="width:48px;height:48px;border-radius:13px;font-size:26px;">D<b>í</b></div>
+    <div>
+      <div style="font-weight:800;font-size:18px;letter-spacing:-.4px;">Delívera</div>
+      <div style="font-size:11px;color:#6f6f77;">Brand Identity 1.0 · 2026-06-25 · ingen färg utanför paletten</div>
+    </div>
+  </div>
+  <div class="foot"><span>Delivera Brand Identity</span><span>11 · Röst &amp; källor &nbsp;·&nbsp; 16</span></div>
+</section>
+
+<script>
+  // Bygg wordmark-galleriet (40 = 4 appar × 10 typsnitt) från de riktiga PNG:erna.
+  var A = 'assets/Delivera-Brand-Assets/app-icons';
+  var DESIGNS = ['futura','avenir','helvetica','versaler','gemena','optima','underline','gillsans','serif','viktkontrast'];
+  document.querySelectorAll('.gallery[data-icons]').forEach(function(el){
+    var app = el.getAttribute('data-icons');
+    el.innerHTML = DESIGNS.map(function(d,i){
+      var n = String(i+1).padStart(2,'0');
+      return '<figure class="ic"><img src="'+A+'/'+app+'/delivera-'+app+'-'+n+'-'+d+'.png" alt="">'
+           + '<figcaption>'+n+' · '+d+'</figcaption></figure>';
+    }).join('');
+  });
+  // QA-hjälp: #only-<id> visar bara den sidan (för isolerad rendering).
+  if (location.hash.indexOf('#only-') === 0) {
+    var only = location.hash.slice(6);
+    document.querySelectorAll('.page').forEach(function(p){ p.style.display = 'none'; });
+    var t = document.getElementById(only); if (t) t.style.display = '';
+  }
+</script>
+</body>
+</html>
