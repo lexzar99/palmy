@@ -300,6 +300,7 @@ const supportReportTypeLabels: Record<string, string> = {
   FOOD_QUALITY: 'Matproblem',
   PAYMENT: 'Betalning',
   DELIVERY: 'Leverans',
+  CALLBACK: 'Ring upp kund',
   OTHER: 'Annat',
 };
 
@@ -383,6 +384,10 @@ router.post('/support/report', requireHermesToken, async (req, res) => {
     const orderNumber = String(req.body?.orderNumber || '').trim();
     const customerName = String(req.body?.customerName || '').trim();
     const customerPhone = String(req.body?.customerPhone || '').trim();
+    const callbackRequested =
+      req.body?.callbackRequested === true ||
+      ['true', '1', 'yes', 'ja'].includes(String(req.body?.callbackRequested || '').toLowerCase());
+    const preferredCallbackTime = String(req.body?.preferredCallbackTime || '').trim();
     const recordingUrl = String(req.body?.recordingUrl || '').trim();
     const callId = String(req.body?.callId || '').trim();
     const severity = String(req.body?.severity || 'normal').trim();
@@ -410,10 +415,14 @@ router.post('/support/report', requireHermesToken, async (req, res) => {
     const label = supportReportTypeLabels[safeType];
     const customerLine = customerName || orderSummary?.customerName || 'Okänd kund';
     const orderLine = orderSummary?.orderNumber || orderNumber || 'okänd order';
+    const callbackPhone = customerPhone || (callbackRequested ? order?.customerPhone || '' : '');
     const recordingLine = recordingUrl || (callId ? `Dograh call ${callId}` : 'Kolla Dograh recordings');
     const text = [
       `Elina support: ${label}`,
       `Kund: ${customerLine}`,
+      callbackRequested ? 'Ring upp: Ja' : null,
+      callbackPhone ? `Telefon: ${callbackPhone}` : null,
+      preferredCallbackTime ? `Önskad tid: ${preferredCallbackTime}` : null,
       `Order: ${orderLine}`,
       orderSummary?.restaurantName ? `Restaurang: ${orderSummary.restaurantName}` : null,
       orderSummary?.address ? `Adress: ${orderSummary.address}` : null,
@@ -429,6 +438,9 @@ router.post('/support/report', requireHermesToken, async (req, res) => {
       orderNumber: orderSummary?.orderNumber || orderNumber || null,
       customerName: customerName || orderSummary?.customerName || null,
       customerPhoneMasked: customerPhone ? maskPhone(customerPhone) : null,
+      callbackRequested,
+      callbackPhone: callbackPhone || null,
+      preferredCallbackTime: preferredCallbackTime || null,
       restaurantName: orderSummary?.restaurantName || null,
       restaurantPhone: orderSummary?.restaurantPhone || null,
       recordingUrl: recordingUrl || null,
