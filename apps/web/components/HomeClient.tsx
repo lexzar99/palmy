@@ -140,6 +140,7 @@ const ACTIVE_ORDER_PHONE_KEY = "viaeats_active_order_phone";
 const ACTIVE_ORDERS_KEY = "viaeats_active_orders";
 const CLOSED_ORDER_SEEN_KEY = "viaeats_closed_order_seen_v1";
 const CLOSED_ORDER_VISIBLE_MS = 3 * 60 * 1000;
+const CLOSED_ORDER_MAX_AGE_MS = 10 * 60 * 1000;
 // Levererade ordrar ligger kvar på hemskärmen en stund så recensionsprompten
 // hinner ses (Swift håller terminala ordrar i 15 min). Färskhets-guarden
 // hindrar gamla historik-ordrar från att dyka upp vid kall sidladdning.
@@ -267,16 +268,22 @@ function writeClosedOrderSeen(map: Record<string, number>) {
 
 function shouldShowTrackingOrderOnHome(order: any) {
   const status = String(order?.status || "").toUpperCase();
+  const paymentStatus = String(order?.paymentStatus || "").toUpperCase();
+  if (status === "AWAITING_PAYMENT" || ["AWAITING_PAYMENT", "FAILED", "EXPIRED"].includes(paymentStatus)) return false;
   if (ACTIVE_TRACKING_STATUSES.has(status)) return true;
   const isDelivered = DELIVERED_TRACKING_STATUSES.has(status);
   if (!CLOSED_TRACKING_STATUSES.has(status) && !isDelivered) return false;
   const orderId = String(order?.id || "");
   if (!orderId) return false;
+  const createdAt = order?.createdAt ? new Date(order.createdAt).getTime() : 0;
   if (isDelivered) {
     // Bara färska leveranser — annars skulle gammal orderhistorik dyka upp
     // som "levererad" på hemskärmen vid kall sidladdning.
-    const createdAt = order?.createdAt ? new Date(order.createdAt).getTime() : 0;
     if (!createdAt || Number.isNaN(createdAt) || Date.now() - createdAt > DELIVERED_MAX_AGE_MS) return false;
+  } else if (!createdAt || Number.isNaN(createdAt) || Date.now() - createdAt > CLOSED_ORDER_MAX_AGE_MS) {
+    // Avbrutna/avvisade orders ska inte återuppstå vid login. Visa dem bara
+    // precis efter händelsen så kunden förstår vad som hände.
+    return false;
   }
   const visibleMs = isDelivered ? DELIVERED_ORDER_VISIBLE_MS : CLOSED_ORDER_VISIBLE_MS;
   const seen = readClosedOrderSeen();
@@ -285,6 +292,12 @@ function shouldShowTrackingOrderOnHome(order: any) {
   seen[orderId] = Date.now();
   writeClosedOrderSeen(seen);
   return true;
+}
+
+function shouldHydrateTrackingOrderFromHistory(order: any) {
+  const status = String(order?.status || "").toUpperCase();
+  if (CLOSED_TRACKING_STATUSES.has(status)) return shouldShowTrackingOrderOnHome(order);
+  return shouldShowTrackingOrderOnHome(order);
 }
 
 function forgetClosedHomeOrder(orderId: string) {
@@ -807,7 +820,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         if (isLoggedIn) {
           const history = await axios.get("/api/platform/profile/orders").catch(() => ({ data: [] }));
           (Array.isArray(history.data) ? history.data : []).forEach((order: any) => {
-            if (order?.id && shouldShowTrackingOrderOnHome(order)) rowsById.set(String(order.id), order);
+            if (order?.id && shouldHydrateTrackingOrderFromHistory(order)) rowsById.set(String(order.id), order);
           });
         }
 
@@ -817,7 +830,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
           .filter((order) => {
             const status = String(order.status || "").toUpperCase();
             const paymentStatus = String(order.paymentStatus || "").toUpperCase();
-            if (status === "AWAITING_PAYMENT" || ["AWAITING_PAYMENT", "FAILED", "EXPIRED"].includes(paymentStatus)) return false;
             const shouldShow = shouldShowTrackingOrderOnHome(order);
             if (!shouldShow && (CLOSED_TRACKING_STATUSES.has(status) || DELIVERED_TRACKING_STATUSES.has(status))) forgetClosedHomeOrder(String(order.id || ""));
             return shouldShow;

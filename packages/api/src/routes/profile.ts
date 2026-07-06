@@ -10,6 +10,10 @@ import { deleteSupabaseAuthUser } from '../lib/supabaseUserDelete';
 const router = Router();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isMissionProfileDeal = (deal: any) => {
+  const template = String(deal?.appTemplate || '').toUpperCase();
+  return Boolean(deal?.appMissionType) || template === 'MISSION';
+};
 
 // GET /api/profile
 // Helper: build a full name from first + last (or fallback to existing).
@@ -357,7 +361,10 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
       };
     });
 
-    const formattedAppDeals = appUserDeals.map((deal: any) => {
+    const formattedAppDeals = appUserDeals.filter((deal: any) => {
+      const metadata = (deal.metadata || {}) as any;
+      return deal.type !== 'APP_MISSION' && !metadata.appMissionType && String(metadata.appTemplate || '').toUpperCase() !== 'MISSION';
+    }).map((deal: any) => {
       const metadata = (deal.metadata || {}) as any;
       const minOrderKr = Math.max(0, Number(metadata.minOrderKr || 0));
       const title = metadata.title || 'Personlig deal';
@@ -533,9 +540,12 @@ router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
     ]);
 
     const claimedSet = new Set(claimedIds);
+    const visibleClaimed = claimed.filter((deal) => !isMissionProfileDeal(deal));
+    const visibleGlobal = global.filter((deal) => !isMissionProfileDeal(deal));
+    const globalSet = new Set(visibleGlobal.map((deal) => deal.id));
     // Available = popup-deals som inte redan finns i claimed eller global
     // (annars dyker de upp dubbelt i Profile-listan).
-    const available = popupCandidates.filter((d) => !claimedSet.has(d.id));
+    const available = popupCandidates.filter((deal) => !claimedSet.has(deal.id) && !globalSet.has(deal.id) && !isMissionProfileDeal(deal));
 
     const formatDeal = (deal: any) => ({
       id: deal.id,
@@ -558,9 +568,9 @@ router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
     });
 
     res.json({
-      claimed: claimed.map(formatDeal),
+      claimed: visibleClaimed.map(formatDeal),
       available: available.map(formatDeal),
-      global: global.map(formatDeal),
+      global: visibleGlobal.map(formatDeal),
     });
   } catch (error) {
     console.error('Get claimed-deals error:', error);

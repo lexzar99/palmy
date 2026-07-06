@@ -33,6 +33,8 @@ import ViaEatsWordmark from "@/components/ViaEatsWordmark";
 
 type ProfileTab = "overview" | "orders" | "deals" | "addresses" | "settings" | "payments";
 type PreferredPaymentMethod = "APPLE_PAY" | "CARD" | "SWISH";
+const PROFILE_HIDDEN_ORDER_STATUSES = new Set(["AWAITING_PAYMENT", "CANCELLED", "REJECTED", "DELIVERY_FAILED"]);
+const PROFILE_HIDDEN_PAYMENT_STATUSES = new Set(["PENDING", "FAILED", "EXPIRED"]);
 type SavedPaymentMethod = {
   id: string;
   type?: string | null;
@@ -235,18 +237,28 @@ function ProfileContent() {
       setUser(profileRes.data);
       setEditName(profileRes.data.name || "");
       setEditEmail(profileRes.data.email || "");
-      setOrders(ordersRes.data || []);
-      setDeals(dealsRes.data || []);
+      setOrders(
+        (Array.isArray(ordersRes.data) ? ordersRes.data : []).filter((order: any) => {
+          const status = String(order?.status || "").toUpperCase();
+          const paymentStatus = String(order?.paymentStatus || "").toUpperCase();
+          return !PROFILE_HIDDEN_ORDER_STATUSES.has(status) && !PROFILE_HIDDEN_PAYMENT_STATUSES.has(paymentStatus);
+        }),
+      );
+      setDeals((Array.isArray(dealsRes.data) ? dealsRes.data : []).filter((deal: any) => deal?.source !== "APP_MISSION"));
       // Sammanställ alla deals — claimade först (av kunden), sen globala (auto-tillgängliga).
+      const isProfileDeal = (deal: any) => {
+        const template = String(deal?.appTemplate || deal?.template || "").toUpperCase();
+        return !deal?.appMissionType && template !== "MISSION" && deal?.source !== "APP_MISSION";
+      };
       const merged = [
         ...((claimedRes.data?.claimed || []) as any[]).map((d: any) => ({ ...d, _kind: 'CLAIMED' })),
         ...((claimedRes.data?.global || []) as any[]).map((d: any) => ({ ...d, _kind: 'GLOBAL' })),
-      ];
+      ].filter(isProfileDeal);
       setClaimedDeals(merged);
       // Available = popup-deals admin har skickat men användaren inte
       // klämt än. Visas som banners med "Spara erbjudande"-knapp så man
       // kan claima dem från Profile om man missade popupen vid app-start.
-      setAvailableDeals((claimedRes.data?.available || []) as any[]);
+      setAvailableDeals(((claimedRes.data?.available || []) as any[]).filter(isProfileDeal));
       setSavedAddresses(addrRes.data || []);
 
       // If user has no phone, prompt them to add one
