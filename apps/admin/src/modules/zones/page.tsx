@@ -61,17 +61,17 @@ function RestaurantOverrideModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={restaurant ? `${restaurant.name} override` : "Restaurant override"}
+      title={restaurant ? `${restaurant.name}, egna zoner` : "Egna zoner"}
       widthClassName="max-w-[1600px]"
-      footer={<div className="flex items-center justify-end gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => restaurant && onSave(restaurant.id, zones, freeDeliveryAbove)}>Save override</Button></div>}
+      footer={<div className="flex items-center justify-end gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => restaurant && onSave(restaurant.id, zones, freeDeliveryAbove)}>Spara zoner</Button></div>}
     >
       {restaurant ? (
         <div className="space-y-5">
           <div className="grid gap-4 md:grid-cols-3">
-            <MetricCard label="Zones" value={formatNumber(zones.length)} />
-            <MetricCard label="Status" value={restaurant.isOpen ? "Open" : "Closed"} />
+            <MetricCard label="Zoner" value={formatNumber(zones.length)} />
+            <MetricCard label="Status" value={restaurant.isOpen ? "Öppen" : "Stängd"} />
             <div className="surface-muted px-4 py-4">
-              <Field label="Free delivery above">
+              <Field label="Fri leverans över (kr)">
                 <Input type="number" value={freeDeliveryAbove} onChange={(event) => setFreeDeliveryAbove(Number(event.target.value))} />
               </Field>
             </div>
@@ -85,15 +85,15 @@ function RestaurantOverrideModal({
 
 function CitySettingsModal({ open, city, onClose, onChange }: { open: boolean; city: EnrichedCity | null; onClose: () => void; onChange: (patch: Partial<EnrichedCity>) => void }) {
   return (
-    <Modal open={open} onClose={onClose} title={city ? `${city.name} settings` : "City settings"} footer={<div className="flex justify-end"><Button onClick={onClose}>Close</Button></div>}>
+    <Modal open={open} onClose={onClose} title={city ? `${city.name}, inställningar` : "Stadsinställningar"} footer={<div className="flex justify-end"><Button onClick={onClose}>Stäng</Button></div>}>
       {city ? (
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Name"><Input value={city.name} onChange={(event) => onChange({ name: event.target.value })} /></Field>
+          <Field label="Namn"><Input value={city.name} onChange={(event) => onChange({ name: event.target.value })} /></Field>
           <Field label="Slug"><Input value={city.slug} onChange={(event) => onChange({ slug: event.target.value })} /></Field>
-          <Field label="Delivery mode"><Select value={city.deliveryMode} onChange={(event) => onChange({ deliveryMode: event.target.value as EnrichedCity["deliveryMode"] })}><option value="ALL">All</option><option value="ONLY_DELIVERY">Only delivery</option><option value="ONLY_PICKUP">Only pickup</option></Select></Field>
-          <Field label="Status"><Select value={city.isActive ? "active" : "inactive"} onChange={(event) => onChange({ isActive: event.target.value === "active" })}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
-          <Field label="Free delivery above"><Input type="number" value={city.freeDeliveryAbove} onChange={(event) => onChange({ freeDeliveryAbove: Number(event.target.value) })} /></Field>
-          <Field label="Fallback radius km"><Input type="number" value={city.radiusKm || 10} onChange={(event) => onChange({ radiusKm: Number(event.target.value) })} /></Field>
+          <Field label="Leveransmodell"><Select value={city.deliveryMode} onChange={(event) => onChange({ deliveryMode: event.target.value as EnrichedCity["deliveryMode"] })}><option value="ALL">Alla</option><option value="ONLY_DELIVERY">Endast leverans</option><option value="ONLY_PICKUP">Endast avhämtning</option></Select></Field>
+          <Field label="Status"><Select value={city.isActive ? "active" : "inactive"} onChange={(event) => onChange({ isActive: event.target.value === "active" })}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></Select></Field>
+          <Field label="Fri leverans över (kr)"><Input type="number" value={city.freeDeliveryAbove} onChange={(event) => onChange({ freeDeliveryAbove: Number(event.target.value) })} /></Field>
+          <Field label="Reservradie (km)"><Input type="number" value={city.radiusKm || 10} onChange={(event) => onChange({ radiusKm: Number(event.target.value) })} /></Field>
         </div>
       ) : null}
     </Modal>
