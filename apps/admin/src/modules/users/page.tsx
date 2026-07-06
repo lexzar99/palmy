@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Plus, UsersRound } from "lucide-react";
 import { deleteStaff, getStaff, inviteStaff, resetStaffPassword, staffQueryKey, updateStaff, type StaffRecord } from "@/modules/users/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs } from "@/shared/components/ui";
+import { TwoFAPage } from "@/modules/two-fa/page";
 import { formatDate, formatNumber } from "@/shared/utils/format";
 
 function StaffModal({ open, member, onClose }: { open: boolean; member: StaffRecord | null; onClose: () => void }) {
@@ -48,25 +50,39 @@ function StaffModal({ open, member, onClose }: { open: boolean; member: StaffRec
   });
 
   return (
-    <Modal open={open} onClose={onClose} title={member ? member.name : "Team member"} footer={<div className="flex items-center justify-between gap-2"><div>{member ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>Save</Button></div></div>}>
+    <Modal open={open} onClose={onClose} title={member ? member.name : "Teammedlem"} footer={<div className="flex items-center justify-between gap-2"><div>{member ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Radera</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>Spara</Button></div></div>}>
       {member ? (
         <div className="space-y-5">
-          {passwordMessage ? <div className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-4 text-sm text-[var(--accent)]">Temporary password: <strong>{passwordMessage}</strong></div> : null}
+          {passwordMessage ? <div className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-4 text-sm text-[var(--accent)]">Tillfälligt lösenord: <strong>{passwordMessage}</strong></div> : null}
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
-            <Field label="Role"><Select value={role} onChange={(event) => setRole(event.target.value)}><option value="SUPER_ADMIN">SUPER_ADMIN</option><option value="STAFF">STAFF</option><option value="VIEWER">VIEWER</option><option value="ADMIN">ADMIN</option></Select></Field>
-            <Field label="Email"><Input value={member.email} disabled /></Field>
-            <Field label="Status"><Select value={active ? "active" : "inactive"} onChange={(event) => setActive(event.target.value === "active")}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
+            <Field label="Namn"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
+            <Field label="Roll"><Select value={role} onChange={(event) => setRole(event.target.value)}><option value="SUPER_ADMIN">SUPER_ADMIN</option><option value="STAFF">STAFF</option><option value="VIEWER">VIEWER</option><option value="ADMIN">ADMIN</option></Select></Field>
+            <Field label="E-post"><Input value={member.email} disabled /></Field>
+            <Field label="Status"><Select value={active ? "active" : "inactive"} onChange={(event) => setActive(event.target.value === "active")}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></Select></Field>
           </div>
-          <Button variant="secondary" onClick={() => resetMutation.mutate()}><KeyRound size={16} /> Reset password</Button>
+          <Button variant="secondary" onClick={() => resetMutation.mutate()}><KeyRound size={16} /> Återställ lösenord</Button>
         </div>
       ) : null}
     </Modal>
   );
 }
 
+type UsersTab = "anvandare" | "sakerhet";
+
 export function UsersPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [tab, setTab] = useState<UsersTab>(tabParam === "sakerhet" ? "sakerhet" : "anvandare");
+  useEffect(() => {
+    const next: UsersTab = tabParam === "sakerhet" ? "sakerhet" : "anvandare";
+    if (next !== tab) setTab(next);
+  }, [tabParam]);
+  const changeTab = (t: UsersTab) => {
+    setTab(t);
+    router.replace(`/users?tab=${t}`, { scroll: false });
+  };
   const [inviteOpen, setInviteOpen] = useState(false);
   const [activeMember, setActiveMember] = useState<StaffRecord | null>(null);
   const [name, setName] = useState("");
@@ -89,35 +105,49 @@ export function UsersPage() {
   });
 
   if (staff.isLoading) {
-    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading users and roles...</Surface>;
+    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar användare och roller...</Surface>;
   }
 
   if (staff.isError || !staff.data) {
-    return <ErrorPanel title="Users module could not be loaded" description="The staff endpoint failed to respond." action={<Button onClick={() => void staff.refetch()}>Retry</Button>} />;
+    return <ErrorPanel title="Användarmodulen kunde inte laddas" description="Staff-endpointen svarar inte." action={<Button onClick={() => void staff.refetch()}>Försök igen</Button>} />;
   }
 
   return (
     <div className="page-stack">
       <PageHeader
-        title="Users"
-        actions={<Button variant="primary" onClick={() => setInviteOpen(true)}><Plus size={13} /> Invite user</Button>}
+        breadcrumb="System"
+        title="Användare"
+        actions={tab === "anvandare" ? <Button variant="primary" onClick={() => setInviteOpen(true)}><Plus size={13} /> Bjud in användare</Button> : undefined}
       />
 
-      {temporaryPassword ? <Surface className="px-6 py-5 text-sm text-[#ffe6bf]">Temporary password for the latest invite: <strong>{temporaryPassword}</strong></Surface> : null}
+      <Tabs<UsersTab>
+        value={tab}
+        onChange={changeTab}
+        options={[
+          { value: "anvandare", label: "Användare" },
+          { value: "sakerhet", label: "Säkerhet (2FA)" },
+        ]}
+      />
+
+      {tab === "sakerhet" && <TwoFAPage embedded />}
+
+      {tab === "anvandare" && (<>
+
+      {temporaryPassword ? <Surface className="px-6 py-5 text-sm text-[#ffe6bf]">Tillfälligt lösenord för senaste inbjudan: <strong>{temporaryPassword}</strong></Surface> : null}
 
       <Surface className="px-6 py-6">
         {staff.data.length === 0 ? (
-          <EmptyState title="No admin users found" />
+          <EmptyState title="Inga admin-användare" />
         ) : (
           <div className="table-shell">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Role</th>
-                  <th>Scope</th>
+                  <th>Namn</th>
+                  <th>Roll</th>
+                  <th>Omfattning</th>
                   <th>Status</th>
-                  <th>Created</th>
+                  <th>Skapad</th>
                   <th />
                 </tr>
               </thead>
@@ -131,10 +161,10 @@ export function UsersPage() {
                       </div>
                     </td>
                     <td><Badge tone="info">{member.role}</Badge></td>
-                    <td>{member.restaurantName || "Platform"}</td>
-                    <td><Badge tone={member.active ? "success" : "danger"}>{member.active ? "Active" : "Inactive"}</Badge></td>
+                    <td>{member.restaurantName || "Plattform"}</td>
+                    <td><Badge tone={member.active ? "success" : "danger"}>{member.active ? "Aktiv" : "Inaktiv"}</Badge></td>
                     <td>{formatDate(member.createdAt)}</td>
-                    <td><div className="flex justify-end"><Button variant="secondary" onClick={() => setActiveMember(member)}><UsersRound size={16} /> Open</Button></div></td>
+                    <td><div className="flex justify-end"><Button variant="secondary" onClick={() => setActiveMember(member)}><UsersRound size={16} /> Öppna</Button></div></td>
                   </tr>
                 ))}
               </tbody>
@@ -143,15 +173,16 @@ export function UsersPage() {
         )}
       </Surface>
 
-      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite team member" footer={<div className="flex justify-end gap-2"><Button onClick={() => setInviteOpen(false)}>Close</Button><Button variant="primary" onClick={() => inviteMutation.mutate()} disabled={inviteMutation.isPending || !name.trim() || !email.trim()}>Create account</Button></div>}>
+      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Bjud in teammedlem" footer={<div className="flex justify-end gap-2"><Button onClick={() => setInviteOpen(false)}>Stäng</Button><Button variant="primary" onClick={() => inviteMutation.mutate()} disabled={inviteMutation.isPending || !name.trim() || !email.trim()}>Skapa konto</Button></div>}>
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
-          <Field label="Email / login"><Input value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
-          <Field label="Role"><Select value={role} onChange={(event) => setRole(event.target.value)}><option value="SUPER_ADMIN">SUPER_ADMIN</option><option value="STAFF">STAFF</option><option value="VIEWER">VIEWER</option><option value="ADMIN">ADMIN</option></Select></Field>
+          <Field label="Namn"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
+          <Field label="E-post / inloggning"><Input value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
+          <Field label="Roll"><Select value={role} onChange={(event) => setRole(event.target.value)}><option value="SUPER_ADMIN">SUPER_ADMIN</option><option value="STAFF">STAFF</option><option value="VIEWER">VIEWER</option><option value="ADMIN">ADMIN</option></Select></Field>
         </div>
       </Modal>
 
       <StaffModal open={Boolean(activeMember)} member={activeMember} onClose={() => setActiveMember(null)} />
+      </>)}
     </div>
   );
 }

@@ -26,18 +26,17 @@ import {
   Map,
   MenuSquare,
   Moon,
-  Network,
   Pin,
-  ReceiptText,
   Search,
   Sun,
-  Shield,
   Star,
   Store,
   Tablet,
   TicketPercent,
   Users,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { getSystemHealth, healthQueryKey } from "@/modules/dashboard/api";
 import { cn } from "@/shared/utils/cn";
 import { clearStoredAdminSession } from "@/shared/auth/storage";
 import { getStoredTheme, setStoredTheme, type Theme } from "@/shared/store/theme";
@@ -64,7 +63,6 @@ const SECTIONS: NavSection[] = [
     label: "Katalog",
     items: [
       { href: "/restaurants", label: "Restauranger", icon: Store },
-      { href: "/brands", label: "Kedjor", icon: Network },
       { href: "/menu", label: "Meny", icon: MenuSquare },
       { href: "/categories", label: "Kategorier", icon: Filter },
       { href: "/zones", label: "Zoner", icon: Map },
@@ -87,14 +85,11 @@ const SECTIONS: NavSection[] = [
     label: "System",
     items: [
       { href: "/finance", label: "Ekonomi", icon: CircleDollarSign },
-      { href: "/tiers", label: "Tiers", icon: Shield },
-      { href: "/receipts", label: "Kvitton", icon: ReceiptText },
       { href: "/users", label: "Användare", icon: Users },
       { href: "/engines", label: "Motorn", icon: Zap },
       { href: "/api-health", label: "API-status", icon: Gauge },
       { href: "/audit-log", label: "Audit-log", icon: History },
       { href: "/platform-settings", label: "Inställningar", icon: Building2 },
-      { href: "/2fa", label: "2FA", icon: Shield },
     ],
   },
 ];
@@ -119,6 +114,13 @@ function isActiveHref(pathname: string, href: string): boolean {
 export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Kräver åtgärd-badges: ordrar som väntar accept + systemvarningar.
+  const health = useQuery({ queryKey: healthQueryKey, queryFn: getSystemHealth, refetchInterval: 60_000, retry: false });
+  const navBadges: Record<string, number> = {
+    "/orders": health.data?.operations.pendingOrders ?? 0,
+    "/dashboard": health.data?.alerts.filter((a) => a.level === "warning").length ?? 0,
+  };
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [hydrated, setHydrated] = useState(false);
   const [theme, setTheme] = useState<Theme>("light");
@@ -280,6 +282,24 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
                       <Link key={item.href} href={item.href} className={cn("nav-link", active && "nav-link-active")}>
                         <Icon size={16} />
                         <span>{item.label}</span>
+                        {(navBadges[item.href] ?? 0) > 0 && (
+                          <span
+                            style={{
+                              marginLeft: "auto",
+                              minWidth: 18,
+                              padding: "1px 6px",
+                              borderRadius: 999,
+                              background: "var(--accent)",
+                              color: "#fff",
+                              fontSize: 10.5,
+                              fontWeight: 800,
+                              textAlign: "center",
+                              lineHeight: "16px",
+                            }}
+                          >
+                            {navBadges[item.href]}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}
@@ -342,10 +362,25 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
                 key={item.href}
                 href={item.href}
                 className={cn("nav-rail-icon", active && "is-active")}
-                title={item.label}
+                title={(navBadges[item.href] ?? 0) > 0 ? `${item.label} (${navBadges[item.href]})` : item.label}
                 aria-label={item.label}
+                style={{ position: "relative" }}
               >
                 <Icon size={18} />
+                {(navBadges[item.href] ?? 0) > 0 && (
+                  <span
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      top: 5,
+                      right: 5,
+                      width: 7,
+                      height: 7,
+                      borderRadius: 999,
+                      background: "var(--accent)",
+                    }}
+                  />
+                )}
               </Link>
             );
           })}

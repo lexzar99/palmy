@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronRight, ChevronUp, GripVertical, Loader2, Plus, Search, Tags, Upload } from "lucide-react";
-import { dealsQueryKey, getAutomaticDeals, type AutomaticDealRecord, type DealProductRef, type DealRestaurantRef } from "@/modules/deals/api";
-import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
+import { dealsQueryKey, getAutomaticDeals, type AutomaticDealRecord } from "@/modules/deals/api";
 import {
   copyCategory,
   copyExtraGroup,
@@ -155,10 +154,10 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
   );
 }
 
-function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, restaurants, products, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; restaurants: DealRestaurantRef[]; products: DealProductRef[]; onClose: () => void }) {
+function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; onClose: () => void }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ name: "", description: "", note: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, rewardable: false, rewardPointsMultiplier: 1.5, rewardPointsPrice: "" as string | number, localPriceLocked: false, discountActive: false, discountPercent: 0, extraGroupIds: [] as string[] });
-  const [promotionModalOpen, setPromotionModalOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -412,7 +411,19 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             <div>
               <p className="card-label">Kampanjgenväg</p>
             </div>
-            <Button variant="secondary" onClick={() => setPromotionModalOpen(true)} disabled={!product}>{productDeal ? "Redigera produktdeal" : "Skapa produktdeal"}</Button>
+            <Button
+              variant="secondary"
+              disabled={!product}
+              onClick={() =>
+                router.push(
+                  productDeal
+                    ? `/deals/kampanj/${productDeal.id}`
+                    : `/deals/kampanj/new?scope=PRODUCT&restaurant=${restaurantId}&target=${product?.id ?? ""}&title=${encodeURIComponent(product ? `${product.name} promo` : "")}`,
+                )
+              }
+            >
+              {productDeal ? "Redigera produktdeal" : "Skapa produktdeal"}
+            </Button>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {product ? (productDeal ? <Badge tone="neutral">Direkt produktdeal</Badge> : <Badge tone="neutral">Ingen produktdeal</Badge>) : <Badge tone="neutral">Spara produkten först</Badge>}
@@ -500,23 +511,6 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
         </div>
       </div>
 
-      <AutomaticDealModal
-        open={promotionModalOpen}
-        onClose={() => setPromotionModalOpen(false)}
-        restaurants={restaurants}
-        categories={categories}
-        products={products}
-        initialDeal={productDeal}
-        prefill={{
-          restaurantId,
-          scopeType: "PRODUCT",
-          targetIds: product ? [product.id] : [],
-          title: product ? `${product.name} promo` : "",
-          badgeText: productDeal?.badgeText || "",
-          discountType: productDeal?.discountType === "PERCENTAGE" ? "PERCENTAGE" : "FIXED_PRICE",
-        }}
-        restaurantLocked
-      />
     </Modal>
   );
 }
@@ -2434,7 +2428,7 @@ export function MenuPage() {
       {activeRestaurantId ? (
         <>
           <CategoryModal open={categoryModalOpen} restaurantId={activeRestaurantId} category={activeCategory} onClose={() => setCategoryModalOpen(false)} />
-          <ProductModal open={productModalOpen} restaurantId={activeRestaurantId} product={activeProduct} categories={categories.data || []} extraGroups={groups.data || []} onClose={() => setProductModalOpen(false)} existingDeals={(automaticDeals.data || []).filter((deal) => deal.restaurantId === activeRestaurantId || deal.applicableRestaurantIds?.includes(activeRestaurantId) || deal.isGlobal)} restaurants={(restaurants.data || []).map((restaurant) => ({ id: restaurant.id, name: restaurant.name, slug: restaurant.slug, city: restaurant.city || null })) as DealRestaurantRef[]} products={products.data || []} />
+          <ProductModal open={productModalOpen} restaurantId={activeRestaurantId} product={activeProduct} categories={categories.data || []} extraGroups={groups.data || []} onClose={() => setProductModalOpen(false)} existingDeals={(automaticDeals.data || []).filter((deal) => deal.restaurantId === activeRestaurantId || deal.applicableRestaurantIds?.includes(activeRestaurantId) || deal.isGlobal)} />
           <ExtraGroupModal open={groupModalOpen} restaurantId={activeRestaurantId} group={activeGroup} categories={categories.data || []} onClose={() => setGroupModalOpen(false)} />
           <ImportFromOtherModal
             open={importModalOpen}

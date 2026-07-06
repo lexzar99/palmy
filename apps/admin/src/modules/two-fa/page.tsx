@@ -31,7 +31,7 @@ type TrustedDevice = {
   expiresAt: string;
 };
 
-export function TwoFAPage() {
+export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
   const queryClient = useQueryClient();
   const [setupData, setSetupData] = useState<{ qrDataUrl: string; secret: string } | null>(null);
   const [code, setCode] = useState("");
@@ -106,7 +106,7 @@ export function TwoFAPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader title="Tvåfaktor + enheter" />
+      {!embedded && <PageHeader title="Tvåfaktor + enheter" />}
 
       {/* Status-banner */}
       <Surface className="px-6 py-5">

@@ -99,9 +99,17 @@ Order (userDealId valideras igen: ägarskap, expiry, minOrder, restaurang-scope)
 Monokrom, svartvit (guld/orange är kundappens färg). Kort copy. Ordermodal =
 statustrack + en tydlig nästa-steg-knapp. Nav-grupper: Drift | Katalog |
 Tillväxt | System — en funktion har EN plats. Deals-huben: Kampanjer | BOGO |
-I appen (hantering + live-förhandsvisning). Kuponger bara på /coupons.
+I appen (hantering + live-förhandsvisning), med Utfall-kolumn (hämtade/
+inlösta från `stats` i GET /admin/deals). Kuponger bara på /coupons.
 Vpoints-flikar: Översikt | Intjäning | Värva vän | Välkomst | Bonuskort |
 Aktivitet. Logg-listor visar 15-20 rader + "Visa fler", aldrig allt.
+Flik-hubbar: Ekonomi = Utbetalningar | Tiers | Provision & moms; Användare =
+Användare | Säkerhet (2FA); Inställningar = Allmänt | Kvitto-mall. Gamla
+routes (/tiers, /2fa, /receipts, /finance/installningar) redirectar dit.
+Cmd+K söker även kunder/ordrar/restauranger via GET /api/admin/search
+(djuplänkar: /customers?id=, /orders?order=). Deal-formuläret har "Skicka
+push" som förifyller push-composern (?title=&body=&restaurant=).
+Kedjor (/brands) är gömd ur nav tills kedjestödet är klart (nås via Cmd+K).
 
 ## Deploy och miljö
 

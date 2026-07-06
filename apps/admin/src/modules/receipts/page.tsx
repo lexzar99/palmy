@@ -228,7 +228,7 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
   );
 }
 
-export function ReceiptsPage() {
+export function ReceiptsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ReceiptTemplate | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -286,10 +286,8 @@ export function ReceiptsPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader
-        breadcrumb="System / Kvitto-mall"
-        title="Utskriftsmall"
-        actions={
+      {embedded ? (
+        <div className="flex items-center justify-end gap-2">
           <>
             {saveStatus === "saved" && <span className="text-[13px] font-bold text-[var(--success-text)]">Sparat</span>}
             {saveStatus === "error" && <span className="text-[13px] font-bold text-[var(--danger-text)]">Kunde inte spara</span>}
@@ -300,8 +298,25 @@ export function ReceiptsPage() {
               {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Spara mall
             </Button>
           </>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          breadcrumb="System / Kvitto-mall"
+          title="Utskriftsmall"
+          actions={
+          <>
+            {saveStatus === "saved" && <span className="text-[13px] font-bold text-[var(--success-text)]">Sparat</span>}
+            {saveStatus === "error" && <span className="text-[13px] font-bold text-[var(--danger-text)]">Kunde inte spara</span>}
+            <Button variant="secondary" onClick={handlePrintTest}>
+              <Printer size={14} /> Skriv ut test
+            </Button>
+            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!draft || saveMutation.isPending}>
+              {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Spara mall
+            </Button>
+          </>
+          }
+        />
+      )}
 
       <p className="-mt-2 text-[13px] text-[var(--text-secondary)]">
         Gäller kvitton som skrivs ut på restaurangernas kvittoskrivare. Ändringar syns direkt i förhandsvisningen.

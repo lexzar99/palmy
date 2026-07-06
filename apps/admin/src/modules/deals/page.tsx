@@ -252,6 +252,16 @@ function dealRestaurantsLabel(deal: AutomaticDealRecord, restaurantName: (id: st
   return "Alla";
 }
 
+/** "12 hämtade · 5 inlösta" eller "–" när ingen aktivitet finns. */
+function dealOutcomeLabel(deal: AutomaticDealRecord): string {
+  const claims = deal.stats?.claims ?? 0;
+  const redeemed = deal.stats?.redeemed ?? 0;
+  const used = deal.usageCount ?? 0;
+  if (claims === 0 && redeemed === 0 && used === 0) return "–";
+  if (claims === 0) return `${used} använda`;
+  return `${claims} hämtade · ${redeemed} inlösta`;
+}
+
 /** Var visas dealen: appen, webben eller båda. */
 function dealVisibilityLabel(deal: AutomaticDealRecord): { label: string; tone: TypeTone } {
   if (deal.appEnabled && deal.showOnSite) return { label: "App + webb", tone: "info" };
@@ -282,7 +292,7 @@ function DealTable({
   togglePending: boolean;
 }) {
   const typeLabelFn = getTypeLabel();
-  const cols = "1.6fr 0.8fr 0.9fr 1fr 0.9fr 90px 56px";
+  const cols = "1.6fr 0.8fr 0.9fr 0.9fr 0.9fr 0.9fr 90px 56px";
   return (
     <Surface className="overflow-hidden p-0">
       {deals.length === 0 ? (
@@ -299,6 +309,7 @@ function DealTable({
             <span>Visas i</span>
             <span>Restauranger</span>
             <span>Period</span>
+            <span>Utfall</span>
             <span>Status</span>
             <span />
           </div>
@@ -320,6 +331,7 @@ function DealTable({
                 <span><TypeBadge tone={visibility.tone}>{visibility.label}</TypeBadge></span>
                 <span className="truncate text-[var(--text-secondary)]">{getRestaurants(deal)}</span>
                 <span className="text-[var(--text-secondary)]">{getPeriod(deal)}</span>
+                <span className="text-[var(--text-secondary)]">{dealOutcomeLabel(deal)}</span>
                 <span>
                   <Toggle checked={deal.isActive} disabled={togglePending} onChange={(next) => onToggle(deal, next)} />
                 </span>
@@ -479,7 +491,7 @@ function AppDealsTable({
           <span>Värde</span>
           <span>Placering</span>
           <span>Målgrupp</span>
-          <span>Hämtad</span>
+          <span>Utfall</span>
           <span>Status</span>
         </div>
         {deals.map((deal, i, arr) => (
@@ -500,7 +512,7 @@ function AppDealsTable({
             <span className="font-extrabold">{appDealValueLabel(deal)}</span>
             <span className="text-[var(--text-secondary)]">{APP_PLACEMENT_LABELS[deal.appPlacement ?? "HOME_TOP"] ?? deal.appPlacement}</span>
             <span className="text-[var(--text-secondary)]">{(deal.appAudience ?? "ALL") === "ALL" ? "Alla" : (deal.appAudience ?? "").toLowerCase().replace(/_/g, " ")}</span>
-            <span className="text-[var(--text-secondary)]">{deal.usageCount ?? 0}×</span>
+            <span className="text-[var(--text-secondary)]">{dealOutcomeLabel(deal)}</span>
             <span>
               <Toggle checked={deal.isActive} onChange={(next) => onToggle(deal, next)} disabled={togglePending} />
             </span>

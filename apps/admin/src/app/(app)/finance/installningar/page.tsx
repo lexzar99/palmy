@@ -1,5 +1,6 @@
-import { FinanceSettingsPage } from "@/modules/finance/settings-page";
+import { redirect } from "next/navigation";
 
+// Satserna bor numera som flik under Ekonomi.
 export default function FinanceSettingsRoutePage() {
-  return <FinanceSettingsPage />;
+  redirect("/finance?tab=satser");
 }

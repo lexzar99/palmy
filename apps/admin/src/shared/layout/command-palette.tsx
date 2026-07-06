@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiGet } from "@/shared/api/client";
 import {
   AlertTriangle,
   BellRing,
@@ -32,14 +33,24 @@ import {
 } from "lucide-react";
 import { cn } from "@/shared/utils/cn";
 
+type CommandGroup = "Drift" | "Katalog" | "Tillväxt" | "System" | "Kunder" | "Ordrar" | "Restauranger";
+
 type CommandItem = {
   id: string;
   label: string;
+  sublabel?: string;
   href: string;
   icon: LucideIcon;
-  group: "Drift" | "Katalog" | "Tillväxt" | "System";
+  group: CommandGroup;
   keywords?: string;
 };
+
+// Svar från GET /api/admin/search — globalt sök över kunder, ordrar, restauranger.
+interface GlobalSearchResponse {
+  customers: { id: string; name: string | null; email: string | null; phone: string | null }[];
+  orders: { id: string; orderNumber: string; customerName: string; status: string; restaurant?: { name: string } | null }[];
+  restaurants: { id: string; name: string; slug: string; city: string | null }[];
+}
 
 const COMMANDS: CommandItem[] = [
   // Drift
@@ -53,7 +64,7 @@ const COMMANDS: CommandItem[] = [
 
   // Katalog
   { id: "restaurants", label: "Restauranger", href: "/restaurants", icon: Store, group: "Katalog" },
-  { id: "brands", label: "Kedjor", href: "/brands", icon: Network, group: "Katalog", keywords: "brand kedja chain" },
+  { id: "brands", label: "Kedjor", href: "/brands", icon: Network, group: "Katalog", keywords: "brand kedja chain natverk" },
   { id: "menu", label: "Meny", href: "/menu", icon: MenuSquare, group: "Katalog", keywords: "ratter produkter items" },
   { id: "categories", label: "Kategorier", href: "/categories", icon: Filter, group: "Katalog" },
   { id: "zones", label: "Zoner", href: "/zones", icon: Map, group: "Katalog", keywords: "leverans zone stad city" },
@@ -68,14 +79,14 @@ const COMMANDS: CommandItem[] = [
 
   // System
   { id: "finance", label: "Ekonomi", href: "/finance", icon: CircleDollarSign, group: "System", keywords: "finance utbetalning intakt" },
-  { id: "tiers", label: "Tiers", href: "/tiers", icon: Shield, group: "System", keywords: "abonnemang placering medlem" },
-  { id: "receipts", label: "Kvitton", href: "/receipts", icon: ReceiptText, group: "System" },
+  { id: "tiers", label: "Tiers", href: "/finance?tab=tiers", icon: Shield, group: "System", keywords: "abonnemang placering guld silver brons" },
+  { id: "receipts", label: "Kvitto-mall", href: "/platform-settings?tab=kvitto", icon: ReceiptText, group: "System", keywords: "kvitto utskrift mall" },
   { id: "users", label: "Admin-användare", href: "/users", icon: Users, group: "System", keywords: "anvandare staff admin" },
   { id: "engines", label: "Motorn", href: "/engines", icon: Zap, group: "System", keywords: "automation puls handelser" },
   { id: "api-health", label: "API-status", href: "/api-health", icon: Gauge, group: "System", keywords: "uptime halsa status" },
   { id: "audit-log", label: "Audit-log", href: "/audit-log", icon: History, group: "System", keywords: "logg compliance" },
   { id: "platform-settings", label: "Plattform-inställningar", href: "/platform-settings", icon: Building2, group: "System", keywords: "foretag company settings" },
-  { id: "2fa", label: "Tvåfaktor (2FA)", href: "/2fa", icon: Shield, group: "System", keywords: "totp sakerhet" },
+  { id: "2fa", label: "Tvåfaktor (2FA)", href: "/users?tab=sakerhet", icon: Shield, group: "System", keywords: "totp sakerhet 2fa" },
 ];
 
 function matches(item: CommandItem, query: string): boolean {
@@ -88,26 +99,83 @@ function matches(item: CommandItem, query: string): boolean {
     .every((token) => haystack.includes(token));
 }
 
+const GROUP_ORDER: CommandGroup[] = ["Kunder", "Ordrar", "Restauranger", "Drift", "Katalog", "Tillväxt", "System"];
+
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [hits, setHits] = useState<GlobalSearchResponse | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => COMMANDS.filter((c) => matches(c, query)), [query]);
 
+  // Globalt data-sök: debounce 250 ms, ignorera svar som kommit i fel ordning.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setHits(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      apiGet<GlobalSearchResponse>(`/admin/search?q=${encodeURIComponent(q)}`)
+        .then((r) => { if (!cancelled) setHits(r); })
+        .catch(() => { if (!cancelled) setHits(null); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query]);
+
+  const hitItems = useMemo<CommandItem[]>(() => {
+    if (!hits) return [];
+    const items: CommandItem[] = [];
+    for (const c of hits.customers) {
+      items.push({
+        id: `customer-${c.id}`,
+        label: c.name || c.phone || c.email || c.id,
+        sublabel: [c.phone, c.email].filter(Boolean).join(" · ") || undefined,
+        href: `/customers?id=${c.id}`,
+        icon: ContactRound,
+        group: "Kunder",
+      });
+    }
+    for (const o of hits.orders) {
+      items.push({
+        id: `order-${o.id}`,
+        label: `#${o.orderNumber} · ${o.customerName}`,
+        sublabel: [o.restaurant?.name, o.status].filter(Boolean).join(" · ") || undefined,
+        href: `/orders?order=${o.id}`,
+        icon: ClipboardList,
+        group: "Ordrar",
+      });
+    }
+    for (const r of hits.restaurants) {
+      items.push({
+        id: `restaurant-${r.id}`,
+        label: r.name,
+        sublabel: r.city || undefined,
+        href: `/restaurants/${r.id}`,
+        icon: Store,
+        group: "Restauranger",
+      });
+    }
+    return items;
+  }, [hits]);
+
   const grouped = useMemo(() => {
-    const groups: Record<CommandItem["group"], CommandItem[]> = { Drift: [], Katalog: [], "Tillväxt": [], System: [] };
+    const groups = Object.fromEntries(GROUP_ORDER.map((g) => [g, [] as CommandItem[]])) as Record<CommandGroup, CommandItem[]>;
+    hitItems.forEach((item) => groups[item.group].push(item));
     filtered.forEach((item) => groups[item.group].push(item));
     return groups;
-  }, [filtered]);
+  }, [filtered, hitItems]);
 
-  // Flat list so up/down keys can move across groups
-  const flatItems = filtered;
+  // Flat list so up/down keys can move across groups — data-träffar först.
+  const flatItems = useMemo(() => GROUP_ORDER.flatMap((g) => grouped[g]), [grouped]);
 
   useEffect(() => {
     if (open) {
       setQuery("");
+      setHits(null);
       setActiveIndex(0);
       // Focus next tick so the input is mounted
       const id = requestAnimationFrame(() => inputRef.current?.focus());
@@ -155,7 +223,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         <input
           ref={inputRef}
           className="cmdk-input"
-          placeholder="Sök sida, kund, action…"
+          placeholder="Sök sida, kund, order, restaurang…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={onKeyDown}
@@ -164,7 +232,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           {flatItems.length === 0 ? (
             <div className="cmdk-empty">Inget hittades för &ldquo;{query}&rdquo;</div>
           ) : (
-            (["Drift", "Katalog", "Tillväxt", "System"] as const).map((group) => {
+            GROUP_ORDER.map((group) => {
               const items = grouped[group];
               if (items.length === 0) return null;
               return (
@@ -183,6 +251,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                       >
                         <Icon size={15} />
                         <span>{item.label}</span>
+                        {item.sublabel ? <span style={{ marginLeft: "auto", fontSize: 11.5, color: "var(--text-muted)" }}>{item.sublabel}</span> : null}
                       </button>
                     );
                   })}

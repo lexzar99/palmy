@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Save, Check, AlertCircle } from "lucide-react";
-import { Button, Field, Input, PageHeader, Textarea, Toggle } from "@/shared/components/ui";
+import { Button, Field, Input, PageHeader, Tabs, Textarea, Toggle } from "@/shared/components/ui";
+import { ReceiptsPage } from "@/modules/receipts/page";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import {
   getPlatformSettings,
@@ -12,8 +14,22 @@ import {
   type PlatformSettings,
 } from "@/modules/platform-settings/api";
 
+type SettingsTab = "allmant" | "kvitto";
+
 export function PlatformSettingsPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [tab, setTab] = useState<SettingsTab>(tabParam === "kvitto" ? "kvitto" : "allmant");
+  useEffect(() => {
+    const next: SettingsTab = tabParam === "kvitto" ? "kvitto" : "allmant";
+    if (next !== tab) setTab(next);
+  }, [tabParam]);
+  const changeTab = (t: SettingsTab) => {
+    setTab(t);
+    router.replace(`/platform-settings?tab=${t}`, { scroll: false });
+  };
 
   const settings = useQuery({
     queryKey: platformSettingsQueryKey,
@@ -86,12 +102,27 @@ export function PlatformSettingsPage() {
         breadcrumb="System"
         title="Inställningar"
         actions={
-          <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : savedFlash ? <Check size={16} /> : <Save size={16} />}
-            {saveMutation.isPending ? "Sparar..." : savedFlash ? "Sparat!" : "Spara ändringar"}
-          </Button>
+          tab === "allmant" ? (
+            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : savedFlash ? <Check size={16} /> : <Save size={16} />}
+              {saveMutation.isPending ? "Sparar..." : savedFlash ? "Sparat!" : "Spara ändringar"}
+            </Button>
+          ) : undefined
         }
       />
+
+      <Tabs<SettingsTab>
+        value={tab}
+        onChange={changeTab}
+        options={[
+          { value: "allmant", label: "Allmänt" },
+          { value: "kvitto", label: "Kvitto-mall" },
+        ]}
+      />
+
+      {tab === "kvitto" && <ReceiptsPage embedded />}
+
+      {tab === "allmant" && (<>
 
       {saveMutation.isError && (
         <div className="surface px-5 py-4">
@@ -305,6 +336,7 @@ export function PlatformSettingsPage() {
           )}
         </div>
       </div>
+      </>)}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, Loader2, Send, Smartphone, XCircle } from "lucide-react";
 import { getCities, zonesCitiesQueryKey } from "@/modules/zones/api";
@@ -109,8 +110,22 @@ function targetLabel(target: PushLogRecord["target"]) {
 
 export function PushPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<TargetMode>("all");
-  const [form, setForm] = useState<ComposerForm>(EMPTY_FORM);
+  // Förifyllning från t.ex. deal-formulärets "Skicka push": ?title=&body=&restaurant=<slug>
+  const [form, setForm] = useState<ComposerForm>(() => {
+    const title = searchParams.get("title") ?? "";
+    const body = searchParams.get("body") ?? "";
+    const restaurantSlug = searchParams.get("restaurant") ?? "";
+    if (!title && !body && !restaurantSlug) return EMPTY_FORM;
+    return {
+      ...EMPTY_FORM,
+      title,
+      body,
+      linkType: restaurantSlug ? "restaurant" : "none",
+      restaurantSlug,
+    };
+  });
   const [result, setResult] = useState<PushResult | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const HISTORY_PAGE = 20;

@@ -1,5 +1,6 @@
-import { ReceiptsPage } from "@/modules/receipts/page";
+import { redirect } from "next/navigation";
 
-export default function RouteReceiptsPage() {
-  return <ReceiptsPage />;
+// Kvitto-mallen bor numera som flik under Inställningar.
+export default function ReceiptsRoutePage() {
+  redirect("/platform-settings?tab=kvitto");
 }

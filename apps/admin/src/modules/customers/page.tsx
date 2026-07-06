@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, ChevronRight, Loader2, MapPin, Plus, ShoppingBag, Wallet } from "lucide-react";
 import {
@@ -359,6 +360,9 @@ export function CustomersPage() {
   const [phoneFilter, setPhoneFilter] = useState("");
   const [page, setPage] = useState(1);
   const [activeCustomer, setActiveCustomer] = useState<CustomerRecord | null>(null);
+  // Djuplänk från Cmd+K: ?id= öppnar kundmodalen direkt.
+  const searchParams = useSearchParams();
+  const [deepLinkId, setDeepLinkId] = useState<string | null>(searchParams.get("id"));
 
   const customers = useQuery({ queryKey: customersQueryKey, queryFn: getCustomers });
 
@@ -480,7 +484,7 @@ export function CustomersPage() {
         )}
       </Surface>
 
-      <CustomerModal customerId={activeCustomer?.id || null} open={Boolean(activeCustomer)} onClose={() => setActiveCustomer(null)} />
+      <CustomerModal customerId={activeCustomer?.id || deepLinkId} open={Boolean(activeCustomer) || Boolean(deepLinkId)} onClose={() => { setActiveCustomer(null); setDeepLinkId(null); }} />
     </div>
   );
 }

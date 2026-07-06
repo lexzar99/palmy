@@ -112,7 +112,7 @@ function TierModal({ restaurant, open, onClose }: { restaurant: ControlCenterRes
   );
 }
 
-export function TiersPage() {
+export function TiersPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [activeRestaurant, setActiveRestaurant] = useState<ControlCenterRestaurantSnapshot | null>(null);
   const restaurants = useQuery({ queryKey: ["tiers", "restaurants"], queryFn: getRestaurantOverview });
 
@@ -127,7 +127,7 @@ export function TiersPage() {
   if (restaurants.isLoading) {
     return (
       <div className="page-stack">
-        <PageHeader breadcrumb="System" title="Tiers" />
+        {!embedded && <PageHeader breadcrumb="System" title="Tiers" />}
         <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar tier-systemet…</Surface>
       </div>
     );
@@ -139,7 +139,7 @@ export function TiersPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader breadcrumb="System" title="Tiers" />
+      {!embedded && <PageHeader breadcrumb="System" title="Tiers" />}
 
       <div className="grid gap-3.5 md:grid-cols-3">
         {TIER_CARDS.map((tier) => {

@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, RefreshCw, Search, Settings2 } from "lucide-react";
+import { Loader2, RefreshCw, Search } from "lucide-react";
 import { financeSummaryQueryKey, getFinanceSummary } from "@/modules/finance/api";
+import { FinanceSettingsPage } from "@/modules/finance/settings-page";
+import { TiersPage } from "@/modules/tiers/page";
 import { DeliveryModeBadge, deliveryModeMeta } from "@/shared/components/delivery-mode";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, PageHeader, Select, Surface } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, PageHeader, Select, Surface, Tabs } from "@/shared/components/ui";
 import { formatCurrency, formatNumber } from "@/shared/utils/format";
 
 type ModeFilter = "all" | "platform" | "self";
@@ -33,8 +35,21 @@ const STATUS_LABEL: Record<string, string> = { DRAFT: "Utkast", APPROVED: "GodkÃ
 const statusTone = (s: string | null): "neutral" | "info" | "success" | "warning" =>
   s === "PAID" ? "success" : s === "APPROVED" ? "info" : s === "HOLD" ? "warning" : "neutral";
 
+type FinanceTab = "utbetalningar" | "tiers" | "satser";
+
 export function FinancePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [tab, setTab] = useState<FinanceTab>(tabParam === "tiers" || tabParam === "satser" ? tabParam : "utbetalningar");
+  useEffect(() => {
+    const next: FinanceTab = tabParam === "tiers" || tabParam === "satser" ? tabParam : "utbetalningar";
+    if (next !== tab) setTab(next);
+  }, [tabParam]);
+  const changeTab = (t: FinanceTab) => {
+    setTab(t);
+    router.replace(`/finance?tab=${t}`, { scroll: false });
+  };
   const init = presetRange("month");
   const [from, setFrom] = useState(init.from);
   const [to, setTo] = useState(init.to);
@@ -66,16 +81,22 @@ export function FinancePage() {
 
   return (
     <div className="page-stack">
-      <PageHeader
-        breadcrumb="System"
-        title="Utbetalningar"
-        actions={
-          <Button onClick={() => router.push("/finance/installningar")}>
-            <Settings2 size={16} /> Provision & moms
-          </Button>
-        }
+      <PageHeader breadcrumb="System" title="Ekonomi" />
+
+      <Tabs<FinanceTab>
+        value={tab}
+        onChange={changeTab}
+        options={[
+          { value: "utbetalningar", label: "Utbetalningar" },
+          { value: "tiers", label: "Tiers" },
+          { value: "satser", label: "Provision & moms" },
+        ]}
       />
 
+      {tab === "tiers" && <TiersPage embedded />}
+      {tab === "satser" && <FinanceSettingsPage embedded />}
+
+      {tab === "utbetalningar" && (<>
       <Surface className="px-6 py-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-wrap gap-2">
@@ -208,6 +229,7 @@ export function FinancePage() {
           </Surface>
         </>
       )}
+      </>)}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, Loader2, MapPin, Phone, ReceiptText, RefreshCw, Search, SlidersHorizontal, Trash2, UserRound } from "lucide-react";
 import { bulkRefundOrders, deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
@@ -981,10 +982,12 @@ const OrderRow = memo(OrderRowBase, (a, b) =>
 
 export function OrdersPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<(typeof statusOptions)[number]>("ALL");
-  const [search, setSearch] = useState("");
+  // Djuplänkar från Cmd+K: ?q= förifyller söket, ?order= öppnar ordermodalen.
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [page, setPage] = useState(1);
-  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(searchParams.get("order"));
   const [activeCustomerId, setActiveCustomerId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkResult, setBulkResult] = useState<string | null>(null);

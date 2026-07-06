@@ -3588,7 +3588,20 @@ router.get('/deals', async (req, res) => {
       },
       orderBy: { sortOrder: 'asc' },
     });
-    res.json(deals.map(formatDealForAdmin));
+    // Utfall per deal: hämtade (UserDeal-claims) och inlösta (status USED).
+    const dealIds = deals.map((d) => d.id);
+    const [claimGroups, usedGroups] = dealIds.length
+      ? await Promise.all([
+          (prisma as any).userDeal.groupBy({ by: ['dealId'], where: { dealId: { in: dealIds } }, _count: { _all: true } }),
+          (prisma as any).userDeal.groupBy({ by: ['dealId'], where: { dealId: { in: dealIds }, status: 'USED' }, _count: { _all: true } }),
+        ])
+      : [[], []];
+    const claimsByDeal = new Map<string, number>(claimGroups.map((g: any) => [g.dealId, g._count._all]));
+    const usedByDeal = new Map<string, number>(usedGroups.map((g: any) => [g.dealId, g._count._all]));
+    res.json(deals.map((d) => ({
+      ...formatDealForAdmin(d),
+      stats: { claims: claimsByDeal.get(d.id) ?? 0, redeemed: usedByDeal.get(d.id) ?? 0 },
+    })));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }
@@ -5114,6 +5127,43 @@ router.get('/analytics', async (req: any, res: any) => {
 // ============================================================
 // PLATFORM OPS — endpoints för SUPER_ADMIN crisis/support-flöden
 // ============================================================
+
+// GET /api/admin/search?q= — globalt sök för Cmd+K: kunder, ordrar och
+// restauranger i ett svar (5 per typ). Super-admin-only.
+router.get('/search', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.json({ customers: [], orders: [], restaurants: [] });
+    const contains = { contains: q, mode: 'insensitive' as const };
+    const [customers, orders, restaurants] = await Promise.all([
+      (prisma as any).user.findMany({
+        where: { deletedAt: null, OR: [{ name: contains }, { email: contains }, { phone: { contains: q } }] },
+        select: { id: true, name: true, email: true, phone: true },
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.order.findMany({
+        where: { OR: [{ orderNumber: contains }, { customerName: contains }, { customerPhone: { contains: q } }] },
+        select: {
+          id: true, orderNumber: true, customerName: true, status: true, createdAt: true,
+          restaurant: { select: { name: true } },
+        },
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.restaurant.findMany({
+        where: { OR: [{ name: contains }, { city: contains }] },
+        select: { id: true, name: true, slug: true, city: true },
+        take: 5,
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+    res.json({ customers, orders, restaurants });
+  } catch (err) {
+    console.error('[admin-search] error:', err);
+    res.status(500).json({ error: 'Sökningen misslyckades' });
+  }
+});
 
 // GET /api/admin/customers/search?q=...
 // Server-side söker namn/email/telefon. Returnerar de 50 första träffarna.

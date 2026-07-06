@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Send, Trash2 } from "lucide-react";
 import {
   createAutomaticDeal,
   dealsQueryKey,
@@ -112,6 +112,7 @@ const SCOPE_OPTIONS: { value: DealScopeType; label: string; description: string;
 
 export function KampanjFormPage({ dealId }: { dealId?: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const isEditing = Boolean(dealId);
 
@@ -121,7 +122,23 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
     enabled: Boolean(dealId),
   });
 
-  const [draft, setDraft] = useState<Draft>(defaultDraft());
+  // Prefill från t.ex. menyns "Skapa produktdeal": ?scope=PRODUCT&restaurant=<id>&target=<produktId>&title=...
+  const [draft, setDraft] = useState<Draft>(() => {
+    const d = defaultDraft();
+    if (dealId) return d;
+    const scope = searchParams.get("scope");
+    if (scope === "PRODUCT" || scope === "CATEGORY" || scope === "MIN_ORDER" || scope === "RESTAURANT") d.scopeType = scope as DealScopeType;
+    const restaurant = searchParams.get("restaurant");
+    if (restaurant) {
+      d.restaurantId = restaurant;
+      d.applicableRestaurantIds = [restaurant];
+    }
+    const target = searchParams.get("target");
+    if (target) d.targetIds = [target];
+    const title = searchParams.get("title");
+    if (title) d.title = title;
+    return d;
+  });
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
@@ -327,6 +344,21 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                 disabled={deleteMutation.isPending}
               >
                 <Trash2 size={14} /> Radera
+              </Button>
+            )}
+            {isEditing && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const params = new URLSearchParams({
+                    title: draft.title,
+                    body: draft.description || previewDiscount,
+                  });
+                  if (!draft.isGlobal && activeRestaurantSlug) params.set("restaurant", activeRestaurantSlug);
+                  router.push(`/push?${params.toString()}`);
+                }}
+              >
+                <Send size={14} /> Skicka push
               </Button>
             )}
             <Button variant="primary" onClick={handleSave} disabled={saveMutation.isPending}>

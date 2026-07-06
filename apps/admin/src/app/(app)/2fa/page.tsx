@@ -1,5 +1,6 @@
-import { TwoFAPage } from "@/modules/two-fa/page";
+import { redirect } from "next/navigation";
 
-export default function Route2FAPage() {
-  return <TwoFAPage />;
+// 2FA bor numera som flik under Användare.
+export default function TwoFARoutePage() {
+  redirect("/users?tab=sakerhet");
 }

@@ -30,6 +30,7 @@ export interface AutomaticDealRecord {
   maxUsages?: number | null;
   maxUsesPerCustomer?: number | null;
   usageCount?: number;
+  stats?: { claims: number; redeemed: number };
   sortOrder: number;
   restaurantId?: string | null;
   restaurant?: { id: string; name: string; slug: string } | null;
