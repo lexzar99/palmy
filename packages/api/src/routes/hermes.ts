@@ -111,13 +111,24 @@ const etaInfo = (order: any, now = new Date()) => {
   };
 };
 
-const delayReason = (order: any, statusAgeMinutes: number | null, eta: ReturnType<typeof etaInfo>) => {
+const delayReason = (
+  order: any,
+  statusAgeMinutes: number | null,
+  eta: ReturnType<typeof etaInfo>,
+  restaurantRecentOrderCount = 0,
+) => {
   const status = String(order.status || '').toUpperCase();
   if (status === 'PREPARING') {
     if ((statusAgeMinutes || 0) >= 45 || eta?.isPast) {
+      if (restaurantRecentOrderCount >= 5) {
+        return 'Den har varit under tillagning länge. Restaurangen har haft många beställningar samtidigt och verkar vara försenad.';
+      }
       return 'Den har varit under tillagning länge. Restaurangen verkar vara försenad.';
     }
     if ((statusAgeMinutes || 0) >= 25) {
+      if (restaurantRecentOrderCount >= 5) {
+        return 'Den har varit under tillagning en stund. Restaurangen har haft många beställningar samtidigt.';
+      }
       return 'Den har varit under tillagning en stund. Det kan bero på kö eller hög belastning hos restaurangen.';
     }
     return 'Restaurangen lagar maten nu.';
@@ -166,8 +177,18 @@ const nextStep = (order: any) => {
   return 'Svara försiktigt och eskalera om kunden behöver mer hjälp.';
 };
 
-const summarizeOrder = (order: any) => {
+const summarizeOrder = async (order: any) => {
   const now = new Date();
+  const loadWindowStart = new Date(now.getTime() - 60 * 60_000);
+  const restaurantRecentOrderCount = order.restaurantId
+    ? await prisma.order.count({
+        where: {
+          restaurantId: order.restaurantId,
+          createdAt: { gte: loadWindowStart },
+          NOT: { status: { in: ['CANCELLED', 'REJECTED', 'DELIVERY_FAILED'] } },
+        },
+      })
+    : 0;
   const items = Array.isArray(order.items)
     ? order.items.slice(0, 4).map((item: any) => ({
         name: item.product?.name || item.name || 'Vara',
@@ -234,7 +255,16 @@ const summarizeOrder = (order: any) => {
     deliveryPositionKnown,
     deliveryNote,
     isActive: !terminalStatuses.has(String(order.status || '').toUpperCase()),
-    nextStep: delayReason(order, statusAgeMinutes, eta),
+    nextStep: delayReason(order, statusAgeMinutes, eta, restaurantRecentOrderCount),
+    restaurantRecentOrderCount,
+    delayLikelyReason: (statusAgeMinutes || 0) >= 25 && restaurantRecentOrderCount >= 5
+      ? 'Restaurangen har haft många beställningar samtidigt.'
+      : eta?.isPast
+        ? 'Beräknad tid har passerat och restaurangen verkar försenad.'
+        : null,
+    supportOffer: (statusAgeMinutes || 0) >= 45 || eta?.isPast
+      ? 'Erbjud att skicka problemrapport till support. Erbjud också restaurangens nummer om kunden vill prata direkt med restaurangen.'
+      : 'Erbjud att fortsätta hålla koll och ge restaurangens nummer om kunden vill.',
     foodIssueGuidance: restaurantPhone
       ? `Vid kall mat, spilld mat eller saknad vara: be om ursäkt, fråga om kunden vill ha direktnummer till restaurangen och ge ${restaurantPhone}. Skicka även en problemrapport.`
       : 'Vid kall mat, spilld mat eller saknad vara: be om ursäkt och skicka en problemrapport. Restaurangnummer saknas.',
@@ -250,8 +280,11 @@ const answerFor = (orders: any[]) => {
   }
   if (orders.length > 1) {
     const active = orders.filter((o) => o.isActive);
+    if (active.length === 1) {
+      return answerFor(active);
+    }
     const list = (active.length ? active : orders).slice(0, 3).map((o) => `${o.orderNumber}: ${o.statusText} hos ${o.restaurantName}`).join('; ');
-    return `Jag hittade flera ordrar. ${list}. Fråga vilken order kunden menar.`;
+    return `Jag hittade flera ordrar. ${list}. Fråga kort vilken kunden menar och upprepa inte ordernumret efter det.`;
   }
   const o = orders[0];
   const customer = o.customerName ? ` för ${o.customerName}` : '';
@@ -325,7 +358,7 @@ router.get('/orders/lookup', requireHermesToken, async (req, res) => {
       },
     });
 
-    const summaries = orders.map(summarizeOrder);
+    const summaries = await Promise.all(orders.map(summarizeOrder));
     res.json({
       ok: true,
       found: summaries.length > 0,
@@ -373,7 +406,7 @@ router.post('/support/report', requireHermesToken, async (req, res) => {
         })
       : null;
 
-    const orderSummary = order ? summarizeOrder(order) : null;
+    const orderSummary = order ? await summarizeOrder(order) : null;
     const label = supportReportTypeLabels[safeType];
     const customerLine = customerName || orderSummary?.customerName || 'Okänd kund';
     const orderLine = orderSummary?.orderNumber || orderNumber || 'okänd order';
