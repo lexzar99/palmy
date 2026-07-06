@@ -672,22 +672,37 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Vpoints budkostnad: en order som betalas ENBART med poäng (subtotal 0 kr,
-    // all mat täckt av poäng) bär ingen kontant som kan finansiera kuriren.
-    // Vid LEVERANS lägger vi därför på den globala budkostnaden — den ersätter
-    // ev. zon-avgift (även restauranger med "fri leverans") så budet alltid får
-    // betalt. Vid HÄMTNING finns ingen kurir, men betalpartnern behöver 5 kr.
+    // all mat täckt av poäng) får inte stapla erbjudanden ovanpå poängen.
+    // Vid LEVERANS vinner restaurangens/zonens egen avgift. Saknas sådan avgift
+    // används Vpoints-standard från admin. Vid HÄMTNING finns ingen kurir, men
+    // betalpartnern behöver 5 kr.
     const isPointsOnlyOrder = pointsToSpend > 0 && subtotal === 0;
-    if (isPointsOnlyOrder && data.type === 'DELIVERY' && resolvedZoneDeliveryFee <= 0) {
-      // Km-baserad budkostnad: avstånd restaurang → kund via haversine, slå upp
-      // i den globala tariffen (fallback platt dpointsCourierCost om tom).
-      const rLat = (restaurant as any).latitude;
-      const rLng = (restaurant as any).longitude;
-      const distKm =
-        typeof data.lat === 'number' && typeof data.lng === 'number' &&
-        typeof rLat === 'number' && typeof rLng === 'number'
-          ? haversineKm(data.lat, data.lng, rLat, rLng)
-          : 0;
-      deliveryFee = resolveDpointsCourierFeeOre(distKm, dpSettings);
+    if (isPointsOnlyOrder) {
+      const requestedOffer =
+        !!data.discountCode ||
+        !!data.userDealId ||
+        data.items.some((item) => !!item.bogoFreeFromDealId);
+
+      if (requestedOffer) {
+        throw new OrderValidationError('Vpoints kan inte kombineras med erbjudanden när hela maten betalas med poäng');
+      }
+
+      if (data.type === 'DELIVERY') {
+        if (resolvedZoneDeliveryFee > 0) {
+          deliveryFee = resolvedZoneDeliveryFee;
+        } else {
+          // Km-baserad budkostnad: avstånd restaurang till kund via haversine,
+          // slå upp i den globala tariffen.
+          const rLat = (restaurant as any).latitude;
+          const rLng = (restaurant as any).longitude;
+          const distKm =
+            typeof data.lat === 'number' && typeof data.lng === 'number' &&
+            typeof rLat === 'number' && typeof rLng === 'number'
+              ? haversineKm(data.lat, data.lng, rLat, rLng)
+              : 0;
+          deliveryFee = resolveDpointsCourierFeeOre(distKm, dpSettings);
+        }
+      }
     }
     const pointsPickupPartnerFeeOre = isPointsOnlyOrder && data.type === 'PICKUP' ? 500 : 0;
 
@@ -825,7 +840,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Vi hoppar HELA pickup-loopen (utom BOGO som är knuten till items i
     // kundvagnen och hanteras separat nedan). Detta säkerställer att
     // frontend-totalen (utan auto-deal) matchar backend-totalen.
-    const skipAutoDeals = !!data.skipAutomaticDeal;
+    const skipAutoDeals = !!data.skipAutomaticDeal || isPointsOnlyOrder;
     const productIdsInCart = data.items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
 
     const cartItemsForBogo: CartItemForBogo[] = orderItems.map((oi) => {
@@ -860,6 +875,7 @@ router.post('/', async (req: Request, res: Response) => {
       });
 
       if (!evaluation.eligible) continue;
+      if (isPointsOnlyOrder) continue;
 
       // Respektera kundens explicita avstängning av auto-deals.
       // BOGO_CATEGORY MED gratis-varor (maxFreeItems > 0) hoppas INTE över —
