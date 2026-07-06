@@ -1012,11 +1012,18 @@ router.post('/', async (req: Request, res: Response) => {
       // hos sin restaurang.
       const favoriteMeta = (userDeal.metadata || {}) as any;
       if (favoriteMeta.favoriteProductId) {
-        const favoriteProduct = await prisma.product.findUnique({
-          where: { id: favoriteMeta.favoriteProductId },
+        const favoriteProduct = await prisma.product.findFirst({
+          where: {
+            id: favoriteMeta.favoriteProductId,
+            isActive: true,
+            category: {
+              isActive: true,
+              restaurant: { comingSoon: false, draft: false },
+            },
+          },
           select: { id: true, isActive: true },
         });
-        if (!favoriteProduct || favoriteProduct.isActive === false) {
+        if (!favoriteProduct) {
           await (prisma as any).userDeal.updateMany({
             where: { id: userDeal.id, status: { in: ['ACTIVE', 'RESERVED'] } },
             data: { status: 'EXPIRED' },

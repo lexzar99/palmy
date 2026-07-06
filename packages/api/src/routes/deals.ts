@@ -133,11 +133,18 @@ const favoriteProductIdFor = (userDeal: any) => {
 const favoriteProductIsGone = async (userDeal: any) => {
   const productId = favoriteProductIdFor(userDeal);
   if (!productId) return false;
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
+  const product = await prisma.product.findFirst({
+    where: {
+      id: productId,
+      isActive: true,
+      category: {
+        isActive: true,
+        restaurant: { comingSoon: false, draft: false },
+      },
+    },
     select: { id: true, isActive: true },
   });
-  return !product || product.isActive === false;
+  return !product;
 };
 
 // Uppdragets mål bor i Deal.triggerQuantity (admin-styrt, återanvänt fält).
@@ -567,7 +574,7 @@ router.post('/app/favorite/claim', authenticateUser, async (req: any, res) => {
     const settings = await getEngineSettings();
     const params = settings.favorite_product.params;
     const candidates = await favoriteCandidates(req.user.id, params);
-    const candidate = candidates.find((c) => c.product.id === productId);
+    const candidate = candidates.find((c) => c.product.id === productId) || candidates[0];
     if (!candidate) return res.status(403).json({ error: 'Det här är inte din favorit än' });
 
     const priceOre = Math.min(candidate.product.price, candidate.product.discountPrice || candidate.product.price);
@@ -592,7 +599,27 @@ router.post('/app/favorite/claim', authenticateUser, async (req: any, res) => {
         },
       },
     });
-    res.status(201).json({ claimed: true, userDealId: userDeal.id, amountKr, title: `Din favorit: ${candidate.product.name}` });
+    res.status(201).json({
+      claimed: true,
+      userDealId: userDeal.id,
+      amountKr,
+      title: `Din favorit: ${candidate.product.name}`,
+      product: {
+        productId: candidate.product.id,
+        name: candidate.product.name,
+        priceKr: Math.round(priceOre) / 100,
+        imageUrl: candidate.product.imageUrl || null,
+        restaurant: {
+          id: candidate.restaurant.id,
+          name: candidate.restaurant.name,
+          slug: candidate.restaurant.slug,
+          cuisine: candidate.restaurant.cuisine || null,
+          imageUrl: candidate.restaurant.imageUrl || null,
+          heroImageUrl: candidate.restaurant.heroImageUrl || null,
+          rating: candidate.restaurant.rating ?? null,
+        },
+      },
+    });
   } catch (error: any) {
     console.error('[deals/app favorite claim] error:', error?.message);
     res.status(500).json({ error: 'Kunde inte aktivera favoriten' });

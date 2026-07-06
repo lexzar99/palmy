@@ -961,7 +961,12 @@ export async function favoriteCandidates(userId: string, params: Record<string, 
   const strong = (grouped as any[]).filter((g) => (g._sum.quantity || 0) >= minCount);
   if (!strong.length) return [];
   const products = await prisma.product.findMany({
-    where: { id: { in: strong.map((g) => g.productId) }, isActive: true, price: { gte: minPriceOre } },
+    where: {
+      id: { in: strong.map((g) => g.productId) },
+      isActive: true,
+      price: { gte: minPriceOre },
+      category: { isActive: true, restaurant: { comingSoon: false, draft: false } },
+    },
     include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, comingSoon: true } } } } },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
@@ -975,13 +980,39 @@ export async function favoriteCandidates(userId: string, params: Record<string, 
     .filter(Boolean) as { product: any; restaurant: any; timesOrdered: number }[];
 }
 
+const favoriteProductIdFor = (userDeal: any) => {
+  const metadata = (userDeal?.metadata || {}) as any;
+  const productId = String(metadata.favoriteProductId || '').trim();
+  return productId || null;
+};
+
+const favoriteProductVisible = async (userDeal: any) => {
+  const productId = favoriteProductIdFor(userDeal);
+  if (!productId) return true;
+  const product = await prisma.product.findFirst({
+    where: {
+      id: productId,
+      isActive: true,
+      category: { isActive: true, restaurant: { comingSoon: false, draft: false } },
+    },
+    select: { id: true },
+  });
+  return Boolean(product);
+};
+
 async function buildFavoriteProduct(userId: string, params: Record<string, number>) {
   // Aktiv favorit-claim ute? Då visas inget kort (den ligger i kassan).
   const active = await (prisma as any).userDeal.findFirst({
     where: { userId, type: 'FAVORITE_PRODUCT', status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }] },
-    select: { id: true },
+    select: { id: true, metadata: true },
   });
-  if (active) return null;
+  if (active) {
+    if (await favoriteProductVisible(active)) return null;
+    await (prisma as any).userDeal.updateMany({
+      where: { id: active.id, status: { in: ['ACTIVE', 'RESERVED'] } },
+      data: { status: 'EXPIRED' },
+    }).catch(() => null);
+  }
 
   // Paus efter köp: aktiva kunder får vänta längre, tysta lockas tillbaka fortare.
   const lastUsed = await (prisma as any).userDeal.findFirst({
