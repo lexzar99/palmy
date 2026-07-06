@@ -51,6 +51,9 @@ export interface AdminOrder {
   restaurantSelfDelivery?: boolean | null;
   items: OrderItem[];
   paymentMethod?: string | null;
+  paymentProvider?: string | null;
+  molliePaymentId?: string | null;
+  adyenPspReference?: string | null;
   stripePaymentIntentId?: string | null;
   refundAmount?: number | null;
   refundedAt?: string | null;

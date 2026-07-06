@@ -865,7 +865,12 @@ function OrderRowBase({ order, isSelected, nowMs, isAdvancing, onOpen, onToggleS
   const isDelivery = order.type === "DELIVERY";
   const tis = isLive ? formatTimeInStatus(order, nowMs) : null;
   const next = nextAction(order.status, isDelivery);
-  const isRefundable = !order.refundedAt && Boolean(order.stripePaymentIntentId) && order.stripePaymentIntentId !== "TEST_PAYMENT" && order.stripePaymentIntentId !== "FREE_PROMO";
+  const paymentRef = order.paymentProvider === "mollie"
+    ? order.molliePaymentId
+    : order.paymentProvider === "adyen"
+      ? order.adyenPspReference
+      : order.stripePaymentIntentId;
+  const isRefundable = !order.refundedAt && Boolean(paymentRef) && !["TEST_PAYMENT", "FREE_PROMO", "BYPASS"].includes(String(paymentRef));
   const isPending = order.status === "PENDING";
   const isLate = tis?.tone === "danger";
 

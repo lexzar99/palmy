@@ -221,10 +221,10 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
     <>
       <div className="sidebar-brand" style={{ justifyContent: "space-between", paddingBottom: 14 }}>
         <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 11 }}>
-          <span className="sidebar-brand-mark" aria-hidden>d</span>
+          <span className="sidebar-brand-mark" aria-hidden>V</span>
           <span>
             <span className="sidebar-brand-text">
-              del<em>í</em>vera
+              ViaEats
             </span>
             <span className="sidebar-brand-sub">Admin</span>
           </span>
@@ -312,7 +312,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const rail = (
     <div className="nav-rail">
       <Link href="/dashboard" className="sidebar-brand-mark" aria-label="ViaEats Admin" style={{ marginBottom: 8 }}>
-        d
+        V
       </Link>
       <button
         type="button"

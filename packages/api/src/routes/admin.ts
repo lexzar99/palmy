@@ -24,6 +24,7 @@ import { menuCacheBust } from './menu';
 import { bustCache } from '../lib/ttlCache';
 import { parseMenuImport, runMenuImport } from '../lib/menuImport';
 import { runMenuSyncSafe } from '../lib/menuSync';
+import { getPaymentProvider } from '../lib/payments';
 
 const router = Router();
 router.use(authenticate);
@@ -613,8 +614,7 @@ router.post('/orders/bulk-refund', async (req, res) => {
       return;
     }
 
-    const Stripe = require('stripe');
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+    const provider = getPaymentProvider();
     const reasonText = typeof reason === 'string' && reason.trim() ? reason.trim() : 'Massåterbetalning';
 
     const results: Array<{ orderId: string; status: 'refunded' | 'skipped' | 'failed'; reason?: string; refundStatus?: string; refundedAmount?: number }> = [];
@@ -631,37 +631,36 @@ router.post('/orders/bulk-refund', async (req, res) => {
           results.push({ orderId, status: 'skipped', reason: 'already_refunded' });
           continue;
         }
-        if (!order.stripePaymentIntentId || order.stripePaymentIntentId === 'TEST_PAYMENT' || order.stripePaymentIntentId === 'FREE_PROMO') {
-          results.push({ orderId, status: 'failed', reason: 'no_stripe_intent' });
+        const paymentRef =
+          provider.name === 'mollie'
+            ? order.molliePaymentId
+            : provider.name === 'adyen'
+              ? order.adyenPspReference
+              : order.stripePaymentIntentId;
+        if (!paymentRef || paymentRef === 'TEST_PAYMENT' || paymentRef === 'FREE_PROMO' || paymentRef === 'BYPASS') {
+          results.push({ orderId, status: 'failed', reason: `no_${provider.name}_payment` });
           continue;
         }
 
-        // Verify intent succeeded before refunding (same guard as single-order path)
-        let intent;
+        // Verify PSP state before refunding (same guard as single-order path).
+        let remoteStatus: Awaited<ReturnType<typeof provider.getRemoteStatus>>;
         try {
-          intent = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
+          remoteStatus = await provider.getRemoteStatus(paymentRef);
         } catch (err: any) {
-          results.push({ orderId, status: 'failed', reason: `stripe_retrieve: ${err?.message?.slice(0, 100)}` });
+          results.push({ orderId, status: 'failed', reason: `${provider.name}_retrieve: ${err?.message?.slice(0, 100)}` });
           continue;
         }
-        if (intent.status !== 'succeeded') {
-          results.push({ orderId, status: 'failed', reason: `intent_status_${intent.status}` });
+        if (remoteStatus.state !== 'paid') {
+          results.push({ orderId, status: 'failed', reason: `payment_status_${remoteStatus.state}` });
           continue;
         }
 
-        const refund = await stripe.refunds.create({
-          payment_intent: order.stripePaymentIntentId,
-          amount: order.total,
-          reason: 'requested_by_customer',
-        });
-        if (refund.status === 'failed' || refund.status === 'canceled') {
-          results.push({ orderId, status: 'failed', reason: `stripe_${refund.status}` });
-          continue;
-        }
+        const refund = await provider.refund(paymentRef, order.total);
 
         await prisma.order.update({
           where: { id: orderId },
           data: {
+            paymentStatus: 'REFUNDED',
             refundAmount: order.total,
             refundReason: reasonText,
             refundedAt: new Date(),
@@ -692,7 +691,7 @@ router.post('/orders/bulk-refund', async (req, res) => {
           if (order.restaurantId) getIO().to(`admin-room:${order.restaurantId}`).emit('order:updated', { orderId });
         } catch {}
 
-        results.push({ orderId, status: 'refunded', refundStatus: refund.status, refundedAmount: order.total / 100 });
+        results.push({ orderId, status: 'refunded', refundStatus: refund.refundRef ? 'sent' : 'sent', refundedAmount: order.total / 100 });
         totalRefundedOre += order.total;
       } catch (err: any) {
         results.push({ orderId, status: 'failed', reason: err?.message?.slice(0, 200) || 'unknown' });
@@ -4750,85 +4749,75 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
     const { amount, reason } = req.body; // amount in kr
     const order = await prisma.order.findUnique({ where: { id: req.params.id } });
     if (!order) return res.status(404).json({ error: 'Order hittades inte' });
-    if (!order.stripePaymentIntentId || order.stripePaymentIntentId === 'TEST_PAYMENT' || order.stripePaymentIntentId === 'FREE_PROMO') {
-      return res.status(400).json({ error: 'Denna order har ingen Stripe-betalning att återbetala' });
-    }
     if (order.refundedAt) {
       return res.status(400).json({ error: 'Denna order har redan återbetalats' });
     }
 
-    const Stripe = require('stripe');
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
-    const refundAmountOre = amount ? Math.round(amount * 100) : order.total;
+    const provider = getPaymentProvider();
+    const paymentRef =
+      provider.name === 'mollie'
+        ? order.molliePaymentId
+        : provider.name === 'adyen'
+          ? order.adyenPspReference
+          : order.stripePaymentIntentId;
+    if (!paymentRef || paymentRef === 'TEST_PAYMENT' || paymentRef === 'FREE_PROMO' || paymentRef === 'BYPASS') {
+      return res.status(400).json({ error: `Denna order har ingen ${provider.name}-betalning att återbetala` });
+    }
 
-    // PRE-CHECK: Hämta PaymentIntent och verifiera att den är `succeeded`
-    // INNAN vi anropar refunds.create. Tidigare antog vi tyst att intent
-    // var betald — men om Klarna-betalningen var "requires_payment_method"
-    // eller "processing" råkade refund-anropet skapa en void-refund eller
-    // returnera ett "pending"-objekt utan att riktiga pengar rörde sig.
-    // Resultat: admin såg "Återbetald" men kunden fick inget i Klarna.
-    let intent;
+    const refundAmountOre = amount ? Math.round(amount * 100) : order.total;
+    if (!Number.isFinite(refundAmountOre) || refundAmountOre <= 0) {
+      return res.status(400).json({ error: 'Ogiltigt återbetalningsbelopp' });
+    }
+
+    // PRE-CHECK: fråga aktiv PSP innan refund. Admin ska inte kunna markera en
+    // öppen/pending betalning som återbetald bara för att PSP:n accepterar anropet.
+    let remoteStatus: Awaited<ReturnType<typeof provider.getRemoteStatus>>;
     try {
-      intent = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
+      remoteStatus = await provider.getRemoteStatus(paymentRef);
     } catch (retrieveErr: any) {
-      console.error('[admin/refund] could not retrieve intent:', {
+      console.error('[admin/refund] could not retrieve payment:', {
         orderId: order.id,
-        intentId: order.stripePaymentIntentId,
+        provider: provider.name,
+        paymentRef,
         error: retrieveErr?.message,
       });
       return res.status(400).json({
-        error: `Kunde inte hitta betalningen hos Stripe. Intent-ID: ${order.stripePaymentIntentId}. Kontrollera Stripe Dashboard manuellt.`,
+        error: `Kunde inte hitta betalningen hos ${provider.name}. Kontrollera betalpanelen manuellt.`,
       });
     }
 
-    if (intent.status !== 'succeeded') {
-      console.warn('[admin/refund] intent not succeeded — refund blocked:', {
+    if (remoteStatus.state !== 'paid') {
+      console.warn('[admin/refund] payment not paid — refund blocked:', {
         orderId: order.id,
-        intentId: intent.id,
-        status: intent.status,
+        provider: provider.name,
+        paymentRef,
+        status: remoteStatus.state,
       });
       return res.status(400).json({
-        error: `Betalningen är inte slutförd hos Stripe (status: ${intent.status}). Refund kräver att betalningen är "succeeded". Vänta tills Klarna konfirmerat eller markera ordern CANCELLED manuellt.`,
-        intentStatus: intent.status,
+        error: `Betalningen är inte slutförd hos ${provider.name} (status: ${remoteStatus.state}). Vänta eller avbryt ordern manuellt.`,
+        paymentStatus: remoteStatus.state,
       });
     }
 
-    if (refundAmountOre > intent.amount_received) {
+    const paidAmountOre = remoteStatus.amountReceivedOre ?? order.total;
+    if (refundAmountOre > paidAmountOre) {
       return res.status(400).json({
-        error: `Refund-belopp (${refundAmountOre / 100} kr) överskrider faktiskt betalt belopp (${intent.amount_received / 100} kr).`,
+        error: `Återbetalningsbelopp (${refundAmountOre / 100} kr) överskrider betalt belopp (${paidAmountOre / 100} kr).`,
       });
     }
 
-    // Skapa refund och VERIFIERA status i svaret. Stripe kan returnera
-    // refund-objekt med status "failed"/"canceled" UTAN att kasta exception —
-    // tidigare tolkade vi det felaktigt som success.
-    const refund = await stripe.refunds.create({
-      payment_intent: order.stripePaymentIntentId,
-      amount: refundAmountOre,
-      reason: 'requested_by_customer',
-    });
+    const refund = await provider.refund(paymentRef, refundAmountOre);
 
-    console.log(`💸 [admin/refund] Stripe refund response:`, {
+    console.log(`💸 [admin/refund] ${provider.name} refund response:`, {
       orderId: order.id,
-      refundId: refund.id,
-      status: refund.status,
-      amount: refund.amount,
+      refundId: refund.refundRef,
+      amount: refundAmountOre,
     });
-
-    if (refund.status === 'failed' || refund.status === 'canceled') {
-      return res.status(500).json({
-        error: `Stripe avvisade återbetalningen (status: ${refund.status}). ${refund.failure_reason || 'Försök igen senare eller kontakta Stripe support.'}`,
-        refundId: refund.id,
-        refundStatus: refund.status,
-      });
-    }
-
-    // refund.status är 'succeeded' eller 'pending' — båda OK. Klarna-refunds
-    // är ofta 'pending' först → blir 'succeeded' inom 1-3 bankdagar.
 
     await prisma.order.update({
       where: { id: req.params.id },
       data: {
+        paymentStatus: 'REFUNDED',
         refundAmount: refundAmountOre,
         refundReason: reason || 'Återbetalning via admin',
         refundedAt: new Date(),
@@ -4874,8 +4863,9 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
         orderNumber: order.orderNumber,
         amount: refundAmountOre / 100,
         reason: reason || 'Återbetalning via admin',
-        refundId: refund.id,
-        refundStatus: refund.status,
+        provider: provider.name,
+        refundId: refund.refundRef,
+        refundStatus: 'sent',
         dpointsRefunded: dpointsRevert.refunded,
         dpointsClawedBack: dpointsRevert.clawedBack,
       },
@@ -4883,8 +4873,8 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
     res.json({
       success: true,
       refundedAmount: refundAmountOre / 100,
-      refundId: refund.id,
-      refundStatus: refund.status,
+      refundId: refund.refundRef,
+      refundStatus: 'sent',
       dpoints: dpointsRevert,
     });
   } catch (error: any) {
@@ -5275,32 +5265,46 @@ router.post('/restaurants/:id/bulk-refund', authenticate, requireSuperAdmin, asy
       return res.status(400).json({ error: 'Ogiltigt datumintervall' });
     }
 
+    const provider = getPaymentProvider();
     const orders = await prisma.order.findMany({
       where: {
         restaurantId: req.params.id,
         createdAt: { gte: from, lte: to },
         refundedAt: null,
         paymentStatus: 'PAID',
-        stripePaymentIntentId: { not: null },
       },
-      select: { id: true, total: true, stripePaymentIntentId: true, appliedDealId: true },
+      select: {
+        id: true,
+        total: true,
+        paymentProvider: true,
+        molliePaymentId: true,
+        adyenPspReference: true,
+        stripePaymentIntentId: true,
+        appliedDealId: true,
+        userDealId: true,
+      },
     });
-
-    const Stripe = require('stripe');
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
     const results = await Promise.allSettled(
       orders.map(async (o) => {
-        if (!o.stripePaymentIntentId || o.stripePaymentIntentId === 'TEST_PAYMENT' || o.stripePaymentIntentId === 'FREE_PROMO' || o.stripePaymentIntentId === 'BYPASS') {
-          return { id: o.id, status: 'skipped', reason: 'no-stripe-intent' };
+        const paymentRef =
+          provider.name === 'mollie'
+            ? o.molliePaymentId
+            : provider.name === 'adyen'
+              ? o.adyenPspReference
+              : o.stripePaymentIntentId;
+        if (!paymentRef || paymentRef === 'TEST_PAYMENT' || paymentRef === 'FREE_PROMO' || paymentRef === 'BYPASS') {
+          return { id: o.id, status: 'skipped', reason: `no-${provider.name}-payment` };
         }
-        await stripe.refunds.create({
-          payment_intent: o.stripePaymentIntentId,
-          reason: 'requested_by_customer',
-        });
+        const remoteStatus = await provider.getRemoteStatus(paymentRef);
+        if (remoteStatus.state !== 'paid') {
+          return { id: o.id, status: 'skipped', reason: `payment-${remoteStatus.state}` };
+        }
+        await provider.refund(paymentRef, o.total);
         await prisma.order.update({
           where: { id: o.id },
           data: {
+            paymentStatus: 'REFUNDED',
             refundAmount: o.total,
             refundReason: reason,
             refundedAt: new Date(),

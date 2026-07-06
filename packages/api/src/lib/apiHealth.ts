@@ -90,17 +90,18 @@ const SERVICES: ServiceDef[] = [
     },
   },
   {
-    key: 'stripe',
-    name: 'Stripe (betalning)',
+    key: 'mollie',
+    name: 'Mollie (betalning)',
     category: 'Betalning',
-    envVars: ['STRIPE_SECRET_KEY'],
+    envVars: ['MOLLIE_API_KEY'],
     limitNote: 'Per transaktion — ingen månadsgräns.',
     healthCheck: async () => {
-      const k = process.env.STRIPE_SECRET_KEY;
+      const k = process.env.MOLLIE_API_KEY;
       if (!isReal(k)) return { ok: false, detail: 'nyckel saknas/dummy' };
-      const Stripe = (await import('stripe')).default;
-      const bal = await new Stripe(k as string).balance.retrieve();
-      return { ok: !!bal, detail: (k as string).startsWith('sk_live_') ? 'LIVE' : 'TEST' };
+      const res = await fetch('https://api.mollie.com/v2/methods?resource=orders', {
+        headers: { Authorization: `Bearer ${k}` },
+      });
+      return { ok: res.ok, detail: `${(k as string).startsWith('live_') ? 'LIVE' : 'TEST'} · HTTP ${res.status}` };
     },
   },
   {

@@ -241,7 +241,7 @@ function PlatformPauseControls() {
               />
             </Field>
             <Field label="Anledning (loggas)">
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Stripe outage" />
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Betalningsproblem" />
             </Field>
           </div>
           <Button
@@ -407,7 +407,7 @@ function PerRestaurantCrisis() {
                 <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} min={fromDate} />
               </Field>
             </div>
-            <Field label="Anledning (loggas + visas i Stripe)">
+            <Field label="Anledning">
               <Input value={refundReason} onChange={(e) => setRefundReason(e.target.value)} placeholder="Kvalitetsproblem 2026-05-11" />
             </Field>
             <Button
@@ -415,7 +415,7 @@ function PerRestaurantCrisis() {
               className="mt-3"
               onClick={() => {
                 if (!refundReason.trim()) { alert("Anledning krävs."); return; }
-                const ok = window.confirm(`Refundera ALLA orders ${fromDate} → ${toDate}?\n\nAnledning: ${refundReason}\n\nKan inte ångras. Stripe-refunder skickas omedelbart.`);
+                const ok = window.confirm(`Återbetala ALLA ordrar ${fromDate} → ${toDate}?\n\nAnledning: ${refundReason}\n\nKan inte ångras.`);
                 if (ok) refundMut.mutate();
               }}
               disabled={refundMut.isPending}
