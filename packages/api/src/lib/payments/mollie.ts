@@ -51,6 +51,17 @@ function toOre(amount?: { value: string } | null): number {
  */
 function buildLines(order: OrderForPayment) {
   const zeroVat = { vatRate: '0.00', vatAmount: money(0) };
+
+  if (order.discountAmount > 0) {
+    return [{
+      description: 'Beställning',
+      quantity: 1,
+      unitPrice: money(order.total),
+      totalAmount: money(order.total),
+      ...zeroVat,
+    }];
+  }
+
   const lines: any[] = order.items.map((it) => ({
     description: it.quantity > 1 ? `${it.productName} ×${it.quantity}` : it.productName,
     quantity: 1,
@@ -64,9 +75,6 @@ function buildLines(order: OrderForPayment) {
   }
   if (order.tipAmount > 0) {
     lines.push({ description: 'Dricks', quantity: 1, unitPrice: money(order.tipAmount), totalAmount: money(order.tipAmount), ...zeroVat });
-  }
-  if (order.discountAmount > 0) {
-    lines.push({ description: 'Rabatt', quantity: 1, unitPrice: money(-order.discountAmount), totalAmount: money(-order.discountAmount), ...zeroVat });
   }
 
   // Avstämning: rader måste summera till order.total. Fånga ev. diff (t.ex.
