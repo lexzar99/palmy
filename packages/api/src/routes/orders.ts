@@ -979,10 +979,6 @@ router.post('/', async (req: Request, res: Response) => {
     // amountKr behålls som legacy-fallback för deals skapade innan
     // percent-migreringen (vissa kan ha gamla 50 kr-rabatter i DB).
     let appliedUserDealId: string | null = null;
-    // Ren fri leverans-deal (ingen subtotal-rabatt) är ÅTERANVÄNDBAR till sitt
-    // slutdatum: den reserveras/förbrukas inte per order utan gäller varje
-    // order tills expiresAt passerat (kupongen försvinner då via valideringen).
-    let recurringFreeDelivery = false;
     let appliedUserDealAmountKr: number | null = null;
     if (data.userDealId && authenticatedUserId) {
       const userDeal = await (prisma as any).userDeal.findFirst({
@@ -995,6 +991,16 @@ router.post('/', async (req: Request, res: Response) => {
         include: { deal: true },
       });
       if (!userDeal) {
+        throw new OrderValidationError('Kupongen är inte längre giltig');
+      }
+      if (
+        ['APP_DEAL', 'APP_MISSION', 'CAMPAIGN'].includes(String(userDeal.type || '')) &&
+        (!userDeal.deal || !userDeal.deal.isActive || !userDeal.deal.appEnabled || (userDeal.deal.validFrom && userDeal.deal.validFrom > new Date()) || (userDeal.deal.validUntil && userDeal.deal.validUntil < new Date()))
+      ) {
+        await (prisma as any).userDeal.updateMany({
+          where: { id: userDeal.id, status: { in: ['ACTIVE', 'RESERVED'] } },
+          data: { status: 'EXPIRED' },
+        }).catch(() => null);
         throw new OrderValidationError('Kupongen är inte längre giltig');
       }
       // Restaurang-scopad deal gäller bara i sin restaurangs kassa.
@@ -1021,7 +1027,7 @@ router.post('/', async (req: Request, res: Response) => {
         );
       }
       // Beräkna stackad rabatt:
-      //   1. Subtotal-rabatt (PERCENTAGE / FIXED): cappad till subtotal
+      //   1. Subtotal-rabatt (PERCENTAGE / FIXED / FIXED_PRICE): cappad till subtotal
       //   2. Fri leverans (boolean): cappad till deliveryFee
       //   3. Backward compat: discountType=FREE_DELIVERY tolkas som
       //      freeDelivery=true (vi tog bort det från enum men gamla
@@ -1031,7 +1037,22 @@ router.post('/', async (req: Request, res: Response) => {
 
       let subtotalDiscountOre = 0;
       if (!isLegacyFreeDeliveryType) {
-        if (userDeal.discountPercent && userDeal.discountPercent > 0) {
+        if (userDeal.discountType === 'FIXED_PRICE' && userDeal.amountKr && userDeal.amountKr > 0) {
+          const meta = (userDeal.metadata || {}) as any;
+          const targetIds = Array.isArray(meta.targetIds) ? meta.targetIds.filter((id: unknown): id is string => typeof id === 'string') : [];
+          const scopeType = String(meta.scopeType || '').toUpperCase();
+          const fixedPriceOre = Math.round(Number(userDeal.amountKr || 0) * 100);
+          subtotalDiscountOre = data.items.reduce((sum: number, item: any) => {
+            const product = productMap.get(item.productId) as any;
+            if (!product) return sum;
+            const matches =
+              scopeType === 'CATEGORY'
+                ? targetIds.includes(product.categoryId)
+                : targetIds.includes(product.id);
+            if (!matches) return sum;
+            return sum + Math.max(0, Number(product.price || 0) - fixedPriceOre) * Math.max(1, Number(item.quantity || 1));
+          }, 0);
+        } else if (userDeal.discountPercent && userDeal.discountPercent > 0) {
           subtotalDiscountOre = Math.round((subtotal * userDeal.discountPercent) / 100);
         } else if (userDeal.amountKr && userDeal.amountKr > 0) {
           subtotalDiscountOre = userDeal.amountKr * 100;
@@ -1058,7 +1079,6 @@ router.post('/', async (req: Request, res: Response) => {
         }
         appliedUserDealId = userDeal.id;
         appliedUserDealAmountKr = Math.round(totalDealOre / 100);
-        recurringFreeDelivery = wantsFreeDelivery && subtotalDiscountOre === 0;
       }
     }
 
@@ -1353,9 +1373,7 @@ router.post('/', async (req: Request, res: Response) => {
     // skapad med rabatten. I praktiken nästintill omöjligt eftersom samma
     // user måste ha två concurrent checkouts. Hard-rollback skulle kräva
     // refund-flow vilket är overkill för v1.
-    // Recurring fri leverans reserveras INTE — den ska gälla varje order till
-    // slutdatumet (finalize rör bara RESERVED, så den förblir ACTIVE).
-    if (appliedUserDealId && !recurringFreeDelivery) {
+    if (appliedUserDealId) {
       const reservedCount = await (prisma as any).userDeal.updateMany({
         where: { id: appliedUserDealId, userId: authenticatedUserId, status: 'ACTIVE' },
         data: { status: 'RESERVED', usedOnOrderId: order.id },

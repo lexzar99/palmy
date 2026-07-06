@@ -421,6 +421,8 @@ model Deal {
   // på samma order. Om discountType=NONE och freeDelivery=true →
   // bara fri leverans, inget annat.
   freeDelivery          Boolean   @default(false)
+  appCtaAction          String?   @default("CLAIM")
+  appCtaTarget          String?
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
   userDeals             UserDeal[]
   // Kedje-scopad deal: gäller alla platser i en Brand. När satt expanderas den

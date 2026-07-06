@@ -62,6 +62,8 @@ export interface AutomaticDealRecord {
   appDpointsBonus?: number;
   appMissionType?: string | null;
   appCtaLabel?: string | null;
+  appCtaAction?: string | null;
+  appCtaTarget?: string | null;
   appTheme?: string | null;
 }
 

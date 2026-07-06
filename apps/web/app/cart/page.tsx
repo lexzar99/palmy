@@ -796,6 +796,11 @@ export default function CartPage() {
           deliveryFeeKr: orderType === "DELIVERY" ? deliveryFee : 0,
           orderMode: orderType,
           restaurantId: currentRestaurantId || undefined,
+          items: items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPriceKr: item.price,
+          })),
         });
         const d = res.data || {};
         setAppDealQuote({
@@ -815,7 +820,7 @@ export default function CartPage() {
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [user, selectedAccountDealId, subtotal, deliveryFee, orderType, currentRestaurantId]);
+  }, [user, selectedAccountDealId, subtotal, deliveryFee, orderType, currentRestaurantId, items]);
 
   // Prioritet:
   //   1. Användarens EXPLICITA VAL (selectedPersonalDeal ELLER selectedAccountDealId)

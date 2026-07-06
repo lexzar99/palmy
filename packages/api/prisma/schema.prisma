@@ -456,6 +456,8 @@ model Deal {
   appDpointsBonus       Int       @default(0)
   appMissionType        String?
   appCtaLabel           String?
+  appCtaAction          String?   @default("CLAIM") // CLAIM | CART | RESTAURANT | REWARDS | URL
+  appCtaTarget          String?
   appTheme              String?
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
   userDeals             UserDeal[]

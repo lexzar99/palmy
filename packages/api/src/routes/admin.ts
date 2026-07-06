@@ -3046,6 +3046,8 @@ const formatDealForAdmin = (deal: any) => ({
   appDpointsBonus: deal.appDpointsBonus ?? 0,
   appMissionType: deal.appMissionType ?? null,
   appCtaLabel: deal.appCtaLabel ?? null,
+  appCtaAction: deal.appCtaAction ?? 'CLAIM',
+  appCtaTarget: deal.appCtaTarget ?? null,
   appTheme: deal.appTheme ?? null,
 });
 
@@ -3273,9 +3275,19 @@ const normalizeDealInputForDb = (body: any) => {
   if (body.appSize !== undefined) next.appSize = String(body.appSize || 'LARGE').toUpperCase();
   if (body.appTheme !== undefined) next.appTheme = body.appTheme ? String(body.appTheme) : null;
   if (body.appCtaLabel !== undefined) next.appCtaLabel = body.appCtaLabel ? String(body.appCtaLabel) : null;
+  if (body.appCtaAction !== undefined) {
+    const action = String(body.appCtaAction || 'CLAIM').toUpperCase();
+    next.appCtaAction = ['CLAIM', 'CART', 'RESTAURANT', 'REWARDS', 'URL'].includes(action) ? action : 'CLAIM';
+  }
+  if (body.appCtaTarget !== undefined) next.appCtaTarget = body.appCtaTarget ? String(body.appCtaTarget) : null;
   if (body.appMissionType !== undefined) next.appMissionType = body.appMissionType ? String(body.appMissionType).toUpperCase() : null;
   if (body.appWeight !== undefined) next.appWeight = Math.max(1, Math.min(100, Math.round(Number(body.appWeight) || 10)));
   if (body.appDpointsBonus !== undefined) next.appDpointsBonus = Math.max(0, Math.round(Number(body.appDpointsBonus) || 0));
+  if (body.freeDelivery !== undefined) next.freeDelivery = Boolean(body.freeDelivery);
+  if (body.maxUsesPerCustomer !== undefined) {
+    const n = Number(body.maxUsesPerCustomer);
+    next.maxUsesPerCustomer = Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+  }
   if (body.appClaimExpiresMinutes !== undefined) {
     const n = Number(body.appClaimExpiresMinutes);
     next.appClaimExpiresMinutes = Number.isFinite(n) && n > 0 ? Math.round(n) : null;

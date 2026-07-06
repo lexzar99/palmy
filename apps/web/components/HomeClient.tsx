@@ -176,6 +176,8 @@ type HomeAppDeal = {
   badge?: string | null;
   imageUrl?: string | null;
   ctaLabel?: string | null;
+  ctaAction?: string | null;
+  ctaTarget?: string | null;
   placement?: string;
   audience?: string;
   template?: string;
@@ -192,6 +194,7 @@ type HomeAppDeal = {
   minOrderKr?: number;
   restaurant?: { id: string; name: string; slug: string; imageUrl?: string | null; cuisine?: string | null } | null;
   userDealId?: string | null;
+  claimed?: boolean;
   theme?: string | null;
 };
 
@@ -368,7 +371,7 @@ function dealCtaTitle(deal: HomeAppDeal, isActive: boolean) {
     return deal.ctaLabel || "Starta uppdraget";
   }
   if (isActive) return "Vald i kassan";
-  if (isClaimed) return "Använd";
+  if (isClaimed) return "Hämtad";
   return deal.ctaLabel || (deal.claimRequired ? "Hämta" : "Beställ");
 }
 
@@ -1502,6 +1505,30 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     router.push("/cart");
   };
 
+  const runAppDealCta = (deal: HomeAppDeal) => {
+    const action = (deal.ctaAction || (deal.claimRequired !== false ? "CLAIM" : "RESTAURANT")).toUpperCase();
+    if (action === "CART") {
+      router.push("/cart");
+      return;
+    }
+    if (action === "REWARDS") {
+      router.push("/profile?tab=rewards");
+      return;
+    }
+    if (action === "URL" && deal.ctaTarget) {
+      window.location.href = deal.ctaTarget;
+      return;
+    }
+    if (action === "RESTAURANT") {
+      const slug = deal.ctaTarget || deal.restaurant?.slug;
+      if (slug) router.push(`/restaurants/${slug}`);
+      return;
+    }
+    if (deal.restaurant?.slug && deal.claimRequired === false) {
+      router.push(`/restaurants/${deal.restaurant.slug}`);
+    }
+  };
+
   const handleAppDealAction = async (deal: HomeAppDeal) => {
     if (!isLoggedIn) {
       router.push("/profile");
@@ -1512,13 +1539,19 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       return;
     }
     if (deal.missionType && deal.userDealId) return;
+    if (deal.claimRequired === false || (deal.ctaAction && deal.ctaAction.toUpperCase() !== "CLAIM")) {
+      runAppDealCta(deal);
+      return;
+    }
     setClaimingDealId(deal.id);
     try {
       const res = await axios.post(`/api/platform/deals/app/${deal.id}/claim`, {});
       const claimedDeal = res.data?.deal || deal;
-      setAppDeals((current) => current.map((item) => item.id === deal.id ? claimedDeal : item));
       if (claimedDeal?.userDealId && !claimedDeal?.missionType) {
+        setAppDeals((current) => current.filter((item) => item.id !== deal.id));
         activateAppDeal(claimedDeal);
+      } else {
+        setAppDeals((current) => current.map((item) => item.id === deal.id ? claimedDeal : item));
       }
     } catch (err: any) {
       if (err?.response?.status === 401) router.push("/profile");

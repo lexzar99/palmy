@@ -80,6 +80,12 @@ const parseJsonArray = (raw: string | null | undefined) => {
 const normalizeAudience = (value: unknown) => String(value || 'ALL').toUpperCase();
 const normalizePlacement = (value: unknown) => String(value || 'HOME_TOP').toUpperCase();
 const oreToKr = (value: unknown) => Math.round(Number(value || 0)) / 100;
+const DEFAULT_APP_MAX_USES_PER_CUSTOMER = 1;
+
+const normalizeCtaAction = (value: unknown) => {
+  const action = String(value || 'CLAIM').toUpperCase();
+  return ['CLAIM', 'CART', 'RESTAURANT', 'REWARDS', 'URL'].includes(action) ? action : 'CLAIM';
+};
 
 const appAudienceMatches = (deal: any, ctx: { isLoggedIn: boolean; orderCount: number | null }) => {
   const audience = normalizeAudience(deal.appAudience);
@@ -93,6 +99,30 @@ const appAudienceMatches = (deal: any, ctx: { isLoggedIn: boolean; orderCount: n
 };
 
 const isMissionDeal = (deal: any) => Boolean(deal.appMissionType) || String(deal.appTemplate || '').toUpperCase() === 'MISSION';
+
+const appDealMaxUsesPerCustomer = (deal: any) => {
+  const raw = Number(deal?.maxUsesPerCustomer);
+  if (Number.isFinite(raw) && raw > 0) return Math.round(raw);
+  return DEFAULT_APP_MAX_USES_PER_CUSTOMER;
+};
+
+const activeOrUsedStatuses = ['ACTIVE', 'RESERVED', 'USED'];
+
+const isClaimedDealParentInactive = (userDeal: any, now = new Date()) => {
+  if (!['APP_DEAL', 'APP_MISSION', 'CAMPAIGN'].includes(String(userDeal?.type || ''))) return false;
+  const deal = userDeal?.deal;
+  if (!deal) return true;
+  if (!deal.isActive || !deal.appEnabled) return true;
+  if (deal.validFrom && deal.validFrom > now) return true;
+  if (deal.validUntil && deal.validUntil < now) return true;
+  return false;
+};
+
+const expireUserDealQuietly = (userDealId: string) =>
+  (prisma as any).userDeal.updateMany({
+    where: { id: userDealId, status: { in: ['ACTIVE', 'RESERVED'] } },
+    data: { status: 'EXPIRED' },
+  }).catch(() => null);
 
 // Uppdragets mål bor i Deal.triggerQuantity (admin-styrt, återanvänt fält).
 const missionTargetForDeal = (deal: any) => {
@@ -174,6 +204,8 @@ const formatAppDeal = (deal: any, userDealId?: string | null, missionProgress?: 
     badge: deal.badgeText || fallbackBadge,
     imageUrl: deal.imageUrl || restaurant?.imageUrl || null,
     ctaLabel: deal.appCtaLabel || (deal.appClaimRequired ? 'Hämta' : 'Visa'),
+    ctaAction: normalizeCtaAction(deal.appCtaAction),
+    ctaTarget: deal.appCtaTarget || null,
     placement: deal.appPlacement || 'HOME_TOP',
     audience: deal.appAudience || 'ALL',
     template: deal.appTemplate || 'DEAL_HERO',
@@ -199,8 +231,16 @@ const formatAppDeal = (deal: any, userDealId?: string | null, missionProgress?: 
     applicableRestaurantIds: parseJsonArray(deal.applicableRestaurantIds),
     validUntil: deal.validUntil,
     userDealId: userDealId || null,
+    claimed: Boolean(userDealId),
   };
 };
+
+const CartQuoteItemSchema = z.object({
+  productId: z.string().min(1),
+  quantity: z.number().int().min(1).max(500).optional().default(1),
+  unitPriceKr: z.number().nonnegative().optional(),
+  categoryId: z.string().optional().nullable(),
+});
 
 const AppDealQuoteSchema = z.object({
   userDealId: z.string().min(1),
@@ -208,9 +248,51 @@ const AppDealQuoteSchema = z.object({
   deliveryFeeKr: z.number().nonnegative().optional().default(0),
   orderMode: z.enum(['DELIVERY', 'PICKUP', 'delivery', 'pickup']).optional().default('DELIVERY'),
   restaurantId: z.string().optional(),
+  items: z.array(CartQuoteItemSchema).optional().default([]),
 });
 
-const calculateUserDealQuote = (userDeal: any, input: z.infer<typeof AppDealQuoteSchema>) => {
+type CartQuoteItem = z.infer<typeof CartQuoteItemSchema>;
+
+const enrichQuoteItems = async (items: CartQuoteItem[]) => {
+  if (!items.length) return [];
+  const missing = items.filter((item) => !item.categoryId || item.unitPriceKr === undefined).map((item) => item.productId);
+  const products = missing.length
+    ? await prisma.product.findMany({
+        where: { id: { in: [...new Set(missing)] } },
+        select: { id: true, categoryId: true, price: true },
+      })
+    : [];
+  const byId = new Map(products.map((product) => [product.id, product]));
+  return items.map((item) => {
+    const product = byId.get(item.productId);
+    return {
+      ...item,
+      categoryId: item.categoryId || product?.categoryId || null,
+      unitPriceKr: item.unitPriceKr ?? (product ? product.price / 100 : 0),
+    };
+  });
+};
+
+const fixedPriceDiscountOre = (userDeal: any, items: CartQuoteItem[]) => {
+  const metadata = (userDeal.metadata || {}) as any;
+  const targetIds = Array.isArray(metadata.targetIds) ? metadata.targetIds.filter((id: unknown): id is string => typeof id === 'string') : [];
+  const scopeType = String(metadata.scopeType || '').toUpperCase();
+  const fixedPriceOre = Math.round(Number(userDeal.amountKr || 0) * 100);
+  if (fixedPriceOre <= 0 || targetIds.length === 0 || items.length === 0) return 0;
+
+  return items.reduce((sum, item) => {
+    const matches =
+      scopeType === 'CATEGORY'
+        ? Boolean(item.categoryId && targetIds.includes(item.categoryId))
+        : targetIds.includes(item.productId);
+    if (!matches) return sum;
+    const unitOre = Math.round(Number(item.unitPriceKr || 0) * 100);
+    const quantity = Math.max(1, Math.round(Number(item.quantity || 1)));
+    return sum + Math.max(0, unitOre - fixedPriceOre) * quantity;
+  }, 0);
+};
+
+const calculateUserDealQuote = (userDeal: any, input: any, cartItems: CartQuoteItem[] = []) => {
   const subtotalOre = Math.round(input.subtotalKr * 100);
   const deliveryFeeOre = Math.round((input.deliveryFeeKr || 0) * 100);
   const isDelivery = String(input.orderMode).toUpperCase() === 'DELIVERY';
@@ -245,7 +327,9 @@ const calculateUserDealQuote = (userDeal: any, input: z.infer<typeof AppDealQuot
   const wantsFreeDelivery = Boolean(userDeal.freeDelivery) || isLegacyFreeDeliveryType;
   let subtotalDiscountOre = 0;
   if (!isLegacyFreeDeliveryType) {
-    if (userDeal.discountPercent && userDeal.discountPercent > 0) {
+    if (userDeal.discountType === 'FIXED_PRICE') {
+      subtotalDiscountOre = fixedPriceDiscountOre(userDeal, cartItems);
+    } else if (userDeal.discountPercent && userDeal.discountPercent > 0) {
       subtotalDiscountOre = Math.round((subtotalOre * Number(userDeal.discountPercent)) / 100);
     } else if (userDeal.amountKr && userDeal.amountKr > 0) {
       subtotalDiscountOre = Math.round(Number(userDeal.amountKr) * 100);
@@ -261,6 +345,8 @@ const calculateUserDealQuote = (userDeal: any, input: z.infer<typeof AppDealQuot
   let notApplicableReason: string | null = null;
   if (!applicable && wantsFreeDelivery && subtotalDiscountOre === 0) {
     notApplicableReason = !isDelivery ? 'PICKUP_ONLY' : deliveryFeeOre === 0 ? 'ALREADY_FREE_DELIVERY' : 'NO_VALUE';
+  } else if (!applicable && userDeal.discountType === 'FIXED_PRICE') {
+    notApplicableReason = 'NO_MATCHING_ITEMS';
   } else if (!applicable) {
     notApplicableReason = 'NO_VALUE';
   }
@@ -314,7 +400,7 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
       ? await (prisma as any).userDeal.findMany({
           where: {
             userId: req.user.id,
-            status: { in: ['ACTIVE', 'RESERVED', 'USED'] },
+            status: { in: activeOrUsedStatuses },
             dealId: { not: null },
             OR: [{ expiresAt: null }, { expiresAt: { gte: now } }],
           },
@@ -326,17 +412,17 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
         .filter((row: any) => row.dealId)
         .map((row: any) => [row.dealId, row]),
     );
+    const usageByDealId = new Map<string, number>();
+    claimedRows.forEach((row: any) => {
+      if (!row.dealId || (row.status !== 'RESERVED' && row.status !== 'USED')) return;
+      usageByDealId.set(row.dealId, (usageByDealId.get(row.dealId) || 0) + 1);
+    });
     // Claim-lägen: ACTIVE döljer vanliga deals (de bor i kassan + Mina deals)
-    // men uppdrag visas med progress. USED/RESERVED utan aktiv claim döljs
-    // helt — ett avklarat uppdrag ska inte stå kvar och tjata.
+    // men uppdrag visas med progress. USED/RESERVED får visas igen bara om
+    // max per kund tillåter fler användningar.
     const activeClaimedDealIds = new Set(
       claimedRows
         .filter((row: any) => row.dealId && row.status === 'ACTIVE')
-        .map((row: any) => row.dealId),
-    );
-    const spentClaimedDealIds = new Set(
-      claimedRows
-        .filter((row: any) => row.dealId && (row.status === 'RESERVED' || row.status === 'USED'))
         .map((row: any) => row.dealId),
     );
 
@@ -365,7 +451,10 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
       .filter((deal) => isDealAvailableNow(deal, now))
       .filter((deal) => !abHidden.has(deal.id))
       .filter((deal) => appAudienceMatches(deal, { isLoggedIn, orderCount }))
-      .filter((deal) => !(spentClaimedDealIds.has(deal.id) && !activeClaimedDealIds.has(deal.id)))
+      .filter((deal) => {
+        const used = usageByDealId.get(deal.id) || 0;
+        return used < appDealMaxUsesPerCustomer(deal);
+      })
       .filter((deal) => isMissionDeal(deal) || !activeClaimedDealIds.has(deal.id))
       .map((deal) => ({
         deal,
@@ -403,7 +492,7 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
         orderBy: { createdAt: 'desc' },
       });
       assigned = assignedRows
-        .filter((row: any) => row.deal)
+        .filter((row: any) => row.deal && !isClaimedDealParentInactive(row, now))
         .map((row: any) => ({
           ...formatAppDeal(row.deal, row.id, null),
           claimRequired: false,
@@ -506,18 +595,16 @@ router.post('/app/:id/claim', authenticateUser, async (req: any, res) => {
       return res.status(403).json({ error: 'Erbjudandet gäller inte för ditt konto' });
     }
 
-    const maxUsesPerCustomer = Math.max(0, Math.round(Number(deal.maxUsesPerCustomer || 0)));
-    if (maxUsesPerCustomer > 0) {
-      const usageCount = await (prisma as any).userDeal.count({
-        where: {
-          userId: req.user.id,
-          dealId: deal.id,
-          status: { in: ['RESERVED', 'USED'] },
-        },
-      });
-      if (usageCount >= maxUsesPerCustomer) {
-        return res.status(409).json({ error: 'Du har redan använt det här erbjudandet' });
-      }
+    const maxUsesPerCustomer = appDealMaxUsesPerCustomer(deal);
+    const usageCount = await (prisma as any).userDeal.count({
+      where: {
+        userId: req.user.id,
+        dealId: deal.id,
+        status: { in: ['RESERVED', 'USED'] },
+      },
+    });
+    if (usageCount >= maxUsesPerCustomer) {
+      return res.status(409).json({ error: 'Du har redan använt det här erbjudandet' });
     }
 
     const cooldownHours = Math.max(0, Math.round(Number(deal.appCooldownHours || 0)));
@@ -547,7 +634,7 @@ router.post('/app/:id/claim', authenticateUser, async (req: any, res) => {
       ? new Date(Date.now() + deal.appClaimExpiresMinutes * 60_000)
       : deal.validUntil || null;
     const mission = isMissionDeal(deal);
-    const amountKr = !mission && deal.discountType === 'FIXED' ? Math.round(oreToKr(deal.discountValue)) : null;
+    const amountKr = !mission && (deal.discountType === 'FIXED' || deal.discountType === 'FIXED_PRICE') ? Math.round(oreToKr(deal.discountValue)) : null;
     const discountPercent = !mission && deal.discountType === 'PERCENTAGE' ? deal.discountValue : null;
     const userDeal = await (prisma as any).userDeal.create({
       data: {
@@ -569,6 +656,10 @@ router.post('/app/:id/claim', authenticateUser, async (req: any, res) => {
           missionTarget: missionTargetForDeal(deal),
           missionWindowDays: isAllTimeMission(deal) ? 0 : 7,
           appTemplate: deal.appTemplate || null,
+          scopeType: deal.triggerType || 'NONE',
+          targetIds: parseDealProductIds(deal.comboProductIds),
+          discountType: deal.discountType,
+          maxUsesPerCustomer,
         },
       },
     });
@@ -629,6 +720,19 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
       });
     }
 
+    if (isClaimedDealParentInactive(userDeal)) {
+      await expireUserDealQuietly(userDeal.id);
+      return res.status(404).json({
+        applicable: false,
+        reason: 'DEAL_REMOVED',
+        discountAmountKr: 0,
+        deliveryDiscountKr: 0,
+        subtotalDiscountKr: 0,
+        dpointsBonus: 0,
+        deal: null,
+      });
+    }
+
     // Restaurang-scopad deal får inte prissättas i en annan restaurangs kassa.
     const scope = userDealRestaurantScope(userDeal.deal);
     if (scope && data.restaurantId && !scope.includes(data.restaurantId)) {
@@ -644,7 +748,8 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
       });
     }
 
-    const quote = calculateUserDealQuote(userDeal, data);
+    const cartItems = await enrichQuoteItems(data.items || []);
+    const quote = calculateUserDealQuote(userDeal, data, cartItems);
     res.json({
       applicable: quote.applicable,
       reason: quote.reason,
@@ -673,6 +778,7 @@ const MyDealsSchema = z.object({
   deliveryFeeKr: z.number().nonnegative().optional().default(0),
   orderMode: z.enum(['DELIVERY', 'PICKUP', 'delivery', 'pickup']).optional().default('DELIVERY'),
   restaurantId: z.string().optional(),
+  items: z.array(CartQuoteItemSchema).optional().default([]),
 });
 
 const userDealTitle = (userDeal: any): string => {
@@ -708,13 +814,34 @@ router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
         status: 'ACTIVE',
         OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
       },
-      include: { deal: { select: { id: true, isGlobal: true, applicableRestaurantIds: true, restaurantId: true, appMissionType: true } } },
+      include: {
+        deal: {
+          select: {
+            id: true,
+            isActive: true,
+            appEnabled: true,
+            validFrom: true,
+            validUntil: true,
+            isGlobal: true,
+            applicableRestaurantIds: true,
+            restaurantId: true,
+            appMissionType: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
+    const cartItems = await enrichQuoteItems(data.items || []);
+    const expiredIds: string[] = [];
     const items = userDeals
       // Uppdrag prissätts inte i kassan — de belönas efter köp.
       .filter((ud: any) => !(ud.metadata as any)?.appMissionType && !ud.deal?.appMissionType)
+      .filter((ud: any) => {
+        if (!isClaimedDealParentInactive(ud)) return true;
+        expiredIds.push(ud.id);
+        return false;
+      })
       .map((userDeal: any) => {
         const meta = (userDeal.metadata || {}) as any;
         // Din favorit gäller bara hos sin restaurang — listan ska säga det,
@@ -724,7 +851,7 @@ router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
         );
         const scope = userDealRestaurantScope(userDeal.deal);
         const scopedOut = (scope && data.restaurantId && !scope.includes(data.restaurantId)) || favoriteScopedOut;
-        const quote = calculateUserDealQuote(userDeal, data);
+        const quote = calculateUserDealQuote(userDeal, data, cartItems);
         return {
           userDealId: userDeal.id,
           title: userDealTitle(userDeal),
@@ -739,6 +866,13 @@ router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
           freeDelivery: !!userDeal.freeDelivery,
         };
       });
+
+    if (expiredIds.length) {
+      (prisma as any).userDeal.updateMany({
+        where: { id: { in: expiredIds }, status: { in: ['ACTIVE', 'RESERVED'] } },
+        data: { status: 'EXPIRED' },
+      }).catch(() => null);
+    }
 
     // Applicerbara först, störst rabatt överst; sedan icke-applicerbara.
     items.sort((a: any, b: any) => {

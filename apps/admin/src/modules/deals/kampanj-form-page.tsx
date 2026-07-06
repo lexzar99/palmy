@@ -31,15 +31,18 @@ type Draft = {
   badgeText: string;
   imageUrl: string;
   restaurantId: string;
+  applicableRestaurantIds: string[];
   isGlobal: boolean;
   scopeType: DealScopeType;
   discountType: DealDiscountType;
   discountValue: number;
+  freeDelivery: boolean;
   minOrder: number;
   targetIds: string[];
   isActive: boolean;
   showOnSite: boolean;
   maxUsages: string;
+  maxUsesPerCustomer: string;
   validFrom: string;
   validUntil: string;
   sortOrder: number;
@@ -56,6 +59,8 @@ type Draft = {
   appDpointsBonus: number;
   appMissionType: string;
   appCtaLabel: string;
+  appCtaAction: string;
+  appCtaTarget: string;
   appTheme: string;
 };
 
@@ -65,15 +70,18 @@ const defaultDraft = (): Draft => ({
   badgeText: "",
   imageUrl: "",
   restaurantId: "",
+  applicableRestaurantIds: [],
   isGlobal: false,
   scopeType: "RESTAURANT",
   discountType: "PERCENTAGE",
   discountValue: 10,
+  freeDelivery: false,
   minOrder: 0,
   targetIds: [],
   isActive: true,
   showOnSite: true,
   maxUsages: "",
+  maxUsesPerCustomer: "1",
   validFrom: "",
   validUntil: "",
   sortOrder: 0,
@@ -90,6 +98,8 @@ const defaultDraft = (): Draft => ({
   appDpointsBonus: 0,
   appMissionType: "",
   appCtaLabel: "",
+  appCtaAction: "CLAIM",
+  appCtaTarget: "",
   appTheme: "sunrise",
 });
 
@@ -116,7 +126,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
   const [initialized, setInitialized] = useState(false);
 
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
-  const activeRestaurantId = draft.isGlobal ? null : (draft.restaurantId || null);
+  const activeRestaurantId = draft.isGlobal ? null : (draft.restaurantId || draft.applicableRestaurantIds[0] || null);
 
   const categories = useQuery({
     queryKey: dealCategoriesQueryKey(activeRestaurantId),
@@ -139,15 +149,18 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         badgeText: d.badgeText || "",
         imageUrl: d.imageUrl || "",
         restaurantId: d.restaurantId || d.applicableRestaurantIds?.[0] || "",
+        applicableRestaurantIds: d.applicableRestaurantIds?.length ? d.applicableRestaurantIds : d.restaurantId ? [d.restaurantId] : [],
         isGlobal: d.isGlobal,
         scopeType: d.scopeType,
         discountType: (d.discountType === "NONE" ? "NONE" : d.discountType === "FIXED_PRICE" ? "FIXED_PRICE" : d.discountType === "FIXED" ? "FIXED" : "PERCENTAGE") as DealDiscountType,
         discountValue: d.discountValue,
+        freeDelivery: Boolean(d.freeDelivery),
         minOrder: d.minOrder || 0,
         targetIds: d.targetIds || [],
         isActive: d.isActive,
         showOnSite: d.showOnSite,
         maxUsages: d.maxUsages ? String(d.maxUsages) : "",
+        maxUsesPerCustomer: d.maxUsesPerCustomer ? String(d.maxUsesPerCustomer) : "1",
         validFrom: d.validFrom ? d.validFrom.slice(0, 10) : "",
         validUntil: d.validUntil ? d.validUntil.slice(0, 10) : "",
         sortOrder: d.sortOrder || 0,
@@ -164,6 +177,8 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         appDpointsBonus: d.appDpointsBonus || 0,
         appMissionType: d.appMissionType || "",
         appCtaLabel: d.appCtaLabel || "",
+        appCtaAction: d.appCtaAction || "CLAIM",
+        appCtaTarget: d.appCtaTarget || "",
         appTheme: d.appTheme || "sunrise",
       });
       setInitialized(true);
@@ -184,6 +199,18 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
       targetIds: prev.targetIds.includes(id) ? prev.targetIds.filter((x) => x !== id) : [...prev.targetIds, id],
     }));
 
+  const toggleRestaurant = (id: string) =>
+    setDraft((prev) => {
+      const nextIds = prev.applicableRestaurantIds.includes(id)
+        ? prev.applicableRestaurantIds.filter((x) => x !== id)
+        : [...prev.applicableRestaurantIds, id];
+      return {
+        ...prev,
+        applicableRestaurantIds: nextIds,
+        restaurantId: nextIds[0] || "",
+      };
+    });
+
   const set = <K extends keyof Draft>(key: K, val: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: val }));
 
@@ -197,14 +224,17 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         scopeType: d.scopeType,
         discountType: d.discountType,
         discountValue: d.discountValue,
+        freeDelivery: d.freeDelivery,
         minOrder: d.scopeType === "MIN_ORDER" ? d.minOrder : 0,
         targetIds: d.targetIds,
-        restaurantId: d.isGlobal ? null : d.restaurantId || null,
+        applicableRestaurantIds: d.isGlobal ? [] : d.applicableRestaurantIds,
+        restaurantId: d.isGlobal ? null : d.restaurantId || d.applicableRestaurantIds[0] || null,
         isGlobal: d.isGlobal,
         isActive: d.isActive,
         showOnSite: d.showOnSite,
         popupEnabled: false,
         maxUsages: d.maxUsages ? Number(d.maxUsages) : null,
+        maxUsesPerCustomer: d.maxUsesPerCustomer ? Number(d.maxUsesPerCustomer) : null,
         validFrom: d.validFrom || null,
         validUntil: d.validUntil || null,
         sortOrder: d.sortOrder,
@@ -221,6 +251,8 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         appDpointsBonus: d.appEnabled ? d.appDpointsBonus : 0,
         appMissionType: d.appEnabled ? d.appMissionType || null : null,
         appCtaLabel: d.appEnabled ? d.appCtaLabel || null : null,
+        appCtaAction: d.appEnabled ? d.appCtaAction || "CLAIM" : "CLAIM",
+        appCtaTarget: d.appEnabled ? d.appCtaTarget || null : null,
         appTheme: d.appEnabled ? d.appTheme || null : null,
       };
       if (dealId) return updateAutomaticDeal(dealId, payload);
@@ -247,10 +279,11 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
 
   const handleSave = () => {
     if (!draft.title.trim()) { setError("Titel krävs."); return; }
-    if (!draft.isGlobal && !draft.restaurantId) { setError("Välj restaurang eller aktivera 'Alla restauranger'."); return; }
+    if (!draft.isGlobal && draft.applicableRestaurantIds.length === 0) { setError("Välj minst en restaurang eller aktivera alla."); return; }
+    if (isItemScope && !activeRestaurantId) { setError("Välj restaurang för produkter eller kategorier."); return; }
     if (!Number.isFinite(draft.discountValue) || draft.discountValue < 0) { setError("Rabattvärde måste vara ≥ 0."); return; }
     if (draft.discountType === "PERCENTAGE" && draft.discountValue > 100) { setError("Procent-rabatt får inte överstiga 100%."); return; }
-    if (draft.discountType === "NONE" && !draft.appEnabled) { setError("Ingen kontantrabatt kräver att App i Swift är aktivt, t.ex. fri leverans eller Vpoints."); return; }
+    if (draft.discountType === "NONE" && !draft.freeDelivery && !draft.appEnabled) { setError("Välj rabatt, fri leverans eller app-bonus."); return; }
     if (draft.scopeType === "MIN_ORDER" && draft.minOrder <= 0) { setError("Minimiorder måste vara > 0 för min-order-kampanj."); return; }
     if (draft.validFrom && draft.validUntil && draft.validFrom > draft.validUntil) { setError("Startdatum måste vara före slutdatum."); return; }
     setError(null);
@@ -266,15 +299,18 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
   // Live badge-text för förhandsvisningen, speglar aktuellt rabattvärde/typ.
   const previewDiscount =
     draft.discountType === "NONE"
-      ? (draft.appDpointsBonus > 0 ? `+${draft.appDpointsBonus} Vpoints` : "Fri leverans / app-only")
+      ? (draft.freeDelivery ? "Fri leverans" : draft.appDpointsBonus > 0 ? `+${draft.appDpointsBonus} Vpoints` : "App-only")
       : draft.discountType === "PERCENTAGE"
-      ? `${draft.discountValue}% rabatt`
+      ? `${draft.discountValue}% rabatt${draft.freeDelivery ? " + fri leverans" : ""}`
       : draft.discountType === "FIXED_PRICE"
-        ? `${draft.discountValue} kr fast pris`
-        : `${draft.discountValue} kr rabatt`;
+        ? `${draft.discountValue} kr fast pris${draft.freeDelivery ? " + fri leverans" : ""}`
+        : `${draft.discountValue} kr rabatt${draft.freeDelivery ? " + fri leverans" : ""}`;
   const previewRestaurant = draft.isGlobal
     ? "Alla restauranger"
-    : (restaurants.data ?? []).find((r) => r.id === draft.restaurantId)?.name || "Ingen restaurang";
+    : draft.applicableRestaurantIds.length > 1
+      ? `${draft.applicableRestaurantIds.length} restauranger`
+      : (restaurants.data ?? []).find((r) => r.id === (draft.restaurantId || draft.applicableRestaurantIds[0]))?.name || "Ingen restaurang";
+  const activeRestaurantSlug = (restaurants.data ?? []).find((r) => r.id === activeRestaurantId)?.slug || "";
 
   return (
     <div className="page-stack">
@@ -403,6 +439,18 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                   />
                 </div>
               )}
+              <div className="flex items-center justify-between gap-3 border-t border-[var(--row-divider)] py-3">
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">Fri leverans</span>
+                <label className="flex items-center gap-2 text-xs font-bold text-[var(--text-primary)]">
+                  <input
+                    type="checkbox"
+                    checked={draft.freeDelivery}
+                    onChange={(e) => set("freeDelivery", e.target.checked)}
+                    className="h-4 w-4 accent-[var(--accent)]"
+                  />
+                  Aktiv
+                </label>
+              </div>
               {/* Max rabatt — taket sätts via max antal användningar (befintligt fält) */}
               <div className="flex items-center justify-between gap-3 border-t border-[var(--row-divider)] py-3">
                 <span className="text-[13px] font-semibold text-[var(--text-primary)]">Max antal användningar</span>
@@ -413,6 +461,18 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                   onChange={(e) => set("maxUsages", e.target.value)}
                   placeholder="∞"
                   aria-label="Max antal användningar"
+                  className="w-28 text-right"
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-[var(--row-divider)] py-3">
+                <span className="text-[13px] font-semibold text-[var(--text-primary)]">Max per kund</span>
+                <Input
+                  type="number"
+                  min="1"
+                  value={draft.maxUsesPerCustomer}
+                  onChange={(e) => set("maxUsesPerCustomer", e.target.value)}
+                  placeholder="1"
+                  aria-label="Max per kund"
                   className="w-28 text-right"
                 />
               </div>
@@ -481,7 +541,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                   <Field label="Vikt/rotation">
                     <Input type="number" min="1" value={draft.appWeight} onChange={(e) => set("appWeight", Number(e.target.value))} />
                   </Field>
-                  <Field label="CTA">
+                  <Field label="CTA-text">
                     <Input value={draft.appCtaLabel} onChange={(e) => set("appCtaLabel", e.target.value)} placeholder="Hämta" />
                   </Field>
                   <Field label="Tema">
@@ -493,6 +553,34 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                       <option value="dark">Mörk launch</option>
                     </Select>
                   </Field>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Field label="CTA-mål">
+                    <Select value={draft.appCtaAction} onChange={(e) => set("appCtaAction", e.target.value)}>
+                      <option value="CLAIM">Hämta deal</option>
+                      <option value="CART">Öppna kassan</option>
+                      <option value="RESTAURANT">Öppna restaurang</option>
+                      <option value="REWARDS">Öppna rewards</option>
+                      <option value="URL">Öppna länk</option>
+                    </Select>
+                  </Field>
+                  {draft.appCtaAction === "RESTAURANT" ? (
+                    <Field label="Restaurang för CTA">
+                      <Select value={draft.appCtaTarget || activeRestaurantSlug} onChange={(e) => set("appCtaTarget", e.target.value)}>
+                        <option value="">Välj restaurang...</option>
+                        {(restaurants.data ?? []).map((r) => <option key={r.id} value={r.slug}>{r.name}</option>)}
+                      </Select>
+                    </Field>
+                  ) : draft.appCtaAction === "URL" ? (
+                    <Field label="Länk">
+                      <Input value={draft.appCtaTarget} onChange={(e) => set("appCtaTarget", e.target.value)} placeholder="https://viaeats.se/..." />
+                    </Field>
+                  ) : (
+                    <Field label="Mål">
+                      <Input value={draft.appCtaTarget} onChange={(e) => set("appCtaTarget", e.target.value)} placeholder="Valfritt" />
+                    </Field>
+                  )}
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-4">
@@ -591,16 +679,41 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                   <input
                     type="checkbox"
                     checked={draft.isGlobal}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, isGlobal: e.target.checked, restaurantId: e.target.checked ? "" : prev.restaurantId }))}
+                    onChange={(e) => setDraft((prev) => ({
+                      ...prev,
+                      isGlobal: e.target.checked,
+                      restaurantId: e.target.checked ? "" : prev.restaurantId,
+                      applicableRestaurantIds: e.target.checked ? [] : prev.applicableRestaurantIds,
+                    }))}
                     className="h-4 w-4 accent-[var(--accent)]"
                   />
                   <span className="text-[13px] font-semibold text-[var(--text-primary)]">Gäller alla restauranger</span>
                 </label>
                 {!draft.isGlobal && (
-                  <Select value={draft.restaurantId} onChange={(e) => set("restaurantId", e.target.value)} className="mt-2.5" aria-label="Restaurang">
-                    <option value="">Välj restaurang...</option>
-                    {(restaurants.data ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </Select>
+                  <div className="mt-2.5 grid max-h-56 gap-1.5 overflow-y-auto">
+                    {(restaurants.data ?? []).map((r) => {
+                      const checked = draft.applicableRestaurantIds.includes(r.id);
+                      return (
+                        <label
+                          key={r.id}
+                          className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm ${
+                            checked ? "border-[var(--accent)] bg-[#fff7f3]" : "border-[var(--border-strong)]"
+                          }`}
+                        >
+                          <span className="min-w-0 truncate font-semibold text-[var(--text-primary)]">{r.name}</span>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleRestaurant(r.id)}
+                            className="h-4 w-4 accent-[var(--accent)]"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {!draft.isGlobal && isItemScope && draft.applicableRestaurantIds.length > 1 && (
+                  <p className="mt-2 text-xs text-[var(--text-muted)]">Produkter hämtas från första valda restaurangen.</p>
                 )}
               </div>
               {/* Period */}
