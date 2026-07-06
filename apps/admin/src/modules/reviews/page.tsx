@@ -44,6 +44,8 @@ export function ReviewsPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ReviewFilter>("all");
   const [activeReview, setActiveReview] = useState<ReviewRecord | null>(null);
+  const REVIEWS_PAGE = 20;
+  const [visible, setVisible] = useState(REVIEWS_PAGE);
 
   const reviews = useQuery({ queryKey: reviewsQueryKey, queryFn: getReviews });
 
@@ -92,7 +94,7 @@ export function ReviewsPage() {
           <button
             key={chip.value}
             type="button"
-            onClick={() => setFilter(chip.value)}
+            onClick={() => { setFilter(chip.value); setVisible(REVIEWS_PAGE); }}
             className={cn("chip", filter === chip.value && "is-active")}
           >
             {chip.label}
@@ -101,7 +103,7 @@ export function ReviewsPage() {
       />
 
       <Surface className="px-6 py-6">
-        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Sök recensioner" />
+        <Input value={query} onChange={(event) => { setQuery(event.target.value); setVisible(REVIEWS_PAGE); }} placeholder="Sök recensioner" />
 
         {filteredReviews.length === 0 ? (
           <div className="mt-6">
@@ -114,7 +116,7 @@ export function ReviewsPage() {
           </div>
         ) : (
           <div className="mt-6 flex flex-col gap-3">
-            {filteredReviews.map((review) => {
+            {filteredReviews.slice(0, visible).map((review) => {
               const rating = review.rating || 0;
               const isLow = rating < 3;
               const isHigh = rating >= 4;
@@ -158,6 +160,13 @@ export function ReviewsPage() {
                 </div>
               );
             })}
+            {filteredReviews.length > visible && (
+              <div className="flex justify-center pt-1">
+                <Button variant="secondary" onClick={() => setVisible((v) => v + REVIEWS_PAGE)}>
+                  Visa fler ({filteredReviews.length - visible} kvar)
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </Surface>

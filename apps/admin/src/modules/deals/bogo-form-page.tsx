@@ -298,7 +298,7 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
   return (
     <div className="page-stack">
       <PageHeader
-        breadcrumb="Katalog / Deals"
+        breadcrumb="Tillväxt / Deals"
         title={isEditing ? draft.title || "Redigera combo/BOGO" : "Ny combo/BOGO"}
         onBack={() => router.push("/deals")}
         actions={

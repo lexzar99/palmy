@@ -51,11 +51,13 @@ Order (userDealId valideras igen: ägarskap, expiry, minOrder, restaurang-scope)
 ```
 
 - `GET /api/deals/app?placement=HOME_TOP|REWARDS|CART` — det kunderna ser.
-  Admin-fliken "I appen nu" (/deals?tab=iappen) visar exakt samma feed.
-- **DealCampaign-motorn** (`lib/dealAssignment.ts` + `lib/segments.ts`):
-  segment → deterministisk variant per kund (FNV-hash, inte Math.random) →
-  UserDeal typ CAMPAIGN med `metadata.campaignId`. Körs av 24h-schedulern +
-  "Kör nu" i admin. Utfall (tilldelat/inlöst) visas i kampanjtabellen.
+  Admin-fliken "I appen" (/deals?tab=app) visar exakt samma feed + app-deals.
+- **DealCampaign-motorn (auto-kampanjer) är BORTTAGEN** (admin-UI, routes,
+  lib/dealAssignment.ts, lib/segments.ts, 24h-schedulern). Gamla UserDeals
+  typ CAMPAIGN kan finnas kvar i DB och mergas fortfarande in i HOME_TOP-
+  feeden; DealCampaign-modellen ligger kvar i schemat (inga drops).
+- Deal-synlighet styrs i kampanjformuläret via "Visas i": Endast appen
+  (appEnabled), Endast webben (showOnSite) eller App + webb.
 - **Uppdrag (missions):** Deal med `appMissionType` (t.ex. THREE_ORDERS_WEEK)
   + `appDpointsBonus` = belöning. Claim skapar UserDeal typ APP_MISSION;
   `evaluateAppDealMissions` (lib/dpoints.ts) betalar ut efter betald order.
@@ -95,8 +97,11 @@ Order (userDealId valideras igen: ägarskap, expiry, minOrder, restaurang-scope)
 ## Admin-panelen
 
 Monokrom, svartvit (guld/orange är kundappens färg). Kort copy. Ordermodal =
-statustrack + en tydlig nästa-steg-knapp. Deals-huben: BOGO | Kampanjer |
-Auto-kampanjer (motorn) | Kupongkoder | I appen nu.
+statustrack + en tydlig nästa-steg-knapp. Nav-grupper: Drift | Katalog |
+Tillväxt | System — en funktion har EN plats. Deals-huben: Kampanjer | BOGO |
+I appen (hantering + live-förhandsvisning). Kuponger bara på /coupons.
+Vpoints-flikar: Översikt | Intjäning | Värva vän | Välkomst | Bonuskort |
+Aktivitet. Logg-listor visar 15-20 rader + "Visa fler", aldrig allt.
 
 ## Deploy och miljö
 

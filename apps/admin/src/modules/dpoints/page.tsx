@@ -15,17 +15,17 @@ export function DpointsPage() {
   const [tab, setTab] = useState<TabKey>("overview");
   return (
     <div className="page-stack">
-      <PageHeader breadcrumb="Plattform" title="Vpoints" />
+      <PageHeader breadcrumb="Tillväxt" title="Vpoints" />
       <Tabs<TabKey>
         value={tab}
         onChange={setTab}
         scroll
         options={[
           { value: "overview", label: "Översikt" },
-          { value: "rewards", label: "Belöningar" },
+          { value: "rewards", label: "Intjäning" },
           { value: "varvavan", label: "Värva vän" },
-          { value: "welcome", label: "Välkomstkampanj" },
-          { value: "sponsors", label: "Sponsorkort" },
+          { value: "welcome", label: "Välkomst" },
+          { value: "sponsors", label: "Bonuskort" },
           { value: "activity", label: "Aktivitet" },
         ]}
       />

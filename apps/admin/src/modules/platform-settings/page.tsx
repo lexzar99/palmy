@@ -83,7 +83,7 @@ export function PlatformSettingsPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        breadcrumb="Plattform"
+        breadcrumb="System"
         title="Inställningar"
         actions={
           <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>

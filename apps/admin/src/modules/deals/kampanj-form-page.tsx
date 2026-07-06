@@ -315,7 +315,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
   return (
     <div className="page-stack">
       <PageHeader
-        breadcrumb="Katalog / Deals"
+        breadcrumb="Tillväxt / Deals"
         title={isEditing ? draft.title || "Redigera deal" : "Ny deal"}
         onBack={() => router.push("/deals?tab=kampanjer")}
         actions={
@@ -480,22 +480,13 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
           </Surface>
 
           <Surface className="px-5 py-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className={CARD_TITLE}>App i Swift</p>
-                <p className="mt-1 text-xs font-medium text-[var(--text-muted)]">
-                  Styr korten som syns i hemskärmen, sticky hot deal och appens claim-flöde.
-                </p>
-              </div>
-              <label className="flex items-center gap-2 text-xs font-extrabold text-[var(--text-primary)]">
-                <input
-                  type="checkbox"
-                  checked={draft.appEnabled}
-                  onChange={(e) => set("appEnabled", e.target.checked)}
-                  className="h-4 w-4 accent-[var(--accent)]"
-                />
-                Aktiv
-              </label>
+            <div>
+              <p className={CARD_TITLE}>I appen</p>
+              <p className="mt-1 text-xs font-medium text-[var(--text-muted)]">
+                {draft.appEnabled
+                  ? "Styr kortet i appen: placering, målgrupp, design och claim-flöde."
+                  : "Välj 'Endast appen' eller 'App + webb' under Visas i för att lägga dealen i appen."}
+              </p>
             </div>
 
             {draft.appEnabled && (
@@ -736,10 +727,21 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                     <option value="inactive">Inaktiv</option>
                   </Select>
                 </Field>
-                <Field label="Synlig på sajten">
-                  <Select value={draft.showOnSite ? "yes" : "no"} onChange={(e) => set("showOnSite", e.target.value === "yes")}>
-                    <option value="yes">Ja — visas i kassan & spotlight</option>
-                    <option value="no">Nej</option>
+                <Field label="Visas i">
+                  <Select
+                    value={draft.appEnabled && draft.showOnSite ? "both" : draft.appEnabled ? "app" : "web"}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setDraft((prev) => ({
+                        ...prev,
+                        appEnabled: v === "app" || v === "both",
+                        showOnSite: v === "web" || v === "both",
+                      }));
+                    }}
+                  >
+                    <option value="app">Endast appen</option>
+                    <option value="web">Endast webben</option>
+                    <option value="both">App + webb</option>
                   </Select>
                 </Field>
               </div>

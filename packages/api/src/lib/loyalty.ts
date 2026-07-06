@@ -1,13 +1,10 @@
 import prisma from './prisma';
 import { Order } from '@prisma/client';
 
-// STEGVIS KONSOLIDERING: den nya, admin-styrda motorn är DealCampaign
-// (lib/dealAssignment.ts + segments.ts): new_users_7d = välkomst,
-// active_repeaters = lojalitet, inactive_30d = win-back. Den här filens
-// title-substräng-triggers ("Välkomst"/"Lojalitet"/"VIP"/"Saknar dig") är
-// kvar för bakåtkompatibilitet och no-op:ar om ingen sådan Campaign finns.
-// Flytta kvarvarande fall till DealCampaign och ta bort detta när inga
-// gamla Campaign-titlar används i prod.
+// DealCampaign-motorn (auto-kampanjer) är borttagen ur admin och API.
+// Den här filens title-substräng-triggers ("Välkomst"/"Lojalitet"/"VIP"/
+// "Saknar dig") är kvar för bakåtkompatibilitet och no-op:ar om ingen
+// sådan Campaign finns.
 
 /**
  * Generates a unique, easy-to-read discount code

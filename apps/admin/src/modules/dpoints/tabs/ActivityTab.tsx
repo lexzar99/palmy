@@ -42,14 +42,16 @@ export default function ActivityTab() {
 
   const adjustErr = (adjustMut.error as { response?: { data?: { error?: string } } } | undefined)?.response?.data?.error;
 
-  // (B) Senaste inlösen
+  // (B) Senaste inlösen — visa 15 i taget, "Visa fler" laddar nästa sida.
+  const PAGE = 15;
   const redemptions = useQuery({ queryKey: dpointsKeys.redemptions, queryFn: getRedemptions });
   const [filter, setFilter] = useState("");
+  const [visible, setVisible] = useState(PAGE);
 
   const all = redemptions.data ?? [];
-  const recent = useMemo(() => {
+  const matched = useMemo(() => {
     const f = filter.trim().toLowerCase();
-    const matched = f
+    return f
       ? all.filter(
           (r) =>
             (r.code ?? "").toLowerCase().includes(f) ||
@@ -57,8 +59,8 @@ export default function ActivityTab() {
             (r.userPhone ?? "").toLowerCase().includes(f),
         )
       : all;
-    return matched.slice(0, 15);
   }, [all, filter]);
+  const recent = matched.slice(0, visible);
 
   return (
     <div className="flex flex-col gap-6">
@@ -108,7 +110,7 @@ export default function ActivityTab() {
               className="max-w-[220px]"
               placeholder="Filtrera kod eller kund"
               value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+              onChange={(e) => { setFilter(e.target.value); setVisible(PAGE); }}
             />
           </div>
           {redemptions.isLoading ? (
@@ -138,6 +140,13 @@ export default function ActivityTab() {
                 ))}
               </tbody>
             </table>
+          )}
+          {matched.length > visible && (
+            <div className="flex justify-center pt-1">
+              <Button variant="secondary" onClick={() => setVisible((v) => v + PAGE)}>
+                Visa fler ({matched.length - visible} kvar)
+              </Button>
+            </div>
           )}
         </div>
       </Surface>

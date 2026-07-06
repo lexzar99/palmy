@@ -58,9 +58,12 @@ export default function SponsorsTab() {
   return (
     <Surface>
       <div className="flex items-center justify-between p-6">
-        <h2 className="text-lg font-semibold text-[var(--text-primary)]">Sponsorkort</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Bonuskort</h2>
+          <p className="text-sm text-[var(--text-secondary)]">Poäng-bonuskort för utloggade besökare. Partnerkorten i appen styrs under Sponsorer.</p>
+        </div>
         <Button variant="primary" onClick={() => setEditing({ ...emptySponsor })}>
-          <Plus size={16} /> Nytt sponsorkort
+          <Plus size={16} /> Nytt bonuskort
         </Button>
       </div>
 
@@ -69,11 +72,11 @@ export default function SponsorsTab() {
           <LoadingPanel />
         ) : cards.length === 0 ? (
           <EmptyState
-            title="Inga sponsorkort"
-            description="Sponsorkort visas som bonus för utloggade besökare."
+            title="Inga bonuskort"
+            description="Bonuskort visas som poäng-bonus för utloggade besökare."
             action={
               <Button variant="primary" onClick={() => setEditing({ ...emptySponsor })}>
-                <Plus size={16} /> Nytt sponsorkort
+                <Plus size={16} /> Nytt bonuskort
               </Button>
             }
           />
@@ -105,7 +108,7 @@ export default function SponsorsTab() {
 
       <Modal
         open={!!editing}
-        title={editing?.id ? "Redigera sponsorkort" : "Nytt sponsorkort"}
+        title={editing?.id ? "Redigera bonuskort" : "Nytt bonuskort"}
         onClose={() => setEditing(null)}
         footer={
           <div className="flex justify-end gap-2">

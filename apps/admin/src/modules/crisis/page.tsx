@@ -78,7 +78,7 @@ export function CrisisPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader breadcrumb="Plattform" title="Krisverktyg" />
+      <PageHeader breadcrumb="Drift" title="Krisverktyg" />
 
       {/* Emergency Close All — destructive, danger-tinted card */}
       <Surface className="px-6 py-6 border-[color-mix(in_srgb,var(--danger)_20%,transparent)] bg-[var(--danger-soft)]">

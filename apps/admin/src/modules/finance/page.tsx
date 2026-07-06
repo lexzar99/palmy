@@ -67,7 +67,7 @@ export function FinancePage() {
   return (
     <div className="page-stack">
       <PageHeader
-        breadcrumb="Plattform"
+        breadcrumb="System"
         title="Utbetalningar"
         actions={
           <Button onClick={() => router.push("/finance/installningar")}>

@@ -5,24 +5,30 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   BellRing,
+  Bike,
   Building2,
   CircleDollarSign,
   ClipboardList,
+  Coins,
   ContactRound,
   Filter,
+  Gauge,
   Gift,
+  Handshake,
   History,
   LayoutDashboard,
   type LucideIcon,
   Map,
   MenuSquare,
+  Network,
   ReceiptText,
-  Search,
   Shield,
   Star,
   Store,
+  Tablet,
   TicketPercent,
   Users,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/shared/utils/cn";
 
@@ -31,37 +37,45 @@ type CommandItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  group: "Drift" | "Katalog" | "Plattform";
+  group: "Drift" | "Katalog" | "Tillväxt" | "System";
   keywords?: string;
 };
 
 const COMMANDS: CommandItem[] = [
   // Drift
+  { id: "dashboard", label: "Översikt", href: "/dashboard", icon: LayoutDashboard, group: "Drift", keywords: "dashboard start hem" },
   { id: "orders", label: "Ordrar", href: "/orders", icon: ClipboardList, group: "Drift", keywords: "live aktiva nya" },
   { id: "order-history", label: "Orderhistorik", href: "/order-history", icon: History, group: "Drift", keywords: "historik gamla" },
-  { id: "customers", label: "Kunder", href: "/customers", icon: ContactRound, group: "Drift" },
-  { id: "customer-search", label: "Sök kund", href: "/customer-search", icon: Search, group: "Drift", keywords: "kund sok lookup gdpr" },
+  { id: "customers", label: "Kunder", href: "/customers", icon: ContactRound, group: "Drift", keywords: "kund sok lookup gdpr" },
   { id: "reviews", label: "Recensioner", href: "/reviews", icon: Star, group: "Drift", keywords: "stjarnor betyg" },
-  { id: "push", label: "Push-notiser", href: "/push", icon: BellRing, group: "Drift", keywords: "notification meddelande" },
+  { id: "couriers", label: "Kurirer", href: "/couriers", icon: Bike, group: "Drift", keywords: "bud leverans" },
+  { id: "crisis", label: "Krisverktyg", href: "/crisis", icon: AlertTriangle, group: "Drift", keywords: "emergency stang refund akut" },
 
   // Katalog
   { id: "restaurants", label: "Restauranger", href: "/restaurants", icon: Store, group: "Katalog" },
+  { id: "brands", label: "Kedjor", href: "/brands", icon: Network, group: "Katalog", keywords: "brand kedja chain" },
   { id: "menu", label: "Meny", href: "/menu", icon: MenuSquare, group: "Katalog", keywords: "ratter produkter items" },
   { id: "categories", label: "Kategorier", href: "/categories", icon: Filter, group: "Katalog" },
   { id: "zones", label: "Zoner", href: "/zones", icon: Map, group: "Katalog", keywords: "leverans zone stad city" },
-  { id: "deals", label: "Deals & BOGO", href: "/deals", icon: Gift, group: "Katalog", keywords: "kampanj rabatt bogo" },
-  { id: "sponsors", label: "Sponsorer", href: "/sponsors", icon: TicketPercent, group: "Katalog" },
-  { id: "tiers", label: "Tiers", href: "/tiers", icon: Shield, group: "Katalog", keywords: "vip lojalitet medlem" },
+  { id: "restaurant-devices", label: "Enheter", href: "/restaurant-devices", icon: Tablet, group: "Katalog", keywords: "terminal pos surfplatta" },
 
-  // Plattform
-  { id: "dashboard", label: "Översikt", href: "/dashboard", icon: LayoutDashboard, group: "Plattform", keywords: "dashboard start hem" },
-  { id: "finance", label: "Ekonomi", href: "/finance", icon: CircleDollarSign, group: "Plattform", keywords: "finance utbetalning intakt" },
-  { id: "receipts", label: "Kvitton", href: "/receipts", icon: ReceiptText, group: "Plattform" },
-  { id: "users", label: "Admin-användare", href: "/users", icon: Users, group: "Plattform", keywords: "anvandare staff admin" },
-  { id: "platform-settings", label: "Plattform-inställningar", href: "/platform-settings", icon: Building2, group: "Plattform", keywords: "foretag company settings" },
-  { id: "crisis", label: "Krisverktyg", href: "/crisis", icon: AlertTriangle, group: "Plattform", keywords: "emergency stang refund akut" },
-  { id: "audit-log", label: "Audit-log", href: "/audit-log", icon: History, group: "Plattform", keywords: "logg compliance" },
-  { id: "2fa", label: "Tvåfaktor (2FA)", href: "/2fa", icon: Shield, group: "Plattform", keywords: "totp sakerhet" },
+  // Tillväxt
+  { id: "deals", label: "Deals & BOGO", href: "/deals", icon: Gift, group: "Tillväxt", keywords: "kampanj rabatt bogo app" },
+  { id: "coupons", label: "Kuponger", href: "/coupons", icon: TicketPercent, group: "Tillväxt", keywords: "kupong rabattkod kod" },
+  { id: "sponsors", label: "Sponsorer", href: "/sponsors", icon: Handshake, group: "Tillväxt", keywords: "partner annons" },
+  { id: "dpoints", label: "Vpoints", href: "/dpoints", icon: Coins, group: "Tillväxt", keywords: "lojalitet poang referral varva van valkomst" },
+  { id: "push", label: "Push-notiser", href: "/push", icon: BellRing, group: "Tillväxt", keywords: "notification meddelande" },
+
+  // System
+  { id: "finance", label: "Ekonomi", href: "/finance", icon: CircleDollarSign, group: "System", keywords: "finance utbetalning intakt" },
+  { id: "tiers", label: "Tiers", href: "/tiers", icon: Shield, group: "System", keywords: "abonnemang placering medlem" },
+  { id: "receipts", label: "Kvitton", href: "/receipts", icon: ReceiptText, group: "System" },
+  { id: "users", label: "Admin-användare", href: "/users", icon: Users, group: "System", keywords: "anvandare staff admin" },
+  { id: "engines", label: "Motorn", href: "/engines", icon: Zap, group: "System", keywords: "automation puls handelser" },
+  { id: "api-health", label: "API-status", href: "/api-health", icon: Gauge, group: "System", keywords: "uptime halsa status" },
+  { id: "audit-log", label: "Audit-log", href: "/audit-log", icon: History, group: "System", keywords: "logg compliance" },
+  { id: "platform-settings", label: "Plattform-inställningar", href: "/platform-settings", icon: Building2, group: "System", keywords: "foretag company settings" },
+  { id: "2fa", label: "Tvåfaktor (2FA)", href: "/2fa", icon: Shield, group: "System", keywords: "totp sakerhet" },
 ];
 
 function matches(item: CommandItem, query: string): boolean {
@@ -83,7 +97,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const filtered = useMemo(() => COMMANDS.filter((c) => matches(c, query)), [query]);
 
   const grouped = useMemo(() => {
-    const groups: Record<CommandItem["group"], CommandItem[]> = { Drift: [], Katalog: [], Plattform: [] };
+    const groups: Record<CommandItem["group"], CommandItem[]> = { Drift: [], Katalog: [], "Tillväxt": [], System: [] };
     filtered.forEach((item) => groups[item.group].push(item));
     return groups;
   }, [filtered]);
@@ -150,7 +164,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           {flatItems.length === 0 ? (
             <div className="cmdk-empty">Inget hittades för &ldquo;{query}&rdquo;</div>
           ) : (
-            (["Drift", "Katalog", "Plattform"] as const).map((group) => {
+            (["Drift", "Katalog", "Tillväxt", "System"] as const).map((group) => {
               const items = grouped[group];
               if (items.length === 0) return null;
               return (

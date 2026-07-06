@@ -113,6 +113,8 @@ export function PushPage() {
   const [form, setForm] = useState<ComposerForm>(EMPTY_FORM);
   const [result, setResult] = useState<PushResult | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const HISTORY_PAGE = 20;
+  const [historyVisible, setHistoryVisible] = useState(HISTORY_PAGE);
 
   const health = useQuery({ queryKey: healthQueryKey, queryFn: getSystemHealth, refetchInterval: 30_000 });
   const cities = useQuery({ queryKey: zonesCitiesQueryKey, queryFn: getCities });
@@ -210,7 +212,7 @@ export function PushPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        breadcrumb="Drift"
+        breadcrumb="Tillväxt"
         title="Push"
         actions={
           <>
@@ -456,7 +458,7 @@ export function PushPage() {
                 <tr><th>Tid</th><th>Målgrupp</th><th>Mottagare</th><th>Rubrik</th><th>Enheter</th><th>Status</th></tr>
               </thead>
               <tbody>
-                {history.data.logs.map((log) => (
+                {history.data.logs.slice(0, historyVisible).map((log) => (
                   <tr key={log.id}>
                     <td className="whitespace-nowrap text-sm">{formatDateTime(log.createdAt)}</td>
                     <td>
@@ -478,6 +480,13 @@ export function PushPage() {
                 ))}
               </tbody>
             </table>
+            {history.data.logs.length > historyVisible && (
+              <div className="flex justify-center py-3">
+                <Button variant="secondary" onClick={() => setHistoryVisible((v) => v + HISTORY_PAGE)}>
+                  Visa fler ({history.data.logs.length - historyVisible} kvar)
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </Surface>

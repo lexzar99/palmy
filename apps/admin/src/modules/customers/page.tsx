@@ -134,12 +134,12 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
   const data = customer.data;
 
   return (
-    <Modal open={open} onClose={onClose} title={data ? data.name : "Customer"} description={data ? `${data.phone || "No phone"} • ${data.email || "No email"}` : undefined} widthClassName="max-w-[1160px]" footer={<div className="flex items-center justify-between gap-3"><div>{data ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete customer</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>Save profile</Button></div></div>}>
+    <Modal open={open} onClose={onClose} title={data ? data.name : "Kund"} description={data ? `${data.phone || "Ingen telefon"} • ${data.email || "Ingen e-post"}` : undefined} widthClassName="max-w-[1160px]" footer={<div className="flex items-center justify-between gap-3"><div className="flex gap-2">{data ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Radera kund</Button> : null}{data ? <a href={`/api/admin/customers/${data.id}/gdpr-export`} download className="inline-flex items-center rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-xs font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-colors hover:border-[var(--accent)]">GDPR-export</a> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>Spara profil</Button></div></div>}>
       {customer.isLoading || !data ? (
-        <div className="surface-muted px-5 py-5 text-sm text-[var(--text-secondary)]">Loading customer...</div>
+        <div className="surface-muted px-5 py-5 text-sm text-[var(--text-secondary)]">Laddar kund...</div>
       ) : (
         <div className="space-y-5">
-          <Tabs value={tab} onChange={setTab} options={[{ value: "info", label: "Info" }, { value: "orders", label: "Orders" }, { value: "deals", label: "Deals" }, { value: "push", label: "Push" }]} />
+          <Tabs value={tab} onChange={setTab} options={[{ value: "info", label: "Info" }, { value: "orders", label: "Ordrar" }, { value: "deals", label: "Deals" }, { value: "push", label: "Push" }]} />
 
           {tab === "info" ? (
             <div className="space-y-4">
@@ -228,26 +228,26 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
               <Surface className="px-5 py-5">
                 <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Redigera profil</p>
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <Field label="Name"><Input value={profile.name} onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))} /></Field>
-                  <Field label="Phone"><Input value={profile.phone} onChange={(event) => setProfile((current) => ({ ...current, phone: event.target.value }))} /></Field>
-                  <Field label="Email"><Input value={profile.email} onChange={(event) => setProfile((current) => ({ ...current, email: event.target.value }))} /></Field>
-                  <Field label="Address"><Input value={profile.address} onChange={(event) => setProfile((current) => ({ ...current, address: event.target.value }))} /></Field>
-                  <Field label="City"><Input value={profile.city} onChange={(event) => setProfile((current) => ({ ...current, city: event.target.value }))} /></Field>
+                  <Field label="Namn"><Input value={profile.name} onChange={(event) => setProfile((current) => ({ ...current, name: event.target.value }))} /></Field>
+                  <Field label="Telefon"><Input value={profile.phone} onChange={(event) => setProfile((current) => ({ ...current, phone: event.target.value }))} /></Field>
+                  <Field label="E-post"><Input value={profile.email} onChange={(event) => setProfile((current) => ({ ...current, email: event.target.value }))} /></Field>
+                  <Field label="Adress"><Input value={profile.address} onChange={(event) => setProfile((current) => ({ ...current, address: event.target.value }))} /></Field>
+                  <Field label="Stad"><Input value={profile.city} onChange={(event) => setProfile((current) => ({ ...current, city: event.target.value }))} /></Field>
                   <Field label="Zip"><Input value={profile.zip} onChange={(event) => setProfile((current) => ({ ...current, zip: event.target.value }))} /></Field>
-                  <Field label="Active"><Select value={profile.isActive ? "yes" : "no"} onChange={(event) => setProfile((current) => ({ ...current, isActive: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
-                  <Field label="Verified"><Select value={profile.isVerified ? "yes" : "no"} onChange={(event) => setProfile((current) => ({ ...current, isVerified: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
-                  <div className="md:col-span-2"><Field label="Internal info"><Textarea value={profile.internalInfo} onChange={(event) => setProfile((current) => ({ ...current, internalInfo: event.target.value }))} /></Field></div>
+                  <Field label="Aktiv"><Select value={profile.isActive ? "yes" : "no"} onChange={(event) => setProfile((current) => ({ ...current, isActive: event.target.value === "yes" }))}><option value="yes">Ja</option><option value="no">Nej</option></Select></Field>
+                  <Field label="Verifierad"><Select value={profile.isVerified ? "yes" : "no"} onChange={(event) => setProfile((current) => ({ ...current, isVerified: event.target.value === "yes" }))}><option value="yes">Ja</option><option value="no">Nej</option></Select></Field>
+                  <div className="md:col-span-2"><Field label="Intern info"><Textarea value={profile.internalInfo} onChange={(event) => setProfile((current) => ({ ...current, internalInfo: event.target.value }))} /></Field></div>
                 </div>
               </Surface>
             </div>
           ) : null}
 
           {tab === "orders" ? (
-            data.orders.length === 0 ? <EmptyState title="No orders" /> : (
+            data.orders.length === 0 ? <EmptyState title="Inga ordrar" /> : (
               <div className="table-shell">
                 <table className="data-table">
                   <thead>
-                    <tr><th>Order</th><th>Restaurant</th><th>Status</th><th>Total</th><th>Created</th></tr>
+                    <tr><th>Order</th><th>Restaurang</th><th>Status</th><th>Summa</th><th>Skapad</th></tr>
                   </thead>
                   <tbody>
                     {data.orders.map((order) => (
@@ -271,20 +271,20 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
             <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
               <div className="space-y-4">
                 <Surface className="px-5 py-5">
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">New personal deal</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Ny personlig deal</p>
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <Field label="Title"><Input value={dealForm.title} onChange={(event) => setDealForm((current) => ({ ...current, title: event.target.value }))} /></Field>
-                    <Field label="Code"><Input value={dealForm.code} onChange={(event) => setDealForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))} /></Field>
-                    <Field label="Discount type"><Select value={dealForm.discountType} onChange={(event) => setDealForm((current) => ({ ...current, discountType: event.target.value }))}><option value="FIXED">FIXED</option><option value="PERCENTAGE">PERCENTAGE</option></Select></Field>
-                    <Field label="Discount value"><Input type="number" value={dealForm.discountValue} onChange={(event) => setDealForm((current) => ({ ...current, discountValue: Number(event.target.value) }))} /></Field>
-                    <Field label="Max usages"><Input type="number" value={dealForm.maxUsages} onChange={(event) => setDealForm((current) => ({ ...current, maxUsages: Number(event.target.value) }))} /></Field>
-                    <Field label="Valid until"><Input type="date" value={dealForm.validUntil} onChange={(event) => setDealForm((current) => ({ ...current, validUntil: event.target.value }))} /></Field>
+                    <Field label="Titel"><Input value={dealForm.title} onChange={(event) => setDealForm((current) => ({ ...current, title: event.target.value }))} /></Field>
+                    <Field label="Kod"><Input value={dealForm.code} onChange={(event) => setDealForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))} /></Field>
+                    <Field label="Rabattyp"><Select value={dealForm.discountType} onChange={(event) => setDealForm((current) => ({ ...current, discountType: event.target.value }))}><option value="FIXED">Fast belopp</option><option value="PERCENTAGE">Procent</option></Select></Field>
+                    <Field label="Rabattvärde"><Input type="number" value={dealForm.discountValue} onChange={(event) => setDealForm((current) => ({ ...current, discountValue: Number(event.target.value) }))} /></Field>
+                    <Field label="Max användningar"><Input type="number" value={dealForm.maxUsages} onChange={(event) => setDealForm((current) => ({ ...current, maxUsages: Number(event.target.value) }))} /></Field>
+                    <Field label="Giltig till"><Input type="date" value={dealForm.validUntil} onChange={(event) => setDealForm((current) => ({ ...current, validUntil: event.target.value }))} /></Field>
                   </div>
                   <div className="mt-4"><Button variant="primary" onClick={() => createDealMutation.mutate()} disabled={createDealMutation.isPending || !dealForm.title.trim() || !dealForm.code.trim()}>{createDealMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create personal deal</Button></div>
                 </Surface>
               </div>
               <div className="space-y-3">
-                {data.deals.length === 0 ? <EmptyState title="No personal deals" /> : data.deals.map((deal) => (
+                {data.deals.length === 0 ? <EmptyState title="Inga personliga deals" /> : data.deals.map((deal) => (
                   <Surface key={deal.id} className="px-5 py-5">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -293,15 +293,15 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
                           <Badge tone={deal.isUsed ? "danger" : "success"}>{deal.isUsed ? "Used" : "Available"}</Badge>
                         </div>
                         <p className="mt-2 text-sm text-[var(--text-secondary)]">{deal.campaign.title} • {deal.campaign.discountType === "FIXED" ? `${deal.campaign.discountValue / 100} kr` : `${deal.campaign.discountValue}%`}</p>
-                        <p className="mt-1 text-sm text-[var(--text-secondary)]">Created {formatDate(deal.createdAt)}</p>
+                        <p className="mt-1 text-sm text-[var(--text-secondary)]">Skapad {formatDate(deal.createdAt)}</p>
                       </div>
                       <div className="text-right text-sm text-[var(--text-secondary)]">
                         <div>{deal.usageCount}/{deal.maxUsages}</div>
                       </div>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button variant="secondary" onClick={() => toggleDealMutation.mutate({ dealId: deal.id, isUsed: !deal.isUsed, usageCount: deal.isUsed ? 0 : Math.max(1, deal.usageCount) })}>{deal.isUsed ? "Restore" : "Mark used"}</Button>
-                      <Button variant="danger" onClick={() => deleteDealMutation.mutate(deal.id)}>Delete</Button>
+                      <Button variant="secondary" onClick={() => toggleDealMutation.mutate({ dealId: deal.id, isUsed: !deal.isUsed, usageCount: deal.isUsed ? 0 : Math.max(1, deal.usageCount) })}>{deal.isUsed ? "Återställ" : "Markera använd"}</Button>
+                      <Button variant="danger" onClick={() => deleteDealMutation.mutate(deal.id)}>Radera</Button>
                     </div>
                   </Surface>
                 ))}
@@ -389,7 +389,7 @@ export function CustomersPage() {
   }
 
   if (customers.isError || !customers.data) {
-    return <ErrorPanel title="Customers could not be loaded" description="The customer endpoints are unavailable." action={<Button onClick={() => void customers.refetch()}>Retry</Button>} />;
+    return <ErrorPanel title="Kunderna kunde inte laddas" description="Kund-endpoints svarar inte." action={<Button onClick={() => void customers.refetch()}>Försök igen</Button>} />;
   }
 
   return (

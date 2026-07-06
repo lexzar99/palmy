@@ -127,7 +127,7 @@ export function TiersPage() {
   if (restaurants.isLoading) {
     return (
       <div className="page-stack">
-        <PageHeader breadcrumb="Katalog" title="Tiers" />
+        <PageHeader breadcrumb="System" title="Tiers" />
         <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar tier-systemet…</Surface>
       </div>
     );
@@ -139,7 +139,7 @@ export function TiersPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader breadcrumb="Katalog" title="Tiers" />
+      <PageHeader breadcrumb="System" title="Tiers" />
 
       <div className="grid gap-3.5 md:grid-cols-3">
         {TIER_CARDS.map((tier) => {

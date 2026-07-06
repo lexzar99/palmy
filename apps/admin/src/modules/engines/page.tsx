@@ -76,6 +76,8 @@ export function EnginesPage() {
     queryFn: () => apiGet<{ events: EngineEventRecord[] }>("/admin/engines/events?limit=60"),
   });
   const [drafts, setDrafts] = useState<Record<string, Record<string, number>>>({});
+  const EVENTS_PAGE = 20;
+  const [eventsVisible, setEventsVisible] = useState(EVENTS_PAGE);
 
   const patchMutation = useMutation({
     mutationFn: ({ key, body }: { key: string; body: { enabled?: boolean; params?: Record<string, number> } }) =>
@@ -97,7 +99,7 @@ export function EnginesPage() {
   if (engines.isLoading) {
     return (
       <div className="page-stack">
-        <PageHeader breadcrumb="Plattform" title="Motorn" />
+        <PageHeader breadcrumb="System" title="Motorn" />
         <Surface className="px-6 py-14 text-center text-sm text-[var(--text-secondary)]">Laddar motorerna...</Surface>
       </div>
     );
@@ -111,7 +113,7 @@ export function EnginesPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        breadcrumb="Plattform"
+        breadcrumb="System"
         title="Motorn"
         actions={<Button variant="secondary" onClick={() => { void engines.refetch(); void events.refetch(); }} aria-label="Uppdatera"><RefreshCw size={14} /></Button>}
       />
@@ -210,15 +212,24 @@ export function EnginesPage() {
         ) : (events.data?.events || []).length === 0 ? (
           <div className="p-6"><EmptyState title="Inga händelser än" description="Motorerna loggar här när de agerar." /></div>
         ) : (
-          (events.data?.events || []).map((event, i, arr) => (
-            <div key={event.id} className={cn("flex items-center justify-between gap-3 px-5 py-3 text-[12.5px]", i !== arr.length - 1 && "border-b border-[var(--row-divider)]")}>
-              <span className="min-w-0 truncate">
-                <span className="font-bold">{titleByKey.get(event.engine) || event.engine}</span>
-                <span className="text-[var(--text-secondary)]"> · {event.message}</span>
-              </span>
-              <span className="shrink-0 text-[11px] text-[var(--text-muted)]">{new Date(event.createdAt).toLocaleString("sv-SE")}</span>
-            </div>
-          ))
+          <>
+            {(events.data?.events || []).slice(0, eventsVisible).map((event, i, arr) => (
+              <div key={event.id} className={cn("flex items-center justify-between gap-3 px-5 py-3 text-[12.5px]", i !== arr.length - 1 && "border-b border-[var(--row-divider)]")}>
+                <span className="min-w-0 truncate">
+                  <span className="font-bold">{titleByKey.get(event.engine) || event.engine}</span>
+                  <span className="text-[var(--text-secondary)]"> · {event.message}</span>
+                </span>
+                <span className="shrink-0 text-[11px] text-[var(--text-muted)]">{new Date(event.createdAt).toLocaleString("sv-SE")}</span>
+              </div>
+            ))}
+            {(events.data?.events || []).length > eventsVisible && (
+              <div className="flex justify-center border-t border-[var(--row-divider)] py-3">
+                <Button variant="secondary" onClick={() => setEventsVisible((v) => v + EVENTS_PAGE)}>
+                  Visa fler ({(events.data?.events || []).length - eventsVisible} kvar)
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </Surface>
     </div>

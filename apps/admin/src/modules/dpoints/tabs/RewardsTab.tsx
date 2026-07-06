@@ -50,7 +50,7 @@ export default function RewardsTab() {
       <div className="flex flex-col gap-5 p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold">Belöningar</h2>
+            <h2 className="text-lg font-semibold">Intjäning</h2>
             <p className="text-sm text-[var(--text-secondary)]">Hur många Vpoints varje handling ger. Stäng av eller ändra poäng.</p>
           </div>
           <Button variant="primary" disabled={!dirty || save.isPending} onClick={() => save.mutate({ dpointsEarnRules: rules, dpointsStreakTarget: streakTarget })}>

@@ -287,7 +287,7 @@ export function ReceiptsPage() {
   return (
     <div className="page-stack">
       <PageHeader
-        breadcrumb="Plattform / Kvitto-mall"
+        breadcrumb="System / Kvitto-mall"
         title="Utskriftsmall"
         actions={
           <>

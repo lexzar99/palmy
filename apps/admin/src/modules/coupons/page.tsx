@@ -204,6 +204,7 @@ export function CouponsPage() {
   return (
     <div className="page-stack">
       <PageHeader
+        breadcrumb="Tillväxt"
         title="Kupongkoder"
         actions={
           <>

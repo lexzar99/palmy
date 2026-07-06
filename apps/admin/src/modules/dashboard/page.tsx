@@ -120,7 +120,7 @@ export function DashboardPage() {
     <div className="page-stack">
       <PageHeader
         title="Översikt"
-        breadcrumb="Plattform"
+        breadcrumb="Drift"
         actions={
           <>
             {/* Per-restaurang-vy: scopear ALLA siffror på sidan */}
