@@ -3499,9 +3499,17 @@ const formatDiscountCodeForAdmin = (discount: any) => ({
   // Stackbar fri leverans-flagga (default false). Returneras alltid så
   // admin-formuläret kan hydrera checkboxen korrekt vid redigering.
   freeDelivery: Boolean(discount.freeDelivery),
+  // Var koden gäller: ALL | APP (bara mobilappen) | WEB (bara webben).
+  platform: (discount.platform || 'ALL').toUpperCase(),
   createdAt: discount.createdAt,
   updatedAt: discount.updatedAt,
 });
+
+// Normaliserar admin-input för kupongens plattform till ett giltigt värde.
+const normalizeDiscountPlatform = (value: unknown): 'ALL' | 'APP' | 'WEB' => {
+  const p = String(value || 'ALL').toUpperCase();
+  return p === 'APP' || p === 'WEB' ? p : 'ALL';
+};
 
 // =====================
 // DEALS & CUSTOMER DEALS
@@ -4642,7 +4650,7 @@ router.post('/discounts', async (req, res) => {
       return res.status(403).json({ error: 'Kräver super admin-behörighet' });
     }
 
-    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery } = req.body;
+    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery, platform } = req.body;
 
     const parsedRestaurantIds = Array.isArray(applicableRestaurantIds)
       ? applicableRestaurantIds.filter((v: unknown): v is string => typeof v === 'string')
@@ -4661,6 +4669,8 @@ router.post('/discounts', async (req, res) => {
       // Stackbar fri leverans-flagga (gör t.ex. "20% + fri leverans"). Ignoreras
       // för type=FREE_DELIVERY eftersom fri leverans då redan är huvudfunktionen.
       freeDelivery: type === 'FREE_DELIVERY' ? false : Boolean(freeDelivery),
+      // Plattform: ALL (default) | APP (bara mobilappen) | WEB (bara webben).
+      platform: normalizeDiscountPlatform(platform),
     };
     if (restaurantId && parsedRestaurantIds.length === 0) discountData.restaurantId = restaurantId;
     else if (parsedRestaurantIds.length === 1) discountData.restaurantId = parsedRestaurantIds[0];
@@ -4699,7 +4709,7 @@ router.patch('/discounts/:id', async (req, res) => {
       return res.status(403).json({ error: 'Kräver super admin-behörighet' });
     }
 
-    const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery } = req.body;
+    const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery, platform } = req.body;
     // GROWTH_AGENT får aldrig aktivera en kupong (isActive=true). Bara Jalle.
     if (isGrowthAgent(req as AuthRequest) && isActive === true) {
       return res.status(403).json({ error: 'Tillväxtagenten kan inte aktivera kuponger. Jalle aktiverar i admin.' });
@@ -4718,6 +4728,7 @@ router.patch('/discounts/:id', async (req, res) => {
       // FREE_DELIVERY-typen lagrar inte flaggan (redundant).
       updateData.freeDelivery = type === 'FREE_DELIVERY' ? false : Boolean(freeDelivery);
     }
+    if (platform !== undefined) updateData.platform = normalizeDiscountPlatform(platform);
     if (applicableRestaurantIds !== undefined) {
       const parsed = Array.isArray(applicableRestaurantIds)
         ? applicableRestaurantIds.filter((v: unknown): v is string => typeof v === 'string')

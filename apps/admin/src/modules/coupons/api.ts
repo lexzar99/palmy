@@ -18,6 +18,8 @@ export interface DiscountRecord {
   // fri leverans i samma kupong (t.ex. "SOMMAR20 → 20% + fri leverans").
   // FREE_DELIVERY-typen ignorerar flaggan (redundant).
   freeDelivery: boolean;
+  // Var koden gäller: ALL (överallt) | APP (bara mobilappen) | WEB (bara webben).
+  platform: "ALL" | "APP" | "WEB";
   createdAt: string;
   updatedAt: string;
 }

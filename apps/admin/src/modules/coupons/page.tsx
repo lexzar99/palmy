@@ -40,6 +40,8 @@ type FormState = {
   // Stackbar fri leverans-flagga. Endast meningsfull när discountType är
   // percentage eller fixed — för free_delivery är den redan implicit.
   freeDelivery: boolean;
+  // Var koden gäller: ALL (överallt) | APP (bara mobilappen) | WEB (bara webben).
+  platform: "ALL" | "APP" | "WEB";
 };
 
 const emptyForm = (): FormState => ({
@@ -54,6 +56,7 @@ const emptyForm = (): FormState => ({
   applicableRestaurantIds: [],
   isActive: true,
   freeDelivery: false,
+  platform: "ALL",
 });
 
 const typeLabel: Record<DiscountRecord["discountType"], string> = {
@@ -103,6 +106,7 @@ export function CouponsPage() {
             : [],
         isActive: editing.isActive,
         freeDelivery: editing.freeDelivery ?? false,
+        platform: editing.platform ?? "ALL",
       });
     } else {
       setForm(emptyForm());
@@ -127,6 +131,8 @@ export function CouponsPage() {
         // Stackbar fri leverans — bara meningsfull om typen INTE redan
         // är free_delivery (då är fri leverans redan kupongens huvudsyfte).
         freeDelivery: f.discountType !== "free_delivery" && f.freeDelivery,
+        // Var koden gäller: ALL | APP (bara mobilappen) | WEB (bara webben).
+        platform: f.platform,
       };
       if (editing) {
         return updateDiscount(editing.id, payload);
@@ -224,6 +230,7 @@ export function CouponsPage() {
                 <tr className="border-b border-[var(--border-subtle)] text-left text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                   <th className="pb-3 pr-4">Kod</th>
                   <th className="pb-3 pr-4">Typ</th>
+                  <th className="pb-3 pr-4">Var</th>
                   <th className="pb-3 pr-4">Värde</th>
                   <th className="pb-3 pr-4">Minbelopp</th>
                   <th className="pb-3 pr-4">Restaurang/Alla</th>
@@ -239,6 +246,15 @@ export function CouponsPage() {
                     <td className="py-3 pr-4 font-mono font-semibold tracking-wide">{record.code}</td>
                     <td className="py-3 pr-4">
                       <Badge tone={typeTone[record.discountType]}>{typeLabel[record.discountType]}</Badge>
+                    </td>
+                    <td className="py-3 pr-4">
+                      {record.platform === "APP" ? (
+                        <Badge tone="info">App</Badge>
+                      ) : record.platform === "WEB" ? (
+                        <Badge tone="neutral">Webb</Badge>
+                      ) : (
+                        <span className="text-[var(--text-muted)]">Alla</span>
+                      )}
                     </td>
                     <td className="py-3 pr-4 tabular-nums">
                       {record.discountType === "free_delivery"
@@ -337,6 +353,22 @@ export function CouponsPage() {
               <option value="fixed">Fast belopp</option>
               <option value="free_delivery">Fri leverans</option>
             </Select>
+          </Field>
+
+          <Field label="Var koden gäller">
+            <Select
+              value={form.platform}
+              onChange={(e) => setField("platform", e.target.value as FormState["platform"])}
+            >
+              <option value="ALL">Överallt</option>
+              <option value="APP">Endast mobilappen</option>
+              <option value="WEB">Endast webben</option>
+            </Select>
+            {form.platform === "APP" && (
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                Koden funkar bara i iOS- och Android-appen. Bra för att driva nedladdningar.
+              </p>
+            )}
           </Field>
 
           {form.discountType !== "free_delivery" && (

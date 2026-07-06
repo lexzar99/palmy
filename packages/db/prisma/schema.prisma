@@ -370,6 +370,11 @@ model DiscountCode {
   // kupong-kod. Om type=FREE_DELIVERY (standalone): denna flagga ignoreras
   // (fri leverans är redan kupongens huvudfunktion).
   freeDelivery         Boolean   @default(false)
+  // Var koden får lösas in: ALL (default, överallt) | APP (bara mobilappen,
+  // för att driva nedladdningar) | WEB (bara webben). Servern läser klientens
+  // X-Client-Type-header och avvisar koden om plattformen inte matchar. Alla
+  // äldre koder är ALL → oförändrat beteende.
+  platform             String    @default("ALL")
 }
 
 model Deal {

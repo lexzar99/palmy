@@ -42,6 +42,10 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     if (contentType) headers.set("content-type", contentType);
     if (accept) headers.set("accept", accept);
     if (token) headers.set("authorization", `Bearer ${token}`);
+    // Denna proxy används bara av webb-kunden, så markera klienttypen. Backend
+    // använder den för plattforms-låsta rabattkoder (t.ex. app-only-koder som
+    // inte får lösas in via webben).
+    headers.set("x-client-type", "web");
     // Forward the idempotency key — it was being dropped here, so the API's
     // order-create idempotency never triggered (duplicate orders / orphaned
     // payments on a retry). With it forwarded, the existing server-side replay works.

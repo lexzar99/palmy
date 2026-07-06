@@ -1107,7 +1107,8 @@ export default function CartPage() {
       // när kunden hade extras som faktiskt gjorde att de mötte minOrder.
       const res = await fetch(`${API_URL}/api/discount/validate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // X-Client-Type: web → backend kan neka app-only-rabattkoder på webben.
+        headers: { "Content-Type": "application/json", "X-Client-Type": "web" },
         body: JSON.stringify({ code: promoCodeInput.trim(), subtotal }),
       });
       if (res.ok) {

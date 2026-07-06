@@ -23,6 +23,7 @@ import { haversineKm } from '../utils/geo';
 import supabaseAdmin from '../lib/supabase';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
+import { discountPlatformAllowed } from '../lib/clientPlatform';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { sendOrderStatusPush } from '../lib/customerPush';
 import { etaResponseFields, refreshOrderEta } from '../lib/orderEta';
@@ -741,7 +742,14 @@ router.post('/', async (req: Request, res: Response) => {
                 ? codeRestaurantId === restaurant.id
                 : true;
 
-          if (!isExpired && subtotal >= code.minOrder && restaurantAllowed) {
+          // Plattforms-spärr (backstop). Klienten avvisas redan i
+          // /discount/validate, men vi återvaliderar här (server-sanning):
+          // en APP-only-kod appliceras aldrig om ordern inte kommer från
+          // appen. Nekas → validatedCode förblir undefined → fullpris, precis
+          // som vid utgången/otillräcklig minOrder ovan.
+          const platformAllowed = discountPlatformAllowed((code as any).platform, req);
+
+          if (!isExpired && subtotal >= code.minOrder && restaurantAllowed && platformAllowed) {
             if (code.type === 'PERCENTAGE') {
               manualDiscountAmount = Math.round(subtotal * code.value / 100);
             } else if (code.type === 'FREE_DELIVERY') {

@@ -352,6 +352,7 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
             .url(urlBuilder.build())
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")
+            .header("X-Client-Type", "android")
         headers.forEach { (k, v) -> builder.header(k, v) }
         execute(builder.build())
     }
@@ -368,6 +369,7 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
             .header("Content-Type", "application/json")
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")
+            .header("X-Client-Type", "android")
         headers.forEach { (k, v) -> builder.header(k, v) }
         execute(builder.build())
     }
@@ -384,6 +386,7 @@ class DeliveraApi(private val baseUrl: String = AppConfig.apiBaseURL) {
             .header("Content-Type", "application/json")
             .header("Cache-Control", "no-cache")
             .header("Pragma", "no-cache")
+            .header("X-Client-Type", "android")
         headers.forEach { (k, v) -> builder.header(k, v) }
         execute(builder.build())
     }

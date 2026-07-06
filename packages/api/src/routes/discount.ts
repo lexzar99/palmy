@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
+import { discountPlatformAllowed } from '../lib/clientPlatform';
 
 const router = Router();
 
@@ -41,6 +42,19 @@ router.post('/validate', validateLimiter, async (req, res) => {
 
     if (!discount) {
       res.status(404).json({ error: 'Ogiltig rabattkod' });
+      return;
+    }
+
+    // Plattforms-spärr: en APP-only-kod får bara lösas in i mobilappen (och
+    // vice versa för WEB). Klienten skickar X-Client-Type. Meddelandet är
+    // avsiktligt tydligt så webbanvändaren förstår att koden gäller i appen.
+    if (!discountPlatformAllowed((discount as any).platform, req)) {
+      const p = String((discount as any).platform || 'ALL').toUpperCase();
+      res.status(400).json({
+        error: p === 'APP'
+          ? 'Den här koden gäller bara i appen'
+          : 'Den här koden gäller bara på webben',
+      });
       return;
     }
 
