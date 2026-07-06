@@ -1012,6 +1012,17 @@ router.post('/', async (req: Request, res: Response) => {
       // hos sin restaurang.
       const favoriteMeta = (userDeal.metadata || {}) as any;
       if (favoriteMeta.favoriteProductId) {
+        const favoriteProduct = await prisma.product.findUnique({
+          where: { id: favoriteMeta.favoriteProductId },
+          select: { id: true, isActive: true },
+        });
+        if (!favoriteProduct || favoriteProduct.isActive === false) {
+          await (prisma as any).userDeal.updateMany({
+            where: { id: userDeal.id, status: { in: ['ACTIVE', 'RESERVED'] } },
+            data: { status: 'EXPIRED' },
+          }).catch(() => null);
+          throw new OrderValidationError('Favoriten finns inte längre');
+        }
         if (favoriteMeta.restaurantId && favoriteMeta.restaurantId !== restaurant.id) {
           throw new OrderValidationError('Favorit-rabatten gäller hos en annan restaurang');
         }

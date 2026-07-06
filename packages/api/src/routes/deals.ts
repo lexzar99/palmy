@@ -124,6 +124,22 @@ const expireUserDealQuietly = (userDealId: string) =>
     data: { status: 'EXPIRED' },
   }).catch(() => null);
 
+const favoriteProductIdFor = (userDeal: any) => {
+  const metadata = (userDeal?.metadata || {}) as any;
+  const productId = String(metadata.favoriteProductId || '').trim();
+  return productId || null;
+};
+
+const favoriteProductIsGone = async (userDeal: any) => {
+  const productId = favoriteProductIdFor(userDeal);
+  if (!productId) return false;
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { id: true, isActive: true },
+  });
+  return !product || product.isActive === false;
+};
+
 // Uppdragets mål bor i Deal.triggerQuantity (admin-styrt, återanvänt fält).
 const missionTargetForDeal = (deal: any) => {
   const raw = Number(deal.triggerQuantity || 0);
@@ -540,7 +556,12 @@ router.post('/app/favorite/claim', authenticateUser, async (req: any, res) => {
     const existing = await (prisma as any).userDeal.findFirst({
       where: { userId: req.user.id, type: 'FAVORITE_PRODUCT', status: 'ACTIVE', OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }] },
     });
-    if (existing) return res.json({ claimed: true, userDealId: existing.id, amountKr: existing.amountKr, title: (existing.metadata as any)?.title || 'Din favorit' });
+    if (existing) {
+      if (!(await favoriteProductIsGone(existing))) {
+        return res.json({ claimed: true, userDealId: existing.id, amountKr: existing.amountKr, title: (existing.metadata as any)?.title || 'Din favorit' });
+      }
+      await expireUserDealQuietly(existing.id);
+    }
 
     const { favoriteCandidates, getEngineSettings } = await import('../lib/homePulse');
     const settings = await getEngineSettings();
@@ -747,6 +768,19 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
       });
     }
 
+    if (await favoriteProductIsGone(userDeal)) {
+      await expireUserDealQuietly(userDeal.id);
+      return res.status(404).json({
+        applicable: false,
+        reason: 'FAVORITE_PRODUCT_REMOVED',
+        discountAmountKr: 0,
+        deliveryDiscountKr: 0,
+        subtotalDiscountKr: 0,
+        dpointsBonus: 0,
+        deal: null,
+      });
+    }
+
     // Restaurang-scopad deal får inte prissättas i en annan restaurangs kassa.
     const scope = userDealRestaurantScope(userDeal.deal);
     if (scope && data.restaurantId && !scope.includes(data.restaurantId)) {
@@ -851,12 +885,25 @@ router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
     });
 
     const cartItems = await enrichQuoteItems(data.items || []);
+    const favoriteProductIds = [...new Set(userDeals.map(favoriteProductIdFor).filter(Boolean) as string[])];
+    const liveFavoriteProductIds = favoriteProductIds.length
+      ? new Set((await prisma.product.findMany({
+        where: { id: { in: favoriteProductIds }, isActive: true },
+        select: { id: true },
+      })).map((product) => product.id))
+      : new Set<string>();
     const expiredIds: string[] = [];
     const items = userDeals
       // Uppdrag prissätts inte i kassan — de belönas efter köp.
       .filter((ud: any) => !(ud.metadata as any)?.appMissionType && !ud.deal?.appMissionType)
       .filter((ud: any) => {
         if (!isClaimedDealParentInactive(ud)) return true;
+        expiredIds.push(ud.id);
+        return false;
+      })
+      .filter((ud: any) => {
+        const favoriteProductId = favoriteProductIdFor(ud);
+        if (!favoriteProductId || liveFavoriteProductIds.has(favoriteProductId)) return true;
         expiredIds.push(ud.id);
         return false;
       })
