@@ -1,7 +1,7 @@
 import prisma from './prisma';
 import { ApnsError, sendApnsAlert } from './liveActivityPush';
 
-const COURIER_APNS_BUNDLE_ID = (process.env.COURIER_APNS_BUNDLE_ID || process.env.APNS_COURIER_BUNDLE_ID || 'se.delivera.kurir')
+const COURIER_APNS_BUNDLE_ID = (process.env.COURIER_APNS_BUNDLE_ID || process.env.APNS_COURIER_BUNDLE_ID || 'se.viaeats.kurir')
   .trim()
   .replace(/^["']|["']$/g, '');
 
@@ -49,7 +49,7 @@ export async function sendCourierApns(courierIds: string[], payload: CourierApns
           data: payload.data,
           sound: payload.sound ? `${payload.sound}.caf` : 'default',
           collapseId: payload.collapseId,
-          threadId: 'delivera-courier',
+          threadId: 'viaeats-courier',
         });
         sent += 1;
       } catch (e) {
@@ -71,10 +71,10 @@ export async function sendTestCourierApns(courierId: string): Promise<{ ok: bool
     await sendApnsAlert({
       token: courier.apnsDeviceToken,
       topic: COURIER_APNS_BUNDLE_ID,
-      title: 'Delivera Kurir',
+      title: 'ViaEats Kurir',
       body: 'Testnotis fungerar.',
       data: { type: 'TEST' },
-      threadId: 'delivera-courier',
+      threadId: 'viaeats-courier',
     });
     return { ok: true, stage: 'sent' };
   } catch (e) {

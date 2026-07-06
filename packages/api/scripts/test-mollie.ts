@@ -1,6 +1,6 @@
 /**
  * Sandbox-test av Mollie-providern (kör med test_-nyckel).
- *   pnpm --filter @palmyra/api exec ts-node --transpile-only scripts/test-mollie.ts
+ *   pnpm --filter @viaeats/api exec ts-node --transpile-only scripts/test-mollie.ts
  *
  * Skapar en syntetisk order, anropar createPayment (verifierar att Klarna-rader
  * + billingAddress accepteras och summerar till total), hämtar checkout-URL och
@@ -34,7 +34,7 @@ async function main() {
   console.log('▶ createPayment …');
   const res = await mollieProvider.createPayment({
     order,
-    returnUrl: 'https://delivera.se/order/' + order.id,
+    returnUrl: 'https://viaeats.se/order/' + order.id,
   });
   console.log('  paymentRef :', res.paymentRef);
   console.log('  checkoutUrl:', res.checkoutUrl);

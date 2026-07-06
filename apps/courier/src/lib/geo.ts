@@ -10,7 +10,7 @@ export interface GeoState {
   request: () => void;
 }
 
-const GRANTED_FLAG = "delivera_geo_ok";
+const GRANTED_FLAG = "viaeats_geo_ok";
 
 /**
  * Live-position som MINNS att du delat plats: har du gett tillstånd förr

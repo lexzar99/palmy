@@ -14,7 +14,7 @@ export const logger = pino({
   // som dep. Plain JSON är OK i dev också — använd `pnpm dev | npx pino-pretty`
   // om man vill ha färgad output.
   base: {
-    service: 'matgo-api',
+    service: 'viaeats-api',
     env: process.env.NODE_ENV || 'development',
   },
   // Maskera kända PII-fält automatiskt om de hamnar i log-objekt

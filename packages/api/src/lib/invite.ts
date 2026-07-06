@@ -1,4 +1,4 @@
-// Invite reward hook — grants Dpoints to BOTH inviter and invitee when the
+// Invite reward hook — grants Vpoints to BOTH inviter and invitee when the
 // invitee completes their FIRST paid order. Drop-in replacement for the old
 // maybeTriggerReferralReward, called from every payment-finalize path. Safe to
 // call multiple times / on webhook retries: the atomic status race-guard
@@ -72,17 +72,17 @@ export async function maybeRewardInvite(orderId: string): Promise<void> {
     });
     if (won.count === 0) return; // lost the race — already rewarded
 
-    // Reward = Dpoints. Only meaningful if Dpoints is enabled; otherwise the
+    // Reward = Vpoints. Only meaningful if Vpoints is enabled; otherwise the
     // attribution is recorded (status ORDERED) but no points are granted.
     const dp = await getDpointsSettings();
     if (!dp.dpointsEnabled) {
-      console.log(`[invite] referral ${referral.id} -> ORDERED (Dpoints disabled, no grant)`);
+      console.log(`[invite] referral ${referral.id} -> ORDERED (Vpoints disabled, no grant)`);
       return;
     }
     const cap = dp.dpointsMaxBalance || undefined;
     await recordPointsTx({ userId: referral.inviterUserId, amount: inviterPts, type: 'CAMPAIGN', reason: 'Inbjudningsbonus', cap });
     await recordPointsTx({ userId: inviteeUserId, amount: inviteePts, type: 'CAMPAIGN', reason: 'Inbjudningsbonus (välkommen)', cap });
-    console.log(`[invite] rewarded inviter=${referral.inviterUserId} + invitee=${inviteeUserId} (${inviterPts}/${inviteePts} Dpoints)`);
+    console.log(`[invite] rewarded inviter=${referral.inviterUserId} + invitee=${inviteeUserId} (${inviterPts}/${inviteePts} Vpoints)`);
   } catch (err: any) {
     // Never throw — must not break the order/payment flow.
     console.error('[maybeRewardInvite] error:', err?.message);

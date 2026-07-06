@@ -11,7 +11,7 @@ async function seed() {
       where: { slug: 'palmyra' },
       update: { featuredClass: 1, isOpen: true },
       create: {
-        name: 'MatGo Lund',
+        name: 'ViaEats Lund',
         slug: 'palmyra',
         description: 'Lunds klassiker med pizza, kebab och rullar.',
         cuisine: 'Pizza & Kebab',

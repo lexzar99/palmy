@@ -9,7 +9,7 @@ const API_URL =
   process.env.API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === "production"
-    ? "https://palmy-production-2021.up.railway.app"
+    ? "https://api.viaeats.se"
     : "http://localhost:4000");
 
 const SERVER_MAPS_KEY =
@@ -18,9 +18,19 @@ const SERVER_MAPS_KEY =
   process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ||
   "";
 
-function parse(result: any): { address: string; postalCode: string | null; city: string | null } {
-  const comp: any[] = result?.address_components || [];
-  const get = (type: string) => comp.find((c: any) => c.types?.includes(type))?.long_name as string | undefined;
+interface GeocodeComponent {
+  long_name?: string;
+  types?: string[];
+}
+
+interface GeocodeResult {
+  address_components?: GeocodeComponent[];
+  formatted_address?: string;
+}
+
+function parse(result: GeocodeResult): { address: string; postalCode: string | null; city: string | null } {
+  const comp: GeocodeComponent[] = result?.address_components || [];
+  const get = (type: string) => comp.find((c) => c.types?.includes(type))?.long_name;
   const route = get("route");
   const num = get("street_number");
   const zip = get("postal_code") || null;
@@ -57,7 +67,7 @@ export async function GET(req: NextRequest) {
       url.searchParams.set("language", "sv");
       url.searchParams.set("key", SERVER_MAPS_KEY);
       const res = await fetch(url.toString());
-      const data = (await res.json()) as any;
+      const data = (await res.json()) as { results?: GeocodeResult[] };
       const result = (data.results || [])[0];
       if (result) return NextResponse.json(parse(result));
     } catch {

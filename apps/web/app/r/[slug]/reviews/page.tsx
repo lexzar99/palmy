@@ -54,36 +54,45 @@ export default function RestaurantReviewsPage() {
   const params = useParams();
   const slug = String(params?.slug || "");
 
-  const [data, setData] = useState<ReviewsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [sort, setSort] = useState<"top" | "recent" | "low">("top");
   const [minRating, setMinRating] = useState<number>(1);
+
+  // Resultatet lagras med sin request-nyckel — loading/error DERIVERAS ur om
+  // nyckeln matchar aktuella filter. Ingen synkron setState behövs i effecten.
+  const requestKey = `${slug}|${sort}|${minRating}`;
+  const [result, setResult] = useState<{
+    key: string;
+    data?: ReviewsResponse;
+    error?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    const key = `${slug}|${sort}|${minRating}`;
     axios
       .get(`/api/platform/restaurants/${slug}/reviews`, {
         params: { sort, minRating },
       })
       .then((res) => {
         if (cancelled) return;
-        setData(res.data);
+        setResult({ key, data: res.data as ReviewsResponse });
       })
-      .catch((e: any) => {
+      .catch((e: unknown) => {
         if (cancelled) return;
-        setError(e?.response?.data?.error || "Kunde inte hämta recensioner");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        const msg = (e as { response?: { data?: { error?: string } } } | null)
+          ?.response?.data?.error;
+        setResult({ key, error: msg || "Kunde inte hämta recensioner" });
       });
     return () => {
       cancelled = true;
     };
   }, [slug, sort, minRating]);
+
+  const current = result?.key === requestKey ? result : null;
+  const data = current?.data ?? null;
+  const error = current?.error ?? null;
+  const loading = Boolean(slug) && !current;
 
   const distribution = useMemo(() => {
     const dist = data?.distribution || ({} as Record<string, number>);

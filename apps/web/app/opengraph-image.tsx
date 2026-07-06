@@ -76,7 +76,7 @@ export default async function OGImage() {
               display: "flex",
             }}
           >
-            Delí<span style={{ color: "#d4a74a" }}>vera</span>
+            Via<span style={{ color: "#d4a74a" }}>Eats</span>
           </div>
 
           <div
@@ -90,7 +90,7 @@ export default async function OGImage() {
               display: "flex",
             }}
           >
-            Mat från dem bästa av dem bästa.
+            Mat från lokala favoriter
           </div>
 
           <div

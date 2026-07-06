@@ -2,11 +2,13 @@
 // någon Google browser-nyckel/referrer-konfiguration. Tiles från CARTO (rena
 // ljusa/mörka basemaps) och reverse-geocoding via backend (/api/places/reverse).
 
-let leafletPromise: Promise<any> | null = null;
+type LeafletModule = typeof import("leaflet");
 
-export function loadLeaflet(): Promise<any> {
+let leafletPromise: Promise<LeafletModule> | null = null;
+
+export function loadLeaflet(): Promise<LeafletModule> {
   if (typeof window === "undefined") return Promise.reject(new Error("SSR"));
-  const w = window as any;
+  const w = window as unknown as Window & { L?: LeafletModule };
   if (w.L) return Promise.resolve(w.L);
   if (leafletPromise) return leafletPromise;
 
@@ -24,7 +26,7 @@ export function loadLeaflet(): Promise<any> {
     const waitForReady = () => {
       const start = Date.now();
       const tick = () => {
-        if (w.L) { resolve(w.L); return; }
+        if (w.L) { resolve(w.L as LeafletModule); return; }
         if (Date.now() - start > 10000) { fail(new Error("Leaflet unavailable")); return; }
         setTimeout(tick, 50);
       };

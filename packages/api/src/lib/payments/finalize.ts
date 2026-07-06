@@ -97,7 +97,7 @@ export async function finalizePaymentSuccess(
     console.error('[finalize] referral-reward-trigger error:', e?.message);
   }
 
-  // Dpoints — intjäning. Idempotent (Order.pointsAwarded), fail-safe.
+  // Vpoints — intjäning. Idempotent (Order.pointsAwarded), fail-safe.
   try {
     const { awardOrderPointsIfNotAwarded } = await import('../dpoints');
     await awardOrderPointsIfNotAwarded(order.id);
@@ -169,7 +169,7 @@ export async function finalizePaymentFailed(
     }).catch((e: any) => console.error('[finalize] userDeal revert failed:', e?.message));
   }
 
-  // Dpoints: återför poäng som reserverades vid order-skapande. Idempotent.
+  // Vpoints: återför poäng som reserverades vid order-skapande. Idempotent.
   try {
     const { revertOrderPointsForRefund } = await import('../dpoints');
     await revertOrderPointsForRefund(orderId);

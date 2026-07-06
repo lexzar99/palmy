@@ -59,7 +59,7 @@ export async function runCapacityCheck(): Promise<void> {
           .join('\n');
         await sendEmail({
           to,
-          subject: `⚠ Delívera kapacitet: ${cap.worst === 'critical' ? 'KRITISKT' : 'varning'}`,
+          subject: `⚠ ViaEats kapacitet: ${cap.worst === 'critical' ? 'KRITISKT' : 'varning'}`,
           text: `Kapacitets-bevakningen flaggade något:\n\n${lines}\n\nÖppna admin → API-status för detaljer och historik.`,
         }).catch((e: any) => console.error('[capacityMonitor] mail error:', e?.message));
         lastEmailAt = Date.now();

@@ -19,9 +19,9 @@ export default defineConfig({
       },
       devOptions: { enabled: false, type: "module" },
       manifest: {
-        name: "Delivera Kurir",
-        short_name: "Delivera",
-        description: "Leverera ordrar med Delivera",
+        name: "ViaEats Kurir",
+        short_name: "ViaEats",
+        description: "Leverera ordrar med ViaEats",
         lang: "sv",
         theme_color: "#0C0B0C",
         background_color: "#0C0B0C",

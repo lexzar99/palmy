@@ -115,7 +115,7 @@ export default function OverviewTab() {
             <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Poängmodell</h2>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Cashback i Dpoints (%)">
+              <Field label="Cashback i Vpoints (%)">
                 <Input
                   type="number"
                   step="0.5"
@@ -182,7 +182,7 @@ export default function OverviewTab() {
                   D
                 </span>
                 <div>
-                  <span className="block text-[13.5px] font-bold">Dpoints</span>
+                  <span className="block text-[13.5px] font-bold">Vpoints</span>
                   <span className="text-[11.5px] text-[var(--text-muted)]">Lojalitetsprogrammet aktivt</span>
                 </div>
               </div>
@@ -196,7 +196,7 @@ export default function OverviewTab() {
                 </span>
                 <div>
                   <span className="block text-[13.5px] font-bold">Kort på startsidan</span>
-                  <span className="text-[11.5px] text-[var(--text-muted)]">Visa Dpoints-kortet för kunder</span>
+                  <span className="text-[11.5px] text-[var(--text-muted)]">Visa Vpoints-kortet för kunder</span>
                 </div>
               </div>
               <Toggle checked={c.dpointsCardOnHome} onChange={(v) => save.mutate({ dpointsCardOnHome: v })} />
@@ -275,7 +275,7 @@ export default function OverviewTab() {
                 />
               </Field>
               <p className="text-xs text-[var(--text-secondary)]">
-                Om restaurangens matchade zon har en avgift över 0 kr används den avgiften för Dpoints-order. Om zonen är gratis används standarden eller tariffen här.
+                Om restaurangens matchade zon har en avgift över 0 kr används den avgiften för Vpoints-order. Om zonen är gratis används standarden eller tariffen här.
               </p>
               <Field label="Km-tariff för standardkurir (endast när zonen är gratis)">
                 <CourierTierEditor

@@ -18,7 +18,7 @@ const InstallPWA = () => {
     const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIOS(isIOSDevice);
 
-    const dismissedAtRaw = localStorage.getItem("matgo_pwa_dismissed_at");
+    const dismissedAtRaw = localStorage.getItem("viaeats_pwa_dismissed_at");
     const dismissedAt = dismissedAtRaw ? Number(dismissedAtRaw) : 0;
     const recentlyDismissed = dismissedAt > 0 && Date.now() - dismissedAt < 24 * 60 * 60 * 1000;
     
@@ -52,7 +52,7 @@ const InstallPWA = () => {
   const handleDismiss = () => {
     setShowPrompt(false);
     // Don't show again for 24 hours
-    localStorage.setItem("matgo_pwa_dismissed_at", Date.now().toString());
+    localStorage.setItem("viaeats_pwa_dismissed_at", Date.now().toString());
   };
 
   if (!showPrompt) return null;
@@ -94,11 +94,11 @@ const InstallPWA = () => {
 
           <div className="flex items-start gap-4 mb-6">
             <div className="w-12 h-12 bg-gold-500 rounded-2xl flex items-center justify-center font-black text-white text-2xl shrink-0 shadow-lg shadow-gold-500/20">
-              P
+              D
             </div>
             <div>
               <h3 className="text-lg font-black tracking-tight text-zinc-100 uppercase italic">
-                Installera FoodGo
+                Installera ViaEats
               </h3>
               <p className="text-zinc-400 text-sm leading-relaxed font-medium">
                 Appen funkar bäst när du lägger till den på hemskärmen!

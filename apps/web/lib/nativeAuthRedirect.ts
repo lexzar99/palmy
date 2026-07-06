@@ -1,6 +1,6 @@
-const DEFAULT_NATIVE_AUTH_REDIRECT = "matgo://auth/callback";
+const DEFAULT_NATIVE_AUTH_REDIRECT = "viaeats://auth/callback";
 
-const ALLOWED_FOODGO_AUTH_PATHS = new Set(["", "/", "/callback"]);
+const ALLOWED_VIAEATS_AUTH_PATHS = new Set(["", "/", "/callback"]);
 
 function isAllowedExpoAuthCallback(pathname: string) {
   const normalizedPath = pathname.replace(/\/+$/, "");
@@ -13,13 +13,13 @@ export function getSafeNativeAuthRedirect(rawRedirect: string | null | undefined
   try {
     const parsed = new URL(rawRedirect);
 
-    if (parsed.protocol === "matgo:" && parsed.hostname === "auth" && ALLOWED_FOODGO_AUTH_PATHS.has(parsed.pathname)) {
+    if (parsed.protocol === "viaeats:" && parsed.hostname === "auth" && ALLOWED_VIAEATS_AUTH_PATHS.has(parsed.pathname)) {
       return parsed.toString();
     }
 
-    // Native Android-kundappen (se.delivera.android). Deep-link:
-    // delivera://auth/callback — Supabase-tokens bifogas som query av callbacken.
-    if (parsed.protocol === "delivera:" && parsed.hostname === "auth" && ALLOWED_FOODGO_AUTH_PATHS.has(parsed.pathname)) {
+    // Native Android-kundappen (se.viaeats.android). Deep-link:
+    // viaeats://auth/callback — Supabase-tokens bifogas som query av callbacken.
+    if (parsed.protocol === "viaeats:" && parsed.hostname === "auth" && ALLOWED_VIAEATS_AUTH_PATHS.has(parsed.pathname)) {
       return parsed.toString();
     }
 

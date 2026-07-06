@@ -201,7 +201,7 @@ export default function AddressModal({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocating(false);
-        setCookie("delivera_gps", "1"); // kom ihåg att GPS funkar → ingen onödig prompt-ångest
+        setCookie("viaeats_gps", "1"); // kom ihåg att GPS funkar → ingen onödig prompt-ångest
         const { latitude, longitude } = pos.coords;
         recenterMap(latitude, longitude);
         handleMapPosition(latitude, longitude);
@@ -209,7 +209,7 @@ export default function AddressModal({
       (err) => {
         setLocating(false);
         // Nekad → kom ihåg så vi inte auto-promptar varje omstart.
-        if (err && err.code === 1) setCookie("delivera_gps", "denied");
+        if (err && err.code === 1) setCookie("viaeats_gps", "denied");
         if (!opts?.silent) setError("Kunde inte hämta din plats. Tillåt platsåtkomst eller välj på kartan.");
       },
       { enableHighAccuracy: true, timeout: 8000 },
@@ -226,7 +226,7 @@ export default function AddressModal({
     if (!mapReady) return; // vänta tills kartan finns så recenter funkar
     const hasStored = typeof window !== "undefined" && !!localStorage.getItem("platform_coords");
     if (hasStored) return; // redan en vald adress → ingen GPS
-    if (getCookie("delivera_gps") === "denied") return; // användaren nekade tidigare
+    if (getCookie("viaeats_gps") === "denied") return; // användaren nekade tidigare
     autoLocatedRef.current = true;
     useMyLocation({ silent: true });
   }, [isOpen, orderType, mapReady, useMyLocation]);

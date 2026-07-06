@@ -203,7 +203,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const handleLogoutEverywhere = async () => {
     if (!window.confirm("Logga ut alla enheter och sessioner för detta konto?")) return;
     try {
-      const token = (typeof localStorage !== "undefined" && localStorage.getItem("matgo_token")) || "";
+      const token = (typeof localStorage !== "undefined" && localStorage.getItem("viaeats_token")) || "";
       await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/auth/logout-everywhere`, {
         method: "POST",
         credentials: "include",
@@ -311,7 +311,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   // ── Ikon-rad (66px) — alltid synlig när menyn inte är pinnad ──
   const rail = (
     <div className="nav-rail">
-      <Link href="/dashboard" className="sidebar-brand-mark" aria-label="Delívera Admin" style={{ marginBottom: 8 }}>
+      <Link href="/dashboard" className="sidebar-brand-mark" aria-label="ViaEats Admin" style={{ marginBottom: 8 }}>
         d
       </Link>
       <button

@@ -121,7 +121,7 @@ export async function expireAbandonedAwaitingPayment(): Promise<void> {
           })
           .catch(() => {});
       }
-      // Dpoints: ge tillbaka poäng som reserverades vid order-skapande (köp-med-
+      // Vpoints: ge tillbaka poäng som reserverades vid order-skapande (köp-med-
       // poäng) innan ordern raderas. Idempotent.
       try {
         const { revertOrderPointsForRefund } = await import('./dpoints');

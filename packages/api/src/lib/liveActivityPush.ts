@@ -2,13 +2,13 @@
  * APNs push-to-update for iOS Live Activities.
  *
  * Sends `liveactivity` push notifications directly to Apple's HTTP/2 APNs
- * endpoint so the Dynamic Island state changes even when the FoodGo app is in
+ * endpoint so the Dynamic Island state changes even when the ViaEats app is in
  * the background or killed.
  *
  * Required env vars (production-grade JWT-based APNs auth):
  *   APNS_KEY_ID        — 10-char Key ID from Apple Developer
  *   APNS_TEAM_ID       — 10-char Team ID
- *   APNS_BUNDLE_ID     — main app bundle, e.g. "com.foodgo.app"
+ *   APNS_BUNDLE_ID     — main app bundle, e.g. "com.viaeats.app"
  *   APNS_KEY_P8        — full contents of the .p8 key file (BEGIN/END headers
  *                        included, newlines preserved as `\n` if stored as
  *                        single-line env var)
@@ -208,7 +208,7 @@ export async function pushLiveActivityUpdate(opts: {
   // final state can deliver as a regular alert if a body was set.
   if (event === 'end' && (opts.alertTitle || opts.alertBody)) {
     apsBody.alert = {
-      title: opts.alertTitle ?? 'FoodGo',
+      title: opts.alertTitle ?? 'ViaEats',
       body: opts.alertBody ?? '',
     };
   }
@@ -369,7 +369,7 @@ function sendApnsToHost(opts: {
   });
 }
 
-// Mirror of mobile_apps/REACT-FOODGO/src/lib/liveActivities.ts STATUS_META.
+// Mirror of mobile_apps/REACT-VIAEATS/src/lib/liveActivities.ts STATUS_META.
 //
 // Both DELIVERY and PICKUP render as 3-step progress bars in the widget.
 // `delivered` is no longer a visible step — the LA is dismissed on
@@ -436,7 +436,7 @@ export async function sendApnsAlert(opts: {
   // run the JS background handler. That handler triggers `useOrderActivitySync`
   // which calls `Activity.update()` directly — a belt-and-braces fallback for
   // the dedicated LA push, in case iOS throttled it (e.g. user hasn't enabled
-  // "Frequent Updates" in Settings → FoodGo → Live Activities).
+  // "Frequent Updates" in Settings → ViaEats → Live Activities).
   const aps: Record<string, unknown> = {
     alert: { title: opts.title, body: opts.body },
     sound: opts.sound ?? 'default',

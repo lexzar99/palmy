@@ -1,13 +1,13 @@
 // Aktiv deal-kontraktet — webbens motsvarighet till Swift-appens AppStorage.
 // Nycklarna delas mellan hemskärmens deals-rail, profil/rewards och kassan:
-//   delivera.activeUserDealId       — vald UserDeal (sträng, "" = ingen)
-//   delivera.activeUserDealSnapshot — JSON av HomeAppDeal (eller "" när
+//   viaeats.activeUserDealId       — vald UserDeal (sträng, "" = ingen)
+//   viaeats.activeUserDealSnapshot — JSON av HomeAppDeal (eller "" när
 //                                     kassan själv sätter/byter deal)
 // Kassan LÄSER id:t, quotar mot servern (POST /api/deals/app/quote) som enda
 // sanning för rabattbeloppet, och skickar userDealId på ordern. Efter betald
 // order nollas båda nycklarna.
-export const ACTIVE_USER_DEAL_ID_KEY = "delivera.activeUserDealId";
-export const ACTIVE_USER_DEAL_SNAPSHOT_KEY = "delivera.activeUserDealSnapshot";
+export const ACTIVE_USER_DEAL_ID_KEY = "viaeats.activeUserDealId";
+export const ACTIVE_USER_DEAL_SNAPSHOT_KEY = "viaeats.activeUserDealSnapshot";
 
 export function readActiveUserDealId(): string {
   if (typeof window === "undefined") return "";

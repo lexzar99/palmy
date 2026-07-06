@@ -5,7 +5,7 @@ import { GoldButton, Spinner } from "../ui";
 
 export function Login() {
   const { login } = useAuth();
-  const [email, setEmail] = useState(isMockMode ? "kurir@delivera.se" : "");
+  const [email, setEmail] = useState(isMockMode ? "kurir@viaeats.se" : "");
   const [password, setPassword] = useState(isMockMode ? "demo" : "");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,7 +30,7 @@ export function Login() {
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink">
             <span className="text-3xl font-black text-gold">D</span>
           </div>
-          <h1 className="mt-4 text-2xl font-black tracking-tight">Delivera Kurir</h1>
+          <h1 className="mt-4 text-2xl font-black tracking-tight">ViaEats Kurir</h1>
           <p className="mt-1 text-sm text-muted">Logga in för att börja köra</p>
         </div>
 
@@ -58,9 +58,9 @@ export function Login() {
         </form>
 
         <p className="mt-6 text-center text-xs leading-relaxed text-muted">
-          Konton skapas av Delivera. Vill du köra åt oss?
+          Konton skapas av ViaEats. Vill du köra åt oss?
           <br />
-          Ansök på <span className="font-semibold text-ink">delivera.se/bli-kurir</span>.
+          Ansök på <span className="font-semibold text-ink">viaeats.se/bli-kurir</span>.
         </p>
       </div>
     </div>

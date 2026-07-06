@@ -1,5 +1,5 @@
 /**
- * Dpoints — lojalitetssystemets kärna.
+ * Vpoints — lojalitetssystemets kärna.
  *
  * Designprinciper (medvetet enkelt, inte överbyggt):
  *  - EN källa till saldot: User.pointsBalance, alltid uppdaterat i SAMMA
@@ -58,7 +58,7 @@ export interface EarnRule {
 }
 
 // Standarduppsättning. Admin ändrar poäng + på/av per regel; nycklarna är
-// stabila och läses av reward-hooks (invite m.fl.) + kundens "Tjäna Dpoints".
+// stabila och läses av reward-hooks (invite m.fl.) + kundens "Tjäna Vpoints".
 export const DEFAULT_EARN_RULES: EarnRule[] = [
   { key: 'invite', label: 'Värva en vän', points: 200, enabled: true },
   { key: 'review_rating', label: 'Recension (betyg)', points: 20, enabled: true },
@@ -259,7 +259,7 @@ async function bestActiveMultiplier(baseKr: number, when: Date): Promise<number>
 }
 
 /**
- * Dela ut intjänade Dpoints för en BETALD order. Idempotent: Order.pointsAwarded
+ * Dela ut intjänade Vpoints för en BETALD order. Idempotent: Order.pointsAwarded
  * sätts atomiskt i samma transaktion som ledger-raden → körs exakt en gång även
  * om webhook + reconcile + confirm alla landar här. Fail-safe (kastar aldrig).
  *
@@ -458,7 +458,7 @@ export async function evaluateStreakCampaigns(userId: string, orderDate: Date, b
 // ── Recensions-belöning ───────────────────────────────────────────────────────
 
 /**
- * Dela ut Dpoints för en recension. Med text → review_text-regeln, annars
+ * Dela ut Vpoints för en recension. Med text → review_text-regeln, annars
  * review_rating-regeln. En gång per order (idempotent via metadata.reviewOrderId,
  * eftersom orderId-kolumnen redan är upptagen av EARN_ORDER). Gäst-recensioner
  * (utan userId) tjänar inget. Fail-safe — kastar aldrig.
@@ -714,7 +714,7 @@ export async function evaluateAppDealMissions(opts: {
   }
 }
 
-// Kundens streak-status (för "Tjäna Dpoints"-indikatorn). ready=false betyder
+// Kundens streak-status (för "Tjäna Vpoints"-indikatorn). ready=false betyder
 // att streaken nyligen lösts ut och är på cooldown (redo igen om readyInDays).
 export async function getStreakState(userId: string): Promise<{ target: number; count: number; ready: boolean; readyInDays: number }> {
   const settings = await getDpointsSettings();
@@ -755,7 +755,7 @@ export async function getActiveSponsorCard() {
 /**
  * Är kunden berättigad att HÄMTA (claima) signup-bonusen? Path-agnostiskt —
  * funkar oavsett om kontot skapats via email eller Google/Apple. Villkor:
- *  - Dpoints på + aktivt sponsor-kort finns
+ *  - Vpoints på + aktivt sponsor-kort finns
  *  - Nytt konto (skapat senaste 30 dagarna)
  *  - Har inte redan en SIGNUP_BONUS-rad
  */
@@ -911,7 +911,7 @@ export async function redeemReward(
 
   const reward = await prisma.dpointsReward.findUnique({ where: { id: rewardId } });
   if (!reward || !reward.isActive) throw new RedeemError('NO_REWARD', 'Erbjudandet finns inte längre');
-  if (user.pointsBalance < reward.pointsCost) throw new RedeemError('INSUFFICIENT', 'Du har inte tillräckligt med Dpoints');
+  if (user.pointsBalance < reward.pointsCost) throw new RedeemError('INSUFFICIENT', 'Du har inte tillräckligt med Vpoints');
 
   const validUntil = new Date(Date.now() + reward.validDays * 24 * 60 * 60 * 1000);
 
@@ -925,7 +925,7 @@ export async function redeemReward(
           where: { id: userId, pointsBalance: { gte: reward.pointsCost } },
           data: { pointsBalance: { decrement: reward.pointsCost } },
         });
-        if (dec.count === 0) throw new RedeemError('INSUFFICIENT', 'Du har inte tillräckligt med Dpoints');
+        if (dec.count === 0) throw new RedeemError('INSUFFICIENT', 'Du har inte tillräckligt med Vpoints');
 
         const fresh = await tx.user.findUnique({ where: { id: userId }, select: { pointsBalance: true } });
         const balanceAfter = fresh?.pointsBalance ?? 0;
@@ -944,7 +944,7 @@ export async function redeemReward(
         const campaign = await tx.campaign.create({
           data: {
             title: reward.title,
-            description: `Dpoints-inlösen: ${reward.title}`,
+            description: `Vpoints-inlösen: ${reward.title}`,
             discountType: reward.discountType === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED',
             // Checkout läser via normalizeMoneyToOre() → FIXED måste lagras i KR
             // (annars dubbel-multipliceras belopp < 10 kr: 5 kr → 500 kr). % = heltal.

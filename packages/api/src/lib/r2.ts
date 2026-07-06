@@ -10,7 +10,7 @@
  *   R2_ACCOUNT_ID       → t.ex. "abc123def456"
  *   R2_ACCESS_KEY_ID    → från R2 "API Tokens" i Cloudflare-dashboard
  *   R2_SECRET_ACCESS_KEY
- *   R2_BUCKET           → t.ex. "levera-images"
+ *   R2_BUCKET           → t.ex. "viaeats-images"
  *   R2_PUBLIC_BASE_URL  → t.ex. "https://pub-xxxx.r2.dev" (eller custom-domän)
  *
  * Om något saknas returnerar `r2Enabled()` false och endpoints svarar 503

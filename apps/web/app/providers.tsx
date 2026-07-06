@@ -27,7 +27,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     // Städa bort ev. gammalt mörkt-tema-val som ligger kvar i en redan
     // installerad PWA, så ingen återbesökare fastnar i dark mode.
     try {
-      localStorage.removeItem("matgo-theme");
+      localStorage.removeItem("viaeats-theme");
       document.documentElement.removeAttribute("data-theme");
     } catch { /* noop */ }
   }, []);

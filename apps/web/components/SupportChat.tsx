@@ -20,13 +20,13 @@ async function loadSupportEmail(): Promise<string> {
       cachedSupportEmail =
         (data.supportEmail as string) ||
         (data.contactEmail as string) ||
-        "support@matgo.se";
+        "support@viaeats.se";
       return cachedSupportEmail;
     }
   } catch {
     // Faller igenom till default.
   }
-  cachedSupportEmail = "support@matgo.se";
+  cachedSupportEmail = "support@viaeats.se";
   return cachedSupportEmail;
 }
 
@@ -84,9 +84,9 @@ export function openSupportChatWithOrder(orderNumber: string, orderId?: string) 
   if (!Tawk) {
     // Fallback: mailto med pre-fylld order-info. Använder cachad support-email
     // (förvärmd av SupportChat-mount). Synkron läsning — om cache är tom
-    // landar vi på "support@matgo.se" och triggar en bakgrundsuppdatering
+    // landar vi på "support@viaeats.se" och triggar en bakgrundsuppdatering
     // till nästa gång.
-    const email = cachedSupportEmail || "support@matgo.se";
+    const email = cachedSupportEmail || "support@viaeats.se";
     if (!cachedSupportEmail) void loadSupportEmail();
     window.location.href = `mailto:${email}?subject=${encodeURIComponent(`Fråga om order ${orderNumber}`)}&body=${encodeURIComponent(`Hej!\n\nJag har en fråga om beställning ${orderNumber}.\n\n`)}`;
     return;

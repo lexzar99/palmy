@@ -6,7 +6,7 @@ const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "";
 
 type GoogleWindow = Window & {
   google?: any;
-  _deliveraLiveMapReady?: () => void;
+  _viaeatsLiveMapReady?: () => void;
 };
 
 let mapsPromise: Promise<void> | null = null;
@@ -18,15 +18,15 @@ function loadGoogleMaps(): Promise<void> {
   if (!MAPS_KEY) return Promise.reject(new Error("Google Maps key saknas"));
   if (mapsPromise) return mapsPromise;
   mapsPromise = new Promise((resolve, reject) => {
-    w._deliveraLiveMapReady = () => resolve();
-    const existing = document.querySelector<HTMLScriptElement>('script[data-delivera-live-map="1"]');
+    w._viaeatsLiveMapReady = () => resolve();
+    const existing = document.querySelector<HTMLScriptElement>('script[data-viaeats-live-map="1"]');
     if (existing) return;
     const script = document.createElement("script");
-    script.dataset.deliveraLiveMap = "1";
+    script.dataset.viaeatsLiveMap = "1";
     script.async = true;
     script.defer = true;
     script.onerror = () => reject(new Error("Google Maps kunde inte laddas"));
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&v=3.62&callback=_deliveraLiveMapReady`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&v=3.62&callback=_viaeatsLiveMapReady`;
     document.head.appendChild(script);
   });
   return mapsPromise;

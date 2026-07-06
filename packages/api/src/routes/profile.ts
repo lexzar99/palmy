@@ -665,7 +665,7 @@ router.post('/orders/:id/review', authenticateUser, async (req: any, res: any) =
       }
     }
 
-    // Dpoints: belöna recensionen (text → review_text, annars review_rating).
+    // Vpoints: belöna recensionen (text → review_text, annars review_rating).
     // Idempotent + fail-safe i helpern.
     const dpoints = await maybeAwardReviewPoints({
       userId: req.user.id,

@@ -102,7 +102,7 @@ const OrderItemSchema = z.object({
   // att kunden inte smugglar fler gratis-varor än vad dealen tillåter.
   // Vi validerar count mot evaluateBogoCategoryDeal:s maxFreeItems.
   bogoFreeFromDealId: z.string().nullable().optional(),
-  // Dpoints: kunden betalar denna rad med poäng → backend nollar priset och
+  // Vpoints: kunden betalar denna rad med poäng → backend nollar priset och
   // drar poäng vid betalning. Kräver inloggad användare med tillräckligt saldo.
   paidWithPoints: z.boolean().optional(),
 });
@@ -645,12 +645,12 @@ router.post('/', async (req: Request, res: Response) => {
         const multiplier = Number((product as any).rewardPointsMultiplier ?? 1.5);
         return Math.ceil(((discountedBaseOre + extrasTotal) / 100) * (Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1.5));
       })();
-      // Dpoints: betalas raden med poäng nollas priset (gratis-rad) och poängen
+      // Vpoints: betalas raden med poäng nollas priset (gratis-rad) och poängen
       // dras vid betalning. Kräver inloggad användare + aktiverat system + att
       // varan är markerad rewardable. Klienten erbjuder bara poäng-köp på
       // rewardable-varor, men vi litar inte på klienten — server-side gate.
       if (item.paidWithPoints && dpSettings.dpointsEnabled && !product.rewardable) {
-        throw new OrderValidationError(`${product.name} kan inte köpas med Dpoints`);
+        throw new OrderValidationError(`${product.name} kan inte köpas med Vpoints`);
       }
       const payWithPoints = !!item.paidWithPoints && !!authenticatedUserId && dpSettings.dpointsEnabled && !!product.rewardable;
       const itemSubtotal = payWithPoints ? 0 : fullItemOre;
@@ -671,7 +671,7 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Dpoints budkostnad: en order som betalas ENBART med poäng (subtotal 0 kr,
+    // Vpoints budkostnad: en order som betalas ENBART med poäng (subtotal 0 kr,
     // all mat täckt av poäng) bär ingen kontant som kan finansiera kuriren.
     // Vid LEVERANS lägger vi därför på den globala budkostnaden — den ersätter
     // ev. zon-avgift (även restauranger med "fri leverans") så budet alltid får
@@ -1091,7 +1091,7 @@ router.post('/', async (req: Request, res: Response) => {
       const effectiveMinOrderAmount = hasActiveDiscount
         ? Math.max(0, minOrderAmount - MIN_ORDER_TOLERANCE_ORE)
         : minOrderAmount;
-      // Dpoints: poäng-betalda varors värde räknas med i min-order (samma tröskel
+      // Vpoints: poäng-betalda varors värde räknas med i min-order (samma tröskel
       // för pengar och poäng — de "matchar"), annars exkluderas gratis-raderna.
       const afterDiscountValue = Math.max(0, subtotal + pointsPaidValueOre - discountAmount);
 
@@ -1136,7 +1136,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
     const rawTotal = subtotal - discountAmount + deliveryFee + tipOre + pointsPickupPartnerFeeOre;
     let total = Math.max(0, Math.ceil(rawTotal / 100) * 100);
-    // Dpoints: betalpartnern kan inte debitera under 5 kr. Om poäng dragit ner
+    // Vpoints: betalpartnern kan inte debitera under 5 kr. Om poäng dragit ner
     // kr-totalen under 5 kr → lägg 5 kr kontantavgift, utan att minska
     // produktens poängpris. Kunden betalar maten med points + extern avgift.
     const CARD_FLOOR_ORE = 500;
@@ -1216,17 +1216,17 @@ router.post('/', async (req: Request, res: Response) => {
     // concurrent duplicate the DB throws P2002 — we catch ONLY that, regenerate
     // (generateOrderNumber re-reads the latest number so it advances), and retry,
     // instead of 500-ing an order whose payment may already have gone through.
-    // Dpoints: ATOMISK reservation av poäng — EN gång, FÖRE retry-loopen (annars
+    // Vpoints: ATOMISK reservation av poäng — EN gång, FÖRE retry-loopen (annars
     // dubbel-dras vid orderNumber-kollision). gte-CAS stänger race/dubbel-spend:
     // räcker inte saldot (eller hann ta slut i en parallell order) → avbryt ordern.
     // Poängen är nu dragna; revertas vid betalnings-fail/expiry/refund.
     if (pointsToSpend > 0) {
-      if (!authenticatedUserId) throw new OrderValidationError('Logga in för att betala med Dpoints');
+      if (!authenticatedUserId) throw new OrderValidationError('Logga in för att betala med Vpoints');
       const dec = await prisma.user.updateMany({
         where: { id: authenticatedUserId, pointsBalance: { gte: pointsToSpend } },
         data: { pointsBalance: { decrement: pointsToSpend } },
       });
-      if (dec.count === 0) throw new OrderValidationError('Otillräckligt med Dpoints');
+      if (dec.count === 0) throw new OrderValidationError('Otillräckligt med Vpoints');
     }
 
     let order: any = null;
@@ -1306,7 +1306,7 @@ router.post('/', async (req: Request, res: Response) => {
           console.warn(`[order] orderNumber collision (attempt ${orderAttempt}) — regenerating`);
           continue;
         }
-        // Dpoints reserverades före loopen men ordern misslyckades → ge tillbaka.
+        // Vpoints reserverades före loopen men ordern misslyckades → ge tillbaka.
         if (pointsToSpend > 0 && authenticatedUserId) {
           await prisma.user.updateMany({ where: { id: authenticatedUserId }, data: { pointsBalance: { increment: pointsToSpend } } }).catch(() => {});
         }
@@ -1325,7 +1325,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
     if (createdEta) order = { ...order, ...createdEta };
 
-    // Dpoints: ledger-rad för poängen som reserverats/dragits vid order-skapande
+    // Vpoints: ledger-rad för poängen som reserverats/dragits vid order-skapande
     // (saldot är redan atomiskt draget ovan; detta är historik + balanceAfter).
     if (pointsToSpend > 0 && authenticatedUserId) {
       try {
@@ -1381,7 +1381,7 @@ router.post('/', async (req: Request, res: Response) => {
         });
       }
 
-      // Dpoints: synkron (direkt-PAID/bypass) väg → intjäning + köp-med-poäng-
+      // Vpoints: synkron (direkt-PAID/bypass) väg → intjäning + köp-med-poäng-
       // avdrag. Idempotent (Order.pointsAwarded race-guard) så det krockar inte
       // med applyPaymentSuccess för async-vägen. Utan detta blev en köp-med-
       // poäng-vara gratis UTAN att poäng drogs på sync-vägen (säkerhetshål).
@@ -2278,7 +2278,7 @@ router.post('/:id/review', async (req: Request, res: Response) => {
     }
 
     let isOwner = false;
-    // Inloggad recensents user-id — krediteras Dpoints även om ordern saknar
+    // Inloggad recensents user-id — krediteras Vpoints även om ordern saknar
     // userId (lades t.ex. som gäst innan kontot fanns).
     let reviewerUserId: string | null = null;
     const authHeader = req.headers.authorization;
@@ -2369,7 +2369,7 @@ router.post('/:id/review', async (req: Request, res: Response) => {
       }
     }
 
-    // Dpoints: belöna recensionen (text → review_text, annars review_rating).
+    // Vpoints: belöna recensionen (text → review_text, annars review_rating).
     // Endast inloggade (userId). Idempotent + fail-safe i helpern.
     const dpoints = await maybeAwardReviewPoints({
       userId: (order as any).userId || reviewerUserId,

@@ -8,7 +8,7 @@ import { Cookie, X, Check, Sliders, Shield } from "lucide-react";
 /**
  * CookieConsent — GDPR-kompatibel samtyckesbanner.
  *
- * Tre tillstånd som persisteras i `localStorage.matgo_cookie_consent`:
+ * Tre tillstånd som persisteras i `localStorage.viaeats_cookie_consent`:
  *
  *   "accepted"        Alla kategorier (inkl. analys/Sentry).
  *   "essential-only"  Endast tekniskt nödvändiga cookies (session/cart/auth).
@@ -20,13 +20,13 @@ import { Cookie, X, Check, Sliders, Shield } from "lucide-react";
  * först när användaren explicit klickat "Acceptera alla".
  *
  * Sentry-gating: `apps/web/instrumentation-client.ts` lyssnar på
- * `window` event:et `matgo:cookie-consent` och init:ar Sentry lazy om värdet
+ * `window` event:et `viaeats:cookie-consent` och init:ar Sentry lazy om värdet
  * är `"accepted"`. Vid `"essential-only"` / `"rejected"` händer ingenting.
  */
 
 type Consent = "accepted" | "essential-only" | "rejected";
-const STORAGE_KEY = "matgo_cookie_consent";
-const CONSENT_EVENT = "matgo:cookie-consent";
+const STORAGE_KEY = "viaeats_cookie_consent";
+const CONSENT_EVENT = "viaeats:cookie-consent";
 
 function readConsent(): Consent | null {
   if (typeof window === "undefined") return null;

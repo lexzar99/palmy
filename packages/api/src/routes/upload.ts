@@ -82,7 +82,7 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
     }
 
     // Bild-källa: (a) uppladdad fil (multipart) eller (b) sourceUrl som servern
-    // hämtar själv. (b) låter menyagenten ta en bild direkt från nätet/Foodora
+    // hämtar själv. (b) låter menyagenten ta en bild direkt från nätet/befintlig tjänst
     // utan att hantera binärdata i klienten.
     let sourceBuffer: Buffer | null = req.file?.buffer ?? null;
     if (!sourceBuffer) {
@@ -94,7 +94,7 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
             responseType: 'arraybuffer',
             timeout: 15000,
             maxContentLength: 15 * 1024 * 1024,
-            headers: { 'User-Agent': 'Mozilla/5.0 Delivera-Studio/1.0' },
+            headers: { 'User-Agent': 'Mozilla/5.0 ViaEats-Studio/1.0' },
           });
           const ct = String(resp.headers['content-type'] || '');
           if (!ct.startsWith('image/')) { res.status(400).json({ error: `sourceUrl gav inte en bild (${ct || 'okänd typ'})` }); return; }

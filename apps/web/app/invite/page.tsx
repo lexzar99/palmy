@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { ArrowLeft, Share2, Check } from "lucide-react";
-import DeliveraWordmark from "@/components/DeliveraWordmark";
+import ViaEatsWordmark from "@/components/ViaEatsWordmark";
 
 // Bjud in-sida — monokrom med touch av guld. Brand-loggan (ingen ikon-ruta),
 // belöning, och EN dela-knapp. Ingen synlig länk; länken bärs i share-payloaden.
@@ -25,7 +25,7 @@ export default function InvitePage() {
     return () => { active = false; };
   }, []);
 
-  // Returnera /i/<token>-länken — ALDRIG bara delivera.se (då ser mottagaren
+  // Returnera /i/<token>-länken — ALDRIG bara viaeats.se (då ser mottagaren
   // ingen inbjudan och tror länken är trasig). Hämta inline om den inte hunnit.
   const ensureUrl = async (): Promise<string> => {
     if (inviteUrl) return inviteUrl;
@@ -43,15 +43,15 @@ export default function InvitePage() {
       setShareErr("Kunde inte skapa din länk just nu. Försök igen om en stund.");
       return;
     }
-    const message = `Häng med mig på Delívera, mat hemkört. ${url}`;
-    if (typeof navigator !== "undefined" && (navigator as any).share) {
+    const message = `Häng med mig på ViaEats, mat hemkört. ${url}`;
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
-        await (navigator as any).share({ title: "Delívera", text: message, url });
+        await navigator.share({ title: "ViaEats", text: message, url });
         setShared(true);
         setTimeout(() => setShared(false), 2000);
         return;
-      } catch (e: any) {
-        if (e?.name === "AbortError") return;
+      } catch (e) {
+        if ((e as { name?: string } | null)?.name === "AbortError") return;
       }
     }
     try {
@@ -77,20 +77,20 @@ export default function InvitePage() {
 
         {/* Brand-logga — ingen ikon-ruta, bara loggan */}
         <div className="flex justify-center pt-2">
-          <DeliveraWordmark size="md" />
+          <ViaEatsWordmark size="md" />
         </div>
 
         <div className="space-y-2 text-center">
           <h1 className="text-[24px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Bjud in vänner</h1>
           <p className="text-[14px] leading-snug" style={{ color: "var(--text-secondary)" }}>
-            Dela Delívera med en vän. Ni får båda Dpoints när hen gör sin första beställning.
+            Dela ViaEats med en vän. Ni får båda Vpoints när hen gör sin första beställning.
           </p>
         </div>
 
         {/* Belöning — den enda starka guld-accenten */}
         <div className="flex flex-col items-center gap-1.5 rounded-2xl py-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
           <span className="rounded-full px-4 py-1.5 text-[15px] font-bold" style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416", fontVariantNumeric: "tabular-nums" }}>
-            +{REWARD_POINTS} Dpoints
+            +{REWARD_POINTS} Vpoints
           </span>
           <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>till er båda</span>
         </div>

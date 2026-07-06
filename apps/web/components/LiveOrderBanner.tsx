@@ -80,14 +80,14 @@ function getEtaDisplay(
 }
 
 const TERMINAL_STATUSES = new Set(["DELIVERED", "COMPLETED", "CANCELLED", "REJECTED"]);
-const STORAGE_KEY = "matgo_active_order_id";
-const DISMISS_KEY = "matgo_dismissed_order_id";
+const STORAGE_KEY = "viaeats_active_order_id";
+const DISMISS_KEY = "viaeats_dismissed_order_id";
 // Ägar-bevis för GET /api/orders/:id. Utan dessa svarar backend 404 (PII-skydd)
 // och bannern rensar sig själv → "försvann". phone är durabelt (matchar
 // order.customerPhone), token är 30-min-fallbacken direkt efter köp.
-const TOKEN_KEY = "matgo_active_order_token";
-const PHONE_KEY = "matgo_active_order_phone";
-const ACTIVE_ORDERS_KEY = "matgo_active_orders";
+const TOKEN_KEY = "viaeats_active_order_token";
+const PHONE_KEY = "viaeats_active_order_phone";
+const ACTIVE_ORDERS_KEY = "viaeats_active_orders";
 
 export default function LiveOrderBanner() {
   const { t } = useTranslation();

@@ -1,6 +1,6 @@
 import axios from "axios";
 
-// Dpoints — web-klientens API-helpers. Alla anrop går via /api/platform-proxyn
+// Vpoints — web-klientens API-helpers. Alla anrop går via /api/platform-proxyn
 // som vidarebefordrar plattforms-token till backend.
 
 export interface DpointsTx {

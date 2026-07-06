@@ -10,7 +10,7 @@ export const revalidate = 300;
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://palmy-production-2021.up.railway.app";
+  "https://api.viaeats.se";
 
 // Pre-render known restaurant slugs at build and ISR-cache the rest on demand,
 // so 1000 same-restaurant loads hit a cached shell instead of 1000 live SSR
@@ -98,14 +98,14 @@ export async function generateMetadata({
 
   if (!restaurant) {
     return {
-      title: "Restaurang | Delívera",
+      title: "Restaurang | ViaEats",
       description: "Se menyn och lägg din beställning.",
     };
   }
 
   const title = restaurant.name
-    ? `${restaurant.name} | Delívera`
-    : "Restaurang | Delívera";
+    ? `${restaurant.name} | ViaEats`
+    : "Restaurang | ViaEats";
   const description =
     restaurant.description ||
     (restaurant.cuisine

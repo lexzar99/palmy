@@ -61,7 +61,7 @@ export interface ProductRecord {
   hideDescription?: boolean;
   // Valfri notering som visas längst ner i produktmodalen i appen (skild från beskrivning).
   note?: string | null;
-  // Dpoints: köpbar med poäng.
+  // Vpoints: köpbar med poäng.
   rewardable?: boolean;
   rewardPointsMultiplier?: number | null;
   rewardPointsPrice?: number | null;

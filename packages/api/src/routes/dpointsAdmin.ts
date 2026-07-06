@@ -1,10 +1,10 @@
 /**
- * Dpoints — admin-endpoints (monteras under /api/admin/dpoints).
+ * Vpoints — admin-endpoints (monteras under /api/admin/dpoints).
  * All läsning kräver inloggad admin (authenticate); all mutation kräver
  * requireSuperAdmin + skrivs till AuditLog.
  *
- *  GET   /config                       Dpoints-inställningar
- *  PATCH /config                       uppdatera cashback, saldo-tak och Dpoints-kurirfallback
+ *  GET   /config                       Vpoints-inställningar
+ *  PATCH /config                       uppdatera cashback, saldo-tak och Vpoints-kurirfallback
  *  GET   /overview                     nyckeltal för sidan
  *  GET   /sponsor-cards   POST/PATCH/DELETE /sponsor-cards[/:id]
  *  GET   /campaigns       POST/PATCH/DELETE /campaigns[/:id]

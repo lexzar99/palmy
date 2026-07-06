@@ -9,7 +9,7 @@
 
 /* ── "Silk / Light Luxury" design tokens ─────────────────────────────────────
    Mat ser alltid godare ut mot en vit bakgrund → högre CTR.
-   Inspiration: Uber Eats, Wolt, Apple light mode.
+   Inspiration: ViaEats light mode.
    ─────────────────────────────────────────────────────────────────────────── */
 :root {
   --color-gold-400: #FFB39B;
@@ -32,8 +32,8 @@
   --bg-tertiary:  #F6F6F1;         /* Matchar React bgTertiary */
   --bg-deep:      #F4F3EF;         /* Matchar React bgDeep */
   --bg-card:      #FFFFFF;
-  --text-primary: #0F0F12;         /* Swift DeliveraTheme.ink */
-  --text-secondary: #6E6B66;       /* Swift DeliveraTheme.muted */
+  --text-primary: #0F0F12;         /* Swift ViaEatsTheme.ink */
+  --text-secondary: #6E6B66;       /* Swift ViaEatsTheme.muted */
   --glass-bg:     rgba(255,255,255,0.94);
   --glass-border: rgba(17,17,19,0.10);
   --border-muted: #EDEDEA;
@@ -257,7 +257,7 @@
   background-size: 32px 32px;
 }
 
-.delivera-app-bg {
+.viaeats-app-bg {
   background:
     linear-gradient(135deg, #FCFAF3 0%, #F5FAF5 52%, #FCF5ED 100%);
 }

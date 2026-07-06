@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Coins, ArrowRight } from "lucide-react";
 import type { SponsorCardData } from "@/lib/dpoints";
 
-// Dpoints-registreringskort i hemsidans sponsor-rail ("tyst & direkt"):
+// Vpoints-registreringskort i hemsidans sponsor-rail ("tyst & direkt"):
 // ren yta med guld-tonad ram, sentence case, och poäng-belöningen som enda
 // starka guld-accent. Ersätter det tidigare mörka font-black/versal-kortet.
 export default function DpointsHomeCard({ card }: { card: SponsorCardData }) {
@@ -26,7 +26,7 @@ export default function DpointsHomeCard({ card }: { card: SponsorCardData }) {
           ("110 För Nya") är borttagen — poäng-chippen säger redan +X p. */}
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold" style={{ color: "var(--gold-ink)" }}>
-          <Coins size={14} strokeWidth={2} /> Dpoints
+          <Coins size={14} strokeWidth={2} /> Vpoints
         </span>
         <span
           className="shrink-0 rounded-full px-2.5 py-1 text-[13px] font-bold leading-none"

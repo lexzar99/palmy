@@ -80,7 +80,7 @@ router.get('/', async (req, res) => {
     res.json(reviews.map((review) => ({
       id: review.id,
       customerName: review.customerName,
-      restaurantName: review.restaurant?.name || 'FoodGo',
+      restaurantName: review.restaurant?.name || 'ViaEats',
       restaurantId: review.restaurantId,
       rating: review.rating,
       comment: review.review || '',

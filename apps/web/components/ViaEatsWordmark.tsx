@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export default function DeliveraWordmark({
+export default function ViaEatsWordmark({
   href,
   size = "md",
   className = "",
@@ -14,19 +14,15 @@ export default function DeliveraWordmark({
     <span
       className={`inline-flex items-baseline font-black tracking-tight leading-none ${className}`}
       style={{ color: "var(--text-primary)", fontSize }}
-      aria-label="Delívera"
+      aria-label="ViaEats"
     >
-      Del
-      <span className="relative inline-block">
-        <span style={{ color: "var(--color-gold-500, #F0531C)" }}>í</span>
-      </span>
-      vera
+      Via<span style={{ color: "var(--color-gold-500, #F0531C)" }}>Eats</span>
     </span>
   );
 
   if (!href) return mark;
   return (
-    <Link href={href} className="inline-flex items-center" aria-label="Delívera - startsidan">
+    <Link href={href} className="inline-flex items-center" aria-label="ViaEats - startsidan">
       {mark}
     </Link>
   );

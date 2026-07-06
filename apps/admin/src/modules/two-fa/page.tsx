@@ -170,7 +170,7 @@ export function TwoFAPage() {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = url;
-                a.download = `delivera-recovery-codes-${new Date().toISOString().slice(0, 10)}.txt`;
+                a.download = `viaeats-recovery-codes-${new Date().toISOString().slice(0, 10)}.txt`;
                 a.click();
                 URL.revokeObjectURL(url);
               }}

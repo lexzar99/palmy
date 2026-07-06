@@ -4,7 +4,7 @@ import { useState } from "react";
 import axios from "axios";
 import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-import { API_URL } from "@/lib/api";
+import { API_URL, apiErrorMessage } from "@/lib/api";
 
 // Glömt-lösenord-flöde — steg 1 av 2.
 //   POST /api/account/forgot-password { email } → alltid 200
@@ -30,11 +30,11 @@ export default function ForgotPasswordPage() {
         email: email.trim(),
       });
       setSent(true);
-    } catch (err: any) {
+    } catch (err) {
       // Endpoint:n returnerar alltid 200 — om vi får 4xx här är det bara
       // valideringsfel (t.ex. helt ogiltigt format). Visa servermeddelandet
       // eller en fallback.
-      setError(err?.response?.data?.error || "Kunde inte skicka länken just nu. Försök igen.");
+      setError(apiErrorMessage(err, "Kunde inte skicka länken just nu. Försök igen."));
     } finally {
       setSubmitting(false);
     }

@@ -5,7 +5,7 @@ import { MAX_ACTIVE, type ActiveDelivery, type CourierProfile, type DropoffProof
  * är klickbar utan backend. Sätt VITE_API_URL för att slå på riktiga anrop —
  * endpoint-formerna nedan matchar den planerade kurir-backenden (Fas 3c).
  */
-const API_URL = import.meta.env.VITE_API_URL || "https://api.delivera.se";
+const API_URL = import.meta.env.VITE_API_URL || "https://api.viaeats.se";
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "1";
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -14,7 +14,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let mockCourier: CourierProfile = {
   id: "cour_demo",
   name: "Test Kurir",
-  email: "kurir@delivera.se",
+  email: "kurir@viaeats.se",
   city: "Lund",
   vehicle: "BIKE",
   phone: "070-000 00 00",
@@ -110,7 +110,7 @@ let mockHistory: HistoryOrder[] = [
 
 // --------------------------------------------------------------- real helpers
 function authHeaders(): HeadersInit {
-  const token = localStorage.getItem("delivera_courier_token");
+  const token = localStorage.getItem("viaeats_courier_token");
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
 }
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
@@ -217,14 +217,14 @@ export const api = {
   async getSession(): Promise<{ online: boolean }> {
     if (USE_MOCK) {
       await wait(120);
-      return { online: localStorage.getItem("delivera_courier_online") === "1" };
+      return { online: localStorage.getItem("viaeats_courier_online") === "1" };
     }
     return http("/api/courier/session");
   },
 
   async startSession(): Promise<void> {
     if (USE_MOCK) {
-      localStorage.setItem("delivera_courier_online", "1");
+      localStorage.setItem("viaeats_courier_online", "1");
       return;
     }
     await http("/api/courier/session/start", { method: "POST" });
@@ -232,7 +232,7 @@ export const api = {
 
   async endSession(): Promise<void> {
     if (USE_MOCK) {
-      localStorage.removeItem("delivera_courier_online");
+      localStorage.removeItem("viaeats_courier_online");
       return;
     }
     await http("/api/courier/session/stop", { method: "POST" });

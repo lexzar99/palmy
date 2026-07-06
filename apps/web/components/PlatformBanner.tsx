@@ -12,7 +12,7 @@ type Banner = {
   expiresAt?: string | null;
 };
 
-const DISMISSED_KEY = "matgo_banner_dismissed";
+const DISMISSED_KEY = "viaeats_banner_dismissed";
 
 /**
  * PlatformBanner — visas högst upp i web när SUPER_ADMIN har satt en banner

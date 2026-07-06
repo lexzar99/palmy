@@ -305,7 +305,7 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
 });
 
 // ── POST /api/cities/validate-location ───────────────────────────────────────
-// RESTAURANG-FÖRST lookup (Foodora-pattern). City-zones används INTE längre
+// RESTAURANG-FÖRST lookup (zonmönster). City-zones används INTE längre
 // som primärt täckningskriterium — varje restaurang har egna deliveryZones
 // (polygon/cirkel) som styr om den kan leverera till given adress.
 //
@@ -341,7 +341,7 @@ router.post('/validate-location', async (req, res) => {
       }
     });
 
-    // Dpoints budkostnad-tariff (km-baserad) — hämtas en gång per cache-miss.
+    // Vpoints budkostnad-tariff (km-baserad) — hämtas en gång per cache-miss.
     const dpSettings = await getDpointsSettings();
 
     const matchedCities: any[] = [];

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Betalning klar | Delívera",
+  title: "Betalning klar | ViaEats",
   robots: { index: false },
 };
 

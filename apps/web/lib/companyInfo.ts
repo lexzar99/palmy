@@ -27,12 +27,12 @@ export interface CompanyInfo {
 export const DEFAULT_COMPANY_INFO: CompanyInfo = {
   // Fallbacks om admin ännu inte fyllt i Plattform-inställningar. Det juridiska
   // namnet + orgnr + e-post sätts i admin (GET /api/settings) och vinner alltid.
-  name: "Delívera",
+  name: "ViaEats",
   organizationNumber: "",
   address: "",
-  supportEmail: "support@delivera.se",
-  privacyEmail: "privacy@delivera.se",
-  noReplyEmail: "no-reply@delivera.se",
+  supportEmail: "support@viaeats.se",
+  privacyEmail: "privacy@viaeats.se",
+  noReplyEmail: "no-reply@viaeats.se",
   contactPhone: null,
   contactPhoneHours: null,
   contactEmail: null,

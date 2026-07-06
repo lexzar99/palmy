@@ -31,7 +31,7 @@ function formatDealReward(d: UserDeal): string {
   return "rabatt";
 }
 
-const DISMISS_KEY = "matgo_welcome_banner_dismissed";
+const DISMISS_KEY = "viaeats_welcome_banner_dismissed";
 
 function isDismissed(): boolean {
   if (typeof window === "undefined") return false;

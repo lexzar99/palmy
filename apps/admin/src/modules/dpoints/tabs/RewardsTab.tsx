@@ -6,8 +6,8 @@ import { Loader2 } from "lucide-react";
 import { Surface, Button, Input, LoadingPanel, Toggle } from "@/shared/components/ui";
 import { dpointsKeys, getConfig, updateConfig, type EarnRule } from "../api";
 
-// Belöningar = hur många Dpoints varje handling ger. Toggle + poäng per handling.
-// Sparas som dpointsEarnRules i config. Reglerna driver kundens "Tjäna Dpoints"
+// Belöningar = hur många Vpoints varje handling ger. Toggle + poäng per handling.
+// Sparas som dpointsEarnRules i config. Reglerna driver kundens "Tjäna Vpoints"
 // + reward-hooks (invite, recension, ny restaurang, streak).
 
 // Hur ofta varje regel kan tjänas (läs-bar indikator, matchar backend-logiken).
@@ -51,7 +51,7 @@ export default function RewardsTab() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold">Belöningar</h2>
-            <p className="text-sm text-[var(--text-secondary)]">Hur många Dpoints varje handling ger. Stäng av eller ändra poäng.</p>
+            <p className="text-sm text-[var(--text-secondary)]">Hur många Vpoints varje handling ger. Stäng av eller ändra poäng.</p>
           </div>
           <Button variant="primary" disabled={!dirty || save.isPending} onClick={() => save.mutate({ dpointsEarnRules: rules, dpointsStreakTarget: streakTarget })}>
             {save.isPending ? <Loader2 className="animate-spin" size={16} /> : "Spara"}

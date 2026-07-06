@@ -250,7 +250,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
     if (!draft.isGlobal && !draft.restaurantId) { setError("Välj restaurang eller aktivera 'Alla restauranger'."); return; }
     if (!Number.isFinite(draft.discountValue) || draft.discountValue < 0) { setError("Rabattvärde måste vara ≥ 0."); return; }
     if (draft.discountType === "PERCENTAGE" && draft.discountValue > 100) { setError("Procent-rabatt får inte överstiga 100%."); return; }
-    if (draft.discountType === "NONE" && !draft.appEnabled) { setError("Ingen kontantrabatt kräver att App i Swift är aktivt, t.ex. fri leverans eller Dpoints."); return; }
+    if (draft.discountType === "NONE" && !draft.appEnabled) { setError("Ingen kontantrabatt kräver att App i Swift är aktivt, t.ex. fri leverans eller Vpoints."); return; }
     if (draft.scopeType === "MIN_ORDER" && draft.minOrder <= 0) { setError("Minimiorder måste vara > 0 för min-order-kampanj."); return; }
     if (draft.validFrom && draft.validUntil && draft.validFrom > draft.validUntil) { setError("Startdatum måste vara före slutdatum."); return; }
     setError(null);
@@ -266,7 +266,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
   // Live badge-text för förhandsvisningen, speglar aktuellt rabattvärde/typ.
   const previewDiscount =
     draft.discountType === "NONE"
-      ? (draft.appDpointsBonus > 0 ? `+${draft.appDpointsBonus} Dpoints` : "Fri leverans / app-only")
+      ? (draft.appDpointsBonus > 0 ? `+${draft.appDpointsBonus} Vpoints` : "Fri leverans / app-only")
       : draft.discountType === "PERCENTAGE"
       ? `${draft.discountValue}% rabatt`
       : draft.discountType === "FIXED_PRICE"
@@ -513,7 +513,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
-                  <Field label="Dpoints bonus">
+                  <Field label="Vpoints bonus">
                     <Input type="number" min="0" value={draft.appDpointsBonus} onChange={(e) => set("appDpointsBonus", Number(e.target.value))} />
                   </Field>
                   <Field label="Uppdrag">

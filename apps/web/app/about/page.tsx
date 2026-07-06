@@ -3,8 +3,8 @@ import { Sparkles, Building2, Mail } from "lucide-react";
 import { getCompanyInfo } from "@/lib/companyInfo";
 
 export const metadata: Metadata = {
-  title: "Om oss | Delívera",
-  description: "Delívera är en online beställningsplattform som kopplar dig till lokala restauranger.",
+  title: "Om oss | ViaEats",
+  description: "ViaEats är en online beställningsplattform som kopplar dig till lokala restauranger.",
 };
 
 export default async function OmOssPage() {
@@ -19,7 +19,7 @@ export default async function OmOssPage() {
           <Sparkles size={12} /> Beställningsplattform
         </div>
         <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-tight" style={{ color: "var(--text-primary)" }}>
-          Om <span className="text-gold-500">Delívera</span>
+          Om <span className="text-gold-500">ViaEats</span>
         </h1>
         <div className="space-y-6 text-lg leading-relaxed max-w-3xl" style={{ color: "var(--text-secondary)" }}>
           {customBody ? (
@@ -29,7 +29,7 @@ export default async function OmOssPage() {
           ) : (
             <>
               <p>
-                Delívera är en <span style={{ color: "var(--text-primary)" }} className="font-medium">beställningsplattform</span> som
+                ViaEats är en <span style={{ color: "var(--text-primary)" }} className="font-medium">beställningsplattform</span> som
                 kopplar samman dig med lokala restauranger. Vi lagar ingen mat själva, vi gör det enkelt för dig att hitta
                 restaurangerna och för dem att nå dig snabbt.
               </p>
@@ -38,11 +38,11 @@ export default async function OmOssPage() {
                 betalningen och spårningen så att köken kan fokusera på det de är bäst på, maten.
               </p>
               <p>
-                Leveransen sköts antingen av restaurangen själv eller av Delíveras egna bud, beroende på område. Du samlar
-                Dpoints på varje betald order och kan lösa in dem mot produkter och rabatter.
+                Leveransen sköts antingen av restaurangen själv eller av ViaEats bud, beroende på område. Du samlar
+                Vpoints på varje betald order och kan lösa in dem mot produkter och rabatter.
               </p>
               <p>
-                Snabb leverans, trygg betalning via Mollie och support när du behöver den. Det är vad Delívera finns till för.
+                Snabb leverans, trygg betalning via Mollie och support när du behöver den. Det är vad ViaEats finns till för.
               </p>
             </>
           )}

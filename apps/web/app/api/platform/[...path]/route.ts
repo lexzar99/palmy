@@ -12,7 +12,7 @@ function getRequiredApiUrl() {
   const value =
     process.env.API_URL?.trim() ||
     process.env.NEXT_PUBLIC_API_URL?.trim() ||
-    "https://palmy-production-2021.up.railway.app";
+    "https://api.viaeats.se";
 
   return value;
 }
@@ -69,12 +69,13 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     if (responseContentType) response.headers.set("content-type", responseContentType);
     response.headers.set("cache-control", cacheControl || "no-store");
     return response;
-  } catch (err: any) {
-    const detail = err?.message || String(err);
+  } catch (err) {
+    const e = err as { message?: string; name?: string } | null;
+    const detail = e?.message || String(err);
     // Log the internal detail server-side ONLY — never return the upstream host /
     // connection error (e.g. "ECONNREFUSED <railway-host>") to the client.
     console.error(`[platform-proxy] FAILED at stage="${stage}":`, detail);
-    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
+    const isTimeout = e?.name === "TimeoutError" || e?.name === "AbortError";
     return NextResponse.json(
       { error: isTimeout ? "Tidsgräns mot servern, försök igen." : "Tjänsten är tillfälligt otillgänglig, försök igen." },
       { status: stage === "fetch-upstream" ? 502 : 500 },

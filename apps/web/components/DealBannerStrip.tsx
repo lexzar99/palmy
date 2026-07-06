@@ -7,7 +7,7 @@ import axios from "axios";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://palmy-production-2021.up.railway.app";
+  "https://api.viaeats.se";
 
 interface BannerDeal {
   id: string;

@@ -1,6 +1,6 @@
 /**
  * Sandbox-test av Adyen-providern (kör med ADYEN_*-test-credentials i .env).
- *   pnpm --filter @palmyra/api exec ts-node --transpile-only scripts/test-adyen.ts
+ *   pnpm --filter @viaeats/api exec ts-node --transpile-only scripts/test-adyen.ts
  *
  * Skapar en Adyen-session för en syntetisk order och skriver ut session-id +
  * att sessionData kom tillbaka. Verifierar API-key, merchant account och
@@ -35,7 +35,7 @@ async function main() {
   console.log('  merchantAccount:', process.env.ADYEN_MERCHANT_ACCOUNT, '| env:', process.env.ADYEN_ENVIRONMENT);
   const res = await adyenProvider.createPayment({
     order,
-    returnUrl: 'https://delivera.se/order/' + order.id,
+    returnUrl: 'https://viaeats.se/order/' + order.id,
   });
   console.log('  session.id     :', res.session?.id);
   console.log('  sessionData    :', res.session?.sessionData ? `${res.session.sessionData.slice(0, 24)}… (${res.session.sessionData.length} tecken)` : '(saknas!)');

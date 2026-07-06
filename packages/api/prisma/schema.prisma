@@ -50,7 +50,7 @@ model Product {
   // När true: hoppa över beskrivningen i menyn (för compact-items där beskrivning
   // inte behövs eller bara är brus). Admin-styrt.
   hideDescription     Boolean             @default(false)
-  // Valfri notering (AI/admin) som visas längst ner i produktmodalen i appen,
+  // Valfri admin-notering som visas längst ner i produktmodalen i appen,
   // skild från description. Null = ingen notering.
   note                String?
   // Discount / sale fields for "Rea & rabatterat" section on home.
@@ -60,11 +60,11 @@ model Product {
   discountImageUrl    String?             // Optional alt image shown in discount rail
   discountLabel       String?             // e.g. "Dagens deal", "-20%"
   discountActive      Boolean             @default(false)
-  // Dpoints: när true kan varan köpas direkt med poäng (rewardable). Endast
+  // Vpoints: när true kan varan köpas direkt med poäng (rewardable). Endast
   // rewardable-varor visar poäng-pris + "köp med poäng" i klienterna. Togglas
   // i admin (produkt-edit) och i Flutter (Meny → Rewards).
   rewardable          Boolean             @default(false)
-  // Reward-pris i Dpoints. Om rewardPointsPrice är null räknas priset som
+  // Reward-pris i Vpoints. Om rewardPointsPrice är null räknas priset som
   // ceil(priceKr * rewardPointsMultiplier). Default 1.5x = aggressiv launch.
   rewardPointsMultiplier Float             @default(1.5)
   rewardPointsPrice      Int?
@@ -215,10 +215,10 @@ model Order {
   userId                String?
   user                  User?       @relation(fields: [userId], references: [id])
 
-  // Dpoints — idempotent intjäning vid betald order (pointsAwarded = race-guard).
+  // Vpoints — idempotent intjäning vid betald order (pointsAwarded = race-guard).
   pointsAwarded         Boolean     @default(false)
   pointsEarned          Int         @default(0)
-  // Dpoints som ska dras när ordern betalas (varor köpta med poäng → gratis-rad).
+  // Vpoints som ska dras när ordern betalas (varor köpta med poäng → gratis-rad).
   pointsSpent           Int         @default(0)
   // Idempotens-guard för poäng-återföring vid återbetalning.
   pointsReverted        Boolean     @default(false)
@@ -657,7 +657,7 @@ model RestaurantSettings {
 
   // Företagsidentitet — visas i Terms + Privacy + RN-support-flöden. Singleton
   // för hela plattformen. Fallback-värden hanteras i klienterna när null.
-  companyName           String?  // ex: "MatGo AB"
+  companyName           String?  // ex: "ViaEats AB"
   organizationNumber    String?  // ex: "559123-4567"
   companyAddress        String?  // postal/registrerad adress, multiline OK
   supportEmail          String?  // primär support — RN + web SupportChat
@@ -738,14 +738,14 @@ model RestaurantSettings {
   referralMinOrderKr           Int       @default(150)  // legacy
   referralMaxRewardsPerInviter Int       @default(20)
 
-  // ── Dpoints lojalitetssystem ──────────────────────────────────────────────
+  // ── Vpoints lojalitetssystem ──────────────────────────────────────────────
   // Master-toggle + takter. Allt av tills admin aktiverar. dpointsPerKr = poäng
   // per spenderad kr (intjäning). dpointsValuePerKr = poäng per 1 kr produkt-
   // värde ("kostar X poäng"-etiketten nära produkter + standard i inlösen).
   dpointsEnabled      Boolean   @default(false)
   dpointsPerKr        Float     @default(0.1)
   dpointsValuePerKr   Int       @default(10)
-  // Visa Dpoints-registreringskortet bland sponsorerna på hemsidan. Togglas
+  // Visa Vpoints-registreringskortet bland sponsorerna på hemsidan. Togglas
   // från admin → Sponsorer. true = synligt (för utloggade besökare).
   dpointsCardOnHome   Boolean   @default(true)
   // Tak för saldo: intjäning (köp + kampanjer) pausas vid taket → kunden måste
@@ -753,13 +753,13 @@ model RestaurantSettings {
   dpointsMaxBalance   Int       @default(2500)
   // Budkostnad (öre) som läggs på en order som betalas ENBART med poäng vid
   // leverans (poängen täcker maten men inte kuriren). Vid hämtning = gratis.
-  // Global, sätts i admin → Dpoints. 0 = ingen budkostnad.
+  // Global, sätts i admin → Vpoints. 0 = ingen budkostnad.
   dpointsCourierCost  Int       @default(0)
   // Km-baserad budkostnad-tariff (poäng-ENBART leverans). JSON-array
   // [{ "maxKm": 1, "feeKr": 39 }, ...] sorterad lågt→högt. Tom = fall tillbaka
   // till dpointsCourierCost (platt). Bortom sista tier:n gäller sista avgiften.
   dpointsCourierTiers String    @default("[]")
-  // Intjänings-regler (JSON [{key,label,points,enabled}]) — hur många Dpoints
+  // Intjänings-regler (JSON [{key,label,points,enabled}]) — hur många Vpoints
   // varje handling ger (värva vän, recensioner, osv). Null = standarduppsättning.
   dpointsEarnRules    String?
   // Antal betalda ordrar inom 7 dagar som krävs för streak-bonusen (order_streak).
@@ -998,7 +998,7 @@ model User {
   referralsSent     Referral[]   @relation("ReferralInviter")
   referralReceived  Referral?    @relation("ReferralInvitee")
 
-  // Dpoints — cachat saldo (uppdateras atomiskt med PointsTransaction-ledgern).
+  // Vpoints — cachat saldo (uppdateras atomiskt med PointsTransaction-ledgern).
   pointsBalance      Int                      @default(0)
   pointsTransactions PointsTransaction[]
   campaignProgress   PointsCampaignProgress[]
@@ -1151,7 +1151,7 @@ model RestaurantPrinter {
 model ReceiptTemplate {
   id           String   @id @default("global")
   paperWidth   String   @default("80mm")
-  platformName String   @default("MatGo")
+  platformName String   @default("ViaEats")
   elements     String   @default("[]")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -1290,7 +1290,7 @@ model ScheduledPush {
   @@index([sentAt, scheduledFor])
 }
 
-// ─── Dpoints lojalitetssystem ───────────────────────────────────────────────
+// ─── Vpoints lojalitetssystem ───────────────────────────────────────────────
 // Append-only liggare. En rad per händelse. Saldot cachas på User.pointsBalance
 // och uppdateras i SAMMA transaktion som raden skapas → en källa till sanning.
 model PointsTransaction {

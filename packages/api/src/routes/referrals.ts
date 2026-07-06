@@ -323,12 +323,12 @@ export function computeFraudFlags(input: {
 }
 
 export function publicShareBase(): string {
-  // Default: den live custom-domänen delivera.se. Override via WEB_BASE_URL i
+  // Default: den live custom-domänen viaeats.se. Override via WEB_BASE_URL i
   // Railway vid behov (t.ex. staging eller om domänen byts).
   return (
     process.env.WEB_BASE_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
-    'https://delivera.se'
+    'https://viaeats.se'
   );
 }
 
@@ -336,7 +336,7 @@ export function publicShareBase(): string {
 // Customer endpoints (mountas under /api/account/)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Feature-flag: Wolt-stil referral (kod i kassan) är PÅ som default.
+// Feature-flag: referralflöde referral (kod i kassan) är PÅ som default.
 // Admin styr på/av via settings.referralEnabled; env-flaggan finns kvar som
 // nödbroms (sätt REFERRALS_DISABLED=true för att hårdstänga utan deploy).
 const REFERRALS_DISABLED = (process.env.REFERRALS_DISABLED ?? 'false').toLowerCase() === 'true';
@@ -655,7 +655,7 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
       }
     }
 
-    // userDealId → klienten kan applicera kupongen direkt i kassan (Wolt-flöde).
+    // userDealId → klienten kan applicera kupongen direkt i kassan (referralflöde).
     res.json({ ok: true, inviterName, dealsCreated: dealsCreatedFor.invitee, userDealId: firstInviteeUserDealId });
   } catch (err: any) {
     console.error('[redeem-code] error:', err?.message);

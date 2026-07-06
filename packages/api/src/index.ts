@@ -195,11 +195,11 @@ app.use(express.static('public'));
 
 // Rate limiting
 const AI_AGENT_LOGIN_IDS = new Set([
-  'falken@delivera.se',
-  'kundvakten@delivera.se',
-  'kocken@delivera.se',
-  'studion@delivera.se',
-  'torget@delivera.se',
+  'falken@viaeats.se',
+  'kundvakten@viaeats.se',
+  'kocken@viaeats.se',
+  'studion@viaeats.se',
+  'torget@viaeats.se',
 ]);
 
 const loginIdFromBody = (body: any) =>
@@ -224,7 +224,7 @@ const limiter = rateLimit({
 //
 // Nyckel: CF-Connecting-IP först (riktig klient-IP när Cloudflare proxar),
 // annars Railways forwarded IP. Så limitern fungerar både före och efter att
-// du lägger api.delivera.se bakom Cloudflare.
+// du lägger api.viaeats.se bakom Cloudflare.
 const abuseLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 300,
@@ -527,7 +527,7 @@ const PORT = Number(process.env.PORT || 4000);
   }
 
   httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 FoodGo API körs på port ${PORT}`);
+    console.log(`\n🚀 ViaEats API körs på port ${PORT}`);
     console.log(`📡 Socket.IO redo`);
     console.log(`🌍 Internt: http://localhost:${PORT}`);
     console.log(`🌐 Externt: http://192.168.0.3:${PORT} (kontrollera ifconfig om detta ej funkar)\n`);

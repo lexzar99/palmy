@@ -284,7 +284,7 @@ router.get('/categories', async (req, res) => {
         // Visningsläge för menykortet (FULL = 1-per-rad, COMPACT = 2-per-rad)
         displayMode: prod.displayMode || "FULL",
         hideDescription: prod.hideDescription || false,
-        // Dpoints: rewardable = visas i Rewards. Poängpris är produktstyrt:
+        // Vpoints: rewardable = visas i Rewards. Poängpris är produktstyrt:
         // override om satt, annars ceil(priceKr × rewardPointsMultiplier).
         rewardable: !!prod.rewardable,
         rewardPointsMultiplier: (prod as any).rewardPointsMultiplier ?? 1.5,
@@ -293,7 +293,7 @@ router.get('/categories', async (req, res) => {
         // använder detta för "mest beställda tillgängliga"-fallbacken när en
         // borttagen favorit inte längre finns i menyn.
         orderScore: productPopularity.get(prod.id) ?? 0,
-        // AI/admin-notering som visas längst ner i produktmodalen (valfri).
+        // Admin-notering som visas längst ner i produktmodalen (valfri).
         note: (prod as any).note ?? null,
         ...extraGroupsField,
         });

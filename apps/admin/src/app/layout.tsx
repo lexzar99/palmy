@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const metadata: Metadata = {
-  title: "Delívera Admin",
+  title: "ViaEats Admin",
   description: "Control system for restaurants, orders, zones, finance and platform operations.",
 };
 

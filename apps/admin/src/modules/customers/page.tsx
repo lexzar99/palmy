@@ -216,7 +216,7 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
                   <div className="mt-2">
                     {data.orders.slice(0, 5).map((order) => (
                       <div key={order.id} className="flex items-center justify-between gap-3 border-b border-[var(--row-divider)] py-2.5 text-[13px] last:border-b-0">
-                        <span className="min-w-0 truncate font-semibold text-[var(--text-primary)]">{order.orderNumber} · {order.restaurant?.name || "Delívera"}</span>
+                        <span className="min-w-0 truncate font-semibold text-[var(--text-primary)]">{order.orderNumber} · {order.restaurant?.name || "ViaEats"}</span>
                         <span className="shrink-0 text-[var(--text-secondary)]">{formatCurrency(order.total / 100)} · {formatDate(order.createdAt)} · {orderStatusLabel(order.status)}</span>
                       </div>
                     ))}
@@ -253,7 +253,7 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
                     {data.orders.map((order) => (
                       <tr key={order.id}>
                         <td className="font-black">{order.orderNumber}</td>
-                        <td>{order.restaurant?.name || "Delívera"}</td>
+                        <td>{order.restaurant?.name || "ViaEats"}</td>
                         <td><Badge tone="info">{orderStatusLabel(order.status)}</Badge></td>
                         <td>{formatCurrency(order.total / 100)}</td>
                         <td>{formatDateTime(order.createdAt)}</td>
@@ -426,7 +426,7 @@ export function CustomersPage() {
               <span>Telefon</span>
               <span>Ordrar</span>
               <span>Spenderat</span>
-              <span>Dpoints</span>
+              <span>Vpoints</span>
               <span />
             </div>
 

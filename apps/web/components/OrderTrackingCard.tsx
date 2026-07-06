@@ -139,7 +139,7 @@ export function OrderTrackingCard({
     typeof order.deliveryLongitude === "number";
   const pickup = canMap ? { lat: order.restaurantLat, lng: order.restaurantLng } : null;
   const dropoff = canMap ? { lat: order.deliveryLatitude, lng: order.deliveryLongitude } : null;
-  const modeLabel = isPickup ? "Avhämtning" : isSelfDelivery ? "Restaurangen levererar" : "Delívera levererar";
+  const modeLabel = isPickup ? "Avhämtning" : isSelfDelivery ? "Restaurangen levererar" : "ViaEats levererar";
   const Icon = isCancelled ? X : isPickup ? ShoppingBag : canMap ? Navigation : isSelfDelivery ? Bike : Package;
   const cancelledMessage =
     status === "REJECTED"
@@ -206,7 +206,7 @@ export function OrderTrackingCard({
             <div>
               <p className="text-[11px] font-bold" style={{ color: accentInk }}>{modeLabel}</p>
               <p className="mt-1 text-[18px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
-                +{nf.format(earnedPoints(order))} Dpoints
+                +{nf.format(earnedPoints(order))} Vpoints
               </p>
             </div>
             <DpointsDiamond size={28} color={accent} />

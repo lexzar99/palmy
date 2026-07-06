@@ -3,8 +3,8 @@ import { getCompanyInfo } from "@/lib/companyInfo";
 import TermsContent from "./TermsContent";
 
 export const metadata: Metadata = {
-  title: "Allmänna villkor | Delívera",
-  description: "Villkoren för att beställa mat via Delívera, beställningsplattformen som kopplar dig till lokala restauranger.",
+  title: "Allmänna villkor | ViaEats",
+  description: "Villkoren för att beställa mat via ViaEats, beställningsplattformen som kopplar dig till lokala restauranger.",
 };
 
 export default async function TermsPage() {

@@ -8,27 +8,27 @@
 //      OCH iOS öppnar den i Safari (inte SFSafariViewController), eftersom
 //      det inte finns någon koppling tillbaka till in-app sessionen.
 //   4. Klarna i Safari säger "betalning klar" och navigerar (JS) till
-//      vår returnURL = https://matgo-web-pi.vercel.app/stripe-redirect.
+//      vår returnURL = https://viaeats.se/stripe-redirect.
 //   5. Universal Link triggers INTE för JS-redirects i Safari (Apple
 //      blockar det avsiktligt). Så Safari laddar bara vår sida.
 //
 // För att komma tillbaka till appen från Safari måste vi:
-//   A. meta http-equiv="refresh" till foodgo://order/<id> — iOS hanterar
+//   A. meta http-equiv="refresh" till viaeats://order/<id> — iOS hanterar
 //      det som en HTTP-redirect och öppnar appen (funkar oftare än JS
 //      window.location, även om Apple ibland blockerar även detta).
 //   B. JS window.location.replace som backup.
-//   C. En STOR knapp med href="foodgo://order/<id>" — användar-initierat
+//   C. En STOR knapp med href="viaeats://order/<id>" — användar-initierat
 //      tap triggar ALLTID schemat. Detta är den enda säkra fallbacken.
 //
-// KRITISKT: vi länkar till foodgo://order/<orderId>, INTE till
-// foodgo://stripe-redirect. Skillnaden:
+// KRITISKT: vi länkar till viaeats://order/<orderId>, INTE till
+// viaeats://stripe-redirect. Skillnaden:
 //
-//   - foodgo://stripe-redirect försökte tidigare slutföra payment-sheet-
+//   - viaeats://stripe-redirect försökte tidigare slutföra payment-sheet-
 //     flödet i appen och POSTa ordern. Det krävde att appens state överlevde
 //     Safari-detouren — vilket den ofta inte gör (background app kills,
 //     session-loss, etc.). Resultat: "debiterad men ordern kommer inte fram".
 //
-//   - foodgo://order/<orderId> tar användaren direkt till order-tracking-
+//   - viaeats://order/<orderId> tar användaren direkt till order-tracking-
 //     skärmen för en order som REDAN finns på servern (skapad i AWAITING_
 //     PAYMENT-state innan Klarna ens öppnades). Stripe-webhook har redan
 //     markerat den PAID — användaren ser en klar order direkt. Inget
@@ -66,8 +66,8 @@ export async function GET(request: NextRequest) {
   // Bygg deep link-URL till appen. Om orderId saknas (oklar källa) öppnar
   // vi appen på hem-skärmen så användaren åtminstone hamnar tillbaka.
   const target = orderId
-    ? `foodgo://order/${orderId}`
-    : `foodgo://stripe-redirect${url.search}`;
+    ? `viaeats://order/${orderId}`
+    : `viaeats://stripe-redirect${url.search}`;
   const targetSafe = escapeHtml(target);
 
   const html = `<!DOCTYPE html>
@@ -77,9 +77,9 @@ export async function GET(request: NextRequest) {
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0a0908">
   <meta name="robots" content="noindex, nofollow">
-  <title>Tillbaka till Delivera</title>
+  <title>Tillbaka till ViaEats</title>
 
-  <!-- iOS försöker öppna foodgo:// direkt. Detta är det mest pålitliga
+  <!-- iOS försöker öppna viaeats:// direkt. Detta är det mest pålitliga
        sättet att triggera ett custom URL-scheme från Safari utan
        användartap. Apple kan blockera det i strikta privatlägen — då
        använder vi knappen nedan. -->
@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
     </div>
 
     <p class="help">
-      Tryck på knappen nedan för att följa din beställning i Delivera-appen.
+      Tryck på knappen nedan för att följa din beställning i ViaEats-appen.
       ${orderId ? "Restaurangen har redan fått ordern." : ""}
     </p>
 

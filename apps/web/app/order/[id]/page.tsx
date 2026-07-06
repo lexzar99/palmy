@@ -10,6 +10,7 @@ import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import { cacheOrderDetail, getCachedOrderDetail } from "@/lib/offlineOrders";
 import { isPushSupported, getPushPublicKey, subscribeOrderPush, hasOrderPush } from "@/lib/webPushClient";
+import { addSkippedReviewOrderId, isReviewSkipped } from "@/lib/reviewPrompt";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import dynamic from "next/dynamic";
 import { OrderTrackingCard } from "@/components/OrderTrackingCard";
@@ -242,6 +243,9 @@ const OrderStatusPage = () => {
   const [likedItemIds, setLikedItemIds] = useState<string[]>([]);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewDone, setReviewDone] = useState(false);
+  // Vpoints-belöningen ur review-svaret (Swift: "+X Vpoints lades till." om
+  // poäng > 0, annars "Tack för din recension.").
+  const [reviewRewardText, setReviewRewardText] = useState<string | null>(null);
   // Kvitto-modal + nedladdningsräknare (max 2 ggr per order, lokalt).
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptDownloads, setReceiptDownloads] = useState(0);
@@ -433,15 +437,15 @@ const OrderStatusPage = () => {
   // kunden inte ser den igen efter att ha stängt den (per session).
   useEffect(() => {
     if (!order?.id || typeof window === "undefined") return;
-    if (sessionStorage.getItem(`review_dismissed_${order.id}`)) setReviewDismissed(true);
+    // Delad skip-lista (viaeats.skippedReviewOrderIds) — samma nyckel som
+    // Swift-appen och hemskärmens prompt, så en skippad order inte frågar igen.
+    if (isReviewSkipped(order.id)) setReviewDismissed(true);
   }, [order?.id]);
 
-  // Stäng inline-recensionen och kom ihåg valet för denna order.
+  // Skippa recensionen och kom ihåg valet för denna order.
   const dismissReview = useCallback(() => {
     setReviewDismissed(true);
-    if (order?.id && typeof window !== "undefined") {
-      sessionStorage.setItem(`review_dismissed_${order.id}`, "1");
-    }
+    if (order?.id) addSkippedReviewOrderId(order.id);
   }, [order?.id]);
 
   const submitReview = async () => {
@@ -455,7 +459,12 @@ const OrderStatusPage = () => {
       const body: any = { rating: reviewRating, review: reviewText, likedItemIds };
       if (tokenFromUrl) body.accessToken = tokenFromUrl;
       if (phoneFromUrl) body.phone = phoneFromUrl;
-      await axios.post(`/api/platform/orders/${orderId}/review`, body);
+      const res = await axios.post(`/api/platform/orders/${orderId}/review`, body);
+      // Visa Vpoints-belöningen ur svaret (Swift-paritet).
+      const points = Number(res.data?.dpoints?.points ?? 0);
+      setReviewRewardText(
+        res.data?.dpoints?.awarded && points > 0 ? `+${points} Vpoints lades till.` : "Tack för din recension.",
+      );
       setReviewDone(true);
       setOrder((prev: any) => prev ? { ...prev, rating: reviewRating } : prev);
     } catch (err: any) {
@@ -1021,7 +1030,7 @@ const OrderStatusPage = () => {
       {!isRejected ? (
         <>
           <div className="mt-4">
-            <p className="text-[30px] font-black tabular-nums" style={{ color: statusAccent }}>+{orderEarnedPoints} Dpoints</p>
+            <p className="text-[30px] font-black tabular-nums" style={{ color: statusAccent }}>+{orderEarnedPoints} Vpoints</p>
           </div>
           <TrackingLineWeb />
         </>
@@ -1061,12 +1070,22 @@ const OrderStatusPage = () => {
         <>
           <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full bg-[#EAF7EF] text-[#2E7D4F]"><ShieldCheck size={34} /></div>
           <p className="text-[30px] font-black" style={{ color: "#2E7D4F" }}>Klart</p>
-          <p className="mt-2 text-[20px] font-black" style={{ color: "var(--text-primary)" }}>Tack för att du väljer Delivera</p>
+          <p className="mt-2 text-[20px] font-black" style={{ color: "var(--text-primary)" }}>Tack för att du väljer ViaEats</p>
+          {/* Vpoints-belöningen ur review-svaret — tydligt visad (Swift-paritet). */}
+          {reviewRewardText && (
+            <p className="mt-2 text-[15px] font-black" style={{ color: "#F0531C" }}>{reviewRewardText}</p>
+          )}
+        </>
+      ) : reviewDismissed ? (
+        <>
+          <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full bg-[#EAF7EF] text-[#2E7D4F]"><ShieldCheck size={34} /></div>
+          <p className="text-[30px] font-black" style={{ color: "#2E7D4F" }}>Levererad</p>
+          <p className="mt-2 text-[20px] font-black" style={{ color: "var(--text-primary)" }}>Tack för att du väljer ViaEats</p>
         </>
       ) : (
         <>
           <p className="text-left text-[11px] font-black uppercase tracking-[0.09em]" style={{ color: "#2E7D4F" }}>LEVERERAD</p>
-          <h2 className="mt-1 text-left text-[24px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>Hur smakade maten?</h2>
+          <h2 className="mt-1 text-left text-[24px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>Betygsätt ordern</h2>
           <div className="my-4 flex justify-center gap-3">
             {[1, 2, 3, 4, 5].map((s) => (
               <button key={s} type="button" onClick={() => setReviewRating(s)}>
@@ -1074,11 +1093,16 @@ const OrderStatusPage = () => {
               </button>
             ))}
           </div>
-          <textarea value={reviewText} onChange={(e) => setReviewText(e.target.value)} placeholder="Skriv en kort recension" rows={3} className="w-full rounded-[14px] p-3.5 text-sm outline-none" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }} />
-          <button type="button" onClick={submitReview} disabled={!reviewRating || reviewSubmitting} className="mt-3 flex h-[52px] w-full items-center justify-center gap-2 rounded-[14px] text-[14.5px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: "#F0531C" }}>
-            {reviewSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Star size={16} className="fill-current" />}
-            {reviewSubmitting ? "Skickar" : "Skicka recension"}
-          </button>
+          <textarea value={reviewText} onChange={(e) => setReviewText(e.target.value)} placeholder="Skriv något kort, valfritt" rows={3} className="w-full rounded-[14px] p-3.5 text-sm outline-none" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }} />
+          <div className="mt-3 flex gap-2.5">
+            <button type="button" onClick={dismissReview} className="flex h-[52px] flex-1 items-center justify-center rounded-[14px] text-[14.5px] font-bold" style={{ backgroundColor: "rgba(17,17,19,0.06)", color: "var(--text-secondary)" }}>
+              Skippa
+            </button>
+            <button type="button" onClick={submitReview} disabled={!reviewRating || reviewSubmitting} className="flex h-[52px] flex-[2] items-center justify-center gap-2 rounded-[14px] text-[14.5px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: "#F0531C" }}>
+              {reviewSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Star size={16} className="fill-current" />}
+              {reviewSubmitting ? "Skickar" : "Skicka"}
+            </button>
+          </div>
         </>
       )}
     </div>

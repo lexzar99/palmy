@@ -17,7 +17,7 @@ import { sendCourierApns } from './courierApns';
 
 const PUBLIC_KEY = (process.env.VAPID_PUBLIC_KEY || '').trim();
 const PRIVATE_KEY = (process.env.VAPID_PRIVATE_KEY || '').trim();
-const SUBJECT = (process.env.VAPID_SUBJECT || 'mailto:support@delivera.se').trim();
+const SUBJECT = (process.env.VAPID_SUBJECT || 'mailto:support@viaeats.se').trim();
 
 let configured = false;
 if (PUBLIC_KEY && PRIVATE_KEY) {
@@ -176,7 +176,7 @@ export async function notifyCouriersOfNewJob(opts: {
     // Web Push (PWA) + native FCM (Flutter-app) parallellt. Båda är no-op om
     // de inte är konfigurerade — kuriren ser ordern via polling oavsett.
     await Promise.all([
-      sendToCourierIds(courierIds, { title, body, tag: 'delivera-new-order', url: '/' }),
+      sendToCourierIds(courierIds, { title, body, tag: 'viaeats-new-order', url: '/' }),
       sendCourierFcm(courierIds, {
         title,
         body,
@@ -234,7 +234,7 @@ export async function notifyCouriersOrderReady(opts: {
     // går till någon som inte äger leveransen.
     if (delivery?.courierId) {
       await Promise.all([
-        sendToCourierIds([delivery.courierId], { title, body, tag: 'delivera-ready' }),
+        sendToCourierIds([delivery.courierId], { title, body, tag: 'viaeats-ready' }),
         sendCourierFcm([delivery.courierId], {
           title,
           body,

@@ -132,7 +132,7 @@ export function templateLabel(t: DealCampaignTemplate): string {
   if (t.freeDelivery) parts.push("Fri leverans");
   if (t.discountType === "PERCENTAGE" && t.discountValue > 0) parts.push(`${t.discountValue}% rabatt`);
   if ((t.discountType === "FIXED" || t.discountType === "FIXED_PRICE") && t.discountValue > 0) parts.push(`${t.discountValue} kr`);
-  if ((t.appDpointsBonus ?? 0) > 0) parts.push(`+${t.appDpointsBonus} Dpoints`);
+  if ((t.appDpointsBonus ?? 0) > 0) parts.push(`+${t.appDpointsBonus} Vpoints`);
   if (parts.length === 0) return t.title || "Mall";
   return parts.join(" + ");
 }

@@ -23,11 +23,12 @@ export function usePauseCountdown(pausedUntil: string | Date | null): {
   minutesLeft: number;
   resumeTime: string;
 } {
-  const [, setTick] = useState(0);
+  // "Nu" bor i state (uppdateras av intervallet) så rendern förblir ren.
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!pausedUntil) return;
-    const interval = setInterval(() => setTick((t) => t + 1), 30_000);
+    const interval = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(interval);
   }, [pausedUntil]);
 
@@ -36,7 +37,7 @@ export function usePauseCountdown(pausedUntil: string | Date | null): {
   }
   const date =
     pausedUntil instanceof Date ? pausedUntil : new Date(pausedUntil);
-  const diffMs = date.getTime() - Date.now();
+  const diffMs = date.getTime() - now;
   if (diffMs <= 0) {
     return { isPaused: false, minutesLeft: 0, resumeTime: "" };
   }

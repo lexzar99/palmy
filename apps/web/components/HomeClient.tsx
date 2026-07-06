@@ -71,13 +71,13 @@ interface Restaurant {
 const DEV_TRACKING_ADS: TrackingAd[] = [
   {
     id: "dev-ad-free-drink",
-    brand: "Delivera Test",
+    brand: "ViaEats Test",
     title: "Testannons: dryck på köpet",
     subtitle: "Syns under ordertracking och kan öppnas i fullscreen.",
   },
   {
     id: "dev-ad-dessert",
-    brand: "Delivera Test",
+    brand: "ViaEats Test",
     title: "Testannons: dessert-deal",
     subtitle: "Används bara lokalt när backend saknar annonser.",
   },
@@ -132,13 +132,13 @@ const cuisineFilters = [
 ];
 
 const ORDER_TYPE_KEY = "platform_order_type";
-const ACTIVE_USER_DEAL_ID_KEY = "delivera.activeUserDealId";
-const ACTIVE_USER_DEAL_SNAPSHOT_KEY = "delivera.activeUserDealSnapshot";
-const ACTIVE_ORDER_KEY = "matgo_active_order_id";
-const ACTIVE_ORDER_TOKEN_KEY = "matgo_active_order_token";
-const ACTIVE_ORDER_PHONE_KEY = "matgo_active_order_phone";
-const ACTIVE_ORDERS_KEY = "matgo_active_orders";
-const CLOSED_ORDER_SEEN_KEY = "delivera_closed_order_seen_v1";
+const ACTIVE_USER_DEAL_ID_KEY = "viaeats.activeUserDealId";
+const ACTIVE_USER_DEAL_SNAPSHOT_KEY = "viaeats.activeUserDealSnapshot";
+const ACTIVE_ORDER_KEY = "viaeats_active_order_id";
+const ACTIVE_ORDER_TOKEN_KEY = "viaeats_active_order_token";
+const ACTIVE_ORDER_PHONE_KEY = "viaeats_active_order_phone";
+const ACTIVE_ORDERS_KEY = "viaeats_active_orders";
+const CLOSED_ORDER_SEEN_KEY = "viaeats_closed_order_seen_v1";
 const CLOSED_ORDER_VISIBLE_MS = 3 * 60 * 1000;
 // Levererade ordrar ligger kvar på hemskärmen en stund så recensionsprompten
 // hinner ses (Swift håller terminala ordrar i 15 min). Färskhets-guarden
@@ -350,11 +350,11 @@ function FeaturedBadge({ featuredClass }: { featuredClass?: number | null }) {
 
 function dealValueHeadline(deal: HomeAppDeal) {
   const progress = deal.missionProgress;
-  if (deal.missionType && progress?.rewardPoints) return `+${progress.rewardPoints} Dpoints`;
+  if (deal.missionType && progress?.rewardPoints) return `+${progress.rewardPoints} Vpoints`;
   if (deal.freeDelivery) return "Fri leverans";
   if ((deal.discountPercent ?? 0) > 0) return `${deal.discountPercent}% rabatt`;
   if ((deal.amountKr ?? 0) > 0) return `${deal.amountKr} kr rabatt`;
-  if ((deal.dpointsBonus ?? 0) > 0) return `+${deal.dpointsBonus} Dpoints`;
+  if ((deal.dpointsBonus ?? 0) > 0) return `+${deal.dpointsBonus} Vpoints`;
   return deal.badge ?? "";
 }
 
@@ -631,7 +631,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   const promoIndexRef = useRef(0);
   const [activePromo, setActivePromo] = useState(0);
   // Sticky-headern är nu TVÅ lager (ingen JS, ingen höjd-animation → kan aldrig
-  // glitcha): en tunn sticky bar (delívera + leverans/hämtning) som alltid
+  // glitcha): en tunn sticky bar (ViaEats + leverans/hämtning) som alltid
   // sitter kvar, och adress + sök som vanligt dokumentflöde nedanför som bara
   // scrollar bort naturligt bakom den sticky baren. Ren CSS position:sticky.
   const [restaurants, setRestaurants] = useState<Restaurant[]>(initialData?.restaurants ?? []);
@@ -697,7 +697,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   const [activeUserDealId, setActiveUserDealId] = useState("");
   const [claimingDealId, setClaimingDealId] = useState<string | null>(null);
   // Recensionsprompt efter levererad order — skippade order-id delas med
-  // ordersidan och Swift-appen via delivera.skippedReviewOrderIds.
+  // ordersidan och Swift-appen via viaeats.skippedReviewOrderIds.
   const [skippedReviewIds, setSkippedReviewIds] = useState<string[]>([]);
   useEffect(() => {
     setSkippedReviewIds(readSkippedReviewOrderIds());
@@ -865,7 +865,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       socket.disconnect();
     };
   }, [activeOrders]);
-  // Dpoints-registreringskort i sponsor-railen — bara för utloggade besökare.
+  // Vpoints-registreringskort i sponsor-railen — bara för utloggade besökare.
   useEffect(() => {
     if (isLoggedIn) {
       try { localStorage.setItem("dp_hadAccount", "1"); } catch { /* noop */ }
@@ -1422,7 +1422,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       if (sponsorCards[i]) base.push(sponsorCards[i]);
       if (extras[i]) base.push(extras[i]);
     }
-    // Dpoints-kortet ligger FÖRST i samma array → räknas av karusellen + prickarna.
+    // Vpoints-kortet ligger FÖRST i samma array → räknas av karusellen + prickarna.
     return dpointsCard
       ? [{ id: "dpoints-signup", kind: "dpoints" as const, card: dpointsCard }, ...base]
       : base;
@@ -1679,7 +1679,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
 
 
   return (
-    <div className="delivera-app-bg min-h-screen pb-36 md:pt-24" style={{ color: "var(--text-primary)" }}>
+    <div className="viaeats-app-bg min-h-screen pb-36 md:pt-24" style={{ color: "var(--text-primary)" }}>
       <div className="sticky top-0 z-[1400] border-b border-[var(--border-muted)] bg-white/75 backdrop-blur-xl md:static md:border-0 md:bg-transparent md:backdrop-blur-0" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
         <header className="mx-auto max-w-7xl px-5 py-3.5 md:px-7 md:pb-6 md:pt-0">
           {!!homeGreeting && (
@@ -1707,10 +1707,10 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             <Link
               href="/orders"
               className="hidden h-9 shrink-0 items-center gap-1.5 rounded-full bg-[rgba(240,79,26,0.09)] px-3 text-[12px] font-black text-[var(--orange)] sm:inline-flex"
-              aria-label="Dpoints"
+              aria-label="Vpoints"
             >
               <DpointsGlyph size={16} />
-              <span className="tabular-nums">{dpointsBalance != null ? `${dpointsBalance.toLocaleString("sv-SE")} p` : "Dpoints"}</span>
+              <span className="tabular-nums">{dpointsBalance != null ? `${dpointsBalance.toLocaleString("sv-SE")} p` : "Vpoints"}</span>
             </Link>
 
             <Link
@@ -1762,7 +1762,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                 const href = qs.toString() ? `/order/${order.id}?${qs.toString()}` : `/order/${order.id}`;
                 // Recensionsprompt (Swift-paritet): levererad, ej recenserad,
                 // ej skippad. "Recensera" öppnar ordersidans review-kort,
-                // "Skippa" sparas i delivera.skippedReviewOrderIds.
+                // "Skippa" sparas i viaeats.skippedReviewOrderIds.
                 const orderStatus = String(order.status || "").toUpperCase();
                 const showReviewPrompt =
                   DELIVERED_TRACKING_STATUSES.has(orderStatus) &&
@@ -1783,7 +1783,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                           className="flex h-10 flex-[2] items-center justify-center gap-1.5 rounded-xl text-[13px] font-black text-white active:scale-[0.99]"
                           style={{ backgroundColor: "#2E7D4F" }}
                         >
-                          <Star size={14} className="fill-current" /> Recensera +Dpoints
+                          <Star size={14} className="fill-current" /> Recensera +Vpoints
                         </Link>
                         <button
                           type="button"

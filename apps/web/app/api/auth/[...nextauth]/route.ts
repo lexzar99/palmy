@@ -26,21 +26,11 @@ declare module "next-auth/jwt" {
   }
 }
 
-function getRequiredServerEnv(name: string) {
-  const value = process.env[name]?.trim();
-
-  if (!value) {
-    throw new Error(`Missing required server environment variable: ${name}`);
-  }
-
-  return value;
-}
-
 function getApiUrlWithFallback() {
   return (
     process.env.API_URL?.trim() ||
     process.env.NEXT_PUBLIC_API_URL?.trim() ||
-    "https://palmy-production-2021.up.railway.app"
+    "https://api.viaeats.se"
   );
 }
 
@@ -182,7 +172,7 @@ function createAuthHandler() {
           if (parsed.origin === baseUrl || parsed.origin === new URL(baseUrl).origin) return url;
           // Also accept our known production domain
           const knownOrigins = [
-            "https://web-production-67f45.up.railway.app",
+            "https://viaeats.se",
             "http://localhost:3000",
             "http://localhost:3001",
           ];

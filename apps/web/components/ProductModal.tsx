@@ -240,7 +240,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
 
   const extrasPrice = selectedExtras.reduce((sum, e) => sum + e.price * (e.quantity ?? 1), 0);
   const totalPrice = (effectiveBasePrice + extrasPrice) * quantity;
-  // Dpoints: kostnad i poäng för hela raden + om kunden kan betala med poäng.
+  // Vpoints: kostnad i poäng för hela raden + om kunden kan betala med poäng.
   const dpointsUnitCost = calcDpointsPrice(effectiveBasePrice + extrasPrice, product.rewardPointsMultiplier, product.rewardPointsPrice, dpoints?.valuePerKr ?? 10);
   const dpointsCost = dpointsUnitCost * quantity;
   // Poäng-pris för basvaran — visas i header-prisraden ("eller X poäng").
@@ -298,7 +298,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
       });
       toast(t("product.toast.updated", { name: product.name }), "success");
     } else if (buyWithPointsRef.current) {
-      // Köp med Dpoints: lägg raden som gratis (price 0 + extras 0) och flagga
+      // Köp med Vpoints: lägg raden som gratis (price 0 + extras 0) och flagga
       // den. Backend nollar raden + drar poäng vid betalning. Priset 0 håller
       // klient- och server-totalen i synk (annars Stripe-beloppsmismatch).
       buyWithPointsRef.current = false;
@@ -421,7 +421,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                   −{discountPct} %
                 </span>
               )}
-              {/* Dpoints — "eller X poäng" för rewardable varor (göms om Dpoints är av) */}
+              {/* Vpoints — "eller X poäng" för rewardable varor (göms om Vpoints är av) */}
               {!bogoFreeFromDealId && !!product.rewardable && !!dpoints?.enabled && dpointsBasePoints > 0 && (
                 <span className="text-[12.5px] font-medium" style={{ color: "var(--gold-ink)" }}>
                   {t("menu.orPoints", { points: nf(dpointsBasePoints) })}

@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Smartphone, X } from "lucide-react";
 
-const VISITS_KEY = "matgo_visit_count";
-const PROMPT_DISMISSED_KEY = "matgo_pwa_dismissed_at";
+const VISITS_KEY = "viaeats_visit_count";
+const PROMPT_DISMISSED_KEY = "viaeats_pwa_dismissed_at";
 const MIN_VISITS = 2;
 const DISMISS_COOLDOWN_DAYS = 30;
 

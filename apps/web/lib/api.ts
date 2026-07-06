@@ -28,7 +28,7 @@ export const getApiUrl = () => {
 
   // Final fallback (production)
   if (process.env.NODE_ENV === "production" || (typeof window !== "undefined" && !window.location.hostname.includes("localhost"))) {
-    return "https://palmy-production-2021.up.railway.app";
+    return "https://api.viaeats.se";
   }
 
   // Fallback for client-side local dev
@@ -45,9 +45,9 @@ export const getSocketUrl = () => {
   }
 
   // Same production fallback as getApiUrl — without this the socket would
-  // try to connect to http://matgo-web-pi.vercel.app:4000 (wrong, no HTTPS).
+  // try to connect to http://viaeats-web-pi.vercel.app:4000 (wrong, no HTTPS).
   if (process.env.NODE_ENV === "production" || (typeof window !== "undefined" && !window.location.hostname.includes("localhost"))) {
-    return "https://palmy-production-2021.up.railway.app";
+    return "https://api.viaeats.se";
   }
 
   if (typeof window !== "undefined") {
@@ -59,4 +59,19 @@ export const getSocketUrl = () => {
 
 export const API_URL = getApiUrl();
 export const SOCKET_URL = getSocketUrl();
+
+/**
+ * Plockar serverns felmeddelande ur ett okänt fel (axios/fetch-form) utan
+ * `any`. Läser `response.data.error` i första hand, sedan `.message`,
+ * annars fallback. Används i catch-block över hela web-appen.
+ */
+export function apiErrorMessage(err: unknown, fallback: string): string {
+  const e = err as {
+    response?: { data?: { error?: unknown; message?: unknown } };
+    message?: unknown;
+  } | null;
+  const msg = e?.response?.data?.error ?? e?.response?.data?.message;
+  if (typeof msg === "string" && msg) return msg;
+  return fallback;
+}
 

@@ -218,7 +218,7 @@ export default function CartPage() {
   // att applicera, vi skickar userDealId i order-payload.
   const [accountDeals, setAccountDeals] = useState<UserAccountDeal[]>([]);
   const [selectedAccountDealId, setSelectedAccountDealId] = useState<string | null>(null);
-  // Aktiv deal-kontraktet (Swift-paritet): kassan läser delivera.activeUserDealId
+  // Aktiv deal-kontraktet (Swift-paritet): kassan läser viaeats.activeUserDealId
   // vid mount och förväljer dealen. Servern quotar rabatten (enda sanningen),
   // se appDealQuote-effekten nedan. Valet skrivs tillbaka till localStorage så
   // hemskärmen visar samma aktiva deal.
@@ -241,7 +241,7 @@ export default function CartPage() {
     const stored = readActiveUserDealId();
     if (stored) setSelectedAccountDealId(stored);
   }, []);
-  // Dpoints-saldo (för köp-med-poäng-guard i korgen). null = ej inloggad / av.
+  // Vpoints-saldo (för köp-med-poäng-guard i korgen). null = ej inloggad / av.
   const [dpointsBalance, setDpointsBalance] = useState<number | null>(null);
   const [showInsufficientPoints, setShowInsufficientPoints] = useState(false);
   useEffect(() => {
@@ -425,8 +425,8 @@ export default function CartPage() {
         /* noop */
       }
     };
-    window.addEventListener('matgo:menu-changed', onMenuChanged as EventListener);
-    return () => window.removeEventListener('matgo:menu-changed', onMenuChanged as EventListener);
+    window.addEventListener('viaeats:menu-changed', onMenuChanged as EventListener);
+    return () => window.removeEventListener('viaeats:menu-changed', onMenuChanged as EventListener);
   }, [items, cartRestaurantId, removeItem]);
 
   const fetchPredictions = useCallback(async (text: string) => {
@@ -889,10 +889,10 @@ export default function CartPage() {
   // som "154.28999999999996 kr" på Stripe-knappen. Ceil betyder kunden
   // betalar maximalt 1 kr mer än exakt — vi förlorar inte pengar, och
   // siffror blir rena. Backend matchar via samma Math.ceil i orders.ts.
-  // Dpoints: kortet debiterar alltid minst 5 kr (Stripe-minimum) när varor köps
+  // Vpoints: kortet debiterar alltid minst 5 kr (Stripe-minimum) när varor köps
   // med poäng — speglar serverns golv (orders.ts CARD_FLOOR_ORE) så klient-total
   // === server-total (annars Stripe-beloppsmismatch). Resten täcks av poäng.
-  // Dpoints budkostnad: en order som betalas ENBART med poäng (alla rader
+  // Vpoints budkostnad: en order som betalas ENBART med poäng (alla rader
   // paidWithPoints → subtotal 0 kr) bär ingen kontant som täcker kuriren.
   // Vid LEVERANS läggs den globala budkostnaden på (ersätter zon-avgiften);
   // vid HÄMTNING är den gratis. Speglar orders.ts så klient-total === server-total.
@@ -2029,7 +2029,7 @@ export default function CartPage() {
             type="button"
             disabled={disabled}
             onClick={() => {
-              // Valet speglas till aktiva deal-kontraktet (delivera.active-
+              // Valet speglas till aktiva deal-kontraktet (viaeats.active-
               // UserDealId) så hemskärmen visar samma val. Snapshot nollas
               // när kassan sätter/byter deal (Swift-paritet).
               if (isActive) { setSelectedAccountDealId(null); clearActiveUserDeal(); }
@@ -2441,7 +2441,7 @@ export default function CartPage() {
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-6" onClick={() => setShowInsufficientPoints(false)}>
                 <div className="w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)" }}>
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gold-500/15"><Coins size={22} className="text-gold-600" /></div>
-                  <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Otillräckligt med Dpoints</h3>
+                  <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Otillräckligt med Vpoints</h3>
                   <p className="mt-1.5 text-sm" style={{ color: "var(--text-secondary)" }}>Du har inte tillräckligt med poäng för fler varor köpta med poäng. Lös in färre — eller lägg till varan med pengar istället.</p>
                   <button onClick={() => setShowInsufficientPoints(false)} className="mt-4 w-full rounded-full py-3 font-bold" style={{ backgroundColor: "#c89a3c", color: "#1c1c1e" }}>OK</button>
                 </div>

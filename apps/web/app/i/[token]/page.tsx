@@ -1,6 +1,6 @@
 import Link from "next/link";
 import RefCookie from "./RefCookie";
-import DeliveraWordmark from "@/components/DeliveraWordmark";
+import ViaEatsWordmark from "@/components/ViaEatsWordmark";
 
 // Invite-landning — /i/<token>. Riktig välkomstsida (inte längre en tyst
 // redirect): visar vem som bjöd in, belöningen, och en tydlig "Skapa konto"-CTA.
@@ -44,14 +44,14 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
         {/* Brand-logga */}
         <div className="flex justify-center pt-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <DeliveraWordmark size="md" />
+          <ViaEatsWordmark size="md" />
         </div>
 
         {valid ? (
           <>
             <div className="flex flex-col items-center gap-3 text-center">
               <h1 className="text-[24px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-                {inviter ? `${inviter} bjöd in dig till Delívera` : "Du är inbjuden till Delívera"}
+                {inviter ? `${inviter} bjöd in dig till ViaEats` : "Du är inbjuden till ViaEats"}
               </h1>
               <p className="text-[14px] leading-snug" style={{ color: "var(--text-secondary)" }}>
                 Skapa ett konto och få bonusen efter din första beställning. Mat hemkört, snabbt och enkelt.
@@ -68,7 +68,7 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
                   className="rounded-full px-4 py-1.5 text-[15px] font-bold"
                   style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416", fontVariantNumeric: "tabular-nums" }}
                 >
-                  +{reward} Dpoints
+                  +{reward} Vpoints
                 </span>
                 <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
                   {rewardKr > 0 ? `≈ ${rewardKr} kr till dig` : "till dig"}
@@ -89,7 +89,7 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
                 className="flex h-[48px] w-full items-center justify-center rounded-2xl text-[14px] font-medium"
                 style={{ color: "var(--text-secondary)" }}
               >
-                Fortsätt till Delívera
+                Fortsätt till ViaEats
               </Link>
             </div>
           </>
@@ -99,14 +99,14 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
               Inbjudan kunde inte hittas
             </h1>
             <p className="text-[14px] leading-snug" style={{ color: "var(--text-secondary)" }}>
-              Länken är ogiltig eller har gått ut. Du kan ändå utforska Delívera.
+              Länken är ogiltig eller har gått ut. Du kan ändå utforska ViaEats.
             </p>
             <Link
               href="/"
               className="inline-flex h-[54px] w-full items-center justify-center rounded-2xl text-[15px] font-semibold"
               style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-primary)" }}
             >
-              Gå till Delívera
+              Gå till ViaEats
             </Link>
           </div>
         )}

@@ -120,7 +120,7 @@ export function PlatformSettingsPage() {
             <Input
               value={form.companyName || ""}
               onChange={(e) => setForm((p) => ({ ...p, companyName: e.target.value }))}
-              placeholder="Delívera AB"
+              placeholder="ViaEats AB"
             />
           </SettingRow>
           <SettingRow label="Org.nr">
@@ -134,7 +134,7 @@ export function PlatformSettingsPage() {
             <Textarea
               value={form.companyAddress || ""}
               onChange={(e) => setForm((p) => ({ ...p, companyAddress: e.target.value }))}
-              placeholder={"Delívera AB\nKungsgatan 1\n111 22 Stockholm"}
+              placeholder={"ViaEats AB\nKungsgatan 1\n111 22 Stockholm"}
               rows={3}
             />
           </SettingRow>
@@ -154,7 +154,7 @@ export function PlatformSettingsPage() {
               type="email"
               value={form.noReplyEmail || ""}
               onChange={(e) => setForm((p) => ({ ...p, noReplyEmail: e.target.value }))}
-              placeholder="no-reply@delivera.se"
+              placeholder="no-reply@viaeats.se"
             />
           </SettingRow>
           <SettingRow label="Privacy / DPO-mejl">
@@ -162,7 +162,7 @@ export function PlatformSettingsPage() {
               type="email"
               value={form.privacyEmail || ""}
               onChange={(e) => setForm((p) => ({ ...p, privacyEmail: e.target.value }))}
-              placeholder="privacy@delivera.se"
+              placeholder="privacy@viaeats.se"
             />
           </SettingRow>
         </div>
@@ -178,7 +178,7 @@ export function PlatformSettingsPage() {
                 type="email"
                 value={form.supportEmail || ""}
                 onChange={(e) => setForm((p) => ({ ...p, supportEmail: e.target.value }))}
-                placeholder="support@delivera.se"
+                placeholder="support@viaeats.se"
               />
             </Field>
             <Field label="Support-telefon">
@@ -200,14 +200,14 @@ export function PlatformSettingsPage() {
                 type="email"
                 value={form.contactEmail || ""}
                 onChange={(e) => setForm((p) => ({ ...p, contactEmail: e.target.value }))}
-                placeholder="info@delivera.se"
+                placeholder="info@viaeats.se"
               />
             </Field>
             <Field label="Postadress">
               <Textarea
                 value={form.contactAddress || ""}
                 onChange={(e) => setForm((p) => ({ ...p, contactAddress: e.target.value }))}
-                placeholder={"Delívera AB\nKungsgatan 1\n111 22 Stockholm"}
+                placeholder={"ViaEats AB\nKungsgatan 1\n111 22 Stockholm"}
                 rows={2}
               />
             </Field>
@@ -233,7 +233,7 @@ export function PlatformSettingsPage() {
             <Textarea
               value={form.aboutBody || ""}
               onChange={(e) => setForm((p) => ({ ...p, aboutBody: e.target.value }))}
-              placeholder="Delívera är en plattform som..."
+              placeholder="ViaEats är en plattform som..."
               rows={8}
             />
           </div>

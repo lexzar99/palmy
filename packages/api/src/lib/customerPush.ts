@@ -81,7 +81,7 @@ export async function sendOrderStatusPush(orderId: string, status: string): Prom
     const payload = JSON.stringify({
       title: copy.title,
       body: copy.body,
-      tag: `delivera-order-${orderId}`,
+      tag: `viaeats-order-${orderId}`,
       url: `/order/${orderId}`,
     });
 

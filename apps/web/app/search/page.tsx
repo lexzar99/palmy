@@ -4,8 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { API_URL } from "@/lib/api";
-import { Search as SearchIcon, SearchX, Star, Clock, Bike, ChevronRight, Utensils, Phone } from "lucide-react";
-import { motion } from "framer-motion";
+import { Search as SearchIcon, SearchX, Star, Clock, ChevronRight, Utensils } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 
 interface Restaurant {
@@ -32,7 +31,7 @@ export default function SearchPage() {
   const [deliverableIds, setDeliverableIds] = useState<Set<string> | null>(null);
 
   useEffect(() => {
-    setLoading(true);
+    // loading startar som true — ingen synkron setState behövs här.
     axios.get(`${API_URL}/api/restaurants`)
       .then(res => setRestaurants(res.data))
       .catch(() => {})
@@ -47,8 +46,9 @@ export default function SearchPage() {
         axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng })
           .then(res => {
             if (res.data.covered) {
+              const cities = (res.data.cities || []) as { restaurants: { id: string }[] }[];
               setDeliverableIds(new Set<string>(
-                res.data.cities.flatMap((c: any) => c.restaurants.map((r: any) => r.id))
+                cities.flatMap((c) => c.restaurants.map((r) => r.id))
               ));
             } else {
               setDeliverableIds(new Set());

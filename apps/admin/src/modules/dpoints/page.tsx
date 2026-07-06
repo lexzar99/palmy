@@ -15,7 +15,7 @@ export function DpointsPage() {
   const [tab, setTab] = useState<TabKey>("overview");
   return (
     <div className="page-stack">
-      <PageHeader breadcrumb="Plattform" title="Dpoints" />
+      <PageHeader breadcrumb="Plattform" title="Vpoints" />
       <Tabs<TabKey>
         value={tab}
         onChange={setTab}

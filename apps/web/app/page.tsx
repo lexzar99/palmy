@@ -23,13 +23,13 @@ async function getJson<T>(path: string): Promise<T | null> {
 
 async function HomeData() {
   const [restaurants, cities, deals, sponsors, homeCategories, appDealsResponse, pulseResponse] = await Promise.all([
-    getJson<any[]>("/api/restaurants"),
-    getJson<any[]>("/api/cities"),
-    getJson<any[]>("/api/deals"),
-    getJson<any[]>("/api/sponsors"),
-    getJson<any[]>("/api/home-categories"),
-    getJson<{ deals?: any[] }>("/api/deals/app?placement=HOME_TOP&limit=8&loggedIn=0"),
-    getJson<{ greeting?: string | null; modules?: any[] }>("/api/home/pulse"),
+    getJson<HomeInitialData["restaurants"]>("/api/restaurants"),
+    getJson<HomeInitialData["cities"]>("/api/cities"),
+    getJson<HomeInitialData["deals"]>("/api/deals"),
+    getJson<HomeInitialData["sponsors"]>("/api/sponsors"),
+    getJson<HomeInitialData["homeCategories"]>("/api/home-categories"),
+    getJson<{ deals?: NonNullable<HomeInitialData["appDeals"]> }>("/api/deals/app?placement=HOME_TOP&limit=8&loggedIn=0"),
+    getJson<NonNullable<HomeInitialData["pulse"]>>("/api/home/pulse"),
   ]);
 
   const initialData: HomeInitialData | null = Array.isArray(restaurants)

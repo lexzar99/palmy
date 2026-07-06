@@ -1,8 +1,8 @@
 // Recensionsprompt efter levererad order — delad skip-lista (Swift-paritet).
-// Swift sparar skippade order-id i AppStorage delivera.skippedReviewOrderIds
+// Swift sparar skippade order-id i AppStorage viaeats.skippedReviewOrderIds
 // (JSON-strängarray); webben använder samma nyckel i localStorage så en
 // skippad prompt inte dyker upp igen på hemskärmen eller ordersidan.
-export const SKIPPED_REVIEW_ORDER_IDS_KEY = "delivera.skippedReviewOrderIds";
+export const SKIPPED_REVIEW_ORDER_IDS_KEY = "viaeats.skippedReviewOrderIds";
 
 export function readSkippedReviewOrderIds(): string[] {
   if (typeof window === "undefined") return [];

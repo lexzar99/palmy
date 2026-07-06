@@ -157,11 +157,11 @@ const formatAppDeal = (deal: any, userDealId?: string | null, missionProgress?: 
       : fixedKr
         ? `${fixedKr} kr rabatt`
         : deal.appDpointsBonus > 0
-          ? `+${deal.appDpointsBonus} Dpoints`
+          ? `+${deal.appDpointsBonus} Vpoints`
           : 'Deal';
   const subtitle = missionProgress
     ? missionProgress.completed
-      ? `Uppdrag klart. ${missionProgress.rewardPoints} Dpoints är dina.`
+      ? `Uppdrag klart. ${missionProgress.rewardPoints} Vpoints är dina.`
       : missionProgress.windowDays > 0
         ? `${missionProgress.count} av ${missionProgress.target} beställningar denna vecka`
         : `${missionProgress.count} av ${missionProgress.target} beställningar`

@@ -6,7 +6,7 @@ const API_URL =
   process.env.API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === "production"
-    ? "https://palmy-production-2021.up.railway.app"
+    ? "https://api.viaeats.se"
     : "http://localhost:4000");
 
 function reportUsage(ip: string) {
@@ -49,7 +49,11 @@ export async function GET(req: NextRequest) {
     });
 
     if (!res.ok) throw new Error(`Backend ${res.status}`);
-    const data = await res.json() as any;
+    const data = (await res.json()) as {
+      location?: unknown;
+      postalCode?: unknown;
+      city?: unknown;
+    };
 
     if (!data.location) throw new Error("No location in response");
 

@@ -23,12 +23,12 @@ CREATE INDEX "RestaurantPrinter_restaurantId_isActive_idx" ON "RestaurantPrinter
 CREATE TABLE "ReceiptTemplate" (
   "id" TEXT NOT NULL PRIMARY KEY,
   "paperWidth" TEXT NOT NULL DEFAULT '80mm',
-  "platformName" TEXT NOT NULL DEFAULT 'MatGo',
+  "platformName" TEXT NOT NULL DEFAULT 'ViaEats',
   "elements" TEXT NOT NULL DEFAULT '[]',
   "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" DATETIME NOT NULL
 );
 
 INSERT INTO "ReceiptTemplate" ("id", "paperWidth", "platformName", "elements", "createdAt", "updatedAt")
-VALUES ('global', '80mm', 'MatGo', '[]', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+VALUES ('global', '80mm', 'ViaEats', '[]', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT("id") DO NOTHING;

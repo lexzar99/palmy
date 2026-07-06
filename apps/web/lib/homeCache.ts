@@ -8,13 +8,14 @@
 const HOME_CACHE_KEY = "home_cache_v1";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h — äldre än så känns inte "snabbt", ladda om
 
-export interface HomeCachePayload {
-  restaurants: any[];
-  cities: any[];
-  deals: any[];
-  sponsors: any[];
-  homeCategories: any[];
-}
+import type { HomeInitialData } from "@/components/HomeClient";
+
+// Samma former som HomeClients server-seed — cachen är bara en persisterad
+// variant av samma payload (type-only import, ingen runtime-cykel).
+export type HomeCachePayload = Pick<
+  HomeInitialData,
+  "restaurants" | "cities" | "deals" | "sponsors" | "homeCategories"
+>;
 
 export function writeHomeCache(payload: HomeCachePayload): void {
   try {

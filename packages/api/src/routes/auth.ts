@@ -33,11 +33,11 @@ import jwksClient from 'jwks-rsa';
 const router = Router();
 
 const AI_AGENT_LOGIN_IDS = new Set([
-  'falken@delivera.se',
-  'kundvakten@delivera.se',
-  'kocken@delivera.se',
-  'studion@delivera.se',
-  'torget@delivera.se',
+  'falken@viaeats.se',
+  'kundvakten@viaeats.se',
+  'kocken@viaeats.se',
+  'studion@viaeats.se',
+  'torget@viaeats.se',
 ]);
 
 const isAiAgentLogin = (req: any) => {
@@ -46,7 +46,7 @@ const isAiAgentLogin = (req: any) => {
 };
 
 // ── Rate-limit på auth-endpoints ────────────────────────────────────────────
-// Foodora-style: 10 försök per IP per 10 min → 5 min lockout. Generöst nog
+// snabbt flöde: 10 försök per IP per 10 min → 5 min lockout. Generöst nog
 // att fat-fingers inte låser ute riktiga användare, snålt nog att stoppa bots.
 const authLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minuter
@@ -85,7 +85,7 @@ const APPLE_OAUTH_CLIENT_IDS = [
   process.env.APPLE_OAUTH_CLIENT_ID,
   process.env.APPLE_IOS_BUNDLE_ID,
   process.env.APPLE_OAUTH_CLIENT_IDS,
-  'se.delivera.swift',
+  'se.viaeats.swift',
 ]
   .flatMap((value) => (value || '').split(','))
   .map((s) => s.trim())
@@ -858,7 +858,7 @@ router.post('/2fa/setup', authenticate, async (req: any, res) => {
     if (!adminId) return res.status(401).json({ error: 'Inte autentiserad' });
 
     const secret = generateSecret();
-    const otpauthUrl = generateURI({ label: req.admin?.email || 'admin', issuer: 'FoodGo Admin', secret });
+    const otpauthUrl = generateURI({ label: req.admin?.email || 'admin', issuer: 'ViaEats Admin', secret });
     const qrDataUrl = await QRCode.toDataURL(otpauthUrl);
 
     // Spara secret men sätt INTE enabled=true förrän user verifierar
@@ -1104,13 +1104,13 @@ router.post('/verify', async (req, res) => {
 // /send-verification-email. Placerade här (innan första route) så att båda
 // handlers kan referera värdena utan att förlita sig på hoisting-quirks.
 //
-// Default = Vercel-preview eftersom matgo.se-domänen inte är DNS-pekad ännu.
-// När custom domain är klar: sätt WEB_VERIFY_EMAIL_URL=https://matgo.se/verify-email
+// Default = Vercel-preview eftersom viaeats.se-domänen inte är DNS-pekad ännu.
+// När custom domain är klar: sätt WEB_VERIFY_EMAIL_URL=https://viaeats.se/verify-email
 // i Railway env-vars och pusha en restart.
 const WEB_VERIFY_EMAIL_BASE =
-  process.env.WEB_VERIFY_EMAIL_URL || 'https://matgo-web-pi.vercel.app/verify-email';
+  process.env.WEB_VERIFY_EMAIL_URL || 'https://viaeats-web-pi.vercel.app/verify-email';
 const MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE =
-  process.env.MOBILE_VERIFY_EMAIL_URL || 'delivera://verify-email';
+  process.env.MOBILE_VERIFY_EMAIL_URL || 'viaeats://verify-email';
 
 // POST /api/auth/register-user
 // Registreringen logger in användaren direkt: vi skapar kontot, returnerar
@@ -1286,7 +1286,7 @@ router.post('/register-user', authLimiter, async (req, res) => {
       console.error('[register-user] welcome-deal-trigger error:', e?.message);
     }
 
-    // Dpoints-välkomstbonusen delas INTE ut automatiskt — kunden hämtar den
+    // Vpoints-välkomstbonusen delas INTE ut automatiskt — kunden hämtar den
     // själv efteråt (claim) via /api/dpoints/claim-signup. Path-agnostiskt så
     // det funkar lika för email- och Google/Apple-registrering.
 
@@ -1347,7 +1347,7 @@ router.post('/login-user', authLimiter, async (req, res) => {
 //
 // Tre endpoints:
 //   1. POST /send-verification-email { email }
-//      Genererar token, mejlar länk (web + foodgo://). Returnerar alltid 200
+//      Genererar token, mejlar länk (web + viaeats://). Returnerar alltid 200
 //      (läcker inte vilka mejlkonton som finns).
 //   2. POST /verify-email { token }
 //      Validerar tokenen, sätter emailVerifiedAt = now(), nollar token-fält.
@@ -1399,7 +1399,7 @@ router.post('/send-verification-email', authLimiter, async (req, res) => {
       const text = [
         `Hej ${greetingName}!`,
         '',
-        'Tack för att du skapat ett FoodGo-konto. För att slutföra registreringen,',
+        'Tack för att du skapat ett ViaEats-konto. För att slutföra registreringen,',
         'klicka på länken nedan och verifiera din e-postadress. Länken gäller 24 timmar.',
         '',
         `Webb:   ${webLink}`,
@@ -1408,14 +1408,14 @@ router.post('/send-verification-email', authLimiter, async (req, res) => {
         'Om du inte skapat något konto kan du ignorera detta mejl.',
         '',
         'Vänliga hälsningar,',
-        'FoodGo',
+        'ViaEats',
       ].join('\n');
 
       const html = renderBrandedEmail({
         headline: 'Bekräfta din email',
         greeting: `Hej ${greetingName}!`,
         intro: [
-          'Klicka för att aktivera ditt FoodGo-konto.',
+          'Klicka för att aktivera ditt ViaEats-konto.',
         ],
         cta: { label: 'Bekräfta email', url: webLink },
         mobileDeepLink: { label: 'Använder du mobilappen? Öppna istället:', url: mobileLink },
@@ -1646,9 +1646,9 @@ router.post('/check-email-verified', async (req, res) => {
 // URL:er till klienterna. För länken som skickas i mejlet använder vi
 // publika host-namn — fallback till env eller hårdkodade staging-värden.
 const WEB_RESET_BASE =
-  process.env.WEB_RESET_PASSWORD_URL || 'https://matgo-web-pi.vercel.app/reset-password';
+  process.env.WEB_RESET_PASSWORD_URL || 'https://viaeats-web-pi.vercel.app/reset-password';
 const MOBILE_RESET_DEEP_LINK_BASE =
-  process.env.MOBILE_RESET_PASSWORD_URL || 'delivera://reset-password';
+  process.env.MOBILE_RESET_PASSWORD_URL || 'viaeats://reset-password';
 
 // POST /api/auth/forgot-password — begär återställningslänk
 router.post('/forgot-password', authLimiter, async (req, res) => {

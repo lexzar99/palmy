@@ -27,7 +27,7 @@ const BottomNav = () => {
   const navItems = [
     { href: "/", label: t("nav.home"), icon: Home },
     { href: "/cart", label: t("nav.cart"), icon: ShoppingBag, count: itemCount },
-    { href: "/orders", label: "Dpoints", icon: Diamond },
+    { href: "/orders", label: "Vpoints", icon: Diamond },
     { href: "/profile", label: t("nav.profile"), icon: User },
   ];
 

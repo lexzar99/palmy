@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Coins } from "lucide-react";
 import { fetchSponsorCard, type SponsorCardData } from "@/lib/dpoints";
 
-// Sponsor-banner som visas för UTLOGGADE besökare: "registrera & få X Dpoints".
+// Sponsor-banner som visas för UTLOGGADE besökare: "registrera & få X Vpoints".
 // Göms automatiskt om inget aktivt kort finns. När kunden loggat in renderas
 // den inte alls (anroparen visar bannern bara i utloggat läge).
 export default function DpointsSponsorBanner({ onRegister }: { onRegister?: () => void }) {
@@ -68,7 +68,7 @@ export default function DpointsSponsorBanner({ onRegister }: { onRegister?: () =
         className="mt-3.5 flex items-center justify-center gap-1.5 h-11 rounded-xl text-[14px] font-semibold"
         style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416" }}
       >
-        {card.ctaLabel || `Skapa konto & få ${card.bonusPoints} Dpoints`}
+        {card.ctaLabel || `Skapa konto & få ${card.bonusPoints} Vpoints`}
       </div>
     </button>
   );

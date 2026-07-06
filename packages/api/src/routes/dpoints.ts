@@ -1,5 +1,5 @@
 /**
- * Dpoints — kund-vända endpoints.
+ * Vpoints — kund-vända endpoints.
  *  GET  /api/dpoints/sponsor-card   publik — aktivt sponsor-kort (utloggade)
  *  GET  /api/dpoints/rewards        publik — rewards-katalog + intjänings-regler
  *  GET  /api/dpoints/me             inloggad — saldo + historik
@@ -22,7 +22,7 @@ const router = Router();
 const REWARD_PRODUCTS_CACHE_MS = 12_000;
 let rewardProductsCache: { expiresAt: number; payload: any } | null = null;
 
-// Hur ofta varje regel kan tjänas (enkel indikator i kundens "Tjäna Dpoints").
+// Hur ofta varje regel kan tjänas (enkel indikator i kundens "Tjäna Vpoints").
 const INVITE_CAP_30D = 5; // matchar DEFAULT_MAX_REWARDS_30D i invite.ts
 function repeatLabel(key: string, streakTarget: number): string {
   switch (key) {
@@ -83,7 +83,7 @@ router.get('/sponsor-card', async (_req, res) => {
   }
 });
 
-// Publik — aktiva inlösningar + intjänings-regler (driver Dpoints-sidan).
+// Publik — aktiva inlösningar + intjänings-regler (driver Vpoints-sidan).
 router.get('/rewards', async (_req, res) => {
   try {
     const settings = await getDpointsSettings();

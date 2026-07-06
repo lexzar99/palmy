@@ -55,7 +55,7 @@ export function alertNewOrder(count: number, restaurant?: string) {
     if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
       new Notification("Ny order 🛵", {
         body: restaurant ? `${restaurant} — ny leverans tillgänglig` : `${count} ${count === 1 ? "ny order" : "nya ordrar"} tillgänglig`,
-        tag: "delivera-new-order",
+        tag: "viaeats-new-order",
         requireInteraction: true,
       });
     }

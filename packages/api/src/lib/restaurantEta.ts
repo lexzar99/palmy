@@ -15,7 +15,7 @@ import prisma from './prisma';
 // närmaste värde i listan så kunden ser snygga steg-värden.
 
 export const ETA_DEFAULT_MINUTES = 40;
-// Hard tak vid 60 min för längsta zonen — Foodora-pattern, ingen restaurang
+// Hard tak vid 60 min för längsta zonen — zonmönster, ingen restaurang
 // ska lova >60 min ETA till kund (då bör de inte erbjuda leverans dit alls).
 // Admin kan sätta vad som helst manuellt, men auto-räkning snappar inom
 // detta intervall.

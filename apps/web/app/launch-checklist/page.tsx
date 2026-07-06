@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * FoodGo Launch Checklist
+ * ViaEats Launch Checklist
  *
  * Interaktiv launch-plan med checkboxes + notes per item.
  * Allt sparas i localStorage så state överlever browser-restart.
@@ -11,8 +11,8 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { notFound } from "next/navigation";
 import {
-  Check,
   ChevronDown,
   ChevronRight,
   Circle,
@@ -218,7 +218,7 @@ const PHASES: ChecklistPhase[] = [
         id: "stripe-webhook",
         title: "Skapa webhook i Stripe Dashboard",
         description:
-          "Dashboard → Developers → Webhooks → Add endpoint. URL: https://palmy-production-2021.up.railway.app/api/payments/webhook. Events: payment_intent.succeeded, payment_intent.payment_failed, charge.refunded. Kopiera signing secret → STRIPE_WEBHOOK_SECRET.",
+          "Dashboard → Developers → Webhooks → Add endpoint. URL: https://api.viaeats.se/api/payments/webhook. Events: payment_intent.succeeded, payment_intent.payment_failed, charge.refunded. Kopiera signing secret → STRIPE_WEBHOOK_SECRET.",
         who: "Du",
         effort: "10 min",
       },
@@ -261,7 +261,7 @@ const PHASES: ChecklistPhase[] = [
     emoji: "💻",
     title: "Fas 4 — Kod-ändringar inför launch",
     description:
-      "Hardcoded 'FoodGo' bort, Bundle ID rebrand, security-fixar, bug-cleanup.",
+      "Hardcoded 'ViaEats' bort, Bundle ID rebrand, security-fixar, bug-cleanup.",
     estimatedDays: "3-5 dagar",
     items: [
       {
@@ -308,13 +308,13 @@ const PHASES: ChecklistPhase[] = [
         id: "favicon-fix",
         title: "Web favicon — verifiera mot slutgiltig logotyp",
         description:
-          "apps/web/app/icon.tsx ritar nu 'F' (FoodGo). Byt mot riktig logo-SVG/PNG när design är klar.",
+          "apps/web/app/icon.tsx ritar nu 'F' (ViaEats). Byt mot riktig logo-SVG/PNG när design är klar.",
         who: "Jag",
         effort: "5 min",
       },
       {
-        id: "rensa-foodgo",
-        title: "Rensa alla hardcoded 'FoodGo'",
+        id: "rensa-viaeats",
+        title: "Rensa alla hardcoded 'ViaEats'",
         description:
           "app.json (expo.name), iOS Info.plist (CFBundleDisplayName, etc), Android manifest, brand-konstanter i RN.",
         who: "Jag",
@@ -396,7 +396,7 @@ const PHASES: ChecklistPhase[] = [
       {
         id: "email-from-prod",
         title: "Uppdatera EMAIL_FROM i Railway",
-        description: "EMAIL_FROM=FoodGo <no-reply@dindomän.se> (eller nya namnet).",
+        description: "EMAIL_FROM=ViaEats <no-reply@dindomän.se> (eller nya namnet).",
         who: "Du",
         effort: "5 min",
       },
@@ -549,7 +549,7 @@ const PHASES: ChecklistPhase[] = [
       },
       {
         id: "redirect-vercel-domain",
-        title: "Redirecta matgo-web-pi.vercel.app → dindomän.se",
+        title: "Redirecta viaeats-web-pi.vercel.app → dindomän.se",
         description:
           "Vercel hanterar automatiskt om du sätter custom domain som primary.",
         who: "Du",
@@ -596,7 +596,7 @@ type StorageState = {
   updatedAt: string;
 };
 
-const STORAGE_KEY = "matgo_launch_checklist_v1";
+const STORAGE_KEY = "viaeats_launch_checklist_v1";
 
 function emptyState(): StorageState {
   return { items: {}, collapsedPhases: {}, updatedAt: new Date().toISOString() };
@@ -625,12 +625,18 @@ function saveState(state: StorageState) {
 }
 
 export default function LaunchChecklistPage() {
+  // Intern sida, ska inte gå att nå i produktion. Behålls i dev.
+  if (process.env.NODE_ENV === "production") {
+    notFound();
+  }
+
   const [state, setState] = useState<StorageState>(emptyState);
   const [hydrated, setHydrated] = useState(false);
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
 
   // Hydrate från localStorage efter mount (undvik SSR-mismatch)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- engångshydrering från localStorage efter mount, medvetet för att undvika SSR-mismatch
     setState(loadState());
     setHydrated(true);
   }, []);
@@ -692,7 +698,7 @@ export default function LaunchChecklistPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `matgo-checklist-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `viaeats-checklist-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [state]);
@@ -709,7 +715,7 @@ export default function LaunchChecklistPage() {
         const parsed = JSON.parse(text) as StorageState;
         if (parsed.items) setState(parsed);
       } catch {
-        alert("Kunde inte läsa filen — kontrollera att det är en giltig FoodGo-checklist JSON.");
+        alert("Kunde inte läsa filen, kontrollera att det är en giltig ViaEats-checklist JSON.");
       }
     };
     input.click();
@@ -749,7 +755,7 @@ export default function LaunchChecklistPage() {
                 className="text-[10px] font-black uppercase tracking-[0.3em] mb-1"
                 style={{ color: "#F0531C" }}
               >
-                FoodGo
+                ViaEats
               </p>
               <h1 className="text-2xl font-black tracking-tight text-white">
                 Launch Checklist

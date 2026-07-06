@@ -34,7 +34,7 @@ async function downloadAsBuffer(url: string): Promise<{ buf: Buffer | null; erro
       maxContentLength: 50 * 1024 * 1024,
       // Följ redirect (default), men kasta för 4xx/5xx (default).
       // Lägg till User-Agent — vissa CDN:er blockerar requests utan UA.
-      headers: { 'User-Agent': 'matgo-r2-migrate/1.0' },
+      headers: { 'User-Agent': 'viaeats-r2-migrate/1.0' },
     });
     return { buf: Buffer.from(res.data) };
   } catch (e: any) {

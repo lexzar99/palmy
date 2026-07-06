@@ -159,7 +159,7 @@ export function RestaurantDevicesPage() {
             <div className="px-6 py-14">
               <EmptyState
                 title="Ingen platta parad ännu"
-                description="Tryck på Koppla enhet, generera en kod och skriv in den i Delívera Business-appen på plattan."
+                description="Tryck på Koppla enhet, generera en kod och skriv in den i ViaEats Business-appen på plattan."
                 action={
                   <Button variant="primary" onClick={() => setLinkOpen(true)}>
                     <Plus size={15} className="mr-1.5 inline" />
@@ -317,7 +317,7 @@ export function RestaurantDevicesPage() {
                   Väntar på att plattan parar. Giltig till {formatWhen(pendingCode.expiresAt)}, engångskod.
                 </p>
                 <p className="mt-2 max-w-[30ch] text-[12px] leading-relaxed text-white/60">
-                  Öppna Delívera Business på enheten och ange koden.
+                  Öppna ViaEats Business på enheten och ange koden.
                 </p>
               </>
             ) : (

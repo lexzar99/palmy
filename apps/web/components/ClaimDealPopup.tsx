@@ -32,7 +32,7 @@ export default function ClaimDealPopup() {
 
   const findCandidate = useCallback(async () => {
     try {
-      const dismissedAt = Number(localStorage.getItem("matgo_claim_dismissed_at") || 0);
+      const dismissedAt = Number(localStorage.getItem("viaeats_claim_dismissed_at") || 0);
       if (dismissedAt && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) return null;
 
       const [allRes, claimedRes] = await Promise.all([
@@ -101,7 +101,7 @@ export default function ClaimDealPopup() {
   };
 
   const handleDismiss = () => {
-    localStorage.setItem("matgo_claim_dismissed_at", String(Date.now()));
+    localStorage.setItem("viaeats_claim_dismissed_at", String(Date.now()));
     setDeal(null);
   };
 

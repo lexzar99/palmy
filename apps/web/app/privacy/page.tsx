@@ -3,8 +3,8 @@ import { getCompanyInfo } from "@/lib/companyInfo";
 import PrivacyContent from "./PrivacyContent";
 
 export const metadata: Metadata = {
-  title: "Integritetspolicy | Delívera",
-  description: "Hur Delívera behandlar dina personuppgifter enligt GDPR.",
+  title: "Integritetspolicy | ViaEats",
+  description: "Hur ViaEats behandlar dina personuppgifter enligt GDPR.",
 };
 
 export default async function PrivacyPage() {

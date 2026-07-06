@@ -65,32 +65,21 @@ export const ALLOWED_ORIGINS = [
   .map(s => s.trim())
   .filter(Boolean);
 
-// Default origins for dev + production. Inkluderar både legacy Railway-URLer
-// (för bakåtkompatibilitet) och primära foodgo.se-domäner.
+// Default origins for dev + production. Primära ViaEats-domäner plus kända
+// deploy-domäner som behövs under drift.
 export const DEFAULT_ORIGINS = [
   // Dev / lokala
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002',
-  // Prod (delivera.se) — primär brand-domän bakom Cloudflare → Vercel.
+  // Prod: primär brand-domän bakom Cloudflare och Vercel.
   // MÅSTE finnas här annars blockar CORS browser-anrop från storefront/admin
   // ("Kan inte nå servern" trots att API:t svarar).
-  'https://delivera.se',
-  'https://www.delivera.se',
-  'https://admin.delivera.se',
-  'https://courier.delivera.se',
-  // Prod (foodgo.se) — legacy, kvar för bakåtkompatibilitet
-  'https://foodgo.se',
-  'https://www.foodgo.se',
-  'https://app.foodgo.se',
-  'https://admin.foodgo.se',
-  // Legacy / Railway-deploys
-  'https://web-production-67f45.up.railway.app',
-  'https://palmy-production-2021.up.railway.app',
-  'https://admin-production-7b07.up.railway.app',
-  'https://matgo-admin.up.railway.app',
-  'https://palmyra-admin.up.railway.app',
-  'https://palmyra-business.up.railway.app',
+  'https://viaeats.se',
+  'https://www.viaeats.se',
+  'https://office.viaeats.se',
+  'https://courier.viaeats.se',
+  'https://api.viaeats.se',
 ];
 
 export const getAllowedOrigins = (): string[] => {

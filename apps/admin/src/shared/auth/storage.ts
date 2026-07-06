@@ -8,8 +8,8 @@ export interface StoredAdminSession {
   restaurantName?: string | null;
 }
 
-export const ADMIN_TOKEN_KEY = "matgo_token";
-export const ADMIN_SESSION_KEY = "matgo_admin";
+export const ADMIN_TOKEN_KEY = "viaeats_token";
+export const ADMIN_SESSION_KEY = "viaeats_admin";
 
 export const getStoredToken = () =>
   typeof window !== "undefined" ? localStorage.getItem(ADMIN_TOKEN_KEY) || "" : "";

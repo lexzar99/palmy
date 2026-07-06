@@ -15,7 +15,8 @@ export function getDeviceFingerprint(): string {
     if (!ctx) throw new Error("no 2d context");
     ctx.textBaseline = "top";
     ctx.font = "14px Arial";
-    ctx.fillText("FoodGo fingerprint", 2, 2);
+    // OBS: strängen ingår i hashen — byte påverkar bara NYA fingerprints.
+    ctx.fillText("ViaEats fingerprint", 2, 2);
     const dataUrl = canvas.toDataURL();
 
     // Lägg till navigator-fingerprint för extra entropi

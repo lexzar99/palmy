@@ -29,7 +29,7 @@ import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 // Backend redeem-code endpoint stays intact for legacy URLs.
 import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
-import DeliveraWordmark from "@/components/DeliveraWordmark";
+import ViaEatsWordmark from "@/components/ViaEatsWordmark";
 
 type ProfileTab = "overview" | "orders" | "deals" | "addresses" | "settings" | "payments";
 type PreferredPaymentMethod = "APPLE_PAY" | "CARD" | "SWISH";
@@ -62,7 +62,7 @@ const PAYMENT_OPTIONS: {
 
 /**
  * Språkväljare i Inställningar — paritet med RN-appen (sv/en/ar).
- * Persisterar i `matgo_locale`. Faktisk i18n-byte över UI:t är inte aktiverad
+ * Persisterar i `viaeats_locale`. Faktisk i18n-byte över UI:t är inte aktiverad
  * i webben ännu, så just nu bara sparar vi valet inför framtida i18n-runtime.
  */
 // Endast de språk som faktiskt är implementerade i web-i18n:n (sv/en).
@@ -557,7 +557,7 @@ function ProfileContent() {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("delivera_preferred_payment_method_v1");
+      const saved = localStorage.getItem("viaeats_preferred_payment_method_v1");
       if (saved === "APPLE_PAY" || saved === "CARD" || saved === "SWISH") {
         setPreferredPayment(saved);
       }
@@ -751,7 +751,7 @@ function ProfileContent() {
   const handlePreferredPaymentChange = (method: PreferredPaymentMethod) => {
     setPreferredPayment(method);
     try {
-      localStorage.setItem("delivera_preferred_payment_method_v1", method);
+      localStorage.setItem("viaeats_preferred_payment_method_v1", method);
     } catch {
       // Valet fungerar i sessionen även om localStorage inte är tillgängligt.
     }
@@ -768,11 +768,11 @@ function ProfileContent() {
       <div className="min-h-screen flex flex-col items-center justify-center px-6 py-20 pb-28" style={{ backgroundColor: "var(--bg-primary)" }}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-3.5">
 
-          {/* Header — kompakt. Delivera-lockupen (samma som startskärmen) i
+          {/* Header — kompakt. ViaEats-lockupen (samma som startskärmen) i
               stället för en generisk lås-ikon. */}
           <div className="text-center space-y-2">
             <div className="flex justify-center">
-              <DeliveraWordmark size="sm" />
+              <ViaEatsWordmark size="sm" />
             </div>
             <h1 className="text-[22px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
               {hasVisited ? t("auth.welcomeBack.title.welcome") : t("auth.welcomeBack.title.create")}{" "}
@@ -960,7 +960,7 @@ function ProfileContent() {
           Apple-användare som saknar namn — Apple skickar fullName ENDAST
           vid första auktorisering. Om vi missade det (eller appen
           registrerades med tomt namn) måste användaren avregistrera Apple
-          för Delívera i sina iCloud-inställningar och logga in igen.
+          för ViaEats i sina iCloud-inställningar och logga in igen.
         */}
         {(user.oauthProvider === "apple" || user.oauthProvider === "supabase") &&
           (!user.firstName || !user.lastName) && (
@@ -1366,7 +1366,7 @@ function ProfileContent() {
               <div className="rounded-2xl p-[18px] flex items-center gap-[15px] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                 <div className="h-[60px] w-[60px] rounded-full bg-[#111113] text-white flex items-center justify-center shrink-0">
                   <span className="text-[23px] font-extrabold">
-                    {(user.name || "Delivera").trim().charAt(0).toUpperCase() || "D"}
+                    {(user.name || "ViaEats").trim().charAt(0).toUpperCase() || "D"}
                   </span>
                 </div>
                 <div className="min-w-0 flex-1">
@@ -1374,7 +1374,7 @@ function ProfileContent() {
                     {user.name || "Profil"}
                   </p>
                   <p className="mt-0.5 text-[12.5px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>
-                    {user.phone || user.email || "Medlem hos Delivera"}
+                    {user.phone || user.email || "Medlem hos ViaEats"}
                   </p>
                 </div>
                 <button

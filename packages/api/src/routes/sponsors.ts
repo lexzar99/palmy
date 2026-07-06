@@ -111,7 +111,7 @@ router.get('/', async (_req, res) => {
           : deal.discountType === 'FIXED'
             ? `${Math.round(deal.discountValue) / 100} kr rabatt`
             : deal.appDpointsBonus > 0
-              ? `+${deal.appDpointsBonus} Dpoints`
+              ? `+${deal.appDpointsBonus} Vpoints`
               : '';
       return { ...s, dealInfo: { id: deal.id, title: deal.title, valueLabel, minOrderKr: Math.round(deal.minOrder || 0) / 100 } };
     });

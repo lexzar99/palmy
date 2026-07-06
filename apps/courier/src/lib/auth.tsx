@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { api } from "./api";
 import type { CourierProfile } from "./types";
 
-const TOKEN_KEY = "delivera_courier_token";
+const TOKEN_KEY = "viaeats_courier_token";
 
 interface AuthCtx {
   ready: boolean;

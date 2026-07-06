@@ -38,7 +38,7 @@ function LocationGate({ status, request }: { status: GeoStatus; request: () => v
             <GoldButton onClick={request}>Dela min plats</GoldButton>
           )}
         </div>
-        {status === "denied" && <p className="mt-3 text-sm font-medium text-red-500">Platsåtkomst nekad. Tillåt plats för Delivera i webbläsarens inställningar och försök igen.</p>}
+        {status === "denied" && <p className="mt-3 text-sm font-medium text-red-500">Platsåtkomst nekad. Tillåt plats för ViaEats i webbläsarens inställningar och försök igen.</p>}
         {status === "unsupported" && <p className="mt-3 text-sm font-medium text-red-500">Din webbläsare stöder inte platstjänster.</p>}
       </div>
     </div>

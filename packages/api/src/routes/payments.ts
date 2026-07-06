@@ -151,7 +151,7 @@ router.post('/create-intent', createIntentLimiter, async (req, res) => {
                   name: order.customerName || undefined,
                   phone: order.customerPhone || undefined,
                   metadata: {
-                    foodgoUserId: order.userId || '',
+                    viaeatsUserId: order.userId || '',
                   },
                 });
                 stripeCustomerId = newCustomer.id;

@@ -59,7 +59,7 @@ async function sendWebhook(events: Array<Record<string, unknown>>) {
   const { webhookUrl, webhookSecret } = cfg();
   if (!webhookUrl || events.length === 0) return;
   try {
-    const body = JSON.stringify({ source: 'delivera-falken', events });
+    const body = JSON.stringify({ source: 'viaeats-falken', events });
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (webhookSecret) {
       headers['x-falken-signature'] = crypto.createHmac('sha256', webhookSecret).update(body).digest('hex');

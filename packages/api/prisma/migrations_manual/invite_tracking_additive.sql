@@ -1,6 +1,6 @@
 -- Invite tracking (additive only — safe on shared prod, no drops).
 -- Repurposes the existing Referral model into an opaque share-token system
--- rewarding Dpoints. Run via:  prisma db execute --url "$DIRECT_URL" --file <this>
+-- rewarding Vpoints. Run via:  prisma db execute --url "$DIRECT_URL" --file <this>
 
 ALTER TABLE "Referral" ADD COLUMN IF NOT EXISTS "channel"             TEXT;     -- web | app_installed | app_deferred | manual
 ALTER TABLE "Referral" ADD COLUMN IF NOT EXISTS "inviteeFingerprint"  TEXT;

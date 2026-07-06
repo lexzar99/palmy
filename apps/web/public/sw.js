@@ -1,4 +1,4 @@
-/* Service worker för Delívera PWA.
+/* Service worker för ViaEats PWA.
  *
  * Mål: göra appen installbar (Chrome kräver en fetch-handler) och ge ett
  * lättviktigt offline-skal — UTAN att riskera stale/trasigt innehåll:
@@ -7,7 +7,7 @@
  *     cache bara om man är offline.
  *   - Statiska byggassets (/_next/, bilder, fonter): stale-while-revalidate.
  */
-const CACHE = "delivera-cache-v1";
+const CACHE = "viaeats-cache-v1";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -87,13 +87,13 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "Delívera", body: event.data ? event.data.text() : "" };
+    data = { title: "ViaEats", body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "Delívera";
+  const title = data.title || "ViaEats";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",
-      tag: data.tag || "delivera-order",
+      tag: data.tag || "viaeats-order",
       icon: "/icon-192.png",
       badge: "/icon-192.png",
       data: { url: data.url || "/orders" },

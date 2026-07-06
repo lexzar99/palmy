@@ -28,10 +28,10 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
           className="text-4xl md:text-6xl font-black tracking-tight mb-6 leading-tight"
           style={{ color: "var(--text-primary)" }}
         >
-          Villkor för <span className="text-gold-500">Delívera</span>
+          Villkor för <span className="text-gold-500">ViaEats</span>
         </h1>
         <p className="text-lg leading-relaxed max-w-2xl" style={{ color: "var(--text-secondary)" }}>
-          När du beställer via Delívera gäller dessa villkor. De utgår från svensk
+          När du beställer via ViaEats gäller dessa villkor. De utgår från svensk
           konsumentlagstiftning, Distansavtalslagen (2005:59), Konsumentköplagen (2022:260)
           och Dataskyddsförordningen (GDPR).
         </p>
@@ -66,9 +66,9 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
               </div>
             </dl>
             <p className="mt-4 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              Delívera är en beställningsplattform med flera restauranger. Vi förmedlar din
+              ViaEats är en beställningsplattform med flera restauranger. Vi förmedlar din
               beställning till vald restaurang. Köpeavtalet för maten ingås mellan dig och
-              respektive restaurang. Delívera ansvarar för plattformen, betalningen och, vid
+              respektive restaurang. ViaEats ansvarar för plattformen, betalningen och, vid
               plattformsleverans, för transporten.
             </p>
           </section>
@@ -79,13 +79,13 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
               Beställning och betalning
             </h2>
             <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              När du lägger en order via Delívera är beställningen bindande. Restaurangen
+              När du lägger en order via ViaEats är beställningen bindande. Restaurangen
               påbörjar tillagningen så snart den bekräftat ordern. Priser anges inklusive moms.
               En eventuell leveransavgift visas tydligt innan du bekräftar köpet.
             </p>
             <p className="mt-3 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
               All betalning hanteras av Mollie (Mollie B.V., PCI-DSS-certifierad betalningsförmedlare).
-              Delívera lagrar inga kortnummer eller CVC-koder, betalningen slutförs säkert hos Mollie.
+              ViaEats lagrar inga kortnummer eller CVC-koder, betalningen slutförs säkert hos Mollie.
               Vid återbetalning krediteras samma betalsätt som användes vid köpet.
             </p>
           </section>
@@ -97,13 +97,13 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
             </h2>
             <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
               Leverans sker på ett av två sätt, beroende på restaurang och område. Antingen
-              levererar restaurangen själv, eller så sköts leveransen av Delíveras egna bud.
+              levererar restaurangen själv, eller så sköts leveransen av ViaEats bud.
               Vilket alternativ som gäller framgår i kassan. Avhämtning sker direkt hos
               restaurangen mot beställningsnummer.
             </p>
             <p className="mt-3 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
               Den leveranstid vi visar är en uppskattning, inte en garanti. Vid plattformsleverans
-              ansvarar Delívera för transporten. Vid restaurangleverans ansvarar restaurangen
+              ansvarar ViaEats för transporten. Vid restaurangleverans ansvarar restaurangen
               enligt sina egna leveransvillkor.
             </p>
           </section>
@@ -111,12 +111,12 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
           {/* 4. DPOINTS */}
           <section>
             <h2 className="text-2xl font-bold tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>
-              Dpoints
+              Vpoints
             </h2>
             <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              Dpoints är Delíveras lojalitetsprogram. Du samlar poäng på betalda beställningar och
+              Vpoints är ViaEats lojalitetsprogram. Du samlar poäng på betalda beställningar och
               kan lösa in dem mot produkter eller rabatter. Poäng har inget kontantvärde, kan inte
-              överlåtas och kan dras tillbaka vid missbruk eller om en order återbetalas. Delívera
+              överlåtas och kan dras tillbaka vid missbruk eller om en order återbetalas. ViaEats
               kan ändra eller avsluta programmet med rimligt varsel.
             </p>
           </section>
@@ -130,12 +130,12 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
               Enligt Distansavtalslagen 2 kap. 11 § har du normalt 14 dagars ångerrätt på
               distansavtal. Ångerrätten gäller dock inte för leverans av livsmedel eller andra
               varor som tillagats eller paketerats för en enskild beställning (2 kap. 11 § p. 4),
-              det vill säga den färdiglagade maten du beställer via Delívera.
+              det vill säga den färdiglagade maten du beställer via ViaEats.
             </p>
             <p className="mt-3 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
               Om något är fel på din mat, till exempel felaktig leverans, kall mat eller
               allergiavvikelser, kontaktar du i första hand restaurangen direkt. Får du inte
-              gehör hjälper Delívera till via{" "}
+              gehör hjälper ViaEats till via{" "}
               <a href={`mailto:${company.email}`} className="text-gold-600 underline">{company.email}</a>.
             </p>
           </section>

@@ -94,7 +94,7 @@ export async function applyPaymentSuccess(orderId: string, paymentIntent: Stripe
     console.error('[stripeReconcile] referral-reward-trigger error:', e?.message);
   }
 
-  // Dpoints — intjäning + streak-utmaningar. Idempotent (Order.pointsAwarded
+  // Vpoints — intjäning + streak-utmaningar. Idempotent (Order.pointsAwarded
   // race-guard), fail-safe (kastar aldrig). Enda intjäningspunkten i systemet →
   // confirm/webhook/reconcile landar alla här.
   try {
@@ -169,7 +169,7 @@ export async function applyPaymentFailed(orderId: string, paymentIntent: Stripe.
     }).catch((e: any) => console.error('[stripe-reconcile] userDeal revert failed:', e?.message));
   }
 
-  // Dpoints: ge tillbaka poäng som reserverades vid order-skapande (köp-med-poäng).
+  // Vpoints: ge tillbaka poäng som reserverades vid order-skapande (köp-med-poäng).
   // Idempotent (Order.pointsReverted); earn=0 på obetald order så bara inlöst återförs.
   try {
     const { revertOrderPointsForRefund } = await import('./dpoints');

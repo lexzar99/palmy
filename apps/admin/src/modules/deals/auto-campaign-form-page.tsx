@@ -72,7 +72,7 @@ const TEMPLATE_KIND_LABELS: Record<TemplateKind, string> = {
   PERCENT: "Procent",
   FIXED: "Fast kr",
   FREE_DELIVERY: "Fri leverans",
-  DPOINTS: "Dpoints",
+  DPOINTS: "Vpoints",
 };
 
 function buildTemplatePayload(f: TemplateForm): DealTemplateInput {
@@ -328,7 +328,7 @@ export function AutoCampaignFormPage({ campaignId }: { campaignId?: string }) {
                     </Select>
                   </Field>
                   {templateForm.kind !== "FREE_DELIVERY" && (
-                    <Field label={templateForm.kind === "PERCENT" ? "Procent" : templateForm.kind === "FIXED" ? "Belopp (kr)" : "Dpoints"}>
+                    <Field label={templateForm.kind === "PERCENT" ? "Procent" : templateForm.kind === "FIXED" ? "Belopp (kr)" : "Vpoints"}>
                       <Input type="number" min="0" value={templateForm.value} onChange={(e) => setTemplateForm((p) => ({ ...p, value: e.target.value }))} placeholder={templateForm.kind === "PERCENT" ? "30" : templateForm.kind === "FIXED" ? "50" : "100"} />
                     </Field>
                   )}

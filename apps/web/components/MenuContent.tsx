@@ -53,7 +53,7 @@ function getDisplayPrice(p: any): { final: number; original: number | null } {
 }
 
 /**
- * UniformCard — menyns produktrad (Foodora-stil): full-bredd, INGEN kort-box
+ * UniformCard — menyns produktrad (listvy): full-bredd, INGEN kort-box
  * eller ram, bara en hårfin avdelare nedtill. Text vänster (namn, beskrivning,
  * pris), bild 92px höger med flytande guld-plus. Utan bild: ren textrad med
  * plus-knapp. Tema-variabler → light + dark. Guld bara på plus + rabattpris.
@@ -475,7 +475,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       ]);
 
       // Rehydrera (normalized → inbäddade extraGroups). Tål även default/array.
-      const nextCategories = rehydrateMenuCategories(menuRes.data);
+      const nextCategories = rehydrateMenuCategories(menuRes.data) as any[];
       setCategories(nextCategories);
       setDeals(dealsRes.data);
       if (restaurantRes.data) {
@@ -485,7 +485,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       } else {
         const settingsRes = await axios.get(`${API_URL}/api/settings`);
         setRestaurant({
-          name: "FoodGo Lund",
+          name: "ViaEats Lund",
           isOpen: settingsRes.data.isOpen ?? true,
           deliveryFee: settingsRes.data.deliveryFee ?? 0,
           minOrderAmount: settingsRes.data.minOrderAmount ?? 150,
@@ -549,7 +549,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       if (!isMatch) return;
       // Notify the rest of the app (e.g. cart page) — listeners can decide
       // whether to revalidate cart contents.
-      try { window.dispatchEvent(new CustomEvent("matgo:menu-changed", { detail: evt })); } catch {}
+      try { window.dispatchEvent(new CustomEvent("viaeats:menu-changed", { detail: evt })); } catch {}
       fetchData();
     });
 
@@ -1060,7 +1060,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             </div>
           </div>
 
-          {/* Rad 2: kategorier som understrukna tabbar (Wolt-stil) — aktiv =
+          {/* Rad 2: kategorier som understrukna tabbar (referralflöde) — aktiv =
               text-primary med 2px underline, inaktiv = secondary. Scroll-spy
               och auto-center är oförändrade. */}
           {scopedCategories.length > 0 && (
@@ -1125,7 +1125,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                        {cat.products.length === 1 ? t("menu.dishCount.one", { n: cat.products.length }) : t("menu.dishCount.other", { n: cat.products.length })}
                      </span>
                    </div>
-                   {/* Full-width lista med hårfina avdelare (Foodora-stil) — inga
+                   {/* Full-width lista med hårfina avdelare (listvy) — inga
                        kort-i-kort, ren bakgrund hela vägen ut till kanten. FULL =
                        full-bredds rad, COMPACT = halv-bredd (2 per rad). */}
                    <div style={{ borderTop: "1px solid var(--border-muted)" }}>

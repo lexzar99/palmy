@@ -1,23 +1,23 @@
 // Apple App Site Association — krävs för iOS Universal Links.
 //
-// När en användare klickar på en https://matgo-web-pi.vercel.app/-länk på
+// När en användare klickar på en https://delivera.se/-länk på
 // iPhone och appen är installerad med matching Associated Domains-
 // entitlement, öppnar iOS appen DIREKT istället för Safari. Det är den
-// "rätta" Apple-pattern för deep links (bättre än foodgo://-tricks).
+// "rätta" Apple-pattern för deep links (bättre än custom scheme-tricks).
 //
 // SETUP:
 // 1. Denna route serverar JSON med rätt Content-Type (Apple kräver
 //    application/json, inte text/plain).
 // 2. iOS-appen behöver entitlement `com.apple.developer.associated-domains`
-//    med värdet `applinks:matgo-web-pi.vercel.app`.
+//    med värdet `applinks:delivera.se`.
 // 3. Filen MÅSTE serveras över HTTPS utan redirect — Vercel ordnar.
 //
 // PATH-LISTA: vilka URL:er på domänen som iOS ska intercepta.
 // Wildcards: `*` matchar enstaka path-segment, `**` matchar flera.
 //
-// appID-format: "TEAM_ID.BUNDLE_ID" — hämtat från app.json:
+// appID-format: "TEAM_ID.BUNDLE_ID":
 //   appleTeamId: "3KDGPYZXHH"
-//   bundleIdentifier: "com.foodgoJalle.app"
+//   bundleIdentifier: "se.delivera.app"
 
 import { NextResponse } from 'next/server';
 
@@ -36,9 +36,9 @@ const AASA = {
           // login. Utan app faller den tillbaka till web-landningen (/i/[token]).
           '/i/*',
           '/order/*',
-          // Stripe PaymentSheet returnURL för Klarna/BankID m.fl. redirect-
-          // baserade flöden. Universal Link istället för foodgo://-scheme så
-          // iOS öppnar appen direkt utan "Öppna i FoodGo?"-prompt. Det här
+          // Betalningsreturn-URL för Klarna/BankID m.fl. redirect-
+          // baserade flöden. Universal Link istället för custom scheme så
+          // iOS öppnar appen direkt utan "Öppna i appen?"-prompt. Det här
           // är specifikt viktigt för Klarna eftersom BankID-flowet redan
           // har gjort en tab-switch (BankID-app), och att lägga till en
           // ytterligare "Open in app?"-prompt riskerar att användaren får

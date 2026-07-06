@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import { API_URL } from "@/lib/api";
+import { API_URL, apiErrorMessage } from "@/lib/api";
 
 // Glömt-lösenord-flöde — steg 2 av 2. Två varianter:
 //
@@ -36,13 +36,13 @@ function ResetPasswordContent() {
 
     // Försök öppna deep link i appen på mobil — bättre UX än att gå
     // via webben. Funkar om appen är installerad och registrerad mot
-    // foodgo://-schemat. Vi fortsätter web-flow:n parallellt så
+    // viaeats://-schemat. Vi fortsätter web-flow:n parallellt så
     // användaren kan slutföra reset:en i webbläsaren om appen saknas.
     if (accessToken) {
       const isMobile = /iphone|ipad|ipod|android/i.test(navigator.userAgent);
       if (isMobile) {
         try {
-          window.location.href = `foodgo://reset-password#${hash}`;
+          window.location.href = `viaeats://reset-password#${hash}`;
         } catch {
           // ignore — fortsätt med web-flow
         }
@@ -98,12 +98,12 @@ function ResetPasswordContent() {
       }
       setSuccess(true);
       setTimeout(() => router.push("/profile"), 2200);
-    } catch (err: any) {
-      setError(
-        err?.response?.data?.error ||
-          err?.message ||
-          "Länken är ogiltig eller har gått ut. Be om en ny.",
-      );
+    } catch (err) {
+      const fallback =
+        err instanceof Error && err.message
+          ? err.message
+          : "Länken är ogiltig eller har gått ut. Be om en ny.";
+      setError(apiErrorMessage(err, fallback));
     } finally {
       setSubmitting(false);
     }

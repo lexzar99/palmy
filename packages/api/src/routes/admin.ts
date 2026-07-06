@@ -680,7 +680,7 @@ router.post('/orders/bulk-refund', async (req, res) => {
             data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
           });
         }
-        // Dpoints: återför inlösta + claw-backa intjänade poäng (idempotent).
+        // Vpoints: återför inlösta + claw-backa intjänade poäng (idempotent).
         try {
           const { revertOrderPointsForRefund } = await import('../lib/dpoints');
           await revertOrderPointsForRefund(orderId);
@@ -889,7 +889,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     if (refreshedEta) order = { ...order, ...refreshedEta };
     bustCache('order:byid', order.id);
 
-    // Avvisad/avbruten order → backend-auktoritativ Dpoints-återföring:
+    // Avvisad/avbruten order → backend-auktoritativ Vpoints-återföring:
     // claw-backa intjänade poäng + återbetala inlösta. Idempotent via
     // Order.pointsReverted (använder orderns LAGRADE värden, aldrig klient-
     // input) så kunden inte kan frysa/hacka clawbacken från frontend. Awaitas
@@ -1645,7 +1645,7 @@ const ProductSchema = z.object({
   discountImageUrl: z.string().nullable().optional(),
   discountLabel: z.string().nullable().optional(),
   discountActive: z.boolean().optional(),
-  // Dpoints: markera varan som köpbar med poäng (rewardable).
+  // Vpoints: markera varan som köpbar med poäng (rewardable).
   rewardable: z.boolean().optional(),
   rewardPointsMultiplier: z.number().min(1).max(10).optional().nullable(),
   rewardPointsPrice: z.number().int().min(1).max(100000).optional().nullable(),
@@ -4857,7 +4857,7 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
       });
     }
 
-    // Dpoints: återför inlösta poäng (köp-med-poäng) + claw-backa intjänade för
+    // Vpoints: återför inlösta poäng (köp-med-poäng) + claw-backa intjänade för
     // ordern. Idempotent + server-auktoritativt.
     let dpointsRevert = { refunded: 0, clawedBack: 0 };
     try {
@@ -4939,7 +4939,7 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
 
     res.json({
       header: {
-        restaurantName: order.restaurant?.name || 'FoodGo',
+        restaurantName: order.restaurant?.name || 'ViaEats',
         address: order.restaurant?.address || '',
         city: order.restaurant?.city || '',
         zip: order.restaurant?.zip || '',
@@ -4989,10 +4989,10 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
         dealTitle: order.appliedDealTitle,
         total: order.total / 100,
       },
-      footer: 'Tack för din beställning! — FoodGo',
+      footer: 'Tack för din beställning! — ViaEats',
       template: {
         paperWidth: templateRow?.paperWidth || '80mm',
-        platformName: templateRow?.platformName || 'FoodGo',
+        platformName: templateRow?.platformName || 'ViaEats',
         elements: templateElements,
       },
     });
@@ -5321,7 +5321,7 @@ router.post('/restaurants/:id/bulk-refund', authenticate, requireSuperAdmin, asy
             data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
           });
         }
-        // Dpoints: återför inlösta + claw-backa intjänade poäng (idempotent).
+        // Vpoints: återför inlösta + claw-backa intjänade poäng (idempotent).
         try {
           const { revertOrderPointsForRefund } = await import('../lib/dpoints');
           await revertOrderPointsForRefund(o.id);
@@ -5554,7 +5554,7 @@ router.get('/crisis/state', authenticate, requireSuperAdmin, async (_req: AuthRe
   }
 });
 
-// GET /api/admin/audit-log?limit=100&offset=0&action=ORDER_REFUND&actor=alice@matgo.se&from=2026-05-01&to=2026-05-27&q=searchText
+// GET /api/admin/audit-log?limit=100&offset=0&action=ORDER_REFUND&actor=alice@viaeats.se&from=2026-05-01&to=2026-05-27&q=searchText
 // Filter:
 //   - action: matchar AuditLog.action exakt (eller prefix via *)
 //   - actor:  matchar AuditLog.adminEmail (substring, case-insensitive)

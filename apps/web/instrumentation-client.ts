@@ -1,17 +1,17 @@
-// Sentry — browser-config för matgo.se kund-app. Init:as automatiskt
+// Sentry — browser-config för viaeats.se kund-app. Init:as automatiskt
 // av @sentry/nextjs när NEXT_PUBLIC_SENTRY_DSN finns satt.
 //
 // GDPR: Sentry är klassad som "analys/spårning" och kräver explicit samtycke.
-// Vi initialiserar därför ENDAST om localStorage `matgo_cookie_consent`
+// Vi initialiserar därför ENDAST om localStorage `viaeats_cookie_consent`
 // innehåller `"accepted"`. För `"essential-only"`, `"rejected"` eller saknat
 // värde (banner inte visad än) skippar vi init helt.
 //
-// CookieConsent-komponenten kan trigga `dispatchEvent(new Event("matgo:cookie-consent"))`
+// CookieConsent-komponenten kan trigga `dispatchEvent(new Event("viaeats:cookie-consent"))`
 // efter att användaren klickat Acceptera; då lazy-init:ar vi Sentry på den
 // pågående sessionen utan att kräva en page-reload.
 import * as Sentry from "@sentry/nextjs";
 
-const CONSENT_KEY = "matgo_cookie_consent";
+const CONSENT_KEY = "viaeats_cookie_consent";
 
 function initSentryClient() {
   if (!process.env.NEXT_PUBLIC_SENTRY_DSN) return;
@@ -57,7 +57,7 @@ if (typeof window !== "undefined") {
     // Lyssna efter consent-event från CookieConsent-komponenten. Vi använder
     // `addEventListener` mot window så banner-komponenten kan dispatch:a när
     // användaren klickar "Acceptera alla" — Sentry init:as då lazy utan reload.
-    window.addEventListener("matgo:cookie-consent", () => {
+    window.addEventListener("viaeats:cookie-consent", () => {
       if (hasFullConsent()) initSentryClient();
     });
   }

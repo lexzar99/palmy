@@ -56,8 +56,8 @@ const EMPTY_FORM: ComposerForm = {
 };
 
 const TEMPLATES = [
-  { label: "Lunch", title: "Lunch live på Delívera", body: "Öppna appen innan 13:30 för att se luncher och aktiva erbjudanden." },
-  { label: "Comeback", title: "Nya erbjudanden väntar", body: "Kom tillbaka till Delívera och kolla de senaste restaurangerbjudandena." },
+  { label: "Lunch", title: "Lunch live på ViaEats", body: "Öppna appen innan 13:30 för att se luncher och aktiva erbjudanden." },
+  { label: "Comeback", title: "Nya erbjudanden väntar", body: "Kom tillbaka till ViaEats och kolla de senaste restaurangerbjudandena." },
   { label: "Ny restaurang", title: "En ny restaurang har öppnat", body: "En ny partner är live just nu. Öppna appen för att se menyn." },
 ];
 

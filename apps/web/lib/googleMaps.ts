@@ -4,7 +4,12 @@
 // JS API som inte kan proxas server-side). Autocomplete/forward-geocode går
 // fortfarande via Next-proxyn (/api/places/*) för usage-loggning.
 
-let mapsPromise: Promise<any> | null = null;
+// Minimal strukturell typ — vi har inga @types/google.maps och API:t
+// laddas dynamiskt. `Map` räcker för ready-detektionen.
+type GoogleMapsNamespace = { Map: unknown } & Record<string, unknown>;
+type GoogleWindow = Window & { google?: { maps?: GoogleMapsNamespace } };
+
+let mapsPromise: Promise<GoogleMapsNamespace> | null = null;
 let cachedKey: string | null = null;
 
 // Hämta browser-nyckeln. Föredrar den build-inlinade NEXT_PUBLIC-varianten, men
@@ -24,9 +29,9 @@ async function resolveMapsKey(): Promise<string> {
   return cachedKey;
 }
 
-export function loadGoogleMaps(): Promise<any> {
+export function loadGoogleMaps(): Promise<GoogleMapsNamespace> {
   if (typeof window === "undefined") return Promise.reject(new Error("SSR"));
-  const w = window as any;
+  const w = window as unknown as GoogleWindow;
   if (w.google?.maps?.Map) return Promise.resolve(w.google.maps);
   if (mapsPromise) return mapsPromise;
 

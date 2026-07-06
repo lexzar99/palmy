@@ -5,7 +5,7 @@ export const homePagePending = {
     "home.zone.notCovered": "Vi levererar inte till den här adressen ännu. Välj avhämtning eller prova en annan adress.",
 
     // ── Hero (desktop) ───────────────────────────────────────────────────
-    "home.heroDesktop.eyebrow": "Mat från dem bästa av dem bästa",
+    "home.heroDesktop.eyebrow": "Mat från lokala favoriter",
     "home.heroDesktop.titleLine1": "Hungrig?",
     "home.heroDesktop.titleLine2": "Vi fixar resten.",
     "home.heroDesktop.subtitle": "Bläddra bland favoritrestauranger, hitta dagens deals och få maten levererad — eller hämta själv.",

@@ -8,7 +8,7 @@ import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { PLATFORM_SESSION_CHANGED_EVENT } from "@/lib/platformSessionClient";
-import DeliveraWordmark from "@/components/DeliveraWordmark";
+import ViaEatsWordmark from "@/components/ViaEatsWordmark";
 
 type SessionUser = {
   firstName?: string | null;
@@ -82,7 +82,7 @@ const Navbar = () => {
     : null;
 
   const logo = (
-    <DeliveraWordmark href="/" size="md" />
+    <ViaEatsWordmark href="/" size="md" />
   );
 
   if (!mounted) return (
@@ -152,10 +152,10 @@ const Navbar = () => {
             href="/orders"
             className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold transition-colors"
             style={{ backgroundColor: "var(--gold-soft)", color: "var(--color-gold-500)", border: "1px solid color-mix(in srgb, var(--color-gold-500) 24%, transparent)" }}
-            aria-label="Dpoints"
+            aria-label="Vpoints"
           >
             <Coins size={15} strokeWidth={1.9} />
-            <span className="tabular-nums">{dpoints?.enabled ? `${(dpoints.balance ?? 0).toLocaleString("sv-SE")} p` : "Dpoints"}</span>
+            <span className="tabular-nums">{dpoints?.enabled ? `${(dpoints.balance ?? 0).toLocaleString("sv-SE")} p` : "Vpoints"}</span>
           </Link>
 
           {/* Tysta ikonknappar — ingen bakgrundsplatta, ingen kant */}

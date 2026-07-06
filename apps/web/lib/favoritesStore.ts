@@ -6,7 +6,7 @@ import { useCallback, useSyncExternalStore } from "react";
  * localStorage-backad favoriter-store (paritet med RN-appens `useFavoritesStore`).
  *
  * Nyckeln `platform_favorites` används som primär (bakåtkompatibel med
- * tidigare inline-state i app/page.tsx). Vi skriver också `matgo_favorites`
+ * tidigare inline-state i app/page.tsx). Vi skriver också `viaeats_favorites`
  * som alias enligt task-spec, men läser från `platform_favorites` om
  * båda finns.
  *
@@ -17,8 +17,8 @@ import { useCallback, useSyncExternalStore } from "react";
  */
 
 const STORAGE_KEY = "platform_favorites";
-const ALIAS_KEY = "matgo_favorites";
-const EVENT_NAME = "matgo:favorites-change";
+const ALIAS_KEY = "viaeats_favorites";
+const EVENT_NAME = "viaeats:favorites-change";
 
 // Stabil tom referens för server-snapshot så React-jämförelser inte triggar re-render
 const EMPTY_SET: ReadonlySet<string> = new Set();

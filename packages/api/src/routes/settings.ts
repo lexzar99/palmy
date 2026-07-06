@@ -77,7 +77,7 @@ router.get('/', async (_req, res) => {
       noReplyEmail: (settings as any).noReplyEmail || null,
       // UI-toggles
       showDiscountedRail: (settings as any).showDiscountedRail ?? true,
-      // Dpoints — publika fält: badge nära produkter + gating i klienterna.
+      // Vpoints — publika fält: badge nära produkter + gating i klienterna.
       dpoints: {
         enabled: (settings as any).dpointsEnabled ?? false,
         perKr: (settings as any).dpointsPerKr ?? 0.1,
@@ -161,7 +161,7 @@ router.patch('/', authenticate, async (req, res) => {
     } = req.body;
 
     // Lättviktig email-validering — bara om värdet är icke-tomt. Inte
-    // RFC-perfekt men fångar typos som "support@matgo" eller " " i mitten.
+    // RFC-perfekt men fångar typos som "support@viaeats" eller " " i mitten.
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const validateEmail = (value: unknown, label: string): string | null => {
       if (typeof value !== 'string') return null;

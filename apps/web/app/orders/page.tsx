@@ -4,15 +4,22 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import axios from "axios";
 import {
+  Check,
   ChevronRight,
+  Copy,
   Diamond,
+  Flag,
   History,
+  Loader2,
   Lock,
   Repeat,
+  Share2,
   Star,
   Store,
   UserPlus,
+  Users,
 } from "lucide-react";
 import {
   claimDpointsSignup,
@@ -36,7 +43,200 @@ const EARN_ICON: Record<string, typeof UserPlus> = {
 };
 
 const nf = (n: number) => n.toLocaleString("sv-SE");
-const REWARDS_CACHE_KEY = "delivera_rewards_cache_v1";
+const REWARDS_CACHE_KEY = "viaeats_rewards_cache_v1";
+
+// Deal-kortens blå (Swift: dealBlue → dealBlueDeep).
+const DEAL_BLUE_GRADIENT = "linear-gradient(135deg, #1287F5, #0A54D9)";
+
+// Uppdrag från REWARDS-placement-feeden (GET /api/deals/app?placement=REWARDS).
+// Servern äger all copy och progress; klienten renderar bara.
+type MissionProgress = {
+  target: number;
+  count: number;
+  remaining: number;
+  completed: boolean;
+  windowDays: number;
+  rewardPoints: number;
+  claimed: boolean;
+};
+
+type AppMission = {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  ctaLabel?: string | null;
+  dpointsBonus?: number | null;
+  missionType?: string | null;
+  userDealId?: string | null;
+  missionProgress?: MissionProgress | null;
+};
+
+type ReferralStatus = {
+  locked: boolean;
+  code?: string | null;
+  shareUrl?: string | null;
+  enabled: boolean;
+  rewardLabel?: string | null;
+  deal?: { title?: string | null } | null;
+  stats?: { invited: number; registered: number; ordered: number } | null;
+};
+
+// Bjud in en vän-kortet (Swift RewardsView 11.6). Kod + dela-länk
+// (viaeats.se/i/<kod>), låst tills första betalda ordern, statistik.
+function ReferralInviteCard({ referral }: { referral: ReferralStatus }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyCode = async () => {
+    if (!referral.code) return;
+    try {
+      await navigator.clipboard.writeText(referral.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* noop */
+    }
+  };
+
+  const share = async () => {
+    const code = referral.code || "";
+    const reward = referral.rewardLabel || referral.deal?.title || "en belöning";
+    const message = `Testa ViaEats! Använd min kod ${code} i kassan så får vi båda ${reward.toLowerCase()}.${referral.shareUrl ? ` ${referral.shareUrl}` : ""}`;
+    if (typeof navigator !== "undefined" && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ text: message, url: referral.shareUrl || undefined });
+        return;
+      } catch (e: any) {
+        if (e?.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* noop */
+    }
+  };
+
+  const stats = referral.stats;
+
+  return (
+    <div className="rounded-[20px] border p-4" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+      <div className="flex items-center gap-3">
+        <span className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full text-white" style={{ backgroundColor: "#111113" }}>
+          <Users size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[16px] font-black" style={{ color: "var(--text-primary)" }}>Bjud in en vän</p>
+          <p className="truncate text-[12px] font-bold" style={{ color: "var(--text-secondary)" }}>
+            {referral.rewardLabel ? `Ni får båda ${referral.rewardLabel.toLowerCase()}` : "Din vän anger koden i kassan"}
+          </p>
+        </div>
+      </div>
+
+      {referral.locked ? (
+        <div className="mt-3 flex items-center gap-2 rounded-[14px] p-3" style={{ backgroundColor: "rgba(17,17,19,0.035)" }}>
+          <Lock size={14} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+          <p className="text-[13px] font-bold" style={{ color: "var(--text-secondary)" }}>
+            Gör din första beställning så låser du upp din kod.
+          </p>
+        </div>
+      ) : referral.code ? (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={copyCode}
+            className="flex h-[50px] flex-1 items-center justify-center gap-2.5 rounded-[14px] active:scale-[0.99]"
+            style={{ backgroundColor: "rgba(17,17,19,0.035)" }}
+          >
+            <span className="font-mono text-[19px] font-black tracking-[0.12em]" style={{ color: "var(--text-primary)" }}>{referral.code}</span>
+            {copied ? <Check size={14} style={{ color: "#2E7D4F" }} /> : <Copy size={13} style={{ color: "var(--text-secondary)" }} />}
+          </button>
+          <button
+            type="button"
+            onClick={share}
+            className="flex h-[50px] items-center gap-2 rounded-[14px] px-4 text-[14px] font-black text-white active:scale-[0.99]"
+            style={{ backgroundColor: "var(--color-gold-500, #F0531C)" }}
+          >
+            <Share2 size={15} /> Dela
+          </button>
+        </div>
+      ) : null}
+
+      {!referral.locked && stats && stats.invited > 0 && (
+        <div className="mt-3 flex gap-3.5">
+          {([[stats.invited, "inbjudna"], [stats.registered, "registrerade"], [stats.ordered, "har beställt"]] as const).map(([value, label]) => (
+            <p key={label} className="text-[11px] font-bold" style={{ color: "var(--text-secondary)" }}>
+              <span className="text-[14px] font-black" style={{ color: "var(--text-primary)" }}>{nf(value)}</span> {label}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Uppdragskort (Swift MissionCard, 11.6). Progress + claim; servern spårar
+// framsteg och betalar ut poängen automatiskt efter betald order.
+function MissionCard({
+  mission,
+  claiming,
+  onClaim,
+}: {
+  mission: AppMission;
+  claiming: boolean;
+  onClaim: (mission: AppMission) => void;
+}) {
+  const progress = mission.missionProgress;
+  const points = progress?.rewardPoints ?? mission.dpointsBonus ?? 0;
+  const isStarted = Boolean(mission.userDealId);
+  const fraction = progress?.target ? Math.min(1, progress.count / progress.target) : 0;
+
+  return (
+    <div className="rounded-[18px] border p-3.5" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+      <div className="flex items-start gap-3">
+        <span className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[14px] text-white" style={{ background: DEAL_BLUE_GRADIENT }}>
+          <Flag size={17} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[15px] font-black" style={{ color: "var(--text-primary)" }}>{mission.title}</p>
+          {mission.subtitle && <p className="line-clamp-2 text-[12px] font-bold" style={{ color: "var(--text-secondary)" }}>{mission.subtitle}</p>}
+        </div>
+        {points > 0 && (
+          <span className="shrink-0 rounded-full px-[11px] py-1.5 text-[12px] font-black text-white" style={{ backgroundColor: "#111113" }}>
+            +{nf(points)} p
+          </span>
+        )}
+      </div>
+
+      {isStarted && progress ? (
+        <div className="mt-3">
+          <div className="h-2 overflow-hidden rounded-full" style={{ backgroundColor: "rgba(17,17,19,0.06)" }}>
+            <div className="h-full min-w-2 rounded-full" style={{ width: `${Math.max(4, fraction * 100)}%`, background: DEAL_BLUE_GRADIENT }} />
+          </div>
+          <p className="mt-1.5 text-[11px] font-bold" style={{ color: progress.completed ? "#2E7D4F" : "var(--text-secondary)" }}>
+            {progress.completed
+              ? "Klart! Poängen läggs till på ditt saldo."
+              : progress.windowDays > 0
+                ? `${progress.count} av ${progress.target} · ${progress.remaining} kvar inom ${progress.windowDays} dagar`
+                : `${progress.count} av ${progress.target} beställningar`}
+          </p>
+        </div>
+      ) : !isStarted ? (
+        <button
+          type="button"
+          disabled={claiming}
+          onClick={() => onClaim(mission)}
+          className="mt-3 flex h-[42px] w-full items-center justify-center gap-2 rounded-[14px] text-[13px] font-black text-white active:scale-[0.99] disabled:opacity-60"
+          style={{ backgroundColor: "#111113" }}
+        >
+          {claiming && <Loader2 size={14} className="animate-spin" />}
+          {mission.ctaLabel || "Starta uppdraget"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 type RewardsCache = {
   me?: DpointsMe | null;
@@ -117,7 +317,7 @@ function SponsorBanner({ onRegister }: { onRegister: () => void }) {
         className="mt-3 w-full text-center text-[13px] font-bold"
         style={{ color: "#FFB199" }}
       >
-        Få {nf(card.bonusPoints)} Dpoints när du skapar ett konto
+        Få {nf(card.bonusPoints)} Vpoints när du skapar ett konto
       </button>
     </div>
   );
@@ -156,7 +356,7 @@ function GuestRewards({ rewardRestaurants, loading }: { rewardRestaurants: Rewar
         <Diamond size={30} strokeWidth={1.9} />
         <h2 className="mt-4 text-[30px] font-black leading-[34px] tracking-tight">Poäng som blir mat</h2>
         <p className="mt-2 max-w-sm text-[13.5px] font-medium leading-5 text-white/85">
-          Samla Dpoints på beställningar, uppdrag och deals från Delivera.
+          Samla Vpoints på beställningar, uppdrag och deals från ViaEats.
         </p>
         <Link
           href="/register"
@@ -170,7 +370,7 @@ function GuestRewards({ rewardRestaurants, loading }: { rewardRestaurants: Rewar
       <section className="space-y-2.5">
         <h2 className="text-[18px] font-extrabold" style={{ color: "var(--text-primary)" }}>Lös in</h2>
         <p className="text-[12.5px] leading-[18px]" style={{ color: "var(--text-secondary)" }}>
-          Logga in för att låsa upp produkter som kan betalas med Dpoints.
+          Logga in för att låsa upp produkter som kan betalas med Vpoints.
         </p>
 
         {loading ? (
@@ -229,6 +429,10 @@ function MemberRewards({
   me,
   earnRules,
   rewardRestaurants,
+  missions,
+  referral,
+  claimingMissionId,
+  onClaimMission,
   initialHistoryOpen = false,
   loading,
   onClaimed,
@@ -236,6 +440,10 @@ function MemberRewards({
   me: DpointsMe;
   earnRules: EarnRule[];
   rewardRestaurants: RewardRestaurant[];
+  missions: AppMission[];
+  referral: ReferralStatus | null;
+  claimingMissionId: string | null;
+  onClaimMission: (mission: AppMission) => void;
   initialHistoryOpen?: boolean;
   loading: boolean;
   onClaimed: (me: DpointsMe) => void;
@@ -280,7 +488,7 @@ function MemberRewards({
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-[15px] font-bold text-white">Hämta din välkomstbonus</p>
-              <p className="mt-0.5 text-[13px] text-white/80">+{nf(me.signup.bonusPoints)} Dpoints väntar på dig</p>
+              <p className="mt-0.5 text-[13px] text-white/80">+{nf(me.signup.bonusPoints)} Vpoints väntar på dig</p>
             </div>
             <span className="rounded-full bg-white/20 px-5 py-2.5 text-[13px] font-bold text-white">
               {claiming ? "..." : "Hämta"}
@@ -297,7 +505,7 @@ function MemberRewards({
         }}
       >
         <div className="absolute -right-6 -top-7 h-28 w-28 rounded-full bg-white/15" />
-        <p className="text-[12px] font-semibold text-white/70">Dpoints</p>
+        <p className="text-[12px] font-semibold text-white/70">Vpoints</p>
         <p className="mt-0.5 text-[35px] font-extrabold leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
           {nf(me.balance)}
         </p>
@@ -333,12 +541,36 @@ function MemberRewards({
         <section className="space-y-3">
           <SectionTitle title="Tjäna poäng" />
           <p className="px-0.5 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
-            Varje köp ger poäng: <span className="font-bold" style={{ color: "var(--text-primary)" }}>10% tillbaka i Dpoints</span>. Gör tasks för extra.
+            Varje köp ger poäng: <span className="font-bold" style={{ color: "var(--text-primary)" }}>10% tillbaka i Vpoints</span>. Gör tasks för extra.
           </p>
+
+          {/* Bjud in en vän — kod, dela-länk, låst/olåst + statistik
+              (GET /api/account/referral, Swift ReferralInviteCard). */}
+          {referral?.enabled && <ReferralInviteCard referral={referral} />}
+
+          {/* Uppdrag med progress + claim (REWARDS-placement-feeden). */}
+          {missions.length > 0 && (
+            <>
+              <SectionTitle title="Uppdrag" subtitle="Så tjänar du extra Vpoints" />
+              <div className="space-y-2.5">
+                {missions.map((mission) => (
+                  <MissionCard
+                    key={mission.id}
+                    mission={mission}
+                    claiming={claimingMissionId === mission.id}
+                    onClaim={onClaimMission}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
           {earnRules.length === 0 ? (
-            <div className="rounded-[18px] border p-4 text-[13px]" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
-              Inga uppdrag är aktiva just nu.
-            </div>
+            missions.length === 0 ? (
+              <div className="rounded-[18px] border p-4 text-[13px]" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                Inga uppdrag är aktiva just nu.
+              </div>
+            ) : null
           ) : (
             <div className="overflow-hidden rounded-[18px] border" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
               {earnRules.map((rule, i) => {
@@ -383,10 +615,10 @@ function MemberRewards({
 
       {showHistory && (
         <section className="space-y-3">
-          <SectionTitle title="Historik" subtitle="Dina 10 senaste Dpoints-rörelser." />
+          <SectionTitle title="Historik" subtitle="Dina 10 senaste Vpoints-rörelser." />
           <div className="overflow-hidden rounded-[18px] border" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
             {historyTransactions.length === 0 ? (
-              <p className="px-4 py-4 text-[13px]" style={{ color: "var(--text-secondary)" }}>Ingen Dpoints-historik än.</p>
+              <p className="px-4 py-4 text-[13px]" style={{ color: "var(--text-secondary)" }}>Ingen Vpoints-historik än.</p>
             ) : (
               historyTransactions.map((tx, i) => (
                 <div key={tx.id} className="flex items-center justify-between gap-3 px-4 py-3.5" style={{ borderTop: i > 0 ? "1px solid var(--border-muted)" : "none" }}>
@@ -501,6 +733,25 @@ export default function OrdersPage() {
   const [rewardRestaurants, setRewardRestaurants] = useState<RewardRestaurant[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [initialHistoryOpen, setInitialHistoryOpen] = useState(false);
+  // Uppdrag + referral (Swift RewardsView "Tjäna"). Fel sväljs tyst — panelen
+  // göms om anropen inte går igenom (t.ex. utloggad).
+  const [missions, setMissions] = useState<AppMission[]>([]);
+  const [referral, setReferral] = useState<ReferralStatus | null>(null);
+  const [claimingMissionId, setClaimingMissionId] = useState<string | null>(null);
+
+  const claimMission = useCallback(async (mission: AppMission) => {
+    setClaimingMissionId(mission.id);
+    try {
+      const res = await axios.post(`/api/platform/deals/app/${mission.id}/claim`, {});
+      const updated = res.data?.deal;
+      // Svarets deal ersätter uppdraget i listan (nu med userDealId + progress).
+      if (updated?.id) setMissions((current) => current.map((m) => (m.id === updated.id ? updated : m)));
+    } catch {
+      /* tyst — servern validerar, kunden kan försöka igen */
+    } finally {
+      setClaimingMissionId(null);
+    }
+  }, []);
 
   const loadCatalog = useCallback(async () => {
     setCatalogLoading(true);
@@ -551,6 +802,26 @@ export default function OrdersPage() {
         if (active) setLoadingMe(false);
       });
 
+    // Uppdrag: GET /api/deals/app?placement=REWARDS ger missions med
+    // missionProgress för inloggad kund. Referral: GET /api/account/referral.
+    // Båda är tysta (Swift: try?) — utloggad nollas de.
+    axios
+      .get(`/api/platform/deals/app`, { params: { placement: "REWARDS", limit: 8, _t: Date.now() } })
+      .then((res) => {
+        if (active) setMissions(Array.isArray(res.data?.deals) ? res.data.deals : []);
+      })
+      .catch(() => {
+        if (active) setMissions([]);
+      });
+    axios
+      .get(`/api/platform/account/referral`)
+      .then((res) => {
+        if (active) setReferral(res.data && typeof res.data === "object" ? res.data : null);
+      })
+      .catch(() => {
+        if (active) setReferral(null);
+      });
+
     fetchDpointsRewards()
       .then((data) => {
         if (!active) return;
@@ -594,6 +865,10 @@ export default function OrdersPage() {
             me={me}
             earnRules={earnRules}
             rewardRestaurants={rewardRestaurants}
+            missions={missions}
+            referral={referral}
+            claimingMissionId={claimingMissionId}
+            onClaimMission={claimMission}
             initialHistoryOpen={initialHistoryOpen}
             loading={catalogLoading}
             onClaimed={(nextMe) => {

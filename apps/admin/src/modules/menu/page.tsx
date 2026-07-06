@@ -440,7 +440,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
           <p className="card-label">Alternativ</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <TogglePill active={form.hideDescription} onClick={() => setForm((current) => ({ ...current, hideDescription: !current.hideDescription }))}>Dölj beskrivning i menyn</TogglePill>
-            <TogglePill active={form.rewardable} onClick={() => setForm((current) => ({ ...current, rewardable: !current.rewardable }))}>★ Köpbar med poäng (Dpoints)</TogglePill>
+            <TogglePill active={form.rewardable} onClick={() => setForm((current) => ({ ...current, rewardable: !current.rewardable }))}>★ Köpbar med poäng (Vpoints)</TogglePill>
             <TogglePill active={form.localPriceLocked} onClick={() => setForm((current) => ({ ...current, localPriceLocked: !current.localPriceLocked }))}>🔒 Lås lokalt pris (kedja)</TogglePill>
           </div>
         </div>
@@ -616,7 +616,7 @@ function BulkEditModal({ open, count, extraGroups, onClose, onApply }: { open: b
         <BulkRow label="Lås lokalt pris" enabled={on.localPriceLocked} onToggle={() => setOn((c) => ({ ...c, localPriceLocked: !c.localPriceLocked }))}>
           <TogglePill active={localPriceLocked} onClick={() => setLocalPriceLocked((v) => !v)}>{localPriceLocked ? "På" : "Av"}</TogglePill>
         </BulkRow>
-        <BulkRow label="Köpbar med Dpoints" enabled={on.rewardable} onToggle={() => setOn((c) => ({ ...c, rewardable: !c.rewardable }))}>
+        <BulkRow label="Köpbar med Vpoints" enabled={on.rewardable} onToggle={() => setOn((c) => ({ ...c, rewardable: !c.rewardable }))}>
           <TogglePill active={rewardable} onClick={() => setRewardable((v) => !v)}>{rewardable ? "På" : "Av"}</TogglePill>
         </BulkRow>
         <BulkRow label="Kostflaggor" enabled={on.diet} onToggle={() => setOn((c) => ({ ...c, diet: !c.diet }))}>

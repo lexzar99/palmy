@@ -1,6 +1,6 @@
 -- AlterTable: Företagsidentitet på singleton-raden RestaurantSettings.
 -- Används av Terms, Privacy och support-flöden i web + RN. Fallback-värden
--- ("MatGo AB", "support@matgo.se" osv) hanteras i klienterna när null.
+-- ("ViaEats AB", "support@viaeats.se" osv) hanteras i klienterna när null.
 -- IF NOT EXISTS så `prisma db push` på Railway är idempotent.
 ALTER TABLE "RestaurantSettings" ADD COLUMN IF NOT EXISTS "companyName" TEXT;
 ALTER TABLE "RestaurantSettings" ADD COLUMN IF NOT EXISTS "organizationNumber" TEXT;

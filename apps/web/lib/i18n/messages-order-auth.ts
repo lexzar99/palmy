@@ -59,7 +59,7 @@ export const orderAuthPending = {
     // ── Quotes (visas under leverans) ─────────────────────────────────────
     "order.quote.fast": "Vi jobbar så snabbt vi kan för att leverera din mat.",
     "order.quote.care": "Färsk mat, levererad med omsorg.",
-    "order.quote.by": "Delívera",
+    "order.quote.by": "ViaEats",
 
     // ── Order tracking (header, ETA, steg, länkrader, banner) ─────────────
     "order.header.title": "Din order",
@@ -200,11 +200,11 @@ export const orderAuthPending = {
     "profile.appleNoName.intro": "Apple ger ditt namn endast vid första inloggningen. För att få in det:",
     "profile.appleNoName.step1Open": "Öppna",
     "profile.appleNoName.step1Link": "Apple ID-inställningar",
-    "profile.appleNoName.step2": "Sign-In with Apple → FoodGo → Stop using Apple ID",
+    "profile.appleNoName.step2": "Sign-In with Apple → ViaEats → Stop using Apple ID",
     "profile.appleNoName.step3": "Kom tillbaka hit och tryck Apple-knappen igen",
     "profile.appleNoName.alt": "Eller fyll i namnet manuellt i Inställningar-fliken nedan.",
     "profile.tabs.home": "Översikt",
-    "profile.tabs.dpoints": "Dpoints",
+    "profile.tabs.dpoints": "Vpoints",
     "profile.tabs.orders": "Ordrar",
     "profile.tabs.deals": "Deals",
     "profile.tabs.addresses": "Adresser",
@@ -355,7 +355,7 @@ export const orderAuthPending = {
     // ── Quotes (shown during delivery) ────────────────────────────────────
     "order.quote.fast": "We work as fast as we can to deliver your food.",
     "order.quote.care": "Fresh food, delivered with care.",
-    "order.quote.by": "Delívera",
+    "order.quote.by": "ViaEats",
 
     // ── Order tracking (header, ETA, steps, link rows, banner) ────────────
     "order.header.title": "Your order",
@@ -496,11 +496,11 @@ export const orderAuthPending = {
     "profile.appleNoName.intro": "Apple only gives your name on first sign-in. To get it in:",
     "profile.appleNoName.step1Open": "Open",
     "profile.appleNoName.step1Link": "Apple ID settings",
-    "profile.appleNoName.step2": "Sign-In with Apple → FoodGo → Stop using Apple ID",
+    "profile.appleNoName.step2": "Sign-In with Apple → ViaEats → Stop using Apple ID",
     "profile.appleNoName.step3": "Come back and tap the Apple button again",
     "profile.appleNoName.alt": "Or fill in the name manually in the Settings tab below.",
     "profile.tabs.home": "Overview",
-    "profile.tabs.dpoints": "Dpoints",
+    "profile.tabs.dpoints": "Vpoints",
     "profile.tabs.orders": "Orders",
     "profile.tabs.deals": "Deals",
     "profile.tabs.addresses": "Addresses",

@@ -4,8 +4,8 @@ import { Phone, MapPin, Mail, ArrowRight } from "lucide-react";
 import { API_URL } from "@/lib/api";
 
 export const metadata: Metadata = {
-  title: "Kontakta oss | Delívera",
-  description: "Kontakta Delívera — telefon, e-post och adress.",
+  title: "Kontakta oss | ViaEats",
+  description: "Kontakta ViaEats — telefon, e-post och adress.",
 };
 
 type PlatformSettings = {

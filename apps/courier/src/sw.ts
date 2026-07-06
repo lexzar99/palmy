@@ -21,7 +21,7 @@ interface PushData {
 }
 
 self.addEventListener("push", (event) => {
-  let data: PushData = { title: "Ny order 🛵", body: "Ny leverans tillgänglig", tag: "delivera-new-order", url: "/" };
+  let data: PushData = { title: "Ny order 🛵", body: "Ny leverans tillgänglig", tag: "viaeats-new-order", url: "/" };
   try {
     if (event.data) data = { ...data, ...(event.data.json() as Partial<PushData>) };
   } catch {

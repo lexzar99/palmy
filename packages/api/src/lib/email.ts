@@ -1,4 +1,4 @@
-// Email-transport för Delívera.
+// Email-transport för ViaEats.
 //
 // Användarvänd transaktionsmejl (verifiering, lösenordsåterställning) hanteras
 // av SUPABASE auth. sendEmail() här används för interna utskick (t.ex.
@@ -63,8 +63,8 @@ const gmailTransporter =
 // ── Default From-adress ────────────────────────────────────────────────────────
 function defaultFrom(): string {
   if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
-  if (GMAIL_USER) return `Delívera <${GMAIL_USER}>`;
-  return 'Delívera <noreply@delivera.se>';
+  if (GMAIL_USER) return `ViaEats <${GMAIL_USER}>`;
+  return 'ViaEats <noreply@viaeats.se>';
 }
 
 // Avsändaren routas från admin (Plattform-inställningar): företagsnamn som
@@ -83,7 +83,7 @@ async function resolveDefaultFrom(): Promise<string> {
       where: { id: 'settings' },
       select: { companyName: true, noReplyEmail: true },
     });
-    const name = (s?.companyName || 'Delívera').trim();
+    const name = (s?.companyName || 'ViaEats').trim();
     const base = parseFromAddress(defaultFrom()).email;
     const email = (s?.noReplyEmail || base).trim();
     if (email) value = `${name} <${email}>`;
@@ -139,7 +139,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
 }
 
 // ----------------------------------------------------------------------------
-// HTML-mall för FoodGo-mejl.
+// HTML-mall för ViaEats-mejl.
 // Gold-accent (#E7B24B) mot mörk panel (#0b0a0f) med ljusare innehållscontainer
 // så CTA-knappen sticker ut. Inline-styles för bred klient-kompatibilitet
 // (Gmail strippar <style>-block i många sammanhang).
@@ -201,7 +201,7 @@ export function renderBrandedEmail(opts: EmailTemplateOptions): string {
             <!-- Header bar -->
             <tr>
               <td align="center" style="padding: 28px 24px 8px; background: ${dark};">
-                <div style="font-size: 22px; font-weight: 900; letter-spacing: 4px; color: ${gold};">FOODGO</div>
+                <div style="font-size: 22px; font-weight: 900; letter-spacing: 4px; color: ${gold};">VIAEATS</div>
               </td>
             </tr>
             <!-- Gold accent line -->
@@ -228,7 +228,7 @@ export function renderBrandedEmail(opts: EmailTemplateOptions): string {
             <!-- Footer -->
             <tr>
               <td style="padding: 20px 24px; background: ${dark}; text-align: center;">
-                <p style="margin: 0; font-size: 11px; line-height: 16px; color: ${muted};">© FoodGo · <a href="https://matgo.se" style="color: ${muted}; text-decoration: none;">matgo.se</a></p>
+                <p style="margin: 0; font-size: 11px; line-height: 16px; color: ${muted};">© ViaEats · <a href="https://viaeats.se" style="color: ${muted}; text-decoration: none;">viaeats.se</a></p>
               </td>
             </tr>
           </table>

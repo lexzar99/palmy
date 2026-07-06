@@ -27,7 +27,7 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
           className="text-4xl md:text-6xl font-black tracking-tight mb-6 leading-tight"
           style={{ color: "var(--text-primary)" }}
         >
-          Din data hos <span className="text-gold-500">Delívera</span>
+          Din data hos <span className="text-gold-500">ViaEats</span>
         </h1>
         <p className="text-lg leading-relaxed max-w-2xl" style={{ color: "var(--text-secondary)" }}>
           {company.name} är personuppgiftsansvarig för dina uppgifter. Vi följer
@@ -75,7 +75,7 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Konto:</strong> namn, e-post, telefonnummer, krypterat lösenord.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Beställningar:</strong> orderhistorik, leveransadresser, valda restauranger och rätter.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Betalning:</strong> hanteras av Mollie. Vi lagrar aldrig kortnummer eller CVC.</span></li>
-              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Dpoints:</strong> intjänade och inlösta poäng kopplade till ditt konto.</span></li>
+              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Vpoints:</strong> intjänade och inlösta poäng kopplade till ditt konto.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Teknisk data:</strong> IP-adress, enhetstyp, push-token för orderstatus-notiser.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Analys (frivillig):</strong> felrapporter via Sentry, endast om du accepterar i cookie-bannern.</span></li>
             </ul>
@@ -96,7 +96,7 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
             </ul>
             <p className="mt-4 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
               Vi delar uppgifter med restaurangen som tar emot din beställning, med det bud som
-              levererar (eget bud från Delívera eller restaurangens egen leverans), vår
+              levererar (eget bud från ViaEats eller restaurangens egen leverans), vår
               betaltjänstleverantör (Mollie B.V.), e-postleverantör (Resend) och push-tjänst (APNs).
               Dessa är personuppgiftsbiträden som bara behandlar uppgifterna för att fullgöra din
               order. Vi säljer <strong>aldrig</strong> data vidare till tredje part.

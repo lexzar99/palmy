@@ -26,7 +26,7 @@ async function main() {
   // --------------------------------------------------------------------------
   const palmyra = await prisma.restaurant.create({
     data: {
-      name: 'MatGo',
+      name: 'ViaEats',
       slug: 'palmyra',
       description: 'Lunds mest älskade restaurang med generösa portioner och fantastisk mat.',
       cuisine: 'Pizza & Kebab',
