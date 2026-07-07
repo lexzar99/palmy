@@ -38,10 +38,15 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Mobile Apps (Isolated)
-# mobile_apps/
-mobile_apps/Delivera Swift iOS/
-mobile_apps/ViaEats Swift iOS/
+# Mobil- och kurir-appar spåras inte i GitHub — bara backend, web och admin.
+mobile_apps/
+apps/courier/
+
+# Hjälp-skript för mobil/react-byggen (körs lokalt, hör inte hemma i repot)
+flutter.sh
+flutter_web.sh
+react.sh
+logs.zip
 
 # Lokala arkiv/arbetsmappar — committas inte (stora binärer, historik finns i git)
 _archive/
@@ -69,9 +74,6 @@ builds/
 **/firebase-adminsdk-*.json
 **/google-services.json
 **/GoogleService-Info.plist
-# Already-tracked Flutter Firebase iOS client config (safe to commit, protected by Firebase Rules + bundle ID)
-!mobile_apps/restaurant_mobile/ios/GoogleService-Info.plist
-!mobile_apps/restaurant_mobile/ios/Runner/GoogleService-Info.plist
 
 # Claude Code internals
 .claude/worktrees/
