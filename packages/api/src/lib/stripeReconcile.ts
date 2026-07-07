@@ -199,7 +199,7 @@ export async function reconcilePendingPayments(): Promise<void> {
   const pending = await prisma.order.findMany({
     where: {
       status: 'AWAITING_PAYMENT',
-      stripePaymentIntentId: { not: null },
+      stripePaymentIntentId: { startsWith: 'pi_' },
       createdAt: { lt: minAge, gt: maxAge },
     },
     select: { id: true, stripePaymentIntentId: true, orderNumber: true },

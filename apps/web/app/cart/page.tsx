@@ -31,12 +31,13 @@ import {
   AlertCircle,
   Check,
   ChevronDown,
+  Smartphone,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/components/LiveOrderBanner";
-// Betalning sker via Mollie hosted checkout (provider-neutralt backend-lager).
+// Betalning sker via provider-neutralt hosted checkout-flöde.
 import ProductModal from "@/components/ProductModal";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
@@ -919,6 +920,33 @@ export default function CartPage() {
   // en momssats satt (vilket den alltid har i prod via restaurang-API:t).
   const vatPercent = restaurantSettings.vatPercent;
   const vatAmount = typeof vatPercent === "number" ? total * vatPercent / (100 + vatPercent) : 0;
+  const paymentPills = [
+    { label: "Apple Pay", Icon: Lock },
+    { label: "Klarna", Icon: ShieldCheck },
+    { label: "Swish", Icon: Smartphone },
+    { label: "Kort", Icon: CreditCard },
+  ];
+  const renderPaymentRail = () => (
+    <div
+      className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+      aria-label="Tillgängliga betalsätt"
+    >
+      {paymentPills.map(({ label, Icon }) => (
+        <div
+          key={label}
+          className="h-10 min-w-0 rounded-xl px-2.5 flex items-center justify-center gap-2"
+          style={{
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border-muted)",
+            color: "var(--text-primary)",
+          }}
+        >
+          <Icon size={15} style={{ color: "var(--gold-ink)" }} />
+          <span className="min-w-0 truncate text-[12px] font-semibold">{label}</span>
+        </div>
+      ))}
+    </div>
+  );
 
   const fetchContext = useCallback(async () => {
     try {
@@ -1397,7 +1425,7 @@ export default function CartPage() {
     const returnOrderId = params.get("payment_return");
     if (!returnOrderId) return;
 
-    // Mollie redirectade tillbaka hit efter kassan. Vi pollar orderns
+    // Betalprovidern redirectade tillbaka hit efter kassan. Vi pollar orderns
     // betalstatus (webhooken är sanningskällan). Redirect är inte bevis på
     // betalning, så vi litar bara på PAID/FAILED från servern.
     paymentInFlightRef.current = false;
@@ -1405,7 +1433,7 @@ export default function CartPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Efter att Mollie-betalningen slutförts (redirect-retur + poll). Redirect är
+  // Efter att betalningen slutförts (redirect-retur + poll). Redirect är
   // inte bevis på betalning, order-tracking-sidan pollar backend och visar rätt
   // status när webhooken finaliserat. Token+phone som auth-bevis så gäster
   // kommer åt ordern. Phone faller tillbaka på localStorage efter redirecten,
@@ -1446,7 +1474,7 @@ export default function CartPage() {
     router.replace(url);
   };
 
-  // Pollar orderns betalstatus efter Mollie-returen. Webhooken flippar ordern
+  // Pollar orderns betalstatus efter provider-returen. Webhooken flippar ordern
   // till PAID, så vi ger den några sekunder. PAID → order-tracking. Terminalt
   // fel → visa retry och behåll varukorgen. Timeout (webhook fördröjd) → routa
   // till tracking ändå, den sidan fortsätter polla.
@@ -1864,7 +1892,7 @@ export default function CartPage() {
       localStorage.setItem("pending_order_phone", (formData.customerPhone || "").trim());
       setPendingOrderId(orderId);
 
-      // Step 2: Skapa Mollie hosted checkout och skicka kunden dit. Mollie
+      // Step 2: Skapa hosted checkout och skicka kunden dit. Providern
       // redirectar tillbaka till returnUrl (?payment_return=orderId) efter
       // betalningen, där vi pollar orderstatus. Webhooken finaliserar ordern,
       // klienten flippar aldrig status själv. paymentInFlight hindrar pagehide
@@ -2527,6 +2555,8 @@ export default function CartPage() {
 
                 {error && <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">{error}</div>}
 
+                {renderPaymentRail()}
+
                 {/* Checkout button */}
                 <button
                   onClick={startCheckout}
@@ -2913,6 +2943,9 @@ export default function CartPage() {
                           className="sticky z-[90] mt-8"
                           style={{ bottom: "max(calc(env(safe-area-inset-bottom, 0px) + 64px), 86px)" }}
                        >
+                       <div className="mb-2 rounded-2xl p-2" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                         {renderPaymentRail()}
+                       </div>
                        <button
                           onClick={startCheckout}
                           disabled={

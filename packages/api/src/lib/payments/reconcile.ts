@@ -45,7 +45,7 @@ export async function reconcilePendingPayments(): Promise<void> {
       if (status.state === 'paid') {
         await finalizePaymentSuccess(order.id, {
           provider: provider.name,
-          ref,
+          ref: status.paymentIntentId || ref,
           amountReceivedOre: status.amountReceivedOre ?? 0,
         });
       } else if (status.state === 'failed' || status.state === 'canceled' || status.state === 'expired') {

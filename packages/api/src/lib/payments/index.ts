@@ -5,6 +5,7 @@
 import type { PaymentProvider } from './types';
 import { mollieProvider } from './mollie';
 import { adyenProvider } from './adyen';
+import { stripeProvider } from './stripe';
 
 export type { PaymentProvider } from './types';
 export type { OrderForPayment } from './types';
@@ -16,7 +17,8 @@ export function getPaymentProvider(): PaymentProvider {
       return mollieProvider;
     case 'adyen':
       return adyenProvider; // ligger kvar för jämförelse/återgång, ej aktiv vid lansering
-    // case 'stripe': return stripeProvider; // gammal Stripe-kod ligger kvar (RN), provider-stub ej byggd
+    case 'stripe':
+      return stripeProvider;
     default:
       console.warn(`[payments] okänd PAYMENT_PROVIDER "${name}" — faller tillbaka på mollie`);
       return mollieProvider;

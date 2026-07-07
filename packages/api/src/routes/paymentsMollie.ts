@@ -1,8 +1,8 @@
 /**
- * Provider-neutralt betal-API (aktiv provider = Mollie via env).
+ * Provider-neutralt betal-API (aktiv provider via env).
  *
  *   POST /api/payments/create           skapa betalning → { checkoutUrl, paymentRef }
- *   POST /api/payments/webhooks/mollie  Mollie async-notis → finalisera (sanningskälla)
+ *   POST /api/payments/webhooks/:provider async-notis → finalisera (sanningskälla)
  *   GET  /api/payments/return           app/webb-retur efter hosted checkout
  *   GET  /api/payments/status/:orderId  klient-polling efter redirect-retur
  *   POST /api/payments/refund           admin-refund
@@ -19,6 +19,10 @@ import { authenticateUserOptional } from './auth';
 import { getPaymentProvider, type OrderForPayment } from '../lib/payments';
 import { finalizePaymentSuccess, finalizePaymentFailed } from '../lib/payments/finalize';
 import { verifyAdyenHmac, getAdyenSessionResult } from '../lib/payments/adyen';
+import {
+  constructStripeWebhookEvent,
+  retrieveStripeCheckoutStatus,
+} from '../lib/payments/stripe';
 
 const router = Router();
 
@@ -30,10 +34,12 @@ const createLimiter = rateLimit({
   message: { error: 'För många betalningsförsök. Vänta en stund och försök igen.' },
 });
 
-/** Publik https-webhook-URL, eller undefined i lokal dev (Mollie når ej localhost). */
-function publicWebhookUrl(): string | undefined {
+/** Publik https-webhook-URL, eller undefined i lokal dev (PSP:n når ej localhost). */
+function publicWebhookUrl(providerName: string): string | undefined {
   const base = process.env.API_PUBLIC_URL;
   if (!base || !/^https:\/\//i.test(base) || /localhost|127\.0\.0\.1/.test(base)) return undefined;
+  if (providerName === 'stripe') return `${base.replace(/\/$/, '')}/api/payments/webhooks/stripe`;
+  if (providerName === 'adyen') return `${base.replace(/\/$/, '')}/api/payments/webhooks/adyen`;
   return `${base.replace(/\/$/, '')}/api/payments/webhooks/mollie`;
 }
 
@@ -55,6 +61,18 @@ function toOrderForPayment(order: any): OrderForPayment {
     items: (order.items || []).map((i: any) => ({ productName: i.productName, quantity: i.quantity, subtotal: i.subtotal })),
     restaurantName: order.restaurant?.name ?? null,
   };
+}
+
+function paymentRefForOrder(order: {
+  paymentProvider: string | null;
+  molliePaymentId: string | null;
+  stripePaymentIntentId: string | null;
+  adyenSessionId: string | null;
+}) {
+  if (order.paymentProvider === 'mollie') return order.molliePaymentId;
+  if (order.paymentProvider === 'stripe') return order.stripePaymentIntentId;
+  if (order.paymentProvider === 'adyen') return order.adyenSessionId;
+  return null;
 }
 
 // POST /api/payments/create
@@ -99,7 +117,7 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     const result = await provider.createPayment({
       order: toOrderForPayment(order),
       returnUrl,
-      webhookUrl: publicWebhookUrl(),
+      webhookUrl: publicWebhookUrl(provider.name),
       channel: adyenChannel,
       storePaymentMethod: !!storePaymentMethod,
     });
@@ -110,6 +128,8 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
         ? { adyenSessionId: result.paymentRef }
         : provider.name === 'mollie'
           ? { molliePaymentId: result.paymentRef }
+          : provider.name === 'stripe'
+            ? { stripePaymentIntentId: result.paymentRef }
           : {};
     await prisma.order.update({
       where: { id: order.id },
@@ -119,7 +139,7 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     res.json({
       provider: provider.name,
       paymentRef: result.paymentRef,
-      checkoutUrl: result.checkoutUrl, // Mollie: redirect-URL
+      checkoutUrl: result.checkoutUrl, // Hosted providers: redirect-URL
       session: result.session, // Adyen: { id, sessionData } för Drop-in
       total: order.total / 100,
       discountAmount: (order.discountAmount ?? 0) / 100,
@@ -131,6 +151,77 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     // direkt i klienten (t.ex. "ADYEN_API_KEY saknas", "Invalid Merchant Account").
     res.status(500).json({ error: 'Kunde inte initiera betalning', details: msg });
   }
+});
+
+// POST /api/payments/webhooks/stripe — Stripe Checkout/PaymentIntent events.
+router.post('/webhooks/stripe', async (req, res) => {
+  let event;
+  try {
+    event = constructStripeWebhookEvent(req.body, req.headers['stripe-signature'] as string | undefined);
+  } catch (err: any) {
+    console.error('[stripe webhook] signature/config error:', err?.message || err);
+    res.status(400).json({ error: 'Stripe webhook verification failed' });
+    return;
+  }
+
+  try {
+    if (
+      event.type === 'checkout.session.completed' ||
+      event.type === 'checkout.session.async_payment_succeeded'
+    ) {
+      const session = event.data.object as any;
+      const orderId = session.metadata?.orderId || session.client_reference_id;
+      if (orderId && session.id) {
+        const remote = await retrieveStripeCheckoutStatus(session.id);
+        if (remote.state === 'paid') {
+          await finalizePaymentSuccess(orderId, {
+            provider: 'stripe',
+            ref: remote.paymentIntentId || session.id,
+            amountReceivedOre: remote.amountReceivedOre ?? 0,
+          });
+        }
+      }
+    } else if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') {
+      const session = event.data.object as any;
+      const orderId = session.metadata?.orderId || session.client_reference_id;
+      if (orderId) {
+        await finalizePaymentFailed(orderId, { provider: 'stripe', ref: session.id, reason: event.type });
+      }
+    } else if (event.type === 'payment_intent.succeeded') {
+      const intent = event.data.object as any;
+      const orderId = intent.metadata?.orderId;
+      if (orderId) {
+        await finalizePaymentSuccess(orderId, {
+          provider: 'stripe',
+          ref: intent.id,
+          amountReceivedOre: intent.amount_received ?? intent.amount ?? 0,
+        });
+      }
+    } else if (event.type === 'payment_intent.payment_failed' || event.type === 'payment_intent.canceled') {
+      const intent = event.data.object as any;
+      const orderId = intent.metadata?.orderId;
+      if (orderId) {
+        await finalizePaymentFailed(orderId, { provider: 'stripe', ref: intent.id, reason: event.type });
+      }
+    } else if (event.type === 'charge.refunded') {
+      const charge = event.data.object as any;
+      const intentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+      if (intentId) {
+        await prisma.order.updateMany({
+          where: { stripePaymentIntentId: intentId },
+          data: {
+            paymentStatus: 'REFUNDED',
+            refundAmount: charge.amount_refunded ?? undefined,
+            refundedAt: new Date(),
+          },
+        });
+      }
+    }
+  } catch (err: any) {
+    console.error('[stripe webhook] handler error:', err?.message || err);
+  }
+
+  res.status(200).json({ received: true });
 });
 
 // POST /api/payments/adyen/verify — server-verifiera Drop-in-resultatet direkt
@@ -338,10 +429,54 @@ router.post('/webhooks/adyen', async (req, res) => {
 
 // GET /api/payments/status/:orderId — klient pollar efter redirect.
 router.get('/status/:orderId', async (req, res) => {
-  const order = await prisma.order.findUnique({
+  let order = await prisma.order.findUnique({
     where: { id: req.params.orderId },
-    select: { status: true, paymentStatus: true },
+    select: {
+      id: true,
+      status: true,
+      paymentStatus: true,
+      paymentProvider: true,
+      molliePaymentId: true,
+      stripePaymentIntentId: true,
+      adyenSessionId: true,
+    },
   });
+  if (!order) {
+    res.status(404).json({ error: 'Order hittades inte' });
+    return;
+  }
+
+  const provider = getPaymentProvider();
+  const ref = paymentRefForOrder(order);
+  if (order.paymentStatus !== 'PAID' && order.paymentProvider === provider.name && ref) {
+    try {
+      const remote = await provider.getRemoteStatus(ref);
+      if (remote.state === 'paid') {
+        await finalizePaymentSuccess(order.id, {
+          provider: provider.name,
+          ref: remote.paymentIntentId || ref,
+          amountReceivedOre: remote.amountReceivedOre ?? 0,
+        });
+      } else if (remote.state === 'failed' || remote.state === 'canceled' || remote.state === 'expired') {
+        await finalizePaymentFailed(order.id, { provider: provider.name, ref, reason: remote.state });
+      }
+      order = await prisma.order.findUnique({
+        where: { id: req.params.orderId },
+        select: {
+          id: true,
+          status: true,
+          paymentStatus: true,
+          paymentProvider: true,
+          molliePaymentId: true,
+          stripePaymentIntentId: true,
+          adyenSessionId: true,
+        },
+      });
+    } catch (err: any) {
+      console.error('[payments/status] remote status error:', err?.message || err);
+    }
+  }
+
   if (!order) {
     res.status(404).json({ error: 'Order hittades inte' });
     return;
@@ -359,10 +494,15 @@ router.post('/refund', authenticate, requireSuperAdmin, async (req, res) => {
     }
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, molliePaymentId: true, adyenPspReference: true, total: true },
+      select: { id: true, molliePaymentId: true, stripePaymentIntentId: true, adyenPspReference: true, total: true },
     });
     const provider = getPaymentProvider();
-    const ref = provider.name === 'adyen' ? order?.adyenPspReference : order?.molliePaymentId;
+    const ref =
+      provider.name === 'adyen'
+        ? order?.adyenPspReference
+        : provider.name === 'stripe'
+          ? order?.stripePaymentIntentId
+          : order?.molliePaymentId;
     if (!order || !ref) {
       res.status(404).json({ error: 'Order eller betalning hittades inte' });
       return;

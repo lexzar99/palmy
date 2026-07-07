@@ -56,6 +56,8 @@ export interface RemotePaymentStatus {
   state: RemotePaymentState;
   /** Vad PSP:n faktiskt drog, i öre (när betalt). */
   amountReceivedOre?: number;
+  /** Stripe Checkout skapas som cs_ men finaliseras/refundas mot pi_. */
+  paymentIntentId?: string;
 }
 
 export interface PaymentProvider {
