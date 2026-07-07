@@ -11,11 +11,9 @@ import {
   ShoppingBag,
   Store,
   Truck,
-  Lock,
   Trash2,
   Plus,
   Minus,
-  ShieldCheck,
   Tag,
   X,
   CreditCard,
@@ -31,7 +29,6 @@ import {
   AlertCircle,
   Check,
   ChevronDown,
-  Smartphone,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
@@ -920,34 +917,6 @@ export default function CartPage() {
   // en momssats satt (vilket den alltid har i prod via restaurang-API:t).
   const vatPercent = restaurantSettings.vatPercent;
   const vatAmount = typeof vatPercent === "number" ? total * vatPercent / (100 + vatPercent) : 0;
-  const paymentPills = [
-    { label: "Apple Pay", Icon: Lock },
-    { label: "Klarna", Icon: ShieldCheck },
-    { label: "Swish", Icon: Smartphone },
-    { label: "Kort", Icon: CreditCard },
-  ];
-  const renderPaymentRail = () => (
-    <div
-      className="grid grid-cols-2 sm:grid-cols-4 gap-2"
-      aria-label="Tillgängliga betalsätt"
-    >
-      {paymentPills.map(({ label, Icon }) => (
-        <div
-          key={label}
-          className="h-10 min-w-0 rounded-xl px-2.5 flex items-center justify-center gap-2"
-          style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border-muted)",
-            color: "var(--text-primary)",
-          }}
-        >
-          <Icon size={15} style={{ color: "var(--gold-ink)" }} />
-          <span className="min-w-0 truncate text-[12px] font-semibold">{label}</span>
-        </div>
-      ))}
-    </div>
-  );
-
   const fetchContext = useCallback(async () => {
     try {
       const [settingsRes, dealsRes, userRes, pDealsRes, restaurantRes, accountDealsRes] = await Promise.all([
@@ -2577,8 +2546,6 @@ export default function CartPage() {
 
                 {error && <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">{error}</div>}
 
-                {renderPaymentRail()}
-
                 {/* Checkout button */}
                 <button
                   onClick={startCheckout}
@@ -2965,9 +2932,6 @@ export default function CartPage() {
                           className="sticky z-[90] mt-8"
                           style={{ bottom: "max(calc(env(safe-area-inset-bottom, 0px) + 64px), 86px)" }}
                        >
-                       <div className="mb-2 rounded-2xl p-2" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                         {renderPaymentRail()}
-                       </div>
                        <button
                           onClick={startCheckout}
                           disabled={
