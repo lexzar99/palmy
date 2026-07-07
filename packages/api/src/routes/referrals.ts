@@ -28,6 +28,7 @@ import prisma from '../lib/prisma';
 import { authenticateUser } from './auth';
 import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
 import { audit } from '../lib/auditLog';
+import { isAppClient } from '../lib/clientPlatform';
 
 const router = Router();
 
@@ -526,6 +527,17 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
     if (!inviter) {
       noteFailedRedeem(ip);
       return res.status(404).json({ error: 'Kod hittades inte' });
+    }
+
+    // Invite-koder är APP-ONLY (driver app-nedladdningar). Koden är giltig men
+    // får bara lösas in i mobilappen — webben (och okända klienter) får en
+    // nudge istället. Grinden ligger EFTER inviter-lookupen så att ogiltiga
+    // koder fortfarande ger "Kod hittades inte", inte en app-uppmaning.
+    if (!isAppClient(req)) {
+      return res.status(403).json({
+        error: 'Den här vänkoden löser du in i appen',
+        appOnly: true,
+      });
     }
     const flags = computeFraudFlags({
       inviter,

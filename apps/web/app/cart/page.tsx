@@ -1033,7 +1033,10 @@ export default function CartPage() {
   // Returnerar true om koden hanterades (succé ELLER eget servermeddelande)
   // så det generiska rabattkodsfelet döljs.
   const tryRedeemReferral = async (code: string): Promise<boolean> => {
-    if (!user || !code) return false;
+    // OBS: ingen !user-spärr längre. Vänkoder är app-only, så backend svarar
+    // { appOnly: true } för giltiga koder på webben — vi vill visa den nudgen
+    // även för utloggade gäster (inte det generiska "ogiltig kod"-felet).
+    if (!code) return false;
     try {
       const res = await axios.post(`/api/platform/account/redeem-code`, {
         code,
@@ -1054,7 +1057,19 @@ export default function CartPage() {
       void fetchContext();
       return true;
     } catch (err: any) {
-      const msg: string | undefined = err?.response?.data?.error;
+      const data = err?.response?.data;
+      const msg: string | undefined = data?.error;
+      // Vänkoder är APP-ONLY (driver app-nedladdningar). Backend svarar
+      // { appOnly: true } för en giltig kod på webben → visa en tydlig nudge
+      // om att lösa in den i appen istället för det generiska rabattkodsfelet.
+      if (data?.appOnly) {
+        setError(null);
+        setReferralMessage({
+          ok: false,
+          text: msg || "Den här vänkoden löser du in i appen. Ladda ner appen för att få rabatten.",
+        });
+        return true;
+      }
       // "hittades inte" = ingen vänkod heller → behåll rabattkodens generiska
       // fel. Andra servermeddelanden (t.ex. "Du har redan använt en referral-
       // kod") visas ordagrant.
