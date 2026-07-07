@@ -14,6 +14,7 @@ const nf = new Intl.NumberFormat("sv-SE");
 
 function statusText(status: string, isPickup: boolean) {
   const s = status.toUpperCase();
+  if (s === "AWAITING_PAYMENT") return "Väntar på betalning";
   if (s === "REJECTED") return "Avböjd";
   if (s === "DELIVERY_FAILED") return "Misslyckad";
   if (s === "CANCELLED") return "Avbruten";
@@ -72,9 +73,7 @@ function earnedPoints(order: any) {
     order?.dpoints?.earned;
   const parsed = Number(raw);
   if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed);
-  const total = Number(order.total ?? 0);
-  if (!Number.isFinite(total) || total <= 0) return 0;
-  return Math.max(1, Math.round(total));
+  return 0;
 }
 
 function DpointsDiamond({ size = 28, color = "#F0531C" }: { size?: number; color?: string }) {
@@ -205,9 +204,15 @@ export function OrderTrackingCard({
           <div className="flex h-full items-center justify-between gap-3 px-4">
             <div>
               <p className="text-[11px] font-bold" style={{ color: accentInk }}>{modeLabel}</p>
-              <p className="mt-1 text-[18px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
-                +{nf.format(earnedPoints(order))} Vpoints
-              </p>
+              {earnedPoints(order) > 0 ? (
+                <p className="mt-1 text-[18px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
+                  +{nf.format(earnedPoints(order))} Vpoints
+                </p>
+              ) : (
+                <p className="mt-1 text-[18px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
+                  {status === "AWAITING_PAYMENT" ? "Betalning krävs" : "Order pågår"}
+                </p>
+              )}
             </div>
             <DpointsDiamond size={28} color={accent} />
           </div>

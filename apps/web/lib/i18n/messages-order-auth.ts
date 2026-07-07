@@ -4,8 +4,8 @@
 export const orderAuthPending = {
   sv: {
     // ── Order status (STATUS_CONFIG label + desc) ─────────────────────────
-    "order.status.AWAITING_PAYMENT.label": "Skickar din order…",
-    "order.status.AWAITING_PAYMENT.desc": "Vi skickar din beställning till restaurangen. Det tar bara ett ögonblick.",
+    "order.status.AWAITING_PAYMENT.label": "Väntar på betalning",
+    "order.status.AWAITING_PAYMENT.desc": "Ordern skickas inte till restaurangen förrän betalningen är bekräftad.",
     "order.status.PENDING.label": "Granskas",
     "order.status.PENDING.desc": "Vi har tagit emot din beställning. Väntar på att köket ska bekräfta.",
     "order.status.ACCEPTED.label": "Bekräftad",
@@ -98,7 +98,7 @@ export const orderAuthPending = {
 
     // ── Orders list status labels (separate from STATUS_CONFIG) ───────────
     "orders.status.PENDING": "Granskas",
-    "orders.status.AWAITING_PAYMENT": "Skickar order",
+    "orders.status.AWAITING_PAYMENT": "Väntar på betalning",
     "orders.status.ACCEPTED": "Bekräftad",
     "orders.status.PREPARING": "Tillagas",
     "orders.status.READY": "Klar för upphämtning",
@@ -300,8 +300,8 @@ export const orderAuthPending = {
   },
   en: {
     // ── Order status (STATUS_CONFIG label + desc) ─────────────────────────
-    "order.status.AWAITING_PAYMENT.label": "Sending your order…",
-    "order.status.AWAITING_PAYMENT.desc": "We're sending your order to the restaurant. This only takes a moment.",
+    "order.status.AWAITING_PAYMENT.label": "Waiting for payment",
+    "order.status.AWAITING_PAYMENT.desc": "The order is not sent to the restaurant until payment is confirmed.",
     "order.status.PENDING.label": "Under review",
     "order.status.PENDING.desc": "We've received your order. Waiting for the kitchen to confirm.",
     "order.status.ACCEPTED.label": "Confirmed",
@@ -394,7 +394,7 @@ export const orderAuthPending = {
 
     // ── Orders list status labels ─────────────────────────────────────────
     "orders.status.PENDING": "Under review",
-    "orders.status.AWAITING_PAYMENT": "Sending order",
+    "orders.status.AWAITING_PAYMENT": "Waiting for payment",
     "orders.status.ACCEPTED": "Confirmed",
     "orders.status.PREPARING": "Cooking",
     "orders.status.READY": "Ready for pickup",

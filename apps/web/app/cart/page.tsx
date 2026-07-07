@@ -1406,30 +1406,29 @@ export default function CartPage() {
     return () => clearTimeout(timer);
   }, [bogoLostNotice]);
 
-  // Stripe redirect recovery: när kunden återvänder från Klarna BankID /
-  // Swish / 3DS. Stripe lägger på `payment_intent`, `payment_intent_client_secret`
-  // och `redirect_status` på return_url:en. Vi sätter dessutom själva
-  // `payment_success=true` (se StripeCheckout.tsx) som en extra fallback-flagga
-  // om någon proxy strippar Stripe-paramen.
-  //
-  // Tidigare hanterade vi bara redirect_status `succeeded`/`failed`. Klarna
-  // returnerar dock ofta `processing` (webhook bekräftar asynkront) och
-  // `requires_payment_method` när kunden avbryter — båda hamnade i ett dött
-  // läge där kunden blev kvar på kassan utan feedback. Vi fixar det nu genom
-  // att routa till order-tracking även för `processing` (orderns pendingPayment
-  // är då fortfarande true men /order/{id} pollar och flippar när webhook
-  // hinner fram) och visa retry-error för failed/requires_payment_method.
+  // Hosted checkout redirect recovery. Redirect till /cart är INTE bevis på
+  // betalning: Stripe/Mollie kan returnera hit vid cancel, misslyckad betalning
+  // eller när async-verifieringen fortfarande pågår. Bara serverstatus PAID får
+  // tömma carten och gå till tracking.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const returnOrderId = params.get("payment_return");
     if (!returnOrderId) return;
 
+    const cancelled =
+      params.get("payment_cancelled") === "1" ||
+      ["failed", "canceled", "cancelled", "requires_payment_method"].includes(String(params.get("redirect_status") || "").toLowerCase());
+
     // Betalprovidern redirectade tillbaka hit efter kassan. Vi pollar orderns
     // betalstatus (webhooken är sanningskällan). Redirect är inte bevis på
     // betalning, så vi litar bara på PAID/FAILED från servern.
     paymentInFlightRef.current = false;
-    void finishMolliePayment(returnOrderId);
+    if (cancelled) {
+      void handlePaymentCancelled(returnOrderId);
+      return;
+    }
+    void finishHostedPayment(returnOrderId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1474,28 +1473,51 @@ export default function CartPage() {
     router.replace(url);
   };
 
-  // Pollar orderns betalstatus efter provider-returen. Webhooken flippar ordern
-  // till PAID, så vi ger den några sekunder. PAID → order-tracking. Terminalt
-  // fel → visa retry och behåll varukorgen. Timeout (webhook fördröjd) → routa
-  // till tracking ändå, den sidan fortsätter polla.
-  const finishMolliePayment = async (orderId: string) => {
+  const clearPendingPaymentStorage = () => {
+    try {
+      localStorage.removeItem("pending_order_id");
+      localStorage.removeItem("pending_order_token");
+      localStorage.removeItem("pending_order_phone");
+    } catch {
+      /* noop */
+    }
+  };
+
+  const clearCartReturnParams = () => {
+    try { window.history.replaceState({}, "", "/cart"); } catch { /* noop */ }
+  };
+
+  const handlePaymentCancelled = async (orderId: string) => {
+    setVerifyingPayment(false);
+    paymentInFlightRef.current = false;
+    clearCartReturnParams();
+    await abandonPendingOrder(orderId);
+    clearPendingPaymentStorage();
+    setPendingOrderId(null);
+    setError("Betalningen avbröts. Din varukorg är kvar, så du kan försöka igen direkt.");
+  };
+
+  // Pollar orderns betalstatus efter provider-returen. PAID → tracking.
+  // Terminalt fel/cancel → abandon + behåll varukorg. Timeout/pending → behåll
+  // cart och låt kunden försöka igen; skicka ALDRIG obetald order till tracking.
+  const finishHostedPayment = async (orderId: string) => {
     setVerifyingPayment(true);
-    const clearReturnParam = () => {
-      try { window.history.replaceState({}, "", "/cart"); } catch { /* noop */ }
-    };
     for (let attempt = 0; attempt < 8; attempt++) {
       try {
         const res = await axios.get(`${API_URL}/api/payments/status/${orderId}`);
         const ps = String(res.data?.paymentStatus || "").toUpperCase();
         if (ps === "PAID") {
-          clearReturnParam();
+          clearCartReturnParams();
           goToOrderTracking(orderId);
           return;
         }
-        if (["FAILED", "EXPIRED", "CANCELED", "CANCELLED"].includes(ps)) {
+        if (["FAILED", "EXPIRED", "CANCELED", "CANCELLED", "REQUIRES_PAYMENT_METHOD"].includes(ps)) {
           setVerifyingPayment(false);
-          clearReturnParam();
-          setError("Betalningen genomfördes inte. Försök igen eller välj ett annat betalsätt.");
+          clearCartReturnParams();
+          await abandonPendingOrder(orderId);
+          clearPendingPaymentStorage();
+          setPendingOrderId(null);
+          setError("Betalningen genomfördes inte. Din varukorg är kvar, försök igen eller välj ett annat betalsätt.");
           return;
         }
       } catch {
@@ -1503,9 +1525,9 @@ export default function CartPage() {
       }
       await new Promise((r) => setTimeout(r, 2000));
     }
-    // Webhooken kan vara fördröjd. Routa till tracking som fortsätter polla.
-    clearReturnParam();
-    goToOrderTracking(orderId);
+    setVerifyingPayment(false);
+    clearCartReturnParams();
+    setError("Vi väntar fortfarande på betalningsbekräftelsen. Din varukorg är kvar. Om betalningen gick igenom uppdateras ordern automatiskt, annars kan du försöka igen om en stund.");
   };
 
   const buildOrderPayload = (paymentIntentId?: string) => {

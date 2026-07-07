@@ -802,8 +802,7 @@ const OrderStatusPage = () => {
       order.dpoints?.earned;
     const parsed = Number(raw);
     if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed);
-    const total = Number(order.subtotal ?? order.total ?? order.totalAmount ?? 0);
-    return Number.isFinite(total) && total > 0 ? Math.max(1, Math.round(total)) : 0;
+    return 0;
   })();
   const sheetDragOffsetFromDelta = (delta: number, expanded: boolean) => {
     return expanded
@@ -1027,7 +1026,7 @@ const OrderStatusPage = () => {
         {isRejected || awaitingAccept || isCompleted || order.scheduledFor ? etaMain : `ca ${etaMain}`}
       </p>
       <p className="mx-auto mt-2 max-w-sm text-[13.5px] font-medium leading-5" style={{ color: "var(--text-secondary)" }}>{statusDescription}</p>
-      {!isRejected ? (
+      {!isRejected && orderEarnedPoints > 0 ? (
         <>
           <div className="mt-4">
             <p className="text-[30px] font-black tabular-nums" style={{ color: statusAccent }}>+{orderEarnedPoints} Vpoints</p>
