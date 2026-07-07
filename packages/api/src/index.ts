@@ -529,8 +529,8 @@ const PORT = Number(process.env.PORT || 4000);
     // närmar sig en gräns (var 30:e min, throttlat). Proaktiva notifikationer.
     void import('./lib/capacityMonitor').then(({ startCapacityMonitor }) => startCapacityMonitor());
 
-    // Falken-notifiern — server-side ordervakt (Telegram + valfri webhook),
-    // dygnet runt. Inaktiv tills FALKEN_*-env-vars sätts i Railway.
+    // Falken-notifiern — server-side ordervakt till Hermes/WhatsApp via
+    // API-outbox, webhook eller direct bridge.
     void import('./lib/falkenNotifier').then(({ startFalkenNotifier }) => startFalkenNotifier());
 
     // P1 — pre-warm the menu cache for every restaurant on boot so the

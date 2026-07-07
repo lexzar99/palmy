@@ -27,7 +27,7 @@ const cfg = () => ({
 
 export function isHermesAlertConfigured(): boolean {
   const { webhookUrl, directSendUrl, directChatId } = cfg();
-  return Boolean(webhookUrl || (directSendUrl && directChatId));
+  return Boolean(webhookUrl || (directSendUrl && directChatId) || process.env.HERMES_API_TOKEN);
 }
 
 async function persistHermesAlert(payload: Record<string, unknown>) {

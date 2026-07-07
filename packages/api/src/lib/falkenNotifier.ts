@@ -1,8 +1,9 @@
 // Falken-notifiern: server-side ordervakt som kör i API-processen (Railway),
 // dygnet runt, oberoende av Jalles dator. Skickar korta händelser till Hermes/
-// WhatsApp via webhook.
+// WhatsApp via API-outbox, webhook eller direct bridge.
 //
 // Aktiveras ENDAST om env-vars finns (sätts i Railway UI, aldrig i repo):
+//   HERMES_API_TOKEN            - aktiverar API-outbox/polling via /api/hermes/alerts
 //   HERMES_WHATSAPP_WEBHOOK_URL eller HERMES_ALERT_WEBHOOK_URL
 //   HERMES_WHATSAPP_WEBHOOK_SECRET eller HERMES_ALERT_WEBHOOK_SECRET
 //   FALKEN_WEBHOOK_URL / FALKEN_WEBHOOK_SECRET fungerar som legacy-alias.
