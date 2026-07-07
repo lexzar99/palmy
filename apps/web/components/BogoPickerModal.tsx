@@ -75,7 +75,7 @@ export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewar
         exit={{ y: "100%" }}
         transition={{ type: "spring", bounce: 0, duration: 0.4 }}
         className="w-full max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden relative flex flex-col max-h-[88vh]"
-        style={{ backgroundColor: "var(--bg-primary, #fff8ef)" }}
+        style={{ backgroundColor: "var(--bg-primary, #FBFBFC)" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Hero-header: lugn guld-ton, ingen emoji/versal-italic ───────────── */}

@@ -27,10 +27,10 @@
   --deal-blue-deep: #0A54D9;
   --deal-blue-ink: #083D75;
   --deal-blue-chip: #E0F2FF;
-  --bg-primary:   #FCFAF3;         /* Swift appBackground first stop */
+  --bg-primary:   #FBFBFC;         /* Ren, sval vit (inte krämig) */
   --bg-secondary: #FFFFFF;         /* Matchar React bgSecondary */
-  --bg-tertiary:  #F6F6F1;         /* Matchar React bgTertiary */
-  --bg-deep:      #F4F3EF;         /* Matchar React bgDeep */
+  --bg-tertiary:  #F4F4F6;         /* Ren neutral (inte krämig) */
+  --bg-deep:      #F1F1F3;         /* Ren neutral (inte krämig) */
   --bg-card:      #FFFFFF;
   --text-primary: #0F0F12;         /* Swift ViaEatsTheme.ink */
   --text-secondary: #6E6B66;       /* Swift ViaEatsTheme.muted */
@@ -259,7 +259,7 @@
 
 .viaeats-app-bg {
   background:
-    linear-gradient(135deg, #FCFAF3 0%, #F5FAF5 52%, #FCF5ED 100%);
+    linear-gradient(135deg, #FBFBFC 0%, #F6F7F9 52%, #FAFAFB 100%);
 }
 
 .swift-card-shadow {
