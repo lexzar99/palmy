@@ -183,6 +183,13 @@ function ProfileContent() {
   const [editEmail, setEditEmail] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Inline namn-komplettering för Apple-användare som saknar namn (Apple skickar
+  // fullName bara vid första auktoriseringen och Supabase fångar det inte alltid
+  // på webben). Vi ber om namnet direkt istället för att skicka bort användaren
+  // till appleid.apple.com för att återkalla åtkomst.
+  const [appleName, setAppleName] = useState("");
+  const [appleNameSaving, setAppleNameSaving] = useState(false);
  
   // Add phone for OAuth users (Transition to OTP)
   const [showAddPhone, setShowAddPhone] = useState(false);
@@ -702,6 +709,25 @@ function ProfileContent() {
     }
   };
 
+  const handleSaveAppleName = async () => {
+    const full = appleName.trim().replace(/\s+/g, " ");
+    if (!full) return;
+    setAppleNameSaving(true);
+    try {
+      const parts = full.split(" ");
+      const firstName = parts[0];
+      const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
+      await axios.patch(`/api/platform/profile`, { firstName, lastName, name: full });
+      setUser((prev: any) => ({ ...prev, name: full, firstName, lastName }));
+      setEditName(full);
+      setAppleName("");
+    } catch {
+      alert(t("profile.editForm.saveError"));
+    } finally {
+      setAppleNameSaving(false);
+    }
+  };
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     markLoggedOut(); // spärra auto-återinlogg från kvarvarande Supabase-session
@@ -1001,33 +1027,25 @@ function ProfileContent() {
                   >
                     {t("profile.appleNoName.intro")}
                   </p>
-                  <ol
-                    className="text-[12px] mt-2 ml-4 list-decimal space-y-1"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    <li>
-                      {t("profile.appleNoName.step1Open")}{" "}
-                      <a
-                        href="https://appleid.apple.com/account/manage"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline font-bold"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {t("profile.appleNoName.step1Link")}
-                      </a>
-                    </li>
-                    <li>
-                      {t("profile.appleNoName.step2")}
-                    </li>
-                    <li>{t("profile.appleNoName.step3")}</li>
-                  </ol>
-                  <p
-                    className="text-[11px] mt-2 italic"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    {t("profile.appleNoName.alt")}
-                  </p>
+                  <div className="flex items-center gap-2 mt-3">
+                    <input
+                      value={appleName}
+                      onChange={(e) => setAppleName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleSaveAppleName(); }}
+                      placeholder={t("profile.appleNoName.placeholder")}
+                      autoComplete="name"
+                      className="flex-1 min-w-0 rounded-xl py-2.5 px-3.5 text-[13px] font-semibold outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]"
+                      style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                    />
+                    <button
+                      onClick={handleSaveAppleName}
+                      disabled={!appleName.trim() || appleNameSaving}
+                      className="shrink-0 rounded-xl px-4 py-2.5 text-[13px] font-bold active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center"
+                      style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-secondary)" }}
+                    >
+                      {appleNameSaving ? <Loader2 size={15} className="animate-spin" /> : t("profile.appleNoName.save")}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

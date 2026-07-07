@@ -1878,7 +1878,11 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
       user = await (prisma as any).user.create({
         data: {
           email: email.toLowerCase(),
-          name: name || email.split('@')[0],
+          // Använd ALDRIG email-prefixet som namn. Apple "Dölj min e-post" ger
+          // ett slump-relä (slumphash@privaterelay.appleid.com) → prefixet blev
+          // ett "random namn". Saknas riktigt namn lämnar vi det tomt så profil-
+          // grinden ber användaren fylla i det.
+          name: (name || '').trim() || null,
           oauthProvider: provider,
           oauthId: String(providerId),
           image: image || null,
