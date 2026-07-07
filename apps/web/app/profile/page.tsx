@@ -190,6 +190,16 @@ function ProfileContent() {
   // till appleid.apple.com för att återkalla åtkomst.
   const [appleName, setAppleName] = useState("");
   const [appleNameSaving, setAppleNameSaving] = useState(false);
+
+  // Namn-komplettering (onboarding-grind). Visas när kontot saknar namn helt
+  // (t.ex. Apple, som bara ger namnet första gången och ofta inte alls på
+  // webben). Google ger för-/efternamn och telefon-signup samlar in dem i
+  // PhoneAuth → de träffar aldrig den här grinden. Efter namnet kedjas
+  // telefon-grinden (om numret saknas) automatiskt.
+  const [completeFirst, setCompleteFirst] = useState("");
+  const [completeLast, setCompleteLast] = useState("");
+  const [completeNameSaving, setCompleteNameSaving] = useState(false);
+  const [completeNameError, setCompleteNameError] = useState("");
  
   // Add phone for OAuth users (Transition to OTP)
   const [showAddPhone, setShowAddPhone] = useState(false);
@@ -728,6 +738,33 @@ function ProfileContent() {
     }
   };
 
+  const handleCompleteName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const first = completeFirst.trim().replace(/\s+/g, " ");
+    const last = completeLast.trim().replace(/\s+/g, " ");
+    if (!first || !last) {
+      setCompleteNameError(t("profile.completeName.error"));
+      return;
+    }
+    setCompleteNameSaving(true);
+    setCompleteNameError("");
+    try {
+      const full = `${first} ${last}`;
+      // Permanent koppling till kontot (backend User.firstName/lastName/name).
+      await axios.patch(`/api/platform/profile`, { firstName: first, lastName: last, name: full });
+      // Uppdatera lokalt → needsName blir false → nästa grind (telefon) eller
+      // själva profilen renderas.
+      setUser((prev: any) => ({ ...prev, firstName: first, lastName: last, name: full }));
+      setEditName(full);
+      setCompleteFirst("");
+      setCompleteLast("");
+    } catch {
+      setCompleteNameError(t("profile.editForm.saveError"));
+    } finally {
+      setCompleteNameSaving(false);
+    }
+  };
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     markLoggedOut(); // spärra auto-återinlogg från kvarvarande Supabase-session
@@ -863,6 +900,76 @@ function ProfileContent() {
               );
             })}
           </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ─── Namn-grind (t.ex. Apple utan namn) ───────────────────────────────────
+  // Visas när kontot saknar namn HELT. Google/telefon har redan namn → hoppar
+  // över. Ligger FÖRE telefon-grinden så sekvensen blir: förnamn+efternamn →
+  // nummer. Efter namnet sätts blir needsName false och telefon-grinden tar vid.
+  const needsName =
+    !user.name?.trim() && !user.firstName?.trim() && !user.lastName?.trim();
+  if (needsName) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
+        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-6">
+          {/* Tillbaka = logga ut (samma som telefon-grinden). Onboarding kan
+              inte skippas — man kommer inte in i profilen utan namn + nummer. */}
+          <button
+            type="button"
+            onClick={async () => {
+              setCompleteNameError(""); setCompleteFirst(""); setCompleteLast("");
+              markLoggedOut();
+              await clearPlatformSession().catch(() => {});
+              try { await createSupabaseBrowserClient().auth.signOut(); } catch { /* noop */ }
+              setHasPlatformSession(false); setUser(null);
+            }}
+            aria-label={t("common.back")}
+            className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--bg-deep)]"
+            style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
+          >
+            <ArrowLeft size={16} strokeWidth={2} />
+          </button>
+          <div className="text-center space-y-3">
+            <div className="w-16 h-16 bg-[var(--bg-deep)] rounded-2xl flex items-center justify-center text-[var(--text-secondary)] mx-auto"><User size={28} /></div>
+            <h2 className="text-[22px] font-bold tracking-tight">{t("profile.completeName.title")}</h2>
+            <p className="text-[color:var(--text-secondary)] text-sm leading-relaxed">
+              {t("profile.completeName.sub")}
+            </p>
+          </div>
+          <form onSubmit={handleCompleteName} className="space-y-4">
+            <input
+              required
+              autoFocus
+              type="text"
+              autoComplete="given-name"
+              value={completeFirst}
+              onChange={e => setCompleteFirst(e.target.value)}
+              placeholder={t("profile.completeName.firstPlaceholder")}
+              className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]"
+              style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+            />
+            <input
+              required
+              type="text"
+              autoComplete="family-name"
+              value={completeLast}
+              onChange={e => setCompleteLast(e.target.value)}
+              placeholder={t("profile.completeName.lastPlaceholder")}
+              className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]"
+              style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+            />
+            {completeNameError && <p className="text-[12.5px] text-center font-medium" style={{ color: "#dc2626" }}>{completeNameError}</p>}
+            <button
+              type="submit"
+              disabled={completeNameSaving || !completeFirst.trim() || !completeLast.trim()}
+              className="w-full py-5 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60"
+            >
+              {completeNameSaving ? <Loader2 className="animate-spin" size={20} /> : t("profile.completeName.save")}
+            </button>
+          </form>
         </motion.div>
       </div>
     );
