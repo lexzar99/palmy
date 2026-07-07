@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import axios from 'axios';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { timingSafeEqual } from 'crypto';
 import prisma from '../lib/prisma';
+import { sendHermesAlert } from '../lib/hermesAlerts';
 
 const router = Router();
 
@@ -477,19 +477,56 @@ const supportReportTypeLabels: Record<string, string> = {
 };
 
 const sendSupportAlert = async (payload: Record<string, unknown>, dryRun = false) => {
-  const webhookUrl = process.env.HERMES_ALERT_WEBHOOK_URL || process.env.FALKEN_WEBHOOK_URL || '';
-  const webhookSecret = process.env.HERMES_ALERT_WEBHOOK_SECRET || process.env.FALKEN_WEBHOOK_SECRET || '';
   if (dryRun) return { delivered: false, channel: 'dry_run' };
-  if (!webhookUrl) return { delivered: false, channel: null, reason: 'no_webhook' };
-
-  const body = JSON.stringify(payload);
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (webhookSecret) {
-    headers['x-hermes-signature'] = createHmac('sha256', webhookSecret).update(body).digest('hex');
-  }
-  await axios.post(webhookUrl, body, { headers, timeout: 10_000 });
-  return { delivered: true, channel: 'webhook' };
+  return sendHermesAlert(payload as any);
 };
+
+router.get('/alerts', requireHermesToken, async (req, res) => {
+  try {
+    const rawSince = String(req.query.since || '').trim();
+    const sinceDate = rawSince ? new Date(rawSince) : new Date(Date.now() - 60 * 60_000);
+    const since = Number.isNaN(sinceDate.getTime()) ? new Date(Date.now() - 60 * 60_000) : sinceDate;
+    const limit = Math.min(Math.max(Number(req.query.limit || 50) || 50, 1), 100);
+
+    const rows = await prisma.auditLog.findMany({
+      where: {
+        action: 'HERMES_ALERT',
+        resourceType: 'HermesAlert',
+        createdAt: { gt: since },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+
+    const alerts = rows.map((row) => {
+      let payload: Record<string, unknown> = {};
+      try {
+        payload = row.changes ? JSON.parse(row.changes) : {};
+      } catch {
+        payload = { text: row.changes || '' };
+      }
+      return {
+        id: row.id,
+        createdAt: row.createdAt.toISOString(),
+        ...payload,
+      };
+    });
+
+    res.json({
+      ok: true,
+      count: alerts.length,
+      alerts,
+      nextSince: alerts.length ? alerts[alerts.length - 1].createdAt : since.toISOString(),
+    });
+  } catch (error) {
+    console.error('[hermes/alerts] error:', error);
+    res.status(500).json({ ok: false, error: 'Kunde inte hämta Hermes-alerts' });
+  }
+});
+
+router.post('/alerts/:id/ack', requireHermesToken, async (_req, res) => {
+  res.json({ ok: true });
+});
 
 router.get('/orders/lookup', requireHermesToken, async (req, res) => {
   try {

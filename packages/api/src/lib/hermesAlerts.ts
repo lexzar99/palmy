@@ -1,5 +1,6 @@
 import axios from 'axios';
 import crypto from 'crypto';
+import prisma from './prisma';
 
 type HermesAlert = {
   source?: string;
@@ -29,6 +30,27 @@ export function isHermesAlertConfigured(): boolean {
   return Boolean(webhookUrl || (directSendUrl && directChatId));
 }
 
+async function persistHermesAlert(payload: Record<string, unknown>) {
+  try {
+    const resourceId = [
+      typeof payload.type === 'string' ? payload.type : 'alert',
+      Date.now(),
+      crypto.randomBytes(4).toString('hex'),
+    ].join(':');
+
+    await prisma.auditLog.create({
+      data: {
+        action: 'HERMES_ALERT',
+        resourceType: 'HermesAlert',
+        resourceId,
+        changes: JSON.stringify(payload),
+      },
+    });
+  } catch (err: any) {
+    console.warn('[hermesAlerts] persist failed:', err?.message ?? err);
+  }
+}
+
 export async function sendHermesAlert(alert: HermesAlert): Promise<{ delivered: boolean; channel: string | null; reason?: string }> {
   const { webhookUrl, webhookSecret, directSendUrl, directChatId } = cfg();
   const payload = {
@@ -36,6 +58,8 @@ export async function sendHermesAlert(alert: HermesAlert): Promise<{ delivered: 
     at: new Date().toISOString(),
     ...alert,
   };
+
+  await persistHermesAlert(payload);
 
   if (directSendUrl && directChatId) {
     try {
