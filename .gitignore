@@ -85,6 +85,11 @@ builds/
 
 *.env.bak
 
+# Lokala Hermes/WhatsApp-runtimefiler
+/tools/hermes-whatsapp-forwarder/.runtime.env
+/tools/hermes-whatsapp-forwarder/api-poll-state.json
+/tools/hermes-whatsapp-forwarder/server.js
+
 # Common secret files
 **/*.pem
 **/*.p8
