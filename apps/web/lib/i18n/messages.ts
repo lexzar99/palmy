@@ -41,7 +41,7 @@ export const messages: Record<Locale, Messages> = {
     "nav.contact": "Kontakt",
     "profile.menu.info": "Information",
     "profile.logout": "Logga ut",
-    "nav.myOrders": "Rewards",
+    "nav.myOrders": "Förmåner",
     "nav.login": "Logga in",
     "nav.profile": "Profil",
     "nav.cart": "Kundvagn",
@@ -182,7 +182,7 @@ export const messages: Record<Locale, Messages> = {
 
     // ── Order tracking ────────────────────────────────────────────────────
     "order.title": "Order",
-    "order.liveTracking": "Live Tracking",
+    "order.liveTracking": "Livespårning",
     "order.subtitle": "Din beställning behandlas i realtid",
     "order.eta.short": "Klar om ungefär",
     "order.eta.ready": "Bör vara klart!",

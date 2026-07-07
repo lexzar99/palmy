@@ -149,7 +149,7 @@ function VerifyEmailContent() {
             <MailCheck size={32} />
           </div>
           <h1 className="text-3xl font-black uppercase tracking-tight">
-            Verifiera <span className="text-gold-500">Email</span>
+            Verifiera <span className="text-gold-500">E-post</span>
           </h1>
           <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">
             Vi bekräftar din e-postadress

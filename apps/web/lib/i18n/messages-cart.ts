@@ -10,8 +10,8 @@ export const cartPagePending = {
     "cart.dealLabel.freeDelivery": "Fri leverans",
     "cart.dealLabel.fallback": "rabatt",
     "cart.dealType.welcome": "Välkomst",
-    "cart.dealType.referralInviter": "Referral-belöning",
-    "cart.dealType.referralInvitee": "Referral-rabatt",
+    "cart.dealType.referralInviter": "Värvningsbelöning",
+    "cart.dealType.referralInvitee": "Värvningsrabatt",
     "cart.dealType.fallback": "Rabatt",
 
     // Heading & empty state
@@ -68,9 +68,9 @@ export const cartPagePending = {
     "cart.summary.reward": "Belöning",
 
     // BOGO banner copy
-    "cart.bogo.pickFree": "BOGO — välj gratisprodukt",
-    "cart.bogo.pickMoreOne": "BOGO — välj 1 gratis till",
-    "cart.bogo.pickMoreMany": "BOGO — välj {count} fler gratis",
+    "cart.bogo.pickFree": "1+1 · välj gratisprodukt",
+    "cart.bogo.pickMoreOne": "1+1 · välj 1 gratis till",
+    "cart.bogo.pickMoreMany": "1+1 · välj {count} fler gratis",
     "cart.bogo.progress": "{picked} av {max} valda — välj fler →",
     "cart.bogo.canPickMany": "Du kan välja {max} gratis varor →",
     "cart.bogo.notPickedNamed": "Du har inte valt din gratis {name} →",

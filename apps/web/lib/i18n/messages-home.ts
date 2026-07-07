@@ -8,7 +8,7 @@ export const homePagePending = {
     "home.heroDesktop.eyebrow": "Mat från lokala favoriter",
     "home.heroDesktop.titleLine1": "Hungrig?",
     "home.heroDesktop.titleLine2": "Vi fixar resten.",
-    "home.heroDesktop.subtitle": "Bläddra bland favoritrestauranger, hitta dagens deals och få maten levererad — eller hämta själv.",
+    "home.heroDesktop.subtitle": "Bläddra bland favoritrestauranger, hitta dagens erbjudanden och få maten levererad, eller hämta själv.",
     "home.heroDesktop.badge.fast": "Snabb leverans",
     "home.heroDesktop.badge.secure": "Säker betalning",
     "home.heroDesktop.badge.local": "Lokala favoriter",

@@ -109,8 +109,8 @@ export async function generateMetadata({
   const description =
     restaurant.description ||
     (restaurant.cuisine
-      ? `${restaurant.cuisine} restaurant — view menu and order online.`
-      : "View our menu and place your order.");
+      ? `${restaurant.cuisine} · se menyn och beställ online.`
+      : "Se menyn och lägg din beställning.");
 
   return {
     title,

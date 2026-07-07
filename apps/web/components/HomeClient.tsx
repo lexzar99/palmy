@@ -1738,7 +1738,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
               </span>
               <span className="min-w-0">
                 <span className="block text-[10px] font-bold uppercase tracking-normal text-[var(--muted)]">
-                  {orderType === "DELIVERY" ? "DELIVER TO" : "PICKUP IN"}
+                  {orderType === "DELIVERY" ? t("home.address.deliverTo") : t("home.address.pickupIn")}
                 </span>
                 <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-[15px] font-black leading-tight tracking-normal text-[var(--ink)]">
@@ -1853,7 +1853,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         {promoCards.length > 0 && (
           <section className="mb-5">
             <div className="mb-3 px-1">
-              <SwiftSectionHeader title="Aktuellt" subtitle="Partners, deals och veckans favorit" />
+              <SwiftSectionHeader title={t("home.section.current")} subtitle={t("home.section.currentSub")} />
             </div>
             <div
               ref={promoRailRef}
