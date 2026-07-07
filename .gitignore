@@ -48,6 +48,25 @@ flutter_web.sh
 react.sh
 logs.zip
 
+# Root-hygien: GitHub spårar bara backend/web/admin + byggkonfig.
+# Allt nedan ligger kvar lokalt men hålls utanför GitHub (root-ankrat så
+# nästlade app-filer som apps/web/CLAUDE.md inte påverkas).
+/CLAUDE.md
+/AGENTS.md
+/.claude/
+/scripts/
+/brand-identity/
+/docker-compose.yml
+/start-dev.sh
+/docs/
+/DEALS_ENGINE_PLAN.md
+/DELIVERA_WOW_PLAN.md
+/DEPLOYMENT.md
+/DPOINTS.md
+/ORDER_SCALING.md
+/SWIFT_APP_NIGHT_PROGRESS.md
+/facelift.md
+
 # Lokala arkiv/arbetsmappar — committas inte (stora binärer, historik finns i git)
 _archive/
 _imports/
