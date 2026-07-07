@@ -1,24 +1,22 @@
 // Falken-notifiern: server-side ordervakt som kör i API-processen (Railway),
-// dygnet runt, oberoende av Jalles dator. Skickar korta Telegram-rader vid
-// orderhändelser och kan spegla samma events till en webhook (t.ex. Hermes)
-// med HMAC-signatur.
+// dygnet runt, oberoende av Jalles dator. Skickar korta händelser till Hermes/
+// WhatsApp via webhook.
 //
 // Aktiveras ENDAST om env-vars finns (sätts i Railway UI, aldrig i repo):
-//   FALKEN_TELEGRAM_BOT_TOKEN  - Telegram-bot-token
-//   FALKEN_TELEGRAM_CHAT_ID    - chat som ska notifieras
-//   FALKEN_WEBHOOK_URL         - (valfri) POST-mål för order-events
-//   FALKEN_WEBHOOK_SECRET      - (valfri) HMAC-SHA256-nyckel, header x-falken-signature
+//   HERMES_WHATSAPP_WEBHOOK_URL eller HERMES_ALERT_WEBHOOK_URL
+//   HERMES_WHATSAPP_WEBHOOK_SECRET eller HERMES_ALERT_WEBHOOK_SECRET
+//   FALKEN_WEBHOOK_URL / FALKEN_WEBHOOK_SECRET fungerar som legacy-alias.
 //   FALKEN_POLL_SECONDS        - (valfri) pollintervall, default 120
 //
 // State är in-memory: efter deploy/omstart seedas tyst (inga notiser för
 // gammalt), övergångar som sker under själva omstarten kan missas — medvetet
 // enkelt istället för en state-tabell.
-import axios from 'axios';
-import crypto from 'crypto';
 import prisma from './prisma';
+import { isHermesAlertConfigured, sendHermesEvents } from './hermesAlerts';
 
 const STUCK_PENDING_MIN = 10;
 const STUCK_READY_MIN = 20;
+const COURIER_NOT_ACCEPTED_MIN = 4;
 const TERMINAL = new Set(['DELIVERED', 'REJECTED', 'CANCELLED']);
 
 type Seen = { status: string; createdAt: Date; flags: Set<string> };
@@ -26,10 +24,6 @@ const seen = new Map<string, Seen>();
 let seeded = false;
 
 const cfg = () => ({
-  botToken: process.env.FALKEN_TELEGRAM_BOT_TOKEN || '',
-  chatId: process.env.FALKEN_TELEGRAM_CHAT_ID || '',
-  webhookUrl: process.env.FALKEN_WEBHOOK_URL || '',
-  webhookSecret: process.env.FALKEN_WEBHOOK_SECRET || '',
   pollSeconds: Math.max(30, parseInt(process.env.FALKEN_POLL_SECONDS || '120', 10) || 120),
 });
 
@@ -42,43 +36,16 @@ function line(kind: 'decision' | 'fix' | 'info', text: string) {
   return carMode() ? `${prefix}: ${text}` : `${prefix}: ${text}`;
 }
 
-async function sendTelegram(text: string) {
-  const { botToken, chatId } = cfg();
-  if (!botToken || !chatId) return;
-  try {
-    await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      chat_id: chatId,
-      text,
-    }, { timeout: 10_000 });
-  } catch (err: any) {
-    console.warn('[falken] telegram send failed:', err?.response?.status ?? err?.message);
-  }
-}
-
-async function sendWebhook(events: Array<Record<string, unknown>>) {
-  const { webhookUrl, webhookSecret } = cfg();
-  if (!webhookUrl || events.length === 0) return;
-  try {
-    const body = JSON.stringify({ source: 'viaeats-falken', events });
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (webhookSecret) {
-      headers['x-falken-signature'] = crypto.createHmac('sha256', webhookSecret).update(body).digest('hex');
-    }
-    await axios.post(webhookUrl, body, { headers, timeout: 10_000 });
-  } catch (err: any) {
-    console.warn('[falken] webhook send failed:', err?.response?.status ?? err?.message);
-  }
-}
-
 async function tick() {
   const orders = await prisma.order.findMany({
     where: { NOT: { status: 'AWAITING_PAYMENT' } },
     orderBy: { createdAt: 'desc' },
     take: 50,
     select: {
-      id: true, orderNumber: true, status: true, total: true,
+      id: true, orderNumber: true, status: true, type: true, total: true,
       createdAt: true, updatedAt: true,
-      restaurant: { select: { name: true } },
+      restaurant: { select: { name: true, city: true, selfDelivery: true } },
+      delivery: { select: { courierId: true } },
     },
   });
 
@@ -89,6 +56,15 @@ async function tick() {
       const flags = new Set<string>();
       if (o.status === 'PENDING' && ageMin(o.createdAt) >= STUCK_PENDING_MIN) flags.add('stuck_pending');
       if (o.status === 'READY' && ageMin(o.updatedAt) >= STUCK_READY_MIN) flags.add('stuck_ready');
+      if (
+        o.type === 'DELIVERY' &&
+        !o.restaurant?.selfDelivery &&
+        !o.delivery?.courierId &&
+        ['ACCEPTED', 'PREPARING', 'READY'].includes(o.status) &&
+        ageMin(o.updatedAt) >= COURIER_NOT_ACCEPTED_MIN
+      ) {
+        flags.add('courier_not_accepted');
+      }
       seen.set(o.id, { status: o.status, createdAt: o.createdAt, flags });
     }
     seeded = true;
@@ -139,6 +115,21 @@ async function tick() {
       entry.flags.add('stuck_ready');
       emit(line('decision', `${num} hos ${rest} har stått klar i ${ageMin(o.updatedAt)} min utan att hämtas.`), 'order:stuck_ready', o);
     }
+    if (
+      o.type === 'DELIVERY' &&
+      !o.restaurant?.selfDelivery &&
+      !o.delivery?.courierId &&
+      ['ACCEPTED', 'PREPARING', 'READY'].includes(o.status) &&
+      ageMin(o.updatedAt) >= COURIER_NOT_ACCEPTED_MIN &&
+      !entry.flags.has('courier_not_accepted')
+    ) {
+      entry.flags.add('courier_not_accepted');
+      emit(
+        line('decision', `Ingen kurir har tagit ${num} hos ${rest} efter ${ageMin(o.updatedAt)} min. Kolla bud direkt.`),
+        'courier:not_accepted_4m',
+        o,
+      );
+    }
   }
 
   // Rensa avslutade/gamla ordrar som lämnat 50-fönstret.
@@ -148,18 +139,17 @@ async function tick() {
   }
 
   if (lines.length > 0) {
-    await sendTelegram(lines.join('\n'));
-    await sendWebhook(events);
+    await sendHermesEvents(events, lines.join('\n'));
   }
 }
 
 export function startFalkenNotifier() {
-  const { botToken, chatId, webhookUrl, pollSeconds } = cfg();
-  if (!(botToken && chatId) && !webhookUrl) {
-    console.log('[falken] notifier inaktiv (FALKEN_TELEGRAM_* / FALKEN_WEBHOOK_URL saknas)');
+  const { pollSeconds } = cfg();
+  if (!isHermesAlertConfigured()) {
+    console.log('[falken] notifier inaktiv (Hermes/WhatsApp webhook saknas)');
     return;
   }
-  console.log(`[falken] notifier aktiv (poll ${pollSeconds}s, telegram=${Boolean(botToken && chatId)}, webhook=${Boolean(webhookUrl)})`);
+  console.log(`[falken] notifier aktiv (poll ${pollSeconds}s, whatsapp=true)`);
   setInterval(() => {
     tick().catch((err) => console.warn('[falken] tick failed:', (err as Error).message));
   }, pollSeconds * 1000);

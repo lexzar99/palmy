@@ -14,6 +14,7 @@ import webpush from 'web-push';
 import prisma from './prisma';
 import { sendCourierFcm } from './courierFcm';
 import { sendCourierApns } from './courierApns';
+import { sendHermesAlert } from './hermesAlerts';
 
 const PUBLIC_KEY = (process.env.VAPID_PUBLIC_KEY || '').trim();
 const PRIVATE_KEY = (process.env.VAPID_PRIVATE_KEY || '').trim();
@@ -132,6 +133,68 @@ async function sendToCourierIds(courierIds: string[], payload: PushPayload): Pro
 // ACCEPTED och PREPARING. Minne räcker (notisen är tidskänslig, inte kritisk).
 const newJobNotified = new Map<string, number>();
 const NEW_JOB_DEDUP_MS = 90_000;
+const noCourierAcceptedTimers = new Map<string, NodeJS.Timeout>();
+const NO_COURIER_ACCEPTED_MS = 4 * 60_000;
+
+async function alertNoCouriersOnline(opts: {
+  orderId?: string | null;
+  orderNumber?: string | null;
+  restaurantName: string;
+  city: string;
+}) {
+  await sendHermesAlert({
+    source: 'viaeats-courier',
+    type: 'courier:none_online',
+    severity: 'critical',
+    orderId: opts.orderId || null,
+    orderNumber: opts.orderNumber || null,
+    restaurant: opts.restaurantName,
+    city: opts.city,
+    text: `Inga bud online i ${opts.city}. Ny order från ${opts.restaurantName}${opts.orderNumber ? ` (${opts.orderNumber})` : ''}.`,
+  });
+}
+
+function scheduleNoCourierAcceptedCheck(opts: {
+  orderId?: string | null;
+  orderNumber?: string | null;
+  restaurantName: string;
+  city: string;
+}) {
+  if (!opts.orderId || noCourierAcceptedTimers.has(opts.orderId)) return;
+  const timer = setTimeout(async () => {
+    noCourierAcceptedTimers.delete(opts.orderId!);
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: opts.orderId! },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          type: true,
+          delivery: { select: { id: true, courierId: true } },
+          restaurant: { select: { name: true, city: true, selfDelivery: true } },
+        },
+      });
+      if (!order || order.type !== 'DELIVERY' || order.restaurant?.selfDelivery) return;
+      if (order.delivery?.courierId) return;
+      if (!['ACCEPTED', 'PREPARING', 'READY'].includes(String(order.status || '').toUpperCase())) return;
+      await sendHermesAlert({
+        source: 'viaeats-courier',
+        type: 'courier:not_accepted_4m',
+        severity: 'critical',
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        restaurant: order.restaurant?.name || opts.restaurantName,
+        city: order.restaurant?.city || opts.city,
+        status: order.status,
+        text: `Ingen kurir har tagit ordern efter 4 minuter. ${order.restaurant?.name || opts.restaurantName}${order.orderNumber ? ` (${order.orderNumber})` : ''}. Status: ${order.status}.`,
+      });
+    } catch (e: any) {
+      console.warn('[courierPush] no-courier accepted check failed:', e?.message);
+    }
+  }, NO_COURIER_ACCEPTED_MS);
+  noCourierAcceptedTimers.set(opts.orderId, timer);
+}
 
 export async function notifyCouriersOfNewJob(opts: {
   orderId?: string | null;
@@ -166,7 +229,21 @@ export async function notifyCouriersOfNewJob(opts: {
       where: { online: true, isActive: true, city: { equals: restaurant.city, mode: 'insensitive' } },
       select: { id: true },
     });
-    if (couriers.length === 0) return;
+    if (couriers.length === 0) {
+      await alertNoCouriersOnline({
+        orderId: opts.orderId,
+        orderNumber: opts.orderNumber,
+        restaurantName: restaurant.name,
+        city: restaurant.city,
+      });
+      return;
+    }
+    scheduleNoCourierAcceptedCheck({
+      orderId: opts.orderId,
+      orderNumber: opts.orderNumber,
+      restaurantName: restaurant.name,
+      city: restaurant.city,
+    });
     const courierIds = couriers.map((c) => c.id);
     // Proffsigt, utan emoji + utan ordernummer: titel "Ny leverans – Lund",
     // restaurangnamnet under.

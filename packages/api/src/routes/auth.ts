@@ -12,6 +12,7 @@ import { authenticate, resolveAdminSessionFromToken } from '../middleware/auth';
 import type { AuthRequest } from '../middleware/auth';
 import { audit } from '../lib/auditLog';
 import { sendEmail, renderBrandedEmail } from '../lib/email';
+import { sendHermesAlert } from '../lib/hermesAlerts';
 import {
   createTrustedDevice,
   setTrustedDeviceCookie,
@@ -479,7 +480,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           }
         }
 
-        await (prisma as any).user.upsert({
+        const upsertedUser = await (prisma as any).user.upsert({
           where: { id: user.id },
           update: {
             email: user.email || undefined,
@@ -509,6 +510,19 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
             isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at,
           },
         }).catch(() => null);
+        if (!wasExistingUser && upsertedUser) {
+          void sendHermesAlert({
+            source: 'viaeats-auth',
+            type: 'customer:new',
+            severity: 'info',
+            userId: user.id,
+            customerName: sbName,
+            customerPhone: normalizedPhone,
+            customerEmail: user.email || null,
+            method: user.app_metadata?.provider || (user.phone ? 'phone' : 'supabase'),
+            text: `Ny kund registrerad: ${sbName || normalizedPhone || user.email || user.id}.`,
+          });
+        }
 
         // Backfill names for an EXISTING user only when:
         //   (a) Apple just shipped a name on this auth, AND
@@ -1277,6 +1291,17 @@ router.post('/register-user', authLimiter, async (req, res) => {
       resourceId: user.id,
       changes: { email: user.email, emailVerificationDispatched: true },
     });
+    void sendHermesAlert({
+      source: 'viaeats-auth',
+      type: 'customer:new',
+      severity: 'info',
+      userId: user.id,
+      customerName: user.name,
+      customerPhone: user.phone,
+      customerEmail: user.email,
+      method: 'email',
+      text: `Ny kund registrerad: ${user.name || 'namn saknas'}${user.phone ? `, ${user.phone}` : ''}${user.email ? `, ${user.email}` : ''}.`,
+    });
 
     // Welcome-deal: skapas automatiskt om admin har aktiverat den i settings.
     try {
@@ -1889,6 +1914,17 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
           phone: null,
           password: null,
         }
+      });
+      void sendHermesAlert({
+        source: 'viaeats-auth',
+        type: 'customer:new',
+        severity: 'info',
+        userId: user.id,
+        customerName: user.name,
+        customerPhone: user.phone,
+        customerEmail: user.email,
+        method: provider,
+        text: `Ny kund registrerad via ${provider}: ${user.name || 'namn saknas'}${user.email ? `, ${user.email}` : ''}.`,
       });
       // Welcome-deal för nytt OAuth-konto också (om aktiv)
       try {

@@ -835,14 +835,14 @@ router.patch('/orders/:id/status', async (req, res) => {
     const allowedStatusByType =
       existing.type === 'PICKUP'
         ? new Set(['PREPARING', 'READY', 'REJECTED', 'CANCELLED'])
-        : new Set(['PREPARING', 'DELIVERING', 'DELIVERED', 'DELIVERY_FAILED', 'REJECTED', 'CANCELLED']);
+        : new Set(['PREPARING', 'READY', 'DELIVERING', 'DELIVERED', 'DELIVERY_FAILED', 'REJECTED', 'CANCELLED']);
 
     if (!allowedStatusByType.has(status)) {
       res.status(400).json({
         error:
           existing.type === 'PICKUP'
             ? 'Avhämtningsorder kan bara ändras till tillagas, redo att hämtas, nekad eller avbruten.'
-            : 'Leveransorder kan bara ändras till tillagas, på väg, levererad, misslyckad, nekad eller avbruten.',
+            : 'Leveransorder kan bara ändras till tillagas, redo för hämtning, på väg, levererad, misslyckad, nekad eller avbruten.',
       });
       return;
     }
