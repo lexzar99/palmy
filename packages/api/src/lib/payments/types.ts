@@ -48,6 +48,10 @@ export interface CreatePaymentResult {
   checkoutUrl?: string;
   /** Embeddade providers (Adyen sessions): blob som klientens SDK monterar. Ömsesidigt uteslutande med checkoutUrl. */
   session?: { id: string; sessionData: string };
+  /** Stripe native (iOS/Android): PaymentIntent client secret för PaymentSheet. */
+  clientSecret?: string;
+  /** Stripe native: publishable key klienten monterar PaymentSheet med. */
+  publishableKey?: string;
 }
 
 export type RemotePaymentState = 'paid' | 'failed' | 'canceled' | 'expired' | 'open' | 'pending';

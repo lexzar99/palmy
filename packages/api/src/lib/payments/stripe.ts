@@ -184,10 +184,43 @@ async function resolveRefundPaymentIntent(paymentRef: string): Promise<string> {
   return status.paymentIntentId;
 }
 
+/**
+ * Native appen (iOS/Android) vill ha en betalning inuti appen (Stripe
+ * PaymentSheet), inte en webb-redirect. Vi skapar en PaymentIntent direkt
+ * (ingen Checkout Session, ingen `url`) och skickar med `allow_redirects:
+ * 'never'` så bara icke-redirect-metoder (kort, Apple Pay) dyker upp i
+ * sheeten — appen har ingen webView att fånga en redirect-retur i.
+ */
+async function createNativePaymentIntent(order: OrderForPayment): Promise<CreatePaymentResult> {
+  const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+  if (!publishableKey) throw new Error('STRIPE_PUBLISHABLE_KEY saknas');
+
+  const metadata = metadataFor(order);
+  const intent = await stripe().paymentIntents.create({
+    amount: order.total,
+    currency: CURRENCY,
+    metadata,
+    description: `${order.orderNumber}${order.restaurantName ? ` - ${order.restaurantName}` : ''}`,
+    receipt_email: order.customerEmail || undefined,
+    automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+  });
+
+  if (!intent.client_secret) throw new Error('Stripe PaymentIntent saknade client_secret');
+  return {
+    paymentRef: intent.id,
+    clientSecret: intent.client_secret,
+    publishableKey,
+  };
+}
+
 export const stripeProvider: PaymentProvider = {
   name: 'stripe',
 
-  async createPayment({ order, returnUrl }: CreatePaymentArgs): Promise<CreatePaymentResult> {
+  async createPayment({ order, returnUrl, channel }: CreatePaymentArgs): Promise<CreatePaymentResult> {
+    if (channel === 'iOS' || channel === 'Android') {
+      return createNativePaymentIntent(order);
+    }
+
     const methodTypes = configuredPaymentMethodTypes();
     const metadata = metadataFor(order);
     const baseParams: Stripe.Checkout.SessionCreateParams = {

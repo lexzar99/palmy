@@ -141,6 +141,8 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
       paymentRef: result.paymentRef,
       checkoutUrl: result.checkoutUrl, // Hosted providers: redirect-URL
       session: result.session, // Adyen: { id, sessionData } för Drop-in
+      clientSecret: result.clientSecret, // Stripe native: PaymentSheet
+      publishableKey: result.publishableKey, // Stripe native: PaymentSheet
       total: order.total / 100,
       discountAmount: (order.discountAmount ?? 0) / 100,
     });
