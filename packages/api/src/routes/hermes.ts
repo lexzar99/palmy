@@ -65,6 +65,42 @@ const dateTimeLabel = (date: Date | string | null | undefined) => {
   });
 };
 
+const localDateParts = (date: Date | string, timeZone = STOCKHOLM_TZ) => {
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(date));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || '';
+  return {
+    year: Number(get('year')),
+    month: Number(get('month')),
+    day: Number(get('day')),
+    key: `${get('year')}-${get('month')}-${get('day')}`,
+  };
+};
+
+const dayDiff = (date: Date | string, now = new Date()) => {
+  const a = localDateParts(date);
+  const b = localDateParts(now);
+  const utcA = Date.UTC(a.year, a.month - 1, a.day);
+  const utcB = Date.UTC(b.year, b.month - 1, b.day);
+  return Math.round((utcB - utcA) / 86_400_000);
+};
+
+const orderDayLabel = (date: Date | string | null | undefined, now = new Date()) => {
+  if (!date) return null;
+  const diff = dayDiff(date, now);
+  if (diff === 0) return `idag kl ${clock(date)}`;
+  if (diff === 1) return `igår kl ${clock(date)}`;
+  if (diff >= 2 && diff <= 6) {
+    const weekday = new Intl.DateTimeFormat('sv-SE', { weekday: 'long', timeZone: STOCKHOLM_TZ }).format(new Date(date));
+    return `${weekday} kl ${clock(date)}`;
+  }
+  return dateTimeLabel(date);
+};
+
 const minutesSince = (date: Date | string | null | undefined, now = new Date()) => {
   if (!date) return null;
   return Math.max(0, Math.floor((now.getTime() - new Date(date).getTime()) / 60_000));
@@ -91,6 +127,23 @@ const statusStartedAt = (order: any) => {
   return order.updatedAt || order.createdAt;
 };
 
+const terminalTimingText = (order: any, now = new Date()) => {
+  const status = String(order.status || '').toUpperCase();
+  const at = status === 'DELIVERED' || status === 'COMPLETED'
+    ? order.delivery?.deliveredAt || order.updatedAt
+    : status === 'CANCELLED' || status === 'REJECTED' || status === 'DELIVERY_FAILED'
+      ? order.updatedAt
+      : null;
+  if (!at) return null;
+  const when = orderDayLabel(at, now);
+  if (!when) return null;
+  if (status === 'DELIVERED' || status === 'COMPLETED') return `Levererades ${when}.`;
+  if (status === 'CANCELLED') return `Avbröts ${when}.`;
+  if (status === 'REJECTED') return `Avvisades ${when}.`;
+  if (status === 'DELIVERY_FAILED') return `Leveransen misslyckades ${when}.`;
+  return null;
+};
+
 const etaInfo = (order: any, now = new Date()) => {
   const eta = order.etaCustomerAt || order.etaPickupAt || order.etaReadyAt || null;
   if (!eta) return null;
@@ -109,6 +162,30 @@ const etaInfo = (order: any, now = new Date()) => {
           ? 'Beräknad tid är nu.'
           : `Beräknas ${clock(eta)}, om cirka ${diff} min.`,
   };
+};
+
+const parseExtras = (value: unknown): string[] => {
+  if (!value) return [];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((extra: any) => {
+        if (typeof extra === 'string') return extra;
+        return extra?.name || extra?.title || extra?.label || extra?.productName || null;
+      })
+      .filter((name: any): name is string => Boolean(name));
+  } catch {
+    return [];
+  }
+};
+
+const compactItemText = (item: any) => {
+  const name = item.product?.name || item.productName || item.name || 'Vara';
+  const extras = parseExtras(item.selectedExtras);
+  const note = item.note ? `notering: ${item.note}` : null;
+  const details = [extras.length ? `tillval: ${extras.join(', ')}` : null, note].filter(Boolean).join(', ');
+  return `${item.quantity || 1} x ${name}${details ? ` (${details})` : ''}`;
 };
 
 const delayReason = (
@@ -223,6 +300,7 @@ const supportPlaybook = {
 
 const summarizeOrder = async (order: any) => {
   const now = new Date();
+  const isTerminal = terminalStatuses.has(String(order.status || '').toUpperCase());
   const loadWindowStart = new Date(now.getTime() - 60 * 60_000);
   const restaurantRecentOrderCount = order.restaurantId
     ? await prisma.order.count({
@@ -234,13 +312,16 @@ const summarizeOrder = async (order: any) => {
       })
     : 0;
   const items = Array.isArray(order.items)
-    ? order.items.slice(0, 4).map((item: any) => ({
-        name: item.product?.name || item.name || 'Vara',
+    ? order.items.slice(0, 10).map((item: any) => ({
+        name: item.product?.name || item.productName || item.name || 'Vara',
         quantity: item.quantity,
+        note: item.note || null,
+        extras: parseExtras(item.selectedExtras),
+        text: compactItemText(item),
       }))
     : [];
   const itemsText = items.length
-    ? items.map((item: any) => `${item.quantity || 1} x ${item.name}`).join(', ')
+    ? items.map((item: any) => item.text || `${item.quantity || 1} x ${item.name}`).join(', ')
     : null;
   const delivery = order.delivery
     ? {
@@ -283,14 +364,19 @@ const summarizeOrder = async (order: any) => {
     customerPhoneMasked: maskPhone(order.customerPhone),
     address: compactAddress(order),
     deliveryNoteText: order.deliveryNote || null,
+    deliveryInstructions: order.deliveryInstructions || null,
+    orderNote: order.note || null,
     createdAt: order.createdAt.toISOString(),
     createdAtText: dateTimeLabel(order.createdAt),
+    createdAtShortText: orderDayLabel(order.createdAt, now),
     createdAgoMinutes: minutesSince(order.createdAt, now),
     updatedAt: order.updatedAt.toISOString(),
     statusStartedAt: statusStarted ? new Date(statusStarted).toISOString() : null,
     statusStartedAtText: dateTimeLabel(statusStarted),
-    statusAgeMinutes,
-    statusAgeText: minuteLabel(statusAgeMinutes),
+    statusStartedShortText: statusStarted ? orderDayLabel(statusStarted, now) : null,
+    statusAgeMinutes: isTerminal ? null : statusAgeMinutes,
+    statusAgeText: isTerminal ? null : minuteLabel(statusAgeMinutes),
+    terminalTimingText: terminalTimingText(order, now),
     etaAt: eta?.at || null,
     etaClock: eta?.clock || null,
     etaMinutesFromNow: eta?.minutesFromNow ?? null,
@@ -299,10 +385,16 @@ const summarizeOrder = async (order: any) => {
     etaMinutes: order.etaCustomerMin ?? order.estimatedTime ?? null,
     items,
     itemsText,
+    orderDetailsText: [
+      itemsText ? `Artiklar: ${itemsText}.` : null,
+      order.note ? `Ordernotering: ${order.note}.` : null,
+      order.deliveryNote ? `Leveransnotering: ${order.deliveryNote}.` : null,
+      order.deliveryInstructions ? `Leveransval: ${order.deliveryInstructions}.` : null,
+    ].filter(Boolean).join(' ') || null,
     delivery,
     deliveryPositionKnown,
     deliveryNote,
-    isActive: !terminalStatuses.has(String(order.status || '').toUpperCase()),
+    isActive: !isTerminal,
     nextStep: delayReason(order, statusAgeMinutes, eta, restaurantRecentOrderCount),
     restaurantRecentOrderCount,
     delayLikelyReason: (statusAgeMinutes || 0) >= 25 && restaurantRecentOrderCount >= 5
@@ -320,6 +412,7 @@ const summarizeOrder = async (order: any) => {
       canExplainPaymentStatus: true,
       canExplainEta: Boolean(eta),
       canConfirmOrderItems: Boolean(itemsText),
+      canReadOrderNotes: Boolean(order.note || order.deliveryNote || order.deliveryInstructions || items.some((item: any) => item.note || item.extras?.length)),
       reportTool: 'viaeats_issue_report',
     },
     callbackGuidance: 'Vid frustration, matproblem, appfel, betalproblem eller grov försening: erbjud callback. Fråga vilket nummer support ska ringa. Läs tillbaka namn och nummer. Skicka report med callbackRequested=true.',
@@ -332,7 +425,15 @@ const summarizeOrder = async (order: any) => {
       : 'Vid kall mat, spilld mat eller saknad vara: be om ursäkt och skicka en problemrapport. Restaurangnummer saknas.',
     appIssueGuidance: 'Om kunden säger att ordern försvann, appen visar fel eller betalningen ser konstig ut: skicka problemrapport direkt med viaeats_issue_report.',
     now: now.toISOString(),
+    itemIssueGuidance: itemsText
+      ? 'Om kunden rapporterar saknad eller fel vara, jämför med itemsText/orderDetailsText. Bekräfta bara vad som står på ordern. Om varan finns på ordern men saknas i påsen, skapa FOOD_QUALITY-rapport.'
+      : 'Orderrader saknas i tool-svaret. Gissa inte artiklar.',
     nowText: dateTimeLabel(now),
+    platformContact: {
+      site: 'https://viaeats.se',
+      brand: 'ViaEats',
+      neverSay: ['viaeats.com'],
+    },
   };
 };
 
@@ -345,16 +446,25 @@ const answerFor = (orders: any[]) => {
     if (active.length === 1) {
       return answerFor(active);
     }
-    const list = (active.length ? active : orders).slice(0, 3).map((o) => `${o.orderNumber}: ${o.statusText} hos ${o.restaurantName}`).join('; ');
-    return `Jag hittade flera ordrar. ${list}. Fråga kort vilken kunden menar och upprepa inte ordernumret efter det.`;
+    const candidates = (active.length ? active : orders).slice(0, 4);
+    const latest = candidates[0];
+    const alternatives = candidates.slice(1).map((o) => `${o.restaurantName} ${o.createdAtShortText || o.createdAtText}, ${o.statusText}`).join('; ');
+    return [
+      `Jag hittade flera ordrar.`,
+      latest ? `Fråga om det gäller den senaste hos ${latest.restaurantName} ${latest.createdAtShortText || latest.createdAtText}.` : null,
+      alternatives ? `Andra träffar: ${alternatives}.` : null,
+      'Nämn restaurang och dag/klockslag, inte stora minutvärden. Upprepa inte ordernummer om kunden inte behöver det.',
+    ].filter(Boolean).join(' ');
   }
   const o = orders[0];
   const customer = o.customerName ? ` för ${o.customerName}` : '';
   const address = o.address ? `, leverans till ${o.address}` : '';
   const age = o.statusAgeText ? ` Den har varit ${o.statusText} i ${o.statusAgeText}.` : '';
+  const terminal = o.terminalTimingText ? ` ${o.terminalTimingText}` : '';
   const eta = o.etaText ? ` ${o.etaText}` : '';
   const delivery = o.deliveryNote ? ` ${o.deliveryNote}` : '';
-  return `Den är ${o.statusText} hos ${o.restaurantName}${customer}${address}.${age}${eta}${delivery} ${o.nextStep}`;
+  const details = o.itemsText ? ` Artiklar: ${o.itemsText}.` : '';
+  return `Ordern är ${o.statusText} hos ${o.restaurantName}${customer}${address}.${terminal}${age}${eta}${delivery}${details} ${o.nextStep}`;
 };
 
 const supportReportTypeLabels: Record<string, string> = {
