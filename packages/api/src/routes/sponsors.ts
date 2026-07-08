@@ -118,8 +118,9 @@ router.get('/', async (_req, res) => {
     });
 
     // Dynamiska rabattkort (auto-genererade från aktiva deals) läggs först i
-    // karusellen. Rotation + manuella overrides sköts i lib/showcase.
-    const discountCards = await getDiscountCards(now).catch(() => []);
+    // karusellen. Rotation + manuella overrides sköts i lib/showcase. Cache 60s
+    // så hemladdningar inte kör hela beräkningen varje gång (rotation är 48h).
+    const discountCards = await cached('sponsors:discounts', 'all', 60_000, () => getDiscountCards(now)).catch(() => []);
     const discountSponsors = discountCards.map((c, index) => ({
       id: `discount:${c.restaurantId}`,
       name: c.headline,
