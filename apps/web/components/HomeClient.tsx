@@ -1744,10 +1744,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     <div className="viaeats-app-bg min-h-screen pb-36 md:pt-24" style={{ color: "var(--text-primary)" }}>
       <div className="sticky top-0 z-[1400] border-b border-[var(--border-muted)] bg-white/75 backdrop-blur-xl md:static md:border-0 md:bg-transparent md:backdrop-blur-0" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
         <header className="mx-auto max-w-7xl px-5 py-3.5 md:px-7 md:pb-6 md:pt-0">
-          {!!homeGreeting && (
-            <p className="mb-2 text-[15px] font-black leading-tight tracking-normal text-[var(--ink)]">{homeGreeting}</p>
-          )}
-
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => setShowAddressModal(true)} className="min-w-0 flex flex-1 items-center gap-3 text-left">
               <span className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-[rgba(240,79,26,0.12)] text-[var(--orange)]">

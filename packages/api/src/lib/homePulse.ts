@@ -972,14 +972,8 @@ async function previewFavoriteProduct(params: Record<string, number>) {
 
 // ── Dygnspulsen: hälsning efter tid på dygnet (server-styrd copy) ───────────
 export function greetingForNow(date = new Date()): string {
-  const hour = date.getHours();
-  const isFriday = date.getDay() === 5;
-  if (isFriday && hour >= 15) return 'Fredag. Du vet vad som gäller.';
-  if (hour >= 5 && hour < 10) return 'God morgon';
-  if (hour >= 10 && hour < 14) return 'Lunchdags?';
-  if (hour >= 14 && hour < 17) return 'Sugen på något?';
-  if (hour >= 17 && hour < 22) return 'Dags för middag';
-  return 'Kvällshungrig?';
+  void date;
+  return '';
 }
 
 // ── Kompositören: max N moduler per dag, roterande urval ────────────────────
