@@ -10,7 +10,6 @@ import {
   Building2,
   CircleDollarSign,
   ClipboardList,
-  Coins,
   ContactRound,
   Filter,
   Gauge,
@@ -28,6 +27,7 @@ import {
   Store,
   Tablet,
   TicketPercent,
+  UserPlus,
   Users,
   Zap,
 } from "lucide-react";
@@ -74,7 +74,7 @@ const COMMANDS: CommandItem[] = [
   { id: "deals", label: "Deals & BOGO", href: "/deals", icon: Gift, group: "Tillväxt", keywords: "kampanj rabatt bogo app" },
   { id: "coupons", label: "Kuponger", href: "/coupons", icon: TicketPercent, group: "Tillväxt", keywords: "kupong rabattkod kod" },
   { id: "sponsors", label: "Sponsorer", href: "/sponsors", icon: Handshake, group: "Tillväxt", keywords: "partner annons" },
-  { id: "dpoints", label: "Vpoints", href: "/dpoints", icon: Coins, group: "Tillväxt", keywords: "lojalitet poang referral varva van valkomst" },
+  { id: "referrals", label: "Värva vän", href: "/referrals", icon: UserPlus, group: "Tillväxt", keywords: "referral varva van valkomst valkomstrabatt" },
   { id: "push", label: "Push-notiser", href: "/push", icon: BellRing, group: "Tillväxt", keywords: "notification meddelande" },
 
   // System

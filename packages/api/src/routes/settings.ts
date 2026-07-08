@@ -79,7 +79,8 @@ router.get('/', async (_req, res) => {
       showDiscountedRail: (settings as any).showDiscountedRail ?? true,
       // Vpoints — publika fält: badge nära produkter + gating i klienterna.
       dpoints: {
-        enabled: (settings as any).dpointsEnabled ?? false,
+        // Vpoints avstängt plattformsbrett 2026-07-08 — DB-flaggan ignoreras medvetet.
+        enabled: false,
         perKr: (settings as any).dpointsPerKr ?? 0.1,
         valuePerKr: (settings as any).dpointsValuePerKr ?? 10,
         cardOnHome: (settings as any).dpointsCardOnHome ?? true,

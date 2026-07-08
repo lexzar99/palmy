@@ -61,10 +61,6 @@ export interface ProductRecord {
   hideDescription?: boolean;
   // Valfri notering som visas längst ner i produktmodalen i appen (skild från beskrivning).
   note?: string | null;
-  // Vpoints: köpbar med poäng.
-  rewardable?: boolean;
-  rewardPointsMultiplier?: number | null;
-  rewardPointsPrice?: number | null;
   localPriceLocked?: boolean;
   // Produkt-egen rabatt (skild från produktdeals). discountPrice är i kr efter list-API:ts /100.
   discountActive?: boolean;

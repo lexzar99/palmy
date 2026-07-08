@@ -108,19 +108,6 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
             </p>
           </section>
 
-          {/* 4. DPOINTS */}
-          <section>
-            <h2 className="text-2xl font-bold tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>
-              Vpoints
-            </h2>
-            <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              Vpoints är ViaEats lojalitetsprogram. Du samlar poäng på betalda beställningar och
-              kan lösa in dem mot produkter eller rabatter. Poäng har inget kontantvärde, kan inte
-              överlåtas och kan dras tillbaka vid missbruk eller om en order återbetalas. ViaEats
-              kan ändra eller avsluta programmet med rimligt varsel.
-            </p>
-          </section>
-
           {/* 5. ÅNGERRÄTT */}
           <section>
             <h2 className="text-2xl font-bold tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>

@@ -365,7 +365,6 @@ interface AppFeedDeal {
   freeDelivery: boolean;
   discountPercent?: number | null;
   amountKr?: number | null;
-  dpointsBonus?: number | null;
   minOrderKr: number;
   restaurant?: { name: string } | null;
 }
@@ -380,7 +379,6 @@ function appFeedValue(deal: AppFeedDeal): string {
   if (deal.freeDelivery) return "Fri leverans";
   if (deal.discountPercent) return `-${deal.discountPercent}%`;
   if (deal.amountKr) return `-${deal.amountKr} kr`;
-  if (deal.dpointsBonus) return `+${deal.dpointsBonus} p`;
   return deal.badge || "";
 }
 
@@ -452,11 +450,10 @@ const APP_PLACEMENT_LABELS: Record<string, string> = {
 };
 
 function appDealValueLabel(deal: AutomaticDealRecord): string {
-  if (deal.appMissionType) return `Uppdrag · +${deal.appDpointsBonus ?? 0} p`;
+  if (deal.appMissionType) return "Uppdrag";
   if (deal.freeDelivery) return "Fri leverans";
   if (deal.discountType === "PERCENTAGE") return `-${deal.discountValue}%`;
   if (deal.discountType === "FIXED") return `-${deal.discountValue} kr`;
-  if ((deal.appDpointsBonus ?? 0) > 0) return `+${deal.appDpointsBonus} p`;
   return "–";
 }
 

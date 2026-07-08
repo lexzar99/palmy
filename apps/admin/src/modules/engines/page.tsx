@@ -65,6 +65,9 @@ interface EngineEventRecord {
 const enginesKey = ["engines"] as const;
 const engineEventsKey = ["engines", "events"] as const;
 
+// Poängmotorerna är avvecklade med lojalitetssystemet och visas inte.
+const RETIRED_ENGINE_KEYS = new Set(["points_nudge", "streak_card", "surprise_bonus"]);
+
 export function EnginesPage() {
   const qc = useQueryClient();
   const engines = useQuery({
@@ -108,6 +111,7 @@ export function EnginesPage() {
     return <ErrorPanel title="Kunde inte ladda motorerna" action={<Button onClick={() => void engines.refetch()}><RefreshCw size={16} /> Försök igen</Button>} />;
   }
 
+  const visibleEngines = engines.data.engines.filter((e) => !RETIRED_ENGINE_KEYS.has(e.key));
   const titleByKey = new Map(engines.data.engines.map((e) => [e.key, e.title]));
 
   return (
@@ -145,7 +149,7 @@ export function EnginesPage() {
       </Surface>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {engines.data.engines.map((engine) => {
+        {visibleEngines.map((engine) => {
           const draft = drafts[engine.key];
           const dirty = draft && Object.keys(draft).some((k) => draft[k] !== engine.params[k]);
           return (

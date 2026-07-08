@@ -22,7 +22,7 @@ export const cartPagePending = {
 
     // Login-prompt banner
     "cart.loginPrompt.cta": "Logga in",
-    "cart.loginPrompt.body": "för orderhistorik & rabatter — du kan beställa utan konto.",
+    "cart.loginPrompt.body": "för orderhistorik, du kan beställa utan konto.",
     "cart.loginPrompt.account": "Konto",
 
     // Cart-row helper text
@@ -130,7 +130,7 @@ export const cartPagePending = {
 
     // Login-prompt banner
     "cart.loginPrompt.cta": "Sign in",
-    "cart.loginPrompt.body": "for order history & rewards — you can still order as a guest.",
+    "cart.loginPrompt.body": "for order history, you can still order as a guest.",
     "cart.loginPrompt.account": "Sign up",
 
     // Cart-row helper text

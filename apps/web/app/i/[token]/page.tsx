@@ -10,7 +10,6 @@ export const dynamic = "force-dynamic";
 interface InviteInfo {
   valid: boolean;
   inviterName?: string | null;
-  rewardPoints?: number;
   rewardKr?: number;
 }
 
@@ -30,7 +29,6 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
   const clean = (token || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 32);
   const info = clean ? await fetchInfo(clean) : null;
   const valid = !!info?.valid;
-  const reward = info?.rewardPoints ?? 0;
   const rewardKr = info?.rewardKr ?? 0;
   const inviter = info?.inviterName?.trim() || null;
 
@@ -59,7 +57,7 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
             </div>
 
             {/* Belöning — enda starka guld-accenten */}
-            {reward > 0 && (
+            {rewardKr > 0 && (
               <div
                 className="flex flex-col items-center gap-1.5 rounded-2xl py-6"
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
@@ -68,10 +66,10 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
                   className="rounded-full px-4 py-1.5 text-[15px] font-bold"
                   style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416", fontVariantNumeric: "tabular-nums" }}
                 >
-                  +{reward} Vpoints
+                  +{rewardKr} kr
                 </span>
                 <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
-                  {rewardKr > 0 ? `≈ ${rewardKr} kr till dig` : "till dig"}
+                  till dig
                 </span>
               </div>
             )}

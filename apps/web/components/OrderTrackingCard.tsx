@@ -10,7 +10,6 @@ const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap
 
 type LL = { lat: number; lng: number };
 
-const nf = new Intl.NumberFormat("sv-SE");
 
 function statusText(status: string, isPickup: boolean) {
   const s = status.toUpperCase();
@@ -62,38 +61,6 @@ function etaLabel(order: any, now = Date.now()) {
   }
   if (order.estimatedTime) return `${order.estimatedTime}m`;
   return type === "PICKUP" ? "ca 10m" : "Snart";
-}
-
-function earnedPoints(order: any) {
-  const raw =
-    order?.dpointsEarned ??
-    order?.pointsEarned ??
-    order?.earnedPoints ??
-    order?.rewardPoints ??
-    order?.dpoints?.earned;
-  const parsed = Number(raw);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed);
-  return 0;
-}
-
-function DpointsDiamond({ size = 28, color = "#F0531C" }: { size?: number; color?: string }) {
-  const side = size * 0.66;
-  const offset = (size - side) / 2;
-  const radius = side * 0.27;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
-      <rect
-        x={offset}
-        y={offset}
-        width={side}
-        height={side}
-        rx={radius}
-        ry={radius}
-        fill={color}
-        transform={`rotate(45 ${size / 2} ${size / 2})`}
-      />
-    </svg>
-  );
 }
 
 export function OrderTrackingCard({
@@ -195,26 +162,19 @@ export function OrderTrackingCard({
           </div>
         ) : isDone ? (
           <div className="flex h-full flex-col items-center justify-center px-4 text-center">
-            {Number(order.rating || 0) > 0 || order.reviewedAt || isPickup ? <Check size={25} style={{ color: accent }} /> : <DpointsDiamond size={27} color={accent} />}
+            <Check size={25} style={{ color: accent }} />
             <p className="mt-1.5 text-[14px] font-black" style={{ color: accent }}>
               {Number(order.rating || 0) > 0 || order.reviewedAt ? "Tack för recensionen" : isPickup ? "Redo att hämtas" : "Hoppas det smakade"}
             </p>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-between gap-3 px-4">
+          <div className="flex h-full items-center px-4">
             <div>
               <p className="text-[11px] font-bold" style={{ color: accentInk }}>{modeLabel}</p>
-              {earnedPoints(order) > 0 ? (
-                <p className="mt-1 text-[18px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
-                  +{nf.format(earnedPoints(order))} Vpoints
-                </p>
-              ) : (
-                <p className="mt-1 text-[18px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
-                  {status === "AWAITING_PAYMENT" ? "Betalning krävs" : "Order pågår"}
-                </p>
-              )}
+              <p className="mt-1 text-[18px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
+                {status === "AWAITING_PAYMENT" ? "Betalning krävs" : "Order pågår"}
+              </p>
             </div>
-            <DpointsDiamond size={28} color={accent} />
           </div>
         )}
       </div>

@@ -30,8 +30,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
 import { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
-import DpointsHomeCard from "@/components/DpointsHomeCard";
-import type { SponsorCardData } from "@/lib/dpoints";
 import WelcomeDealBanner from "@/components/WelcomeDealBanner";
 import EmptyState from "@/components/EmptyState";
 import { OrderTrackingCard, TrackingAdsRail, type TrackingAd } from "@/components/OrderTrackingCard";
@@ -155,7 +153,6 @@ const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
 
 type PromoCardItem =
   | { id: string; kind: "sponsor"; sponsor: SponsorData }
-  | { id: string; kind: "dpoints"; card: SponsorCardData }
   | { id: string; kind: "appDeal"; appDeal: HomeAppDeal }
   | { id: string; kind: "pulseChampion"; module: HomePulseModule }
   | { id: string; kind: "pulseHighlight"; module: HomePulseModule; restaurant: PulseRailRestaurant; badge: string };
@@ -166,7 +163,6 @@ type HomeAppDealMissionProgress = {
   remaining: number;
   completed: boolean;
   windowDays: number;
-  rewardPoints: number;
   claimed: boolean;
 };
 
@@ -184,7 +180,6 @@ type HomeAppDeal = {
   template?: string;
   size?: string;
   claimRequired?: boolean;
-  dpointsBonus?: number | null;
   missionType?: string | null;
   missionProgress?: HomeAppDealMissionProgress | null;
   checkoutApplicable?: boolean | null;
@@ -237,7 +232,7 @@ type HomePulseModule = {
   balance?: number | null;
   remainingPoints?: number | null;
   endsAt?: string | null;
-  progress?: { count: number; target: number; rewardPoints: number } | null;
+  progress?: { count: number; target: number } | null;
   images?: string[] | null;
   percent?: number | null;
 };
@@ -365,12 +360,9 @@ function FeaturedBadge({ featuredClass }: { featuredClass?: number | null }) {
 }
 
 function dealValueHeadline(deal: HomeAppDeal) {
-  const progress = deal.missionProgress;
-  if (deal.missionType && progress?.rewardPoints) return `+${progress.rewardPoints} Vpoints`;
   if (deal.freeDelivery) return "Fri leverans";
   if ((deal.discountPercent ?? 0) > 0) return `${deal.discountPercent}% rabatt`;
   if ((deal.amountKr ?? 0) > 0) return `${deal.amountKr} kr rabatt`;
-  if ((deal.dpointsBonus ?? 0) > 0) return `+${deal.dpointsBonus} Vpoints`;
   return deal.badge ?? "";
 }
 
@@ -394,26 +386,6 @@ function SwiftSectionHeader({ title, subtitle }: { title: string; subtitle?: str
       <h2 className="text-[22px] font-black leading-tight tracking-normal text-[var(--ink)]">{title}</h2>
       {!!subtitle && <p className="mt-0.5 text-[13px] font-semibold text-[var(--muted)]">{subtitle}</p>}
     </div>
-  );
-}
-
-function DpointsGlyph({ size = 18 }: { size?: number }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="relative inline-block shrink-0"
-      style={{ width: size, height: size, borderRadius: size * 0.22, backgroundColor: "var(--orange)" }}
-    >
-      <span
-        className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 rotate-45 border-white"
-        style={{
-          width: size * 0.42,
-          height: size * 0.42,
-          borderWidth: Math.max(1.5, size * 0.11),
-          borderRadius: size * 0.1,
-        }}
-      />
-    </span>
   );
 }
 
@@ -705,8 +677,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   const deliveryOverrides = useCartStore((s) => s.deliveryOverrides);
   const setDeliveryOverrides = useCartStore((s) => s.setDeliveryOverrides);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [dpointsCard, setDpointsCard] = useState<SponsorCardData | null>(null);
-  const [dpointsBalance, setDpointsBalance] = useState<number | null>(null);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [trackingAds, setTrackingAds] = useState<TrackingAd[]>([]);
   const [courierPositions, setCourierPositions] = useState<Record<string, { lat: number; lng: number }>>({});
@@ -724,12 +694,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       setActiveUserDealId(localStorage.getItem(ACTIVE_USER_DEAL_ID_KEY) || "");
     } catch { /* noop */ }
   }, []);
-  useEffect(() => {
-    axios.get("/api/platform/dpoints/me")
-      .then((res) => setDpointsBalance(res.data?.enabled ? Number(res.data.balance ?? 0) : null))
-      .catch(() => setDpointsBalance(null));
-  }, [isLoggedIn]);
-
   useEffect(() => {
     if (!isLoggedIn) return;
     Promise.all([
@@ -880,23 +844,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       socket.disconnect();
     };
   }, [activeOrders]);
-  // Vpoints-registreringskort i sponsor-railen — bara för utloggade besökare.
-  useEffect(() => {
-    if (isLoggedIn) {
-      try { localStorage.setItem("dp_hadAccount", "1"); } catch { /* noop */ }
-      setDpointsCard(null);
-      return;
-    }
-    // Anti-farming: visa inte signup-erbjudandet om enheten redan haft ett konto.
-    try { if (localStorage.getItem("dp_hadAccount")) { setDpointsCard(null); return; } } catch { /* noop */ }
-    Promise.all([
-      axios.get(`${API_URL}/api/dpoints/sponsor-card`).catch(() => ({ data: { card: null } })),
-      axios.get(`${API_URL}/api/settings`).catch(() => ({ data: {} })),
-    ]).then(([cardRes, setRes]: [{ data?: { card?: SponsorCardData | null } }, { data?: { dpoints?: { cardOnHome?: boolean } } }]) => {
-      const onHome = setRes?.data?.dpoints?.cardOnHome ?? true;
-      setDpointsCard(onHome ? (cardRes?.data?.card ?? null) : null);
-    });
-  }, [isLoggedIn]);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
@@ -1437,11 +1384,8 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       if (sponsorCards[i]) base.push(sponsorCards[i]);
       if (extras[i]) base.push(extras[i]);
     }
-    // Vpoints-kortet ligger FÖRST i samma array → räknas av karusellen + prickarna.
-    return dpointsCard
-      ? [{ id: "dpoints-signup", kind: "dpoints" as const, card: dpointsCard }, ...base]
-      : base;
-  }, [sponsors, dpointsCard, appDeals, pulseModules]);
+    return base;
+  }, [sponsors, appDeals, pulseModules]);
 
   const getDealForRestaurant = useCallback((restaurantId: string) => {
     return allDealCards.find(d => d.relatedRestaurantIds?.includes(restaurantId) || d.isGlobal);
@@ -1750,15 +1694,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             </button>
 
             <Link
-              href="/orders"
-              className="hidden h-9 shrink-0 items-center gap-1.5 rounded-full bg-[rgba(240,79,26,0.09)] px-3 text-[12px] font-black text-[var(--orange)] sm:inline-flex"
-              aria-label="Vpoints"
-            >
-              <DpointsGlyph size={16} />
-              <span className="tabular-nums">{dpointsBalance != null ? `${dpointsBalance.toLocaleString("sv-SE")} p` : "Vpoints"}</span>
-            </Link>
-
-            <Link
               href="/discover"
               className="relative flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-white text-[var(--ink)] swift-card-shadow"
               aria-label="Favoriter"
@@ -1828,7 +1763,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                           className="flex h-10 flex-[2] items-center justify-center gap-1.5 rounded-xl text-[13px] font-black text-white active:scale-[0.99]"
                           style={{ backgroundColor: "#2E7D4F" }}
                         >
-                          <Star size={14} className="fill-current" /> Recensera +Vpoints
+                          <Star size={14} className="fill-current" /> Recensera
                         </Link>
                         <button
                           type="button"
@@ -1863,9 +1798,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             >
               {promoCards.map((item) => (
                 <div key={item.id} style={{ scrollSnapAlign: "start" }}>
-                  {item.kind === "dpoints" ? (
-                    <DpointsHomeCard card={item.card} />
-                  ) : item.kind === "sponsor" ? (
+                  {item.kind === "sponsor" ? (
                     <SponsorCard sponsor={item.sponsor} />
                   ) : item.kind === "appDeal" ? (
                     <HomeAppDealCard

@@ -424,13 +424,12 @@ export function CustomersPage() {
           <>
             <div
               className="grid items-center gap-4 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
-              style={{ gridTemplateColumns: "1.7fr 1.2fr 0.8fr 1fr 0.9fr 50px" }}
+              style={{ gridTemplateColumns: "1.7fr 1.2fr 0.8fr 1fr 50px" }}
             >
               <span>Kund</span>
               <span>Telefon</span>
               <span>Ordrar</span>
               <span>Spenderat</span>
-              <span>Vpoints</span>
               <span />
             </div>
 
@@ -441,7 +440,7 @@ export function CustomersPage() {
                   type="button"
                   onClick={() => setActiveCustomer(customer)}
                   className="grid w-full items-center gap-4 border-b border-[var(--row-divider)] px-[18px] py-[13px] text-left text-[13px] transition-colors last:border-b-0 hover:bg-[var(--bg-page)]"
-                  style={{ gridTemplateColumns: "1.7fr 1.2fr 0.8fr 1fr 0.9fr 50px" }}
+                  style={{ gridTemplateColumns: "1.7fr 1.2fr 0.8fr 1fr 50px" }}
                 >
                   <span className="flex min-w-0 items-center gap-[11px]">
                     <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#111113] text-[12px] font-extrabold text-white">
@@ -463,7 +462,6 @@ export function CustomersPage() {
                   <span className="text-[var(--text-secondary)]">{customer.phone || "—"}</span>
                   <span>{formatNumber(customer._count?.orders || 0)}</span>
                   <span className="font-bold text-[var(--text-primary)]">{formatCurrency(customer.totalSpent)}</span>
-                  <span className="text-[var(--text-secondary)]">–</span>
                   <span className="flex justify-end text-[var(--text-muted)]">
                     <ChevronRight size={18} />
                   </span>

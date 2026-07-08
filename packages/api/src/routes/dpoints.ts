@@ -215,6 +215,8 @@ router.get('/reward-products', async (req, res) => {
 // Inloggad — lös in en aktiv DpointsReward till en personlig dealkod.
 router.post('/redeem', authenticateUser, async (req: any, res) => {
   try {
+    const settings = await getDpointsSettings();
+    if (!settings.dpointsEnabled) return res.status(403).json({ error: 'Vpoints är avstängt', code: 'DISABLED' });
     const userId = req.user?.id;
     const rewardId = String(req.body?.rewardId || '').trim();
     if (!userId) return res.status(401).json({ error: 'Ej inloggad' });

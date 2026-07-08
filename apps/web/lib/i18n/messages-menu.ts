@@ -29,7 +29,6 @@ export const menuPending = {
     "menu.meta.minOrder": "Min. {amount} kr",
     "menu.meta.pickupTime": "Avhämtning ~{min} min",
     // ── Produktrad
-    "menu.orPoints": "eller {points} poäng",
     "menu.diet.vegan": "Vegan",
     "menu.diet.vegetarian": "Vegetarisk",
     "menu.diet.glutenFree": "Glutenfri",
@@ -70,8 +69,6 @@ export const menuPending = {
     "product.addToCart": "Lägg till",
     "product.extrasPrice": "+{price} kr tillval",
     "product.free": "Gratis",
-    "product.dpointsBalance": "Du har {points} Vpoints",
-    "product.payWithPoints": "{points} poäng",
     "product.decrease": "Minska antal",
     "product.increase": "Öka antal",
     "product.switchRestaurant.title": "Byt restaurang?",
@@ -107,7 +104,6 @@ export const menuPending = {
     "menu.meta.minOrder": "Min. {amount} kr",
     "menu.meta.pickupTime": "Pickup ~{min} min",
     // ── Product row
-    "menu.orPoints": "or {points} points",
     "menu.diet.vegan": "Vegan",
     "menu.diet.vegetarian": "Vegetarian",
     "menu.diet.glutenFree": "Gluten-free",
@@ -148,8 +144,6 @@ export const menuPending = {
     "product.addToCart": "Add to cart",
     "product.extrasPrice": "+{price} kr extras",
     "product.free": "Free",
-    "product.dpointsBalance": "You have {points} Vpoints",
-    "product.payWithPoints": "{points} points",
     "product.decrease": "Decrease quantity",
     "product.increase": "Increase quantity",
     "product.switchRestaurant.title": "Switch restaurant?",

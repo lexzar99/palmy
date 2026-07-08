@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Diamond, Home, ShoppingBag, User } from "lucide-react";
+import { Home, ReceiptText, ShoppingBag, User } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -27,7 +27,7 @@ const BottomNav = () => {
   const navItems = [
     { href: "/", label: t("nav.home"), icon: Home },
     { href: "/cart", label: t("nav.cart"), icon: ShoppingBag, count: itemCount },
-    { href: "/orders", label: "Vpoints", icon: Diamond },
+    { href: "/orders", label: t("nav.orders"), icon: ReceiptText },
     { href: "/profile", label: t("nav.profile"), icon: User },
   ];
 

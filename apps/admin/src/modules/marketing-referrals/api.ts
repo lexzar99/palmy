@@ -24,13 +24,6 @@ export interface WelcomeOffer {
   minOrderKr: number;
 }
 
-export interface SponsorCardOption {
-  id: string;
-  sponsorName: string | null;
-  title: string | null;
-  bonusPoints: number;
-}
-
 export interface WelcomeDealSettings {
   welcomeDealActive: boolean;
   // Welcome-deal pekar nu på en Personal Template-Deal (samma pattern
@@ -41,16 +34,11 @@ export interface WelcomeDealSettings {
   // Vem erbjudandet gäller i kassan + på hur många av kundens första ordrar.
   welcomeAudience?: WelcomeAudience;
   welcomeMaxOrders?: number;
-  // Poäng-belöning för nya kunder (claimas efter registrering). Sponsor-valfri.
-  welcomePointsActive?: boolean;
-  welcomePointsAmount?: number;
-  welcomePointsSponsorCardId?: string | null;
   referralEnabled: boolean;
   referralDealId: string | null;
   referralCouponsPerSide: number;
   referralMaxRewardsPerInviter: number;
   availableDeals?: AvailableDeal[];
-  sponsorCards?: SponsorCardOption[];
 }
 
 export const welcomeDealQueryKey = ["marketing-referrals", "welcome-deal"] as const;

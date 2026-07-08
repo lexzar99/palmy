@@ -19,7 +19,6 @@ import { useFavorites } from "@/lib/favoritesStore";
 import { type BogoPickerProduct } from "@/components/BogoPickerModal";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import EmptyState from "@/components/EmptyState";
-import DpointsBadge from "@/components/DpointsBadge";
 import { rehydrateMenuCategories, MENU_FORMAT_PARAM } from "@/lib/menu";
 
 // Tunga modaler laddas först vid interaktion (köp/adress/BOGO) → mindre initial
@@ -97,13 +96,6 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
               −{discountPct} %
             </span>
           )}
-          {/* Rewardable → "eller X poäng" bredvid priset */}
-          <DpointsBadge
-            priceKr={final}
-            rewardable={!!product.rewardable}
-            rewardPointsMultiplier={product.rewardPointsMultiplier}
-            rewardPointsPrice={product.rewardPointsPrice}
-          />
           {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
             <span className="flex items-center gap-1.5 ml-0.5">
               {product.isVegan && <span className="text-[11.5px] font-medium px-1.5 rounded-md" style={{ color: "var(--success-ink)", border: "1px solid color-mix(in srgb, var(--success-ink) 30%, transparent)" }}>Vegan</span>}
@@ -149,7 +141,7 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
 
 /**
  * CompactCard — halv-bredds produktkort (displayMode COMPACT). Två per rad på
- * mobil: bild överst, namn + pris under. Samma deal/rabatt/dpoints-logik som
+ * mobil: bild överst, namn + pris under. Samma deal/rabatt-logik som
  * UniformCard men i en kompakt box istället för full-bredds rad.
  */
 function CompactCard({ product, onClick, disabled }: { product: any; onClick: () => void; disabled: boolean }) {
@@ -218,12 +210,6 @@ function CompactCard({ product, onClick, disabled }: { product: any; onClick: ()
               {original} kr
             </span>
           )}
-          <DpointsBadge
-            priceKr={final}
-            rewardable={!!product.rewardable}
-            rewardPointsMultiplier={product.rewardPointsMultiplier}
-            rewardPointsPrice={product.rewardPointsPrice}
-          />
         </div>
       </div>
     </button>

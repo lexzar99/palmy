@@ -261,7 +261,7 @@ function SponsorPreview({ draft, sponsors }: { draft: SponsorDraft; sponsors: Sp
       <div className="mb-3 flex items-end justify-between px-[15px] pt-3">
         <div>
           <div className="text-[18px] font-extrabold tracking-[-0.03em] text-[#141416]">För dig</div>
-          <div className="mt-0.5 text-[11.5px] font-semibold text-[#6b6b73]">Sponsrat & dina poäng</div>
+          <div className="mt-0.5 text-[11.5px] font-semibold text-[#6b6b73]">Sponsrat innehåll</div>
         </div>
       </div>
       <div className="overflow-hidden pl-[15px]">

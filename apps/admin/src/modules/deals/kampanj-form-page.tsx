@@ -56,7 +56,6 @@ type Draft = {
   appClaimRequired: boolean;
   appClaimExpiresMinutes: string;
   appCooldownHours: string;
-  appDpointsBonus: number;
   appMissionType: string;
   appCtaLabel: string;
   appCtaAction: string;
@@ -95,7 +94,6 @@ const defaultDraft = (): Draft => ({
   appClaimRequired: true,
   appClaimExpiresMinutes: "",
   appCooldownHours: "",
-  appDpointsBonus: 0,
   appMissionType: "",
   appCtaLabel: "",
   appCtaAction: "CLAIM",
@@ -191,7 +189,6 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         appClaimRequired: d.appClaimRequired !== false,
         appClaimExpiresMinutes: d.appClaimExpiresMinutes ? String(d.appClaimExpiresMinutes) : "",
         appCooldownHours: d.appCooldownHours ? String(d.appCooldownHours) : "",
-        appDpointsBonus: d.appDpointsBonus || 0,
         appMissionType: d.appMissionType || "",
         appCtaLabel: d.appCtaLabel || "",
         appCtaAction: d.appCtaAction || "CLAIM",
@@ -265,7 +262,6 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         appClaimRequired: d.appEnabled ? d.appClaimRequired : true,
         appClaimExpiresMinutes: d.appEnabled && d.appClaimExpiresMinutes ? Number(d.appClaimExpiresMinutes) : null,
         appCooldownHours: d.appEnabled && d.appCooldownHours ? Number(d.appCooldownHours) : null,
-        appDpointsBonus: d.appEnabled ? d.appDpointsBonus : 0,
         appMissionType: d.appEnabled ? d.appMissionType || null : null,
         appCtaLabel: d.appEnabled ? d.appCtaLabel || null : null,
         appCtaAction: d.appEnabled ? d.appCtaAction || "CLAIM" : "CLAIM",
@@ -316,7 +312,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
   // Live badge-text för förhandsvisningen, speglar aktuellt rabattvärde/typ.
   const previewDiscount =
     draft.discountType === "NONE"
-      ? (draft.freeDelivery ? "Fri leverans" : draft.appDpointsBonus > 0 ? `+${draft.appDpointsBonus} Vpoints` : "App-only")
+      ? (draft.freeDelivery ? "Fri leverans" : "App-only")
       : draft.discountType === "PERCENTAGE"
       ? `${draft.discountValue}% rabatt${draft.freeDelivery ? " + fri leverans" : ""}`
       : draft.discountType === "FIXED_PRICE"
@@ -624,9 +620,6 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
-                  <Field label="Vpoints bonus">
-                    <Input type="number" min="0" value={draft.appDpointsBonus} onChange={(e) => set("appDpointsBonus", Number(e.target.value))} />
-                  </Field>
                   <Field label="Uppdrag">
                     <Select
                       value={draft.appMissionType}

@@ -2,39 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Coins, Percent, Save, Truck, Loader2 } from "lucide-react";
+import { Percent, Save, Truck, Loader2 } from "lucide-react";
 import {
   getWelcomeDealSettings,
   updateWelcomeDealSettings,
   welcomeDealQueryKey,
   type WelcomeOffer,
-} from "../../marketing-referrals/api";
+} from "./api";
 import { Badge, Button, ErrorPanel, Field, Input, LoadingPanel, Select, Surface, Toggle } from "@/shared/components/ui";
 
 const DEFAULT_OFFER: WelcomeOffer = { discountKind: "PERCENT", discountValue: 20, freeDelivery: true, minOrderKr: 0 };
 
-// Välkomstkampanj = belöning till nya, inloggade kunder (rabatt och/eller poäng).
-// Bakad in som flik i Lojalitet-sidan. Använder delade Toggle + monokromt tema.
+// Välkomstkampanj = rabatt till nya, inloggade kunder.
 export default function WelcomeTab() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: welcomeDealQueryKey, queryFn: getWelcomeDealSettings });
 
   const [discountActive, setDiscountActive] = useState(false);
   const [offer, setOffer] = useState<WelcomeOffer>(DEFAULT_OFFER);
-  const [pointsActive, setPointsActive] = useState(false);
-  const [pointsAmount, setPointsAmount] = useState(100);
-  const [sponsorOn, setSponsorOn] = useState(false);
-  const [sponsorCardId, setSponsorCardId] = useState<string | null>(null);
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!q.data) return;
     setDiscountActive(!!q.data.welcomeDealActive);
     setOffer(q.data.welcomeOffer ?? DEFAULT_OFFER);
-    setPointsActive(!!q.data.welcomePointsActive);
-    setPointsAmount(q.data.welcomePointsAmount ?? 100);
-    setSponsorOn(!!q.data.welcomePointsSponsorCardId);
-    setSponsorCardId(q.data.welcomePointsSponsorCardId ?? null);
   }, [q.data]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const save = useMutation({
     mutationFn: () =>
@@ -43,9 +36,6 @@ export default function WelcomeTab() {
         ...(discountActive ? { welcomeOffer: offer } : {}),
         welcomeAudience: "LOGGED_IN",
         welcomeMaxOrders: 1,
-        welcomePointsActive: pointsActive,
-        welcomePointsAmount: pointsAmount,
-        welcomePointsSponsorCardId: sponsorOn ? sponsorCardId : null,
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: welcomeDealQueryKey }),
   });
@@ -57,21 +47,19 @@ export default function WelcomeTab() {
   if (q.isLoading) return <LoadingPanel label="Laddar välkomstkampanj..." />;
   if (q.isError || !q.data) return <ErrorPanel title="Kunde inte ladda välkomstkampanj" action={<Button onClick={() => void q.refetch()}>Försök igen</Button>} />;
 
-  const sponsors = q.data.sponsorCards ?? [];
   const setOfferField = <K extends keyof WelcomeOffer>(k: K, v: WelcomeOffer[K]) => setOffer((o) => ({ ...o, [k]: v }));
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <p className="max-w-2xl text-sm text-[var(--text-secondary)]">
-          Belöning till nya, inloggade kunder. En kupong per konto. Rabatt och poäng kan vara på samtidigt eller var för sig. Landar i kundens &quot;Mina deals&quot; direkt efter registrering.
+          Rabatt till nya, inloggade kunder. En kupong per konto. Landar i kundens &quot;Mina deals&quot; direkt efter registrering.
         </p>
         <Button variant="primary" disabled={save.isPending || offerEmpty} onClick={() => save.mutate()}>
           {save.isPending ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />} Spara
         </Button>
       </div>
 
-      {/* Rabatt */}
       <Surface className="px-6 py-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -131,55 +119,8 @@ export default function WelcomeTab() {
         )}
       </Surface>
 
-      {/* Poäng */}
-      <Surface className="px-6 py-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]"><Coins size={17} /></span>
-            <div>
-              <h2 className="text-lg font-semibold">Poäng vid registrering</h2>
-              <p className="text-sm text-[var(--text-secondary)]">Nya kunder hämtar bonusen efter registrering.</p>
-            </div>
-          </div>
-          <Toggle checked={pointsActive} onChange={setPointsActive} />
-        </div>
-
-        {pointsActive && (
-          <div className="mt-6 space-y-5 border-t border-[var(--border-subtle)] pt-6">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Antal poäng">
-                <Input type="number" min={0} value={pointsAmount} onChange={(e) => setPointsAmount(e.target.value ? Number(e.target.value) : 0)} />
-              </Field>
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-xl bg-[var(--bg-panel-muted)] px-4 py-3">
-              <div>
-                <p className="text-sm font-semibold">Sponsor-brandad bonus</p>
-                <p className="text-xs text-[var(--text-secondary)]">Av = ren plattform-bonus. På = visa en sponsors namn och logo.</p>
-              </div>
-              <Toggle checked={sponsorOn} onChange={(v) => { setSponsorOn(v); if (!v) setSponsorCardId(null); }} />
-            </div>
-            {sponsorOn && (
-              <Field label="Sponsor">
-                {sponsors.length === 0 ? (
-                  <p className="text-sm text-[var(--text-secondary)]">Inga aktiva sponsor-kort. Skapa ett under Sponsorkort-fliken.</p>
-                ) : (
-                  <Select value={sponsorCardId ?? ""} onChange={(e) => setSponsorCardId(e.target.value || null)}>
-                    <option value="">Välj sponsor</option>
-                    {sponsors.map((s) => (
-                      <option key={s.id} value={s.id}>{s.sponsorName || s.title || "Sponsor"}</option>
-                    ))}
-                  </Select>
-                )}
-              </Field>
-            )}
-          </div>
-        )}
-      </Surface>
-
       <div className="flex items-center gap-3">
-        <Badge tone={discountActive || pointsActive ? "success" : "neutral"}>
-          {discountActive && pointsActive ? "Rabatt + poäng aktiva" : discountActive ? "Rabatt aktiv" : pointsActive ? "Poäng aktiv" : "Inget aktivt"}
-        </Badge>
+        <Badge tone={discountActive ? "success" : "neutral"}>{discountActive ? "Rabatt aktiv" : "Inget aktivt"}</Badge>
         {save.isError && <span className="text-sm text-[var(--danger)]">Kunde inte spara</span>}
         {save.isSuccess && <span className="text-sm text-[var(--success)]">Sparat</span>}
       </div>

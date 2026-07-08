@@ -4,7 +4,6 @@ import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { fetchDpointsMe } from "@/lib/dpoints";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
@@ -25,7 +24,6 @@ import {
   User as UserIcon,
   ParkingCircle,
   Gift,
-  Coins,
   AlertCircle,
   Check,
   ChevronDown,
@@ -239,12 +237,6 @@ export default function CartPage() {
     const stored = readActiveUserDealId();
     if (stored) setSelectedAccountDealId(stored);
   }, []);
-  // Vpoints-saldo (för köp-med-poäng-guard i korgen). null = ej inloggad / av.
-  const [dpointsBalance, setDpointsBalance] = useState<number | null>(null);
-  const [showInsufficientPoints, setShowInsufficientPoints] = useState(false);
-  useEffect(() => {
-    fetchDpointsMe().then((d) => setDpointsBalance(d?.enabled ? d.balance : null)).catch(() => {});
-  }, []);
   // Kund kan välja att avbryta den automatiskt applicerade dealen (t.ex.
   // "25% första beställning") för att använda en egen rabattkod istället.
   // Default false → auto-deal appliceras som vanligt. Sätts true automatiskt
@@ -295,7 +287,6 @@ export default function CartPage() {
     pausedUntil?: string | null;
     isPaused?: boolean;
     vatPercent?: number | null;
-    dpoints?: { enabled?: boolean; valuePerKr?: number; courierCost?: number } | null;
   }>({
     isOpen: true,
     deliveryFee: 0,
@@ -892,25 +883,9 @@ export default function CartPage() {
   // som "154.28999999999996 kr" på Stripe-knappen. Ceil betyder kunden
   // betalar maximalt 1 kr mer än exakt — vi förlorar inte pengar, och
   // siffror blir rena. Backend matchar via samma Math.ceil i orders.ts.
-  // Vpoints: kortet debiterar alltid minst 5 kr (Stripe-minimum) när varor köps
-  // med poäng — speglar serverns golv (orders.ts CARD_FLOOR_ORE) så klient-total
-  // === server-total (annars Stripe-beloppsmismatch). Resten täcks av poäng.
-  // Vpoints budkostnad: en order som betalas ENBART med poäng (alla rader
-  // paidWithPoints → subtotal 0 kr) bär ingen kontant som täcker kuriren.
-  // Vid LEVERANS läggs den globala budkostnaden på (ersätter zon-avgiften);
-  // vid HÄMTNING är den gratis. Speglar orders.ts så klient-total === server-total.
-  const isPointsOnlyOrder = items.length > 0 && items.every((i) => i.paidWithPoints);
-  const courierCostKr = isPointsOnlyOrder && orderType === "DELIVERY"
-    ? Math.max(0, Math.round((restaurantSettings.dpoints?.courierCost ?? 0) / 100))
-    : 0;
-  // För poäng-enbart leverans ersätter budkostnaden zon-leveransavgiften.
-  const effectiveDeliveryFee = isPointsOnlyOrder && orderType === "DELIVERY" ? courierCostKr : deliveryFee;
   const total = isTestFlow
     ? 0
-    : (() => {
-        const t = Math.ceil(Math.max(0, subtotal + effectiveDeliveryFee + minOrderTopUp + effectiveTip - finalDiscount));
-        return items.some((i) => i.paidWithPoints) && t < 5 ? 5 : t;
-      })();
+    : Math.ceil(Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount));
 
   // Moms enligt restaurangens EGEN momssats (aldrig hårdkodad). Totalen är
   // momsinklusive → vi extraherar andelen. Raden visas när restaurangen har
@@ -1580,7 +1555,6 @@ export default function CartPage() {
           quantity: e.quantity ?? 1,
         })),
         note: i.note,
-        paidWithPoints: i.paidWithPoints || undefined,
       })),
       minOrderTopUp: minOrderTopUp > 0 ? minOrderTopUp : undefined,
     };
@@ -2434,13 +2408,7 @@ export default function CartPage() {
                     </button>
                     <span className="text-[13px] font-bold w-3 text-center" style={{ color: "var(--text-primary)" }}>{item.quantity}</span>
                     <button
-                      onClick={() => {
-                        if (item.paidWithPoints && dpointsBalance != null && item.dpointsUnitCost) {
-                          const committed = items.reduce((s, i) => s + (i.paidWithPoints ? (i.dpointsUnitCost ?? 0) * i.quantity : 0), 0);
-                          if (committed + item.dpointsUnitCost > dpointsBalance) { setShowInsufficientPoints(true); return; }
-                        }
-                        updateQuantity(item.cartItemId, 1);
-                      }}
+                      onClick={() => updateQuantity(item.cartItemId, 1)}
                       className="w-6 h-6 rounded-full flex items-center justify-center active:scale-90 transition-all hover:opacity-70" style={{ color: "var(--text-primary)" }}
                       aria-label="Öka antal"
                     >
@@ -2465,9 +2433,7 @@ export default function CartPage() {
 
                   {/* Pris — höger */}
                   <div className="text-right shrink-0">
-                    {item.paidWithPoints ? (
-                      <div className="inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>Med poäng</div>
-                    ) : item.bogoFreeFromDealId ? (
+                    {item.bogoFreeFromDealId ? (
                       <div className="inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>{t("cart.bogo.freeTag")}</div>
                     ) : (
                       <div className="text-[14.5px] font-semibold leading-none" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{(item.price * item.quantity).toFixed(0)} kr</div>
@@ -2476,17 +2442,6 @@ export default function CartPage() {
                 </motion.div>
               ))}
             </div>
-
-            {showInsufficientPoints && (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-6" onClick={() => setShowInsufficientPoints(false)}>
-                <div className="w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)" }}>
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gold-500/15"><Coins size={22} className="text-gold-600" /></div>
-                  <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Otillräckligt med Vpoints</h3>
-                  <p className="mt-1.5 text-sm" style={{ color: "var(--text-secondary)" }}>Du har inte tillräckligt med poäng för fler varor köpta med poäng. Lös in färre — eller lägg till varan med pengar istället.</p>
-                  <button onClick={() => setShowInsufficientPoints(false)} className="mt-4 w-full rounded-full py-3 font-bold" style={{ backgroundColor: "#c89a3c", color: "#1c1c1e" }}>OK</button>
-                </div>
-              </div>
-            )}
 
             {/* Desktop left column: delivery details + pricing */}
             <div className="hidden lg:block mt-5 space-y-4" id="desktop-left-extras">
@@ -2500,16 +2455,10 @@ export default function CartPage() {
                 {/* Totals */}
                 <div className="pt-6 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
                   <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{subtotal.toFixed(0)} {t("common.sek")}</span></div>
-                  {orderType === 'DELIVERY' && !isPointsOnlyOrder && (
+                  {orderType === 'DELIVERY' && (
                     <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
                       <span>{t("cart.summary.deliveryFee")}</span>
                       <span style={{ color: "var(--text-primary)" }}>{addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${deliveryFee.toFixed(0)} ${t("common.sek")}`}</span>
-                    </div>
-                  )}
-                  {orderType === 'DELIVERY' && isPointsOnlyOrder && (
-                    <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                      <span>{t("cart.summary.courierCost")}</span>
-                      <span style={{ color: "var(--text-primary)" }}>{courierCostKr.toFixed(0)} {t("common.sek")}</span>
                     </div>
                   )}
                   {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.tip")}</span><span style={{ color: "var(--text-primary)" }}>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
@@ -2820,18 +2769,12 @@ export default function CartPage() {
 
                      <div className="mt-6 pt-5 space-y-3" style={{ borderTop: "1px solid var(--border-muted)" }}>
                         <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{subtotal.toFixed(0)} {t("common.sek")}</span></div>
-                        {orderType === 'DELIVERY' && !isPointsOnlyOrder && (
+                        {orderType === 'DELIVERY' && (
                           <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
                             <span>{t("cart.summary.deliveryFee")}</span>
                             <span style={{ color: "var(--text-primary)" }}>
                               {addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${deliveryFee.toFixed(0)} ${t("common.sek")}`}
                             </span>
-                          </div>
-                        )}
-                        {orderType === 'DELIVERY' && isPointsOnlyOrder && (
-                          <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                            <span>{t("cart.summary.courierCost")}</span>
-                            <span style={{ color: "var(--text-primary)" }}>{courierCostKr.toFixed(0)} {t("common.sek")}</span>
                           </div>
                         )}
                         {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.tip")}</span><span style={{ color: "var(--text-primary)" }}>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}

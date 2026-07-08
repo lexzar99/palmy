@@ -10,7 +10,7 @@ import {
   getReferrals,
   referralsListQueryKey,
   revertReferral,
-} from "../../marketing-referrals/api";
+} from "./api";
 
 // Värva vän = den nya invite-attributionen (samma Referral-modell, nya tokens).
 // Visar tratten + värvningarna med möjlighet att återta en belöning.

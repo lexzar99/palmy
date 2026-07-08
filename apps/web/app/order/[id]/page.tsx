@@ -243,8 +243,7 @@ const OrderStatusPage = () => {
   const [likedItemIds, setLikedItemIds] = useState<string[]>([]);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewDone, setReviewDone] = useState(false);
-  // Vpoints-belöningen ur review-svaret (Swift: "+X Vpoints lades till." om
-  // poäng > 0, annars "Tack för din recension.").
+  // Bekräftelsetext efter inskickad recension.
   const [reviewRewardText, setReviewRewardText] = useState<string | null>(null);
   // Kvitto-modal + nedladdningsräknare (max 2 ggr per order, lokalt).
   const [showReceipt, setShowReceipt] = useState(false);
@@ -459,12 +458,8 @@ const OrderStatusPage = () => {
       const body: any = { rating: reviewRating, review: reviewText, likedItemIds };
       if (tokenFromUrl) body.accessToken = tokenFromUrl;
       if (phoneFromUrl) body.phone = phoneFromUrl;
-      const res = await axios.post(`/api/platform/orders/${orderId}/review`, body);
-      // Visa Vpoints-belöningen ur svaret (Swift-paritet).
-      const points = Number(res.data?.dpoints?.points ?? 0);
-      setReviewRewardText(
-        res.data?.dpoints?.awarded && points > 0 ? `+${points} Vpoints lades till.` : "Tack för din recension.",
-      );
+      await axios.post(`/api/platform/orders/${orderId}/review`, body);
+      setReviewRewardText("Tack för din recension.");
       setReviewDone(true);
       setOrder((prev: any) => prev ? { ...prev, rating: reviewRating } : prev);
     } catch (err: any) {
@@ -793,17 +788,6 @@ const OrderStatusPage = () => {
   const discount = Math.max(0, Math.round(rawSubtotal + deliveryFee - Number(order.total || 0)));
   const vatKr = Math.max(0, Math.round((Math.max(0, Number(order.total || 0) - Number(order.tipAmount || 0)) * 12) / 112));
   const paymentLabel = order.paymentMethod === "ONLINE" ? "Betalt med Apple Pay" : order.paymentMethod ? `Betalt med ${order.paymentMethod}` : "Betalning registrerad";
-  const orderEarnedPoints = (() => {
-    const raw =
-      order.dpointsEarned ??
-      order.pointsEarned ??
-      order.earnedPoints ??
-      order.rewardPoints ??
-      order.dpoints?.earned;
-    const parsed = Number(raw);
-    if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed);
-    return 0;
-  })();
   const sheetDragOffsetFromDelta = (delta: number, expanded: boolean) => {
     return expanded
       ? Math.max(0, Math.min(360, delta))
@@ -1026,14 +1010,6 @@ const OrderStatusPage = () => {
         {isRejected || awaitingAccept || isCompleted || order.scheduledFor ? etaMain : `ca ${etaMain}`}
       </p>
       <p className="mx-auto mt-2 max-w-sm text-[13.5px] font-medium leading-5" style={{ color: "var(--text-secondary)" }}>{statusDescription}</p>
-      {!isRejected && orderEarnedPoints > 0 ? (
-        <>
-          <div className="mt-4">
-            <p className="text-[30px] font-black tabular-nums" style={{ color: statusAccent }}>+{orderEarnedPoints} Vpoints</p>
-          </div>
-          <TrackingLineWeb />
-        </>
-      ) : null}
     </div>
   );
 
@@ -1070,7 +1046,6 @@ const OrderStatusPage = () => {
           <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full bg-[#EAF7EF] text-[#2E7D4F]"><ShieldCheck size={34} /></div>
           <p className="text-[30px] font-black" style={{ color: "#2E7D4F" }}>Klart</p>
           <p className="mt-2 text-[20px] font-black" style={{ color: "var(--text-primary)" }}>Tack för att du väljer ViaEats</p>
-          {/* Vpoints-belöningen ur review-svaret — tydligt visad (Swift-paritet). */}
           {reviewRewardText && (
             <p className="mt-2 text-[15px] font-black" style={{ color: "#F0531C" }}>{reviewRewardText}</p>
           )}

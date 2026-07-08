@@ -53,7 +53,7 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
       whileTap={isInteractive ? { scale: 0.99 } : undefined}
       transition={{ type: "spring", stiffness: 320, damping: 22 }}
       onClick={handleClick}
-      // STANDARD-format för alla promo-kort (sponsor + dpoints): samma bredd
+      // STANDARD-format för alla promo-kort: samma bredd
       // OCH samma bildförhållande (banner ~1.9:1). Bilden fyller HELA kortet
       // kant-till-kant via object-cover — eftersom kortets aspect matchar
       // bannerns blir det ingen tom letterbox (desktop) och ingen hård crop

@@ -38,8 +38,7 @@ export default async function OmOssPage() {
                 betalningen och spårningen så att köken kan fokusera på det de är bäst på, maten.
               </p>
               <p>
-                Leveransen sköts antingen av restaurangen själv eller av ViaEats bud, beroende på område. Du samlar
-                Vpoints på varje betald order och kan lösa in dem mot produkter och rabatter.
+                Leveransen sköts antingen av restaurangen själv eller av ViaEats bud, beroende på område.
               </p>
               <p>
                 Snabb leverans, trygg betalning via Mollie och support när du behöver den. Det är vad ViaEats finns till för.

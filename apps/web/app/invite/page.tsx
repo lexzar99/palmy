@@ -13,7 +13,6 @@ export default function InvitePage() {
   const [shared, setShared] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
   const [shareErr, setShareErr] = useState("");
-  const REWARD_POINTS = 200;
 
   // Hämta den attribuerade delningslänken (/i/<token>) för inloggad användare.
   useEffect(() => {
@@ -83,16 +82,8 @@ export default function InvitePage() {
         <div className="space-y-2 text-center">
           <h1 className="text-[24px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Bjud in vänner</h1>
           <p className="text-[14px] leading-snug" style={{ color: "var(--text-secondary)" }}>
-            Dela ViaEats med en vän. Ni får båda Vpoints när hen gör sin första beställning.
+            Dela ViaEats med en vän. Ni får båda en belöning när hen gör sin första beställning.
           </p>
-        </div>
-
-        {/* Belöning — den enda starka guld-accenten */}
-        <div className="flex flex-col items-center gap-1.5 rounded-2xl py-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-          <span className="rounded-full px-4 py-1.5 text-[15px] font-bold" style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416", fontVariantNumeric: "tabular-nums" }}>
-            +{REWARD_POINTS} Vpoints
-          </span>
-          <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>till er båda</span>
         </div>
 
         {/* Dela — monokrom knapp med guld-touch (ikonen) */}

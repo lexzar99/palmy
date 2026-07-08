@@ -75,7 +75,6 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Konto:</strong> namn, e-post, telefonnummer, krypterat lösenord.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Beställningar:</strong> orderhistorik, leveransadresser, valda restauranger och rätter.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Betalning:</strong> hanteras av Mollie. Vi lagrar aldrig kortnummer eller CVC.</span></li>
-              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Vpoints:</strong> intjänade och inlösta poäng kopplade till ditt konto.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Teknisk data:</strong> IP-adress, enhetstyp, push-token för orderstatus-notiser.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Analys (frivillig):</strong> felrapporter via Sentry, endast om du accepterar i cookie-bannern.</span></li>
             </ul>

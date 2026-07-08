@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingBag, Mail, Coins } from "lucide-react";
+import { ShoppingBag, Mail } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { useState, useEffect } from "react";
@@ -14,11 +14,6 @@ type SessionUser = {
   firstName?: string | null;
   lastName?: string | null;
   name?: string | null;
-};
-
-type DpointsHeader = {
-  enabled?: boolean;
-  balance?: number;
 };
 
 /**
@@ -34,7 +29,6 @@ const Navbar = () => {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<SessionUser | null>(null);
-  const [dpoints, setDpoints] = useState<DpointsHeader | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -48,21 +42,11 @@ const Navbar = () => {
         if (!cancelled) setUser(null);
       }
     };
-    const loadDpoints = async () => {
-      try {
-        const res = await axios.get(`/api/platform/dpoints/me`);
-        if (!cancelled && res.data?.enabled) setDpoints({ enabled: true, balance: Number(res.data.balance ?? 0) });
-        else if (!cancelled) setDpoints(null);
-      } catch {
-        if (!cancelled) setDpoints(null);
-      }
-    };
 
     loadUser();
-    loadDpoints();
 
     // Lyssna på session-events (login/logout i samma flik eller annan flik)
-    const onChange = () => { void loadUser(); void loadDpoints(); };
+    const onChange = () => { void loadUser(); };
     window.addEventListener(PLATFORM_SESSION_CHANGED_EVENT, onChange);
     window.addEventListener("storage", onChange);
     return () => {
@@ -147,16 +131,6 @@ const Navbar = () => {
               {t("nav.login")}
             </Link>
           )}
-
-          <Link
-            href="/orders"
-            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold transition-colors"
-            style={{ backgroundColor: "var(--gold-soft)", color: "var(--color-gold-500)", border: "1px solid color-mix(in srgb, var(--color-gold-500) 24%, transparent)" }}
-            aria-label="Vpoints"
-          >
-            <Coins size={15} strokeWidth={1.9} />
-            <span className="tabular-nums">{dpoints?.enabled ? `${(dpoints.balance ?? 0).toLocaleString("sv-SE")} p` : "Vpoints"}</span>
-          </Link>
 
           {/* Tysta ikonknappar — ingen bakgrundsplatta, ingen kant */}
           <div className="flex items-center gap-1 pl-4" style={{ borderLeft: "1px solid var(--border-muted)" }}>

@@ -3,14 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { X, Plus, Minus, Check, Coins } from "lucide-react";
+import { X, Plus, Minus, Check } from "lucide-react";
 import { useCartStore, type BogoChoice } from "@/store/cartStore";
 import ConfirmModal from "./ConfirmModal";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 import { useToast } from "./Toast";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
-import { fetchDpointsMe, type DpointsMe } from "@/lib/dpoints";
-import { calcDpointsPrice } from "./DpointsBadge";
 
 interface ProductModalProps {
   product: any;
@@ -31,13 +29,12 @@ interface ProductModalProps {
 }
 
 const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCartItemId, initialQuantity, initialExtras, initialNote, bogoFreeFromDealId, bogoDealTitle, bogoRewardCategoryName, bogoExcludedExtraIds }: ProductModalProps) => {
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
   const addItem = useCartStore((state) => state.addItem);
   const updateItem = useCartStore((state) => state.updateItem);
   const setBogoChoice = useCartStore((state) => state.setBogoChoice);
   const currentCartRestaurantId = useCartStore((state) => state.restaurantId);
   const cartItemsCount = useCartStore((state) => state.items.length);
-  const cartItems = useCartStore((state) => state.items);
   const { toast } = useToast();
   // Focus-trap för a11y (WCAG 2.4.3) — screen reader-användare ska inte
   // kunna tabba ut ur modalen.
@@ -70,12 +67,6 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
     });
   };
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const buyWithPointsRef = useRef(false);
-  const [dpoints, setDpoints] = useState<DpointsMe | null>(null);
-  useEffect(() => { fetchDpointsMe().then(setDpoints).catch(() => {}); }, []);
-
-  // Lokal sifferformattering ("1 190" på svenska, "1,190" på engelska).
-  const nf = (n: number) => n.toLocaleString(locale === "en" ? "en-GB" : "sv-SE");
 
   // För BOGO-gratisvara: ta bort tillval som admin har blockerat på dealen
   // (t.ex. "Familjepizza-storlek" eller "vitlökssås"). Vi filtrerar både på
@@ -240,17 +231,6 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
 
   const extrasPrice = selectedExtras.reduce((sum, e) => sum + e.price * (e.quantity ?? 1), 0);
   const totalPrice = (effectiveBasePrice + extrasPrice) * quantity;
-  // Vpoints: kostnad i poäng för hela raden + om kunden kan betala med poäng.
-  const dpointsUnitCost = calcDpointsPrice(effectiveBasePrice + extrasPrice, product.rewardPointsMultiplier, product.rewardPointsPrice, dpoints?.valuePerKr ?? 10);
-  const dpointsCost = dpointsUnitCost * quantity;
-  // Poäng-pris för basvaran — visas i header-prisraden ("eller X poäng").
-  const dpointsBasePoints = calcDpointsPrice(effectiveBasePrice, product.rewardPointsMultiplier, product.rewardPointsPrice, dpoints?.valuePerKr ?? 10);
-  // Poäng redan reserverade av andra köp-med-poäng-rader i korgen → kan inte
-  // dubbel-spendera samma saldo.
-  const committedPoints = cartItems.reduce((sum, i) => sum + (i.paidWithPoints ? (i.dpointsUnitCost ?? 0) * i.quantity : 0), 0);
-  const availablePoints = (dpoints?.balance ?? 0) - committedPoints;
-  // Endast varor markerade som rewardable kan köpas med poäng (admin/Flutter-styrt).
-  const canBuyWithPoints = !!dpoints?.enabled && !!product.rewardable && !editCartItemId && !bogoFreeFromDealId && dpointsCost > 0 && availablePoints >= dpointsCost;
   const hasDiscount = effectiveBasePrice < product.price;
   const discountPct = hasDiscount && product.price > 0 ? Math.round((1 - effectiveBasePrice / product.price) * 100) : 0;
 
@@ -297,25 +277,6 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         note: note.trim() || undefined,
       });
       toast(t("product.toast.updated", { name: product.name }), "success");
-    } else if (buyWithPointsRef.current) {
-      // Köp med Vpoints: lägg raden som gratis (price 0 + extras 0) och flagga
-      // den. Backend nollar raden + drar poäng vid betalning. Priset 0 håller
-      // klient- och server-totalen i synk (annars Stripe-beloppsmismatch).
-      buyWithPointsRef.current = false;
-      addItem({
-        productId: product.id,
-        restaurantId,
-        restaurantSlug,
-        name: product.name,
-        imageUrl: product.imageUrl ?? undefined,
-        price: 0,
-        quantity,
-        extras: selectedExtras.map((e) => ({ ...e, price: 0 })),
-        note: note.trim() || undefined,
-        paidWithPoints: true,
-        dpointsUnitCost,
-      });
-      toast(t("product.toast.added", { name: product.name }), "success");
     } else {
       addItem({
         productId: product.id,
@@ -397,7 +358,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
             </div>
           ) : null}
 
-          {/* ── Namn + pris (+ "eller X poäng") under bilden. ─────────────── */}
+          {/* ── Namn + pris under bilden. ─────────────────────────────────── */}
           <div className="px-5 pt-4" style={{ borderBottom: "1px solid var(--border-muted)", paddingBottom: "16px" }}>
             {bogoFreeFromDealId ? (
               <span className="inline-block mb-1.5 rounded-md px-2 py-0.5 bg-gold-500 text-[12px] font-semibold" style={{ color: "#141416" }}>
@@ -421,12 +382,6 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                   −{discountPct} %
                 </span>
               )}
-              {/* Vpoints — "eller X poäng" för rewardable varor (göms om Vpoints är av) */}
-              {!bogoFreeFromDealId && !!product.rewardable && !!dpoints?.enabled && dpointsBasePoints > 0 && (
-                <span className="text-[12.5px] font-medium" style={{ color: "var(--gold-ink)" }}>
-                  {t("menu.orPoints", { points: nf(dpointsBasePoints) })}
-                </span>
-              )}
             </div>
             {/* Full produktbeskrivning under priset — aldrig trunkerad. */}
             {product.description ? (
@@ -436,15 +391,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
             ) : null}
           </div>
 
-          {((dpoints?.enabled && (dpoints?.balance ?? 0) > 0) || product.isVegan || product.isVegetarian || product.isGlutenFree) && (
+          {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
             <div className="px-5 pt-4">
-              {dpoints?.enabled && (dpoints?.balance ?? 0) > 0 && (
-                <p className="m-0 mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
-                  <Coins size={13} strokeWidth={1.8} />
-                  {t("product.dpointsBalance", { points: nf(dpoints.balance) })}
-                </p>
-              )}
-
               {/* Kostmarkörer — läsbara textchips istället för färgprickar */}
               {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -640,7 +588,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
           </div>
 
           <button
-            onClick={() => { buyWithPointsRef.current = false; handleAddToCart(); }}
+            onClick={handleAddToCart}
             className="flex-1 h-12 rounded-xl bg-gold-500 px-4 flex items-center justify-between gap-3 transition-opacity active:opacity-90"
             style={{ color: "#141416" }}
           >
@@ -653,17 +601,6 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                 : `${totalPrice} kr`}
             </span>
           </button>
-
-          {canBuyWithPoints && (
-            <button
-              onClick={() => { buyWithPointsRef.current = true; handleAddToCart(); }}
-              className="h-12 rounded-xl px-3.5 flex items-center gap-1.5 shrink-0 text-[13px] font-semibold transition-opacity active:opacity-70"
-              style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)", backgroundColor: "var(--bg-secondary)", fontVariantNumeric: "tabular-nums" }}
-            >
-              <Coins size={15} strokeWidth={1.8} style={{ color: "var(--gold-ink)" }} />
-              {t("product.payWithPoints", { points: nf(dpointsCost) })}
-            </button>
-          )}
         </div>
 
         <ConfirmModal

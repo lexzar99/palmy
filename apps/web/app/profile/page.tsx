@@ -161,10 +161,6 @@ function ProfileContent() {
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab === "dpoints") {
-      router.replace("/orders");
-      return;
-    }
     if (tab && ["overview", "orders", "deals", "addresses", "settings", "payments"].includes(tab)) {
       setActiveTab(tab as ProfileTab);
     }

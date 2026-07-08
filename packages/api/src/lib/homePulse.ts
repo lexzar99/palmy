@@ -4,6 +4,7 @@
 // och loggas via EngineSetting/EngineEvent (admin → Motorn).
 
 import prisma from './prisma';
+import { getDpointsSettings } from './dpoints';
 import { themeForKey, dailyPick, dailyScore, dayOfYear } from './themeRotation';
 
 const LIVE_STATUSES = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERING'];
@@ -1085,6 +1086,7 @@ const MAX_MODULES = 6;
 export async function buildHomePulse(userId: string | null): Promise<{ greeting: string; modules: any[] }> {
   const settings = await getEngineSettings();
   const previewAll = await isPreviewAllModulesEnabled();
+  const { dpointsEnabled } = await getDpointsSettings();
   const buildForPreview = async (normal: Promise<any>, preview: () => Promise<any>) => {
     const module = await normal.catch(() => null);
     return module || (previewAll ? preview() : null);
@@ -1098,9 +1100,9 @@ export async function buildHomePulse(userId: string | null): Promise<{ greeting:
     engineOn('daily_drop') ? buildForPreview(buildDailyDrop(settings.daily_drop.params, previewAll), () => previewDailyDrop(settings.daily_drop.params)) : Promise.resolve(null),
     engineOn('new_restaurants') ? buildForPreview(buildNewRestaurants(settings.new_restaurants.params), previewNewRestaurants) : Promise.resolve(null),
     engineOn('trending') ? buildForPreview(buildTrending(settings.trending.params), previewTrending) : Promise.resolve(null),
-    engineOn('points_nudge') && userId ? buildForPreview(buildPointsNudge(userId, settings.points_nudge.params), previewPointsNudge) : previewAll ? previewPointsNudge() : Promise.resolve(null),
+    dpointsEnabled && engineOn('points_nudge') && userId ? buildForPreview(buildPointsNudge(userId, settings.points_nudge.params), previewPointsNudge) : Promise.resolve(null),
     engineOn('comeback') && userId ? buildForPreview(buildComeback(userId, settings.comeback.params), previewComeback) : previewAll ? previewComeback() : Promise.resolve(null),
-    engineOn('streak_card') && userId ? buildForPreview(buildStreakCard(userId), previewStreakCard) : previewAll ? previewStreakCard() : Promise.resolve(null),
+    dpointsEnabled && engineOn('streak_card') && userId ? buildForPreview(buildStreakCard(userId), previewStreakCard) : Promise.resolve(null),
     engineOn('occasions') ? buildForPreview(buildOccasion(previewAll), previewOccasion) : Promise.resolve(null),
     engineOn('weather_pulse') ? buildForPreview(buildWeather(settings.weather_pulse.params, previewAll), () => previewWeather(settings.weather_pulse.params)) : Promise.resolve(null),
   ];

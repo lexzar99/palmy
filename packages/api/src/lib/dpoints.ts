@@ -38,7 +38,8 @@ export interface DpointsSettings {
 export async function getDpointsSettings(): Promise<DpointsSettings> {
   const row: any = (await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } })) || {};
   return {
-    dpointsEnabled: row.dpointsEnabled ?? false,
+    // Vpoints avstängt plattformsbrett 2026-07-08 — DB-flaggan ignoreras medvetet.
+    dpointsEnabled: false,
     dpointsPerKr: row.dpointsPerKr ?? 0.1,
     dpointsValuePerKr: row.dpointsValuePerKr ?? 10,
     dpointsMaxBalance: row.dpointsMaxBalance ?? 2500,

@@ -14,7 +14,6 @@ import {
   ChevronLeft,
   CircleDollarSign,
   ClipboardList,
-  Coins,
   ContactRound,
   Filter,
   Gift,
@@ -33,6 +32,7 @@ import {
   Store,
   Tablet,
   TicketPercent,
+  UserPlus,
   Users,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -76,7 +76,7 @@ const SECTIONS: NavSection[] = [
       { href: "/deals", label: "Deals", icon: Gift },
       { href: "/coupons", label: "Kuponger", icon: TicketPercent },
       { href: "/sponsors", label: "Sponsorer", icon: Handshake },
-      { href: "/dpoints", label: "Vpoints", icon: Coins },
+      { href: "/referrals", label: "Värva vän", icon: UserPlus },
       { href: "/push", label: "Push", icon: BellRing },
     ],
   },

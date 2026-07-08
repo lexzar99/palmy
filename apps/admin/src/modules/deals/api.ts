@@ -60,7 +60,6 @@ export interface AutomaticDealRecord {
   appClaimRequired?: boolean;
   appClaimExpiresMinutes?: number | null;
   appCooldownHours?: number | null;
-  appDpointsBonus?: number;
   appMissionType?: string | null;
   appCtaLabel?: string | null;
   appCtaAction?: string | null;
