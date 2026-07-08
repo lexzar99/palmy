@@ -164,21 +164,6 @@ const RESTAURANT_RAIL_IMAGE_SIZES = "(max-width: 639px) 230px, (max-width: 767px
 const RESTAURANT_LIST_IMAGE_SIZES = "(max-width: 1023px) calc(100vw - 32px), (max-width: 1535px) 50vw, 33vw";
 const ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT = 2;
 
-function useDesktopPromoImage() {
-  const [enabled, setEnabled] = useState(false);
-
-  useEffect(() => {
-    const query = window.matchMedia("(min-width: 768px)");
-    const update = () => setEnabled(query.matches);
-
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-
-  return enabled;
-}
-
 type PromoCardItem =
   | { id: string; kind: "sponsor"; sponsor: SponsorData }
   | { id: string; kind: "appDeal"; appDeal: HomeAppDeal }
@@ -508,17 +493,11 @@ function HomeAppDealCard({
 
 function ChampionPromoCard({ module, onOpen, imagePriority = false }: { module: HomePulseModule; onOpen: (slug: string) => void; imagePriority?: boolean }) {
   const restaurant = module.restaurant;
-  const showDesktopImage = useDesktopPromoImage();
   if (!restaurant) return null;
   const image = absoluteMediaUrl(module.images?.[0] || restaurant.heroImageUrl || restaurant.imageUrl);
   return (
     <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card group text-left">
-      <span className="absolute inset-0" style={{ background: pulseGradient(module.theme) }} />
-      <span className="absolute -right-10 -top-12 h-36 w-36 rounded-full bg-white/20 blur-2xl" />
-      <span className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 text-white shadow-sm md:hidden">
-        <Crown size={19} fill="currentColor" />
-      </span>
-      {image && showDesktopImage ? (
+      {image ? (
         <SmartImage
           src={image}
           alt={restaurant.name}
@@ -528,7 +507,7 @@ function ChampionPromoCard({ module, onOpen, imagePriority = false }: { module: 
           fetchPriority={imagePriority ? "high" : "auto"}
           className="absolute inset-0 h-full w-full object-cover"
         />
-      ) : null}
+      ) : <span className="absolute inset-0" style={{ background: pulseGradient(module.theme) }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/75" />
       <span className="absolute inset-x-0 bottom-0 p-4">
         <span className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-full bg-[var(--gold)] px-2.5 text-[10px] font-black uppercase text-[#784D08]">
@@ -545,16 +524,10 @@ function ChampionPromoCard({ module, onOpen, imagePriority = false }: { module: 
 }
 
 function HighlightPromoCard({ restaurant, badge, onOpen, imagePriority = false }: { restaurant: PulseRailRestaurant; badge: string; onOpen: (slug: string) => void; imagePriority?: boolean }) {
-  const showDesktopImage = useDesktopPromoImage();
   const image = absoluteMediaUrl(restaurant.heroImageUrl || restaurant.imageUrl);
   return (
     <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card text-left">
-      <span className="absolute inset-0" style={{ background: pulseGradient("sky") }} />
-      <span className="absolute -right-10 -top-12 h-36 w-36 rounded-full bg-white/20 blur-2xl" />
-      <span className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/15 text-white shadow-sm md:hidden">
-        <Store size={19} strokeWidth={2.4} />
-      </span>
-      {image && showDesktopImage ? (
+      {image ? (
         <SmartImage
           src={image}
           alt={restaurant.name}
@@ -564,7 +537,7 @@ function HighlightPromoCard({ restaurant, badge, onOpen, imagePriority = false }
           fetchPriority={imagePriority ? "high" : "auto"}
           className="absolute inset-0 h-full w-full object-cover"
         />
-      ) : null}
+      ) : <span className="absolute inset-0" style={{ background: pulseGradient("sky") }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/70" />
       {(restaurant.featuredClass === 1 || restaurant.featuredClass === 2) && (
         <span className="absolute right-4 top-4 z-10">
