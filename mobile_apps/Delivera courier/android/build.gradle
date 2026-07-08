@@ -1,0 +1,45 @@
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = "../build"
+
+// Shim: vissa native-plugin (t.ex. geolocator_android) refererar
+// flutter.compileSdkVersion/minSdkVersion i sin egen android{}-block.
+// I den modul-kontexten finns inte alltid Flutter-extensionen, vilket kan ge
+// "unknown property 'flutter'" vid Gradle-evaluering. Ge modulen ett litet
+// flutter-objekt med SDK-versionerna innan den utvärderas.
+subprojects { sp ->
+    if (sp.name == 'geolocator_android') {
+        sp.ext.flutter = [
+            compileSdkVersion: 35,
+            minSdkVersion    : 21,
+            targetSdkVersion : 35,
+        ]
+    }
+}
+
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            android {
+                compileSdkVersion 35
+                lintOptions {
+                    checkReleaseBuilds false
+                    abortOnError false
+                }
+            }
+        }
+    }
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
