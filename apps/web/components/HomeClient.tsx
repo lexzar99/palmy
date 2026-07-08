@@ -915,6 +915,26 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   const [showAllPromoCards, setShowAllPromoCards] = useState(false);
   const revealPromoCards = useCallback(() => setShowAllPromoCards(true), []);
 
+  // Aktuellt-raden renderar bara första kortet initialt (håller LCP snabb: bara
+  // en hero-bild laddas eager). Resten avslöjas på interaktion via
+  // onPointerDown/onFocus, men på desktop där man bara scrollar sidan vertikalt
+  // triggas det aldrig -> kunden ser bara ett kort. Avslöja därför resten när
+  // sidan blivit idle så trendar/ny/deals alltid dyker upp utan att man måste
+  // peta på raden.
+  useEffect(() => {
+    if (showAllPromoCards || typeof window === "undefined") return;
+    const ric = (window as typeof window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    });
+    if (ric.requestIdleCallback) {
+      const id = ric.requestIdleCallback(() => setShowAllPromoCards(true), { timeout: 1600 });
+      return () => ric.cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(() => setShowAllPromoCards(true), 900);
+    return () => window.clearTimeout(id);
+  }, [showAllPromoCards]);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       void getPlatformSessionStatus().then(setIsLoggedIn);
@@ -1483,6 +1503,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   }, [allDealCards]);
 
   const handlePromoScroll = useCallback(() => {
+    revealPromoCards();
     const rail = promoRailRef.current;
     if (!rail) return;
     // Mät faktisk kortbredd (korten är 460px/88vw, inte den gamla 260-konstanten)
