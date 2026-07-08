@@ -161,6 +161,18 @@ type PromoCardItem =
   | { id: string; kind: "pulseChampion"; module: HomePulseModule }
   | { id: string; kind: "pulseHighlight"; module: HomePulseModule; restaurant: PulseRailRestaurant; badge: string };
 
+function getPromoSnap(rail: HTMLDivElement) {
+  const first = rail.children[0] as HTMLElement | undefined;
+  return first ? first.offsetWidth + PROMO_CARD_GAP : PROMO_SNAP;
+}
+
+function getPromoScrollLeft(rail: HTMLDivElement, index: number) {
+  const first = rail.children[0] as HTMLElement | undefined;
+  const target = rail.children[index] as HTMLElement | undefined;
+  if (!first || !target) return index * PROMO_SNAP;
+  return target.offsetLeft - first.offsetLeft;
+}
+
 type HomeAppDealMissionProgress = {
   target: number;
   count: number;
@@ -1441,10 +1453,9 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   const handlePromoScroll = useCallback(() => {
     const rail = promoRailRef.current;
     if (!rail) return;
-    // Mät faktisk kortbredd (korten är 460px/86vw, inte den gamla 260-konstanten)
-    // så index landar rätt och ALLA kort cyklas.
-    const first = rail.children[0] as HTMLElement | undefined;
-    const snap = first ? first.offsetWidth + PROMO_CARD_GAP : PROMO_SNAP;
+    // Mät faktisk kortbredd (korten är 460px/88vw, inte den gamla 260-konstanten)
+    // så index landar rätt vid manuell scroll.
+    const snap = getPromoSnap(rail);
     const idx = Math.max(
       0,
       Math.min(Math.round(rail.scrollLeft / snap), Math.max(promoCards.length - 1, 0))
@@ -1456,22 +1467,6 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   useEffect(() => {
     promoIndexRef.current = 0;
     setActivePromo(0);
-    if (promoCards.length <= 1) return;
-
-    // Skifta kort var 5:e sekund (önskemål).
-    const interval = window.setInterval(() => {
-      const rail = promoRailRef.current;
-      if (!rail) return;
-
-      const nextIndex = (promoIndexRef.current + 1) % promoCards.length;
-      promoIndexRef.current = nextIndex;
-      setActivePromo(nextIndex);
-      const first = rail.children[0] as HTMLElement | undefined;
-      const snap = first ? first.offsetWidth + PROMO_CARD_GAP : PROMO_SNAP;
-      rail.scrollTo({ left: nextIndex * snap, behavior: "smooth" });
-    }, 5000);
-
-    return () => window.clearInterval(interval);
   }, [promoCards.length]);
 
   const getRestaurantHref = (r: Restaurant) => `/restaurants/${r.slug}`;
@@ -1829,8 +1824,8 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
           </section>
         )}
 
-        {/* ── WHAT'S ON (Aktuellt) — först på sidan: stora banner-kort som
-            auto-skiftar var 5:e sekund, med prick-indikator under. ── */}
+        {/* ── WHAT'S ON (Aktuellt) — först på sidan: stora banner-kort med
+            manuell horisontell scroll och prick-indikator under. ── */}
         {promoCards.length > 0 && (
           <section className="mb-5">
             <div className="mb-3 px-1">
@@ -1879,7 +1874,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                     aria-label={`Visa erbjudande ${i + 1}`}
                     onClick={() => {
                       const rail = promoRailRef.current;
-                      if (rail) rail.scrollTo({ left: i * PROMO_SNAP, behavior: "smooth" });
+                      if (rail) rail.scrollTo({ left: getPromoScrollLeft(rail, i), behavior: "smooth" });
                       promoIndexRef.current = i;
                       setActivePromo(i);
                     }}
