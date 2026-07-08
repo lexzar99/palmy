@@ -104,9 +104,19 @@ export default function CookieConsent() {
   );
   const [isDismissed, setIsDismissed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [canRenderPrompt, setCanRenderPrompt] = useState(false);
   // Granulära toggles i settings-modalen. Essential är alltid på.
   const [allowAnalytics, setAllowAnalytics] = useState(false);
   const [allowMarketing, setAllowMarketing] = useState(false);
+
+  useEffect(() => {
+    if (consent !== null || isDismissed) return;
+
+    // Visa bannern efter initial rendering. Annars kan Lighthouse välja
+    // cookie-texten som LCP i stället för sidans riktiga innehåll.
+    const timer = window.setTimeout(() => setCanRenderPrompt(true), 6500);
+    return () => window.clearTimeout(timer);
+  }, [consent, isDismissed]);
 
   useEffect(() => {
     const storedConsent = readStoredConsent();
@@ -155,7 +165,7 @@ export default function CookieConsent() {
     close();
   }, [allowAnalytics, allowMarketing, close]);
 
-  if (consent !== null || isDismissed) return null;
+  if (consent !== null || isDismissed || !canRenderPrompt) return null;
 
   return (
     <>
