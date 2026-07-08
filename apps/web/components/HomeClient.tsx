@@ -150,6 +150,10 @@ const DELIVERED_TRACKING_STATUSES = new Set(["DELIVERED", "COMPLETED"]);
 const PROMO_CARD_WIDTH = 260;
 const PROMO_CARD_GAP = 12;
 const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
+const HOME_PROMO_IMAGE_SIZES = "(max-width: 640px) 88vw, 460px";
+const RESTAURANT_RAIL_IMAGE_SIZES = "(max-width: 639px) 230px, (max-width: 767px) 260px, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw";
+const RESTAURANT_LIST_IMAGE_SIZES = "(max-width: 1023px) calc(100vw - 32px), (max-width: 1535px) 50vw, 33vw";
+const ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT = 2;
 
 type PromoCardItem =
   | { id: string; kind: "sponsor"; sponsor: SponsorData }
@@ -466,13 +470,23 @@ function HomeAppDealCard({
   );
 }
 
-function ChampionPromoCard({ module, onOpen }: { module: HomePulseModule; onOpen: (slug: string) => void }) {
+function ChampionPromoCard({ module, onOpen, imagePriority = false }: { module: HomePulseModule; onOpen: (slug: string) => void; imagePriority?: boolean }) {
   const restaurant = module.restaurant;
   if (!restaurant) return null;
   const image = absoluteMediaUrl(module.images?.[0] || restaurant.heroImageUrl || restaurant.imageUrl);
   return (
     <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card group text-left">
-      {image ? <SmartImage src={image} alt={restaurant.name} sizes="(max-width: 640px) 88vw, 460px" className="absolute inset-0 h-full w-full object-cover" /> : <span className="absolute inset-0" style={{ background: pulseGradient(module.theme) }} />}
+      {image ? (
+        <SmartImage
+          src={image}
+          alt={restaurant.name}
+          sizes={HOME_PROMO_IMAGE_SIZES}
+          priority={imagePriority}
+          loading={imagePriority ? "eager" : "lazy"}
+          fetchPriority={imagePriority ? "high" : "auto"}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : <span className="absolute inset-0" style={{ background: pulseGradient(module.theme) }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/75" />
       <span className="absolute inset-x-0 bottom-0 p-4">
         <span className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-full bg-[var(--gold)] px-2.5 text-[10px] font-black uppercase text-[#784D08]">
@@ -488,11 +502,21 @@ function ChampionPromoCard({ module, onOpen }: { module: HomePulseModule; onOpen
   );
 }
 
-function HighlightPromoCard({ restaurant, badge, onOpen }: { restaurant: PulseRailRestaurant; badge: string; onOpen: (slug: string) => void }) {
+function HighlightPromoCard({ restaurant, badge, onOpen, imagePriority = false }: { restaurant: PulseRailRestaurant; badge: string; onOpen: (slug: string) => void; imagePriority?: boolean }) {
   const image = absoluteMediaUrl(restaurant.heroImageUrl || restaurant.imageUrl);
   return (
     <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card text-left">
-      {image ? <SmartImage src={image} alt={restaurant.name} sizes="(max-width: 640px) 88vw, 460px" className="absolute inset-0 h-full w-full object-cover" /> : <span className="absolute inset-0" style={{ background: pulseGradient("sky") }} />}
+      {image ? (
+        <SmartImage
+          src={image}
+          alt={restaurant.name}
+          sizes={HOME_PROMO_IMAGE_SIZES}
+          priority={imagePriority}
+          loading={imagePriority ? "eager" : "lazy"}
+          fetchPriority={imagePriority ? "high" : "auto"}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : <span className="absolute inset-0" style={{ background: pulseGradient("sky") }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/70" />
       {(restaurant.featuredClass === 1 || restaurant.featuredClass === 2) && (
         <span className="absolute right-4 top-4 z-10">
@@ -1532,7 +1556,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     router.push(`/restaurants/${slug}`);
   };
 
-  const renderFeaturedRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[], options: { alwaysShow?: boolean } = {}) => {
+  const renderFeaturedRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[], options: { alwaysShow?: boolean; priorityImageCount?: number } = {}) => {
     // City-filter FÖRST — applicerar samma helper som main-grid använder.
     // Detta körs automatiskt på ALLA rails (Heta listan, PIZZA FREDAG, SNABB
     // LUNCH och alla framtida HomeCategorySections som admin skapar) utan
@@ -1569,6 +1593,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
           const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
           const isComingSoon = r.comingSoon === true;
           const dimmed = isComingSoon || r.isOpen === false || !inZone;
+          const shouldPrioritizeImage = i < (options.priorityImageCount ?? 0);
           const railPaused = r.pausedUntil ? new Date(r.pausedUntil) : null;
           const railIsPaused = railPaused !== null && railPaused.getTime() > Date.now();
           const railDimReason = isComingSoon
@@ -1624,7 +1649,15 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                     </div>
                   )}
                   {r.heroImageUrl || r.imageUrl ? (
-                    <SmartImage src={getCardImage(r)} alt={r.name} sizes="(max-width: 768px) 260px, 25vw" className="h-full w-full object-cover" />
+                    <SmartImage
+                      src={getCardImage(r)}
+                      alt={r.name}
+                      sizes={RESTAURANT_RAIL_IMAGE_SIZES}
+                      priority={shouldPrioritizeImage}
+                      loading={shouldPrioritizeImage ? "eager" : "lazy"}
+                      fetchPriority={shouldPrioritizeImage ? "high" : "auto"}
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center">
                       <span className="text-3xl font-bold" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>{r.name.slice(0, 1).toUpperCase()}</span>
@@ -1808,24 +1841,33 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
               className="flex items-start gap-3 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0"
               style={{ scrollSnapType: "x mandatory" }}
             >
-              {promoCards.map((item) => (
-                <div key={item.id} style={{ scrollSnapAlign: "start" }}>
-                  {item.kind === "sponsor" ? (
-                    <SponsorCard sponsor={item.sponsor} />
-                  ) : item.kind === "appDeal" ? (
-                    <HomeAppDealCard
-                      deal={item.appDeal}
-                      activeUserDealId={activeUserDealId}
-                      claiming={claimingDealId === item.appDeal.id}
-                      onAction={handleAppDealAction}
-                    />
-                  ) : item.kind === "pulseChampion" ? (
-                    <ChampionPromoCard module={item.module} onOpen={openRestaurantSlug} />
-                  ) : (
-                    <HighlightPromoCard restaurant={item.restaurant} badge={item.badge} onOpen={openRestaurantSlug} />
-                  )}
-                </div>
-              ))}
+              {promoCards.map((item, i) => {
+                const shouldPrioritizeImage = i === 0;
+                return (
+                  <div key={item.id} style={{ scrollSnapAlign: "start" }}>
+                    {item.kind === "sponsor" ? (
+                      <SponsorCard
+                        sponsor={item.sponsor}
+                        imagePriority={shouldPrioritizeImage}
+                        imageLoading={shouldPrioritizeImage ? "eager" : "lazy"}
+                        imageFetchPriority={shouldPrioritizeImage ? "high" : "auto"}
+                        imageSizes={HOME_PROMO_IMAGE_SIZES}
+                      />
+                    ) : item.kind === "appDeal" ? (
+                      <HomeAppDealCard
+                        deal={item.appDeal}
+                        activeUserDealId={activeUserDealId}
+                        claiming={claimingDealId === item.appDeal.id}
+                        onAction={handleAppDealAction}
+                      />
+                    ) : item.kind === "pulseChampion" ? (
+                      <ChampionPromoCard module={item.module} onOpen={openRestaurantSlug} imagePriority={shouldPrioritizeImage} />
+                    ) : (
+                      <HighlightPromoCard restaurant={item.restaurant} badge={item.badge} onOpen={openRestaurantSlug} imagePriority={shouldPrioritizeImage} />
+                    )}
+                  </div>
+                );
+              })}
             </div>
             {/* Prick-indikator */}
             {promoCards.length > 1 && (
@@ -1902,7 +1944,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         </section>
 
         {resolvedHomeCategorySections.length > 0
-          ? resolvedHomeCategorySections.map((section) => {
+          ? resolvedHomeCategorySections.map((section, sectionIndex) => {
               // Locale-aware titel: falla tillbaka på svenska originalet om
               // admin inte fyllt i engelska översättningen (titleEn null/tom).
               const localizedTitle = locale === "en" && section.titleEn ? section.titleEn : section.title;
@@ -1912,12 +1954,16 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
               // sektionen försvinner från sidan utan extra logik här.
               return (
                 <React.Fragment key={section.id}>
-                  {renderFeaturedRail(localizedTitle, localizedSubtitle, section.restaurants)}
+                  {renderFeaturedRail(localizedTitle, localizedSubtitle, section.restaurants, {
+                    priorityImageCount: sectionIndex === 0 ? ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT : 0,
+                  })}
                 </React.Fragment>
               );
             })
           : featured.length > 0
-            ? renderFeaturedRail(t("home.section.hot"), t("home.section.hotSub"), featured)
+            ? renderFeaturedRail(t("home.section.hot"), t("home.section.hotSub"), featured, {
+                priorityImageCount: ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT,
+              })
             : null}
 
         {/* GLOBAL TOM-STATE — visas när inga restauranger alls matchar kundens
@@ -2031,6 +2077,10 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                   const isClosed = r.isOpen === false;
                   const isComingSoon = r.comingSoon === true;
                   const dimmed = isComingSoon || isClosed || isOutOfZone;
+                  const shouldPrioritizeListImage = i < ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT
+                    && promoCards.length === 0
+                    && resolvedHomeCategorySections.length === 0
+                    && featured.length === 0;
                   const pausedUntilDate = r.pausedUntil ? new Date(r.pausedUntil) : null;
                   const isPaused = pausedUntilDate !== null && pausedUntilDate.getTime() > Date.now();
                   const dimReason = isComingSoon
@@ -2067,7 +2117,15 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                               now-smaller sponsor rail. Stable at sm+. */}
                           <div className="h-[178px] w-full overflow-hidden relative" style={{ backgroundColor: "var(--bg-deep)" }}>
                             {r.imageUrl || r.heroImageUrl ? (
-                              <SmartImage src={getCardImage(r)} alt={r.name} sizes="(max-width: 768px) 260px, 25vw" className="h-full w-full object-cover" />
+                              <SmartImage
+                                src={getCardImage(r)}
+                                alt={r.name}
+                                sizes={RESTAURANT_LIST_IMAGE_SIZES}
+                                priority={shouldPrioritizeListImage}
+                                loading={shouldPrioritizeListImage ? "eager" : "lazy"}
+                                fetchPriority={shouldPrioritizeListImage ? "high" : "auto"}
+                                className="h-full w-full object-cover"
+                              />
                             ) : (
                               <div className="h-full w-full flex items-center justify-center">
                                 <span className="text-3xl font-bold" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>{r.name.slice(0, 1).toUpperCase()}</span>

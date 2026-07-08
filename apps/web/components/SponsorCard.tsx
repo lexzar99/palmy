@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ExternalLink, ArrowRight, Crown, Tag, Flame, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
+import SmartImage from "@/components/SmartImage";
 
 export interface SponsorData {
   id: string;
@@ -30,6 +31,14 @@ export interface SponsorData {
   restaurantSlug?: string;
 }
 
+type SponsorCardProps = {
+  sponsor: SponsorData;
+  imagePriority?: boolean;
+  imageLoading?: "eager" | "lazy";
+  imageFetchPriority?: "high" | "low" | "auto";
+  imageSizes?: string;
+};
+
 /**
  * SponsorCard – Ren annons/partnerkort i "Aktuellt"-sektionen.
  *
@@ -38,7 +47,13 @@ export interface SponsorData {
  * (extern länk, restaurang eller deal). Om den inte är interaktiv visas kortet som
  * en statisk banner utan klickbeteende.
  */
-export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
+export default function SponsorCard({
+  sponsor,
+  imagePriority = false,
+  imageLoading = "lazy",
+  imageFetchPriority = "auto",
+  imageSizes = "(max-width: 640px) 88vw, 460px",
+}: SponsorCardProps) {
   const router = useRouter();
 
   const target = sponsor.linkTarget || sponsor.ctaLink;
@@ -75,12 +90,13 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
         className={`swift-promo-card group ${isInteractive ? "cursor-pointer" : "cursor-default"}`}
       >
         {/* Restaurangens hero-bild fyller hela kortet. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <SmartImage
           src={sponsor.imageUrl}
           alt={sponsor.name}
-          loading="lazy"
-          decoding="async"
+          sizes={imageSizes}
+          priority={imagePriority}
+          loading={imageLoading}
+          fetchPriority={imageFetchPriority}
           className="absolute inset-0 w-full h-full object-cover"
         />
 
@@ -139,12 +155,13 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
       className={`swift-promo-card group ${isInteractive ? "cursor-pointer" : "cursor-default"}`}
     >
       {/* Bilden fyller kortet (aspect matchar banner → ingen tom yta/crop). */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <SmartImage
         src={sponsor.imageUrl}
         alt={sponsor.name}
-        loading="lazy"
-        decoding="async"
+        sizes={imageSizes}
+        priority={imagePriority}
+        loading={imageLoading}
+        fetchPriority={imageFetchPriority}
         className="absolute inset-0 w-full h-full object-cover"
       />
 

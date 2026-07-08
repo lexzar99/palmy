@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import type { ImageProps } from "next/image";
 
 // Endast R2-bucketen är registrerad i next.config images.remotePatterns.
 // Bilder därifrån optimeras via next/image (AVIF/WebP + rätt storlek);
@@ -13,6 +14,8 @@ export default function SmartImage({
   alt,
   sizes,
   className,
+  priority = false,
+  fetchPriority,
   loading,
 }: {
   src: string;
@@ -20,9 +23,14 @@ export default function SmartImage({
   /** next/image sizes-attribut, t.ex. "(max-width: 768px) 100vw, 25vw" */
   sizes: string;
   className?: string;
+  priority?: boolean;
+  fetchPriority?: NonNullable<ImageProps["fetchPriority"]>;
   loading?: "eager" | "lazy";
 }) {
   if (!src) return null;
+
+  const resolvedLoading = loading ?? (priority ? "eager" : "lazy");
+  const resolvedFetchPriority = fetchPriority ?? (priority ? "high" : "auto");
 
   let optimizable = false;
   try {
@@ -39,11 +47,13 @@ export default function SmartImage({
         fill
         sizes={sizes}
         className={className}
-        priority={loading === "eager"}
+        priority={priority}
+        loading={priority ? undefined : resolvedLoading}
+        fetchPriority={resolvedFetchPriority}
       />
     );
   }
 
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} loading={loading ?? "lazy"} decoding="async" className={className} />;
+  return <img src={src} alt={alt} loading={resolvedLoading} decoding="async" fetchPriority={resolvedFetchPriority} className={className} />;
 }
