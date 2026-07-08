@@ -1612,6 +1612,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             >
               <Link
                 href={getRestaurantHref(r)}
+                prefetch={false}
                 onClick={(e) => handleRestaurantClick(e, r)}
                 className="group relative block h-full rounded-2xl flex flex-col overflow-hidden transition-all duration-300 ease-out hover:shadow-xl hover:-translate-y-1"
                 style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 12px rgba(17,17,19,0.06)" }}
@@ -2108,6 +2109,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                       <div className={`transition-all duration-200 active:scale-[0.99] ${dimmed ? "grayscale opacity-80" : ""}`}>
                         <Link
                           href={getRestaurantHref(r)}
+                          prefetch={false}
                           onClick={(e) => handleRestaurantClick(e, r)}
                           className="group block overflow-hidden rounded-[20px] border border-[var(--line)] bg-white transition-shadow duration-200 relative swift-card-shadow"
                         >

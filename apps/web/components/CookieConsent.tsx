@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useCallback, useSyncExternalStore } from "react";
+import { useState, useCallback, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Cookie, X, Check, Sliders, Shield } from "lucide-react";
 
 /**
  * CookieConsent — GDPR-kompatibel samtyckesbanner.
  *
- * Tre tillstånd som persisteras i `localStorage.viaeats_cookie_consent`:
+ * Tre tillstånd som persisteras i cookie + `localStorage.viaeats_cookie_consent`:
  *
  *   "accepted"        Alla kategorier (inkl. analys/Sentry).
  *   "essential-only"  Endast tekniskt nödvändiga cookies (session/cart/auth).
@@ -25,26 +25,37 @@ import { Cookie, X, Check, Sliders, Shield } from "lucide-react";
 
 type Consent = "accepted" | "essential-only" | "rejected";
 const STORAGE_KEY = "viaeats_cookie_consent";
+const COOKIE_NAME = STORAGE_KEY;
 const CONSENT_EVENT = "viaeats:cookie-consent";
+const CONSENT_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
-function readConsent(): Consent | null {
+function normalizeConsent(value: string | null | undefined): Consent | null {
+  if (value === "accepted" || value === "essential-only" || value === "rejected") return value;
+  // Backåtkomp: gamla bannern lagrade "true" — behandla som "accepted".
+  if (value === "true") return "accepted";
+  return null;
+}
+
+function readStoredConsent(): Consent | null {
   if (typeof window === "undefined") return null;
   try {
-    const v = window.localStorage.getItem(STORAGE_KEY);
-    if (v === "accepted" || v === "essential-only" || v === "rejected")
-      return v;
-    // Backåtkomp: gamla bannern lagrade "true" — behandla som "accepted".
-    if (v === "true") return "accepted";
-    return null;
+    return normalizeConsent(window.localStorage.getItem(STORAGE_KEY));
   } catch {
     return null;
   }
 }
 
-function readServerConsent(): Consent {
-  // Rendera inte bannern i server-HTML; klienten visar den efter hydration om
-  // inget samtycke finns lagrat.
-  return "essential-only";
+function readCookieConsent(): Consent | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${COOKIE_NAME}=`));
+  if (!match) return null;
+  return normalizeConsent(decodeURIComponent(match.split("=").slice(1).join("=")));
+}
+
+function readConsent(): Consent | null {
+  return readStoredConsent() ?? readCookieConsent();
 }
 
 function subscribeConsent(callback: () => void) {
@@ -57,13 +68,21 @@ function subscribeConsent(callback: () => void) {
   };
 }
 
-function writeConsent(value: Consent) {
+function writeStoredConsent(value: Consent) {
   try {
     window.localStorage.setItem(STORAGE_KEY, value);
   } catch {
-    // localStorage kan vara blockerad — vi ger inte upp men banner kommer
-    // dyka upp nästa session istället.
+    // localStorage kan vara blockerad; cookien bär servervärdet vidare.
   }
+}
+
+function writeConsentCookie(value: Consent) {
+  if (typeof document === "undefined") return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${COOKIE_NAME}=${encodeURIComponent(value)}; Path=/; Max-Age=${CONSENT_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
+}
+
+function notifyConsentChanged() {
   try {
     window.dispatchEvent(new Event(CONSENT_EVENT));
   } catch {
@@ -71,17 +90,40 @@ function writeConsent(value: Consent) {
   }
 }
 
+function writeConsent(value: Consent) {
+  writeStoredConsent(value);
+  writeConsentCookie(value);
+  notifyConsentChanged();
+}
+
 export default function CookieConsent() {
   const consent = useSyncExternalStore(
     subscribeConsent,
     readConsent,
-    readServerConsent,
+    () => null,
   );
   const [isDismissed, setIsDismissed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   // Granulära toggles i settings-modalen. Essential är alltid på.
   const [allowAnalytics, setAllowAnalytics] = useState(false);
   const [allowMarketing, setAllowMarketing] = useState(false);
+
+  useEffect(() => {
+    const storedConsent = readStoredConsent();
+    const cookieConsent = readCookieConsent();
+
+    if (storedConsent && !cookieConsent) {
+      writeStoredConsent(storedConsent);
+      writeConsentCookie(storedConsent);
+      notifyConsentChanged();
+      return;
+    }
+
+    if (cookieConsent && !storedConsent) {
+      writeStoredConsent(cookieConsent);
+      notifyConsentChanged();
+    }
+  }, []);
 
   const close = useCallback(() => {
     setIsDismissed(true);
