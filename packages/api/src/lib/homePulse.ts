@@ -264,7 +264,7 @@ async function buildChampion(params: Record<string, number>) {
     id: `champion:${restaurant.id}`,
     theme: themeForKey(`champion:${restaurant.id}`),
     title: 'Veckans favorit',
-    subtitle: `${pick._count._all} beställningar senaste veckan`,
+    subtitle: 'Mest älskad den här veckan',
     restaurant: restaurantDto(restaurant),
     images,
   };

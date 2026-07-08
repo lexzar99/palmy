@@ -182,7 +182,7 @@ function buildCardText(
 
   if (scope === 'PRODUCT') {
     const badge = pct != null ? `Upp till ${pct}%` : krOff != null ? `Upp till ${krOff} kr` : valueBadge;
-    return { badge, subtitle: 'Utvalda rätter', percent: pct };
+    return { badge, subtitle: 'På utvalda rätter', percent: pct };
   }
   if (scope === 'CATEGORY') {
     return { badge: valueBadge, subtitle: categoryName || 'Utvalda rätter', percent: pct };

@@ -146,8 +146,15 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
 
   const availableTargets = useMemo(() => {
     if (draft.scopeType === "CATEGORY") return (categories.data ?? []).map((c) => ({ id: c.id, label: c.name, meta: `${c._count?.products ?? 0} produkter` }));
-    return (products.data ?? []).map((p) => ({ id: p.id, label: p.name, meta: `${p.category.name} · ${(p.price / 100).toFixed(0)} kr` }));
-  }, [categories.data, products.data, draft.scopeType]);
+    // Defense in depth: when the deal is scoped to a single restaurant, never show
+    // another restaurant's products even if the API over-widened. Skip for global deals
+    // and for global (restaurantId=null) menu items, which are shared.
+    const list = products.data ?? [];
+    const scoped = !draft.isGlobal && activeRestaurantId
+      ? list.filter((p) => !p.category.restaurantId || p.category.restaurantId === activeRestaurantId)
+      : list;
+    return scoped.map((p) => ({ id: p.id, label: p.name, meta: `${p.category.name} · ${(p.price / 100).toFixed(0)} kr` }));
+  }, [categories.data, products.data, draft.scopeType, draft.isGlobal, activeRestaurantId]);
 
   const toggleTarget = (id: string) =>
     setDraft((prev) => ({

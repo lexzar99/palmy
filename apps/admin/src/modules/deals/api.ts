@@ -135,7 +135,7 @@ export interface DealProductRef {
   id: string;
   name: string;
   categoryId: string;
-  category: { name: string };
+  category: { name: string; restaurantId?: string | null };
   price: number;
   discountActive?: boolean | null;
   discountPercent?: number | null;
@@ -160,7 +160,7 @@ export const getPersonalCodes = () => apiGet<PersonalCodeRecord[]>("/admin/custo
 export const getDealRestaurants = () => apiGet<DealRestaurantRef[]>("/restaurants");
 export const getDealCustomers = () => apiGet<DealCustomerRef[]>("/customers");
 export const getDealCategories = (restaurantId: string) => apiGet<DealCategoryRef[]>(`/admin/categories?restaurantId=${restaurantId}&includeGlobal=auto`);
-export const getDealProducts = (restaurantId: string) => apiGet<DealProductRef[]>(`/admin/products?restaurantId=${restaurantId}&includeGlobal=1`);
+export const getDealProducts = (restaurantId: string) => apiGet<DealProductRef[]>(`/admin/products?restaurantId=${restaurantId}&includeGlobal=auto`);
 
 export const createAutomaticDeal = (payload: Record<string, unknown>) => apiPost<AutomaticDealRecord>("/admin/deals", payload);
 export const updateAutomaticDeal = (dealId: string, payload: Record<string, unknown>) => apiPatch<AutomaticDealRecord>(`/admin/deals/${dealId}`, payload);

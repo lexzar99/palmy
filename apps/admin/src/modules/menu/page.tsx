@@ -98,7 +98,7 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
     },
   });
 
-  const deleteMutation = useMutation({ meta: { toast: false },
+  const deleteMutation = useMutation({ meta: { successMessage: "Kategori raderad" },
     mutationFn: async () => {
       if (category) {
         await deleteCategory(category.id);

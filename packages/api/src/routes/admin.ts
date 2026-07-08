@@ -1595,17 +1595,79 @@ router.delete('/categories/:id', async (req, res) => {
       where: { id: req.params.id },
       select: { restaurantId: true },
     });
-    await prisma.category.delete({
-      where: { id: req.params.id },
+    if (!doomedCat) {
+      res.status(404).json({ error: 'Kategori hittades inte' });
+      return;
+    }
+
+    // Produkter kan inte raderas hårt om de har orderhistorik: OrderItem.productId
+    // är en RESTRICT-FK (schema.prisma), så en hård delete skulle slå sönder gamla
+    // ordrar. OrderItem är dock helt denormaliserad (productName/basePrice/subtotal),
+    // så själva historiken överlever att produktraden flyttas/inaktiveras.
+    //   - Produkter UTAN orderhistorik → hård delete (ProductExtraGroup städas via
+    //     onDelete: Cascade i schemat).
+    //   - Produkter MED orderhistorik → arkiveras: flyttas till en dold arkiv-kategori
+    //     för restaurangen + isActive=false, så FK:n mot OrderItem består och
+    //     produkten försvinner ur menyn. Arkiv-kategorin skapas först när den behövs.
+    const ARCHIVE_CATEGORY_NAME = 'Arkiverade produkter';
+    const productsInCat = await prisma.product.findMany({
+      where: { categoryId: req.params.id },
+      select: { id: true, _count: { select: { orderItems: true } } },
     });
+    const safeIds = productsInCat.filter((p) => p._count.orderItems === 0).map((p) => p.id);
+    const referencedIds = productsInCat.filter((p) => p._count.orderItems > 0).map((p) => p.id);
+
+    await prisma.$transaction(async (tx) => {
+      if (referencedIds.length > 0) {
+        let archive = await tx.category.findFirst({
+          where: {
+            restaurantId: doomedCat.restaurantId,
+            name: ARCHIVE_CATEGORY_NAME,
+            id: { not: req.params.id },
+          },
+          select: { id: true },
+        });
+        if (!archive) {
+          const restSlug = doomedCat.restaurantId
+            ? (await tx.restaurant.findUnique({ where: { id: doomedCat.restaurantId }, select: { slug: true } }))?.slug ?? doomedCat.restaurantId
+            : 'global';
+          const slug = await uniqueMenuSlug(
+            ARCHIVE_CATEGORY_NAME,
+            restSlug,
+            async (s) => !(await tx.category.findUnique({ where: { slug: s }, select: { id: true } })),
+          );
+          archive = await tx.category.create({
+            data: {
+              name: ARCHIVE_CATEGORY_NAME,
+              slug,
+              isActive: false,
+              position: 9999,
+              restaurantId: doomedCat.restaurantId,
+            },
+            select: { id: true },
+          });
+        }
+        await tx.product.updateMany({
+          where: { id: { in: referencedIds } },
+          data: { categoryId: archive.id, isActive: false },
+        });
+      }
+      if (safeIds.length > 0) {
+        await tx.product.deleteMany({ where: { id: { in: safeIds } } });
+      }
+      await tx.category.delete({ where: { id: req.params.id } });
+    });
+
     await audit(req as AuthRequest, 'CATEGORY_DELETE', {
       resourceType: 'Category',
       resourceId: req.params.id,
+      changes: { deletedProducts: safeIds.length, archivedProducts: referencedIds.length },
     });
-    broadcastMenuChange(doomedCat?.restaurantId ?? null, { kind: 'category', categoryId: req.params.id, deleted: true });
-    res.json({ success: true });
-  } catch {
-    res.status(500).json({ error: 'Serverfel' });
+    broadcastMenuChange(doomedCat.restaurantId ?? null, { kind: 'category', categoryId: req.params.id, deleted: true });
+    res.json({ success: true, deleted: safeIds.length, archived: referencedIds.length });
+  } catch (error: any) {
+    console.error('Error deleting category:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte radera kategorin') });
   }
 });
 
@@ -1664,31 +1726,45 @@ router.get('/products', async (req, res) => {
       ? (restaurantId ? (restaurantId as string) : null)
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+    // includeGlobal=true/1 → always widen to products in global (restaurantId=null) categories.
+    // includeGlobal=auto  → widen to globals only if the scoped restaurant has no own products
+    //                       (mirrors the /categories auto-branch; Palmyra's menu was seeded global).
     const includeGlobal = req.query.includeGlobal === 'true' || req.query.includeGlobal === '1';
+    const includeGlobalAuto = req.query.includeGlobal === 'auto';
 
-    const products = await prisma.product.findMany({
+    const categoryWhere = (withGlobal: boolean) => ({
+      ...(scopedRestaurantId
+        ? (withGlobal
+            ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
+            : { restaurantId: scopedRestaurantId })
+        : {}),
+    });
+
+    const findProducts = (withGlobal: boolean) => prisma.product.findMany({
       where: {
         ...(categoryId ? { categoryId: categoryId as string } : {}),
-        category: {
-          ...(scopedRestaurantId
-            ? (includeGlobal
-                ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
-                : { restaurantId: scopedRestaurantId })
-            : {}),
-        },
+        category: categoryWhere(withGlobal),
       },
-      orderBy: [{ categoryId: 'asc' }, { position: 'asc' }],
+      orderBy: [{ categoryId: 'asc' as const }, { position: 'asc' as const }],
       include: {
         category: { select: { name: true, restaurantId: true } },
         extraGroups: {
           include: {
             extraGroup: {
-              include: { extras: { orderBy: { position: 'asc' } } },
+              include: { extras: { orderBy: { position: 'asc' as const } } },
             },
           },
         },
       },
     });
+
+    let products = await findProducts(includeGlobal);
+
+    // Auto-mode: only fall back to global products when the scoped restaurant has
+    // zero own products, so a real restaurant never sees another tenant's items.
+    if (includeGlobalAuto && scopedRestaurantId && products.length === 0) {
+      products = await findProducts(true);
+    }
 
     res.json(products.map((p) => ({
       ...p,
@@ -3192,12 +3268,28 @@ const validateDealPayload = (body: any): string | null => {
 // Validera att produkt-/extra-IDs faktiskt existerar i DB.
 // Returnerar en fel-sträng vid problem, annars null.
 const validateDealReferences = async (body: any, restaurantId: string | null): Promise<string | null> => {
-  const productIdSet = new Set<string>();
-  for (const key of ['bogoRewardProductIds', 'bogoTriggerProductIds', 'bogoExcludedProductIds', 'targetIds', 'comboProductIds']) {
-    const raw = body[key];
-    const ids = Array.isArray(raw) ? raw : parseJsonArray(raw as string | null);
-    ids.forEach((id) => typeof id === 'string' && id && productIdSet.add(id));
-  }
+  // För CATEGORY-scope lagrar formuläret KATEGORI-id i targetIds → normaliseras
+  // till comboProductIds. De ska valideras mot prisma.category, inte prisma.product.
+  // Övriga scopes (PRODUCT/COMBO/BOGO) håller riktiga produkt-id i samma fält.
+  const scopeType = String(body.scopeType || body.triggerType || '').toUpperCase();
+  const isCategoryScope = scopeType === 'CATEGORY';
+
+  const productKeys = isCategoryScope
+    ? ['bogoRewardProductIds', 'bogoTriggerProductIds', 'bogoExcludedProductIds']
+    : ['bogoRewardProductIds', 'bogoTriggerProductIds', 'bogoExcludedProductIds', 'targetIds', 'comboProductIds'];
+  const categoryKeys = isCategoryScope ? ['targetIds', 'comboProductIds'] : [];
+
+  const collectIds = (keys: string[]) => {
+    const set = new Set<string>();
+    for (const key of keys) {
+      const raw = body[key];
+      const ids = Array.isArray(raw) ? raw : parseJsonArray(raw as string | null);
+      ids.forEach((id) => typeof id === 'string' && id && set.add(id));
+    }
+    return set;
+  };
+
+  const productIdSet = collectIds(productKeys);
   if (productIdSet.size > 0) {
     const found = await prisma.product.findMany({
       where: { id: { in: [...productIdSet] } },
@@ -3209,6 +3301,22 @@ const validateDealReferences = async (body: any, restaurantId: string | null): P
     if (restaurantId) {
       const wrong = found.find((p) => p.category?.restaurantId && p.category.restaurantId !== restaurantId);
       if (wrong) return 'Produkter måste tillhöra samma restaurang som dealen';
+    }
+  }
+
+  const categoryIdSet = collectIds(categoryKeys);
+  if (categoryIdSet.size > 0) {
+    const found = await prisma.category.findMany({
+      where: { id: { in: [...categoryIdSet] } },
+      select: { id: true, restaurantId: true },
+    });
+    if (found.length !== categoryIdSet.size) {
+      return 'En eller flera kategorier i listan finns inte';
+    }
+    if (restaurantId) {
+      // Globala kategorier (restaurantId=null) delas och får refereras av alla restauranger.
+      const wrong = found.find((c) => c.restaurantId && c.restaurantId !== restaurantId);
+      if (wrong) return 'Kategorier måste tillhöra samma restaurang som dealen';
     }
   }
 

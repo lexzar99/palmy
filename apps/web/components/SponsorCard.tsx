@@ -72,16 +72,7 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
         whileTap={isInteractive ? { scale: 0.99 } : undefined}
         transition={{ type: "spring", stiffness: 320, damping: 22 }}
         onClick={handleClick}
-        className={`relative shrink-0 overflow-hidden group w-[88vw] max-w-[460px] sm:w-[460px] ${
-          isInteractive ? "cursor-pointer" : "cursor-default"
-        }`}
-        style={{
-          aspectRatio: "1.9 / 1",
-          backgroundColor: "var(--bg-deep)",
-          borderRadius: "14px",
-          border: "1px solid var(--line)",
-          boxShadow: "0 10px 18px rgba(0, 0, 0, 0.075)",
-        }}
+        className={`swift-promo-card group ${isInteractive ? "cursor-pointer" : "cursor-default"}`}
       >
         {/* Restaurangens hero-bild fyller hela kortet. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -145,14 +136,7 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
       // kant-till-kant via object-cover — eftersom kortets aspect matchar
       // bannerns blir det ingen tom letterbox (desktop) och ingen hård crop
       // (mobil). Bredden: ~full på mobil, fast på sm+; höjden följer aspect.
-      className={`relative shrink-0 rounded-2xl overflow-hidden group w-[88vw] max-w-[460px] sm:w-[460px] ${
-        isInteractive ? "cursor-pointer" : "cursor-default"
-      }`}
-      style={{
-        aspectRatio: "1.9 / 1",
-        backgroundColor: "var(--bg-deep)",
-        border: "1px solid var(--border-muted)",
-      }}
+      className={`swift-promo-card group ${isInteractive ? "cursor-pointer" : "cursor-default"}`}
     >
       {/* Bilden fyller kortet (aspect matchar banner → ingen tom yta/crop). */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
