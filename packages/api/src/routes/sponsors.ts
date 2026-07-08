@@ -11,7 +11,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { cached, bustCache } from '../lib/ttlCache';
-import { getDiscountCards } from '../lib/showcase';
+import { getShowcaseCarousel } from '../lib/showcase';
 
 const router = Router();
 const RECORD_ID = 'global_sponsors';
@@ -117,17 +117,20 @@ router.get('/', async (_req, res) => {
       return { ...s, dealInfo: { id: deal.id, title: deal.title, valueLabel, minOrderKr: Math.round(deal.minOrder || 0) / 100 } };
     });
 
-    // Dynamiska rabattkort (auto-genererade från aktiva deals) läggs först i
-    // karusellen. Rotation + manuella overrides sköts i lib/showcase. Cache 60s
-    // så hemladdningar inte kör hela beräkningen varje gång (rotation är 48h).
-    const discountCards = await cached('sponsors:discounts', 'all', 60_000, () => getDiscountCards(now)).catch(() => []);
-    const discountSponsors = discountCards.map((c, index) => ({
-      id: `discount:${c.restaurantId}`,
-      name: c.headline,
+    // Dynamiska hero-kort (rabatter + trendar + ny i stan) läggs först i
+    // karusellen, alla distinkta restauranger. Rotation + manuella overrides
+    // sköts i lib/showcase. Cache 60s så hemladdningar inte kör hela
+    // beräkningen varje gång (rotation är 24-48h).
+    const showcaseCards = await cached('sponsors:showcase', 'all', 60_000, () => getShowcaseCarousel(now)).catch(() => []);
+    const showcaseSponsors = showcaseCards.map((c, index) => ({
+      id: `showcase:${c.kind}:${c.restaurantId}`,
+      name: c.restaurantName,
+      badge: c.badge,
       tagline: c.subtitle || undefined,
       category: c.footnote || undefined,
       imageUrl: c.imageUrl || '',
-      cardType: 'DISCOUNT' as const,
+      cardType: 'SHOWCASE' as const,
+      showcaseKind: c.kind,
       theme: c.theme,
       color: c.theme,
       featuredClass: c.featuredClass,
@@ -142,7 +145,7 @@ router.get('/', async (_req, res) => {
       createdAt: new Date(0).toISOString(),
     }));
 
-    res.json([...discountSponsors, ...payload]);
+    res.json([...showcaseSponsors, ...payload]);
   } catch {
     res.status(500).json({ error: 'Kunde inte hämta sponsorer' });
   }

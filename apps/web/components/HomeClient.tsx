@@ -1378,10 +1378,9 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     const champion = pulseModules.find((module) => module.type === "CHAMPION" && module.restaurant);
     if (champion) extras.push({ id: `pulse-champion-${champion.id}`, kind: "pulseChampion", module: champion });
     extras.push(...appDeals.slice(0, 7).map((appDeal) => ({ id: `app-deal-${appDeal.id}`, kind: "appDeal" as const, appDeal })));
-    const trending = pulseModules.find((module) => module.type === "TRENDING" && module.restaurants?.length);
-    const newInTown = pulseModules.find((module) => module.type === "NEW_RESTAURANTS" && module.restaurants?.length);
-    if (trending?.restaurants?.[0]) extras.push({ id: `pulse-trending-${trending.restaurants[0].id}`, kind: "pulseHighlight", module: trending, restaurant: trending.restaurants[0], badge: "Trendar" });
-    if (newInTown?.restaurants?.[0]) extras.push({ id: `pulse-new-${newInTown.restaurants[0].id}`, kind: "pulseHighlight", module: newInTown, restaurant: newInTown.restaurants[0], badge: "Ny i stan" });
+    // Trendar/Ny i stan kommer numera genom sponsors-feeden som SHOWCASE-kort
+    // (pulsen slutade emittera TRENDING/NEW_RESTAURANTS), så vi injicerar dem
+    // inte längre här — det skulle bara dubblera.
 
     const sponsorCards: PromoCardItem[] = sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
     const base: PromoCardItem[] = [];

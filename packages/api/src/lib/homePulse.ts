@@ -5,7 +5,6 @@
 
 import prisma from './prisma';
 import { getDpointsSettings } from './dpoints';
-import { getTrendingRestaurantIds, getNewRestaurantIds } from './showcase';
 import { themeForKey, dailyPick, dailyScore, dayOfYear } from './themeRotation';
 
 const LIVE_STATUSES = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERING'];
@@ -645,104 +644,8 @@ async function previewDailyDrop(params: Record<string, number>) {
   };
 }
 
-// ── Ny i stan: nyöppnade restauranger, automatisk räls i två veckor ─────────
-async function buildNewRestaurants(_params: Record<string, number>) {
-  // Urval + rotation + manuella overrides styrs av lib/showcase (24h-yta).
-  const ids = await getNewRestaurantIds();
-  if (!ids.length) return null;
-  const restaurants = await prisma.restaurant.findMany({
-    where: { id: { in: ids }, comingSoon: false },
-    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true },
-  });
-  const byId = new Map(restaurants.map((r) => [r.id, r]));
-  const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
-  if (!ordered.length) return null;
-  return {
-    type: 'NEW_RESTAURANTS',
-    id: 'new_restaurants',
-    theme: themeForKey('module:new_restaurants'),
-    title: 'Ny i stan',
-    subtitle: 'Nyöppnat nära dig',
-    restaurants: ordered.map(restaurantDto),
-  };
-}
-
-async function previewNewRestaurants() {
-  const restaurants = await previewRestaurants(6);
-  if (!restaurants.length) return null;
-  return {
-    type: 'NEW_RESTAURANTS',
-    id: 'preview:new_restaurants',
-    theme: themeForKey('preview:new_restaurants'),
-    title: 'Ny i stan',
-    subtitle: 'Nyöppnat nära dig',
-    restaurants,
-  };
-}
-
-// ── Trendar: störst ordertillväxt mot förra veckan ──────────────────────────
-async function buildTrending(_params: Record<string, number>) {
-  // Urval (mest ordrar) + rotation + manuella overrides styrs av lib/showcase.
-  const ids = await getTrendingRestaurantIds();
-  if (!ids.length) return null;
-  const now = Date.now();
-  const weekMs = 7 * 24 * 60 * 60 * 1000;
-  // Tillväxt-% enbart för badgen; avslöjar inte antal ordrar.
-  const [thisWeek, lastWeek] = await Promise.all([
-    (prisma.order.groupBy as any)({
-      by: ['restaurantId'],
-      where: { createdAt: { gte: new Date(now - weekMs) }, status: { notIn: EXCLUDED_STATUSES }, restaurantId: { in: ids } },
-      _count: { _all: true },
-    }),
-    (prisma.order.groupBy as any)({
-      by: ['restaurantId'],
-      where: { createdAt: { gte: new Date(now - 2 * weekMs), lt: new Date(now - weekMs) }, status: { notIn: EXCLUDED_STATUSES }, restaurantId: { in: ids } },
-      _count: { _all: true },
-    }),
-  ]);
-  const thisByRest = new Map<string, number>((thisWeek as any[]).map((g) => [g.restaurantId, g._count._all]));
-  const lastByRest = new Map<string, number>((lastWeek as any[]).map((g) => [g.restaurantId, g._count._all]));
-  const restaurants = await prisma.restaurant.findMany({
-    where: { id: { in: ids }, comingSoon: false },
-    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true },
-  });
-  const byId = new Map(restaurants.map((r) => [r.id, r]));
-  const items = ids
-    .map((id) => {
-      const restaurant = byId.get(id);
-      if (!restaurant) return null;
-      const cur = thisByRest.get(id) || 0;
-      const prev = lastByRest.get(id) || 0;
-      const growth = prev > 0 ? Math.round(((cur - prev) / prev) * 100) : cur > 0 ? 100 : 0;
-      return { ...restaurantDto(restaurant), growthPct: Math.max(0, growth) };
-    })
-    .filter(Boolean);
-  if (!items.length) return null;
-  return {
-    type: 'TRENDING',
-    id: 'trending',
-    theme: themeForKey('module:trending'),
-    title: 'Trendar i stan',
-    subtitle: 'Populärast just nu',
-    restaurants: items,
-  };
-}
-
-async function previewTrending() {
-  const restaurants = (await previewRestaurants(4)).map((r, index) => ({
-    ...r,
-    growthPct: 42 - index * 7,
-  }));
-  if (!restaurants.length) return null;
-  return {
-    type: 'TRENDING',
-    id: 'preview:trending',
-    theme: themeForKey('preview:trending'),
-    title: 'Trendar i stan',
-    subtitle: 'Växer snabbast just nu',
-    restaurants,
-  };
-}
+// Trendar + Ny i stan bor nu i lib/showcase (enskilda hero-kort i sponsor-
+// karusellen), inte som pulse-moduler. Deras build/preview-funktioner togs bort.
 
 // ── Vi saknar dig: gillad restaurang, tyst i N dagar (personlig) ────────────
 async function buildComeback(userId: string, params: Record<string, number>) {
@@ -1098,8 +1001,8 @@ export async function buildHomePulse(userId: string | null): Promise<{ greeting:
     engineOn('favorite_product') && userId ? buildForPreview(buildFavoriteProduct(userId, settings.favorite_product.params), () => previewFavoriteProduct(settings.favorite_product.params)) : previewAll ? previewFavoriteProduct(settings.favorite_product.params) : Promise.resolve(null),
     engineOn('fastest_today') ? buildForPreview(buildFastestToday(settings.fastest_today.params), previewFastestToday) : Promise.resolve(null),
     engineOn('daily_drop') ? buildForPreview(buildDailyDrop(settings.daily_drop.params, previewAll), () => previewDailyDrop(settings.daily_drop.params)) : Promise.resolve(null),
-    engineOn('new_restaurants') ? buildForPreview(buildNewRestaurants(settings.new_restaurants.params), previewNewRestaurants) : Promise.resolve(null),
-    engineOn('trending') ? buildForPreview(buildTrending(settings.trending.params), previewTrending) : Promise.resolve(null),
+    // Trendar + Ny i stan hanteras nu som enskilda hero-kort i sponsor-karusellen
+    // (lib/showcase), inte som pulse-rälsar. Därför inte med här längre.
     dpointsEnabled && engineOn('points_nudge') && userId ? buildForPreview(buildPointsNudge(userId, settings.points_nudge.params), previewPointsNudge) : Promise.resolve(null),
     engineOn('comeback') && userId ? buildForPreview(buildComeback(userId, settings.comeback.params), previewComeback) : previewAll ? previewComeback() : Promise.resolve(null),
     dpointsEnabled && engineOn('streak_card') && userId ? buildForPreview(buildStreakCard(userId), previewStreakCard) : Promise.resolve(null),

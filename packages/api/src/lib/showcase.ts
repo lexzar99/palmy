@@ -120,19 +120,26 @@ async function resolve(
 
 // ── Rabattkort ──────────────────────────────────────────────────────────────
 
-export interface DiscountCard {
-  kind: 'DISCOUNT';
+/**
+ * Ett hero-kort i sponsor-karusellen. Samma bild-hero-design som Trendar/Ny i
+ * stan: restaurangens hero-bild + en badge-pill + restaurangnamn + kontextrad.
+ */
+export interface ShowcaseCard {
+  kind: 'discount' | 'trending' | 'new';
   restaurantId: string;
   restaurantSlug: string;
   restaurantName: string;
-  headline: string;
-  subtitle: string | null;
-  footnote: string | null; // slutdatum, litet
+  badge: string; // pill: "30%" | "Upp till 30%" | "Fri leverans" | "Trendar" | "Ny i stan"
+  subtitle: string | null; // kontextrad: "På hela menyn" | kategori | "Populärast just nu"
+  footnote: string | null; // slutdatum, litet (bara rabatt)
   theme: string;
   imageUrl: string | null;
   featuredClass: number;
   percent: number | null;
 }
+
+// Bakåtkompatibelt alias.
+export type DiscountCard = ShowcaseCard;
 
 const SV_MONTHS = ['jan', 'feb', 'mars', 'april', 'maj', 'juni', 'juli', 'aug', 'sep', 'okt', 'nov', 'dec'];
 
@@ -156,42 +163,39 @@ function themeForIndex(index: number): string {
 }
 
 /**
- * Bygger kortdata för en restaurangs bästa deal. Texten följer scope:
- *  - hela restaurangen: "30% rabatt på hela Palmyra"
- *  - kategori:          "30% på kategorin Kebabpizzor" + restaurangnamn
- *  - produkt:           "Upp till 30% rabatt" + restaurangnamn
+ * Bygger hero-kortets badge + kontextrad för en restaurangs bästa deal.
+ * Restaurangnamnet visas separat som titel över hero-bilden. Badgen är kort
+ * (värdet) och kontextraden beskriver vad rabatten gäller:
+ *  - hela restaurangen: badge "30%",        subtitle "På hela menyn"
+ *  - kategori:          badge "30%",        subtitle "Kebabpizzor"
+ *  - produkt:           badge "Upp till 30%", subtitle "Utvalda rätter"
  */
 function buildCardText(
   deal: any,
-  restaurantName: string,
   categoryName: string | null,
-): { headline: string; subtitle: string | null; percent: number | null } {
+): { badge: string; subtitle: string | null; percent: number | null } {
   const scope = getDealScopeType(deal);
   const pct = deal.discountType === 'PERCENTAGE' ? deal.discountValue || 0 : null;
   const krOff = deal.discountType === 'FIXED' ? Math.round((deal.discountValue || 0) / 100) : null;
 
-  const valuePhrase = pct != null ? `${pct}%` : krOff != null ? `${krOff} kr` : deal.freeDelivery ? 'Fri leverans' : 'Erbjudande';
+  const valueBadge = pct != null ? `${pct}%` : krOff != null ? `${krOff} kr` : deal.freeDelivery ? 'Fri leverans' : 'Erbjudande';
 
   if (scope === 'PRODUCT') {
-    const head = pct != null ? `Upp till ${pct}% rabatt` : krOff != null ? `Upp till ${krOff} kr rabatt` : `${valuePhrase} hos ${restaurantName}`;
-    return { headline: head, subtitle: restaurantName, percent: pct };
+    const badge = pct != null ? `Upp till ${pct}%` : krOff != null ? `Upp till ${krOff} kr` : valueBadge;
+    return { badge, subtitle: 'Utvalda rätter', percent: pct };
   }
   if (scope === 'CATEGORY') {
-    const cat = categoryName || 'utvalda rätter';
-    const head = pct != null ? `${pct}% på kategorin ${cat}` : krOff != null ? `${krOff} kr på ${cat}` : `${valuePhrase} på ${cat}`;
-    return { headline: head, subtitle: restaurantName, percent: pct };
+    return { badge: valueBadge, subtitle: categoryName || 'Utvalda rätter', percent: pct };
   }
   if (scope === 'MIN_ORDER') {
     const minKr = Math.round((deal.minOrder || 0) / 100);
-    const head = pct != null ? `${pct}% rabatt hos ${restaurantName}` : `${valuePhrase} hos ${restaurantName}`;
-    return { headline: head, subtitle: minKr > 0 ? `Över ${minKr} kr` : null, percent: pct };
+    return { badge: valueBadge, subtitle: minKr > 0 ? `Över ${minKr} kr` : 'På hela menyn', percent: pct };
   }
   // RESTAURANT / COMBO / fallback: hela stället
   if (deal.freeDelivery && pct == null && krOff == null) {
-    return { headline: `Fri leverans hos ${restaurantName}`, subtitle: null, percent: null };
+    return { badge: 'Fri leverans', subtitle: 'Hela menyn', percent: null };
   }
-  const head = pct != null ? `${pct}% rabatt på hela ${restaurantName}` : krOff != null ? `${krOff} kr rabatt på hela ${restaurantName}` : `${valuePhrase} hos ${restaurantName}`;
-  return { headline: head, subtitle: null, percent: pct };
+  return { badge: valueBadge, subtitle: 'På hela menyn', percent: pct };
 }
 
 /**
@@ -285,16 +289,16 @@ async function computeDiscountCandidates(now: Date): Promise<{ cards: DiscountCa
     })
     .sort((a, b) => (a.tier !== b.tier ? a.tier - b.tier : b.orders - a.orders));
 
-  const cards: DiscountCard[] = ranked.map((row, index) => {
+  const cards: ShowcaseCard[] = ranked.map((row, index) => {
     const catId = dealCategoryId(row.deal);
     const catName = catId ? catNameById.get(catId) || null : null;
-    const { headline, subtitle, percent } = buildCardText(row.deal, row.rest.name, catName);
+    const { badge, subtitle, percent } = buildCardText(row.deal, catName);
     return {
-      kind: 'DISCOUNT',
+      kind: 'discount',
       restaurantId: row.rid,
       restaurantSlug: row.rest.slug,
       restaurantName: row.rest.name,
-      headline,
+      badge,
       subtitle,
       footnote: endDateFootnote(row.deal.validUntil),
       theme: themeForIndex(index),
@@ -309,14 +313,66 @@ async function computeDiscountCandidates(now: Date): Promise<{ cards: DiscountCa
   return { cards, signature };
 }
 
-/** Publika rabattkort för hemkarusellen (max 5, rotation + overrides). */
-export async function getDiscountCards(now = new Date()): Promise<DiscountCard[]> {
+/** Rabattkort (max 5, rotation 48h + overrides). Distinkta restauranger. */
+export async function getDiscountCards(now = new Date()): Promise<ShowcaseCard[]> {
   const { cards, signature } = await computeDiscountCandidates(now);
   if (!cards.length) return [];
   const rankedIds = cards.map((c) => c.restaurantId);
   const { shownIds } = await resolve('discounts', rankedIds, signature, now);
   const byId = new Map(cards.map((c) => [c.restaurantId, c]));
-  return shownIds.map((id) => byId.get(id)).filter(Boolean) as DiscountCard[];
+  return shownIds.map((id) => byId.get(id)).filter(Boolean) as ShowcaseCard[];
+}
+
+/**
+ * Hela sponsor-karusellen: 5 rabattkort + 1 trendar + 1 ny i stan = upp till 7
+ * kort, alla DISTINKTA restauranger (ingen restaurang på två kort). Rabatter
+ * roterar 48h, trendar/ny 24h. Temat roterar per position för varierad design.
+ */
+export async function getShowcaseCarousel(now = new Date()): Promise<ShowcaseCard[]> {
+  const discounts = await getDiscountCards(now);
+  const used = new Set(discounts.map((c) => c.restaurantId));
+
+  const trendIds = await getTrendingRestaurantIds(now);
+  const trendPick = trendIds.find((id) => !used.has(id)) || null;
+  if (trendPick) used.add(trendPick);
+
+  const newIds = await getNewRestaurantIds(now);
+  const newPick = newIds.find((id) => !used.has(id)) || null;
+  if (newPick) used.add(newPick);
+
+  const pickIds = [trendPick, newPick].filter(Boolean) as string[];
+  const restById = new Map<string, any>();
+  if (pickIds.length) {
+    const rows = await prisma.restaurant.findMany({
+      where: { id: { in: pickIds } },
+      select: { id: true, name: true, slug: true, imageUrl: true, heroImageUrl: true, featuredClass: true },
+    });
+    for (const r of rows) restById.set(r.id, r);
+  }
+  const mk = (id: string, kind: 'trending' | 'new', badge: string, subtitle: string): ShowcaseCard | null => {
+    const r = restById.get(id);
+    if (!r) return null;
+    return {
+      kind,
+      restaurantId: id,
+      restaurantSlug: r.slug,
+      restaurantName: r.name,
+      badge,
+      subtitle,
+      footnote: null,
+      theme: 'sky',
+      imageUrl: r.heroImageUrl || r.imageUrl || null,
+      featuredClass: r.featuredClass ?? 3,
+      percent: null,
+    };
+  };
+
+  const extras: ShowcaseCard[] = [];
+  if (trendPick) { const c = mk(trendPick, 'trending', 'Trendar', 'Populärast just nu'); if (c) extras.push(c); }
+  if (newPick) { const c = mk(newPick, 'new', 'Ny i stan', 'Nyöppnat nära dig'); if (c) extras.push(c); }
+
+  // Tema roterar per position så designerna varierar i karusellen.
+  return [...discounts, ...extras].map((c, i) => ({ ...c, theme: themeForIndex(i) }));
 }
 
 // ── Trendar / Ny i stan: löser fram synliga restaurang-id:n ──────────────────
@@ -369,8 +425,8 @@ export interface ShowcaseAdminSurface {
   candidates: Array<{ restaurantId: string; name: string; slug: string; label: string; featuredClass: number }>;
 }
 
-function restLabel(surface: ShowcaseSurface, card: DiscountCard | null, name: string): string {
-  if (surface === 'discounts' && card) return card.headline;
+function restLabel(surface: ShowcaseSurface, card: ShowcaseCard | null, name: string): string {
+  if (surface === 'discounts' && card) return `${card.badge}${card.subtitle ? ` · ${card.subtitle}` : ''}`;
   return name;
 }
 

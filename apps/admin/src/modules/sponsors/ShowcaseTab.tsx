@@ -22,12 +22,12 @@ const COPY: Record<ShowcaseSurface, { title: string; sub: string; empty: string 
   },
   trending: {
     title: "Trendar",
-    sub: "Restauranger med flest ordrar just nu. Uppdateras dynamiskt, antal ordrar visas aldrig för kunden.",
+    sub: "Restauranger med flest ordrar just nu, antal visas aldrig för kunden. Ett kort visas i sponsorkorten: den översta som inte redan har ett rabattkort.",
     empty: "Inga ordrar att ranka ännu.",
   },
   new: {
     title: "Ny i stan",
-    sub: "Nyöppnade restauranger. Uppdateras dynamiskt när nya ställen läggs till.",
+    sub: "Nyöppnade restauranger. Ett kort visas i sponsorkorten: den översta som inte redan har ett rabatt eller trendar-kort.",
     empty: "Inga nyöppnade restauranger i fönstret.",
   },
 };
