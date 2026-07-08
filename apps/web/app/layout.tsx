@@ -5,13 +5,11 @@ import BottomNav from "@/components/BottomNav";
 import Navbar from "@/components/Navbar";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import Providers from "./providers";
-import LiveOrderBanner from "@/components/LiveOrderBanner";
 
 import CookieConsent from "@/components/CookieConsent";
-import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import PlatformBanner from "@/components/PlatformBanner";
-import SupportChat from "@/components/SupportChat";
 import OfflineBanner from "@/components/OfflineBanner";
+import DeferredGlobalClients from "@/components/DeferredGlobalClients";
 
 // Inter — lugnare och mer neutral än Outfit; bär "tyst & direkt"-designen.
 const inter = Inter({ subsets: ["latin"] });
@@ -97,11 +95,9 @@ export default function RootLayout({
           <main>{children}</main>
           {/* Kontakt nås nu via ikonen uppe till höger (beställningssidan) och
               "Information"-knappen i profilen → ingen global footer-länk. */}
-          <LiveOrderBanner />
           <BottomNav />
           <CookieConsent />
-          <PWAInstallPrompt />
-          <SupportChat />
+          <DeferredGlobalClients />
         </Providers>
       </body>
     </html>

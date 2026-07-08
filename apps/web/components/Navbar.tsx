@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 import { ShoppingBag, Mail } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import axios from "axios";
-import { PLATFORM_SESSION_CHANGED_EVENT } from "@/lib/platformSessionClient";
+import { getPlatformSessionStatus, PLATFORM_SESSION_CHANGED_EVENT } from "@/lib/platformSessionClient";
 import ViaEatsWordmark from "@/components/ViaEatsWordmark";
 
 type SessionUser = {
@@ -27,15 +27,22 @@ const Navbar = () => {
   const pathname = usePathname();
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [user, setUser] = useState<SessionUser | null>(null);
 
   useEffect(() => {
-    setMounted(true);
-
     let cancelled = false;
     const loadUser = async () => {
       try {
+        const loggedIn = await getPlatformSessionStatus();
+        if (!loggedIn) {
+          if (!cancelled) setUser(null);
+          return;
+        }
         const res = await axios.get(`/api/platform/profile`);
         if (!cancelled && res.data) setUser(res.data);
       } catch {

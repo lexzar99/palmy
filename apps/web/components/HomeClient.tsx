@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import SmartImage from "@/components/SmartImage";
 import { readHomeCache, writeHomeCache } from "@/lib/homeCache";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { API_URL, SOCKET_URL } from "@/lib/api";
-import { io as socketIO } from "socket.io-client";
 import {
   MapPin,
   Search,
@@ -32,7 +32,7 @@ import { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import WelcomeDealBanner from "@/components/WelcomeDealBanner";
 import EmptyState from "@/components/EmptyState";
-import { OrderTrackingCard, TrackingAdsRail, type TrackingAd } from "@/components/OrderTrackingCard";
+import type { TrackingAd } from "@/components/OrderTrackingCard";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
@@ -40,6 +40,15 @@ import { useCartStore } from "@/store/cartStore";
 import { useFavorites } from "@/lib/favoritesStore";
 import { addSkippedReviewOrderId, readSkippedReviewOrderIds } from "@/lib/reviewPrompt";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+
+const OrderTrackingCard = dynamic(
+  () => import("@/components/OrderTrackingCard").then((mod) => mod.OrderTrackingCard),
+  { ssr: false },
+);
+const TrackingAdsRail = dynamic(
+  () => import("@/components/OrderTrackingCard").then((mod) => mod.TrackingAdsRail),
+  { ssr: false },
+);
 
 interface Restaurant {
   id: string;
@@ -745,9 +754,11 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   useEffect(() => {
     if (!isLoggedIn) return;
     Promise.all([
+      axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })),
       axios.get(`/api/platform/deals/app`, { params: { placement: "HOME_TOP", limit: 8, loggedIn: "1", _t: Date.now() } }).catch(() => ({ data: { deals: appDeals } })),
       axios.get(`/api/platform/home/pulse`, { params: { _t: Date.now() } }).catch(() => ({ data: { greeting: homeGreeting, modules: pulseModules } })),
-    ]).then(([dealsRes, pulseRes]) => {
+    ]).then(([personalRes, dealsRes, pulseRes]) => {
+      if (Array.isArray(personalRes.data)) setPersonalDeals(personalRes.data.filter((deal: any) => !isRetiredFavoriteDeal(deal)));
       if (Array.isArray(dealsRes.data?.deals)) setAppDeals(dealsRes.data.deals.filter((deal: any) => !isRetiredFavoriteDeal(deal)));
       if (Array.isArray(pulseRes.data?.modules)) {
         setPulseModules(pulseRes.data.modules.filter((deal: any) => !isRetiredFavoriteDeal(deal)));
@@ -758,6 +769,10 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   }, [isLoggedIn]);
 
   useEffect(() => {
+    if (activeOrders.length === 0) {
+      setTrackingAds([]);
+      return;
+    }
     const fallbackAds = process.env.NODE_ENV !== "production" ? DEV_TRACKING_ADS : [];
     axios.get("/api/platform/ads")
       .then((res) => {
@@ -765,7 +780,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         setTrackingAds(rows.length ? rows : fallbackAds);
       })
       .catch(() => setTrackingAds(fallbackAds));
-  }, []);
+  }, [activeOrders.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -872,24 +887,30 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       return type !== "PICKUP" && !order.selfDelivery;
     });
     if (trackable.length === 0) return;
-    const socket = socketIO(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
-    socket.on("connect", () => trackable.forEach((order) => socket.emit("join:order", order.id)));
-    socket.on("courier:location", (payload: any) => {
-      if (!payload?.orderId || typeof payload.lat !== "number" || typeof payload.lng !== "number") return;
-      setCourierPositions((current) => ({ ...current, [String(payload.orderId)]: { lat: payload.lat, lng: payload.lng } }));
-    });
-    socket.on("order:status", (payload: any) => {
-      if (!payload?.orderId || !payload.status) return;
-      setActiveOrders((orders) => orders
-        .map((order) => (
-          String(order.id) === String(payload.orderId)
-            ? { ...order, status: payload.status, estimatedTime: payload.estimatedTime ?? order.estimatedTime, etaEndsAt: payload.etaEndsAt ?? order.etaEndsAt, deliveringAt: payload.deliveringAt ?? order.deliveringAt }
-            : order
-        ))
-        .filter(shouldShowTrackingOrderOnHome));
+    let cancelled = false;
+    let socket: { on: (event: string, handler: (...args: any[]) => void) => void; emit: (event: string, ...args: any[]) => void; disconnect: () => void } | null = null;
+    void import("socket.io-client").then(({ io }) => {
+      if (cancelled) return;
+      socket = io(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
+      socket.on("connect", () => trackable.forEach((order) => socket?.emit("join:order", order.id)));
+      socket.on("courier:location", (payload: any) => {
+        if (!payload?.orderId || typeof payload.lat !== "number" || typeof payload.lng !== "number") return;
+        setCourierPositions((current) => ({ ...current, [String(payload.orderId)]: { lat: payload.lat, lng: payload.lng } }));
+      });
+      socket.on("order:status", (payload: any) => {
+        if (!payload?.orderId || !payload.status) return;
+        setActiveOrders((orders) => orders
+          .map((order) => (
+            String(order.id) === String(payload.orderId)
+              ? { ...order, status: payload.status, estimatedTime: payload.estimatedTime ?? order.estimatedTime, etaEndsAt: payload.etaEndsAt ?? order.etaEndsAt, deliveringAt: payload.deliveringAt ?? order.deliveringAt }
+              : order
+          ))
+          .filter(shouldShowTrackingOrderOnHome));
+      });
     });
     return () => {
-      socket.disconnect();
+      cancelled = true;
+      socket?.disconnect();
     };
   }, [activeOrders]);
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -999,7 +1020,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       axios.get(`${API_URL}/api/deals`),
       axios.get(`${API_URL}/api/sponsors`).catch(() => ({ data: [] })),
       axios.get(`${API_URL}/api/home-categories`).catch(() => ({ data: [] })),
-      axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })),
+      isLoggedIn ? axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
       axios.get(isLoggedIn ? `/api/platform/deals/app` : `${API_URL}/api/deals/app`, { params: { placement: "HOME_TOP", limit: 8, loggedIn: isLoggedIn ? "1" : "0", _t: Date.now() } }).catch(() => ({ data: { deals: initialData?.appDeals ?? [] } })),
       axios.get(isLoggedIn ? `/api/platform/home/pulse` : `${API_URL}/api/home/pulse`, { params: { _t: Date.now() } }).catch(() => ({ data: initialData?.pulse ?? { modules: [] } })),
     ]).then(([resRest, resCities, resDeals, resSponsors, resHomeCategories, resPersonal, resAppDeals, resPulse]) => {
