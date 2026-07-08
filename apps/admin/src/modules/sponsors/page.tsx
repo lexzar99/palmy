@@ -19,12 +19,14 @@ import {
 } from "@/modules/sponsors/api";
 import { getRestaurantOverview, restaurantsQueryKey } from "@/modules/restaurants/api";
 import { dealsQueryKey, getAutomaticDeals } from "@/modules/deals/api";
+import { ShowcaseTab } from "@/modules/sponsors/ShowcaseTab";
+import type { ShowcaseSurface } from "@/modules/sponsors/showcase-api";
 import { Button, EmptyState, ErrorPanel, Field, Input, Select } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { useToast } from "@/shared/components/toast";
 import { cn } from "@/shared/utils/cn";
 
-type Tab = "sponsors" | "ads";
+type Tab = "discounts" | "trending" | "new" | "sponsors" | "ads";
 
 type SponsorDraft = Partial<SponsorRecord> & {
   name: string;
@@ -339,7 +341,7 @@ function PhonePreview({ tab, adDraft, sponsorDraft, sponsors }: { tab: Tab; adDr
 export function SponsorsPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const [tab, setTab] = useState<Tab>("ads");
+  const [tab, setTab] = useState<Tab>("discounts");
   const sponsors = useQuery({ queryKey: sponsorsQueryKey, queryFn: getSponsors });
   const ads = useQuery({ queryKey: adsQueryKey, queryFn: getAds });
   const restaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
@@ -350,6 +352,7 @@ export function SponsorsPage() {
   const [sponsorDraft, setSponsorDraft] = useState<SponsorDraft>(() => sponsorToDraft(null));
   const [adDraft, setAdDraft] = useState<AdDraft>(() => adToDraft(null));
 
+  const isShowcase = tab === "discounts" || tab === "trending" || tab === "new";
   const activeList = tab === "ads" ? ads.data || [] : sponsors.data || [];
   const isLoading = sponsors.isLoading || ads.isLoading;
   const isError = sponsors.isError || ads.isError;
@@ -445,28 +448,44 @@ export function SponsorsPage() {
         <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="mb-2 text-[11px] font-black uppercase tracking-[0.13em]" style={{ color: orangeInk }}>Marknad</div>
-            <h1 className="m-0 text-[27px] font-black leading-tight tracking-[-0.04em] text-[#141416]">Sponsorer & annonser</h1>
+            <h1 className="m-0 text-[27px] font-black leading-tight tracking-[-0.04em] text-[#141416]">Aktuellt</h1>
             <p className="mt-2 max-w-[560px] text-[13.5px] font-medium leading-relaxed text-[#6b6b73]">
-              Två separata system. <strong className="font-black text-[#141416]">Sponsorer</strong> är stora partnerkort i &quot;För dig&quot;-raden, alltid synliga. <strong className="font-black text-[#141416]">Annonser</strong> är små lokala banners som visas under kundens order.
+              Hemskärmens kort styrs här. <strong className="font-black text-[#141416]">Rabatter</strong>, <strong className="font-black text-[#141416]">Trendar</strong> och <strong className="font-black text-[#141416]">Ny i stan</strong> fylls dynamiskt och kan finjusteras manuellt. Sponsorer och annonser är manuella kort.
             </p>
           </div>
-          <Button
-            variant="primary"
-            onClick={() => {
-              if (tab === "ads") {
-                setSelectedAdId(null);
-                setAdDraft(adToDraft(null));
-              } else {
-                setSelectedSponsorId(null);
-                setSponsorDraft(sponsorToDraft(null));
-              }
-            }}
-          >
-            <Plus size={14} /> {headerAction}
-          </Button>
+          {isShowcase ? null : (
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (tab === "ads") {
+                  setSelectedAdId(null);
+                  setAdDraft(adToDraft(null));
+                } else {
+                  setSelectedSponsorId(null);
+                  setSponsorDraft(sponsorToDraft(null));
+                }
+              }}
+            >
+              <Plus size={14} /> {headerAction}
+            </Button>
+          )}
         </div>
 
-        <div className="mb-[18px] inline-flex rounded-xl bg-[rgba(20,20,22,0.05)] p-1">
+        <div className="mb-[18px] inline-flex flex-wrap rounded-xl bg-[rgba(20,20,22,0.05)] p-1">
+          {([
+            ["discounts", "Rabatter"],
+            ["trending", "Trendar"],
+            ["new", "Ny i stan"],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              className={cn("inline-flex items-center gap-2 rounded-[10px] px-[15px] py-[9px] text-[13px] font-black transition", tab === key ? "bg-white text-[#141416] shadow-[0_2px_6px_rgba(20,20,22,0.1)]" : "text-[#6b6b73]")}
+            >
+              {label}
+            </button>
+          ))}
           <button
             type="button"
             onClick={() => setTab("sponsors")}
@@ -482,6 +501,10 @@ export function SponsorsPage() {
             Annonser <span className="rounded-full bg-[rgba(20,20,22,0.07)] px-2 py-0.5 text-[10.5px] font-black">{counts.ads}</span>
           </button>
         </div>
+
+        {isShowcase ? (
+          <ShowcaseTab surface={tab as ShowcaseSurface} />
+        ) : (
 
         <div className="grid gap-[18px] lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="grid gap-[18px]">
@@ -672,10 +695,11 @@ export function SponsorsPage() {
 
           <PhonePreview tab={tab} adDraft={adDraft} sponsorDraft={sponsorDraft} sponsors={sponsors.data || []} />
         </div>
+        )}
 
         <div className="mt-4 flex items-center gap-2 text-[12px] font-bold text-[#9a9aa2]">
           <Link2 size={13} />
-          Sponsorer och annonser är separata system: sponsorer visas i För dig-raden, annonser visas under aktiv order tracking.
+          Rabatter, Trendar och Ny i stan fylls dynamiskt. Sponsorer och annonser är manuella kort.
         </div>
       </div>
     </div>

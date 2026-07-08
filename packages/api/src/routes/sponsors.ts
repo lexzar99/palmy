@@ -11,6 +11,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { cached, bustCache } from '../lib/ttlCache';
+import { getDiscountCards } from '../lib/showcase';
 
 const router = Router();
 const RECORD_ID = 'global_sponsors';
@@ -115,7 +116,32 @@ router.get('/', async (_req, res) => {
               : '';
       return { ...s, dealInfo: { id: deal.id, title: deal.title, valueLabel, minOrderKr: Math.round(deal.minOrder || 0) / 100 } };
     });
-    res.json(payload);
+
+    // Dynamiska rabattkort (auto-genererade från aktiva deals) läggs först i
+    // karusellen. Rotation + manuella overrides sköts i lib/showcase.
+    const discountCards = await getDiscountCards(now).catch(() => []);
+    const discountSponsors = discountCards.map((c, index) => ({
+      id: `discount:${c.restaurantId}`,
+      name: c.headline,
+      tagline: c.subtitle || undefined,
+      category: c.footnote || undefined,
+      imageUrl: c.imageUrl || '',
+      cardType: 'DISCOUNT' as const,
+      theme: c.theme,
+      color: c.theme,
+      featuredClass: c.featuredClass,
+      percent: c.percent,
+      restaurantSlug: c.restaurantSlug,
+      isActive: true,
+      isClickable: true,
+      linkType: 'RESTAURANT' as const,
+      linkTarget: c.restaurantSlug,
+      showName: false,
+      sortOrder: -1000 + index,
+      createdAt: new Date(0).toISOString(),
+    }));
+
+    res.json([...discountSponsors, ...payload]);
   } catch {
     res.status(500).json({ error: 'Kunde inte hämta sponsorer' });
   }

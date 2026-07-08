@@ -29,7 +29,6 @@ import {
   TicketPercent,
   UserPlus,
   Users,
-  Zap,
 } from "lucide-react";
 import { cn } from "@/shared/utils/cn";
 
@@ -73,7 +72,7 @@ const COMMANDS: CommandItem[] = [
   // Tillväxt
   { id: "deals", label: "Deals & BOGO", href: "/deals", icon: Gift, group: "Tillväxt", keywords: "kampanj rabatt bogo app" },
   { id: "coupons", label: "Kuponger", href: "/coupons", icon: TicketPercent, group: "Tillväxt", keywords: "kupong rabattkod kod" },
-  { id: "sponsors", label: "Sponsorer", href: "/sponsors", icon: Handshake, group: "Tillväxt", keywords: "partner annons" },
+  { id: "sponsors", label: "Aktuellt", href: "/sponsors", icon: Handshake, group: "Tillväxt", keywords: "rabatter trendar ny sponsor partner annons" },
   { id: "referrals", label: "Värva vän", href: "/referrals", icon: UserPlus, group: "Tillväxt", keywords: "referral varva van valkomst valkomstrabatt" },
   { id: "push", label: "Push-notiser", href: "/push", icon: BellRing, group: "Tillväxt", keywords: "notification meddelande" },
 
@@ -82,7 +81,6 @@ const COMMANDS: CommandItem[] = [
   { id: "tiers", label: "Tiers", href: "/finance?tab=tiers", icon: Shield, group: "System", keywords: "abonnemang placering guld silver brons" },
   { id: "receipts", label: "Kvitto-mall", href: "/platform-settings?tab=kvitto", icon: ReceiptText, group: "System", keywords: "kvitto utskrift mall" },
   { id: "users", label: "Admin-användare", href: "/users", icon: Users, group: "System", keywords: "anvandare staff admin" },
-  { id: "engines", label: "Motorn", href: "/engines", icon: Zap, group: "System", keywords: "automation puls handelser" },
   { id: "api-health", label: "API-status", href: "/api-health", icon: Gauge, group: "System", keywords: "uptime halsa status" },
   { id: "audit-log", label: "Audit-log", href: "/audit-log", icon: History, group: "System", keywords: "logg compliance" },
   { id: "platform-settings", label: "Plattform-inställningar", href: "/platform-settings", icon: Building2, group: "System", keywords: "foretag company settings" },

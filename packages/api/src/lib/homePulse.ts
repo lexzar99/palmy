@@ -5,6 +5,7 @@
 
 import prisma from './prisma';
 import { getDpointsSettings } from './dpoints';
+import { getTrendingRestaurantIds, getNewRestaurantIds } from './showcase';
 import { themeForKey, dailyPick, dailyScore, dayOfYear } from './themeRotation';
 
 const LIVE_STATUSES = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERING'];
@@ -201,6 +202,7 @@ const restaurantDto = (r: any) => ({
   imageUrl: r.imageUrl || null,
   heroImageUrl: r.heroImageUrl || null,
   rating: r.rating ?? null,
+  featuredClass: r.featuredClass ?? null,
 });
 
 const productDto = (p: any) => ({
@@ -214,7 +216,7 @@ const productDto = (p: any) => ({
 async function previewRestaurants(limit = 4) {
   const restaurants = await prisma.restaurant.findMany({
     where: { comingSoon: false },
-    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true },
+    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true },
     orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
     take: limit,
   });
@@ -224,7 +226,7 @@ async function previewRestaurants(limit = 4) {
 async function previewProducts(limit = 4) {
   const products = await prisma.product.findMany({
     where: { isActive: true, category: { isActive: true, restaurant: { comingSoon: false } } },
-    include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true } } } } },
+    include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true } } } } },
     orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
     take: limit,
   });
@@ -462,7 +464,7 @@ async function buildFastestToday(params: Record<string, number>) {
 
   const restaurants = await prisma.restaurant.findMany({
     where: { id: { in: candidates.map((c) => c.restaurantId) }, comingSoon: false },
-    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true },
+    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true },
   });
   const byId = new Map(restaurants.map((r) => [r.id, r]));
   const items = candidates
@@ -523,7 +525,7 @@ async function buildPointsNudge(userId: string, params: Record<string, number>) 
 
   const products = await prisma.product.findMany({
     where: { rewardable: true, isActive: true, category: { isActive: true, restaurant: { comingSoon: false } } },
-    include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true } } } } },
+    include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true } } } } },
     take: 120,
   });
   const minRatio = (params.minRatioPct || 50) / 100;
@@ -644,22 +646,24 @@ async function previewDailyDrop(params: Record<string, number>) {
 }
 
 // ── Ny i stan: nyöppnade restauranger, automatisk räls i två veckor ─────────
-async function buildNewRestaurants(params: Record<string, number>) {
-  const since = new Date(Date.now() - (params.windowDays || 14) * 24 * 60 * 60 * 1000);
+async function buildNewRestaurants(_params: Record<string, number>) {
+  // Urval + rotation + manuella overrides styrs av lib/showcase (24h-yta).
+  const ids = await getNewRestaurantIds();
+  if (!ids.length) return null;
   const restaurants = await prisma.restaurant.findMany({
-    where: { comingSoon: false, createdAt: { gte: since } },
-    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true },
-    orderBy: { createdAt: 'desc' },
-    take: params.maxItems || 6,
+    where: { id: { in: ids }, comingSoon: false },
+    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true },
   });
-  if (!restaurants.length) return null;
+  const byId = new Map(restaurants.map((r) => [r.id, r]));
+  const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+  if (!ordered.length) return null;
   return {
     type: 'NEW_RESTAURANTS',
     id: 'new_restaurants',
     theme: themeForKey('module:new_restaurants'),
     title: 'Ny i stan',
     subtitle: 'Nyöppnat nära dig',
-    restaurants: restaurants.map(restaurantDto),
+    restaurants: ordered.map(restaurantDto),
   };
 }
 
@@ -677,44 +681,40 @@ async function previewNewRestaurants() {
 }
 
 // ── Trendar: störst ordertillväxt mot förra veckan ──────────────────────────
-async function buildTrending(params: Record<string, number>) {
+async function buildTrending(_params: Record<string, number>) {
+  // Urval (mest ordrar) + rotation + manuella overrides styrs av lib/showcase.
+  const ids = await getTrendingRestaurantIds();
+  if (!ids.length) return null;
   const now = Date.now();
   const weekMs = 7 * 24 * 60 * 60 * 1000;
+  // Tillväxt-% enbart för badgen; avslöjar inte antal ordrar.
   const [thisWeek, lastWeek] = await Promise.all([
     (prisma.order.groupBy as any)({
       by: ['restaurantId'],
-      where: { createdAt: { gte: new Date(now - weekMs) }, status: { notIn: EXCLUDED_STATUSES }, restaurantId: { not: null } },
+      where: { createdAt: { gte: new Date(now - weekMs) }, status: { notIn: EXCLUDED_STATUSES }, restaurantId: { in: ids } },
       _count: { _all: true },
     }),
     (prisma.order.groupBy as any)({
       by: ['restaurantId'],
-      where: { createdAt: { gte: new Date(now - 2 * weekMs), lt: new Date(now - weekMs) }, status: { notIn: EXCLUDED_STATUSES }, restaurantId: { not: null } },
+      where: { createdAt: { gte: new Date(now - 2 * weekMs), lt: new Date(now - weekMs) }, status: { notIn: EXCLUDED_STATUSES }, restaurantId: { in: ids } },
       _count: { _all: true },
     }),
   ]);
-  const lastByRestaurant = new Map<string, number>((lastWeek as any[]).map((g) => [g.restaurantId, g._count._all]));
-  const minOrders = params.minOrders || 5;
-  const candidates = (thisWeek as any[])
-    .filter((g) => g._count._all >= minOrders)
-    .map((g) => {
-      const prev = lastByRestaurant.get(g.restaurantId) || 0;
-      const growth = prev > 0 ? (g._count._all - prev) / prev : g._count._all >= minOrders ? 1 : 0;
-      return { restaurantId: g.restaurantId, orders: g._count._all, growthPct: Math.round(growth * 100) };
-    })
-    .filter((c) => c.growthPct >= 20)
-    .sort((a, b) => b.growthPct - a.growthPct)
-    .slice(0, params.maxItems || 4);
-  if (!candidates.length) return null;
+  const thisByRest = new Map<string, number>((thisWeek as any[]).map((g) => [g.restaurantId, g._count._all]));
+  const lastByRest = new Map<string, number>((lastWeek as any[]).map((g) => [g.restaurantId, g._count._all]));
   const restaurants = await prisma.restaurant.findMany({
-    where: { id: { in: candidates.map((c) => c.restaurantId) }, comingSoon: false },
-    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true },
+    where: { id: { in: ids }, comingSoon: false },
+    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true },
   });
   const byId = new Map(restaurants.map((r) => [r.id, r]));
-  const items = candidates
-    .map((c) => {
-      const restaurant = byId.get(c.restaurantId);
+  const items = ids
+    .map((id) => {
+      const restaurant = byId.get(id);
       if (!restaurant) return null;
-      return { ...restaurantDto(restaurant), growthPct: c.growthPct };
+      const cur = thisByRest.get(id) || 0;
+      const prev = lastByRest.get(id) || 0;
+      const growth = prev > 0 ? Math.round(((cur - prev) / prev) * 100) : cur > 0 ? 100 : 0;
+      return { ...restaurantDto(restaurant), growthPct: Math.max(0, growth) };
     })
     .filter(Boolean);
   if (!items.length) return null;
@@ -723,7 +723,7 @@ async function buildTrending(params: Record<string, number>) {
     id: 'trending',
     theme: themeForKey('module:trending'),
     title: 'Trendar i stan',
-    subtitle: 'Växer snabbast just nu',
+    subtitle: 'Populärast just nu',
     restaurants: items,
   };
 }
@@ -761,7 +761,7 @@ async function buildComeback(userId: string, params: Record<string, number>) {
   if (!pick) return null;
   const restaurant = await prisma.restaurant.findFirst({
     where: { id: pick.restaurantId, comingSoon: false },
-    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true },
+    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true },
   });
   if (!restaurant) return null;
   return {

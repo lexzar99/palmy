@@ -208,6 +208,7 @@ type PulseRailRestaurant = PulseRestaurant & {
   avgMinutesToday?: number | null;
   deliveredToday?: number | null;
   growthPct?: number | null;
+  featuredClass?: number | null;
 };
 
 type PulseProduct = {
@@ -493,6 +494,11 @@ function HighlightPromoCard({ restaurant, badge, onOpen }: { restaurant: PulseRa
     <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card text-left">
       {image ? <SmartImage src={image} alt={restaurant.name} sizes="(max-width: 640px) 88vw, 460px" className="absolute inset-0 h-full w-full object-cover" /> : <span className="absolute inset-0" style={{ background: pulseGradient("sky") }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/70" />
+      {(restaurant.featuredClass === 1 || restaurant.featuredClass === 2) && (
+        <span className="absolute right-4 top-4 z-10">
+          <FeaturedBadge featuredClass={restaurant.featuredClass} />
+        </span>
+      )}
       <span className="absolute inset-x-0 bottom-0 p-4">
         <span className="mb-1.5 inline-flex h-6 items-center rounded-full bg-white px-2.5 text-[10px] font-black uppercase text-[var(--ink)]">{badge}</span>
         <span className="block truncate text-[24px] font-black leading-tight text-white">{restaurant.name}</span>

@@ -262,14 +262,6 @@ function dealOutcomeLabel(deal: AutomaticDealRecord): string {
   return `${claims} hämtade · ${redeemed} inlösta`;
 }
 
-/** Var visas dealen: appen, webben eller båda. */
-function dealVisibilityLabel(deal: AutomaticDealRecord): { label: string; tone: TypeTone } {
-  if (deal.appEnabled && deal.showOnSite) return { label: "App + webb", tone: "info" };
-  if (deal.appEnabled) return { label: "Endast appen", tone: "accent" };
-  if (deal.showOnSite) return { label: "Webben", tone: "neutral" };
-  return { label: "Dold", tone: "warning" };
-}
-
 function DealTable({
   deals,
   emptyTitle,
@@ -292,7 +284,7 @@ function DealTable({
   togglePending: boolean;
 }) {
   const typeLabelFn = getTypeLabel();
-  const cols = "1.6fr 0.8fr 0.9fr 0.9fr 0.9fr 0.9fr 90px 56px";
+  const cols = "1.6fr 0.8fr 0.9fr 0.9fr 0.9fr 90px 56px";
   return (
     <Surface className="overflow-hidden p-0">
       {deals.length === 0 ? (
@@ -306,7 +298,6 @@ function DealTable({
           >
             <span>Kampanj</span>
             <span>Typ</span>
-            <span>Visas i</span>
             <span>Restauranger</span>
             <span>Period</span>
             <span>Utfall</span>
@@ -314,7 +305,6 @@ function DealTable({
             <span />
           </div>
           {deals.map((deal, i) => {
-            const visibility = dealVisibilityLabel(deal);
             return (
               <div
                 key={deal.id}
@@ -328,7 +318,6 @@ function DealTable({
                   </button>
                 </span>
                 <span><TypeBadge tone={getTypeTone(deal)}>{typeLabelFn(deal)}</TypeBadge></span>
-                <span><TypeBadge tone={visibility.tone}>{visibility.label}</TypeBadge></span>
                 <span className="truncate text-[var(--text-secondary)]">{getRestaurants(deal)}</span>
                 <span className="text-[var(--text-secondary)]">{getPeriod(deal)}</span>
                 <span className="text-[var(--text-secondary)]">{dealOutcomeLabel(deal)}</span>
