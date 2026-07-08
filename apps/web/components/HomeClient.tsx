@@ -162,7 +162,7 @@ const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
 const HOME_PROMO_IMAGE_SIZES = "(max-width: 640px) 88vw, 460px";
 const RESTAURANT_RAIL_IMAGE_SIZES = "(max-width: 639px) 230px, (max-width: 767px) 260px, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw";
 const RESTAURANT_LIST_IMAGE_SIZES = "(max-width: 1023px) calc(100vw - 32px), (max-width: 1535px) 50vw, 33vw";
-const ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT = 2;
+const ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT = 0;
 
 type PromoCardItem =
   | { id: string; kind: "sponsor"; sponsor: SponsorData }
