@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
       { protocol: "https", hostname: "pub-3aa62f4934014835956fe3777d5b3abd.r2.dev" },
+      { protocol: "https", hostname: "cdn-bk-se-ordering.azureedge.net" },
     ],
   },
   async headers() {

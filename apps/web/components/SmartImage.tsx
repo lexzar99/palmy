@@ -3,11 +3,14 @@
 import Image from "next/image";
 import type { ImageProps } from "next/image";
 
-// Endast R2-bucketen är registrerad i next.config images.remotePatterns.
+// Dessa hostar är registrerade i next.config images.remotePatterns.
 // Bilder därifrån optimeras via next/image (AVIF/WebP + rätt storlek);
-// övriga källor (API-servade legacy-paths, externa URL:er) renderas som
+// övriga källor (API-servade legacy-paths, okända externa URL:er) renderas som
 // vanlig <img> så optimizern inte kastar "unconfigured host".
-const OPTIMIZED_HOST = "pub-3aa62f4934014835956fe3777d5b3abd.r2.dev";
+const OPTIMIZED_HOSTS = new Set([
+  "pub-3aa62f4934014835956fe3777d5b3abd.r2.dev",
+  "cdn-bk-se-ordering.azureedge.net",
+]);
 
 export default function SmartImage({
   src,
@@ -34,7 +37,7 @@ export default function SmartImage({
 
   let optimizable = false;
   try {
-    optimizable = new URL(src).hostname === OPTIMIZED_HOST;
+    optimizable = OPTIMIZED_HOSTS.has(new URL(src).hostname);
   } catch {
     optimizable = false;
   }
