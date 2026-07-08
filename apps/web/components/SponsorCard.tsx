@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ExternalLink, ArrowRight, Crown } from "lucide-react";
+import { ExternalLink, ArrowRight, Crown, Tag, Flame, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 
 export interface SponsorData {
@@ -72,13 +72,15 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
         whileTap={isInteractive ? { scale: 0.99 } : undefined}
         transition={{ type: "spring", stiffness: 320, damping: 22 }}
         onClick={handleClick}
-        className={`relative shrink-0 rounded-2xl overflow-hidden group w-[88vw] max-w-[460px] sm:w-[460px] ${
+        className={`relative shrink-0 overflow-hidden group w-[88vw] max-w-[460px] sm:w-[460px] ${
           isInteractive ? "cursor-pointer" : "cursor-default"
         }`}
         style={{
           aspectRatio: "1.9 / 1",
           backgroundColor: "var(--bg-deep)",
-          border: "1px solid var(--border-muted)",
+          borderRadius: "14px",
+          border: "1px solid var(--line)",
+          boxShadow: "0 10px 18px rgba(0, 0, 0, 0.075)",
         }}
       >
         {/* Restaurangens hero-bild fyller hela kortet. */}
@@ -91,17 +93,10 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
           className="absolute inset-0 w-full h-full object-cover"
         />
 
-        {/* Mörk botten-scrim för läsbarhet. */}
-        <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/70" />
+        {/* Mörk botten-scrim för läsbarhet, som champion-kortet. */}
+        <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/75" />
 
-        {/* Badge-pill uppe till vänster (vit/solid, mörk text). */}
-        {!!sponsor.badge && (
-          <span className="absolute left-4 top-4 z-10 inline-flex h-6 items-center rounded-full bg-white px-2.5 text-[11px] font-black uppercase text-[var(--ink)]">
-            {sponsor.badge}
-          </span>
-        )}
-
-        {/* Utvald-badge (guld/silver) uppe till höger — matchar FeaturedBadge. */}
+        {/* Utvald-pill (guld/silver) uppe till höger — enda flytande pillen. */}
         {isFeatured && (
           <span
             className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-0.5 rounded-md text-white"
@@ -112,18 +107,28 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
           </span>
         )}
 
-        {/* Botten-overlay: restaurangnamn + kontext. */}
+        {/* Ett textkluster nere till vänster: orange badge, namn, undertext. */}
         <div className="absolute inset-x-0 bottom-0 p-4">
-          <h3 className="text-[22px] sm:text-[24px] font-black leading-tight tracking-tight text-white line-clamp-2">
-            {sponsor.name}
-          </h3>
-          {!!sponsor.tagline && (
-            <p className="mt-1 text-[13px] font-semibold leading-snug text-white/85 truncate">
-              {sponsor.tagline}
-            </p>
+          {!!sponsor.badge && (
+            <span className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[10px] font-black uppercase text-white" style={{ backgroundColor: "var(--orange)" }}>
+              {sponsor.showcaseKind === "discount" ? (
+                <Tag size={11} fill="currentColor" />
+              ) : sponsor.showcaseKind === "trending" ? (
+                <Flame size={11} fill="currentColor" />
+              ) : (
+                <Sparkles size={11} fill="currentColor" />
+              )}
+              {sponsor.badge}
+            </span>
           )}
-          {!!sponsor.category && (
-            <p className="mt-1.5 text-[11px] font-bold text-white/70">{sponsor.category}</p>
+          <span className="block truncate text-[24px] font-black leading-tight text-white">
+            {sponsor.name}
+          </span>
+          {(!!sponsor.tagline || !!sponsor.category) && (
+            <span className="mt-1 flex items-center gap-2 text-[12px] font-bold text-white/90">
+              {!!sponsor.tagline && <span className="truncate">{sponsor.tagline}</span>}
+              {!!sponsor.category && <span className="shrink-0 text-white/70">{sponsor.category}</span>}
+            </span>
           )}
         </div>
       </motion.div>
