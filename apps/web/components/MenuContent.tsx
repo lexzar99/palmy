@@ -44,11 +44,46 @@ interface MenuContentProps {
 
 // ─── Produktkort-helpers ─────────────────────────────────────────────────
 function getDisplayPrice(p: any): { final: number; original: number | null } {
-  if (p.discountActive) {
-    const final = p.discountPrice ?? Math.round(p.price - (p.price * (p.discountPercent || 0) / 100));
-    return { final, original: p.price };
+  if (typeof p.discountPrice === "number" && p.discountPrice > 0 && p.discountPrice < p.price) {
+    return { final: p.discountPrice, original: p.price };
+  }
+  if (typeof p.discountPercent === "number" && p.discountPercent > 0) {
+    const final = Math.max(0, Math.round(p.price - (p.price * p.discountPercent) / 100));
+    if (final < p.price) return { final, original: p.price };
   }
   return { final: p.price, original: null };
+}
+
+function ProductPriceLine({ product, compact = false }: { product: any; compact?: boolean }) {
+  const { final, original } = getDisplayPrice(product);
+  const discountPct = original != null && original > final ? Math.round((1 - final / original) * 100) : 0;
+  const hasDiscount = discountPct > 0;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-baseline gap-2 min-w-0">
+        <span
+          className={`${compact ? "text-[14px]" : "text-[14.5px]"} font-extrabold leading-tight`}
+          style={{ color: hasDiscount ? "var(--orange, #F04F1A)" : "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}
+        >
+          från {final} kr
+        </span>
+        {hasDiscount && (
+          <span
+            className={`${compact ? "text-[12.5px]" : "text-[13px]"} font-bold line-through leading-tight`}
+            style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}
+          >
+            {original} kr
+          </span>
+        )}
+      </div>
+      {hasDiscount && (
+        <span className={`${compact ? "text-[12.5px]" : "text-[13px]"} font-extrabold leading-tight`} style={{ color: "var(--orange, #F04F1A)" }}>
+          {discountPct}% rabatt
+        </span>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -58,12 +93,10 @@ function getDisplayPrice(p: any): { final: number; original: number | null } {
  * plus-knapp. Tema-variabler → light + dark. Guld bara på plus + rabattpris.
  */
 function UniformCard({ product, onClick, disabled }: { product: any; onClick: () => void; disabled: boolean }) {
-  const { final, original } = getDisplayPrice(product);
   const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
   const hasImage = Boolean(product.imageUrl) && !imgFailed;
   const showDescription = Boolean(product.description) && !product.hideDescription;
-  const discountPct = original != null && original > final ? Math.round((1 - final / original) * 100) : 0;
   return (
     <button
       type="button"
@@ -82,20 +115,8 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
             {product.description}
           </p>
         )}
-        <div className="mt-0.5 flex items-center gap-2 flex-wrap">
-          <span className="text-[14.5px] font-semibold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
-            {final} kr
-          </span>
-          {original != null && original !== final && (
-            <span className="text-[13px] line-through" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {original} kr
-            </span>
-          )}
-          {discountPct > 0 && (
-            <span className="text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>
-              −{discountPct} %
-            </span>
-          )}
+        <div className="mt-0.5 flex items-start gap-2 flex-wrap">
+          <ProductPriceLine product={product} />
           {(product.isVegan || product.isVegetarian || product.isGlutenFree) && (
             <span className="flex items-center gap-1.5 ml-0.5">
               {product.isVegan && <span className="text-[11.5px] font-medium px-1.5 rounded-md" style={{ color: "var(--success-ink)", border: "1px solid color-mix(in srgb, var(--success-ink) 30%, transparent)" }}>Vegan</span>}
@@ -145,11 +166,11 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
  * UniformCard men i en kompakt box istället för full-bredds rad.
  */
 function CompactCard({ product, onClick, disabled }: { product: any; onClick: () => void; disabled: boolean }) {
-  const { final, original } = getDisplayPrice(product);
   const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => { setImgFailed(false); }, [product.imageUrl]);
   const hasImage = Boolean(product.imageUrl) && !imgFailed;
   const showDescription = Boolean(product.description) && !product.hideDescription;
+  const { final, original } = getDisplayPrice(product);
   const discountPct = original != null && original > final ? Math.round((1 - final / original) * 100) : 0;
   return (
     <button
@@ -201,15 +222,8 @@ function CompactCard({ product, onClick, disabled }: { product: any; onClick: ()
             {product.description}
           </p>
         )}
-        <div className="mt-auto flex items-center gap-2 flex-wrap pt-0.5">
-          <span className="text-[14px] font-semibold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
-            {final} kr
-          </span>
-          {original != null && original !== final && (
-            <span className="text-[12.5px] line-through" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
-              {original} kr
-            </span>
-          )}
+        <div className="mt-auto pt-0.5">
+          <ProductPriceLine product={product} compact />
         </div>
       </div>
     </button>

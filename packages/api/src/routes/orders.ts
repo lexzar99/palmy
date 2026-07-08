@@ -11,7 +11,7 @@ import {
   DEFAULT_ESTIMATED_PICKUP_TIME,
   DEFAULT_MIN_ORDER_AMOUNT,
 } from '../lib/restaurantSettings';
-import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, userDealRestaurantScope, type CartItemForBogo } from '../lib/deals';
+import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, resolveDisplayPromotionForProduct, userDealRestaurantScope, type CartItemForBogo } from '../lib/deals';
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
@@ -38,6 +38,17 @@ const stockholmDayFormatter = new Intl.DateTimeFormat('sv-SE', {
 });
 
 const getStockholmCalendarDay = (date: Date) => stockholmDayFormatter.format(date);
+
+const dealMatchesRestaurant = (deal: {
+  restaurantId?: string | null;
+  isGlobal?: boolean | null;
+  applicableRestaurantIds?: string | null;
+}, restaurantId: string | null) => {
+  if (!restaurantId) return false;
+  if (deal.isGlobal) return true;
+  if (deal.restaurantId === restaurantId) return true;
+  return parseApplicableRestaurantIds(deal.applicableRestaurantIds).includes(restaurantId);
+};
 
 class OrderValidationError extends Error {
   constructor(message: string) {
@@ -90,6 +101,9 @@ const OrderItemSchema = z.object({
   // Tillåt stora beställningar (fester/catering). Tidigare max 20 → "Ogiltig
   // data" vid t.ex. 30–50 pizzor. Taket på 500 är bara ett sanity-skydd.
   quantity: z.number().int().min(1).max(500),
+  unitPriceKr: z.number().nonnegative().optional(),
+  originalPriceKr: z.number().nonnegative().optional(),
+  catalogDiscountApplied: z.boolean().optional(),
   note: z.string().nullable().optional(),
   selectedExtras: z.array(z.object({
     groupId: z.string(),
@@ -484,7 +498,17 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
+    const now = new Date();
+
     // Hämta produkter och beräkna priser
+    const activeDeals = await prisma.deal.findMany({
+      // Personliga mallar (welcome/referral) får ALDRIG appliceras som
+      // publika auto-deals — de delas bara ut som UserDeals till registrerade
+      // kunder. Annars läckte t.ex. "25% första beställning"-välkomstmallen in
+      // som automatisk rabatt för ALLA gäst-ordrar.
+      where: { isActive: true, isPersonalTemplate: false },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+    });
     const productIds = [...new Set(data.items.map((i) => i.productId))];
     const requireActiveProducts = !confirmedPayment || isPendingPayment;
     const products = await prisma.product.findMany({
@@ -510,6 +534,7 @@ router.post('/', async (req: Request, res: Response) => {
     let subtotal = 0;
     let pointsToSpend = 0;
     let pointsPaidValueOre = 0; // brutto-värde (öre) av varor betalda med poäng — för min-order
+    let hasCatalogDiscountedItems = false;
     const dpSettings = await getDpointsSettings();
     const orderItems: any[] = [];
 
@@ -623,20 +648,23 @@ router.post('/', async (req: Request, res: Response) => {
       }
 
       const extrasTotal = validatedExtras.reduce((sum, e) => sum + Math.round(e.priceAddon * 100) * ((e as any).quantity ?? 1), 0);
-      const fullItemOre = (product.price + extrasTotal) * item.quantity;
+      const displayPromotion = resolveDisplayPromotionForProduct({
+        product,
+        categoryId: (product as any).categoryId,
+        restaurantId: restaurant.id,
+        deals: activeDeals.filter((deal) => dealMatchesRestaurant(deal, restaurant.id) && isDealAvailableNow(deal, now)),
+      });
+      const catalogBaseOre = !item.bogoFreeFromDealId && displayPromotion?.salePriceOre && displayPromotion.salePriceOre < product.price
+        ? displayPromotion.salePriceOre
+        : product.price;
+      const itemHasCatalogDiscount = !item.bogoFreeFromDealId && catalogBaseOre < product.price;
+      if (itemHasCatalogDiscount) hasCatalogDiscountedItems = true;
+      const lineItemOre = (catalogBaseOre + extrasTotal) * item.quantity;
       // Rabattpris (öre) för POÄNG-kostnaden så den matchar vad kunden ser i
-      // appen (rabattpris i poäng). Kontant-subtotalen använder fortsatt
-      // normalpriset (fullItemOre) — kr-rabatten appliceras separat via
-      // discountAmount, så vi får ingen dubbel-rabatt på kontantvaror.
+      // appen (rabattpris i poäng).
       const discountedBaseOre = (() => {
-        if (product.discountActive) {
-          if (typeof product.discountPrice === 'number' && product.discountPrice > 0) {
-            return Math.max(0, product.discountPrice);
-          }
-          if (typeof product.discountPercent === 'number' && product.discountPercent > 0) {
-            return Math.max(0, Math.round(product.price - product.price * (product.discountPercent / 100)));
-          }
-        }
+        if (itemHasCatalogDiscount) return catalogBaseOre;
+        if (displayPromotion?.salePriceOre && displayPromotion.salePriceOre < product.price) return displayPromotion.salePriceOre;
         return product.price;
       })();
       const pointsBaseOre = (discountedBaseOre + extrasTotal) * item.quantity;
@@ -654,7 +682,7 @@ router.post('/', async (req: Request, res: Response) => {
         throw new OrderValidationError(`${product.name} kan inte köpas med Vpoints`);
       }
       const payWithPoints = !!item.paidWithPoints && !!authenticatedUserId && dpSettings.dpointsEnabled && !!product.rewardable;
-      const itemSubtotal = payWithPoints ? 0 : fullItemOre;
+      const itemSubtotal = payWithPoints ? 0 : lineItemOre;
       if (payWithPoints) {
         pointsToSpend += rewardUnitPoints * item.quantity;
         pointsPaidValueOre += pointsBaseOre;
@@ -664,7 +692,7 @@ router.post('/', async (req: Request, res: Response) => {
       orderItems.push({
         productId: product.id,
         productName: product.name,
-        basePrice: payWithPoints ? 0 : product.price,
+        basePrice: payWithPoints ? 0 : catalogBaseOre,
         quantity: item.quantity,
         note: item.note,
         selectedExtras: JSON.stringify(validatedExtras), // Store as string for SQLite
@@ -715,9 +743,19 @@ router.post('/', async (req: Request, res: Response) => {
     const pendingMinOrderTopUpOre = Math.max(0, Math.round(Number(data.minOrderTopUp || 0) * 100));
 
     // Rabattkod och automatiska deals
-    const now = new Date();
     let manualDiscountAmount = 0;
     let validatedCode: string | undefined;
+    const hasRequestedBogoFreeItem = data.items.some((item) => !!item.bogoFreeFromDealId);
+
+    if (hasCatalogDiscountedItems && data.discountCode && data.discountCode.toLowerCase() !== 'test' && data.discountCode.toLowerCase() !== 'testa') {
+      throw new OrderValidationError('Rabattkod kan inte kombineras med redan rabatterade produkter');
+    }
+    if (hasCatalogDiscountedItems && data.userDealId) {
+      throw new OrderValidationError('Kassarabatt kan inte kombineras med redan rabatterade produkter');
+    }
+    if (hasCatalogDiscountedItems && hasRequestedBogoFreeItem) {
+      throw new OrderValidationError('BOGO kan inte kombineras med redan rabatterade produkter');
+    }
 
     if (data.discountCode) {
       const codeVal = data.discountCode?.toLowerCase();
@@ -819,15 +857,6 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    const activeDeals = await prisma.deal.findMany({
-      // Personliga mallar (welcome/referral) får ALDRIG appliceras som
-      // publika auto-deals — de delas bara ut som UserDeals till registrerade
-      // kunder. Annars läckte t.ex. "25% första beställning"-välkomstmallen in
-      // som automatisk rabatt för ALLA gäst-ordrar.
-      where: { isActive: true, isPersonalTemplate: false },
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
-    });
-
     const customerDealOrders = await prisma.order.findMany({
       where: {
         customerPhone: data.customerPhone,
@@ -848,7 +877,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Vi hoppar HELA pickup-loopen (utom BOGO som är knuten till items i
     // kundvagnen och hanteras separat nedan). Detta säkerställer att
     // frontend-totalen (utan auto-deal) matchar backend-totalen.
-    const skipAutoDeals = !!data.skipAutomaticDeal || isPointsOnlyOrder;
+    const skipAutoDeals = !!data.skipAutomaticDeal || isPointsOnlyOrder || hasCatalogDiscountedItems;
     const productIdsInCart = data.items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
 
     const cartItemsForBogo: CartItemForBogo[] = orderItems.map((oi) => {

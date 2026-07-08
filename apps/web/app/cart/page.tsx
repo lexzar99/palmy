@@ -156,11 +156,12 @@ function CartCollapsibleRow({
 
 export default function CartPage() {
   const { t } = useTranslation();
-  const { items, removeItem, updateQuantity, getTotal, clearCart, restaurantId: cartRestaurantId, restaurantSlug: cartRestaurantSlug } = useCartStore();
+  const { items, removeItem, updateQuantity, updateItem, getTotal, clearCart, restaurantId: cartRestaurantId, restaurantSlug: cartRestaurantSlug } = useCartStore();
   // Namnet på restaurangen man beställer från — visas högst upp i kassan.
   const [cartRestaurantName, setCartRestaurantName] = useState<string | null>(null);
   const router = useRouter();
   const [editingCartItem, setEditingCartItem] = useState<any>(null);
+  const cartDiscountHydrationRef = useRef<Set<string>>(new Set());
 
   /**
    * Öppnar befintlig ProductModal för redigering av en cart-rad. Hämtar produkten
@@ -604,7 +605,52 @@ export default function CartPage() {
     }
   }, [formData.deliveryStreet, formData.deliveryZip]);
 
+  useEffect(() => {
+    const staleDiscountRows = items.filter((item: any) =>
+      !item.bogoFreeFromDealId &&
+      item.catalogDiscountApplied !== true &&
+      !(typeof item.originalPrice === "number" && item.originalPrice > item.price) &&
+      !cartDiscountHydrationRef.current.has(item.cartItemId)
+    );
+    if (staleDiscountRows.length === 0) return;
+
+    let cancelled = false;
+    staleDiscountRows.forEach((item: any) => {
+      cartDiscountHydrationRef.current.add(item.cartItemId);
+      axios.get(`${API_URL}/api/menu/products/${item.productId}`)
+        .then((res) => {
+          if (cancelled) return;
+          const product = res.data || {};
+          const originalPrice = typeof product.price === "number" ? product.price : null;
+          if (originalPrice != null && originalPrice > item.price) {
+            updateItem(item.cartItemId, {
+              originalPrice,
+              catalogDiscountApplied: true,
+            });
+          }
+        })
+        .catch(() => {
+          cartDiscountHydrationRef.current.delete(item.cartItemId);
+        });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [items, updateItem]);
+
   const subtotal = getTotal();
+  const discountableSubtotal = useMemo(() => {
+    return items.reduce((sum, item: any) => {
+      const extrasTotal = item.extras.reduce((extraSum: number, extra: any) => extraSum + extra.price * (extra.quantity ?? 1), 0);
+      const alreadyDiscounted =
+        !item.bogoFreeFromDealId &&
+        (item.catalogDiscountApplied === true ||
+          (typeof item.originalPrice === "number" && item.originalPrice > item.price));
+      return sum + (alreadyDiscounted ? extrasTotal * item.quantity : (item.price + extrasTotal) * item.quantity);
+    }, 0);
+  }, [items]);
+  const hasCatalogDiscountedItems = discountableSubtotal < subtotal;
   const currentRestaurantId = useCartStore((s) => s.restaurantId);
   const deliveryOverrides = useCartStore((s) => s.deliveryOverrides);
   const bogoChoice = useCartStore((s) => s.bogoChoice);
@@ -680,23 +726,28 @@ export default function CartPage() {
   // minOrderTopUp definieras längre ner — den behöver finalDiscount och
   // effectiveMinOrder som båda är beroende av deals/rabatter beräknade nedan.
   const productIds = items.flatMap((i) => Array.from({ length: i.quantity }, () => i.productId));
-  const automaticDeal = useMemo(() => pickBestDeal(deals, subtotal, productIds), [deals, subtotal, productIds]);
+  const automaticDeal = useMemo(
+    () => hasCatalogDiscountedItems ? { deal: null, discountAmount: 0 } : pickBestDeal(deals, discountableSubtotal, productIds),
+    [deals, discountableSubtotal, productIds, hasCatalogDiscountedItems],
+  );
 
   // Hitta närmaste inaktiva deal för tröskel-nudge (max 100 kr kvar, inte redan aktiv)
   const dealNudge = useMemo(() => {
+    if (hasCatalogDiscountedItems) return null;
     if (!deals.length) return null;
     let closest: { deal: PublicDeal; missing: number } | null = null;
     for (const deal of deals) {
       if (deal.minOrder <= 0) continue;
-      const missing = Math.max(deal.minOrder - subtotal, 0);
+      const missing = Math.max(deal.minOrder - discountableSubtotal, 0);
       if (missing === 0) continue; // redan aktiv
       if (missing > 100) continue; // för långt ifrån
       if (!closest || missing < closest.missing) closest = { deal, missing };
     }
     return closest;
-  }, [deals, subtotal]);
+  }, [deals, discountableSubtotal, hasCatalogDiscountedItems]);
 
   const personalDiscount = useMemo(() => {
+    if (hasCatalogDiscountedItems) return 0;
     if (!selectedPersonalDeal) return 0;
     const { campaign } = selectedPersonalDeal;
     if (subtotal < (campaign.minOrder || 0)) return 0;
@@ -704,12 +755,12 @@ export default function CartPage() {
     // Bas-rabatt: procent eller fast belopp.
     let amount = 0;
     if (campaign.discountType === "PERCENTAGE") {
-      amount = (subtotal * campaign.discountValue) / 100;
+      amount = (discountableSubtotal * campaign.discountValue) / 100;
     } else if (campaign.discountType === "FREE_DELIVERY") {
       // Standalone fri-leverans-kupong: rabatten = deliveryFee.
       amount = deliveryFee;
     } else {
-      amount = Math.min(campaign.discountValue, subtotal);
+      amount = Math.min(campaign.discountValue, discountableSubtotal);
     }
 
     // Stackbar fri leverans-flagga (Eriks bugg-fix): backend lagrar
@@ -726,9 +777,9 @@ export default function CartPage() {
     }
 
     return amount;
-  }, [selectedPersonalDeal, subtotal, deliveryFee]);
+  }, [selectedPersonalDeal, subtotal, discountableSubtotal, deliveryFee, hasCatalogDiscountedItems]);
 
-  const bogoDiscount = bogoPreview?.discountKr ?? 0;
+  const bogoDiscount = !hasCatalogDiscountedItems && discountableSubtotal > 0 ? (bogoPreview?.discountKr ?? 0) : 0;
   // Antal gratis-varor kunden redan valt för den aktiva BOGO-dealen.
   // Räknas från cart-items med `bogoFreeFromDealId` matchande aktuell deal.
   // Används för att veta hur många fler gratis-varor som kan väljas
@@ -755,6 +806,7 @@ export default function CartPage() {
   // sanningen för app-dealens belopp. Den lokala computeDealAmountKr används
   // bara som direkt-preview tills quoten (för samma id) svarat — aldrig som facit.
   const accountDealDiscount = useMemo(() => {
+    if (hasCatalogDiscountedItems) return 0;
     if (!selectedAccountDealId) return 0;
     if (appDealQuote && appDealQuote.userDealId === selectedAccountDealId) {
       return appDealQuote.applicable ? appDealQuote.discountAmountKr : 0;
@@ -764,15 +816,29 @@ export default function CartPage() {
     if (subtotal < minK) return 0;
     // deliveryFee skickas med för FREE_DELIVERY-deals så rabatten matchar
     // exakt det användaren skulle betalat i frakt.
-    return computeDealAmountKr(selectedAccountDeal, subtotal, deliveryFee);
-  }, [selectedAccountDealId, appDealQuote, selectedAccountDeal, subtotal, deliveryFee]);
+    return computeDealAmountKr(selectedAccountDeal, discountableSubtotal, deliveryFee);
+  }, [selectedAccountDealId, appDealQuote, selectedAccountDeal, subtotal, discountableSubtotal, deliveryFee, hasCatalogDiscountedItems]);
 
   // Quota vald deal mot servern när korgens belopp/läge/restaurang ändras.
   // Debounce 350 ms så stepper-klick inte hammrar API:t. Vid 404 (dealen
   // använd/utgången) släpps valet och kontraktet nollas; vid nätverksfel
   // behålls senaste quoten — servern validerar ändå vid order.
   useEffect(() => {
+    if (hasCatalogDiscountedItems) {
+      setSelectedAccountDealId(null);
+      setSelectedPersonalDeal(null);
+      setPromoCodeInput("");
+      setAppDealQuote(null);
+      clearActiveUserDeal();
+    }
+  }, [hasCatalogDiscountedItems]);
+
+  useEffect(() => {
     if (!user || !selectedAccountDealId || subtotal <= 0) {
+      setAppDealQuote(null);
+      return;
+    }
+    if (hasCatalogDiscountedItems) {
       setAppDealQuote(null);
       return;
     }
@@ -781,7 +847,7 @@ export default function CartPage() {
       try {
         const res = await axios.post(`/api/platform/deals/app/quote`, {
           userDealId: dealIdAtRequest,
-          subtotalKr: subtotal,
+          subtotalKr: discountableSubtotal,
           deliveryFeeKr: orderType === "DELIVERY" ? deliveryFee : 0,
           orderMode: orderType,
           restaurantId: currentRestaurantId || undefined,
@@ -789,6 +855,8 @@ export default function CartPage() {
             productId: item.productId,
             quantity: item.quantity,
             unitPriceKr: item.price,
+            originalPriceKr: item.originalPrice,
+            catalogDiscountApplied: item.catalogDiscountApplied === true,
           })),
         });
         const d = res.data || {};
@@ -809,7 +877,7 @@ export default function CartPage() {
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [user, selectedAccountDealId, subtotal, deliveryFee, orderType, currentRestaurantId, items]);
+  }, [user, selectedAccountDealId, subtotal, discountableSubtotal, deliveryFee, orderType, currentRestaurantId, items, hasCatalogDiscountedItems]);
 
   // Prioritet:
   //   1. Användarens EXPLICITA VAL (selectedPersonalDeal ELLER selectedAccountDealId)
@@ -830,7 +898,7 @@ export default function CartPage() {
   // pure-discount-deals. Den DRIVER toggeln: om den finns prioriteras dess
   // titel/belopp. Globala deals appliceras fortfarande (störst vinner), men
   // toggeln visar välkomsterbjudandet när det är aktivt.
-  const welcomeDiscount = welcomeOffer && welcomeOffer.eligible ? (welcomeOffer.discountKr || 0) : 0;
+  const welcomeDiscount = welcomeOffer && welcomeOffer.eligible ? Math.min(welcomeOffer.discountKr || 0, discountableSubtotal) : 0;
   // Pure-discount-bogo respekterar dismissal-flaggan; free-item-bogo gör inte det.
   const dismissibleAutoDiscount = automaticDealDismissed
     ? 0
@@ -1280,6 +1348,11 @@ export default function CartPage() {
       setBogoPreview(null);
       return;
     }
+    if (hasCatalogDiscountedItems) {
+      setBogoPreview(null);
+      setBogoChoice(null);
+      return;
+    }
     const timer = setTimeout(async () => {
       try {
         const res = await axios.post(`${API_URL}/api/deals/evaluate-cart`, {
@@ -1324,17 +1397,17 @@ export default function CartPage() {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [items, currentRestaurantId, setBogoChoice, t]);
+  }, [items, currentRestaurantId, setBogoChoice, t, hasCatalogDiscountedItems]);
 
   // Välkomsterbjudande — hämta server-side beräknat erbjudande för kassan.
   // subtotal + telefon (för första-N-order) + inloggning skickas med så
   // backend kan avgöra eligibility. Debounce så telefon-typning inte hammrar.
   useEffect(() => {
-    if (subtotal <= 0) { setWelcomeOffer(null); return; }
+    if (hasCatalogDiscountedItems || discountableSubtotal <= 0) { setWelcomeOffer(null); return; }
     const phone = (formData.customerPhone || "").trim();
     const timer = setTimeout(async () => {
       try {
-        const qs = new URLSearchParams({ subtotal: String(subtotal) });
+        const qs = new URLSearchParams({ subtotal: String(discountableSubtotal) });
         if (phone) qs.set("phone", phone);
         if (user) qs.set("loggedIn", "1");
         const res = await axios.get(`${API_URL}/api/deals/welcome-offer?${qs.toString()}`);
@@ -1355,7 +1428,7 @@ export default function CartPage() {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [subtotal, formData.customerPhone, user]);
+  }, [discountableSubtotal, formData.customerPhone, user, hasCatalogDiscountedItems]);
 
   // Auto-dismiss BOGO-lost-notice efter 8s så banner inte hänger kvar
   // permanent på sidan.
@@ -1520,13 +1593,13 @@ export default function CartPage() {
       deliveryInstructions: composedDeliveryInstructions || undefined,
       stripePaymentIntentId: paymentIntentId,
       discountCode: selectedPersonalDeal?.code || undefined,
-      appliedDealId: selectedPersonalDeal || selectedAccountDealId || automaticDealDismissed
+      appliedDealId: selectedPersonalDeal || selectedAccountDealId || automaticDealDismissed || hasCatalogDiscountedItems
         ? undefined
         : (automaticDeal.deal?.id || undefined),
       // Skickas till backend så pickBestDeal hoppar över auto-pickup när
       // kunden valt EGEN rabatt (kupong eller välkomst) eller explicit stängt
       // av auto-dealen. Säkerställer att frontend-total === backend-total.
-      skipAutomaticDeal: !!(selectedPersonalDeal || selectedAccountDealId || automaticDealDismissed),
+      skipAutomaticDeal: !!(selectedPersonalDeal || selectedAccountDealId || automaticDealDismissed || hasCatalogDiscountedItems),
       // App-deal (WELCOME/REFERRAL_*/CAMPAIGN) — backend matchar mot
       // UserDeal.id och markerar den som USED när ordern slutförs. Skickas
       // bara när serverns quote säger applicable (Swift-paritet); annars
@@ -1546,6 +1619,9 @@ export default function CartPage() {
       items: items.map((i) => ({
         productId: i.productId,
         quantity: i.quantity,
+        unitPriceKr: i.price,
+        originalPriceKr: i.originalPrice,
+        catalogDiscountApplied: i.catalogDiscountApplied === true,
         selectedExtras: i.extras.map((e) => ({
           groupId: e.groupId,
           groupName: e.groupName,
@@ -2036,7 +2112,7 @@ export default function CartPage() {
         const meetsMin = subtotal >= min;
         const isActive = selectedAccountDealId === d.id;
         const blockedByPromo = !!selectedPersonalDeal && !isActive;
-        const disabled = !meetsMin || blockedByPromo;
+        const disabled = hasCatalogDiscountedItems || !meetsMin || blockedByPromo;
         return (
           <button
             key={d.id}
@@ -2079,7 +2155,7 @@ export default function CartPage() {
               </div>
             </div>
             <span className="text-[12px] font-medium shrink-0" style={{ color: isActive ? "var(--gold-ink)" : "var(--text-secondary)" }}>
-              −{computeDealAmountKr(d, subtotal, deliveryFee)} {t("common.kr")}
+              −{computeDealAmountKr(d, discountableSubtotal, deliveryFee)} {t("common.kr")}
             </span>
           </button>
         );
@@ -2311,7 +2387,7 @@ export default function CartPage() {
   };
 
   return (
-    <div className="min-h-screen bg-dot-pattern pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6 lg:px-10 xl:px-16" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="min-h-screen pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6 lg:px-10 xl:px-16" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="max-w-[1400px] mx-auto">
         <div className="flex items-end justify-between mb-4 lg:mb-8 px-1 sm:px-4">
            <div className="min-w-0">
@@ -2435,6 +2511,15 @@ export default function CartPage() {
                   <div className="text-right shrink-0">
                     {item.bogoFreeFromDealId ? (
                       <div className="inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>{t("cart.bogo.freeTag")}</div>
+                    ) : item.catalogDiscountApplied && typeof item.originalPrice === "number" && item.originalPrice > item.price ? (
+                      <div className="flex flex-col items-end gap-0.5" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        <div className="text-[14.5px] font-extrabold leading-none" style={{ color: "var(--orange, #F04F1A)" }}>
+                          {(item.price * item.quantity).toFixed(0)} kr
+                        </div>
+                        <div className="text-[11.5px] font-semibold line-through leading-none" style={{ color: "var(--text-secondary)" }}>
+                          {(item.originalPrice * item.quantity).toFixed(0)} kr
+                        </div>
+                      </div>
                     ) : (
                       <div className="text-[14.5px] font-semibold leading-none" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{(item.price * item.quantity).toFixed(0)} kr</div>
                     )}

@@ -272,6 +272,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         restaurantId,
         name: product.name,
         price: effectiveBasePrice,
+        originalPrice: product.price,
+        catalogDiscountApplied: !bogoFreeFromDealId && hasDiscount,
         quantity,
         extras: selectedExtras,
         note: note.trim() || undefined,
@@ -285,6 +287,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         name: product.name,
         imageUrl: product.imageUrl ?? undefined,
         price: effectiveBasePrice,
+        originalPrice: product.price,
+        catalogDiscountApplied: !bogoFreeFromDealId && hasDiscount,
         quantity,
         extras: selectedExtras,
         note: note.trim() || undefined,
@@ -369,8 +373,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
               {product.name}
             </h2>
             <div className="mt-1 flex items-baseline gap-2 flex-wrap" style={{ fontVariantNumeric: "tabular-nums" }}>
-              <span className="text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>
-                {effectiveBasePrice} kr
+              <span className="text-[15px] font-bold" style={{ color: hasDiscount ? "var(--orange, #F04F1A)" : "var(--text-primary)" }}>
+                från {effectiveBasePrice} kr
               </span>
               {hasDiscount && (
                 <span className="text-[13px] line-through" style={{ color: "var(--text-secondary)" }}>
@@ -378,7 +382,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                 </span>
               )}
               {discountPct > 0 && (
-                <span className="text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>
+                <span className="text-[12px] font-semibold" style={{ color: "var(--orange, #F04F1A)" }}>
                   −{discountPct} %
                 </span>
               )}

@@ -8,6 +8,8 @@ export interface CartItem {
   name: string;
   imageUrl?: string | null; // Produktbild (visas i kassan om satt)
   price: number; // Baspris i kr
+  originalPrice?: number; // Ordinarie produktpris innan meny-/restaurangdeal
+  catalogDiscountApplied?: boolean; // true när `price` redan är ett rabatterat menypris
   quantity: number;
   extras: {
     groupId: string;
