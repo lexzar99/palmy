@@ -16,6 +16,8 @@ export interface SponsorData {
   linkTarget?: string;
   showName?: boolean;
   imageOnly?: boolean;
+  headline?: string;
+  bodyText?: string;
   // Dynamiska showcase-kort (cardType === "SHOWCASE") ritas som bild-hero med
   // scrim och pill, precis som Trendar/Ny i stan. Fälten kommer från GET /api/sponsors.
   cardType?: string;
@@ -37,6 +39,20 @@ type SponsorCardProps = {
   imageFetchPriority?: "high" | "low" | "auto";
   imageSizes?: string;
 };
+
+const sponsorThemeGradients: Record<string, string> = {
+  sunrise: "linear-gradient(135deg,#F47721 0%,#FFB156 48%,#FFE3BA 100%)",
+  fresh: "linear-gradient(135deg,#0F8A4B 0%,#32C879 52%,#D9F7E7 100%)",
+  sky: "linear-gradient(135deg,#1769D1 0%,#59B8FF 55%,#DDF2FF 100%)",
+  berry: "linear-gradient(135deg,#7A1D68 0%,#E24A8D 54%,#FFE0EF 100%)",
+  charcoal: "linear-gradient(135deg,#151518 0%,#3A3A40 55%,#8D8D96 100%)",
+  gold: "linear-gradient(135deg,#8A5A00 0%,#D89B1D 48%,#FFE4A1 100%)",
+};
+
+function sponsorBackground(color?: string) {
+  if (!color) return sponsorThemeGradients.sunrise;
+  return sponsorThemeGradients[color] || color;
+}
 
 /**
  * SponsorCard – Ren annons/partnerkort i "Aktuellt"-sektionen.
@@ -76,6 +92,54 @@ export default function SponsorCard({
 
   const isFeatured = sponsor.featuredClass === 1 || sponsor.featuredClass === 2;
   const featuredGold = sponsor.featuredClass === 1;
+  const isTextCard = sponsor.cardType === "TEXT" || !sponsor.imageUrl;
+  const headline = sponsor.headline || sponsor.name;
+  const bodyText = sponsor.bodyText || sponsor.tagline;
+
+  if (isTextCard) {
+    return (
+      <div
+        onClick={handleClick}
+        className={`swift-promo-card group active:scale-[0.99] ${isInteractive ? "cursor-pointer" : "cursor-default"}`}
+        style={{ background: sponsorBackground(sponsor.color) }}
+      >
+        <span className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(255,255,255,0.36),transparent_34%),linear-gradient(to_top,rgba(0,0,0,0.28),rgba(0,0,0,0.02))]" />
+        <span className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.08)_0_16px,rgba(255,255,255,0)_16px_32px)]" />
+        <div className="absolute inset-0 flex flex-col justify-between p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <span className="inline-flex rounded-full bg-white/92 px-3 py-1 text-[10.5px] font-black uppercase tracking-wide text-[#141416] shadow-sm">
+              {sponsor.category || "Aktuellt"}
+            </span>
+            {isInteractive && (
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-[#141416] shadow-sm">
+                {sponsor.linkType === "EXTERNAL" ? <ExternalLink size={14} /> : <ArrowRight size={16} />}
+              </span>
+            )}
+          </div>
+          <div className="max-w-[86%]">
+            <h3 className="line-clamp-2 text-[25px] font-black leading-[0.98] tracking-tight text-white [text-shadow:0_2px_10px_rgba(0,0,0,0.26)]">
+              {headline}
+            </h3>
+            {bodyText ? (
+              <p className="mt-2 line-clamp-2 text-[13px] font-bold leading-snug text-white/92">
+                {bodyText}
+              </p>
+            ) : null}
+            {sponsor.infoText ? (
+              <p className="mt-2 line-clamp-1 text-[11.5px] font-semibold text-white/78">
+                {sponsor.infoText}
+              </p>
+            ) : null}
+            {sponsor.ctaText ? (
+              <span className="mt-3 inline-flex rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#141416] shadow-sm">
+                {sponsor.ctaText}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Dynamiskt showcase-kort (rabatt/trendar/ny): bild-hero med scrim och pill,
   // exakt samma look som Trendar/Ny i stan-korten. Samma mått/aspect som bild-

@@ -21,7 +21,7 @@ import { getRestaurantOverview, restaurantsQueryKey } from "@/modules/restaurant
 import { dealsQueryKey, getAutomaticDeals } from "@/modules/deals/api";
 import { ShowcaseTab } from "@/modules/sponsors/ShowcaseTab";
 import type { ShowcaseSurface } from "@/modules/sponsors/showcase-api";
-import { Button, EmptyState, ErrorPanel, Field, Input, Select } from "@/shared/components/ui";
+import { Button, EmptyState, ErrorPanel, Field, Input, Select, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { useToast } from "@/shared/components/toast";
 import { cn } from "@/shared/utils/cn";
@@ -49,6 +49,23 @@ type AdDraft = Partial<TrackingAdRecord> & {
 const orange = "#F47721";
 const orangeInk = "#B23C12";
 const pageBg = "#FAF7F1";
+const sponsorThemes = [
+  { value: "sunrise", label: "Sunrise", gradient: "linear-gradient(135deg,#F47721 0%,#FFB156 48%,#FFE3BA 100%)" },
+  { value: "fresh", label: "Fresh green", gradient: "linear-gradient(135deg,#0F8A4B 0%,#32C879 52%,#D9F7E7 100%)" },
+  { value: "sky", label: "Sky blue", gradient: "linear-gradient(135deg,#1769D1 0%,#59B8FF 55%,#DDF2FF 100%)" },
+  { value: "berry", label: "Berry", gradient: "linear-gradient(135deg,#7A1D68 0%,#E24A8D 54%,#FFE0EF 100%)" },
+  { value: "charcoal", label: "Charcoal", gradient: "linear-gradient(135deg,#151518 0%,#3A3A40 55%,#8D8D96 100%)" },
+  { value: "gold", label: "Gold", gradient: "linear-gradient(135deg,#8A5A00 0%,#D89B1D 48%,#FFE4A1 100%)" },
+];
+
+function sponsorGradient(value?: string) {
+  const match = sponsorThemes.find((theme) => theme.value === value);
+  return match?.gradient || value || sponsorThemes[0].gradient;
+}
+
+function sponsorThemeLabel(value?: string) {
+  return sponsorThemes.find((theme) => theme.value === value)?.label || "Egen färg";
+}
 
 function isoDateInput(value?: string) {
   if (!value) return "";
@@ -88,7 +105,7 @@ function sponsorToDraft(sponsor?: SponsorRecord | null): SponsorDraft {
     category: sponsor?.category || "",
     tier: sponsor?.tier || "Partner",
     tagline: sponsor?.tagline || sponsor?.infoText || "",
-    color: sponsor?.color || colorFromText(sponsor?.name),
+    color: sponsor?.color || "sunrise",
     ctaText: sponsor?.ctaText || "",
     ctaLink: sponsor?.ctaLink || "",
     linkTarget: sponsor?.linkTarget || "",
@@ -254,8 +271,30 @@ function AdPreview({ draft }: { draft: AdDraft }) {
 
 function SponsorPreview({ draft, sponsors }: { draft: SponsorDraft; sponsors: SponsorRecord[] }) {
   const cards = [
-    { id: draft.id || "draft", name: draft.name || "Partner", imageUrl: draft.imageUrl, color: draft.color || colorFromText(draft.name), imageOnly: draft.imageOnly, selected: true },
-    ...sponsors.filter((s) => s.id !== draft.id).slice(0, 2).map((s) => ({ id: s.id, name: s.name, imageUrl: s.imageUrl, color: s.color || colorFromText(s.name), imageOnly: s.imageOnly ?? (s.showName === false), selected: false })),
+    {
+      id: draft.id || "draft",
+      name: draft.name || "Partner",
+      imageUrl: draft.imageUrl,
+      color: draft.color || "sunrise",
+      imageOnly: draft.imageOnly,
+      cardType: draft.cardType,
+      tagline: draft.tagline,
+      infoText: draft.infoText,
+      ctaText: draft.ctaText,
+      selected: true,
+    },
+    ...sponsors.filter((s) => s.id !== draft.id).slice(0, 2).map((s) => ({
+      id: s.id,
+      name: s.name,
+      imageUrl: s.imageUrl,
+      color: s.color || "sunrise",
+      imageOnly: s.imageOnly ?? (s.showName === false),
+      cardType: s.cardType,
+      tagline: s.tagline || s.bodyText,
+      infoText: s.infoText,
+      ctaText: s.ctaText,
+      selected: false,
+    })),
   ];
 
   return (
@@ -276,17 +315,21 @@ function SponsorPreview({ draft, sponsors }: { draft: SponsorDraft; sponsors: Sp
                 boxShadow: card.selected
                   ? "0 0 0 2px #F47721, 0 14px 30px rgba(244,119,33,0.22)"
                   : "0 6px 18px rgba(20,20,22,0.10), inset 0 0 0 1px rgba(20,20,22,0.05)",
-                background: card.color,
+                background: sponsorGradient(card.color),
               }}
             >
               {card.imageUrl ? <img src={card.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
-              <div className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.09)_0_16px,rgba(255,255,255,0)_16px_32px)]" />
+              {!card.imageUrl ? <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.34),transparent_34%),linear-gradient(to_top,rgba(0,0,0,0.26),rgba(0,0,0,0))]" /> : null}
+              <div className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.08)_0_16px,rgba(255,255,255,0)_16px_32px)]" />
               {!card.imageOnly ? (
                 <>
-                  <div className="absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-b from-black/0 to-black/90" />
+                  <div className="absolute inset-x-0 bottom-0 h-[76%] bg-gradient-to-b from-black/0 to-black/85" />
                   <div className="absolute inset-x-0 bottom-0 p-3.5">
-                    <span className="mb-2 inline-block rounded-md border border-white/30 bg-black/70 px-2 py-1 text-[10px] font-bold text-white">Partner</span>
-                    <div className="truncate text-[19px] font-extrabold tracking-[-0.02em] text-white">{card.name}</div>
+                    <span className="mb-2 inline-block rounded-md border border-white/30 bg-black/60 px-2 py-1 text-[10px] font-bold text-white">{card.cardType === "TEXT" ? sponsorThemeLabel(card.color) : "Partner"}</span>
+                    <div className="line-clamp-1 text-[19px] font-extrabold tracking-[-0.02em] text-white">{card.name}</div>
+                    {card.tagline ? <div className="mt-1 line-clamp-1 text-[11.5px] font-bold text-white/92">{card.tagline}</div> : null}
+                    {card.cardType === "TEXT" && card.infoText ? <div className="mt-1.5 line-clamp-1 text-[10.5px] font-semibold text-white/78">{card.infoText}</div> : null}
+                    {card.cardType === "TEXT" && card.ctaText ? <div className="mt-2 inline-flex rounded-full bg-white px-2.5 py-1 text-[10.5px] font-black text-[#141416]">{card.ctaText}</div> : null}
                   </div>
                 </>
               ) : null}
@@ -361,11 +404,13 @@ export function SponsorsPage() {
     mutationFn: async (draft: SponsorDraft) => {
       const payload: Partial<SponsorRecord> = {
         name: draft.name,
-        imageUrl: draft.imageUrl,
+        imageUrl: draft.imageUrl || "",
         category: draft.category,
         tier: draft.tier,
         tagline: draft.tagline,
-        infoText: draft.tagline,
+        headline: draft.name,
+        bodyText: draft.tagline,
+        infoText: draft.infoText,
         color: draft.color,
         ctaText: draft.ctaText,
         ctaLink: draft.ctaLink,
@@ -375,8 +420,8 @@ export function SponsorsPage() {
         dealId: draft.cardType === "DEAL" ? draft.dealId : undefined,
         isActive: draft.isActive,
         isClickable: draft.linkType !== "NONE" && draft.isClickable,
-        imageOnly: draft.imageOnly,
-        showName: draft.imageOnly ? false : draft.showName,
+        imageOnly: draft.cardType === "TEXT" ? false : draft.imageOnly,
+        showName: draft.cardType === "TEXT" ? true : (draft.imageOnly ? false : draft.showName),
       };
       return draft.id ? updateSponsor(draft.id, payload) : createSponsor(payload);
     },
@@ -548,8 +593,8 @@ export function SponsorsPage() {
                             key={sponsor.id}
                             selected={selected}
                             title={live.name || sponsor.name}
-                            subtitle={`${live.category || "Partner"} · ${live.tier || "Partner"}${live.imageOnly ? " · Endast bild" : ""}`}
-                            color={live.color || colorFromText(live.name)}
+                            subtitle={`${live.cardType === "TEXT" ? "Textkort" : (live.category || "Partner")} · ${live.tier || "Partner"}${live.imageOnly ? " · Endast bild" : ""}`}
+                            color={sponsorGradient(live.color)}
                             status={statusForActive(sponsor.isActive)}
                             onClick={() => { setSelectedSponsorId(sponsor.id); setSponsorDraft(sponsorToDraft(sponsor)); }}
                           />
@@ -626,7 +671,15 @@ export function SponsorsPage() {
                   <div className="md:col-span-2"><Field label="Brödtext"><Input value={sponsorDraft.tagline || ""} placeholder="Fredagsmat hos Palmyra" onChange={(e) => setSponsorDraft((d) => ({ ...d, tagline: e.target.value }))} /></Field></div>
                   <Field label="CTA-text"><Input value={sponsorDraft.ctaText || ""} placeholder="Se meny" onChange={(e) => setSponsorDraft((d) => ({ ...d, ctaText: e.target.value }))} /></Field>
                   <Field label="Korttyp">
-                    <Select value={sponsorDraft.cardType || "RESTAURANT"} onChange={(e) => setSponsorDraft((d) => ({ ...d, cardType: e.target.value as SponsorRecord["cardType"] }))}>
+                    <Select
+                      value={sponsorDraft.cardType || "RESTAURANT"}
+                      onChange={(e) => setSponsorDraft((d) => ({
+                        ...d,
+                        cardType: e.target.value as SponsorRecord["cardType"],
+                        imageOnly: e.target.value === "TEXT" ? false : d.imageOnly,
+                        showName: e.target.value === "TEXT" ? true : d.showName,
+                      }))}
+                    >
                       <option value="RESTAURANT">Partner/Restaurang</option>
                       <option value="DEAL">Deal (claim i kortet)</option>
                       <option value="AD">Annons (märks)</option>
@@ -644,6 +697,11 @@ export function SponsorsPage() {
                         </Select>
                       </Field>
                       <p className="mt-1.5 text-[11px] font-semibold text-[#6b6b73]">Kortet visar dealens värde och en Hämta-knapp direkt.</p>
+                    </div>
+                  ) : null}
+                  {sponsorDraft.cardType === "TEXT" ? (
+                    <div className="md:col-span-2 rounded-xl border border-[rgba(244,119,33,0.18)] bg-[#FFF4E9] p-3 text-[12px] font-semibold leading-relaxed text-[#7A4315]">
+                      Textkort kan publiceras utan bild. Det använder valt gradienttema, titel, brödtext och info direkt i sponsorraden.
                     </div>
                   ) : null}
                   <Field label="Länktyp"><Select value={sponsorDraft.linkType} onChange={(e) => setSponsorDraft((d) => ({ ...d, linkType: e.target.value as SponsorDraft["linkType"] }))}><option value="NONE">Ingen</option><option value="RESTAURANT">Restaurang</option><option value="EXTERNAL">Extern länk</option></Select></Field>
@@ -672,15 +730,24 @@ export function SponsorsPage() {
                   ) : null}
                   <Field label="Kategori"><Input value={sponsorDraft.category || ""} onChange={(e) => setSponsorDraft((d) => ({ ...d, category: e.target.value }))} /></Field>
                   <Field label="Nivå"><Select value={sponsorDraft.tier || "Partner"} onChange={(e) => setSponsorDraft((d) => ({ ...d, tier: e.target.value }))}><option>Huvudpartner</option><option>Partner</option></Select></Field>
-                  <Field label="Färg"><Input value={sponsorDraft.color || ""} onChange={(e) => setSponsorDraft((d) => ({ ...d, color: e.target.value }))} /></Field>
+                  <Field label="Tema / gradient">
+                    <Select value={sponsorDraft.color || "sunrise"} onChange={(e) => setSponsorDraft((d) => ({ ...d, color: e.target.value }))}>
+                      {sponsorThemes.map((theme) => <option key={theme.value} value={theme.value}>{theme.label}</option>)}
+                    </Select>
+                  </Field>
+                  <div className="md:col-span-2">
+                    <Field label="Info / liten text"><Textarea rows={3} value={sponsorDraft.infoText || ""} placeholder="Exempel: Gäller hela helgen eller Fri leverans vid 199 kr" onChange={(e) => setSponsorDraft((d) => ({ ...d, infoText: e.target.value }))} /></Field>
+                  </div>
                   <div className="md:col-span-2">
                     <ImageUploadField label="Kortbild / helbild" kind="misc" value={sponsorDraft.imageUrl || ""} onChange={(url) => setSponsorDraft((d) => ({ ...d, imageUrl: url }))} />
-                    <div className="mt-2"><UploadHint title="Sponsorkort" description="Liggande ca 1.9:1. Namn och partner-chip läggs ovanpå längst ner." /></div>
+                    <div className="mt-2"><UploadHint title="Sponsorkort" description={sponsorDraft.cardType === "TEXT" ? "Valfritt för textkort. Utan bild används gradienttemat istället." : "Liggande ca 1.9:1. Namn och partner-chip läggs ovanpå längst ner."} /></div>
                   </div>
-                  <div className="md:col-span-2 flex items-center justify-between rounded-xl border border-[rgba(20,20,22,0.08)] bg-[#FBFAF7] p-3">
-                    <div><div className="text-[12.5px] font-black">Endast bild</div><div className="mt-0.5 text-[11px] font-semibold text-[#6b6b73]">Döljer Partner-chip, namn och all text på kortet.</div></div>
-                    <ActiveToggle checked={!!sponsorDraft.imageOnly} onChange={() => setSponsorDraft((d) => ({ ...d, imageOnly: !d.imageOnly, showName: d.imageOnly ? true : false }))} />
-                  </div>
+                  {sponsorDraft.cardType !== "TEXT" ? (
+                    <div className="md:col-span-2 flex items-center justify-between rounded-xl border border-[rgba(20,20,22,0.08)] bg-[#FBFAF7] p-3">
+                      <div><div className="text-[12.5px] font-black">Endast bild</div><div className="mt-0.5 text-[11px] font-semibold text-[#6b6b73]">Döljer Partner-chip, namn och all text på kortet.</div></div>
+                      <ActiveToggle checked={!!sponsorDraft.imageOnly} onChange={() => setSponsorDraft((d) => ({ ...d, imageOnly: !d.imageOnly, showName: d.imageOnly ? true : false }))} />
+                    </div>
+                  ) : null}
                   <div className="md:col-span-2 flex items-center justify-between rounded-xl border border-[rgba(20,20,22,0.08)] bg-[#FBFAF7] p-3">
                     <div><div className="text-[12.5px] font-black">Aktiv</div><div className="mt-0.5 text-[11px] font-semibold text-[#6b6b73]">{sponsorDraft.isActive ? "Visas i appen nu" : "Dold för kunder"}</div></div>
                     <ActiveToggle checked={!!sponsorDraft.isActive} onChange={() => setSponsorDraft((d) => ({ ...d, isActive: !d.isActive }))} />

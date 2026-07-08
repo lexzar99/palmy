@@ -13,6 +13,8 @@ export interface SponsorRecord {
   linkTarget?: string;
   cardType?: "RESTAURANT" | "DEAL" | "AD" | "TEXT";
   dealId?: string;
+  headline?: string;
+  bodyText?: string;
   videoUrl?: string;
   showName?: boolean;
   imageOnly?: boolean;
