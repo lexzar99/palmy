@@ -15,6 +15,11 @@ import { Button, EmptyState, ErrorPanel, Field, Select } from "@/shared/componen
 import { useToast } from "@/shared/components/toast";
 
 const COPY: Record<ShowcaseSurface, { title: string; sub: string; empty: string }> = {
+  champion: {
+    title: "Veckans favorit",
+    sub: "Restaurangen som lyfts som Veckans favorit i Aktuellt. Du kan fästa en restaurang manuellt, dölja automatiskt urval och styra rotationstiden.",
+    empty: "Ingen kandidat ännu. När restauranger får ordrar dyker de upp här.",
+  },
   discounts: {
     title: "Rabatter",
     sub: "Restauranger med aktiv rabatt visas automatiskt i sponsorkorten, högsta rabatten avgör. Max 5, prioritet guld, silver, standard, sen ordrar.",
@@ -75,7 +80,7 @@ export function ShowcaseTab({ surface }: { surface: ShowcaseSurface }) {
 
   const copy = COPY[surface];
   const shownIds = new Set(data.shown.map((s) => s.restaurantId));
-  // Rabatter: bara restauranger med deal (kandidatlistan). Trend/ny: alla restauranger.
+  // Rabatter: bara restauranger med deal (kandidatlistan). Övriga ytor kan fästa valfri aktiv restaurang.
   const pickOptions =
     surface === "discounts"
       ? data.candidates.filter((c) => !shownIds.has(c.restaurantId))

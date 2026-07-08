@@ -26,7 +26,7 @@ import { ImageUploadField } from "@/shared/components/image-upload";
 import { useToast } from "@/shared/components/toast";
 import { cn } from "@/shared/utils/cn";
 
-type Tab = "discounts" | "trending" | "new" | "sponsors" | "ads";
+type Tab = "champion" | "discounts" | "trending" | "new" | "sponsors" | "ads";
 
 type SponsorDraft = Partial<SponsorRecord> & {
   name: string;
@@ -352,7 +352,7 @@ export function SponsorsPage() {
   const [sponsorDraft, setSponsorDraft] = useState<SponsorDraft>(() => sponsorToDraft(null));
   const [adDraft, setAdDraft] = useState<AdDraft>(() => adToDraft(null));
 
-  const isShowcase = tab === "discounts" || tab === "trending" || tab === "new";
+  const isShowcase = tab === "champion" || tab === "discounts" || tab === "trending" || tab === "new";
   const activeList = tab === "ads" ? ads.data || [] : sponsors.data || [];
   const isLoading = sponsors.isLoading || ads.isLoading;
   const isError = sponsors.isError || ads.isError;
@@ -473,6 +473,7 @@ export function SponsorsPage() {
 
         <div className="mb-[18px] inline-flex flex-wrap rounded-xl bg-[rgba(20,20,22,0.05)] p-1">
           {([
+            ["champion", "Veckans favorit"],
             ["discounts", "Rabatter"],
             ["trending", "Trendar"],
             ["new", "Ny i stan"],

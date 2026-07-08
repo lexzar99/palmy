@@ -5,6 +5,7 @@
 
 import prisma from './prisma';
 import { getDpointsSettings } from './dpoints';
+import { getChampionRestaurantIds } from './showcase';
 import { themeForKey, dailyPick, dailyScore, dayOfYear } from './themeRotation';
 
 const LIVE_STATUSES = ['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'DELIVERING'];
@@ -234,30 +235,28 @@ async function previewProducts(limit = 4) {
 
 // ── Champion: mest beställda restaurangen senaste 7 dagarna ────────────────
 async function buildChampion(params: Record<string, number>) {
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const grouped = await (prisma.order.groupBy as any)({
-    by: ['restaurantId'],
-    where: { createdAt: { gte: since }, status: { notIn: EXCLUDED_STATUSES }, restaurantId: { not: null } },
-    _count: { _all: true },
-    orderBy: { _count: { restaurantId: 'desc' } },
-    take: 3,
-  });
-  const top = (grouped as any[]).filter((g) => g._count._all >= (params.minOrders7d || 5));
-  if (!top.length) return null;
-  const pick = dailyPick(top, 'champion');
-  if (!pick?.restaurantId) return null;
+  const [restaurantId] = await getChampionRestaurantIds();
+  if (!restaurantId) return null;
   const restaurant = await prisma.restaurant.findUnique({
-    where: { id: pick.restaurantId },
+    where: { id: restaurantId },
     select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, comingSoon: true },
   });
   if (!restaurant || restaurant.comingSoon) return null;
+  const orders7d = await prisma.order.count({
+    where: {
+      restaurantId: restaurant.id,
+      createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+      status: { notIn: EXCLUDED_STATUSES },
+    },
+  });
+  if (orders7d < (params.minOrders7d || 5)) return null;
 
   // Endast restaurangens hero-banner (ägarbeslut, ingen bildrotation).
   const images = [restaurant.heroImageUrl || restaurant.imageUrl].filter((url): url is string => Boolean(url));
 
-  await logEngineEvent('champion', `Veckans favorit: ${restaurant.name} (${pick._count._all} ordrar/7d)`, {
+  await logEngineEvent('champion', `Veckans favorit: ${restaurant.name} (${orders7d} ordrar/7d)`, {
     restaurantId: restaurant.id,
-    orders7d: pick._count._all,
+    orders7d,
   });
   return {
     type: 'CHAMPION',
@@ -998,7 +997,7 @@ export async function buildHomePulse(userId: string | null): Promise<{ greeting:
   const jobs: Promise<any>[] = [
     engineOn('champion') ? buildForPreview(buildChampion(settings.champion.params), previewChampion) : Promise.resolve(null),
     engineOn('hot_products') ? buildForPreview(buildHotProducts(settings.hot_products.params), previewHotProducts) : Promise.resolve(null),
-    engineOn('favorite_product') && userId ? buildForPreview(buildFavoriteProduct(userId, settings.favorite_product.params), () => previewFavoriteProduct(settings.favorite_product.params)) : previewAll ? previewFavoriteProduct(settings.favorite_product.params) : Promise.resolve(null),
+    Promise.resolve(null),
     engineOn('fastest_today') ? buildForPreview(buildFastestToday(settings.fastest_today.params), previewFastestToday) : Promise.resolve(null),
     engineOn('daily_drop') ? buildForPreview(buildDailyDrop(settings.daily_drop.params, previewAll), () => previewDailyDrop(settings.daily_drop.params)) : Promise.resolve(null),
     // Trendar + Ny i stan hanteras nu som enskilda hero-kort i sponsor-karusellen

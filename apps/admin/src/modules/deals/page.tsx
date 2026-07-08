@@ -19,7 +19,7 @@ import { cn } from "@/shared/utils/cn";
 import { formatDate } from "@/shared/utils/format";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
 
-type Tab = "kampanjer" | "bogo" | "app";
+type Tab = "kampanjer" | "app";
 
 // Gamla flik-länkar ska inte ge 404-känsla: mappa till närmaste nya flik.
 const LEGACY_TABS: Record<string, Tab> = {
@@ -30,7 +30,8 @@ const LEGACY_TABS: Record<string, Tab> = {
 };
 
 const normalizeTab = (raw: string | null): Tab => {
-  if (raw === "kampanjer" || raw === "bogo" || raw === "app") return raw;
+  if (raw === "kampanjer" || raw === "app") return raw;
+  if (raw === "bogo") return "kampanjer";
   if (raw && LEGACY_TABS[raw]) return LEGACY_TABS[raw];
   return "kampanjer";
 };
@@ -64,14 +65,8 @@ export function DealsPage() {
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: dealsQueryKey }); },
   });
 
-  const bogoDeals = useMemo(() => {
-    const all = (automaticDeals.data || []).filter(isBogoDeal);
-    if (!filterRestaurantId) return all;
-    return all.filter((d) => d.restaurantId === filterRestaurantId || d.isGlobal);
-  }, [automaticDeals.data, filterRestaurantId]);
-
   const appDeals = useMemo(
-    () => (automaticDeals.data || []).filter((d) => d.appEnabled),
+    () => (automaticDeals.data || []).filter((d) => d.appEnabled && !isBogoDeal(d)),
     [automaticDeals.data],
   );
 
@@ -95,7 +90,6 @@ export function DealsPage() {
 
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: "kampanjer", label: "Kampanjer", count: kampanjDeals.filter((d) => d.isActive).length },
-    { id: "bogo", label: "BOGO", count: bogoDeals.filter((d) => d.isActive).length },
     { id: "app", label: "I appen", count: appDeals.filter((d) => d.isActive).length },
   ];
 
@@ -115,8 +109,7 @@ export function DealsPage() {
         actions={
           <>
             <Button variant="secondary" onClick={() => void automaticDeals.refetch()} aria-label="Uppdatera"><RefreshCw size={14} /></Button>
-            {tab === "bogo" && <Button variant="primary" onClick={() => router.push("/deals/bogo/new")}><Plus size={15} /> Ny BOGO-deal</Button>}
-            {tab !== "bogo" && <Button variant="primary" onClick={() => router.push("/deals/kampanj/new")}><Plus size={15} /> Ny kampanj</Button>}
+            <Button variant="primary" onClick={() => router.push("/deals/kampanj/new")}><Plus size={15} /> Ny kampanj</Button>
           </>
         }
       />
@@ -163,20 +156,6 @@ export function DealsPage() {
         />
       )}
 
-      {tab === "bogo" && (
-        <DealTable
-          deals={bogoDeals}
-          emptyTitle="Inga BOGO-deals"
-          getTypeLabel={() => bogoTriggerLabel}
-          getTypeTone={() => "info"}
-          getPeriod={(deal) => dealPeriod(deal)}
-          getRestaurants={(deal) => dealRestaurantsLabel(deal, restaurantName)}
-          onOpen={(deal) => router.push(`/deals/bogo/${deal.id}`)}
-          onToggle={(deal, next) => toggleDealMutation.mutate({ id: deal.id, isActive: next })}
-          togglePending={toggleDealMutation.isPending}
-        />
-      )}
-
       {/* I appen: hantera app-deals + se exakt vad kunderna ser, på samma flik */}
       {tab === "app" && (
         <div className="grid gap-4">
@@ -204,12 +183,6 @@ type TypeTone = "accent" | "info" | "success" | "warning" | "neutral";
 function TypeBadge({ tone, children }: { tone: TypeTone; children: React.ReactNode }) {
   if (tone === "accent") return <span className="badge badge-accent">{children}</span>;
   return <Badge tone={tone}>{children}</Badge>;
-}
-
-function bogoTriggerLabel(deal: AutomaticDealRecord): string {
-  if ((deal.bogoTriggerProductIds ?? []).length > 0) return "Produkter";
-  if ((deal as any).bogoMinOrderAmount != null && (deal as any).bogoMinOrderAmount > 0) return `Min ${(deal as any).bogoMinOrderAmount} kr`;
-  return deal.triggerQuantity != null ? `Köp ${deal.triggerQuantity}` : "BOGO";
 }
 
 function kampanjTypeLabel(deal: AutomaticDealRecord): string {

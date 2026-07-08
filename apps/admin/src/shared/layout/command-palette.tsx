@@ -70,7 +70,7 @@ const COMMANDS: CommandItem[] = [
   { id: "restaurant-devices", label: "Enheter", href: "/restaurant-devices", icon: Tablet, group: "Katalog", keywords: "terminal pos surfplatta" },
 
   // Tillväxt
-  { id: "deals", label: "Deals & BOGO", href: "/deals", icon: Gift, group: "Tillväxt", keywords: "kampanj rabatt bogo app" },
+  { id: "deals", label: "Deals", href: "/deals", icon: Gift, group: "Tillväxt", keywords: "kampanj rabatt app" },
   { id: "coupons", label: "Kuponger", href: "/coupons", icon: TicketPercent, group: "Tillväxt", keywords: "kupong rabattkod kod" },
   { id: "sponsors", label: "Aktuellt", href: "/sponsors", icon: Handshake, group: "Tillväxt", keywords: "rabatter trendar ny sponsor partner annons" },
   { id: "referrals", label: "Värva vän", href: "/referrals", icon: UserPlus, group: "Tillväxt", keywords: "referral varva van valkomst valkomstrabatt" },

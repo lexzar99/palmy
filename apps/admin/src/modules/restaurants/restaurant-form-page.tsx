@@ -424,7 +424,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-3">Fler snabbval</p>
                 <div className="grid gap-2">
                   <Button variant="secondary" onClick={() => router.push(`/menu?restaurantId=${restaurantId}`)}>Hantera meny →</Button>
-                  <Button variant="secondary" onClick={() => router.push(`/deals?tab=bogo`)}>BOGO-deals →</Button>
+                  <Button variant="secondary" onClick={() => router.push(`/deals?tab=kampanjer&restaurantId=${restaurantId}`)}>Deals →</Button>
                 </div>
               </Surface>
             )}

@@ -63,9 +63,8 @@ function broadcastMenuChange(restaurantId: string | null, payload: Record<string
     // the menu looks updated on the menu route but stale on those.
     bustCache('rest:detail');
     bustCache('rest:list');
-    // Deals (inkl. BOGO) cachas 30s i /api/deals. En ny/ändrad deal måste
-    // busta den — annars ser kunden inte t.ex. en nyss skapad BOGO på upp till
-    // 30s, och menyns checkBogoTrigger triggas aldrig (deals-listan är tom).
+    // Deals cachas 30s i /api/deals. En ny/ändrad deal måste busta den så
+    // restaurangsidor och kassan inte visar stale kampanjdata.
     bustCache('deals:public');
   } catch (err) {
     console.warn('[menu] cache bust failed', err);
@@ -122,17 +121,24 @@ async function revalidateWebMenu(restaurantId: string | null) {
 // gäller fortfarande för känsliga ops (wipe, refund, staff-management).
 router.use(autoRoleGate);
 
-// menuAgentDraftGate: MENU_AGENT får bara skriva mot UTKAST-restauranger
-// (Restaurant.draft=true). Resolvar vilken restaurang requesten pekar på
+const hasHermesApproval = (req: AuthRequest) => {
+  const bodyApproval = String(req.body?.hermesApproval || req.body?.approval || '').trim().toUpperCase();
+  const headerApproval = String(req.headers['x-hermes-approved'] || '').trim().toLowerCase();
+  return bodyApproval === 'JAG GODKÄNNER' || bodyApproval === 'APPROVED' || headerApproval === 'true' || headerApproval === '1';
+};
+
+// menuAgentDraftGate: MENU_AGENT får bara skriva mot EDITING-restauranger
+// (tekniskt Restaurant.draft=true). Resolvar vilken restaurang requesten pekar på
 // (via path-resursen OCH alla mål-referenser i body: restaurantId,
 // categoryId, categoryIds) och kräver att SAMTLIGA är utkast. Globala
 // resurser (restaurantId=null) är låsta — annars hade agenten kunnat påverka
 // alla restauranger via en global kategori/tillvalsgrupp.
 router.use(async (req: AuthRequest, res, next) => {
   if (req.admin?.role !== 'MENU_AGENT' || req.method.toUpperCase() === 'GET') return next();
-  // upload-r2: multipart-body parsas inte här (multer sitter i upload-routen).
-  // Släpp igenom, upload-routen kräver själv att målrestaurangen är utkast.
+  // upload-r2/images: multipart-body parsas inte här (multer sitter i upload-routen).
+  // Släpp igenom, upload-routen kräver själv att målrestaurangen är i editing.
   if (req.path === '/upload-r2') return next();
+  if (req.path === '/images/delete') return next();
   try {
     const p = req.path;
     const ids = new Set<string>();
@@ -165,6 +171,11 @@ router.use(async (req: AuthRequest, res, next) => {
       return;
     }
 
+    if (req.method.toUpperCase() === 'DELETE' && !hasHermesApproval(req)) {
+      res.status(403).json({ error: 'Kocken får bara radera efter explicit prompt-godkännande: skicka hermesApproval="JAG GODKÄNNER".' });
+      return;
+    }
+
     // Mål-referenser i body (flytt/koppling) måste också peka på utkast.
     if (req.body?.restaurantId) ids.add(String(req.body.restaurantId));
     if (req.body?.categoryId) await addCategoryOwner(String(req.body.categoryId));
@@ -173,7 +184,7 @@ router.use(async (req: AuthRequest, res, next) => {
     }
 
     if (ownsNothing || ids.size === 0) {
-      res.status(403).json({ error: 'Menyagenten måste jobba mot en specifik utkast-restaurang, globala resurser är låsta' });
+      res.status(403).json({ error: 'Kocken måste jobba mot en specifik editing-restaurang, globala resurser är låsta' });
       return;
     }
     const restaurants = await prisma.restaurant.findMany({
@@ -181,7 +192,7 @@ router.use(async (req: AuthRequest, res, next) => {
       select: { id: true, draft: true },
     });
     if (restaurants.length !== ids.size || restaurants.some((r) => !(r as any).draft)) {
-      res.status(403).json({ error: 'Menyagenten kan bara ändra utkast-restauranger. Publicerade restauranger är låsta.' });
+      res.status(403).json({ error: 'Kocken kan bara ändra restauranger i editing. Publicerade restauranger är låsta.' });
       return;
     }
     next();
@@ -1381,6 +1392,8 @@ router.get('/stats/report', async (req, res) => {
 // KATEGORIER
 // =====================
 
+const ARCHIVE_CATEGORY_NAME = 'Arkiverade produkter';
+
 // GET /api/admin/categories
 router.get('/categories', async (req, res) => {
   try {
@@ -1389,6 +1402,9 @@ router.get('/categories', async (req, res) => {
       ? (restaurantId ? (restaurantId as string) : null)
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+    if (!scopedRestaurantId) {
+      return res.json([]);
+    }
 
     const includeProducts = req.query.includeProducts === 'true';
     // includeGlobal=true  → always include categories with restaurantId=null
@@ -1415,6 +1431,8 @@ router.get('/categories', async (req, res) => {
     } : {};
 
     const queryWhere = (withGlobal: boolean) => ({
+      isActive: true,
+      name: { not: ARCHIVE_CATEGORY_NAME },
       ...(scopedRestaurantId
         ? (withGlobal
             ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
@@ -1600,16 +1618,9 @@ router.delete('/categories/:id', async (req, res) => {
       return;
     }
 
-    // Produkter kan inte raderas hårt om de har orderhistorik: OrderItem.productId
-    // är en RESTRICT-FK (schema.prisma), så en hård delete skulle slå sönder gamla
-    // ordrar. OrderItem är dock helt denormaliserad (productName/basePrice/subtotal),
-    // så själva historiken överlever att produktraden flyttas/inaktiveras.
-    //   - Produkter UTAN orderhistorik → hård delete (ProductExtraGroup städas via
-    //     onDelete: Cascade i schemat).
-    //   - Produkter MED orderhistorik → arkiveras: flyttas till en dold arkiv-kategori
-    //     för restaurangen + isActive=false, så FK:n mot OrderItem består och
-    //     produkten försvinner ur menyn. Arkiv-kategorin skapas först när den behövs.
-    const ARCHIVE_CATEGORY_NAME = 'Arkiverade produkter';
+    // Produkter med orderhistorik kan inte hårdraderas utan att slå sönder gamla
+    // ordrar. Vi skapar däremot inte längre någon "Arkiverade produkter"-kategori:
+    // historikprodukter inaktiveras och själva kategorin göms som en tombstone.
     const productsInCat = await prisma.product.findMany({
       where: { categoryId: req.params.id },
       select: { id: true, _count: { select: { orderItems: true } } },
@@ -1619,43 +1630,26 @@ router.delete('/categories/:id', async (req, res) => {
 
     await prisma.$transaction(async (tx) => {
       if (referencedIds.length > 0) {
-        let archive = await tx.category.findFirst({
-          where: {
-            restaurantId: doomedCat.restaurantId,
-            name: ARCHIVE_CATEGORY_NAME,
-            id: { not: req.params.id },
-          },
-          select: { id: true },
-        });
-        if (!archive) {
-          const restSlug = doomedCat.restaurantId
-            ? (await tx.restaurant.findUnique({ where: { id: doomedCat.restaurantId }, select: { slug: true } }))?.slug ?? doomedCat.restaurantId
-            : 'global';
-          const slug = await uniqueMenuSlug(
-            ARCHIVE_CATEGORY_NAME,
-            restSlug,
-            async (s) => !(await tx.category.findUnique({ where: { slug: s }, select: { id: true } })),
-          );
-          archive = await tx.category.create({
-            data: {
-              name: ARCHIVE_CATEGORY_NAME,
-              slug,
-              isActive: false,
-              position: 9999,
-              restaurantId: doomedCat.restaurantId,
-            },
-            select: { id: true },
-          });
-        }
         await tx.product.updateMany({
           where: { id: { in: referencedIds } },
-          data: { categoryId: archive.id, isActive: false },
+          data: { isActive: false },
         });
       }
       if (safeIds.length > 0) {
         await tx.product.deleteMany({ where: { id: { in: safeIds } } });
       }
-      await tx.category.delete({ where: { id: req.params.id } });
+      if (referencedIds.length > 0) {
+        await tx.category.update({
+          where: { id: req.params.id },
+          data: {
+            isActive: false,
+            name: `Raderad kategori ${req.params.id.slice(-6)}`,
+            position: 9999,
+          },
+        });
+      } else {
+        await tx.category.delete({ where: { id: req.params.id } });
+      }
     });
 
     await audit(req as AuthRequest, 'CATEGORY_DELETE', {
@@ -1733,6 +1727,8 @@ router.get('/products', async (req, res) => {
     const includeGlobalAuto = req.query.includeGlobal === 'auto';
 
     const categoryWhere = (withGlobal: boolean) => ({
+      isActive: true,
+      name: { not: ARCHIVE_CATEGORY_NAME },
       ...(scopedRestaurantId
         ? (withGlobal
             ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
@@ -2573,16 +2569,12 @@ router.get('/extra-groups', async (req, res) => {
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
-    // Inkludera GLOBALA grupper (restaurantId=null) tillsammans med
-    // restaurang-specifika. Globala grupper kan vara kopplade till produkter
-    // i flera restauranger (t.ex. "Storlek", "Drycker"), och om vi filtrerar
-    // dem bort försvinner kryssrutorna från produktmodalen även om gruppen
-    // i verkligheten är aktiv. Webappen ser dem via menyendpointen — admin
-    // måste också kunna se och toggla dem.
+    // Admin ska aldrig blanda tillvalsgrupper mellan restauranger. Palmyra ser
+    // bara Palmyras grupper, Aiko bara Aikos. Globala/plattformsgrupper visas
+    // inte här eftersom de gör produktkopplingar otydliga och riskabla.
     const groups = await prisma.extraGroup.findMany({
-      where: scopedRestaurantId
-        ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
-        : {},
+      where: { restaurantId: scopedRestaurantId },
+      orderBy: { name: 'asc' },
       include: {
         extras: { orderBy: { position: 'asc' } },
         productGroups: { select: { productId: true } },
@@ -3236,6 +3228,10 @@ const validateDealPayload = (body: any): string | null => {
     return parsed.error.issues[0]?.message || 'Ogiltig data';
   }
   const d = parsed.data;
+  const requestedScope = String(body.scopeType || body.triggerType || '').toUpperCase();
+  if (requestedScope === 'BOGO_CATEGORY') {
+    return 'BOGO-deals är borttagna. Använd kategori-, restaurang-, produkt- eller minimiorder-deal.';
+  }
 
   // discountValue-validering beroende på discountType
   if (d.discountValue !== undefined && d.discountValue !== null) {
@@ -3270,7 +3266,7 @@ const validateDealPayload = (body: any): string | null => {
 const validateDealReferences = async (body: any, restaurantId: string | null): Promise<string | null> => {
   // För CATEGORY-scope lagrar formuläret KATEGORI-id i targetIds → normaliseras
   // till comboProductIds. De ska valideras mot prisma.category, inte prisma.product.
-  // Övriga scopes (PRODUCT/COMBO/BOGO) håller riktiga produkt-id i samma fält.
+  // Övriga scopes (PRODUCT/COMBO) håller riktiga produkt-id i samma fält.
   const scopeType = String(body.scopeType || body.triggerType || '').toUpperCase();
   const isCategoryScope = scopeType === 'CATEGORY';
 
@@ -3358,7 +3354,6 @@ const normalizeDealInputForDb = (body: any) => {
     next.triggerType =
       scopeType === 'PRODUCT' ||
       scopeType === 'CATEGORY' ||
-      scopeType === 'BOGO_CATEGORY' ||
       scopeType === 'COMBO' ||
       scopeType === 'MIN_ORDER'
         ? scopeType
@@ -3696,7 +3691,10 @@ router.get('/deals', async (req, res) => {
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
     const deals = await prisma.deal.findMany({
-      where: scopedRestaurantId ? { restaurantId: scopedRestaurantId } as any : {},
+      where: {
+        ...(scopedRestaurantId ? { restaurantId: scopedRestaurantId } : {}),
+        triggerType: { not: 'BOGO_CATEGORY' },
+      } as any,
       include: {
         restaurant: {
           select: { id: true, name: true, slug: true },
@@ -3790,9 +3788,37 @@ router.post('/deals', async (req, res) => {
       resourceId: deal.id,
       changes: { title: deal.title, restaurantId: scopedRestaurantId, triggerType: normalized.triggerType },
     });
-    // Busta deals-cachen + notifiera öppna restaurangsidor så en ny deal (t.ex.
-    // BOGO) syns direkt — annars stale i upp till 30s + ingen socket-refresh.
+    // Busta deals-cachen + notifiera öppna restaurangsidor så en ny deal syns direkt.
     broadcastMenuChange((deal as any).restaurantId ?? null, { kind: 'deal', dealId: deal.id });
+
+    // Hermes/WhatsApp: notifiera när en RESTAURANG skapar en deal (inte när
+    // super-admin gör det i admin-panelen). Best-effort, aldrig blockerande.
+    if (!isSuperAdmin(req as AuthRequest) && scopedRestaurantId) {
+      void (async () => {
+        try {
+          const restaurant = await prisma.restaurant.findUnique({
+            where: { id: scopedRestaurantId },
+            select: { name: true },
+          });
+          const { alertDealCreated } = await import('../lib/restaurantWatch');
+          const targetIds = Array.isArray((rest as any).targetIds) ? (rest as any).targetIds : [];
+          await alertDealCreated({
+            restaurantId: scopedRestaurantId,
+            restaurantName: restaurant?.name ?? 'En restaurang',
+            title: String((rest as any).title ?? deal.title ?? 'Erbjudande'),
+            discountType: String((rest as any).discountType ?? 'PERCENTAGE'),
+            discountValue: Number((rest as any).discountValue ?? 0),
+            scopeType: String((rest as any).scopeType ?? 'RESTAURANT').toUpperCase(),
+            targetCount: targetIds.length,
+            validFrom: (rest as any).validFrom ?? null,
+            validUntil: (rest as any).validUntil ?? null,
+          });
+        } catch (err: any) {
+          console.warn('[admin/deals] deal-created alert failed:', err?.message ?? err);
+        }
+      })();
+    }
+
     res.status(201).json(formatDealForAdmin(deal));
   } catch (error) {
     console.error('Create deal error:', error);

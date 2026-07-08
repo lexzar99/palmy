@@ -258,11 +258,11 @@ const supportPlaybook = {
   tone: {
     calm: 'Lugn kund: svara tydligt, kort och guida nästa steg.',
     worried: 'Fundersam/orolig kund: bekräfta, förklara vad du kollar och fråga en sak i taget.',
-    angry: 'Arg kund: visa empati, ta ansvar i språket, erbjud callback och skapa rapport.',
-    veryAngry: 'Ganska arg kund: be om ursäkt för upplevelsen, sammanfatta vad du gör, erbjud callback och restaurangnummer om relevant.',
+    angry: 'Arg kund: var saklig, säg "det var inte bra att höra", erbjud callback och samla till slutrapport.',
+    veryAngry: 'Ganska arg kund: bekräfta kort utan överdriven empati, sammanfatta vad du gör, erbjud callback och restaurangnummer om relevant.',
   },
   allowedOffers: [
-    'Skicka problemrapport till support.',
+    'Skicka en samlad slutrapport till support vid endcall.',
     'Be support ringa upp kunden och läsa tillbaka namn och nummer.',
     'Ge restaurangens direktnummer när det finns.',
     'Förklara orderstatus, betalstatus, ETA och varför något verkar försenat utifrån tool-data.',
@@ -277,12 +277,12 @@ const supportPlaybook = {
   problemTypes: {
     foodQuality: {
       examples: ['kall pizza', 'kall mat', 'spilld dricka', 'läckt påse', 'fel beställning', 'saknad pommes', 'saknad dricka', 'saknad vara', 'fel rätt', 'oätlig mat', 'allergi'],
-      response: 'Visa tydlig empati. Säg att du skickar till support. Erbjud callback. Fråga om support ska ringa numret på beställningen eller ett annat nummer. Erbjud restaurangnummer om det finns.',
+      response: 'Säg sakligt: "Det var inte bra att höra." Erbjud callback. Fråga om support ska ringa numret på beställningen eller ett annat nummer. Erbjud restaurangnummer om det finns. Samla till slutrapport vid endcall.',
       reportType: 'FOOD_QUALITY',
     },
     appIssue: {
       examples: ['ordern försvann', 'appen visar fel', 'kan inte se ordern', 'login strular', 'checkout fastnade'],
-      response: 'Säg att du skickar appfelet vidare och kollar ordern. Skapa rapport. Erbjud callback om kunden är frustrerad eller inte kan följa sin order.',
+      response: 'Säg att du kollar ordern och tar med appfelet i slutrapporten. Erbjud callback om kunden är frustrerad eller inte kan följa sin order.',
       reportType: 'APP_ISSUE',
     },
     payment: {
@@ -292,7 +292,7 @@ const supportPlaybook = {
     },
     deliveryDelay: {
       examples: ['väntat länge', 'ETA passerad', 'bud saknas', 'order står still'],
-      response: 'Förklara statusålder och passerad ETA. Skapa rapport vid grov försening. Erbjud callback och restaurangnummer.',
+      response: 'Förklara statusålder och passerad ETA. Samla till slutrapport vid grov försening. Erbjud callback och restaurangnummer.',
       reportType: 'DELIVERY',
     },
   },
@@ -415,15 +415,15 @@ const summarizeOrder = async (order: any) => {
       canReadOrderNotes: Boolean(order.note || order.deliveryNote || order.deliveryInstructions || items.some((item: any) => item.note || item.extras?.length)),
       reportTool: 'viaeats_issue_report',
     },
-    callbackGuidance: 'Vid frustration, matproblem, appfel, betalproblem eller grov försening: erbjud callback. Fråga vilket nummer support ska ringa. Läs tillbaka namn och nummer. Skicka report med callbackRequested=true.',
+    callbackGuidance: 'Vid frustration, matproblem, appfel, betalproblem eller grov försening: erbjud callback. Fråga vilket nummer support ska ringa. Läs tillbaka namn och nummer. Skicka en samlad report vid endcall med callbackRequested=true om kunden vill bli uppringd.',
     refundGuidance: 'Lova inte återbetalning direkt. Säg att support kan titta på ersättning eller återbetalning när ordern och betalningen är kontrollerad.',
     restaurantContactText: restaurantPhone
       ? `Restaurangens direktnummer är ${restaurantPhone}.`
       : 'Restaurangens direktnummer saknas i systemet.',
     foodIssueGuidance: restaurantPhone
-      ? `Vid kall mat, spilld mat eller saknad vara: be om ursäkt, fråga om kunden vill ha direktnummer till restaurangen och ge ${restaurantPhone}. Skicka även en problemrapport.`
-      : 'Vid kall mat, spilld mat eller saknad vara: be om ursäkt och skicka en problemrapport. Restaurangnummer saknas.',
-    appIssueGuidance: 'Om kunden säger att ordern försvann, appen visar fel eller betalningen ser konstig ut: skicka problemrapport direkt med viaeats_issue_report.',
+      ? `Vid kall mat, spilld mat eller saknad vara: säg "Det var inte bra att höra", fråga om kunden vill ha direktnummer till restaurangen och ge ${restaurantPhone}. Ta med allt i slutrapporten.`
+      : 'Vid kall mat, spilld mat eller saknad vara: säg "Det var inte bra att höra" och ta med allt i slutrapporten. Restaurangnummer saknas.',
+    appIssueGuidance: 'Om kunden säger att ordern försvann, appen visar fel eller betalningen ser konstig ut: samla detaljer och skicka en samlad problemrapport med viaeats_issue_report vid endcall.',
     now: now.toISOString(),
     itemIssueGuidance: itemsText
       ? 'Om kunden rapporterar saknad eller fel vara, jämför med itemsText/orderDetailsText. Bekräfta bara vad som står på ordern. Om varan finns på ordern men saknas i påsen, skapa FOOD_QUALITY-rapport.'
@@ -474,6 +474,86 @@ const supportReportTypeLabels: Record<string, string> = {
   DELIVERY: 'Leverans',
   CALLBACK: 'Ring upp kund',
   OTHER: 'Annat',
+};
+
+const yesValues = new Set(['true', '1', 'yes', 'ja']);
+
+const textValue = (value: unknown) => String(value || '').trim();
+
+const boolValue = (value: unknown) => value === true || yesValues.has(String(value || '').toLowerCase());
+
+const asTextList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === 'string') return item.trim();
+        if (!item || typeof item !== 'object') return '';
+        const anyItem = item as Record<string, unknown>;
+        return textValue(anyItem.summary || anyItem.text || anyItem.description || anyItem.issue);
+      })
+      .filter(Boolean);
+  }
+  const text = textValue(value);
+  if (!text) return [];
+  return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+};
+
+const buildSupportReportText = (data: {
+  label: string;
+  severity: string;
+  customerLine: string;
+  callbackRequested: boolean;
+  callbackPhone: string;
+  preferredCallbackTime: string;
+  orderLine: string;
+  orderSummary: Awaited<ReturnType<typeof summarizeOrder>> | null;
+  summary: string;
+  customerStatement: string;
+  agentActions: string[];
+  nextStep: string;
+  recordingLine: string;
+  callId: string;
+  transcriptSummary: string;
+}) => {
+  const order = data.orderSummary;
+  return [
+    `Elina slutrapport: ${data.label}`,
+    `Prioritet: ${data.severity || 'normal'}`,
+    '',
+    'Kund:',
+    `- Namn: ${data.customerLine}`,
+    data.callbackPhone ? `- Telefon: ${data.callbackPhone}` : null,
+    data.callbackRequested ? '- Callback: Ja, kunden vill bli uppringd' : '- Callback: Nej/ej bekräftat',
+    data.preferredCallbackTime ? `- Önskad tid: ${data.preferredCallbackTime}` : null,
+    '',
+    'Order:',
+    `- Ordernummer: ${data.orderLine}`,
+    order?.statusText ? `- Status: ${order.statusText}` : null,
+    order?.paymentStatus ? `- Betalstatus: ${order.paymentStatus}` : null,
+    order?.restaurantName ? `- Restaurang: ${order.restaurantName}` : null,
+    order?.restaurantPhone ? `- Restaurangtelefon: ${order.restaurantPhone}` : null,
+    order?.total ? `- Total: ${order.total}` : null,
+    order?.createdAtText ? `- Skapad: ${order.createdAtText}` : null,
+    order?.address ? `- Adress: ${order.address}` : null,
+    order?.itemsText ? `- Artiklar: ${order.itemsText}` : null,
+    '',
+    'Vad kunden uppgav:',
+    data.customerStatement || data.summary,
+    '',
+    'Elinas hantering:',
+    ...(
+      data.agentActions.length
+        ? data.agentActions.map((action) => `- ${action}`)
+        : ['- Bekräftade problemet sakligt och erbjöd fortsatt support.']
+    ),
+    '',
+    'Nästa steg:',
+    data.nextStep || (data.callbackRequested ? 'Support bör ringa upp kunden och kontrollera ordern.' : 'Support bör kontrollera ärendet och återkomma vid behov.'),
+    '',
+    data.transcriptSummary ? `Samtalssammanfattning:\n${data.transcriptSummary}` : null,
+    `Recording: ${data.recordingLine}`,
+    data.callId ? `Call ID: ${data.callId}` : null,
+  ].filter(Boolean).join('\n');
 };
 
 const sendSupportAlert = async (payload: Record<string, unknown>, dryRun = false) => {
@@ -590,17 +670,19 @@ router.post('/support/report', requireHermesToken, async (req, res) => {
   try {
     const type = String(req.body?.type || 'OTHER').toUpperCase();
     const safeType = supportReportTypeLabels[type] ? type : 'OTHER';
-    const summary = String(req.body?.summary || '').trim();
-    const orderNumber = String(req.body?.orderNumber || '').trim();
-    const customerName = String(req.body?.customerName || '').trim();
-    const customerPhone = String(req.body?.customerPhone || '').trim();
-    const callbackRequested =
-      req.body?.callbackRequested === true ||
-      ['true', '1', 'yes', 'ja'].includes(String(req.body?.callbackRequested || '').toLowerCase());
-    const preferredCallbackTime = String(req.body?.preferredCallbackTime || '').trim();
-    const recordingUrl = String(req.body?.recordingUrl || '').trim();
-    const callId = String(req.body?.callId || '').trim();
-    const severity = String(req.body?.severity || 'normal').trim();
+    const summary = textValue(req.body?.summary || req.body?.customerStatement || req.body?.customerSaid);
+    const orderNumber = textValue(req.body?.orderNumber);
+    const customerName = textValue(req.body?.customerName);
+    const customerPhone = textValue(req.body?.customerPhone || req.body?.phone);
+    const callbackRequested = boolValue(req.body?.callbackRequested);
+    const preferredCallbackTime = textValue(req.body?.preferredCallbackTime);
+    const recordingUrl = textValue(req.body?.recordingUrl);
+    const callId = textValue(req.body?.callId);
+    const severity = textValue(req.body?.severity || 'normal');
+    const customerStatement = textValue(req.body?.customerStatement || req.body?.customerSaid || req.body?.details || summary);
+    const transcriptSummary = textValue(req.body?.transcriptSummary || req.body?.callSummary);
+    const nextStep = textValue(req.body?.nextStep || req.body?.supportNextStep);
+    const agentActions = asTextList(req.body?.agentActions || req.body?.actionsTaken);
     const dryRun = req.query.dryRun === '1' || req.body?.dryRun === true;
 
     if (!summary || summary.length < 4) {
@@ -612,11 +694,20 @@ router.post('/support/report', requireHermesToken, async (req, res) => {
       return;
     }
 
-    const order = orderNumber
+    const orderWhere: any = orderNumber
+      ? { orderNumber: { contains: orderNumber.replace(/\s+/g, '').toUpperCase(), mode: 'insensitive' } }
+      : normalizePhone(customerPhone).length >= 6
+        ? { customerPhone: { contains: normalizePhone(customerPhone).slice(-7) } }
+        : null;
+
+    const order = orderWhere
       ? await prisma.order.findFirst({
-          where: { orderNumber: { contains: orderNumber.replace(/\s+/g, '').toUpperCase(), mode: 'insensitive' } },
+          where: orderWhere,
+          orderBy: { createdAt: 'desc' },
           include: {
             restaurant: { select: { name: true, phone: true, selfDelivery: true } },
+            items: { include: { product: { select: { name: true } } } },
+            delivery: { include: { courier: { select: { name: true, vehicle: true } } } },
           },
         })
       : null;
@@ -627,24 +718,34 @@ router.post('/support/report', requireHermesToken, async (req, res) => {
     const orderLine = orderSummary?.orderNumber || orderNumber || 'okänd order';
     const callbackPhone = customerPhone || (callbackRequested ? order?.customerPhone || '' : '');
     const recordingLine = recordingUrl || (callId ? `Dograh call ${callId}` : 'Kolla Dograh recordings');
-    const text = [
-      `Elina support: ${label}`,
-      `Kund: ${customerLine}`,
-      callbackRequested ? 'Ring upp: Ja' : null,
-      callbackPhone ? `Telefon: ${callbackPhone}` : null,
-      preferredCallbackTime ? `Önskad tid: ${preferredCallbackTime}` : null,
-      `Order: ${orderLine}`,
-      orderSummary?.restaurantName ? `Restaurang: ${orderSummary.restaurantName}` : null,
-      orderSummary?.address ? `Adress: ${orderSummary.address}` : null,
-      `Problem: ${summary}`,
-      `Recording: ${recordingLine}`,
-    ].filter(Boolean).join('\n');
+    const text = buildSupportReportText({
+      label,
+      severity,
+      customerLine,
+      callbackRequested,
+      callbackPhone,
+      preferredCallbackTime,
+      orderLine,
+      orderSummary,
+      summary,
+      customerStatement,
+      agentActions,
+      nextStep,
+      recordingLine,
+      callId,
+      transcriptSummary,
+    });
 
     const alertPayload = {
       source: 'viaeats-elina',
       type: safeType,
       severity,
       summary,
+      customerStatement,
+      transcriptSummary: transcriptSummary || null,
+      nextStep: nextStep || null,
+      agentActions,
+      issues: asTextList(req.body?.issues),
       orderNumber: orderSummary?.orderNumber || orderNumber || null,
       customerName: customerName || orderSummary?.customerName || null,
       customerPhoneMasked: customerPhone ? maskPhone(customerPhone) : null,

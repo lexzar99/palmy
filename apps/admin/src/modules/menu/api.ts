@@ -91,7 +91,7 @@ export const getCategories = (restaurantId: string) =>
   apiGet<CategoryRecord[]>(`/admin/categories?restaurantId=${restaurantId}&includeGlobal=auto`);
 
 export const getProducts = (restaurantId: string) =>
-  apiGet<ProductRecord[]>(`/admin/products?restaurantId=${restaurantId}&includeGlobal=1`);
+  apiGet<ProductRecord[]>(`/admin/products?restaurantId=${restaurantId}`);
 
 export const getExtraGroups = (restaurantId: string) => apiGet<ExtraGroupRecord[]>(`/admin/extra-groups?restaurantId=${restaurantId}`);
 

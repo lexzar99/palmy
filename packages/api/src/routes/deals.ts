@@ -1171,6 +1171,7 @@ router.get('/', async (req, res) => {
       where: {
         showOnSite: true,
         isActive: true,
+        triggerType: { not: 'BOGO_CATEGORY' },
         // Personliga mallar (welcome/referral) ska aldrig listas publikt.
         isPersonalTemplate: false,
         ...(targetRestaurantId
@@ -1206,7 +1207,7 @@ router.get('/', async (req, res) => {
 
     return (
       deals
-        .filter((deal) => isDealAvailableNow(deal) && (isBasketDeal(deal) || deal.triggerType === 'BOGO_CATEGORY'))
+        .filter((deal) => isDealAvailableNow(deal) && isBasketDeal(deal))
         .map((deal) =>
           formatDealForClient(deal, {
             comboProductNames: parseDealProductIds(deal.comboProductIds).map((productId) => productNameMap.get(productId) || 'Valfri vara'),
@@ -1237,6 +1238,25 @@ router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
     const { restaurantId, items } = req.body as { restaurantId?: string; items?: Array<{ productId: string; quantity: number }> };
     if (!restaurantId || !Array.isArray(items) || items.length === 0) {
       return res.json({ discountAmountOre: 0, discountAmountKr: 0, message: null, dealTitle: null, maxFreeItems: 0 });
+    }
+
+    // BOGO är borttaget från produkten. Behåll endpointen för gamla klienter,
+    // men returnera alltid no-op så gamla dealrester aldrig kan ge dubbelrabatt.
+    const bogoDealsRetired = process.env.BOGO_DEALS_RETIRED !== '0';
+    if (bogoDealsRetired) {
+      return res.json({
+        discountAmountOre: 0,
+        discountAmountKr: 0,
+        dealTitle: null,
+        dealId: null,
+        isBogo: false,
+        isPickReward: false,
+        rewardCategoryId: null,
+        rewardCategoryName: null,
+        rewardProducts: [],
+        bogoExcludedExtraIds: [],
+        maxFreeItems: 0,
+      });
     }
 
     const productIds = items.map((i) => i.productId).filter(Boolean);

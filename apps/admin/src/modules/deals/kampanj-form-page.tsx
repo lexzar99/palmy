@@ -22,7 +22,8 @@ import {
 } from "@/modules/deals/api";
 import { Badge, Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 
-const CARD_TITLE = "text-[15px] font-extrabold tracking-[-0.3px]";
+const CARD_TITLE = "text-[13px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]";
+const SECTION_CARD = "px-5 py-5 grid gap-4";
 
 type Draft = {
   title: string;
@@ -146,14 +147,13 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
 
   const availableTargets = useMemo(() => {
     if (draft.scopeType === "CATEGORY") return (categories.data ?? []).map((c) => ({ id: c.id, label: c.name, meta: `${c._count?.products ?? 0} produkter` }));
-    // Defense in depth: when the deal is scoped to a single restaurant, never show
-    // another restaurant's products even if the API over-widened. Skip for global deals
-    // and for global (restaurantId=null) menu items, which are shared.
+    // Produktdeals ska aldrig visa gamla globala/andra restaurangers produkter.
+    // Om API:t över-breddar listan filtrerar UI:t ändå strikt på vald restaurang.
     const list = products.data ?? [];
     const scoped = !draft.isGlobal && activeRestaurantId
-      ? list.filter((p) => !p.category.restaurantId || p.category.restaurantId === activeRestaurantId)
+      ? list.filter((p) => p.category.restaurantId === activeRestaurantId)
       : list;
-    return scoped.map((p) => ({ id: p.id, label: p.name, meta: `${p.category.name} · ${(p.price / 100).toFixed(0)} kr` }));
+    return scoped.map((p) => ({ id: p.id, label: p.name, meta: `${p.category.name} · ${p.price.toFixed(0)} kr` }));
   }, [categories.data, products.data, draft.scopeType, draft.isGlobal, activeRestaurantId]);
 
   const toggleTarget = (id: string) =>
@@ -171,6 +171,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         ...prev,
         applicableRestaurantIds: nextIds,
         restaurantId: nextIds[0] || "",
+        targetIds: isItemScope ? [] : prev.targetIds,
       };
     });
 
@@ -302,11 +303,11 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         <p className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger-text)]">{error}</p>
       )}
 
-      <div className="grid gap-3.5 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* Left column */}
-        <div className="grid gap-3.5 content-start">
+        <div className="grid gap-4 content-start">
           {/* Basic info */}
-          <Surface className="px-5 py-5 grid gap-4">
+          <Surface className={SECTION_CARD}>
             <p className={CARD_TITLE}>Grunduppgifter</p>
             <Field label="Titel">
               <Input value={draft.title} onChange={(e) => set("title", e.target.value)} placeholder="Sommarens pizzaerbjudande" autoFocus />
@@ -319,7 +320,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
           {/* Deal type */}
           <Surface className="px-5 py-5">
             <p className={CARD_TITLE}>Typ av deal</p>
-            <div className="mt-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            <div className="mt-3.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
               {SCOPE_OPTIONS.map((opt) => {
                 const selected = draft.scopeType === opt.value;
                 return (
@@ -332,15 +333,19 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                       targetIds: [],
                       discountType: (opt.value !== "PRODUCT" && opt.value !== "CATEGORY" && prev.discountType === "FIXED_PRICE") ? "PERCENTAGE" : prev.discountType,
                     }))}
-                    className={`rounded-[11px] p-3.5 text-left transition-all ${
+                    className={`rounded-[10px] p-3 text-left transition-all ${
                       selected
                         ? "border-2 border-[var(--accent)] bg-[#fff7f3]"
                         : "border border-[var(--border-strong)] hover:border-[var(--accent)]"
                     }`}
                   >
-                    <div className={`text-lg font-black leading-none ${selected ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}>{opt.glyph}</div>
-                    <div className="mt-1.5 text-[12.5px] font-bold text-[var(--text-primary)]">{opt.label}</div>
-                    <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">{opt.description}</div>
+                    <div className="flex items-center gap-3">
+                      <div className={`grid h-8 w-8 place-items-center rounded-[9px] text-sm font-black ${selected ? "bg-[var(--accent)] text-white" : "bg-[var(--accent-soft)] text-[var(--text-secondary)]"}`}>{opt.glyph}</div>
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-extrabold text-[var(--text-primary)]">{opt.label}</div>
+                        <div className="text-[11px] text-[var(--text-muted)]">{opt.description}</div>
+                      </div>
+                    </div>
                   </button>
                 );
               })}
@@ -480,7 +485,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         </div>
 
         {/* Right column */}
-        <div className="grid gap-3.5 content-start">
+        <div className="grid gap-4 content-start">
           {/* Gäller */}
           <Surface className="px-5 py-5">
             <p className={CARD_TITLE}>Gäller</p>
@@ -496,6 +501,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
                       isGlobal: e.target.checked,
                       restaurantId: e.target.checked ? "" : prev.restaurantId,
                       applicableRestaurantIds: e.target.checked ? [] : prev.applicableRestaurantIds,
+                      targetIds: isItemScope ? [] : prev.targetIds,
                     }))}
                     className="h-4 w-4 accent-[var(--accent)]"
                   />
@@ -552,15 +558,22 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
             </div>
           </Surface>
 
-          {/* Förhandsvisning — mörkt kort, speglar live-rabatt */}
-          <Surface className="!bg-[#111113] !border-transparent px-[18px] py-[18px] text-white">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9CA3AF]">Förhandsvisning</p>
-            <div className="relative mt-3 flex h-[100px] items-end overflow-hidden rounded-[14px] p-3" style={{ background: "linear-gradient(150deg,#3a2a20,#1a120d)" }}>
-              <span className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-extrabold text-white">{previewDiscount}</span>
+          <Surface className="px-5 py-5">
+            <p className={CARD_TITLE}>Sammanfattning</p>
+            <div className="mt-3 rounded-[12px] border border-[var(--border-strong)] bg-white p-4">
+              <span className="inline-flex rounded-[8px] bg-[var(--accent)] px-3 py-1.5 text-xs font-extrabold text-white">{previewDiscount}</span>
+              <p className="mt-3 text-[15px] font-black leading-snug text-[var(--text-primary)]">{draft.title || "Ny deal"}</p>
+              <p className="mt-1 text-[12px] font-semibold text-[var(--text-muted)]">{previewScope} · {previewRestaurant}</p>
             </div>
-            <div className="mt-3">
-              <p className="text-sm font-black leading-snug">{draft.title || "Ny deal"}</p>
-              <p className="mt-0.5 text-[11px] text-white/50">{previewScope} · {previewRestaurant}</p>
+            <div className="mt-3 grid gap-2 text-[12px]">
+              <div className="flex items-center justify-between rounded-[9px] bg-[var(--background)] px-3 py-2">
+                <span className="font-semibold text-[var(--text-muted)]">Status</span>
+                <span className="font-extrabold text-[var(--text-primary)]">{draft.isActive ? "Aktiv" : "Inaktiv"}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-[9px] bg-[var(--background)] px-3 py-2">
+                <span className="font-semibold text-[var(--text-muted)]">Val</span>
+                <span className="font-extrabold text-[var(--text-primary)]">{isItemScope ? `${draft.targetIds.length} valda` : "Hel scope"}</span>
+              </div>
             </div>
           </Surface>
         </div>

@@ -267,7 +267,8 @@ export const autoRoleGate = (
   }
 
   if (role === 'MENU_AGENT' && method !== 'GET') {
-    if (method === 'DELETE' || !MENU_AGENT_WRITE_PATHS.test(req.path)) {
+    const canDeleteApprovedResource = method === 'DELETE' && /^\/extra-groups\/[^/]+$/.test(req.path);
+    if ((!canDeleteApprovedResource && method === 'DELETE') || !MENU_AGENT_WRITE_PATHS.test(req.path)) {
       res.status(403).json({ error: 'Menyagenten får bara skapa och ändra meny-resurser' });
       return;
     }

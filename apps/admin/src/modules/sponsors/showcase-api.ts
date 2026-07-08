@@ -1,6 +1,6 @@
 import { apiGet, apiPatch } from "@/shared/api/client";
 
-export type ShowcaseSurface = "discounts" | "trending" | "new";
+export type ShowcaseSurface = "champion" | "discounts" | "trending" | "new";
 
 export interface ShowcaseShownItem {
   restaurantId: string;

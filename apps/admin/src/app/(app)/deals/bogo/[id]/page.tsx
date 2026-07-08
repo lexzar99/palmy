@@ -1,6 +1,5 @@
-import { BogoFormPage } from "@/modules/deals/bogo-form-page";
+import { redirect } from "next/navigation";
 
-export default async function EditBogoPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <BogoFormPage dealId={id} />;
+export default function EditBogoPage() {
+  redirect("/deals?tab=kampanjer");
 }

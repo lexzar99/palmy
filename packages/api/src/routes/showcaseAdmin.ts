@@ -10,7 +10,7 @@ import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { getShowcaseAdmin, patchShowcase, ShowcaseSurface } from '../lib/showcase';
 
 const router = Router();
-const SURFACES: ShowcaseSurface[] = ['discounts', 'trending', 'new'];
+const SURFACES: ShowcaseSurface[] = ['champion', 'discounts', 'trending', 'new'];
 
 // ── GET /api/admin/showcase — urval + kandidater + rotationskonfig ───────────
 router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {

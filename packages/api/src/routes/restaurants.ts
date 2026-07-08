@@ -63,8 +63,9 @@ const restaurantSchema = z.object({
   featuredClass: z.any().optional(),
   isOpen: z.boolean().optional(),
   comingSoon: z.boolean().optional(),
-  // Utkast (agent-onboarding). Bara SUPER_ADMIN kan sätta/ändra flaggan.
+  // Editing (agent-onboarding). Bara SUPER_ADMIN kan publicera; MENU_AGENT kan starta editing.
   draft: z.boolean().optional(),
+  editing: z.boolean().optional(),
   rating: z.any().optional(),
   ratingCount: z.any().optional(),
   openingHours: z.any().optional(),
@@ -140,6 +141,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false, dealSummary?: De
   })(),
   comingSoon: restaurant.comingSoon ?? false,
   draft: restaurant.draft ?? false,
+  editing: restaurant.draft ?? false,
   manualIsOpen: restaurant.isOpen,
   pausedUntil: restaurant.pausedUntil
     ? new Date(restaurant.pausedUntil).toISOString()
@@ -567,9 +569,11 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     const id = existingRestaurant.id;
 
     if (req.admin?.role === 'MENU_AGENT') {
-      // Menyagenten får bara ändra utkast. Publicerade restauranger är låsta.
-      if (!(existingRestaurant as any).draft) {
-        res.status(403).json({ error: 'Menyagenten kan bara ändra utkast-restauranger. Publicerade restauranger är låsta.' });
+      // Menyagenten får starta editing-läge, och därefter ändra restaurangen.
+      // Publicering/avslut av editing är superadmin-exklusivt.
+      const wantsEditing = req.body?.editing === true || req.body?.draft === true;
+      if (!(existingRestaurant as any).draft && !wantsEditing) {
+        res.status(403).json({ error: 'Menyagenten kan bara ändra restauranger i editing. Skicka editing=true först.' });
         return;
       }
     } else if (req.admin?.role !== 'SUPER_ADMIN') {
@@ -582,7 +586,8 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
 
     const payload = restaurantSchema.partial().parse(req.body);
     if (req.admin?.role === 'MENU_AGENT') {
-      // Agenten kan varken publicera (draft=false) eller skapa login-konton.
+      // Agenten kan starta editing, men varken publicera (draft=false) eller skapa login-konton.
+      if ((payload as any).editing === true) payload.draft = true;
       payload.draft = undefined;
       payload.adminPassword = undefined;
     }
@@ -626,8 +631,12 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.featuredClass !== undefined) data.featuredClass = toSafeNum(payload.featuredClass);
     if (payload.isOpen !== undefined) data.isOpen = payload.isOpen;
     if (payload.comingSoon !== undefined) data.comingSoon = payload.comingSoon;
-    // Publicera/avpublicera utkast är super admin-exklusivt.
+    if (req.admin?.role === 'MENU_AGENT' && (req.body?.editing === true || req.body?.draft === true)) {
+      data.draft = true;
+    }
+    // Publicera/avpublicera editing är super admin-exklusivt.
     if (payload.draft !== undefined && req.admin?.role === 'SUPER_ADMIN') data.draft = payload.draft;
+    if ((payload as any).editing !== undefined && req.admin?.role === 'SUPER_ADMIN') data.draft = Boolean((payload as any).editing);
     if (payload.rating !== undefined) data.rating = toSafeNum(payload.rating);
     if (payload.ratingCount !== undefined) data.ratingCount = toSafeNum(payload.ratingCount);
     
@@ -724,6 +733,27 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       where: { id },
       data,
     });
+
+    // Hermes/WhatsApp: notifiera när restaurangen pausar / förlänger pausen.
+    // Bara när pausedUntil faktiskt sätts till ett framtida datum (inte vid
+    // avbruten paus eller oförändrat värde). Best-effort, aldrig blockerande.
+    if (payload.pausedUntil !== undefined && data.pausedUntil instanceof Date) {
+      const newPaused = data.pausedUntil as Date;
+      const oldPaused = existingRestaurant.pausedUntil ? new Date(existingRestaurant.pausedUntil) : null;
+      const changed = !oldPaused || oldPaused.getTime() !== newPaused.getTime();
+      if (newPaused.getTime() > Date.now() && changed) {
+        void import('../lib/restaurantWatch')
+          .then(({ alertRestaurantPause }) =>
+            alertRestaurantPause({
+              restaurantId: id,
+              restaurantName: existingRestaurant.name,
+              previousPausedUntil: oldPaused,
+              newPausedUntil: newPaused,
+            }),
+          )
+          .catch((err) => console.warn('[restaurants PATCH] pause alert failed:', err?.message ?? err));
+      }
+    }
 
     // Re-fetch med includes så svaret har EXAKT samma format som GET /:slug.
     // Tidigare använde vi rå-resultatet från update() — det saknade relations

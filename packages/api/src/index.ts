@@ -533,6 +533,11 @@ const PORT = Number(process.env.PORT || 4000);
     // API-outbox, webhook eller direct bridge.
     void import('./lib/falkenNotifier').then(({ startFalkenNotifier }) => startFalkenNotifier());
 
+    // Restaurang-bedrägerivakt — larmar (Hermes/WhatsApp) om en restaurang är
+    // pausad/stängd > 30 min under sina öppettider (leker och stänger / stänger
+    // tidigt). Deal-skapande + paus/förlängning larmas event-drivet i routerna.
+    void import('./lib/restaurantWatch').then(({ startRestaurantFraudWatch }) => startRestaurantFraudWatch());
+
     // P1 — pre-warm the menu cache for every restaurant on boot so the
     // first customer who hits a restaurant page doesn't pay the deep-include
     // cold-start cost. Fire-and-forget — failures are logged but not fatal.

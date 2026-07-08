@@ -1374,6 +1374,25 @@ function R2PathsButton({ restaurantId }: { restaurantId: string }) {
   );
 }
 
+function MenuToolsDropdown({ restaurantId, restaurants }: { restaurantId: string; restaurants: RestaurantRef[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <Button variant="secondary" onClick={() => setOpen((v) => !v)}>
+        <Upload size={14} /> Verktyg <ChevronDown size={14} />
+      </Button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-2 grid w-[260px] gap-2 rounded-[12px] border border-[var(--border-strong)] bg-[var(--surface)] p-2 shadow-[0_18px_45px_rgba(15,23,42,0.14)]">
+          <BulkImportButton restaurantId={restaurantId} />
+          <MenuSyncButton sourceRestaurantId={restaurantId} restaurants={restaurants} />
+          <R2PathsButton restaurantId={restaurantId} />
+          <R2AutoMatchButton restaurantId={restaurantId} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * R2-sektion = en mapp + lista av filer som ska in i den mappen.
  * Visar mapp-path med kopieringsknapp och varje fil med basename + produktnamn.
@@ -1957,12 +1976,7 @@ export function MenuPage() {
         actions={
           <>
             {activeRestaurantId ? (
-              <>
-                <BulkImportButton restaurantId={activeRestaurantId} />
-                <MenuSyncButton sourceRestaurantId={activeRestaurantId} restaurants={restaurants.data || []} />
-                <R2PathsButton restaurantId={activeRestaurantId} />
-                <R2AutoMatchButton restaurantId={activeRestaurantId} />
-              </>
+              <MenuToolsDropdown restaurantId={activeRestaurantId} restaurants={restaurants.data || []} />
             ) : null}
             {activeRestaurantId ? (
               <Button variant="secondary" onClick={() => setImportModalOpen(true)}>

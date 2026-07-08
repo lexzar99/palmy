@@ -1,5 +1,5 @@
-import { BogoFormPage } from "@/modules/deals/bogo-form-page";
+import { redirect } from "next/navigation";
 
 export default function NewBogoPage() {
-  return <BogoFormPage />;
+  redirect("/deals?tab=kampanjer");
 }

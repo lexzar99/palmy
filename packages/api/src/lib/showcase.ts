@@ -20,21 +20,24 @@ import prisma from './prisma';
 import { getDealScopeType, parseApplicableRestaurantIds, parseDealTargetIds } from './deals';
 import { THEME_POOL } from './themeRotation';
 
-export type ShowcaseSurface = 'discounts' | 'trending' | 'new';
+export type ShowcaseSurface = 'champion' | 'discounts' | 'trending' | 'new';
 
 const STATE_KEY: Record<ShowcaseSurface, string> = {
+  champion: 'showcase_champion',
   discounts: 'showcase_discounts',
   trending: 'showcase_trending',
   new: 'showcase_new',
 };
 
 const DEFAULT_HOURS: Record<ShowcaseSurface, number> = {
+  champion: 168,
   discounts: 48,
   trending: 24,
   new: 24,
 };
 
 const MAX_SHOWN: Record<ShowcaseSurface, number> = {
+  champion: 1,
   discounts: 5,
   trending: 6,
   new: 6,
@@ -415,6 +418,28 @@ export async function getNewRestaurantIds(now = new Date()): Promise<string[]> {
   return shownIds;
 }
 
+/** Rankade kandidat-id:n för veckans favorit (mest ordrar senaste 7 dagar). */
+async function championCandidateIds(now: Date): Promise<string[]> {
+  const since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const grouped = await (prisma.order.groupBy as any)({
+    by: ['restaurantId'],
+    where: { createdAt: { gte: since }, status: { notIn: EXCLUDED_STATUSES }, restaurantId: { not: null } },
+    _count: { _all: true },
+    orderBy: { _count: { restaurantId: 'desc' } },
+    take: 12,
+  });
+  const ids = (grouped as any[]).filter((g) => g.restaurantId).map((g) => g.restaurantId as string);
+  const active = await prisma.restaurant.findMany({ where: { id: { in: ids }, comingSoon: false }, select: { id: true } });
+  const activeSet = new Set(active.map((r) => r.id));
+  return ids.filter((id) => activeSet.has(id));
+}
+
+export async function getChampionRestaurantIds(now = new Date()): Promise<string[]> {
+  const ids = await championCandidateIds(now);
+  const { shownIds } = await resolve('champion', ids, ids.join('|'), now);
+  return shownIds;
+}
+
 // ── Admin ────────────────────────────────────────────────────────────────────
 
 export interface ShowcaseAdminSurface {
@@ -431,7 +456,9 @@ function restLabel(surface: ShowcaseSurface, card: ShowcaseCard | null, name: st
 }
 
 export async function getShowcaseAdmin(now = new Date()): Promise<ShowcaseAdminSurface[]> {
-  // Rabatter
+  // Veckans favorit / Rabatter
+  const championIds = await championCandidateIds(now);
+  const championResolve = await resolve('champion', championIds, championIds.join('|'), now);
   const { cards, signature } = await computeDiscountCandidates(now);
   const discountResolve = await resolve('discounts', cards.map((c) => c.restaurantId), signature, now);
   const cardById = new Map(cards.map((c) => [c.restaurantId, c]));
@@ -445,6 +472,7 @@ export async function getShowcaseAdmin(now = new Date()): Promise<ShowcaseAdminS
   // Restaurang-metadata för alla inblandade id:n.
   const involved = new Set<string>([
     ...cards.map((c) => c.restaurantId),
+    ...championIds, ...championResolve.shownIds, ...championResolve.state.pinned,
     ...trendIds, ...trendResolve.shownIds, ...trendResolve.state.pinned,
     ...newIds, ...newResolve.shownIds, ...newResolve.state.pinned,
   ]);
@@ -485,6 +513,7 @@ export async function getShowcaseAdmin(now = new Date()): Promise<ShowcaseAdminS
   };
 
   return [
+    mkSurface('champion', championResolve.shownIds, championIds, championResolve.state),
     mkSurface('discounts', discountResolve.shownIds, cards.map((c) => c.restaurantId), discountResolve.state),
     mkSurface('trending', trendResolve.shownIds, trendIds, trendResolve.state),
     mkSurface('new', newResolve.shownIds, newIds, newResolve.state),

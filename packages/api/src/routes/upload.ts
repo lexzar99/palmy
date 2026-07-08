@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
-import { r2Enabled, buildR2Key, uploadToR2, toWebp, listR2, existsInR2, slugifyPathSegment, r2KeyToPublicUrl, r2KeyToVersionedUrl } from '../lib/r2';
+import { r2Enabled, buildR2Key, uploadToR2, toWebp, listR2, existsInR2, deleteFromR2, r2UrlToKey, slugifyPathSegment, r2KeyToPublicUrl, r2KeyToVersionedUrl } from '../lib/r2';
 import { runR2Migration, type MigrateOptions } from '../lib/r2Migrate';
 import prisma from '../lib/prisma';
 import { menuCacheBust } from './menu';
@@ -40,6 +40,22 @@ const assertRestaurantScope = (
     .status(403)
     .json({ error: 'Du får bara hantera bilder för din egen restaurang' });
   return false;
+};
+
+const hasHermesApproval = (req: Request): boolean => {
+  const bodyApproval = String((req.body as any)?.hermesApproval || (req.body as any)?.approval || '').trim().toUpperCase();
+  const headerApproval = String(req.headers['x-hermes-approved'] || '').trim().toLowerCase();
+  return bodyApproval === 'JAG GODKÄNNER' || bodyApproval === 'APPROVED' || headerApproval === 'true' || headerApproval === '1';
+};
+
+const getRestaurantImagePrefix = async (restaurantId: string): Promise<string | null> => {
+  const rest = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { slug: true, city: true, city_relation: { select: { slug: true, name: true } } },
+  });
+  if (!rest) return null;
+  const citySlug = rest.city_relation?.slug || slugifyPathSegment(rest.city_relation?.name || rest.city || 'global');
+  return `${citySlug}/${rest.slug}/`;
 };
 
 // =====================
@@ -116,13 +132,13 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
 
     if (!assertRestaurantScope(req, restaurantId, res)) return;
 
-    // MENU_AGENT (Kocken/Studion): får bara ladda upp till UTKAST-restauranger,
+    // MENU_AGENT (Kocken/Studion): får bara ladda upp till editing-restauranger,
     // aldrig till publicerade och aldrig utan restaurang-scope.
     if ((req as AuthRequest).admin?.role === 'MENU_AGENT') {
-      if (!restaurantId) { res.status(403).json({ error: 'Menyagenten måste ange restaurantId (utkast) för bilduppladdning' }); return; }
+      if (!restaurantId) { res.status(403).json({ error: 'Menyagenten måste ange restaurantId (editing) för bilduppladdning' }); return; }
       const target = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { draft: true } });
       if (!target) { res.status(404).json({ error: 'Restaurang hittades inte' }); return; }
-      if (!(target as any).draft) { res.status(403).json({ error: 'Menyagenten kan bara ladda upp till utkast-restauranger' }); return; }
+      if (!(target as any).draft) { res.status(403).json({ error: 'Menyagenten kan bara ladda upp till restauranger i editing' }); return; }
     }
 
     // Resolva slugs från DB så path:en blir kanonisk även om admin skriver
@@ -234,6 +250,73 @@ router.get('/images/exists', async (req: Request, res: Response) => {
     res.json({ exists, configured: true, url: exists ? r2KeyToPublicUrl(key) : null });
   } catch {
     res.status(500).json({ error: 'Check misslyckades' });
+  }
+});
+
+router.post('/images/delete', async (req: Request, res: Response) => {
+  try {
+    if (!r2Enabled()) { res.status(503).json({ error: 'R2 är inte konfigurerat' }); return; }
+
+    const restaurantId = String(req.body.restaurantId || '');
+    const rawKey = req.body.key ? String(req.body.key) : '';
+    const rawUrl = req.body.url ? String(req.body.url) : '';
+    const key = rawKey || (rawUrl ? r2UrlToKey(rawUrl) : null);
+    const entityType = String(req.body.entityType || '').toLowerCase();
+    const entityId = req.body.entityId ? String(req.body.entityId) : '';
+    const field = String(req.body.field || 'imageUrl');
+
+    if (!restaurantId) { res.status(400).json({ error: 'Saknar restaurantId' }); return; }
+    if (!key) { res.status(400).json({ error: 'Saknar R2 key/url' }); return; }
+    if (!assertRestaurantScope(req, restaurantId, res)) return;
+
+    if ((req as AuthRequest).admin?.role === 'MENU_AGENT') {
+      if (!hasHermesApproval(req)) {
+        res.status(403).json({ error: 'Menyagenten får bara radera bilder efter explicit prompt-godkännande: skicka hermesApproval="JAG GODKÄNNER".' });
+        return;
+      }
+      const target = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { draft: true } });
+      if (!target) { res.status(404).json({ error: 'Restaurang hittades inte' }); return; }
+      if (!(target as any).draft) { res.status(403).json({ error: 'Menyagenten kan bara radera bilder för restauranger i editing' }); return; }
+    }
+
+    const prefix = await getRestaurantImagePrefix(restaurantId);
+    if (!prefix) { res.status(404).json({ error: 'Restaurang hittades inte' }); return; }
+    if (!key.startsWith(prefix)) {
+      res.status(403).json({ error: 'Bilden ligger inte under vald restaurangs R2-prefix' });
+      return;
+    }
+
+    if (entityType === 'restaurant') {
+      const allowedFields = new Set(['imageUrl', 'heroImageUrl', 'offersImageUrl']);
+      if (allowedFields.has(field)) {
+        await prisma.restaurant.update({ where: { id: restaurantId }, data: { [field]: null } as any });
+      }
+    } else if (entityType === 'category' && entityId) {
+      await prisma.category.updateMany({
+        where: { id: entityId, restaurantId },
+        data: { imageUrl: null },
+      });
+    } else if (entityType === 'product' && entityId) {
+      const allowedFields = new Set(['imageUrl', 'discountImageUrl']);
+      if (allowedFields.has(field)) {
+        await prisma.product.updateMany({
+          where: { id: entityId, category: { restaurantId } },
+          data: { [field]: null } as any,
+        });
+      }
+    } else if (entityType === 'extra' && entityId) {
+      await prisma.extra.updateMany({
+        where: { id: entityId, extraGroup: { restaurantId } },
+        data: { imageUrl: null },
+      });
+    }
+
+    await deleteFromR2(key);
+    menuCacheBust(restaurantId);
+    res.json({ ok: true, key });
+  } catch (error: any) {
+    console.error('R2 delete error:', error);
+    res.status(500).json({ error: error?.message || 'Kunde inte radera bilden' });
   }
 });
 
