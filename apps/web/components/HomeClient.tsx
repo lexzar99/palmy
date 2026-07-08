@@ -612,6 +612,12 @@ export interface HomeInitialData {
   pulse?: HomePulseResponse;
 }
 
+const isRetiredFavoriteDeal = (deal: any) => {
+  const title = String(deal?.title || deal?.subtitle || "").toLowerCase();
+  const metadata = deal?.metadata || {};
+  return deal?.type === "FAVORITE" || deal?.type === "FAVORITE_PRODUCT" || Boolean(metadata.favoriteProductId) || title.includes("din favorit");
+};
+
 /**
  * HomeClient — hela hemsidans interaktiva UI (filter, adress, karuseller).
  * Servern (app/page.tsx) streamar in första datan via initialData så första
@@ -638,8 +644,8 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   
   const [cities, setCities] = useState<City[]>(initialData?.cities ?? []);
   const [deals, setDeals] = useState<any[]>(() => (initialData?.deals ?? []).filter((d: any) => d.isActive && d.showOnSite));
-  const [appDeals, setAppDeals] = useState<HomeAppDeal[]>(initialData?.appDeals ?? []);
-  const [pulseModules, setPulseModules] = useState<HomePulseModule[]>(initialData?.pulse?.modules ?? []);
+  const [appDeals, setAppDeals] = useState<HomeAppDeal[]>((initialData?.appDeals ?? []).filter((deal: any) => !isRetiredFavoriteDeal(deal)));
+  const [pulseModules, setPulseModules] = useState<HomePulseModule[]>((initialData?.pulse?.modules ?? []).filter((deal: any) => !isRetiredFavoriteDeal(deal)));
   const [homeGreeting, setHomeGreeting] = useState<string | null>(initialData?.pulse?.greeting ?? null);
   const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [sponsors, setSponsors] = useState<SponsorData[]>(initialData?.sponsors ?? []);
@@ -706,9 +712,9 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       axios.get(`/api/platform/deals/app`, { params: { placement: "HOME_TOP", limit: 8, loggedIn: "1", _t: Date.now() } }).catch(() => ({ data: { deals: appDeals } })),
       axios.get(`/api/platform/home/pulse`, { params: { _t: Date.now() } }).catch(() => ({ data: { greeting: homeGreeting, modules: pulseModules } })),
     ]).then(([dealsRes, pulseRes]) => {
-      if (Array.isArray(dealsRes.data?.deals)) setAppDeals(dealsRes.data.deals);
+      if (Array.isArray(dealsRes.data?.deals)) setAppDeals(dealsRes.data.deals.filter((deal: any) => !isRetiredFavoriteDeal(deal)));
       if (Array.isArray(pulseRes.data?.modules)) {
-        setPulseModules(pulseRes.data.modules);
+        setPulseModules(pulseRes.data.modules.filter((deal: any) => !isRetiredFavoriteDeal(deal)));
         setHomeGreeting(pulseRes.data.greeting ?? null);
       }
     });
@@ -966,9 +972,10 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       const dealsData = Array.isArray(resDeals.data) ? resDeals.data : [];
       const sponsorsData = Array.isArray(resSponsors.data) ? resSponsors.data : [];
       const homeCategoryData = Array.isArray(resHomeCategories.data) ? resHomeCategories.data : [];
-      const personalDealsData = Array.isArray(resPersonal.data) ? resPersonal.data : [];
-      const appDealsData = Array.isArray(resAppDeals.data?.deals) ? resAppDeals.data.deals : [];
+      const personalDealsData = Array.isArray(resPersonal.data) ? resPersonal.data.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
+      const appDealsData = Array.isArray(resAppDeals.data?.deals) ? resAppDeals.data.deals.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
       const pulseData = resPulse.data && typeof resPulse.data === "object" ? resPulse.data as HomePulseResponse : { modules: [] };
+      const pulseModulesData = Array.isArray(pulseData.modules) ? pulseData.modules.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
 
       setRestaurants(restaurantsData);
       setCities(citiesData);
@@ -977,7 +984,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
       setHomeCategorySections(homeCategoryData);
       setPersonalDeals(personalDealsData);
       setAppDeals(appDealsData);
-      setPulseModules(Array.isArray(pulseData.modules) ? pulseData.modules : []);
+      setPulseModules(pulseModulesData);
       setHomeGreeting(pulseData.greeting ?? null);
 
       // Persistera för nästa besök → instant paint utan skeleton (personalDeals

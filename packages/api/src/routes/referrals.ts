@@ -36,6 +36,11 @@ const router = Router();
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+const isRetiredFavoriteUserDeal = (deal: any) => {
+  const metadata = (deal?.metadata || {}) as any;
+  return deal?.type === 'FAVORITE_PRODUCT' || Boolean(metadata.favoriteProductId);
+};
+
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // utan 0/O/1/I/L för läsbarhet
 const CODE_LENGTH = 8;
 
@@ -691,7 +696,21 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ deals });
+    const retiredFavoriteIds: string[] = [];
+    const visibleDeals = deals.filter((deal: any) => {
+      if (!isRetiredFavoriteUserDeal(deal)) return true;
+      retiredFavoriteIds.push(deal.id);
+      return false;
+    });
+
+    if (retiredFavoriteIds.length) {
+      (prisma as any).userDeal.updateMany({
+        where: { id: { in: retiredFavoriteIds }, status: { in: ['ACTIVE', 'RESERVED'] } },
+        data: { status: 'EXPIRED' },
+      }).catch(() => null);
+    }
+
+    res.json({ deals: visibleDeals });
   } catch (err: any) {
     console.error('[user-deals GET] error:', err?.message);
     res.status(500).json({ error: 'Serverfel' });

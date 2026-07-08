@@ -257,11 +257,17 @@ function ProfileContent() {
           return !PROFILE_HIDDEN_ORDER_STATUSES.has(status) && !PROFILE_HIDDEN_PAYMENT_STATUSES.has(paymentStatus);
         }),
       );
-      setDeals((Array.isArray(dealsRes.data) ? dealsRes.data : []).filter((deal: any) => deal?.source !== "APP_MISSION"));
+      const isRetiredFavoriteDeal = (deal: any) => {
+        const metadata = deal?.metadata || {};
+        const campaign = deal?.campaign || {};
+        const title = String(deal?.title || campaign?.title || campaign?.name || "").toLowerCase();
+        return deal?.type === "FAVORITE_PRODUCT" || Boolean(metadata.favoriteProductId) || title.includes("din favorit");
+      };
+      setDeals((Array.isArray(dealsRes.data) ? dealsRes.data : []).filter((deal: any) => deal?.source !== "APP_MISSION" && !isRetiredFavoriteDeal(deal)));
       // Sammanställ alla deals — claimade först (av kunden), sen globala (auto-tillgängliga).
       const isProfileDeal = (deal: any) => {
         const template = String(deal?.appTemplate || deal?.template || "").toUpperCase();
-        return !deal?.appMissionType && template !== "MISSION" && deal?.source !== "APP_MISSION";
+        return !deal?.appMissionType && template !== "MISSION" && deal?.source !== "APP_MISSION" && !isRetiredFavoriteDeal(deal);
       };
       const merged = [
         ...((claimedRes.data?.claimed || []) as any[]).map((d: any) => ({ ...d, _kind: 'CLAIMED' })),

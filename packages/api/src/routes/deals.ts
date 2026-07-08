@@ -130,6 +130,9 @@ const favoriteProductIdFor = (userDeal: any) => {
   return productId || null;
 };
 
+const isRetiredFavoriteUserDeal = (userDeal: any) =>
+  userDeal?.type === 'FAVORITE_PRODUCT' || Boolean(favoriteProductIdFor(userDeal));
+
 const favoriteProductIsGone = async (userDeal: any) => {
   const productId = favoriteProductIdFor(userDeal);
   if (!productId) return false;
@@ -323,6 +326,18 @@ const calculateUserDealQuote = (userDeal: any, input: any, cartItems: CartQuoteI
   const isDelivery = String(input.orderMode).toUpperCase() === 'DELIVERY';
   const metadata = (userDeal.metadata || {}) as any;
   const minOrderKr = Math.max(0, Number(metadata.minOrderKr || 0));
+
+  if (isRetiredFavoriteUserDeal(userDeal)) {
+    return {
+      applicable: false,
+      reason: 'FAVORITE_DEAL_RETIRED',
+      minOrderKr,
+      subtotalDiscountOre: 0,
+      deliveryDiscountOre: 0,
+      discountAmountOre: 0,
+      dpointsBonus: 0,
+    };
+  }
 
   if ((metadata.appMissionType || userDeal.type === 'APP_MISSION') && !metadata.appTemplate?.includes?.('CHECKOUT')) {
     return {
@@ -555,6 +570,8 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
 // 10% av produktpriset; ordern kräver att produkten faktiskt ligger i korgen.
 router.post('/app/favorite/claim', authenticateUser, async (req: any, res) => {
   try {
+    const favoriteDealsEnabled = false;
+    if (!favoriteDealsEnabled) return res.status(410).json({ error: 'Din favorit är borttagen' });
     const productId = String(req.body?.productId || '').trim();
     if (!productId) return res.status(400).json({ error: 'productId saknas' });
 
@@ -782,6 +799,19 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
       });
     }
 
+    if (isRetiredFavoriteUserDeal(userDeal)) {
+      await expireUserDealQuietly(userDeal.id);
+      return res.status(404).json({
+        applicable: false,
+        reason: 'FAVORITE_DEAL_RETIRED',
+        discountAmountKr: 0,
+        deliveryDiscountKr: 0,
+        subtotalDiscountKr: 0,
+        dpointsBonus: 0,
+        deal: null,
+      });
+    }
+
     if (isClaimedDealParentInactive(userDeal)) {
       await expireUserDealQuietly(userDeal.id);
       return res.status(404).json({
@@ -883,6 +913,8 @@ const userDealValueLabel = (userDeal: any): string => {
 router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
   try {
     const data = MyDealsSchema.parse(req.body);
+    const legacyCheckoutDealsEnabled = false;
+    if (!legacyCheckoutDealsEnabled) return res.json({ deals: [] });
     const userDeals = await (prisma as any).userDeal.findMany({
       where: {
         userId: req.user.id,

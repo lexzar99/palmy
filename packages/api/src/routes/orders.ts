@@ -1046,6 +1046,14 @@ router.post('/', async (req: Request, res: Response) => {
       if (!userDeal) {
         throw new OrderValidationError('Kupongen är inte längre giltig');
       }
+      const userDealMeta = (userDeal.metadata || {}) as any;
+      if (userDeal.type === 'FAVORITE_PRODUCT' || userDealMeta.favoriteProductId) {
+        await (prisma as any).userDeal.updateMany({
+          where: { id: userDeal.id, status: { in: ['ACTIVE', 'RESERVED'] } },
+          data: { status: 'EXPIRED' },
+        }).catch(() => null);
+        throw new OrderValidationError('Din favorit-dealen är borttagen');
+      }
       if (
         ['APP_DEAL', 'APP_MISSION', 'CAMPAIGN'].includes(String(userDeal.type || '')) &&
         (!userDeal.deal || !userDeal.deal.isActive || !userDeal.deal.appEnabled || (userDeal.deal.validFrom && userDeal.deal.validFrom > new Date()) || (userDeal.deal.validUntil && userDeal.deal.validUntil < new Date()))
@@ -1063,7 +1071,7 @@ router.post('/', async (req: Request, res: Response) => {
       }
       // Din favorit: rabatten gäller bara när favoriten ligger i beställningen
       // hos sin restaurang.
-      const favoriteMeta = (userDeal.metadata || {}) as any;
+      const favoriteMeta = userDealMeta;
       if (favoriteMeta.favoriteProductId) {
         const favoriteProduct = await prisma.product.findFirst({
           where: {
@@ -1144,7 +1152,6 @@ router.post('/', async (req: Request, res: Response) => {
       const deliveryDiscountOre = wantsFreeDelivery ? deliveryFee : 0;
 
       const totalDealOre = subtotalDiscountOre + deliveryDiscountOre;
-      const userDealMeta = (userDeal.metadata || {}) as any;
       const appDpointsBonus = userDealMeta.appMissionType ? 0 : Math.max(0, Number(userDealMeta.appDpointsBonus || 0));
       if (totalDealOre > 0 || appDpointsBonus > 0) {
         // discountAmount absorberar BÅDA komponenterna. Order-formel är

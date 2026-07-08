@@ -15,6 +15,11 @@ const isMissionProfileDeal = (deal: any) => {
   return Boolean(deal?.appMissionType) || template === 'MISSION';
 };
 
+const isRetiredFavoriteUserDeal = (deal: any) => {
+  const metadata = (deal?.metadata || {}) as any;
+  return deal?.type === 'FAVORITE_PRODUCT' || Boolean(metadata.favoriteProductId);
+};
+
 // GET /api/profile
 // Helper: build a full name from first + last (or fallback to existing).
 function joinFullName(first: string | null | undefined, last: string | null | undefined): string {
@@ -361,8 +366,13 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
       };
     });
 
+    const retiredFavoriteIds: string[] = [];
     const formattedAppDeals = appUserDeals.filter((deal: any) => {
       const metadata = (deal.metadata || {}) as any;
+      if (isRetiredFavoriteUserDeal(deal)) {
+        retiredFavoriteIds.push(deal.id);
+        return false;
+      }
       return deal.type !== 'APP_MISSION' && !metadata.appMissionType && String(metadata.appTemplate || '').toUpperCase() !== 'MISSION';
     }).map((deal: any) => {
       const metadata = (deal.metadata || {}) as any;
@@ -403,6 +413,13 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
         },
       };
     });
+
+    if (retiredFavoriteIds.length) {
+      (prisma as any).userDeal.updateMany({
+        where: { id: { in: retiredFavoriteIds }, status: { in: ['ACTIVE', 'RESERVED'] } },
+        data: { status: 'EXPIRED' },
+      }).catch(() => null);
+    }
 
     res.json([...formattedAppDeals, ...formatted]);
   } catch (error) {
