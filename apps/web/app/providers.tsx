@@ -1,6 +1,5 @@
 "use client";
 
-import { SessionProvider } from "next-auth/react";
 import { createContext, useContext, useEffect } from "react";
 import { clearLegacyPlatformUserToken } from "@/lib/platformSessionClient";
 import { ToastProvider } from "@/components/Toast";
@@ -33,12 +32,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <SessionProvider>
-      <LocaleProvider>
-        <ThemeContext.Provider value={LIGHT_THEME}>
-          <ToastProvider>{children}</ToastProvider>
-        </ThemeContext.Provider>
-      </LocaleProvider>
-    </SessionProvider>
+    <LocaleProvider>
+      <ThemeContext.Provider value={LIGHT_THEME}>
+        <ToastProvider>{children}</ToastProvider>
+      </ThemeContext.Provider>
+    </LocaleProvider>
   );
 }

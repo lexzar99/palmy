@@ -20,6 +20,7 @@ export default function SmartImage({
   priority = false,
   fetchPriority,
   loading,
+  quality,
 }: {
   src: string;
   alt: string;
@@ -29,6 +30,7 @@ export default function SmartImage({
   priority?: boolean;
   fetchPriority?: NonNullable<ImageProps["fetchPriority"]>;
   loading?: "eager" | "lazy";
+  quality?: number;
 }) {
   if (!src) return null;
 
@@ -53,6 +55,7 @@ export default function SmartImage({
         priority={priority}
         loading={priority ? undefined : resolvedLoading}
         fetchPriority={resolvedFetchPriority}
+        quality={quality ?? 45}
       />
     );
   }

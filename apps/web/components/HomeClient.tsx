@@ -26,11 +26,8 @@ import {
   Crown,
   Flame,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import AddressModal from "@/components/AddressModal";
 import { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
-import WelcomeDealBanner from "@/components/WelcomeDealBanner";
 import EmptyState from "@/components/EmptyState";
 import type { TrackingAd } from "@/components/OrderTrackingCard";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
@@ -40,6 +37,7 @@ import { useCartStore } from "@/store/cartStore";
 import { useFavorites } from "@/lib/favoritesStore";
 import { addSkippedReviewOrderId, readSkippedReviewOrderIds } from "@/lib/reviewPrompt";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import { optimizedImageUrl } from "@/lib/imageOptimization";
 
 const OrderTrackingCard = dynamic(
   () => import("@/components/OrderTrackingCard").then((mod) => mod.OrderTrackingCard),
@@ -49,6 +47,8 @@ const TrackingAdsRail = dynamic(
   () => import("@/components/OrderTrackingCard").then((mod) => mod.TrackingAdsRail),
   { ssr: false },
 );
+const AddressModal = dynamic(() => import("@/components/AddressModal"), { ssr: false });
+const WelcomeDealBanner = dynamic(() => import("@/components/WelcomeDealBanner"), { ssr: false });
 
 interface Restaurant {
   id: string;
@@ -159,7 +159,7 @@ const DELIVERED_TRACKING_STATUSES = new Set(["DELIVERED", "COMPLETED"]);
 const PROMO_CARD_WIDTH = 260;
 const PROMO_CARD_GAP = 12;
 const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
-const HOME_PROMO_IMAGE_SIZES = "(max-width: 640px) 88vw, 460px";
+const HOME_PROMO_IMAGE_SIZES = "(max-width: 640px) 72vw, 460px";
 const RESTAURANT_RAIL_IMAGE_SIZES = "(max-width: 639px) 230px, (max-width: 767px) 260px, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw";
 const RESTAURANT_LIST_IMAGE_SIZES = "(max-width: 1023px) calc(100vw - 32px), (max-width: 1535px) 50vw, 33vw";
 const ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT = 0;
@@ -498,14 +498,11 @@ function ChampionPromoCard({ module, onOpen, imagePriority = false }: { module: 
   return (
     <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card group text-left">
       {image ? (
-        <SmartImage
-          src={image}
-          alt={restaurant.name}
-          sizes={HOME_PROMO_IMAGE_SIZES}
-          priority={imagePriority}
-          loading={imagePriority ? "eager" : "lazy"}
-          fetchPriority={imagePriority ? "high" : "auto"}
-          className="absolute inset-0 h-full w-full object-cover"
+        <span
+          role="img"
+          aria-label={restaurant.name}
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url("${optimizedImageUrl(image, imagePriority ? 640 : 750, imagePriority ? 45 : 50)}")` }}
         />
       ) : <span className="absolute inset-0" style={{ background: pulseGradient(module.theme) }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/75" />
@@ -528,14 +525,11 @@ function HighlightPromoCard({ restaurant, badge, onOpen, imagePriority = false }
   return (
     <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card text-left">
       {image ? (
-        <SmartImage
-          src={image}
-          alt={restaurant.name}
-          sizes={HOME_PROMO_IMAGE_SIZES}
-          priority={imagePriority}
-          loading={imagePriority ? "eager" : "lazy"}
-          fetchPriority={imagePriority ? "high" : "auto"}
-          className="absolute inset-0 h-full w-full object-cover"
+        <span
+          role="img"
+          aria-label={restaurant.name}
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url("${optimizedImageUrl(image, imagePriority ? 640 : 750, imagePriority ? 45 : 50)}")` }}
         />
       ) : <span className="absolute inset-0" style={{ background: pulseGradient("sky") }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/70" />
@@ -918,6 +912,8 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [closedRestaurant, setClosedRestaurant] = useState<Restaurant | null>(null);
   const [infoRestaurant, setInfoRestaurant] = useState<Restaurant | null>(null);
+  const [showAllPromoCards, setShowAllPromoCards] = useState(false);
+  const revealPromoCards = useCallback(() => setShowAllPromoCards(true), []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -1014,56 +1010,70 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     // Visa skeleton bara om vi inte redan har NÅGOT att rendera (varken RSC-
     // seed eller cache) — annars körs fetchen tyst i bakgrunden.
     if (!ssrSeed && !seededFromCacheRef.current) setLoading(true);
-    Promise.all([
-      axios.get(`${API_URL}/api/restaurants`),
-      axios.get(`${API_URL}/api/cities`),
-      axios.get(`${API_URL}/api/deals`),
-      axios.get(`${API_URL}/api/sponsors`).catch(() => ({ data: [] })),
-      axios.get(`${API_URL}/api/home-categories`).catch(() => ({ data: [] })),
-      isLoggedIn ? axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
-      axios.get(isLoggedIn ? `/api/platform/deals/app` : `${API_URL}/api/deals/app`, { params: { placement: "HOME_TOP", limit: 8, loggedIn: isLoggedIn ? "1" : "0", _t: Date.now() } }).catch(() => ({ data: { deals: initialData?.appDeals ?? [] } })),
-      axios.get(isLoggedIn ? `/api/platform/home/pulse` : `${API_URL}/api/home/pulse`, { params: { _t: Date.now() } }).catch(() => ({ data: initialData?.pulse ?? { modules: [] } })),
-    ]).then(([resRest, resCities, resDeals, resSponsors, resHomeCategories, resPersonal, resAppDeals, resPulse]) => {
-      const restaurantsData = Array.isArray(resRest.data) ? resRest.data : [];
-      const citiesData = Array.isArray(resCities.data) ? resCities.data : [];
-      const dealsData = Array.isArray(resDeals.data) ? resDeals.data : [];
-      const sponsorsData = Array.isArray(resSponsors.data) ? resSponsors.data : [];
-      const homeCategoryData = Array.isArray(resHomeCategories.data) ? resHomeCategories.data : [];
-      const personalDealsData = Array.isArray(resPersonal.data) ? resPersonal.data.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
-      const appDealsData = Array.isArray(resAppDeals.data?.deals) ? resAppDeals.data.deals.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
-      const pulseData = resPulse.data && typeof resPulse.data === "object" ? resPulse.data as HomePulseResponse : { modules: [] };
-      const pulseModulesData = Array.isArray(pulseData.modules) ? pulseData.modules.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
+    const refresh = () => {
+      Promise.all([
+        axios.get(`${API_URL}/api/restaurants`),
+        axios.get(`${API_URL}/api/cities`),
+        axios.get(`${API_URL}/api/deals`),
+        axios.get(`${API_URL}/api/sponsors`).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/api/home-categories`).catch(() => ({ data: [] })),
+        isLoggedIn ? axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        axios.get(isLoggedIn ? `/api/platform/deals/app` : `${API_URL}/api/deals/app`, { params: { placement: "HOME_TOP", limit: 8, loggedIn: isLoggedIn ? "1" : "0", _t: Date.now() } }).catch(() => ({ data: { deals: initialData?.appDeals ?? [] } })),
+        axios.get(isLoggedIn ? `/api/platform/home/pulse` : `${API_URL}/api/home/pulse`, { params: { _t: Date.now() } }).catch(() => ({ data: initialData?.pulse ?? { modules: [] } })),
+      ]).then(([resRest, resCities, resDeals, resSponsors, resHomeCategories, resPersonal, resAppDeals, resPulse]) => {
+        const restaurantsData = Array.isArray(resRest.data) ? resRest.data : [];
+        const citiesData = Array.isArray(resCities.data) ? resCities.data : [];
+        const dealsData = Array.isArray(resDeals.data) ? resDeals.data : [];
+        const sponsorsData = Array.isArray(resSponsors.data) ? resSponsors.data : [];
+        const homeCategoryData = Array.isArray(resHomeCategories.data) ? resHomeCategories.data : [];
+        const personalDealsData = Array.isArray(resPersonal.data) ? resPersonal.data.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
+        const appDealsData = Array.isArray(resAppDeals.data?.deals) ? resAppDeals.data.deals.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
+        const pulseData = resPulse.data && typeof resPulse.data === "object" ? resPulse.data as HomePulseResponse : { modules: [] };
+        const pulseModulesData = Array.isArray(pulseData.modules) ? pulseData.modules.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
 
-      setRestaurants(restaurantsData);
-      setCities(citiesData);
-      setDeals(dealsData.filter((d: any) => d.isActive && d.showOnSite));
-      setSponsors(sponsorsData);
-      setHomeCategorySections(homeCategoryData);
-      setPersonalDeals(personalDealsData);
-      setAppDeals(appDealsData);
-      setPulseModules(pulseModulesData);
-      setHomeGreeting(pulseData.greeting ?? null);
+        setRestaurants(restaurantsData);
+        setCities(citiesData);
+        setDeals(dealsData.filter((d: any) => d.isActive && d.showOnSite));
+        setSponsors(sponsorsData);
+        setHomeCategorySections(homeCategoryData);
+        setPersonalDeals(personalDealsData);
+        setAppDeals(appDealsData);
+        setPulseModules(pulseModulesData);
+        setHomeGreeting(pulseData.greeting ?? null);
 
-      // Persistera för nästa besök → instant paint utan skeleton (personalDeals
-      // utelämnas medvetet: kontospecifikt, hämtas alltid färskt).
-      writeHomeCache({
-        restaurants: restaurantsData,
-        cities: citiesData,
-        deals: dealsData,
-        sponsors: sponsorsData,
-        homeCategories: homeCategoryData,
-      });
+        // Persistera för nästa besök → instant paint utan skeleton (personalDeals
+        // utelämnas medvetet: kontospecifikt, hämtas alltid färskt).
+        writeHomeCache({
+          restaurants: restaurantsData,
+          cities: citiesData,
+          deals: dealsData,
+          sponsors: sponsorsData,
+          homeCategories: homeCategoryData,
+        });
 
-      const initialAddress = localStorage.getItem("platform_address") || "";
-      if (initialAddress && citiesData.length > 0) {
-        const match = citiesData.find((c: City) => c.name?.toLowerCase() === initialAddress.toLowerCase());
-        if (match) setSelectedCity(match);
+        const initialAddress = localStorage.getItem("platform_address") || "";
+        if (initialAddress && citiesData.length > 0) {
+          const match = citiesData.find((c: City) => c.name?.toLowerCase() === initialAddress.toLowerCase());
+          if (match) setSelectedCity(match);
+        }
+      }).catch((err) => {
+        console.error("API Error on Home:", err);
+        if (!ssrSeed) setApiError(true);
+      })
+      .finally(() => { if (!ssrSeed) setLoading(false); });
+    };
+
+    if (ssrSeed) {
+      const win = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number; cancelIdleCallback?: (id: number) => void };
+      if (win.requestIdleCallback) {
+        const id = win.requestIdleCallback(refresh, { timeout: 3000 });
+        return () => win.cancelIdleCallback?.(id);
       }
-    }).catch((err) => {
-      console.error("API Error on Home:", err);
-      if (!ssrSeed) setApiError(true);
-    })
-    .finally(() => { if (!ssrSeed) setLoading(false); });
+      const id = window.setTimeout(refresh, 1800);
+      return () => window.clearTimeout(id);
+    }
+
+    refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1455,6 +1465,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     }
     return base;
   }, [sponsors, appDeals, pulseModules]);
+  const renderedPromoCards = showAllPromoCards ? promoCards : promoCards.slice(0, 1);
 
   const getDealForRestaurant = useCallback((restaurantId: string) => {
     return allDealCards.find(d => d.relatedRestaurantIds?.includes(restaurantId) || d.isGlobal);
@@ -1479,11 +1490,11 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     const snap = getPromoSnap(rail);
     const idx = Math.max(
       0,
-      Math.min(Math.round(rail.scrollLeft / snap), Math.max(promoCards.length - 1, 0))
+      Math.min(Math.round(rail.scrollLeft / snap), Math.max(renderedPromoCards.length - 1, 0))
     );
     promoIndexRef.current = idx;
     setActivePromo(idx);
-  }, [promoCards.length]);
+  }, [renderedPromoCards.length]);
 
   useEffect(() => {
     promoIndexRef.current = 0;
@@ -1854,11 +1865,13 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
             </div>
             <div
               ref={promoRailRef}
+              onPointerDown={revealPromoCards}
+              onFocus={revealPromoCards}
               onScroll={handlePromoScroll}
               className="flex items-start gap-3 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0"
               style={{ scrollSnapType: "x mandatory" }}
             >
-              {promoCards.map((item, i) => {
+              {renderedPromoCards.map((item, i) => {
                 const shouldPrioritizeImage = i === 0;
                 return (
                   <div key={item.id} style={{ scrollSnapAlign: "start" }}>
@@ -1887,9 +1900,9 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
               })}
             </div>
             {/* Prick-indikator */}
-            {promoCards.length > 1 && (
+            {renderedPromoCards.length > 1 && (
               <div className="flex items-center justify-center gap-1.5 mt-3">
-                {promoCards.map((item, i) => (
+                {renderedPromoCards.map((item, i) => (
                   <button
                     key={`dot-${item.id}`}
                     aria-label={`Visa erbjudande ${i + 1}`}
@@ -2250,10 +2263,9 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         </section>
 
         {/* Info Modal Implementation */}
-        <AnimatePresence>
           {infoRestaurant && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setInfoRestaurant(null)} style={{ backgroundColor: "rgba(252,252,249,0.92)" }}>
-              <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setInfoRestaurant(null)} style={{ backgroundColor: "rgba(252,252,249,0.92)" }}>
+              <div className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                 <div className="w-16 h-16 bg-gold-500/10 rounded-[2rem] flex items-center justify-center mb-8 border border-gold-500/20 text-gold-500">
                     <Info size={32} />
                 </div>
@@ -2293,10 +2305,9 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                 <button onClick={() => setInfoRestaurant(null)} className="absolute top-10 right-10 text-zinc-700 hover:text-white transition-colors">
                     <X size={24} />
                 </button>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           )}
-        </AnimatePresence>
 
         {/* Promo Footer */}
         <section className="mt-12 lg:mt-20 rounded-[2rem] sm:rounded-[2.5rem] lg:rounded-[3.5rem] bg-gradient-to-r from-gold-500 to-amber-600 p-6 sm:p-10 lg:p-12 relative overflow-hidden group shadow-2xl shadow-gold-500/10">
@@ -2316,13 +2327,14 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         </section>
       </div>
 
-      <AddressModal isOpen={showAddressModal} onClose={() => { setShowAddressModal(false); setPendingHref(null); }} onConfirm={handleAddressConfirm} orderType={orderType} setOrderType={setOrderType} />
+      {showAddressModal && (
+        <AddressModal isOpen={showAddressModal} onClose={() => { setShowAddressModal(false); setPendingHref(null); }} onConfirm={handleAddressConfirm} orderType={orderType} setOrderType={setOrderType} />
+      )}
 
       {/* Closed popup handling */}
-      <AnimatePresence>
         {closedRestaurant && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setClosedRestaurant(null)} style={{ backgroundColor: "rgba(252,252,249,0.92)" }}>
-             <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] text-center border overflow-hidden" onClick={e => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setClosedRestaurant(null)} style={{ backgroundColor: "rgba(252,252,249,0.92)" }}>
+             <div className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] text-center border overflow-hidden" onClick={e => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                 <div className="w-20 h-20 bg-rose-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-rose-500/20 shadow-lg shadow-rose-500/10">
                    <span className="text-4xl text-rose-500 group-hover:scale-110 transition-transform">🌙</span>
                 </div>
@@ -2332,10 +2344,9 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                    <button onClick={() => { router.push(getRestaurantHref(closedRestaurant)); setClosedRestaurant(null); }} className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all">{t("home.closedModal.seeMenu")}</button>
                    <button onClick={() => setClosedRestaurant(null)} className="w-full py-5 font-black uppercase text-[10px] tracking-widest transition-colors" style={{ color: "var(--text-secondary)" }}>{t("common.close")}</button>
                 </div>
-             </motion.div>
-          </motion.div>
+             </div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   );
 }

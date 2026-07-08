@@ -11,6 +11,7 @@ export const revalidate = 300;
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://api.viaeats.se";
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://viaeats.se").replace(/\/$/, "");
 
 // Pre-render known restaurant slugs at build and ISR-cache the rest on demand,
 // so 1000 same-restaurant loads hit a cached shell instead of 1000 live SSR
@@ -31,11 +32,21 @@ export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
 }
 
 interface Restaurant {
+  slug?: string;
   name?: string;
   description?: string;
   cuisine?: string;
   imageUrl?: string;
+  heroImageUrl?: string;
   comingSoon?: boolean;
+  address?: string;
+  city?: string;
+  zip?: string;
+  phone?: string;
+  rating?: number;
+  ratingCount?: number;
+  deliveryFee?: number;
+  minOrderAmount?: number;
 }
 
 async function getRestaurant(slug: string): Promise<Restaurant | null> {
@@ -111,24 +122,56 @@ export async function generateMetadata({
     (restaurant.cuisine
       ? `${restaurant.cuisine} · se menyn och beställ online.`
       : "Se menyn och lägg din beställning.");
+  const url = `${SITE_URL}/restaurants/${slug}`;
+  const image = restaurant.heroImageUrl || restaurant.imageUrl || undefined;
 
   return {
     title,
     description,
+    alternates: { canonical: url },
     openGraph: {
       title,
       description,
-      ...(restaurant.imageUrl && {
-        images: [{ url: restaurant.imageUrl }],
+      url,
+      ...(image && {
+        images: [{ url: image, alt: restaurant.name || "ViaEats restaurang" }],
       }),
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      ...(restaurant.imageUrl && { images: [restaurant.imageUrl] }),
+      ...(image && { images: [image] }),
     },
   };
+}
+
+function restaurantJsonLd(restaurant: Restaurant, slug: string) {
+  const image = restaurant.heroImageUrl || restaurant.imageUrl;
+  const data: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Restaurant",
+    name: restaurant.name,
+    url: `${SITE_URL}/restaurants/${slug}`,
+    servesCuisine: restaurant.cuisine || undefined,
+    description: restaurant.description || undefined,
+    image: image ? [image] : undefined,
+    telephone: restaurant.phone || undefined,
+    address: restaurant.address || restaurant.city || restaurant.zip ? {
+      "@type": "PostalAddress",
+      streetAddress: restaurant.address || undefined,
+      postalCode: restaurant.zip || undefined,
+      addressLocality: restaurant.city || undefined,
+      addressCountry: "SE",
+    } : undefined,
+    aggregateRating: restaurant.rating && restaurant.ratingCount ? {
+      "@type": "AggregateRating",
+      ratingValue: restaurant.rating,
+      reviewCount: restaurant.ratingCount,
+    } : undefined,
+  };
+
+  return Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
 }
 
 export default async function RestaurantPage({
@@ -153,7 +196,7 @@ export default async function RestaurantPage({
   // we pass initialData=null and fall back to the existing CLIENT fetch path
   // (the old, safe behavior). Today only one restaurant has a real menu
   // (~1.5MB) so this is a forward-looking safety net.
-  const MENU_SSR_MAX_BYTES = 1_800_000;
+  const MENU_SSR_MAX_BYTES = Number(process.env.MENU_SSR_MAX_BYTES ?? 220_000);
   const menuData = menuResult?.data ?? null;
   const menuBytes = menuResult?.bytes ?? 0;
   const menuFitsSSR = menuData != null && menuBytes > 0 && menuBytes <= MENU_SSR_MAX_BYTES;
@@ -175,10 +218,18 @@ export default async function RestaurantPage({
   // (page-fade-in) → sidan låg halvtransparent i ~0.8s. CSS-faden räcker och
   // startar direkt med SSR-paint, utan JS.
   return (
-    <MenuContent
-      restaurantSlug={slug}
-      isStandalone={true}
-      initialData={initialData}
-    />
+    <>
+      {restaurant && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(restaurantJsonLd(restaurant, slug)) }}
+        />
+      )}
+      <MenuContent
+        restaurantSlug={slug}
+        isStandalone={true}
+        initialData={initialData}
+      />
+    </>
   );
 }

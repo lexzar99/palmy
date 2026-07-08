@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { Smartphone, X } from "lucide-react";
 
 const VISITS_KEY = "viaeats_visit_count";
@@ -80,12 +79,9 @@ export default function PWAInstallPrompt() {
   };
 
   return (
-    <AnimatePresence>
+    <>
       {visible && (
-        <motion.div
-          initial={{ y: 80, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 80, opacity: 0 }}
+        <div
           className="fixed left-4 right-4 md:hidden z-[90]"
           style={{ bottom: "calc(7rem + env(safe-area-inset-bottom, 0px))" }}
         >
@@ -126,8 +122,8 @@ export default function PWAInstallPrompt() {
               <X size={14} />
             </button>
           </div>
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState, useCallback } from "react";
-import { signOut, useSession } from "next-auth/react";
+import { SessionProvider, signOut, useSession } from "next-auth/react";
 import axios from "axios";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
@@ -1778,8 +1778,10 @@ function ProfileContent() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<ProfileSkeleton />}>
-      <ProfileContent />
-    </Suspense>
+    <SessionProvider>
+      <Suspense fallback={<ProfileSkeleton />}>
+        <ProfileContent />
+      </Suspense>
+    </SessionProvider>
   );
 }

@@ -2,8 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ExternalLink, ArrowRight, Crown, Tag, Flame, Sparkles } from "lucide-react";
-import { motion } from "framer-motion";
-import SmartImage from "@/components/SmartImage";
+import { optimizedImageUrl } from "@/lib/imageOptimization";
 
 export interface SponsorData {
   id: string;
@@ -83,21 +82,16 @@ export default function SponsorCard({
   // kortet så raden förblir enhetlig.
   if (sponsor.cardType === "SHOWCASE") {
     return (
-      <motion.div
-        whileTap={isInteractive ? { scale: 0.99 } : undefined}
-        transition={{ type: "spring", stiffness: 320, damping: 22 }}
+      <div
         onClick={handleClick}
-        className={`swift-promo-card group ${isInteractive ? "cursor-pointer" : "cursor-default"}`}
+        className={`swift-promo-card group active:scale-[0.99] ${isInteractive ? "cursor-pointer" : "cursor-default"}`}
       >
         {/* Restaurangens hero-bild fyller hela kortet. */}
-        <SmartImage
-          src={sponsor.imageUrl}
-          alt={sponsor.name}
-          sizes={imageSizes}
-          priority={imagePriority}
-          loading={imageLoading}
-          fetchPriority={imageFetchPriority}
-          className="absolute inset-0 w-full h-full object-cover"
+        <span
+          role="img"
+          aria-label={sponsor.name}
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url("${optimizedImageUrl(sponsor.imageUrl, imagePriority ? 640 : 750, imagePriority ? 45 : 50)}")` }}
         />
 
         {/* Mörk botten-scrim för läsbarhet, som champion-kortet. */}
@@ -138,31 +132,26 @@ export default function SponsorCard({
             </span>
           )}
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      whileTap={isInteractive ? { scale: 0.99 } : undefined}
-      transition={{ type: "spring", stiffness: 320, damping: 22 }}
+    <div
       onClick={handleClick}
       // STANDARD-format för alla promo-kort: samma bredd
       // OCH samma bildförhållande (banner ~1.9:1). Bilden fyller HELA kortet
       // kant-till-kant via object-cover — eftersom kortets aspect matchar
       // bannerns blir det ingen tom letterbox (desktop) och ingen hård crop
       // (mobil). Bredden: ~full på mobil, fast på sm+; höjden följer aspect.
-      className={`swift-promo-card group ${isInteractive ? "cursor-pointer" : "cursor-default"}`}
+      className={`swift-promo-card group active:scale-[0.99] ${isInteractive ? "cursor-pointer" : "cursor-default"}`}
     >
       {/* Bilden fyller kortet (aspect matchar banner → ingen tom yta/crop). */}
-      <SmartImage
-        src={sponsor.imageUrl}
-        alt={sponsor.name}
-        sizes={imageSizes}
-        priority={imagePriority}
-        loading={imageLoading}
-        fetchPriority={imageFetchPriority}
-        className="absolute inset-0 w-full h-full object-cover"
+      <span
+        role="img"
+        aria-label={sponsor.name}
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url("${optimizedImageUrl(sponsor.imageUrl, imagePriority ? 640 : 750, imagePriority ? 45 : 50)}")` }}
       />
 
       {/* Namn-overlay (valfri, admin-styrd). Visas bara om sponsorn INTE redan
@@ -197,6 +186,6 @@ export default function SponsorCard({
           )}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }

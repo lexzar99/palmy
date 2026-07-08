@@ -239,7 +239,12 @@
   to   { opacity: 1; }
 }
 .page-fade-in {
-  animation: pageFadeIn 0.22s ease-out both;
+  animation: none;
+}
+@media (min-width: 768px) {
+  .page-fade-in {
+    animation: pageFadeIn 0.22s ease-out both;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .page-fade-in { animation: none; }

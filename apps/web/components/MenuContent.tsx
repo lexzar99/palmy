@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
-import { io, Socket } from "socket.io-client";
+import type { Socket } from "socket.io-client";
 import { Search, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, Utensils, Store, Truck } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import dynamic from "next/dynamic";
@@ -20,6 +19,7 @@ import { type BogoPickerProduct } from "@/components/BogoPickerModal";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import EmptyState from "@/components/EmptyState";
 import { rehydrateMenuCategories, MENU_FORMAT_PARAM } from "@/lib/menu";
+import { optimizedImageUrl } from "@/lib/imageOptimization";
 
 // Tunga modaler laddas först vid interaktion (köp/adress/BOGO) → mindre initial
 // JS för restaurang-sidan = snabbare första rendering/hydration.
@@ -136,6 +136,7 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
             alt={product.name}
             fill
             sizes="96px"
+            quality={45}
             className="object-cover"
             onError={() => setImgFailed(true)}
           />
@@ -192,6 +193,7 @@ function CompactCard({ product, onClick, disabled }: { product: any; onClick: ()
             alt={product.name}
             fill
             sizes="(max-width: 640px) 50vw, 280px"
+            quality={45}
             className="object-cover"
             onError={() => setImgFailed(true)}
           />
@@ -514,73 +516,59 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
     fetchData();
 
-    const socket: Socket = io(SOCKET_URL, {
-      path: "/socket.io",
-      transports: ["websocket", "polling"],
+    let socket: Socket | null = null;
+    let cancelled = false;
+
+    void import("socket.io-client").then(({ io }) => {
+      if (cancelled) return;
+      socket = io(SOCKET_URL, {
+        path: "/socket.io",
+        transports: ["websocket", "polling"],
+      });
+
+      socket.on("settings:updated", (nextSettings) => {
+        const isGlobal = !nextSettings.slug && !nextSettings.restaurantId;
+        const isMatch = nextSettings.slug === restaurantSlug || (restaurantId && nextSettings.restaurantId === restaurantId);
+
+        if (isMatch || (isGlobal && !restaurantSlug)) {
+          setRestaurant((prev: any) => {
+            if (!prev) return prev;
+            const zoneWasChecked = zoneAvailableRef.current === true;
+            return {
+              ...prev,
+              isOpen: nextSettings.isOpen ?? prev.isOpen ?? true,
+              // Don't overwrite zone-checked fee with socket base fee
+              // (socket sends the restaurant's base fee; zone fee takes priority)
+              deliveryFee: zoneWasChecked ? prev.deliveryFee : (nextSettings.deliveryFee ?? prev.deliveryFee ?? 0),
+              minOrderAmount: zoneWasChecked ? prev.minOrderAmount : (nextSettings.minOrderAmount ?? prev.minOrderAmount ?? 150),
+              etaMinutes: nextSettings.estimatedDeliveryTime ?? nextSettings.etaMinutes ?? prev.etaMinutes ?? 35,
+            };
+          });
+        }
+      });
+
+      // A15: real-time menu propagation. When admin/restaurant changes a product,
+      // category, or extra, we refetch the menu so customers never see stale data.
+      // Cart revalidation happens on next checkout (existing path) — the menu
+      // refetch alone removes the item from the catalog UI so users notice.
+      socket.on("menu:changed", (evt: { restaurantId?: string | null }) => {
+        const isMatch = !evt.restaurantId || (restaurantId && evt.restaurantId === restaurantId);
+        if (!isMatch) return;
+        // Notify the rest of the app (e.g. cart page) — listeners can decide
+        // whether to revalidate cart contents.
+        try { window.dispatchEvent(new CustomEvent("viaeats:menu-changed", { detail: evt })); } catch {}
+        fetchData();
+      });
     });
 
-    socket.on("settings:updated", (nextSettings) => {
-      const isGlobal = !nextSettings.slug && !nextSettings.restaurantId;
-      const isMatch = nextSettings.slug === restaurantSlug || (restaurantId && nextSettings.restaurantId === restaurantId);
-
-      if (isMatch || (isGlobal && !restaurantSlug)) {
-        setRestaurant((prev: any) => {
-          if (!prev) return prev;
-          const zoneWasChecked = zoneAvailableRef.current === true;
-          return {
-            ...prev,
-            isOpen: nextSettings.isOpen ?? prev.isOpen ?? true,
-            // Don't overwrite zone-checked fee with socket base fee
-            // (socket sends the restaurant's base fee; zone fee takes priority)
-            deliveryFee: zoneWasChecked ? prev.deliveryFee : (nextSettings.deliveryFee ?? prev.deliveryFee ?? 0),
-            minOrderAmount: zoneWasChecked ? prev.minOrderAmount : (nextSettings.minOrderAmount ?? prev.minOrderAmount ?? 150),
-            etaMinutes: nextSettings.estimatedDeliveryTime ?? nextSettings.etaMinutes ?? prev.etaMinutes ?? 35,
-          };
-        });
-      }
-    });
-
-    // A15: real-time menu propagation. When admin/restaurant changes a product,
-    // category, or extra, we refetch the menu so customers never see stale data.
-    // Cart revalidation happens on next checkout (existing path) — the menu
-    // refetch alone removes the item from the catalog UI so users notice.
-    socket.on("menu:changed", (evt: { restaurantId?: string | null }) => {
-      const isMatch = !evt.restaurantId || (restaurantId && evt.restaurantId === restaurantId);
-      if (!isMatch) return;
-      // Notify the rest of the app (e.g. cart page) — listeners can decide
-      // whether to revalidate cart contents.
-      try { window.dispatchEvent(new CustomEvent("viaeats:menu-changed", { detail: evt })); } catch {}
-      fetchData();
-    });
-
-    return () => { socket.disconnect(); };
+    return () => {
+      cancelled = true;
+      socket?.disconnect();
+    };
   }, [restaurantSlug, restaurantId, fetchData]);
 
-  // ── Adress-grind vid restaurang-öppning ────────────────────────────────
-  // Flyttad hit från handleOpenProduct: när en gäst landar på en restaurang
-  // (DELIVERY utan sparad adress/koordinater) öppnas SAMMA AddressModal direkt,
-  // istället för att kapa det första produktklicket. handleOpenProduct behålls
-  // som skyddsnät om gästen stänger modalen. Endast på fristående restaurangsida.
-  const addressPromptedRef = useRef(false);
-  useEffect(() => {
-    if (!isStandalone) return;
-    if (!hydrated) return; // vänta tills orderType lästs ur localStorage
-    if (addressPromptedRef.current) return;
-    if (loading || !restaurant?.isOpen) return;
-    if (typeof window === "undefined") return;
-    const noAddr = !localStorage.getItem("platform_address");
-    const noCoords = !localStorage.getItem("platform_coords");
-    const noPickupCity = !localStorage.getItem("platform_pickup_city");
-    // PICKUP: en redan vald avhämtningsstad räcker (ingen adress krävs).
-    // DELIVERY: kräver adress + koordinater för zon-koll.
-    const needsPrompt = orderType === "PICKUP"
-      ? (noAddr && noPickupCity)
-      : (noAddr || noCoords);
-    if (needsPrompt) {
-      addressPromptedRef.current = true;
-      setShowAddressModal(true);
-    }
-  }, [isStandalone, loading, restaurant, orderType, hydrated]);
+  // Adressmodalen laddas på faktisk intent (adressknapp/produktklick). Det
+  // undviker att kartbibliotek och tiles blockar första restaurang-renderingen.
 
   // Refs för pill-knapparna — används för att auto-scrolla aktiv pill in i
   // viewport horisontellt när användaren scrollar mellan kategorier vertikalt.
@@ -783,7 +771,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       {/* ── Hero: kompakt — bilden är kontext, inte huvudinnehåll ────────── */}
       <div className="relative w-full h-40 sm:h-56 overflow-hidden">
         {heroImage ? (
-          <SmartImage src={heroImage} alt={restaurant?.name || ""} loading="eager" sizes="100vw" className="w-full h-full object-cover" />
+          <span
+            role="img"
+            aria-label={restaurant?.name || ""}
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url("${optimizedImageUrl(heroImage, 640, 45)}")` }}
+          />
         ) : (
           <div className="w-full h-full" style={{ backgroundImage: "linear-gradient(135deg, var(--bg-deep), var(--bg-primary))" }} />
         )}
@@ -913,12 +906,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       <div className="mx-auto max-w-2xl px-4 sm:px-6 pt-4 relative">
 
         {/* Out-of-zone banner — only shown for OPEN restaurants; closed ones are handled by the closed state */}
-        <AnimatePresence>
           {zoneAvailable === false && restaurant?.isOpen && orderType === "DELIVERY" && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
+            <div
               className="mb-6 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center gap-3.5"
               style={{ backgroundColor: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.2)" }}
             >
@@ -950,15 +939,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                   {t("common.back")}
                 </Link>
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
 
         {/* Infobanner — admin-konfigurerbar text per restaurang */}
         {restaurant?.announcementText ? (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="mb-5 flex items-start gap-3 rounded-xl px-4 py-3.5"
             style={{ backgroundColor: "var(--gold-soft)", border: "1px solid color-mix(in srgb, var(--gold-ink) 25%, transparent)" }}
           >
@@ -966,7 +952,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             <p className="text-[13.5px] font-medium leading-snug" style={{ color: "var(--gold-ink)" }}>
               {restaurant.announcementText}
             </p>
-          </motion.div>
+          </div>
         ) : null}
 
 
@@ -1143,70 +1129,60 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
       </div>
 
       {/* Overlays / Modals */}
-      <AnimatePresence>
-        {selectedProduct && (
-          <ProductModal
-            product={selectedProduct}
-            restaurantId={restaurant?.id || ""}
-            restaurantSlug={restaurantSlug}
-            onClose={() => {
-              setSelectedProduct(null);
-              // Kontrollera om BOGO-deal triggas efter att produkten lagts i korgen
-              setTimeout(() => checkBogoTrigger(), 50);
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {selectedProduct && (
+        <ProductModal
+          product={selectedProduct}
+          restaurantId={restaurant?.id || ""}
+          restaurantSlug={restaurantSlug}
+          onClose={() => {
+            setSelectedProduct(null);
+            // Kontrollera om BOGO-deal triggas efter att produkten lagts i korgen
+            setTimeout(() => checkBogoTrigger(), 50);
+          }}
+        />
+      )}
 
-      <AnimatePresence>
-        {bogoPicker && (
-          <BogoPickerModal
-            dealId={bogoPicker.dealId}
-            dealTitle={bogoPicker.dealTitle}
-            restaurantId={restaurant?.id || ""}
-            rewardCategoryName={bogoPicker.rewardCategoryName}
-            products={bogoPicker.products}
-            onClose={() => setBogoPicker(null)}
-            onSelectProduct={(p) => {
-              setBogoProduct({
-                product: p,
-                dealId: bogoPicker.dealId,
-                dealTitle: bogoPicker.dealTitle,
-                rewardCategoryName: bogoPicker.rewardCategoryName,
-                excludedExtraIds: bogoPicker.excludedExtraIds,
-              });
-              setBogoPicker(null);
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {bogoPicker && (
+        <BogoPickerModal
+          dealId={bogoPicker.dealId}
+          dealTitle={bogoPicker.dealTitle}
+          restaurantId={restaurant?.id || ""}
+          rewardCategoryName={bogoPicker.rewardCategoryName}
+          products={bogoPicker.products}
+          onClose={() => setBogoPicker(null)}
+          onSelectProduct={(p) => {
+            setBogoProduct({
+              product: p,
+              dealId: bogoPicker.dealId,
+              dealTitle: bogoPicker.dealTitle,
+              rewardCategoryName: bogoPicker.rewardCategoryName,
+              excludedExtraIds: bogoPicker.excludedExtraIds,
+            });
+            setBogoPicker(null);
+          }}
+        />
+      )}
 
-      <AnimatePresence>
-        {bogoProduct && (
-          <ProductModal
-            product={bogoProduct.product}
-            restaurantId={restaurant?.id || ""}
-            restaurantSlug={restaurantSlug}
-            bogoFreeFromDealId={bogoProduct.dealId}
-            bogoDealTitle={bogoProduct.dealTitle}
-            bogoRewardCategoryName={bogoProduct.rewardCategoryName}
-            bogoExcludedExtraIds={bogoProduct.excludedExtraIds}
-            onClose={() => setBogoProduct(null)}
-          />
-        )}
-      </AnimatePresence>
+      {bogoProduct && (
+        <ProductModal
+          product={bogoProduct.product}
+          restaurantId={restaurant?.id || ""}
+          restaurantSlug={restaurantSlug}
+          bogoFreeFromDealId={bogoProduct.dealId}
+          bogoDealTitle={bogoProduct.dealTitle}
+          bogoRewardCategoryName={bogoProduct.rewardCategoryName}
+          bogoExcludedExtraIds={bogoProduct.excludedExtraIds}
+          onClose={() => setBogoProduct(null)}
+        />
+      )}
 
-       <AnimatePresence>
-        {showInfoModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/40 backdrop-blur-md p-4 sm:p-6" onClick={() => setShowInfoModal(false)}>
-            <motion.div
-              initial={{ scale: 0.96, y: 12 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.96, y: 12 }}
-              className="w-full max-w-md rounded-2xl relative overflow-hidden max-h-[90vh] flex flex-col"
-              onClick={e => e.stopPropagation()}
-              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
-            >
+      {showInfoModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/40 backdrop-blur-md p-4 sm:p-6" onClick={() => setShowInfoModal(false)}>
+          <div
+            className="w-full max-w-md rounded-2xl relative overflow-hidden max-h-[90vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+          >
               {/* Header — restaurant name + close. The full info modal got a
                   cleaner header so the rest of the body can breathe. */}
               <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b" style={{ borderColor: "var(--border-muted)" }}>
@@ -1301,52 +1277,53 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                   </div>
                 )}
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
 
-      <AddressModal
-        isOpen={showAddressModal}
-        onClose={() => { setShowAddressModal(false); setPendingProduct(null); }}
-        onConfirm={async (newAddress, newOrderType, coords, postalCode, city) => {
-          setAddress(newAddress);
-          setOrderType(newOrderType);
-          if (typeof window !== "undefined") {
-            localStorage.setItem("platform_address", newAddress);
-            localStorage.setItem("platform_order_type", newOrderType);
-            // Spegla stad-nycklarna som hemsidan läser, så adress-modalen inte
-            // dyker upp igen när man redan valt här (paritet med home-flödet).
-            if (newOrderType === "PICKUP") {
-              localStorage.setItem("platform_pickup_city", city || newAddress);
+      {showAddressModal && (
+        <AddressModal
+          isOpen={showAddressModal}
+          onClose={() => { setShowAddressModal(false); setPendingProduct(null); }}
+          onConfirm={async (newAddress, newOrderType, coords, postalCode, city) => {
+            setAddress(newAddress);
+            setOrderType(newOrderType);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("platform_address", newAddress);
+              localStorage.setItem("platform_order_type", newOrderType);
+              // Spegla stad-nycklarna som hemsidan läser, så adress-modalen inte
+              // dyker upp igen när man redan valt här (paritet med home-flödet).
+              if (newOrderType === "PICKUP") {
+                localStorage.setItem("platform_pickup_city", city || newAddress);
+              } else {
+                localStorage.setItem("platform_delivery_address", newAddress);
+                if (city) localStorage.setItem("platform_city", city);
+              }
+              if (coords) {
+                localStorage.setItem("platform_coords", JSON.stringify(coords));
+                const { rememberQuickAddress } = await import("@/lib/quickAddresses");
+                rememberQuickAddress({ street: newAddress.split(",")[0].trim(), latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
+              }
+            }
+            setShowAddressModal(false);
+            // Re-check zone — checkZone returns the result directly (avoids stale state)
+            let zoneOk: boolean | null = null;
+            if (restaurant && newOrderType === "DELIVERY") {
+              zoneOk = await checkZone(restaurant);
             } else {
-              localStorage.setItem("platform_delivery_address", newAddress);
-              if (city) localStorage.setItem("platform_city", city);
+              setZoneAvailable(null);
+              zoneOk = null;
             }
-            if (coords) {
-              localStorage.setItem("platform_coords", JSON.stringify(coords));
-              const { rememberQuickAddress } = await import("@/lib/quickAddresses");
-              rememberQuickAddress({ street: newAddress.split(",")[0].trim(), latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
+            // Only open product modal if zone check didn't fail
+            if (pendingProduct && zoneOk !== false) {
+              setSelectedProduct(pendingProduct);
             }
-          }
-          setShowAddressModal(false);
-          // Re-check zone — checkZone returns the result directly (avoids stale state)
-          let zoneOk: boolean | null = null;
-          if (restaurant && newOrderType === "DELIVERY") {
-            zoneOk = await checkZone(restaurant);
-          } else {
-            setZoneAvailable(null);
-            zoneOk = null;
-          }
-          // Only open product modal if zone check didn't fail
-          if (pendingProduct && zoneOk !== false) {
-            setSelectedProduct(pendingProduct);
-          }
-          setPendingProduct(null);
-        }}
-        orderType={orderType}
-        setOrderType={setOrderType}
-      />
+            setPendingProduct(null);
+          }}
+          orderType={orderType}
+          setOrderType={setOrderType}
+        />
+      )}
 
       {/* DealSpotlight på restaurang-sidan borttagen — användaren ska bara
           se discountade priser direkt i menyn, inte en separat banner. */}

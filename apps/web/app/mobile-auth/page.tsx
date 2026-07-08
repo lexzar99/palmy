@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { getProviders, signIn, useSession } from "next-auth/react";
+import { getProviders, SessionProvider, signIn, useSession } from "next-auth/react";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { getSafeNativeAuthRedirect, getSafeNativeAuthRedirectOrDefault } from "@/lib/nativeAuthRedirect";
@@ -176,8 +176,10 @@ function MobileAuthContent() {
 
 export default function MobileAuthPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#171513" }}><Loader2 className="animate-spin text-gold-500" /></div>}>
-      <MobileAuthContent />
-    </Suspense>
+    <SessionProvider>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#171513" }}><Loader2 className="animate-spin text-gold-500" /></div>}>
+        <MobileAuthContent />
+      </Suspense>
+    </SessionProvider>
   );
 }
