@@ -354,13 +354,12 @@ export default function CookieConsent() {
                 >
                   Cookies
                 </div>
-                <p
-                  className="text-[11px] leading-tight"
+                <div
+                  className="text-[10px] font-semibold leading-tight"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  Nödvändiga cookies håller varukorg och inloggning igång.
-                  Analys används bara om du samtycker.
-                </p>
+                  Välj samtycke. Detaljer finns under Val.
+                </div>
               </div>
             </div>
 
