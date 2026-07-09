@@ -775,7 +775,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             role="img"
             aria-label={restaurant?.name || ""}
             className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url("${optimizedImageUrl(heroImage, 900, 85)}")` }}
+            style={{ backgroundImage: `url("${optimizedImageUrl(heroImage, 3840, 90)}")` }}
           />
         ) : (
           <div className="w-full h-full" style={{ backgroundImage: "linear-gradient(135deg, var(--bg-deep), var(--bg-primary))" }} />

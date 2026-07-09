@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
     // Serve modern formats + right-sized variants instead of full-res originals.
     // All product/restaurant imagery lives in this single R2 bucket.
     formats: ["image/avif", "image/webp"],
-    qualities: [45, 50, 55, 58, 60, 68, 75, 82, 85],
+    qualities: [45, 50, 55, 58, 60, 68, 75, 82, 85, 90],
     remotePatterns: [
       { protocol: "https", hostname: "pub-3aa62f4934014835956fe3777d5b3abd.r2.dev" },
       { protocol: "https", hostname: "cdn-bk-se-ordering.azureedge.net" },
