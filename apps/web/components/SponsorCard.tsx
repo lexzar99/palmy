@@ -155,7 +155,7 @@ export default function SponsorCard({
           role="img"
           aria-label={sponsor.name}
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url("${optimizedImageUrl(sponsor.imageUrl, imagePriority ? 760 : 900, imagePriority ? 85 : 82)}")` }}
+          style={{ backgroundImage: `url("${optimizedImageUrl(sponsor.imageUrl, 1800, 90)}")` }}
         />
 
         {/* Mörk botten-scrim för läsbarhet, som champion-kortet. */}
@@ -215,7 +215,7 @@ export default function SponsorCard({
         role="img"
         aria-label={sponsor.name}
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url("${optimizedImageUrl(sponsor.imageUrl, imagePriority ? 760 : 900, imagePriority ? 85 : 82)}")` }}
+        style={{ backgroundImage: `url("${optimizedImageUrl(sponsor.imageUrl, 1800, 90)}")` }}
       />
 
       {/* Namn-overlay (valfri, admin-styrd). Visas bara om sponsorn INTE redan

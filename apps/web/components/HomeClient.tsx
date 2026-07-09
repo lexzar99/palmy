@@ -502,7 +502,7 @@ function ChampionPromoCard({ module, onOpen, imagePriority = false }: { module: 
           role="img"
           aria-label={restaurant.name}
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url("${optimizedImageUrl(image, imagePriority ? 760 : 900, imagePriority ? 85 : 82)}")` }}
+          style={{ backgroundImage: `url("${optimizedImageUrl(image, 1800, 90)}")` }}
         />
       ) : <span className="absolute inset-0" style={{ background: pulseGradient(module.theme) }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/75" />
@@ -529,7 +529,7 @@ function HighlightPromoCard({ restaurant, badge, onOpen, imagePriority = false }
           role="img"
           aria-label={restaurant.name}
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url("${optimizedImageUrl(image, imagePriority ? 760 : 900, imagePriority ? 85 : 82)}")` }}
+          style={{ backgroundImage: `url("${optimizedImageUrl(image, 1800, 90)}")` }}
         />
       ) : <span className="absolute inset-0" style={{ background: pulseGradient("sky") }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/70" />
