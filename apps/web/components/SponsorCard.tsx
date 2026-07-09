@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ExternalLink, ArrowRight, Crown, Tag, Flame, Sparkles } from "lucide-react";
 import { optimizedImageUrl } from "@/lib/imageOptimization";
+import { API_URL } from "@/lib/api";
 
 export interface SponsorData {
   id: string;
@@ -54,6 +55,12 @@ function sponsorBackground(color?: string) {
   return sponsorThemeGradients[color] || color;
 }
 
+function sponsorImageUrl(path?: string | null) {
+  if (!path) return "";
+  if (path.startsWith("/")) return `${API_URL}${path}`;
+  return path;
+}
+
 /**
  * SponsorCard – Ren annons/partnerkort i "Aktuellt"-sektionen.
  *
@@ -95,6 +102,7 @@ export default function SponsorCard({
   const isTextCard = sponsor.cardType === "TEXT" || !sponsor.imageUrl;
   const headline = sponsor.headline || sponsor.name;
   const bodyText = sponsor.bodyText || sponsor.tagline;
+  const imageUrl = sponsorImageUrl(sponsor.imageUrl);
 
   if (isTextCard) {
     return (
@@ -155,7 +163,7 @@ export default function SponsorCard({
           role="img"
           aria-label={sponsor.name}
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url("${optimizedImageUrl(sponsor.imageUrl, 1800, 90)}")` }}
+          style={{ backgroundImage: `url("${optimizedImageUrl(imageUrl, 1800, 90)}")` }}
         />
 
         {/* Mörk botten-scrim för läsbarhet, som champion-kortet. */}
@@ -215,7 +223,7 @@ export default function SponsorCard({
         role="img"
         aria-label={sponsor.name}
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url("${optimizedImageUrl(sponsor.imageUrl, 1800, 90)}")` }}
+        style={{ backgroundImage: `url("${optimizedImageUrl(imageUrl, 1800, 90)}")` }}
       />
 
       {/* Namn-overlay (valfri, admin-styrd). Visas bara om sponsorn INTE redan
