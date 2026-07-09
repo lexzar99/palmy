@@ -89,6 +89,30 @@ const TOKEN_KEY = "viaeats_active_order_token";
 const PHONE_KEY = "viaeats_active_order_phone";
 const ACTIVE_ORDERS_KEY = "viaeats_active_orders";
 
+function clearPrimaryActiveOrder(orderId: string) {
+  try {
+    if (localStorage.getItem(STORAGE_KEY) === orderId) {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(PHONE_KEY);
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: null }));
+    }
+    if (localStorage.getItem(DISMISS_KEY) === orderId) {
+      localStorage.removeItem(DISMISS_KEY);
+    }
+  } catch { }
+}
+
+function forgetRememberedActiveOrder(orderId: string) {
+  clearPrimaryActiveOrder(orderId);
+  try {
+    const stored = JSON.parse(localStorage.getItem(ACTIVE_ORDERS_KEY) || "[]");
+    const next = (Array.isArray(stored) ? stored : []).filter((order: any) => String(order?.id || "") !== orderId);
+    localStorage.setItem(ACTIVE_ORDERS_KEY, JSON.stringify(next));
+    window.dispatchEvent(new StorageEvent("storage", { key: ACTIVE_ORDERS_KEY, newValue: JSON.stringify(next) }));
+  } catch { }
+}
+
 export default function LiveOrderBanner() {
   const { t } = useTranslation();
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -139,14 +163,14 @@ export default function LiveOrderBanner() {
         setOrder(res.data);
         if (TERMINAL_STATUSES.has(res.data.status)) {
           setTimeout(() => {
-            try { localStorage.removeItem(STORAGE_KEY); } catch { }
+            clearPrimaryActiveOrder(orderId);
             setOrderId(null);
           }, 8000);
         }
       } catch (err) {
         const status = (err as any)?.response?.status;
         if (status === 404 || status === 410) {
-          try { localStorage.removeItem(STORAGE_KEY); } catch { }
+          forgetRememberedActiveOrder(orderId);
           setOrderId(null);
         }
       }
@@ -170,7 +194,7 @@ export default function LiveOrderBanner() {
       } : prev);
       if (TERMINAL_STATUSES.has(payload.status)) {
         setTimeout(() => {
-          try { localStorage.removeItem(STORAGE_KEY); } catch { }
+          clearPrimaryActiveOrder(orderId);
           setOrderId(null);
         }, 8000);
       }

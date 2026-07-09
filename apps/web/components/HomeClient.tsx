@@ -1857,7 +1857,12 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
                         </Link>
                         <button
                           type="button"
-                          onClick={() => setSkippedReviewIds(addSkippedReviewOrderId(String(order.id)))}
+                          onClick={() => {
+                            const id = String(order.id);
+                            setSkippedReviewIds(addSkippedReviewOrderId(id));
+                            forgetClosedHomeOrder(id);
+                            setActiveOrders((orders) => orders.filter((row) => String(row.id || "") !== id));
+                          }}
                           className="h-10 flex-1 rounded-xl text-[13px] font-bold active:scale-[0.99]"
                           style={{ backgroundColor: "rgba(17,17,19,0.06)", color: "var(--text-secondary)" }}
                         >
