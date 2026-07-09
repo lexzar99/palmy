@@ -136,7 +136,7 @@ function UniformCard({ product, onClick, disabled }: { product: any; onClick: ()
             alt={product.name}
             fill
             sizes="96px"
-            quality={45}
+            quality={82}
             className="object-cover"
             onError={() => setImgFailed(true)}
           />
@@ -193,7 +193,7 @@ function CompactCard({ product, onClick, disabled }: { product: any; onClick: ()
             alt={product.name}
             fill
             sizes="(max-width: 640px) 50vw, 280px"
-            quality={45}
+            quality={82}
             className="object-cover"
             onError={() => setImgFailed(true)}
           />
@@ -775,7 +775,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             role="img"
             aria-label={restaurant?.name || ""}
             className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url("${optimizedImageUrl(heroImage, 640, 45)}")` }}
+            style={{ backgroundImage: `url("${optimizedImageUrl(heroImage, 900, 85)}")` }}
           />
         ) : (
           <div className="w-full h-full" style={{ backgroundImage: "linear-gradient(135deg, var(--bg-deep), var(--bg-primary))" }} />

@@ -3,7 +3,7 @@ const OPTIMIZED_IMAGE_HOSTS = new Set([
   "cdn-bk-se-ordering.azureedge.net",
 ]);
 
-export function optimizedImageUrl(src: string, width = 640, quality = 45) {
+export function optimizedImageUrl(src: string, width = 640, quality = 82) {
   if (!src) return src;
   try {
     const url = new URL(src);

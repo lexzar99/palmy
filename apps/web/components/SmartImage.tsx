@@ -55,7 +55,7 @@ export default function SmartImage({
         priority={priority}
         loading={priority ? undefined : resolvedLoading}
         fetchPriority={resolvedFetchPriority}
-        quality={quality ?? 45}
+        quality={quality ?? 82}
       />
     );
   }

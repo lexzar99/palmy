@@ -323,7 +323,7 @@ export function OrderDetailsModal({
     <Modal
       open={open}
       onClose={onClose}
-      widthClassName="max-w-[920px]"
+      widthClassName="max-w-[1040px]"
       title={order ? `Order ${order.orderNumber}` : "Orderdetaljer"}
       description={order ? `${order.restaurantName || "Okänd restaurang"} · ${formatDateTime(order.createdAt)} · ${orderTypeLabel(order.type)}` : undefined}
       footer={
@@ -348,9 +348,173 @@ export function OrderDetailsModal({
         <div className="space-y-5">
           <StatusTrack status={order.status} isDelivery={isDelivery} />
 
-          <div className="grid gap-4 lg:grid-cols-[1.35fr_0.9fr]">
-            {/* ── Vänster: artiklar + kvitto/summa, bud ── */}
-            <div className="space-y-4">
+          <div className="grid gap-4">
+            {/* ── Operationellt först: kund, status, återbetalning och noteringar ── */}
+            <div className="order-1 space-y-4">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.78fr)] xl:items-start">
+                <div className="space-y-4">
+                  {/* Kund */}
+                  <div className="surface px-5 py-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="card-label">Kund</p>
+                      {customerContextBadge(order.customerStats) ? (
+                        <Badge tone={customerContextBadge(order.customerStats)!.tone}>{customerContextBadge(order.customerStats)!.label}</Badge>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 flex items-center gap-3">
+                      <Avatar name={order.customerName} size={38} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[14px] font-bold">{order.customerName}</p>
+                        <p className="truncate text-[12px] text-[var(--text-muted)]">
+                          {order.customerPhone}
+                          {order.customerStats?.orderCount ? ` · ${formatNumber(order.customerStats.orderCount)} ordrar` : ""}
+                        </p>
+                      </div>
+                      {order.userId && onViewCustomer ? (
+                        <button
+                          type="button"
+                          onClick={() => onViewCustomer(order.userId!)}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--border-subtle)] px-2 py-1 text-[11px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                        >
+                          <UserRound size={11} /> Profil
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 flex items-start gap-2 border-t border-[var(--border-subtle)] pt-3 text-[12.5px] text-[var(--text-secondary)]">
+                      <MapPin size={14} className="mt-0.5 shrink-0 text-[var(--text-muted)]" />
+                      <p className="leading-5">
+                        {isDelivery
+                          ? `${order.deliveryStreet || "Adress saknas"}${order.deliveryZip || order.deliveryCity ? `, ${order.deliveryZip || ""} ${order.deliveryCity || ""}` : ""}`
+                          : "Avhämtning i restaurang"}
+                        {order.deliveryInstructions ? <span className="text-[var(--text-muted)]"> · &ldquo;{deliveryInstructionLabel(order.deliveryInstructions)}&rdquo;</span> : null}
+                      </p>
+                    </div>
+                    {order.customerEmail ? <p className="mt-1.5 truncate text-[12px] text-[var(--text-muted)]">{order.customerEmail}</p> : null}
+                  </div>
+
+                  {/* Leverans: ETA + progress + bud-rad. Visas för leveransordrar. */}
+                  {isDelivery && (() => {
+                    const steps = DELIVERY_STEPS as readonly string[];
+                    const idx = steps.indexOf(order.status);
+                    const pct = isCancelled ? 0 : idx < 0 ? 0 : Math.round(((idx + 1) / steps.length) * 100);
+                    return (
+                      <div className="surface px-5 py-4">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="card-label">Leverans</p>
+                          {isLive && order.estimatedTime ? (
+                            <span className="text-[12px] font-extrabold text-[var(--accent)]">{order.estimatedTime} min</span>
+                          ) : (
+                            <DetailStatusBadge status={order.status} />
+                          )}
+                        </div>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#F0F0EC]">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,#F0531C,#FB7A4A)" }} />
+                        </div>
+                        {order.courier ? (
+                          <div className="mt-3 flex items-center gap-3">
+                            <Avatar name={order.courier.name} size={34} />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[13px] font-bold">{order.courier.name || "Ej tilldelad"}</p>
+                              <p className="truncate text-[11.5px] text-[var(--text-muted)]">
+                                {[order.courier.vehicle === "CAR" ? "Bil" : order.courier.vehicle === "BIKE" ? "Cykel" : null, order.courier.phone].filter(Boolean).join(" · ") || "—"}
+                              </p>
+                            </div>
+                            {order.courier.id ? (
+                              <button
+                                type="button"
+                                onClick={() => { const cid = order.courier?.id; if (cid) { onClose(); router.push(`/couriers/${cid}`); } }}
+                                className="shrink-0 text-[12px] font-bold text-[var(--accent-ink)] transition-colors hover:underline"
+                              >
+                                Spåra ›
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-[12.5px] text-[var(--text-muted)]">Inget bud tilldelat ännu.</p>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="space-y-4">
+                  {/* Snabbåtgärder per design: kontakta kund (accent) + återbetala (danger-outline). */}
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-1">
+                    <a href={`tel:${order.customerPhone}`} className="contents">
+                      <Button variant="primary" className="w-full"><Phone size={15} /> Kontakta kund</Button>
+                    </a>
+                    {!order.refundedAt ? (
+                      <Button variant="danger" className="w-full" onClick={() => setShowRefund((v) => !v)}>
+                        <ReceiptText size={15} /> Återbetala
+                      </Button>
+                    ) : (
+                      <Button variant="secondary" className="w-full" disabled>
+                        <CheckCircle2 size={15} /> Återbetald
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="surface px-5 py-5">
+                    <p className="card-label">Hantera order</p>
+                    {isCancelled ? (
+                      <p className="mt-2 text-[13px] text-[var(--text-secondary)]">Ordern är {orderStatusLabel(order.status).toLowerCase()}.</p>
+                    ) : isDone ? (
+                      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-[var(--success)]"><CheckCircle2 size={14} /> {isDelivery ? "Ordern är slutförd." : "Ordern är redo att hämtas."}</p>
+                    ) : (
+                      <>
+                        <p className="mt-1.5 text-[13px] text-[var(--text-secondary)]">Just nu: {orderStatusLabel(order.status)}</p>
+                        {next && (
+                          <Button variant="primary" className="mt-3 w-full" onClick={() => applyStatus(next.status)} disabled={statusMutation.isPending}>
+                            {statusMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
+                            {next.label} <ArrowRight size={16} />
+                          </Button>
+                        )}
+                      </>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowStatusOverride((v) => !v)}
+                      className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-[var(--border-subtle)] py-2.5 text-[13px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                    >
+                      <SlidersHorizontal size={14} /> Ändra status
+                      <ChevronDown size={13} className={showStatusOverride ? "rotate-180 transition-transform" : "transition-transform"} />
+                    </button>
+
+                    {showStatusOverride && (
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {manualStatusActions.map(([status, label]) => (
+                          <Button
+                            key={status}
+                            variant={status === "CANCELLED" ? "danger" : "secondary"}
+                            className="text-[13px]"
+                            onClick={() => applyStatus(status)}
+                            disabled={statusMutation.isPending || status === order.status}
+                          >
+                            {label}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+
+                    {isLive && (
+                      <div className="mt-3 flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={estimatedTime}
+                          onChange={(event) => setEstimatedTime(event.target.value ? Number(event.target.value) : "")}
+                          placeholder={order.estimatedTime ? `${order.estimatedTime} min` : "Beräknad tid (min)"}
+                        />
+                        <Button onClick={() => applyStatus(order.status)} disabled={statusMutation.isPending || estimatedTime === ""}>Tid</Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Orderinnehåll: artiklar + kvitto/summa, bud ── */}
+            <div className="order-2 space-y-4">
               <div className="surface px-5 py-5">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[14.5px] font-extrabold tracking-[-0.01em]">
@@ -516,163 +680,6 @@ export function OrderDetailsModal({
               )}
             </div>
 
-            {/* ── Höger: kund, leverans, hantera, återbetalning, notering ── */}
-            <div className="space-y-4">
-              {/* Kund */}
-              <div className="surface px-5 py-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="card-label">Kund</p>
-                  {customerContextBadge(order.customerStats) ? (
-                    <Badge tone={customerContextBadge(order.customerStats)!.tone}>{customerContextBadge(order.customerStats)!.label}</Badge>
-                  ) : null}
-                </div>
-                <div className="mt-3 flex items-center gap-3">
-                  <Avatar name={order.customerName} size={38} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-bold">{order.customerName}</p>
-                    <p className="truncate text-[12px] text-[var(--text-muted)]">
-                      {order.customerPhone}
-                      {order.customerStats?.orderCount ? ` · ${formatNumber(order.customerStats.orderCount)} ordrar` : ""}
-                    </p>
-                  </div>
-                  {order.userId && onViewCustomer ? (
-                    <button
-                      type="button"
-                      onClick={() => onViewCustomer(order.userId!)}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--border-subtle)] px-2 py-1 text-[11px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-                    >
-                      <UserRound size={11} /> Profil
-                    </button>
-                  ) : null}
-                </div>
-                <div className="mt-3 flex items-start gap-2 border-t border-[var(--border-subtle)] pt-3 text-[12.5px] text-[var(--text-secondary)]">
-                  <MapPin size={14} className="mt-0.5 shrink-0 text-[var(--text-muted)]" />
-                  <p className="leading-5">
-                    {isDelivery
-                      ? `${order.deliveryStreet || "Adress saknas"}${order.deliveryZip || order.deliveryCity ? `, ${order.deliveryZip || ""} ${order.deliveryCity || ""}` : ""}`
-                      : "Avhämtning i restaurang"}
-                    {order.deliveryInstructions ? <span className="text-[var(--text-muted)]"> · &ldquo;{deliveryInstructionLabel(order.deliveryInstructions)}&rdquo;</span> : null}
-                  </p>
-                </div>
-                {order.customerEmail ? <p className="mt-1.5 truncate text-[12px] text-[var(--text-muted)]">{order.customerEmail}</p> : null}
-              </div>
-
-              {/* Leverans: ETA + progress + bud-rad. Visas för leveransordrar. */}
-              {isDelivery && (() => {
-                const steps = DELIVERY_STEPS as readonly string[];
-                const idx = steps.indexOf(order.status);
-                const pct = isCancelled ? 0 : idx < 0 ? 0 : Math.round(((idx + 1) / steps.length) * 100);
-                return (
-                  <div className="surface px-5 py-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="card-label">Leverans</p>
-                      {isLive && order.estimatedTime ? (
-                        <span className="text-[12px] font-extrabold text-[var(--accent)]">{order.estimatedTime} min</span>
-                      ) : (
-                        <DetailStatusBadge status={order.status} />
-                      )}
-                    </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#F0F0EC]">
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,#F0531C,#FB7A4A)" }} />
-                    </div>
-                    {order.courier ? (
-                      <div className="mt-3 flex items-center gap-3">
-                        <Avatar name={order.courier.name} size={34} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-bold">{order.courier.name || "Ej tilldelad"}</p>
-                          <p className="truncate text-[11.5px] text-[var(--text-muted)]">
-                            {[order.courier.vehicle === "CAR" ? "Bil" : order.courier.vehicle === "BIKE" ? "Cykel" : null, order.courier.phone].filter(Boolean).join(" · ") || "—"}
-                          </p>
-                        </div>
-                        {order.courier.id ? (
-                          <button
-                            type="button"
-                            onClick={() => { const cid = order.courier?.id; if (cid) { onClose(); router.push(`/couriers/${cid}`); } }}
-                            className="shrink-0 text-[12px] font-bold text-[var(--accent-ink)] transition-colors hover:underline"
-                          >
-                            Spåra ›
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <p className="mt-3 text-[12.5px] text-[var(--text-muted)]">Inget bud tilldelat ännu.</p>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Snabbåtgärder per design: kontakta kund (accent) + återbetala (danger-outline). */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <a href={`tel:${order.customerPhone}`} className="contents">
-                  <Button variant="primary" className="w-full"><Phone size={15} /> Kontakta kund</Button>
-                </a>
-                {!order.refundedAt ? (
-                  <Button variant="danger" className="w-full" onClick={() => setShowRefund((v) => !v)}>
-                    <ReceiptText size={15} /> Återbetala
-                  </Button>
-                ) : (
-                  <Button variant="secondary" className="w-full" disabled>
-                    <CheckCircle2 size={15} /> Återbetald
-                  </Button>
-                )}
-              </div>
-
-              <div className="surface px-5 py-5">
-                <p className="card-label">Hantera order</p>
-                {isCancelled ? (
-                  <p className="mt-2 text-[13px] text-[var(--text-secondary)]">Ordern är {orderStatusLabel(order.status).toLowerCase()}.</p>
-                ) : isDone ? (
-                  <p className="mt-2 flex items-center gap-1.5 text-[13px] text-[var(--success)]"><CheckCircle2 size={14} /> {isDelivery ? "Ordern är slutförd." : "Ordern är redo att hämtas."}</p>
-                ) : (
-                  <>
-                    <p className="mt-1.5 text-[13px] text-[var(--text-secondary)]">Just nu: {orderStatusLabel(order.status)}</p>
-                    {next && (
-                      <Button variant="primary" className="mt-3 w-full" onClick={() => applyStatus(next.status)} disabled={statusMutation.isPending}>
-                        {statusMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
-                        {next.label} <ArrowRight size={16} />
-                      </Button>
-                    )}
-                  </>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setShowStatusOverride((v) => !v)}
-                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-[var(--border-subtle)] py-2.5 text-[13px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-                >
-                  <SlidersHorizontal size={14} /> Ändra status
-                  <ChevronDown size={13} className={showStatusOverride ? "rotate-180 transition-transform" : "transition-transform"} />
-                </button>
-
-                {showStatusOverride && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {manualStatusActions.map(([status, label]) => (
-                      <Button
-                        key={status}
-                        variant={status === "CANCELLED" ? "danger" : "secondary"}
-                        className="text-[13px]"
-                        onClick={() => applyStatus(status)}
-                        disabled={statusMutation.isPending || status === order.status}
-                      >
-                        {label}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-
-                {isLive && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={estimatedTime}
-                      onChange={(event) => setEstimatedTime(event.target.value ? Number(event.target.value) : "")}
-                      placeholder={order.estimatedTime ? `${order.estimatedTime} min` : "Beräknad tid (min)"}
-                    />
-                    <Button onClick={() => applyStatus(order.status)} disabled={statusMutation.isPending || estimatedTime === ""}>Tid</Button>
-                  </div>
-                )}
-              </div>
-
               {/* ── Återbetalning ── */}
               {order.refundedAt ? (
                 <div className="surface flex items-center gap-2.5 px-5 py-4 text-[13px] font-semibold text-[var(--success-text)]">
@@ -814,7 +821,6 @@ export function OrderDetailsModal({
               {order.customerPhone ? (
                 <NotesPanel target={{ customerPhone: order.customerPhone }} title="Anteckningar på kunden" />
               ) : null}
-            </div>
           </div>
         </div>
       )}
