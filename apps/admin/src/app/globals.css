@@ -3,10 +3,9 @@
 :root {
   color-scheme: light;
 
-  /* ── Color system: ljust, luftigt tema med orange (#F04F1A) som enda
-     varumärkesfärg. Neutralerna bär gränssnittet; orange reserveras för
-     primärknapp, aktiv nav, fokus och nyckeltal. Semantiska färger
-     (success/danger/warning/info) bär status. ── */
+  /* ── Color system: monokroma neutraler bär hela gränssnittet. ViaEats-
+     orange (#F04F1A) används bara för primära handlingar, fokus och ett
+     fåtal affärskritiska signaler. Semantiska färger bär status. ── */
   --bg-page: #fbfbfc;
   --bg-primary: #ffffff;
   --bg-secondary: #ffffff;
@@ -24,15 +23,19 @@
   --text-secondary: #5a6472;
   --text-muted: #9ca3af;
 
-  /* Accent (orange) — ENDA varumärkesfärgen */
-  --accent: #f04f1a;          /* gemensam brand-orange */
-  --accent-strong: #d94311;   /* hover/tryckt */
-  --accent-deep: #c93b0d;
-  --accent-light: #ff875f;    /* ljusa stopp, sparkline */
-  --accent-ink: #b5360d;      /* orange som läsbar text/länk på vitt */
-  --accent-soft: #fff0ea;     /* mjuk yta: aktiv nav, soft-knapp, badge */
-  --accent-tintbar: #f1e4db;  /* inaktiva staplar i diagram */
-  --accent-fg: #0a2340;
+  /* Monokrom interaktionsfärg. Orange är ett separat, sparsamt brandlager. */
+  --accent: #18181b;
+  --accent-strong: #09090b;
+  --accent-deep: #000000;
+  --accent-light: #71717a;
+  --accent-ink: #18181b;
+  --accent-soft: #f1f1f2;
+  --accent-tintbar: #e4e4e7;
+  --accent-fg: #ffffff;
+  --brand-orange: #f04f1a;
+  --brand-orange-strong: #d94311;
+  --brand-orange-ink: #b5360d;
+  --brand-orange-soft: #fff0ea;
 
   /* Bakåtkompatibla alias. Nya moduler använder de semantiska tokens ovan. */
   --background: var(--bg-page);
@@ -49,12 +52,11 @@
   --shadow-soft: 0 1px 2px rgba(17, 17, 19, 0.04);
   --shadow-panel: 0 10px 30px rgba(17, 17, 19, 0.1);
   --shadow-lift: 0 12px 34px rgba(17, 17, 19, 0.16);
-  --shadow-cta: 0 6px 14px rgba(240, 79, 26, 0.24);
+  --shadow-cta: none;
 }
 
-/* ── Mörkt tema — valfritt alternativ via data-theme="dark" på <html>
-   (sätts av inline-skript i layouten innan paint, så ingen tema-flimmer).
-   Orange-accenten behålls; bara neutralerna mörknas. ── */
+/* ── Mörkt tema — samma monokroma hierarki, med orange som sparsamt
+   brandlager. Sätts innan paint så ingen tema-flimmer uppstår. ── */
 :root[data-theme="dark"] {
   color-scheme: dark;
 
@@ -75,14 +77,18 @@
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
 
-  --accent: #f04f1a;
-  --accent-strong: #ff875f;
-  --accent-deep: #d94311;
-  --accent-light: #ff875f;
-  --accent-ink: #ff9b79;
-  --accent-soft: rgba(240, 79, 26, 0.14);
-  --accent-tintbar: rgba(240, 79, 26, 0.18);
-  --accent-fg: #0a2340;
+  --accent: #f4f4f5;
+  --accent-strong: #ffffff;
+  --accent-deep: #ffffff;
+  --accent-light: #a1a1aa;
+  --accent-ink: #fafafa;
+  --accent-soft: rgba(255, 255, 255, 0.09);
+  --accent-tintbar: rgba(255, 255, 255, 0.13);
+  --accent-fg: #09090b;
+  --brand-orange: #f04f1a;
+  --brand-orange-strong: #ff7547;
+  --brand-orange-ink: #ff9b79;
+  --brand-orange-soft: rgba(240, 79, 26, 0.14);
 
   --success: #4ade80;  --success-text: #86efac; --success-soft: rgba(74, 222, 128, 0.1);
   --danger: #fb7185;   --danger-text: #fda4af;  --danger-soft: rgba(251, 113, 133, 0.08);
@@ -92,7 +98,7 @@
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-panel: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
   --shadow-lift: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
-  --shadow-cta: 0 6px 16px rgba(240, 79, 26, 0.32);
+  --shadow-cta: none;
 }
 
 /* Semantiska badge-färger via tokens (gäller bägge teman). */
@@ -100,7 +106,7 @@
 .badge-danger  { background: var(--danger-soft);  color: var(--danger-text);  border-color: color-mix(in srgb, var(--danger) 20%, transparent); }
 .badge-warning { background: var(--warning-soft); color: var(--warning-text); border-color: color-mix(in srgb, var(--warning) 22%, transparent); }
 .badge-info    { background: var(--info-soft);    color: var(--info-text);    border-color: color-mix(in srgb, var(--info) 20%, transparent); }
-.badge-accent  { background: var(--accent-soft);  color: var(--accent-ink);   border-color: color-mix(in srgb, var(--accent) 18%, transparent); }
+.badge-accent  { background: var(--brand-orange-soft); color: var(--brand-orange-ink); border-color: color-mix(in srgb, var(--brand-orange) 18%, transparent); }
 
 * {
   box-sizing: border-box;
@@ -216,8 +222,19 @@ button {
   background: var(--bg-panel);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
   gap: 4px;
+}
+
+.sidebar-navigation {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 /* ── Ikon-rad (66px) — alltid synlig ── */
@@ -597,8 +614,8 @@ button {
 .surface {
   border: 1px solid var(--border-subtle);
   background: var(--bg-panel);
-  border-radius: 16px;
-  box-shadow: var(--shadow-soft);
+  border-radius: 12px;
+  box-shadow: none;
 }
 
 .surface-muted {
@@ -610,9 +627,9 @@ button {
 .metric-card {
   border: 1px solid var(--border-subtle);
   background: var(--bg-panel);
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 18px;
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
   transition: border-color 120ms ease;
 }
 
@@ -666,9 +683,9 @@ button {
   min-height: 40px;
   padding: 0 20px;
   border: 0;
-  border-radius: 11px;
-  background: var(--accent);
-  color: var(--accent-fg);
+  border-radius: 9px;
+  background: var(--brand-orange);
+  color: #ffffff;
   font-size: 14px;
   font-weight: 800;
   letter-spacing: -0.005em;
@@ -676,7 +693,7 @@ button {
 }
 
 .button-primary:hover {
-  background: var(--accent-deep);
+  background: var(--brand-orange-strong);
 }
 
 .button-primary:active {
@@ -773,8 +790,8 @@ button {
 .input:focus,
 .select:focus,
 .textarea:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--brand-orange);
+  box-shadow: 0 0 0 3px var(--brand-orange-soft);
 }
 
 .textarea {

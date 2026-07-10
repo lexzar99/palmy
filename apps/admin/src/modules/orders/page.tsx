@@ -1002,7 +1002,7 @@ function OrderRowBase({ order, isSelected, nowMs, isAdvancing, onOpen, onToggleS
           if (event.target !== event.currentTarget) return;
           if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(order.id); }
         }}
-        className="hidden cursor-pointer items-center gap-3 border-b border-[var(--row-divider)] px-[18px] py-[13px] text-[13px] transition-colors last:border-b-0 hover:bg-[var(--bg-hover)] xl:grid"
+        className="hidden cursor-pointer items-center gap-3 border-b border-[var(--row-divider)] px-[18px] py-[13px] text-[13px] transition-colors last:border-b-0 hover:bg-[var(--bg-hover)] lg:grid"
         style={{ gridTemplateColumns: ORDERS_GRID, ...(isPending ? { background: "var(--warning-soft)" } : {}) }}
       >
         <div className="flex min-w-0 items-center gap-2">
@@ -1051,60 +1051,43 @@ function OrderRowBase({ order, isSelected, nowMs, isAdvancing, onOpen, onToggleS
           if (event.target !== event.currentTarget) return;
           if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(order.id); }
         }}
-        className="cursor-pointer overflow-hidden rounded-[14px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] transition-colors hover:border-[var(--border-strong)] xl:hidden"
+        className="cursor-pointer border-b border-[var(--row-divider)] bg-[var(--bg-panel)] px-4 py-3 transition-colors last:border-b-0 hover:bg-[var(--bg-hover)] lg:hidden"
         style={isPending ? { background: "var(--warning-soft)" } : undefined}
       >
-        <div className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`${MONO} text-[12px] font-bold text-[var(--text-primary)]`}>{order.orderNumber}</span>
-                {order.scheduledFor ? <Badge tone="warning">Förbeställning</Badge> : null}
-                {orderTipAmount(order) > 0 ? <Badge tone="success">{formatCurrency(orderTipAmount(order))} dricks</Badge> : null}
-              </div>
-              <p className="mt-2 truncate text-[14px] font-extrabold text-[var(--text-primary)]">{order.restaurantName || "Okänd restaurang"}</p>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className={`${MONO} text-[11.5px] font-bold text-[var(--text-primary)]`}>{order.orderNumber}</span>
+              <span className="text-[11px] text-[var(--text-muted)]">{orderTypeLabel(order.type)}</span>
+              {order.scheduledFor ? <Badge tone="warning">Förbeställd</Badge> : null}
+            </div>
+            <div className="mt-1.5 flex min-w-0 items-baseline gap-2">
+              <p className="truncate text-[13.5px] font-bold text-[var(--text-primary)]">{order.restaurantName || "Okänd restaurang"}</p>
+              <span className="shrink-0 text-[12px] font-extrabold tabular-nums text-[var(--text-primary)]">{formatCurrency(order.total)}</span>
+            </div>
               {order.userId ? (
                 <button
                   type="button"
                   onClick={(event) => { event.stopPropagation(); onOpenCustomer(order.userId!); }}
-                  className="mt-0.5 max-w-full truncate text-left text-[12.5px] text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-strong)]"
+                  className="mt-0.5 max-w-full truncate text-left text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
                 >
                   {order.customerName}
                 </button>
               ) : (
-                <p className="mt-0.5 truncate text-[12.5px] text-[var(--text-secondary)]">{order.customerName}</p>
+                <p className="mt-0.5 truncate text-[12px] text-[var(--text-secondary)]">{order.customerName}</p>
               )}
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-muted)]">
+              <span style={isLate ? { color: "var(--danger)", fontWeight: 700 } : undefined}>
+                {isLive && tis ? `${tis.label} i status` : formatDateTime(order.createdAt)}
+              </span>
+              {orderTipAmount(order) > 0 ? <span>{formatCurrency(orderTipAmount(order))} dricks</span> : null}
+              {selectionControl(true)}
             </div>
-            <StatusBadge status={order.status} />
           </div>
-
-          <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[var(--border-subtle)] pt-3 text-[12px]">
-            <div className="min-w-0">
-              <dt className="card-label">Typ</dt>
-              <dd className="mt-1 font-semibold">{orderTypeLabel(order.type)}</dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="card-label">Totalt</dt>
-              <dd className="mt-1 font-extrabold tabular-nums">{formatCurrency(order.total)}</dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="card-label">Planering</dt>
-              <dd className={order.scheduledFor ? "mt-1 font-bold text-[var(--warning-text)]" : "mt-1 font-semibold"}>
-                {order.scheduledFor ? <time dateTime={order.scheduledFor}>{formatDateTime(order.scheduledFor)}</time> : "ASAP"}
-              </dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="card-label">{isLive ? "Tid i status" : "Skapad"}</dt>
-              <dd className="mt-1 font-semibold" style={isLate ? { color: "var(--danger)" } : undefined}>
-                {isLive && tis ? tis.label : formatDateTime(order.createdAt)}
-              </dd>
-            </div>
-          </dl>
-        </div>
-
-        <div className="flex min-h-12 items-center justify-between gap-3 border-t border-[var(--border-subtle)] px-4 py-2.5">
-          {selectionControl(false) || <span className="text-[11px] text-[var(--text-muted)]">Öppna för detaljer</span>}
-          <div className="shrink-0">{renderAction()}</div>
+          <div className="flex min-w-[92px] flex-col items-end gap-2">
+            <StatusBadge status={order.status} />
+            {renderAction()}
+          </div>
         </div>
       </article>
     </>
@@ -1312,10 +1295,10 @@ export function OrdersPage() {
           <div className="mt-6"><EmptyState title="Inga ordrar i den här vyn" /></div>
         ) : (
           <>
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:block xl:overflow-hidden xl:rounded-[14px] xl:border xl:border-[var(--border-subtle)] xl:bg-[var(--bg-panel)]">
+          <div className="mt-5 overflow-hidden rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-panel)]">
             {/* Header-rad */}
             <div
-              className="hidden gap-3 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)] xl:grid"
+              className="hidden gap-3 border-b border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] px-[18px] py-[10px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)] lg:grid"
               style={{ gridTemplateColumns: ORDERS_GRID }}
             >
               <span>Order</span>

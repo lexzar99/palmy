@@ -272,7 +272,7 @@ export function HomepagePage() {
       <PageHeader
         breadcrumb="Tillväxt"
         title="Hemskärm"
-        actions={<Badge tone="info">Bas #F04F1A</Badge>}
+        actions={<Badge tone="neutral">Liveförhandsvisning</Badge>}
       />
       <p className="-mt-3 max-w-3xl text-sm leading-relaxed text-[var(--text-muted)]">
         Hero, rails, dynamiska showcase-kort, sponsorer och annonser i ett gemensamt placement-system.

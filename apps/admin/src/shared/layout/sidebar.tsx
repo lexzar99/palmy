@@ -57,8 +57,9 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   };
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     const stored = loadExpanded();
-    if (Object.keys(stored).length > 0) return stored;
-    return Object.fromEntries(ADMIN_SECTIONS.map((section) => [section.id, true]));
+    return Object.fromEntries(
+      ADMIN_SECTIONS.map((section) => [section.id, section.id === "partners" ? true : stored[section.id] ?? true]),
+    );
   });
   const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
 
@@ -205,26 +206,33 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
         <kbd>{isMac ? "⌘" : "Ctrl"}K</kbd>
       </button>
 
-      <nav className="flex-1 overflow-y-auto" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <nav className="sidebar-navigation">
         {ADMIN_SECTIONS.map((section) => {
-          const isOpen = expanded[section.id] !== false;
+          const containsActiveRoute = section.routes.some((item) => isRouteActive(item.id, item.href));
+          const isAlwaysOpen = section.id === "partners";
+          const isOpen = isAlwaysOpen || containsActiveRoute || expanded[section.id] !== false;
           return (
             <div key={section.id}>
               <button
                 type="button"
-                onClick={() => toggleSection(section.id)}
+                onClick={() => {
+                  if (!isAlwaysOpen) toggleSection(section.id);
+                }}
                 className="sidebar-section-header"
                 aria-expanded={Boolean(isOpen)}
+                aria-disabled={isAlwaysOpen || undefined}
               >
                 <span>{section.label}</span>
-                <ChevronRight
-                  size={11}
-                  style={{
-                    transition: "transform 150ms ease",
-                    transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
-                    opacity: 0.6,
-                  }}
-                />
+                {!isAlwaysOpen ? (
+                  <ChevronRight
+                    size={11}
+                    style={{
+                      transition: "transform 150ms ease",
+                      transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
+                      opacity: 0.6,
+                    }}
+                  />
+                ) : null}
               </button>
 
               {isOpen && (
