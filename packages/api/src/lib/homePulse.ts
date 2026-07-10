@@ -224,7 +224,10 @@ async function buildChampion(params: Record<string, number>) {
       status: { notIn: EXCLUDED_STATUSES },
     },
   });
-  if (orders7d < (params.minOrders7d || 5)) return null;
+  // Showcase-adminen är den gemensamma publiceringskällan. Om en restaurang
+  // redan har valts där ska den synas i web och app även när veckans lokala
+  // ordervolym ligger under den gamla motorns miniminivå.
+  void params;
 
   // Endast restaurangens hero-banner (ägarbeslut, ingen bildrotation).
   const images = [restaurant.heroImageUrl || restaurant.imageUrl].filter((url): url is string => Boolean(url));

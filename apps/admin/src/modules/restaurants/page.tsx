@@ -133,14 +133,13 @@ export function RestaurantsPage() {
             {/* Header */}
             <div
               role="row"
-              className="grid items-center gap-3 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
-              style={{ gridTemplateColumns: "2fr 1fr 0.8fr 0.9fr 0.7fr 60px" }}
+              className="grid items-center gap-4 border-b border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+              style={{ gridTemplateColumns: "minmax(280px,1fr) 170px 72px 92px 32px" }}
             >
               <span>Restaurang</span>
               <span>Status</span>
               <span>Betyg</span>
               <span>Ordrar idag</span>
-              <span>Zoner</span>
               <span />
             </div>
             {filtered.map((r, i) => (
@@ -186,16 +185,14 @@ function RestaurantRow({
   togglePending: boolean;
 }) {
   const avatar = r.imageUrl || r.heroImageUrl;
-  // Zoner finns inte i snapshot-payloaden — visa "—" tills datat finns.
-  const zones = "—";
   return (
     <div
       role="row"
       className={cn(
-        "grid items-center gap-3 px-[18px] py-[13px] text-[13px]",
+        "grid items-center gap-4 px-4 py-2.5 text-[13px] transition-colors hover:bg-[var(--bg-hover)]",
         !isLast && "border-b border-[var(--row-divider)]",
       )}
-      style={{ gridTemplateColumns: "2fr 1fr 0.8fr 0.9fr 0.7fr 60px" }}
+      style={{ gridTemplateColumns: "minmax(280px,1fr) 170px 72px 92px 32px" }}
     >
       {/* Restaurang */}
       <span className="flex items-center gap-3">
@@ -204,7 +201,7 @@ function RestaurantRow({
           <img
             src={avatar}
             alt=""
-            className="h-9 w-9 shrink-0 rounded-[9px] object-cover"
+            className="h-9 w-9 shrink-0 rounded-[8px] object-cover"
             onError={(e) => {
               const img = e.currentTarget;
               img.style.display = "none";
@@ -213,8 +210,8 @@ function RestaurantRow({
           />
         ) : null}
         <span
-          className="h-9 w-9 shrink-0 rounded-[9px]"
-          style={{ display: avatar ? "none" : "block", background: "linear-gradient(150deg,#F0D4A8,#DCB070)" }}
+          className="h-9 w-9 shrink-0 rounded-[8px] border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)]"
+          style={{ display: avatar ? "none" : "block" }}
         />
         <span className="min-w-0">
           <span className="flex items-center gap-2">
@@ -232,17 +229,17 @@ function RestaurantRow({
       </span>
 
       {/* Status */}
-      <span className="grid gap-1">
+      <span className="grid gap-0.5">
         <AcceptingOrdersModeSelect
-          className="min-w-0 text-xs"
+          className="min-w-0 !rounded-[8px] !px-3 !py-2 text-xs"
           aria-label={`Beställningsläge för ${r.name}`}
           value={r.acceptingOrdersMode}
           disabled={togglePending}
           compactLabels
           onValueChange={onChangeMode}
         />
-        <span className={cn("text-[10.5px] font-bold", r.isOpen ? "text-[var(--success-text)]" : "text-[var(--warning-text)]")}>
-          Effektivt {r.isOpen ? "öppen" : "stängd"}
+        <span className={cn("text-[10px] font-bold", r.isOpen ? "text-[var(--success-text)]" : "text-[var(--warning-text)]")}>
+          {r.isOpen ? "Öppen nu" : "Stängd nu"}
         </span>
       </span>
 
@@ -251,9 +248,6 @@ function RestaurantRow({
 
       {/* Ordrar idag */}
       <span>{r.todayOrders}</span>
-
-      {/* Zoner */}
-      <span>{zones}</span>
 
       {/* Chevron → detalj */}
       <span className="flex justify-end">

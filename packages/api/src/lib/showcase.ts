@@ -19,6 +19,7 @@
 import prisma from './prisma';
 import { getDealScopeType, parseApplicableRestaurantIds, parseDealTargetIds } from './deals';
 import { THEME_POOL } from './themeRotation';
+import { bustCache } from './ttlCache';
 
 export type ShowcaseSurface = 'champion' | 'discounts' | 'trending' | 'new';
 
@@ -541,4 +542,8 @@ export async function patchShowcase(
   }
   if (body.unpin) state.pinned = rm(state.pinned, body.unpin);
   await writeState(surface, state);
+  // Adminändringar ska slå igenom i samma kundflöden direkt. Champion läses
+  // via home/pulse; övriga showcase-ytor läses via sponsors-feeden.
+  if (surface === 'champion') bustCache('home:pulse');
+  else bustCache('sponsors:showcase');
 }

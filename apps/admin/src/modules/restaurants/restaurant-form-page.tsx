@@ -358,7 +358,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       {saveError && <p className="rounded-xl bg-[rgba(239,68,68,0.1)] px-4 py-3 text-sm text-red-400">{saveError}</p>}
 
       {/* Tabs */}
-      <Surface className="px-6 py-2">
+      <div className="border-b border-[var(--border-subtle)] pb-2">
         <Tabs
           value={tab}
           onChange={setTab}
@@ -371,14 +371,17 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             { value: "settings", label: "Inställningar" },
           ]}
         />
-      </Surface>
+      </div>
 
       {/* Info tab */}
       {tab === "info" && (
-        <div className="grid gap-3.5 lg:grid-cols-[1.5fr_1fr]">
-          <Surface className="grid gap-4 px-4 py-5 sm:px-6 sm:py-6">
-            <p className="text-[15px] font-extrabold tracking-[-0.3px]">Grunduppgifter</p>
-            <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,.8fr)]">
+          <Surface className="grid content-start gap-5 self-start p-5">
+            <div>
+              <p className="text-[15px] font-extrabold tracking-[-0.3px]">Grunduppgifter</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">Information som visas för kunden och används i driften.</p>
+            </div>
+            <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2">
               <Field label="Namn" required><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus={isCreate} /></Field>
               <Field label="Slug" hint="Tomt genereras automatiskt"><Input value={form.slug} onChange={(e) => set("slug", e.target.value)} /></Field>
               <Field label="Mattyp"><Input value={form.cuisine} onChange={(e) => set("cuisine", e.target.value)} placeholder="Pizza, Sushi..." /></Field>
@@ -416,7 +419,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               </Field>
               <Field label="Admin-email"><Input type="email" autoComplete="email" value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} /></Field>
             </div>
-            <div className="grid sm:grid-cols-2 gap-4 mt-1">
+            <div className="grid gap-x-4 gap-y-3.5 border-t border-[var(--row-divider)] pt-5 sm:grid-cols-2">
               <Field label="Legalt namn (juridisk person)">
                 <Input value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="ex: Palmyra Pizzeria AB" />
               </Field>
@@ -428,15 +431,18 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} />
             </Field>
           </Surface>
-          <div className="grid gap-3.5 content-start">
-            <Surface className="px-6 py-6 grid gap-4">
-              <p className="text-[15px] font-extrabold tracking-[-0.3px]">Bilder</p>
-              <ImageUploadField label="Profilbild" kind="logo" restaurantId={restaurantId} value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
-              <ImageUploadField label="Hero-bild" kind="hero" restaurantId={restaurantId} value={form.heroImageUrl} onChange={(url) => set("heroImageUrl", url)} />
+          <div className="grid content-start gap-4">
+            <Surface className="grid content-start gap-4 p-5">
+              <div>
+                <p className="text-[15px] font-extrabold tracking-[-0.3px]">Media</p>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">Logotypen används i kompakta listor. Omslagsbilden används på restaurangsidan och i marknadsföringskort.</p>
+              </div>
+              <ImageUploadField label="Logotyp" kind="logo" restaurantId={restaurantId} value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
+              <ImageUploadField label="Omslagsbild" kind="hero" restaurantId={restaurantId} value={form.heroImageUrl} onChange={(url) => set("heroImageUrl", url)} />
             </Surface>
-            <Surface className="px-4 py-5 sm:px-6 sm:py-6">
+            <Surface className="p-5">
               <p className="text-[15px] font-extrabold tracking-[-0.3px]">Status &amp; synlighet</p>
-              <div className="mt-4 grid gap-4">
+              <div className="mt-4 grid gap-3.5">
                 <Field
                   label="Beställningsläge"
                   hint="Schema är normalläget. Manuella lägen skriver aldrig över öppettiderna."
@@ -464,7 +470,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
                 {!isCreate && detailData ? (
                   <RestaurantAvailabilitySummary
-                    className="surface-muted px-4 py-3"
+                    className="border-t border-[var(--row-divider)] pt-3"
                     isOpen={detailData.isOpen}
                     reason={detailData.availabilityReason}
                   />
@@ -506,17 +512,16 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               </div>
             </Surface>
             {!isCreate && (
-              <Surface className="grid gap-2.5 px-4 py-5 sm:grid-cols-2 sm:px-6">
-                <Button variant="secondary" onClick={() => setTab("hours")}>Öppettider ›</Button>
-                <Button variant="secondary" onClick={() => router.push(`/zones?restaurantId=${restaurantId}`)}>Zoner ›</Button>
+              <Surface className="grid gap-2 p-3 sm:grid-cols-2">
+                <Button className="h-9 min-h-9 text-xs" variant="secondary" onClick={() => setTab("hours")}>Öppettider ›</Button>
+                <Button className="h-9 min-h-9 text-xs" variant="secondary" onClick={() => router.push(`/zones?restaurantId=${restaurantId}`)}>Zoner ›</Button>
               </Surface>
             )}
             {!isCreate && (
-              <Surface className="px-6 py-5">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-3">Fler snabbval</p>
-                <div className="grid gap-2">
-                  <Button variant="secondary" onClick={() => router.push(`/menu?restaurantId=${restaurantId}`)}>Hantera meny →</Button>
-                  <Button variant="secondary" onClick={() => router.push(`/deals?tab=kampanjer&restaurantId=${restaurantId}`)}>Deals →</Button>
+              <Surface className="p-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button className="h-9 min-h-9 text-xs" variant="secondary" onClick={() => router.push(`/menu?restaurantId=${restaurantId}`)}>Meny →</Button>
+                  <Button className="h-9 min-h-9 text-xs" variant="secondary" onClick={() => router.push(`/deals?tab=kampanjer&restaurantId=${restaurantId}`)}>Deals →</Button>
                 </div>
               </Surface>
             )}
@@ -720,8 +725,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
       {/* Settings tab */}
       {tab === "settings" && (
-        <div className="grid gap-5 lg:grid-cols-2">
-          <Surface className="px-6 py-6 grid gap-4">
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <Surface className="grid content-start gap-4 p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Drift</p>
             <p className="text-xs leading-relaxed text-[var(--text-secondary)]">Beställningsstatus och synlighet hanteras i Info-fliken så samma värde inte kan redigeras på två ställen.</p>
             <Field label="Tier (abonnemang + ranking)">
@@ -732,7 +737,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <option value="0">Dold</option>
               </Select>
             </Field>
-            <div className="surface-muted px-4 py-4">
+            <div className="rounded-[10px] border border-[var(--row-divider)] p-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Leveransmodell (styr provision)</p>
                 <DeliveryModeBadge selfDelivery={form.selfDelivery} />
@@ -749,10 +754,10 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 </Field>
               </div>
             </div>
-            <div className="surface-muted px-4 py-4">
+            <div className="rounded-[10px] border border-[var(--row-divider)] p-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">ETA (leveranstid)</p>
-                <Badge tone="info">{form.etaEffective} min effektiv</Badge>
+                <Badge tone="neutral">{form.etaEffective} min effektiv</Badge>
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <Field label="Beräknad (auto)"><Input value={form.etaCalculated != null ? `${form.etaCalculated} min` : "Default 40 min"} disabled /></Field>
@@ -769,7 +774,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               </Select>
             </Field>
           </Surface>
-          <Surface className="px-6 py-6 grid gap-4">
+          <Surface className="grid content-start gap-4 p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Övrigt</p>
             <Field label="Betyg" hint="0–5">
               <NumberInput min={0} max={5} step={0.1} suffix="★" value={form.rating} onValueChange={(value) => set("rating", value)} />

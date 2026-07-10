@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { api } from "@/shared/api/client";
-import { Button, Input } from "@/shared/components/ui";
+import { Button } from "@/shared/components/ui";
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
@@ -17,8 +17,8 @@ const MAX_BYTES = 15 * 1024 * 1024;
  *   global/misc/{filnamn}-{ts}.webp   ← plattform-bilder (deals, sponsorer, hero)
  *
  * Cloudinary är borttaget. Saknar ett anropsställe `kind` defaultar vi till
- * "misc" så bilden ändå hamnar i R2 (aldrig Cloudinary). Admin kan också
- * klistra in en URL manuellt — det fältet är kvar och fungerar oberoende.
+ * "misc" så bilden ändå hamnar i R2 (aldrig Cloudinary). Tekniska URL:er
+ * exponeras inte i admin; användaren arbetar enbart med preview och upload.
  *
  * Backend: packages/api/src/routes/upload.ts (POST /api/admin/upload-r2).
  * Max raw-storlek 15 MB, komprimeras till ~250 KB WebP.
@@ -29,7 +29,6 @@ export function ImageUploadField({
   value,
   onChange,
   label = "Bild",
-  placeholder = "https://...",
   // R2-context. Saknas `kind` defaultar uppladdningen till "misc" (R2).
   kind,
   restaurantId,
@@ -37,7 +36,6 @@ export function ImageUploadField({
   categorySlug,
   productId,
   fileBaseName,
-  uploadOnly = false,
 }: {
   value: string;
   onChange: (url: string) => void;
@@ -51,7 +49,7 @@ export function ImageUploadField({
   productId?: string | null;
   // Basnamn för filen i R2-path:en (t.ex. tillvalsnamnet för kind="extra").
   fileBaseName?: string;
-  // Bara uppladdning: göm det manuella URL-fältet, visa enbart knapp + preview.
+  // Behålls för bakåtkompatibilitet. URL-fält visas aldrig i admin längre.
   uploadOnly?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -93,51 +91,32 @@ export function ImageUploadField({
     }
   };
 
-  // Förkorta visning av base64-strängar och långa URLs så modalerna inte
-  // fylls med 100k+ tecken text. R2-URLer är OK att visa direkt.
-  const isBase64 = value.startsWith("data:");
-  const showShortened = isBase64 || value.length > 80;
-  const displayLabel = isBase64 ? "Inline-bild (base64)" : value.length > 80 ? `${value.slice(0, 60)}…${value.slice(-12)}` : value;
+  const isHero = kind === "hero";
 
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-2.5">
       <span className="field-label">{label}</span>
       {value ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] p-2">
+        <div className="flex items-center gap-3 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] p-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt={label} className="h-20 w-20 rounded-xl object-cover" />
-          <div className="min-w-0 flex-1">
-            <p className="break-all text-xs text-[var(--text-secondary)]">{displayLabel}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button variant="secondary" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          <img src={value} alt={label} className={isHero ? "h-20 w-32 shrink-0 rounded-[8px] object-cover" : "h-16 w-16 shrink-0 rounded-[8px] object-cover"} />
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+              <Button variant="secondary" className="h-9 min-h-9 px-3 text-xs" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
                 {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />} Byt bild
               </Button>
-              <Button variant="danger" type="button" onClick={() => onChange("")} disabled={uploading}>
+              <Button variant="danger" className="h-9 min-h-9 px-3 text-xs" type="button" onClick={() => onChange("")} disabled={uploading}>
                 <Trash2 size={14} /> Ta bort
               </Button>
-            </div>
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="primary" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
+        <div className="flex min-h-20 items-center justify-center rounded-[10px] border border-dashed border-[var(--border-strong)] bg-[var(--bg-panel-soft)] p-3">
+          <Button variant="secondary" className="h-9 min-h-9 px-3 text-xs" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
             {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
             {uploading ? "Laddar upp..." : "Ladda upp bild"}
           </Button>
-          {!uploadOnly ? <span className="text-xs text-[var(--text-secondary)]">eller klistra in URL nedan (max 5 MB)</span> : null}
         </div>
       )}
-      {/* URL-fältet visas bara när vi inte har en base64/lång inline-bild,
-          så användaren inte tappar bort sig i ett ändlöst textfält. För
-          base64 finns Byt/Ta bort-knapparna ovan. uploadOnly döljer det helt. */}
-      {!uploadOnly && (!showShortened || !value) ? (
-        <Input
-          type="text"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
-        />
-      ) : null}
       {error ? <p className="text-sm text-rose-400">{error}</p> : null}
       <input
         ref={inputRef}
