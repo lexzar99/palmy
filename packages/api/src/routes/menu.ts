@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
-import { getDealScopeType, isDealAvailableNow, parseApplicableRestaurantIds, parseDealTargetIds, resolveDisplayPromotionForProduct } from '../lib/deals';
+import { getDealScopeType, isDealAvailableNow, parseApplicableRestaurantIds, parseDealTargetIds, resolveDisplayPromotionForProduct, PARTNER_DEAL_MARKER } from '../lib/deals';
 import { predictedProductUrl, predictedHeroUrl, slugifyPathSegment } from '../lib/r2';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 
@@ -203,7 +203,10 @@ router.get('/categories', async (req, res) => {
     ]);
     const activeDeals = primaryRestaurantId
       ? await prisma.deal.findMany({
-          where: { isActive: true, showOnSite: true },
+          where: {
+            isActive: true,
+            OR: [{ showOnSite: true }, { appCtaTarget: PARTNER_DEAL_MARKER }],
+          },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
         })
       : [];
@@ -383,7 +386,10 @@ router.get('/discounted', async (req, res) => {
     const { cityId } = req.query;
 
     const activeDeals = await prisma.deal.findMany({
-      where: { isActive: true, showOnSite: true },
+      where: {
+        isActive: true,
+        OR: [{ showOnSite: true }, { appCtaTarget: PARTNER_DEAL_MARKER }],
+      },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
 

@@ -8,7 +8,7 @@ import { audit } from '../lib/auditLog';
 import { getIO } from '../lib/socket';
 import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify, uniqueMenuSlug } from '../lib/slug';
-import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds } from '../lib/deals';
+import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds, PARTNER_DEAL_MARKER } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
@@ -3749,6 +3749,10 @@ router.post('/deals', async (req, res) => {
     }
 
     const normalized = normalizeDealInputForDb(rest);
+
+    // Flutter partner deals change the public menu price. Older Flutter
+    // clients omitted showOnSite, which made badges and menu prices disagree.
+    if (rest.appCtaTarget === PARTNER_DEAL_MARKER) normalized.showOnSite = true;
 
     // Bara super-admin kan kedje-scopa en deal. Merchant-deals är alltid
     // bundna till sin egen restaurang.

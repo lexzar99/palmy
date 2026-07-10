@@ -19,7 +19,7 @@ import { resolveOrCreateCity } from '../lib/cityResolver';
 import { cached, bustCache, bustRestaurantCaches } from '../lib/ttlCache';
 import { revalidateWebRestaurant } from '../lib/revalidate';
 import { menuCacheBust } from './menu';
-import { isDealAvailableNow, parseApplicableRestaurantIds, parseDealProductIds } from '../lib/deals';
+import { isCustomerVisibleDeal, isDealAvailableNow, parseApplicableRestaurantIds, parseDealProductIds } from '../lib/deals';
 
 const router = Router();
 
@@ -269,6 +269,7 @@ const buildDealSummaries = async (restaurants: { id: string; brandId?: string | 
   for (const r of restaurants) if (r.brandId) brandById.set(r.id, r.brandId);
 
   for (const deal of candidateDeals) {
+    if (!isCustomerVisibleDeal(deal)) continue;
     if (!isDealAvailableNow(deal, now)) continue;
 
     const value = Number(deal.discountValue || 0);

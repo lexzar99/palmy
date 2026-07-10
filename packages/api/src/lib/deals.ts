@@ -16,6 +16,7 @@ type DealLike = {
   comboProductIds: string;
   isActive: boolean;
   showOnSite: boolean;
+  appCtaTarget?: string | null;
   showAsBanner?: boolean;
   popupEnabled: boolean;
   maxUsages: number | null;
@@ -43,6 +44,12 @@ type DealLike = {
   bogoRewardsPerTrigger?: number | null;
   bogoMaxRewardsPerOrder?: number | null;
 };
+
+// Partner-created product deals are customer-facing even on older rows that
+// were created before the Flutter terminal started sending showOnSite=true.
+export const PARTNER_DEAL_MARKER = 'VIAEATS_PARTNER';
+export const isCustomerVisibleDeal = (deal: Pick<DealLike, 'showOnSite' | 'appCtaTarget'>) =>
+  deal.showOnSite === true || deal.appCtaTarget === PARTNER_DEAL_MARKER;
 
 type ProductPromotionLike = {
   id: string;
@@ -397,7 +404,7 @@ export const resolveDisplayPromotionForProduct = (params: {
 
   for (const deal of deals) {
     if (!isDealAvailableNow(deal)) continue;
-    if (!deal.showOnSite) continue;
+    if (!isCustomerVisibleDeal(deal)) continue;
 
     const scope = getDealScopeType(deal);
     if (scope === 'COMBO' || scope === 'MIN_ORDER') continue;
