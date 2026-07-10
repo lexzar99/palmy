@@ -1,6 +1,7 @@
 import prisma from './prisma';
 import { sendHermesAlert } from './hermesAlerts';
 import { isRestaurantOpen, minutesUntilClose } from './openingHours';
+import { normalizeAcceptingOrdersMode } from './restaurantAvailability';
 
 // ── Bedrägeri-/drift-bevakning för restauranger ──────────────────────────────
 // Skickar Hermes-alerts (→ WhatsApp via /api/hermes/alerts-flödet) när:
@@ -136,13 +137,25 @@ export async function scanClosedRestaurants(): Promise<void> {
   try {
     const restaurants = await prisma.restaurant.findMany({
       where: { draft: false, comingSoon: false },
-      select: { id: true, name: true, isOpen: true, pausedUntil: true, openingHours: true },
+      select: {
+        id: true,
+        name: true,
+        acceptingOrdersMode: true,
+        acceptingOrdersOverrideUntil: true,
+        pausedUntil: true,
+        openingHours: true,
+      },
     });
 
     const nowMs = Date.now();
     for (const r of restaurants) {
       const paused = r.pausedUntil != null && new Date(r.pausedUntil).getTime() > nowMs;
-      const manuallyClosed = r.isOpen === false;
+      const configuredMode = normalizeAcceptingOrdersMode(r.acceptingOrdersMode);
+      const overrideUntil = r.acceptingOrdersOverrideUntil
+        ? new Date(r.acceptingOrdersOverrideUntil).getTime()
+        : null;
+      const overrideActive = overrideUntil == null || overrideUntil > nowMs;
+      const manuallyClosed = configuredMode === 'FORCE_CLOSED' && overrideActive;
       const scheduleOpenNow = isRestaurantOpen(r.openingHours);
       const closedDuringHours = scheduleOpenNow && (paused || manuallyClosed);
 

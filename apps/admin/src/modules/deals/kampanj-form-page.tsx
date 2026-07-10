@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Send, Trash2 } from "lucide-react";
@@ -17,6 +17,7 @@ import {
   getDealProducts,
   getDealRestaurants,
   updateAutomaticDeal,
+  type AutomaticDealRecord,
   type DealDiscountType,
   type DealScopeType,
 } from "@/modules/deals/api";
@@ -63,6 +64,35 @@ const defaultDraft = (): Draft => ({
   validUntil: "",
 });
 
+const draftFromDeal = (deal: AutomaticDealRecord): Draft => ({
+  title: deal.title,
+  description: deal.description || "",
+  restaurantId: deal.restaurantId || deal.applicableRestaurantIds?.[0] || "",
+  applicableRestaurantIds: deal.applicableRestaurantIds?.length
+    ? deal.applicableRestaurantIds
+    : deal.restaurantId
+      ? [deal.restaurantId]
+      : [],
+  isGlobal: deal.isGlobal,
+  scopeType: deal.scopeType,
+  discountType: (deal.discountType === "NONE"
+    ? "NONE"
+    : deal.discountType === "FIXED_PRICE"
+      ? "FIXED_PRICE"
+      : deal.discountType === "FIXED"
+        ? "FIXED"
+        : "PERCENTAGE") as DealDiscountType,
+  discountValue: deal.discountValue,
+  freeDelivery: Boolean(deal.freeDelivery),
+  minOrder: deal.minOrder || 0,
+  targetIds: deal.targetIds || [],
+  isActive: deal.isActive,
+  maxUsages: deal.maxUsages ? String(deal.maxUsages) : "",
+  maxUsesPerCustomer: deal.maxUsesPerCustomer != null ? String(deal.maxUsesPerCustomer) : "0",
+  validFrom: deal.validFrom ? deal.validFrom.slice(0, 10) : "",
+  validUntil: deal.validUntil ? deal.validUntil.slice(0, 10) : "",
+});
+
 const SCOPE_OPTIONS: { value: DealScopeType; label: string; description: string; glyph: string }[] = [
   { value: "RESTAURANT", label: "Restaurang", description: "Rabatt på hela menyn", glyph: "%" },
   { value: "CATEGORY", label: "Kategori", description: "Rabatt på en kategoris produkter", glyph: "▦" },
@@ -71,19 +101,39 @@ const SCOPE_OPTIONS: { value: DealScopeType; label: string; description: string;
 ];
 
 export function KampanjFormPage({ dealId }: { dealId?: string }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
-  const isEditing = Boolean(dealId);
-
   const existingDeal = useQuery({
     queryKey: dealByIdQueryKey(dealId!),
     queryFn: () => getDealById(dealId!),
     enabled: Boolean(dealId),
   });
 
+  return (
+    <KampanjFormEditor
+      key={`${dealId ?? "new"}:${existingDeal.data ? "loaded" : "empty"}`}
+      dealId={dealId}
+      initialDeal={existingDeal.data}
+      dealLoading={Boolean(dealId) && existingDeal.isLoading}
+    />
+  );
+}
+
+function KampanjFormEditor({
+  dealId,
+  initialDeal,
+  dealLoading,
+}: {
+  dealId?: string;
+  initialDeal?: AutomaticDealRecord;
+  dealLoading: boolean;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+  const isEditing = Boolean(dealId);
+
   // Prefill från t.ex. menyns "Skapa produktdeal": ?scope=PRODUCT&restaurant=<id>&target=<produktId>&title=...
   const [draft, setDraft] = useState<Draft>(() => {
+    if (initialDeal) return draftFromDeal(initialDeal);
     const d = defaultDraft();
     if (dealId) return d;
     const scope = searchParams.get("scope");
@@ -100,7 +150,6 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
     return d;
   });
   const [error, setError] = useState<string | null>(null);
-  const [initialized, setInitialized] = useState(false);
 
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
   const activeRestaurantId = draft.isGlobal ? null : (draft.restaurantId || draft.applicableRestaurantIds[0] || null);
@@ -116,31 +165,6 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
     queryFn: () => getDealProducts(activeRestaurantId!),
     enabled: Boolean(activeRestaurantId),
   });
-
-  useEffect(() => {
-    if (existingDeal.data && !initialized) {
-      const d = existingDeal.data;
-      setDraft({
-        title: d.title,
-        description: d.description || "",
-        restaurantId: d.restaurantId || d.applicableRestaurantIds?.[0] || "",
-        applicableRestaurantIds: d.applicableRestaurantIds?.length ? d.applicableRestaurantIds : d.restaurantId ? [d.restaurantId] : [],
-        isGlobal: d.isGlobal,
-        scopeType: d.scopeType,
-        discountType: (d.discountType === "NONE" ? "NONE" : d.discountType === "FIXED_PRICE" ? "FIXED_PRICE" : d.discountType === "FIXED" ? "FIXED" : "PERCENTAGE") as DealDiscountType,
-        discountValue: d.discountValue,
-        freeDelivery: Boolean(d.freeDelivery),
-        minOrder: d.minOrder || 0,
-        targetIds: d.targetIds || [],
-        isActive: d.isActive,
-        maxUsages: d.maxUsages ? String(d.maxUsages) : "",
-        maxUsesPerCustomer: d.maxUsesPerCustomer != null ? String(d.maxUsesPerCustomer) : "0",
-        validFrom: d.validFrom ? d.validFrom.slice(0, 10) : "",
-        validUntil: d.validUntil ? d.validUntil.slice(0, 10) : "",
-      });
-      setInitialized(true);
-    }
-  }, [existingDeal.data, initialized]);
 
   const isItemScope = draft.scopeType === "PRODUCT" || draft.scopeType === "CATEGORY";
   const supportsFixedPrice = draft.scopeType === "PRODUCT" || draft.scopeType === "CATEGORY";
@@ -237,7 +261,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
     saveMutation.mutate(draft);
   };
 
-  const isLoading = (isEditing && existingDeal.isLoading) || restaurants.isLoading;
+  const isLoading = dealLoading || restaurants.isLoading;
   if (isLoading) return <div className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar...</div>;
 
   const discountLabel =

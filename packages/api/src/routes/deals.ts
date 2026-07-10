@@ -8,6 +8,8 @@ import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './r
 import { authenticateUser, authenticateUserOptional } from './auth';
 import { themeForKey } from '../lib/themeRotation';
 import { abHiddenDealIds } from '../lib/abTests';
+import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
+import { moneyDto } from '../utils/money';
 
 const router = Router();
 
@@ -84,7 +86,7 @@ const DEFAULT_APP_MAX_USES_PER_CUSTOMER = 1;
 
 const normalizeCtaAction = (value: unknown) => {
   const action = String(value || 'CLAIM').toUpperCase();
-  return ['CLAIM', 'CART', 'RESTAURANT', 'REWARDS', 'URL'].includes(action) ? action : 'CLAIM';
+  return ['CLAIM', 'CART', 'RESTAURANT', 'URL'].includes(action) ? action : 'CLAIM';
 };
 
 const appAudienceMatches = (deal: any, ctx: { isLoggedIn: boolean; orderCount: number | null }) => {
@@ -97,8 +99,6 @@ const appAudienceMatches = (deal: any, ctx: { isLoggedIn: boolean; orderCount: n
   if (audience === 'RETURNING') return (ctx.orderCount ?? 0) > 0;
   return true;
 };
-
-const isMissionDeal = (deal: any) => Boolean(deal.appMissionType) || String(deal.appTemplate || '').toUpperCase() === 'MISSION';
 
 const appDealMaxUsesPerCustomer = (deal: any) => {
   const raw = Number(deal?.maxUsesPerCustomer);
@@ -150,46 +150,7 @@ const favoriteProductIsGone = async (userDeal: any) => {
   return !product;
 };
 
-// Uppdragets mål bor i Deal.triggerQuantity (admin-styrt, återanvänt fält).
-const missionTargetForDeal = (deal: any) => {
-  const raw = Number(deal.triggerQuantity || 0);
-  return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 3;
-};
-
-// TOTAL_ORDERS = milstolpe (räknar alla ordrar, inget tidsfönster).
-const isAllTimeMission = (deal: any) =>
-  String(deal.appMissionType || '').toUpperCase() === 'TOTAL_ORDERS';
-
-const missionProgressForDeal = async (userId: string | undefined, deal: any, userDeal?: any) => {
-  if (!userId || !isMissionDeal(deal)) return null;
-  const target = missionTargetForDeal(deal);
-  const allTime = isAllTimeMission(deal);
-  const windowDays = allTime ? 0 : 7;
-  const windowStart = allTime
-    ? undefined
-    : userDeal?.createdAt || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const count = await prisma.order.count({
-    where: {
-      userId,
-      pointsAwarded: true,
-      ...(windowStart ? { createdAt: { gte: windowStart } } : {}),
-      status: { notIn: ['CANCELLED', 'REJECTED'] },
-    },
-  });
-  const completed = userDeal?.status === 'USED' || count >= target;
-  return {
-    target,
-    count: Math.min(count, target),
-    remaining: Math.max(0, target - count),
-    completed,
-    windowDays,
-    rewardPoints: Math.max(0, Math.round(Number(deal.appDpointsBonus || 0))),
-    claimed: Boolean(userDeal),
-  };
-};
-
-const formatAppDeal = (deal: any, userDealId?: string | null, missionProgress?: any) => {
-  const mission = isMissionDeal(deal);
+const formatAppDeal = (deal: any, userDealId?: string | null) => {
   const fixedKr =
     deal.discountType === 'FIXED' || deal.discountType === 'FIXED_PRICE'
       ? oreToKr(deal.discountValue)
@@ -212,16 +173,8 @@ const formatAppDeal = (deal: any, userDealId?: string | null, missionProgress?: 
       ? `${percent}% rabatt`
       : fixedKr
         ? `${fixedKr} kr rabatt`
-        : deal.appDpointsBonus > 0
-          ? `+${deal.appDpointsBonus} Vpoints`
-          : 'Deal';
-  const subtitle = missionProgress
-    ? missionProgress.completed
-      ? `Uppdrag klart. ${missionProgress.rewardPoints} Vpoints är dina.`
-      : missionProgress.windowDays > 0
-        ? `${missionProgress.count} av ${missionProgress.target} beställningar denna vecka`
-        : `${missionProgress.count} av ${missionProgress.target} beställningar`
-    : deal.description || '';
+        : 'Deal';
+  const subtitle = deal.description || '';
 
   return {
     id: deal.id,
@@ -241,10 +194,7 @@ const formatAppDeal = (deal: any, userDealId?: string | null, missionProgress?: 
     claimRequired: deal.appClaimRequired !== false,
     claimExpiresMinutes: deal.appClaimExpiresMinutes ?? null,
     cooldownHours: deal.appCooldownHours ?? null,
-    dpointsBonus: deal.appDpointsBonus ?? 0,
-    missionType: deal.appMissionType || null,
-    missionProgress: missionProgress || null,
-    checkoutApplicable: !mission,
+    checkoutApplicable: true,
     theme: deal.appTheme || themeForKey(`deal:${deal.id}`),
     discountType: deal.discountType,
     discountPercent: percent,
@@ -335,19 +285,6 @@ const calculateUserDealQuote = (userDeal: any, input: any, cartItems: CartQuoteI
       subtotalDiscountOre: 0,
       deliveryDiscountOre: 0,
       discountAmountOre: 0,
-      dpointsBonus: 0,
-    };
-  }
-
-  if ((metadata.appMissionType || userDeal.type === 'APP_MISSION') && !metadata.appTemplate?.includes?.('CHECKOUT')) {
-    return {
-      applicable: false,
-      reason: 'MISSION_NOT_CHECKOUT',
-      minOrderKr,
-      subtotalDiscountOre: 0,
-      deliveryDiscountOre: 0,
-      discountAmountOre: 0,
-      dpointsBonus: 0,
     };
   }
 
@@ -359,7 +296,6 @@ const calculateUserDealQuote = (userDeal: any, input: any, cartItems: CartQuoteI
       subtotalDiscountOre: 0,
       deliveryDiscountOre: 0,
       discountAmountOre: 0,
-      dpointsBonus: 0,
     };
   }
 
@@ -371,7 +307,6 @@ const calculateUserDealQuote = (userDeal: any, input: any, cartItems: CartQuoteI
       subtotalDiscountOre: 0,
       deliveryDiscountOre: 0,
       discountAmountOre: 0,
-      dpointsBonus: Math.max(0, Math.round(Number(metadata.appDpointsBonus || 0))),
     };
   }
 
@@ -391,7 +326,7 @@ const calculateUserDealQuote = (userDeal: any, input: any, cartItems: CartQuoteI
   const deliveryDiscountOre = wantsFreeDelivery && isDelivery ? deliveryFeeOre : 0;
   const discountAmountOre = Math.min(subtotalOre + deliveryFeeOre, subtotalDiscountOre + deliveryDiscountOre);
 
-  const applicable = discountAmountOre > 0 || Number(metadata.appDpointsBonus || 0) > 0;
+  const applicable = discountAmountOre > 0;
   // Förklara VARFÖR dealen inte gäller (annars ser det ut som en bugg):
   // fri leverans-deal + 0 kr i avgift = redan gratis; pickup = gäller ej.
   let notApplicableReason: string | null = null;
@@ -410,11 +345,10 @@ const calculateUserDealQuote = (userDeal: any, input: any, cartItems: CartQuoteI
     subtotalDiscountOre,
     deliveryDiscountOre,
     discountAmountOre,
-    dpointsBonus: Math.max(0, Math.round(Number(metadata.appDpointsBonus || 0))),
   };
 };
 
-// GET /api/deals/app — roterande app-kort för Swift home/cart/rewards.
+// GET /api/deals/app — roterande app-kort för Swift home/cart.
 // Query: placement=HOME_TOP, limit=6, loggedIn=1, phone=...
 router.get('/app', authenticateUserOptional, async (req: any, res) => {
   try {
@@ -433,19 +367,6 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
       orderCount = await prisma.order.count({
         where: { customerPhone: phone, status: { notIn: ['CANCELLED', 'REJECTED'] } },
       });
-    }
-
-    // Själv-läkning: uppfyllda uppdrag betalas ut när Rewards öppnas (täcker
-    // claims som gjordes innan direkt-utbetalningen fanns).
-    if (req.user?.id && placement === 'REWARDS') {
-      const { evaluateAppDealMissions, getDpointsSettings } = await import('../lib/dpoints');
-      const settings = await getDpointsSettings().catch(() => null);
-      await evaluateAppDealMissions({
-        userId: req.user.id,
-        orderId: 'rewards-check',
-        orderDate: now,
-        cap: settings?.dpointsMaxBalance ?? 0,
-      }).catch(() => null);
     }
 
     const claimedRows = req.user?.id
@@ -507,7 +428,7 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
         const used = usageByDealId.get(deal.id) || 0;
         return used < appDealMaxUsesPerCustomer(deal);
       })
-      .filter((deal) => isMissionDeal(deal) || !activeClaimedDealIds.has(deal.id))
+      .filter((deal) => !activeClaimedDealIds.has(deal.id))
       .map((deal) => ({
         deal,
         score: (deal.appRotating === false ? 10_000 : 0) + (deal.sortOrder || 0) - Math.random() * Math.max(1, deal.appWeight || 10),
@@ -515,13 +436,10 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
       .sort((a, b) => a.score - b.score)
       .slice(0, limit);
 
-    const eligible = await Promise.all(
-      eligiblePairs.map(async ({ deal }) => {
-        const claim = claimedByDealId.get(deal.id);
-        const progress = await missionProgressForDeal(req.user?.id, deal, claim);
-        return formatAppDeal(deal, claim?.status === 'ACTIVE' ? claim.id : null, progress);
-      }),
-    );
+    const eligible = eligiblePairs.map(({ deal }) => {
+      const claim = claimedByDealId.get(deal.id);
+      return formatAppDeal(deal, claim?.status === 'ACTIVE' ? claim.id : null);
+    });
 
     // Motor-tilldelade deals (DealCampaign): redan bundna till kunden, visas
     // först på HOME_TOP. Ingen claim behövs; kassans /quote är sanning.
@@ -546,7 +464,7 @@ router.get('/app', authenticateUserOptional, async (req: any, res) => {
       assigned = assignedRows
         .filter((row: any) => row.deal && !isClaimedDealParentInactive(row, now))
         .map((row: any) => ({
-          ...formatAppDeal(row.deal, row.id, null),
+          ...formatAppDeal(row.deal, row.id),
           claimRequired: false,
           checkoutApplicable: true,
           ctaLabel: row.deal.appCtaLabel || 'Använd',
@@ -663,8 +581,7 @@ router.post('/app/:id/claim', authenticateUser, async (req: any, res) => {
       orderBy: { createdAt: 'desc' },
     });
     if (existing && existing.status !== 'EXPIRED') {
-      const progress = await missionProgressForDeal(req.user.id, deal, existing);
-      return res.json({ claimed: true, deal: formatAppDeal(deal, existing.id, progress), userDeal: existing });
+      return res.json({ claimed: true, deal: formatAppDeal(deal, existing.id), userDeal: existing });
     }
 
     const orderCount = await prisma.order.count({
@@ -699,11 +616,10 @@ router.post('/app/:id/claim', authenticateUser, async (req: any, res) => {
         orderBy: { usedAt: 'desc' },
       });
       if (recentUsed) {
-        const progress = await missionProgressForDeal(req.user.id, deal, recentUsed);
         return res.json({
           claimed: false,
           reason: 'COOLDOWN',
-          deal: formatAppDeal(deal, null, progress),
+          deal: formatAppDeal(deal),
           userDeal: null,
         });
       }
@@ -712,28 +628,22 @@ router.post('/app/:id/claim', authenticateUser, async (req: any, res) => {
     const expiresAt = deal.appClaimExpiresMinutes
       ? new Date(Date.now() + deal.appClaimExpiresMinutes * 60_000)
       : deal.validUntil || null;
-    const mission = isMissionDeal(deal);
-    const amountKr = !mission && (deal.discountType === 'FIXED' || deal.discountType === 'FIXED_PRICE') ? Math.round(oreToKr(deal.discountValue)) : null;
-    const discountPercent = !mission && deal.discountType === 'PERCENTAGE' ? deal.discountValue : null;
+    const amountKr = deal.discountType === 'FIXED' || deal.discountType === 'FIXED_PRICE' ? Math.round(oreToKr(deal.discountValue)) : null;
+    const discountPercent = deal.discountType === 'PERCENTAGE' ? deal.discountValue : null;
     const userDeal = await (prisma as any).userDeal.create({
       data: {
         userId: req.user.id,
         dealId: deal.id,
-        type: mission ? 'APP_MISSION' : 'APP_DEAL',
+        type: 'APP_DEAL',
         status: 'ACTIVE',
         amountKr,
         discountPercent,
-        discountType: mission ? 'NONE' : deal.freeDelivery && deal.discountType === 'NONE' ? 'NONE' : deal.discountType,
-        freeDelivery: mission ? false : !!deal.freeDelivery,
+        discountType: deal.freeDelivery && deal.discountType === 'NONE' ? 'NONE' : deal.discountType,
+        freeDelivery: !!deal.freeDelivery,
         expiresAt,
         metadata: {
           title: deal.title,
           minOrderKr: oreToKr(deal.minOrder),
-          appDpointsBonus: mission ? 0 : deal.appDpointsBonus || 0,
-          appMissionType: deal.appMissionType || null,
-          missionRewardPoints: mission ? deal.appDpointsBonus || 0 : 0,
-          missionTarget: missionTargetForDeal(deal),
-          missionWindowDays: isAllTimeMission(deal) ? 0 : 7,
           appTemplate: deal.appTemplate || null,
           scopeType: deal.triggerType || 'NONE',
           targetIds: parseDealProductIds(deal.comboProductIds),
@@ -743,21 +653,8 @@ router.post('/app/:id/claim', authenticateUser, async (req: any, res) => {
       },
     });
     await prisma.deal.update({ where: { id: deal.id }, data: { usageCount: { increment: 1 } } }).catch(() => null);
-    if (mission) {
-      // Redan uppfyllt mål (t.ex. milstolpe man passerat) betalas ut direkt,
-      // inte först vid nästa order.
-      const { evaluateAppDealMissions, getDpointsSettings } = await import('../lib/dpoints');
-      const settings = await getDpointsSettings().catch(() => null);
-      await evaluateAppDealMissions({
-        userId: req.user.id,
-        orderId: 'claim-check',
-        orderDate: new Date(),
-        cap: settings?.dpointsMaxBalance ?? 0,
-      }).catch((e: any) => console.error('[deals/app claim] mission eval error:', e?.message));
-    }
     const refreshedUserDeal = await (prisma as any).userDeal.findUnique({ where: { id: userDeal.id } }).catch(() => userDeal);
-    const progress = await missionProgressForDeal(req.user.id, deal, refreshedUserDeal || userDeal);
-    res.status(201).json({ claimed: true, deal: formatAppDeal(deal, (refreshedUserDeal || userDeal).id, progress), userDeal: refreshedUserDeal || userDeal });
+    res.status(201).json({ claimed: true, deal: formatAppDeal(deal, (refreshedUserDeal || userDeal).id), userDeal: refreshedUserDeal || userDeal });
   } catch (error: any) {
     console.error('[deals/app claim] error:', error?.message);
     res.status(500).json({ error: 'Kunde inte hämta erbjudandet' });
@@ -794,7 +691,6 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
         discountAmountKr: 0,
         deliveryDiscountKr: 0,
         subtotalDiscountKr: 0,
-        dpointsBonus: 0,
         deal: null,
       });
     }
@@ -807,7 +703,6 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
         discountAmountKr: 0,
         deliveryDiscountKr: 0,
         subtotalDiscountKr: 0,
-        dpointsBonus: 0,
         deal: null,
       });
     }
@@ -820,7 +715,6 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
         discountAmountKr: 0,
         deliveryDiscountKr: 0,
         subtotalDiscountKr: 0,
-        dpointsBonus: 0,
         deal: null,
       });
     }
@@ -833,7 +727,6 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
         discountAmountKr: 0,
         deliveryDiscountKr: 0,
         subtotalDiscountKr: 0,
-        dpointsBonus: 0,
         deal: null,
       });
     }
@@ -848,8 +741,7 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
         discountAmountKr: 0,
         deliveryDiscountKr: 0,
         subtotalDiscountKr: 0,
-        dpointsBonus: 0,
-        deal: userDeal.deal ? formatAppDeal(userDeal.deal, userDeal.id, null) : null,
+        deal: userDeal.deal ? formatAppDeal(userDeal.deal, userDeal.id) : null,
       });
     }
 
@@ -862,8 +754,7 @@ router.post('/app/quote', authenticateUser, async (req: any, res) => {
       discountAmountKr: quote.discountAmountOre / 100,
       deliveryDiscountKr: quote.deliveryDiscountOre / 100,
       subtotalDiscountKr: quote.subtotalDiscountOre / 100,
-      dpointsBonus: quote.dpointsBonus,
-      deal: userDeal.deal ? formatAppDeal(userDeal.deal, userDeal.id, null) : null,
+      deal: userDeal.deal ? formatAppDeal(userDeal.deal, userDeal.id) : null,
     });
   } catch (error: any) {
     if (error?.name === 'ZodError') {
@@ -936,7 +827,6 @@ router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
             isGlobal: true,
             applicableRestaurantIds: true,
             restaurantId: true,
-            appMissionType: true,
           },
         },
       },
@@ -953,8 +843,6 @@ router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
       : new Set<string>();
     const expiredIds: string[] = [];
     const items = userDeals
-      // Uppdrag prissätts inte i kassan — de belönas efter köp.
-      .filter((ud: any) => !(ud.metadata as any)?.appMissionType && !ud.deal?.appMissionType)
       .filter((ud: any) => {
         if (!isClaimedDealParentInactive(ud)) return true;
         expiredIds.push(ud.id);
@@ -986,7 +874,6 @@ router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
           minOrderKr: quote.minOrderKr,
           discountAmountKr: scopedOut ? 0 : quote.discountAmountOre / 100,
           deliveryDiscountKr: scopedOut ? 0 : quote.deliveryDiscountOre / 100,
-          dpointsBonus: scopedOut ? 0 : quote.dpointsBonus,
           freeDelivery: !!userDeal.freeDelivery,
         };
       });
@@ -1046,6 +933,10 @@ router.get('/:id/restaurants', async (req, res) => {
         id: true, slug: true, name: true, cuisine: true, address: true, city: true,
         imageUrl: true, heroImageUrl: true, rating: true, ratingCount: true,
         deliveryFee: true, etaMinutes: true, isOpen: true, pausedUntil: true,
+        openingHours: true, scheduledOpenNow: true,
+        acceptingOrdersMode: true, acceptingOrdersOverrideUntil: true,
+        acceptingOrdersOverrideReason: true, draft: true, comingSoon: true,
+        city_relation: true,
       },
       orderBy: [{ featuredClass: 'asc' }, { rating: 'desc' }],
     });
@@ -1089,6 +980,7 @@ router.get('/:id/restaurants', async (req, res) => {
       return false;
     };
 
+    const platformSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
     const visibleRestaurants = restaurants.filter((r) => !restaurantHasBetterDeal(r.id));
 
     const formatted = formatDealForClient(deal, {
@@ -1102,7 +994,23 @@ router.get('/:id/restaurants', async (req, res) => {
       deal: formatted,
       restaurants: visibleRestaurants.map((r) => ({
         ...r,
+        ...(() => {
+          const availability = resolveRestaurantAvailability(r, {
+            city: r.city_relation,
+            platform: platformSettings,
+          });
+          return {
+            isOpen: availability.isOpen,
+            manualIsOpen: availability.legacyManualIsOpen,
+            scheduledOpenNow: availability.scheduledOpenNow,
+            acceptingOrdersMode: availability.configuredMode,
+            availabilityReason: availability.reason,
+          };
+        })(),
         deliveryFee: (r.deliveryFee || 0) / 100,
+        deliveryFeeOre: r.deliveryFee || 0,
+        deliveryFeeMoney: moneyDto(r.deliveryFee || 0),
+        city_relation: undefined,
       })),
     });
   } catch (error) {

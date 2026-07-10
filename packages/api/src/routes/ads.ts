@@ -30,6 +30,8 @@ export interface TrackingAd {
   sortOrder: number;
   createdAt: string;
   updatedAt?: string;
+  placement?: 'ORDER_TRACKING' | 'POST_ORDER';
+  layout?: 'BANNER' | 'COMPACT_CARD';
 }
 
 function nowIso() {
@@ -53,7 +55,7 @@ function isCurrentlyVisible(ad: TrackingAd) {
   return true;
 }
 
-async function readAds(): Promise<TrackingAd[]> {
+export async function readAllAds(): Promise<TrackingAd[]> {
   try {
     const row = await (prisma as any).restaurantSettings.findUnique({ where: { id: RECORD_ID } });
     if (!row) return [];
@@ -99,12 +101,18 @@ function writeData(input: any, current?: TrackingAd): TrackingAd {
     sortOrder: input.sortOrder !== undefined ? Math.max(0, Math.round(Number(input.sortOrder) || 0)) : (current?.sortOrder ?? 0),
     createdAt,
     updatedAt: current ? nowIso() : undefined,
+    placement: input.placement !== undefined
+      ? (input.placement === 'POST_ORDER' ? 'POST_ORDER' : 'ORDER_TRACKING')
+      : (current?.placement ?? 'ORDER_TRACKING'),
+    layout: input.layout !== undefined
+      ? (input.layout === 'COMPACT_CARD' ? 'COMPACT_CARD' : 'BANNER')
+      : (current?.layout ?? 'BANNER'),
   };
 }
 
 router.get('/', async (_req, res) => {
   try {
-    const all = await cached('tracking-ads:public', 'all', 60_000, () => readAds());
+    const all = await cached('tracking-ads:public', 'all', 60_000, () => readAllAds());
     res.json(all.filter(isCurrentlyVisible).sort((a, b) => a.sortOrder - b.sortOrder));
   } catch {
     res.status(500).json({ error: 'Kunde inte hämta annonser' });
@@ -113,7 +121,7 @@ router.get('/', async (_req, res) => {
 
 router.get('/all', authenticate, requireSuperAdmin, async (_req, res) => {
   try {
-    const all = await readAds();
+    const all = await readAllAds();
     res.json(all.sort((a, b) => a.sortOrder - b.sortOrder));
   } catch {
     res.status(500).json({ error: 'Kunde inte hämta annonser' });
@@ -124,7 +132,7 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const next = writeData(req.body || {});
     if (!next.brand || !next.title) return res.status(400).json({ error: 'Företag och rubrik krävs' });
-    const ads = await readAds();
+    const ads = await readAllAds();
     next.sortOrder = req.body?.sortOrder !== undefined ? next.sortOrder : ads.length;
     ads.push(next);
     await writeAds(ads);
@@ -136,7 +144,7 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
 
 router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const ads = await readAds();
+    const ads = await readAllAds();
     const idx = ads.findIndex((ad) => ad.id === req.params.id);
     if (idx < 0) return res.status(404).json({ error: 'Annons hittades inte' });
     const next = writeData(req.body || {}, ads[idx]);
@@ -151,7 +159,7 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
 
 router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const ads = await readAds();
+    const ads = await readAllAds();
     await writeAds(ads.filter((ad) => ad.id !== req.params.id));
     res.json({ ok: true });
   } catch {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Field, Select } from "@/shared/components/ui";
 import { apiGet } from "@/shared/api/client";
 
@@ -53,17 +53,11 @@ export function CityRestaurantPicker({
     return map;
   }, [cities.data]);
 
-  // Lokal stad-state — initieras från `value` om angiven. Vi sätter den BARA
-  // när parent ger en konkret restaurang som kan hittas i en stad — annars
-  // låter vi admins manuella city-val stå kvar. Detta är vad som gör att
-  // "byt stad → välj restaurang"-flowet fungerar utan att snäppa tillbaka.
-  const [cityId, setCityId] = useState<string>("");
-
-  useEffect(() => {
-    if (value && cityByRestaurant.has(value)) {
-      setCityId(cityByRestaurant.get(value) || "");
-    }
-  }, [value, cityByRestaurant]);
+  // Ett konkret restaurangvärde styr alltid staden. När värdet är tomt behåller
+  // vi i stället admins senaste manuella stadsval så tvåstegsflödet inte
+  // snäpper tillbaka efter att restaurangvalet nollställts.
+  const [manualCityId, setManualCityId] = useState<string>("");
+  const cityId = (value && cityByRestaurant.get(value)) || manualCityId;
 
   const restaurantsForCity = useMemo(() => {
     if (!cityId) return [];
@@ -85,7 +79,7 @@ export function CityRestaurantPicker({
         <Select
           value={cityId}
           onChange={(event) => {
-            setCityId(event.target.value);
+            setManualCityId(event.target.value);
             // När stad byts, nollställ vald restaurang (om inte emptyOption-värdet)
             onChange(emptyOption?.value ?? "");
           }}
@@ -103,7 +97,13 @@ export function CityRestaurantPicker({
       <Field label={restaurantLabel}>
         <Select
           value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => {
+            const nextRestaurantId = event.target.value;
+            // Kom ihåg staden även om användaren väljer tom/global option.
+            // Då ligger stadsfiltret kvar precis som före effect-migreringen.
+            setManualCityId(cityByRestaurant.get(nextRestaurantId) || cityId);
+            onChange(nextRestaurantId);
+          }}
           disabled={disabled || !cityId}
         >
           {emptyOption ? (

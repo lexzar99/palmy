@@ -796,12 +796,6 @@ adminRouter.get('/welcome-deal', authenticate, requireSuperAdmin, async (_req, r
       },
       orderBy: { createdAt: 'desc' },
     });
-    // Aktiva sponsor-kort för poäng-belöningens sponsor-väljare (valfri).
-    const sponsorCards = await (prisma as any).sponsorCard.findMany({
-      where: { isActive: true },
-      select: { id: true, sponsorName: true, title: true, bonusPoints: true },
-      orderBy: { createdAt: 'desc' },
-    });
     // Inline-erbjudandets nuvarande värden (ur välkomst-mallen) → fyller formuläret.
     let welcomeOffer = { discountKind: 'PERCENT' as 'PERCENT' | 'FIXED' | 'NONE', discountValue: 20, freeDelivery: true, minOrderKr: 0 };
     if (settings.welcomeDealId) {
@@ -826,15 +820,11 @@ adminRouter.get('/welcome-deal', authenticate, requireSuperAdmin, async (_req, r
       welcomeOffer,
       welcomeAudience: settings.welcomeAudience ?? 'FIRST_ORDER',
       welcomeMaxOrders: settings.welcomeMaxOrders ?? 1,
-      welcomePointsActive: !!(settings as any).welcomePointsActive,
-      welcomePointsAmount: (settings as any).welcomePointsAmount ?? 100,
-      welcomePointsSponsorCardId: (settings as any).welcomePointsSponsorCardId ?? null,
       referralEnabled: !!settings.referralEnabled,
       referralDealId: settings.referralDealId ?? null,
       referralCouponsPerSide: settings.referralCouponsPerSide ?? 1,
       referralMaxRewardsPerInviter: settings.referralMaxRewardsPerInviter ?? 20,
       availableDeals,
-      sponsorCards,
     });
   } catch (err: any) {
     res.status(500).json({ error: 'Serverfel', detail: err?.message });
@@ -846,9 +836,6 @@ const welcomeDealUpdateSchema = z.object({
   welcomeDealId: z.string().nullable().optional(),
   welcomeAudience: z.enum(['FIRST_ORDER', 'ALL', 'LOGGED_IN']).optional(),
   welcomeMaxOrders: z.number().int().min(1).max(3).optional(),
-  welcomePointsActive: z.boolean().optional(),
-  welcomePointsAmount: z.number().int().min(0).max(100000).optional(),
-  welcomePointsSponsorCardId: z.string().nullable().optional(),
   // ── Inline välkomst-erbjudande (ersätter mall-dropdownen) ──────────────────
   // Admin definierar rabatten HÄR; backend skapar/uppdaterar den personliga
   // mallen automatiskt och sätter welcomeDealId. Ingen återvändsgränd.
@@ -923,7 +910,7 @@ adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, 
     }
     // Validera en deal-referens BARA när dess funktion faktiskt aktiveras.
     // En stale referens (mallen raderad → spök-id) ska aldrig blockera ett
-    // sparande där funktionen är av (t.ex. ren poäng-konfig) — det orsakade
+    // sparande där funktionen är av — det orsakade
     // "Vald deal hittades inte" på allt. Partiell patch: effektivt på-läge =
     // payload-värdet om satt, annars nuvarande inställning.
     const current = await getSettings();
@@ -961,9 +948,6 @@ adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, 
       welcomeDealId: updated.welcomeDealId,
       welcomeAudience: updated.welcomeAudience ?? 'FIRST_ORDER',
       welcomeMaxOrders: updated.welcomeMaxOrders ?? 1,
-      welcomePointsActive: !!updated.welcomePointsActive,
-      welcomePointsAmount: updated.welcomePointsAmount ?? 100,
-      welcomePointsSponsorCardId: updated.welcomePointsSponsorCardId ?? null,
       referralEnabled: !!updated.referralEnabled,
       referralDealId: updated.referralDealId,
       referralCouponsPerSide: updated.referralCouponsPerSide,

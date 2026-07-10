@@ -68,9 +68,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
       <div className="app-shell">
+        <a className="skip-link" href="#admin-main">Hoppa till innehåll</a>
         <RealtimeSync />
         <Sidebar onOpenPalette={palette.openPalette} />
-        <main className="content-shell">
+        <main id="admin-main" className="content-shell" tabIndex={-1}>
           <div className="content-frame page-stack">{children}</div>
         </main>
         <CommandPalette open={palette.open} onClose={palette.close} />

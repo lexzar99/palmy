@@ -15,6 +15,9 @@ import {
 } from "@/modules/dashboard/api";
 import { TrendChart } from "@/modules/dashboard/TrendChart";
 import { Badge, Button, ErrorPanel, MetricCard, PageHeader, Sparkline, Surface } from "@/shared/components/ui";
+import { AcceptingOrdersModeSelect } from "@/shared/components/restaurant-availability";
+import type { AcceptingOrdersMode } from "@/shared/contracts/restaurants";
+import { availabilityReasonLabel } from "@/shared/contracts/restaurants";
 import {
   formatCurrency,
   formatNumber,
@@ -64,8 +67,8 @@ export function DashboardPage() {
   });
 
   const toggleRestaurant = useMutation({
-    mutationFn: ({ restaurantId, isOpen }: { restaurantId: string; isOpen: boolean }) =>
-      updateRestaurantLiveState(restaurantId, isOpen),
+    mutationFn: ({ restaurantId, acceptingOrdersMode }: { restaurantId: string; acceptingOrdersMode: AcceptingOrdersMode }) =>
+      updateRestaurantLiveState(restaurantId, acceptingOrdersMode),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       await queryClient.invalidateQueries({ queryKey: ["restaurants"] });
@@ -360,18 +363,21 @@ export function DashboardPage() {
                         {r.liveOrders > 0 && `${r.liveOrders} live`}
                       </p>
                     )}
+                    <p className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
+                      {availabilityReasonLabel[r.availabilityReason] ?? r.availabilityReason}
+                    </p>
                   </div>
-                  <Button
-                    variant={r.isOpen ? "danger" : "primary"}
-                    onClick={() =>
-                      toggleRestaurant.mutate({
-                        restaurantId: r.id,
-                        isOpen: !r.manualIsOpen,
-                      })
-                    }
-                  >
-                    {r.isOpen ? "Stäng" : "Öppna"}
-                  </Button>
+                  <AcceptingOrdersModeSelect
+                    className="w-[150px] shrink-0 text-xs"
+                    aria-label={`Beställningsläge för ${r.name}`}
+                    value={r.acceptingOrdersMode}
+                    disabled={toggleRestaurant.isPending}
+                    compactLabels
+                    onValueChange={(acceptingOrdersMode) => toggleRestaurant.mutate({
+                      restaurantId: r.id,
+                      acceptingOrdersMode,
+                    })}
+                  />
                 </div>
                 );
               })}

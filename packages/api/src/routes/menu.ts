@@ -2,6 +2,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { getDealScopeType, isDealAvailableNow, parseApplicableRestaurantIds, parseDealTargetIds, resolveDisplayPromotionForProduct } from '../lib/deals';
 import { predictedProductUrl, predictedHeroUrl, slugifyPathSegment } from '../lib/r2';
+import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 
 const router = Router();
 
@@ -284,11 +285,6 @@ router.get('/categories', async (req, res) => {
         // Visningsläge för menykortet (FULL = 1-per-rad, COMPACT = 2-per-rad)
         displayMode: prod.displayMode || "FULL",
         hideDescription: prod.hideDescription || false,
-        // Vpoints: rewardable = visas i Rewards. Poängpris är produktstyrt:
-        // override om satt, annars ceil(priceKr × rewardPointsMultiplier).
-        rewardable: !!prod.rewardable,
-        rewardPointsMultiplier: (prod as any).rewardPointsMultiplier ?? 1.5,
-        rewardPointsPrice: (prod as any).rewardPointsPrice ?? null,
         // Popularitet (distinkta ordrar × 5 + cappad volym, 30 dagar). Klienten
         // använder detta för "mest beställda tillgängliga"-fallbacken när en
         // borttagen favorit inte längre finns i menyn.
@@ -413,7 +409,7 @@ router.get('/discounted', async (req, res) => {
         category: {
           isActive: true,
           restaurant: {
-            isOpen: true,
+            draft: false,
             ...(cityId ? { cityId: cityId as string } : {}),
           },
         },
@@ -431,6 +427,16 @@ router.get('/discounted', async (req, res) => {
                 imageUrl: true,
                 city: true,
                 cuisine: true,
+                openingHours: true,
+                scheduledOpenNow: true,
+                acceptingOrdersMode: true,
+                acceptingOrdersOverrideUntil: true,
+                acceptingOrdersOverrideReason: true,
+                pausedUntil: true,
+                draft: true,
+                comingSoon: true,
+                isOpen: true,
+                city_relation: true,
               },
             },
           },
@@ -440,9 +446,16 @@ router.get('/discounted', async (req, res) => {
       take: 200,
     });
 
+    const platformSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
     const formatted = products
       .filter((p) => p.category?.restaurant)
       .map((p) => {
+        const restaurant = p.category.restaurant;
+        const availability = resolveRestaurantAvailability(restaurant, {
+          city: restaurant.city_relation,
+          platform: platformSettings,
+        });
+        if (!availability.isOpen) return null;
         const priceKr = p.price / 100;
         const displayPromotion = resolveDisplayPromotionForProduct({
           product: p,
@@ -464,7 +477,14 @@ router.get('/discounted', async (req, res) => {
           discountPercent: displayPromotion.discountPercent,
           discountLabel: displayPromotion.discountLabel,
           imageUrl: displayPromotion.imageUrl || p.imageUrl,
-          restaurant: p.category.restaurant,
+          restaurant: {
+            ...restaurant,
+            isOpen: availability.isOpen,
+            scheduledOpenNow: availability.scheduledOpenNow,
+            acceptingOrdersMode: availability.configuredMode,
+            availabilityReason: availability.reason,
+            city_relation: undefined,
+          },
         };
       });
 
@@ -479,18 +499,22 @@ router.get('/discounted', async (req, res) => {
 router.get('/free-delivery', async (req, res) => {
   try {
     const { cityId } = req.query;
-    const restaurants = await prisma.restaurant.findMany({
+    const [restaurants, platformSettings] = await Promise.all([prisma.restaurant.findMany({
       where: {
-        isOpen: true,
         draft: false,
         ...(cityId ? { cityId: cityId as string } : {}),
       },
       include: { city_relation: true },
       orderBy: [{ featuredClass: 'asc' }, { name: 'asc' }],
-    });
+    }), prisma.restaurantSettings.findUnique({ where: { id: 'settings' } })]);
 
     const out = restaurants
       .map((r) => {
+        const availability = resolveRestaurantAvailability(r, {
+          city: r.city_relation,
+          platform: platformSettings,
+        });
+        if (!availability.isOpen) return null;
         // Parse zones - if any zone has deliveryFee === 0 while isActive, it's "free delivery"
         let zoneFree = false;
         try {
@@ -514,6 +538,10 @@ router.get('/free-delivery', async (req, res) => {
               city: r.city,
               rating: r.rating,
               etaMinutes: r.etaMinutes,
+              isOpen: availability.isOpen,
+              scheduledOpenNow: availability.scheduledOpenNow,
+              acceptingOrdersMode: availability.configuredMode,
+              availabilityReason: availability.reason,
               isFullyFree: zoneFree || fee === 0,
               freeDeliveryAbove: freeDeliveryAbove != null ? freeDeliveryAbove / 100 : null,
               minOrder: minOrder / 100,

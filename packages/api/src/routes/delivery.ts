@@ -3,6 +3,7 @@ import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { haversineKm } from '../utils/geo';
 import { resolveDeliveryFee } from '../utils/deliveryZones';
+import { moneyDto, nullableMoneyDto } from '../utils/money';
 
 const router = Router();
 
@@ -63,8 +64,14 @@ router.get('/check', async (req: Request, res: Response) => {
       available: true,
       zone: null, // zone-namn skickas inte längre — kassan bryr sig om fee+min, inte namnet
       deliveryFee: resolved.fee / 100,
+      deliveryFeeOre: resolved.fee,
+      deliveryFeeMoney: moneyDto(resolved.fee),
       minOrder: resolved.minOrder / 100,
+      minOrderOre: resolved.minOrder,
+      minOrderMoney: moneyDto(resolved.minOrder),
       freeDeliveryAbove: freeAbove ? freeAbove / 100 : null,
+      freeDeliveryAboveOre: freeAbove ?? null,
+      freeDeliveryAboveMoney: nullableMoneyDto(freeAbove),
       distanceKm,
     });
   } catch (err) {

@@ -1,96 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  Gauge,
-  AlertTriangle,
-  BellRing,
-  Bike,
-  Building2,
   ChevronRight,
   ChevronLeft,
-  CircleDollarSign,
-  ClipboardList,
-  ContactRound,
-  Filter,
-  Gift,
-  Handshake,
-  History,
-  LayoutDashboard,
   LogOut,
-  type LucideIcon,
-  Map,
-  MenuSquare,
+  Menu,
   Moon,
   Pin,
   Search,
   Sun,
-  Star,
-  Store,
-  Tablet,
-  TicketPercent,
-  UserPlus,
-  Users,
+  X,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getSystemHealth, healthQueryKey } from "@/modules/dashboard/api";
 import { cn } from "@/shared/utils/cn";
 import { clearStoredAdminSession } from "@/shared/auth/storage";
 import { getStoredTheme, setStoredTheme, type Theme } from "@/shared/store/theme";
-
-type NavItem = { href: string; label: string; icon: LucideIcon };
-type NavSection = { id: string; label: string; items: NavItem[] };
-
-const SECTIONS: NavSection[] = [
-  {
-    id: "drift",
-    label: "Drift",
-    items: [
-      { href: "/dashboard", label: "Översikt", icon: LayoutDashboard },
-      { href: "/orders", label: "Ordrar", icon: ClipboardList },
-      { href: "/order-history", label: "Historik", icon: History },
-      { href: "/customers", label: "Kunder", icon: ContactRound },
-      { href: "/reviews", label: "Recensioner", icon: Star },
-      { href: "/couriers", label: "Kurirer", icon: Bike },
-      { href: "/crisis", label: "Krisverktyg", icon: AlertTriangle },
-    ],
-  },
-  {
-    id: "katalog",
-    label: "Katalog",
-    items: [
-      { href: "/restaurants", label: "Restauranger", icon: Store },
-      { href: "/menu", label: "Meny", icon: MenuSquare },
-      { href: "/categories", label: "Kategorier", icon: Filter },
-      { href: "/zones", label: "Zoner", icon: Map },
-      { href: "/restaurant-devices", label: "Enheter", icon: Tablet },
-    ],
-  },
-  {
-    id: "tillvaxt",
-    label: "Tillväxt",
-    items: [
-      { href: "/deals", label: "Deals", icon: Gift },
-      { href: "/coupons", label: "Kuponger", icon: TicketPercent },
-      { href: "/sponsors", label: "Aktuellt", icon: Handshake },
-      { href: "/referrals", label: "Värva vän", icon: UserPlus },
-      { href: "/push", label: "Push", icon: BellRing },
-    ],
-  },
-  {
-    id: "system",
-    label: "System",
-    items: [
-      { href: "/finance", label: "Ekonomi", icon: CircleDollarSign },
-      { href: "/users", label: "Användare", icon: Users },
-      { href: "/api-health", label: "API-status", icon: Gauge },
-      { href: "/audit-log", label: "Audit-log", icon: History },
-      { href: "/platform-settings", label: "Inställningar", icon: Building2 },
-    ],
-  },
-];
+import { ADMIN_SECTIONS, isActiveAdminHref } from "@/shared/navigation/admin-routes";
+import viaeatsSymbol from "../../../../../Logotyp/sym-navy.png";
 
 const SECTION_KEY = "sidebar:expanded-sections";
 const PIN_KEY = "nav.pinned";
@@ -105,13 +35,19 @@ function loadExpanded(): Record<string, boolean> {
   }
 }
 
-function isActiveHref(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
 export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
+
+  const isRouteActive = (id: string, href: string) => {
+    if (!isActiveAdminHref(pathname, href)) return false;
+    if (id === "tiers") return searchParams.get("tab") === "tiers";
+    if (id === "finance") return searchParams.get("tab") !== "tiers";
+    if (id === "two-factor") return searchParams.get("tab") === "sakerhet";
+    if (id === "users") return searchParams.get("tab") !== "sakerhet";
+    return true;
+  };
 
   // Kräver åtgärd-badges: ordrar som väntar accept + systemvarningar.
   const health = useQuery({ queryKey: healthQueryKey, queryFn: getSystemHealth, refetchInterval: 60_000, retry: false });
@@ -119,21 +55,48 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
     "/orders": health.data?.operations.pendingOrders ?? 0,
     "/dashboard": health.data?.alerts.filter((a) => a.level === "warning").length ?? 0,
   };
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [hydrated, setHydrated] = useState(false);
-  const [theme, setTheme] = useState<Theme>("light");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    const stored = loadExpanded();
+    if (Object.keys(stored).length > 0) return stored;
+    return Object.fromEntries(ADMIN_SECTIONS.map((section) => [section.id, true]));
+  });
+  const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
 
-  // Nav-läge: pinned (full meny i flödet) vs ikon-rad + hover-flyout.
-  const [pinned, setPinned] = useState(false);
+  // Full meny är standard enligt masterplanen. Rail är ett frivilligt desktopläge.
+  const [pinned, setPinned] = useState(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const stored = localStorage.getItem(PIN_KEY);
+      return stored === null ? true : stored === "1";
+    } catch {
+      return true;
+    }
+  });
   const [hovering, setHovering] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [compactViewport, setCompactViewport] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 1199px)").matches,
+  );
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setTheme(getStoredTheme());
-    try {
-      setPinned(localStorage.getItem(PIN_KEY) === "1");
-    } catch {}
+    const media = window.matchMedia("(max-width: 1199px)");
+    const onChange = (event: MediaQueryListEvent) => {
+      setCompactViewport(event.matches);
+      if (!event.matches) setMobileOpen(false);
+    };
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
   }, []);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileOpen]);
 
   const toggleTheme = () =>
     setTheme((t) => {
@@ -142,7 +105,11 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
       return next;
     });
 
-  const togglePin = () =>
+  const togglePin = () => {
+    if (compactViewport) {
+      setMobileOpen((value) => !value);
+      return;
+    }
     setPinned((p) => {
       const next = !p;
       try {
@@ -151,6 +118,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
       if (next) setHovering(false);
       return next;
     });
+  };
 
   // Hover-flyout: öppna direkt, stäng med ~150 ms fördröjning så man hinner
   // föra musen in i flyouten utan att den fälls.
@@ -165,26 +133,6 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   useEffect(() => () => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
   }, []);
-
-  // Stäng flyouten när man navigerat till en ny sida.
-  useEffect(() => {
-    setHovering(false);
-  }, [pathname]);
-
-  // Hydrate from storage + se till att gruppen med aktuell route är öppen.
-  useEffect(() => {
-    const stored = loadExpanded();
-    const next: Record<string, boolean> = { ...stored };
-    if (Object.keys(stored).length === 0) {
-      for (const section of SECTIONS) next[section.id] = true;
-    }
-    const activeSection = SECTIONS.find((section) =>
-      section.items.some((item) => isActiveHref(pathname, item.href)),
-    );
-    if (activeSection) next[activeSection.id] = true;
-    setExpanded(next);
-    setHydrated(true);
-  }, [pathname]);
 
   const toggleSection = (id: string) => {
     setExpanded((prev) => {
@@ -228,10 +176,13 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
     <>
       <div className="sidebar-brand" style={{ justifyContent: "space-between", paddingBottom: 14 }}>
         <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 11 }}>
-          <span className="sidebar-brand-mark" aria-hidden>V</span>
+          <span className="sidebar-brand-mark" aria-hidden>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={viaeatsSymbol.src} alt="" />
+          </span>
           <span>
             <span className="sidebar-brand-text">
-              ViaEats
+              viaeats
             </span>
             <span className="sidebar-brand-sub">Admin</span>
           </span>
@@ -255,11 +206,16 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
       </button>
 
       <nav className="flex-1 overflow-y-auto" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {SECTIONS.map((section) => {
-          const isOpen = hydrated && expanded[section.id];
+        {ADMIN_SECTIONS.map((section) => {
+          const isOpen = expanded[section.id] !== false;
           return (
             <div key={section.id}>
-              <button type="button" onClick={() => toggleSection(section.id)} className="sidebar-section-header">
+              <button
+                type="button"
+                onClick={() => toggleSection(section.id)}
+                className="sidebar-section-header"
+                aria-expanded={Boolean(isOpen)}
+              >
                 <span>{section.label}</span>
                 <ChevronRight
                   size={11}
@@ -273,13 +229,22 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
 
               {isOpen && (
                 <div className="sidebar-section-body">
-                  {section.items.map((item) => {
+                  {section.routes.map((item) => {
                     const Icon = item.icon;
-                    const active = isActiveHref(pathname, item.href);
+                    const active = isRouteActive(item.id, item.href);
                     return (
-                      <Link key={item.href} href={item.href} className={cn("nav-link", active && "nav-link-active")}>
+                      <Link
+                        key={item.id}
+                        href={item.href}
+                        className={cn("nav-link", active && "nav-link-active")}
+                        aria-current={active ? "page" : undefined}
+                        onClick={() => {
+                          setHovering(false);
+                          setMobileOpen(false);
+                        }}
+                      >
                         <Icon size={16} />
-                        <span>{item.label}</span>
+                        <span>{item.shortLabel ?? item.label}</span>
                         {(navBadges[item.href] ?? 0) > 0 && (
                           <span
                             style={{
@@ -337,7 +302,8 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const rail = (
     <div className="nav-rail">
       <Link href="/dashboard" className="sidebar-brand-mark" aria-label="ViaEats Admin" style={{ marginBottom: 8 }}>
-        V
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={viaeatsSymbol.src} alt="" />
       </Link>
       <button
         type="button"
@@ -350,19 +316,24 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
       </button>
       <div className="nav-rail-sep" />
 
-      {SECTIONS.map((section, si) => (
+      {ADMIN_SECTIONS.map((section, si) => (
         <div key={section.id} style={{ display: "contents" }}>
-          {section.items.map((item) => {
+          {section.routes.map((item) => {
             const Icon = item.icon;
-            const active = isActiveHref(pathname, item.href);
+            const active = isRouteActive(item.id, item.href);
             return (
               <Link
-                key={item.href}
+                key={item.id}
                 href={item.href}
                 className={cn("nav-rail-icon", active && "is-active")}
-                title={(navBadges[item.href] ?? 0) > 0 ? `${item.label} (${navBadges[item.href]})` : item.label}
-                aria-label={item.label}
+                title={(navBadges[item.href] ?? 0) > 0 ? `${item.shortLabel ?? item.label} (${navBadges[item.href]})` : (item.shortLabel ?? item.label)}
+                aria-label={item.shortLabel ?? item.label}
+                aria-current={active ? "page" : undefined}
                 style={{ position: "relative" }}
+                onClick={() => {
+                  setHovering(false);
+                  setMobileOpen(false);
+                }}
               >
                 <Icon size={18} />
                 {(navBadges[item.href] ?? 0) > 0 && (
@@ -382,7 +353,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
               </Link>
             );
           })}
-          {si < SECTIONS.length - 1 && <div className="nav-rail-sep" />}
+          {si < ADMIN_SECTIONS.length - 1 && <div className="nav-rail-sep" />}
         </div>
       ))}
 
@@ -397,19 +368,35 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   );
 
   return (
-    <aside className="nav-wrap" data-pinned={pinned} onMouseEnter={openFlyout} onMouseLeave={scheduleClose}>
-      {pinned ? (
-        <div className="sidebar-shell">{fullMenu}</div>
-      ) : (
-        <>
-          {rail}
-          {hovering && (
-            <div className="nav-flyout" onMouseEnter={openFlyout} onMouseLeave={scheduleClose}>
-              {fullMenu}
-            </div>
-          )}
-        </>
-      )}
+    <aside className="nav-wrap" data-pinned={pinned} data-mobile-open={mobileOpen} onMouseEnter={openFlyout} onMouseLeave={scheduleClose}>
+      <div className="mobile-nav-bar">
+        <Link href="/dashboard" className="mobile-nav-brand" aria-label="viaeats admin">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={viaeatsSymbol.src} alt="" />
+          <span>viaeats <small>admin</small></span>
+        </Link>
+        <button type="button" className="icon-button" onClick={() => setMobileOpen((value) => !value)} aria-label={mobileOpen ? "Stäng meny" : "Öppna meny"} aria-expanded={mobileOpen}>
+          {mobileOpen ? <X size={19} /> : <Menu size={19} />}
+        </button>
+      </div>
+
+      <button type="button" className={cn("mobile-nav-backdrop", mobileOpen && "is-open")} onClick={() => setMobileOpen(false)} aria-label="Stäng meny" />
+      <div className={cn("mobile-nav-drawer", mobileOpen && "is-open")}>{fullMenu}</div>
+
+      <div className="desktop-nav">
+        {pinned && !compactViewport ? (
+          <div className="sidebar-shell">{fullMenu}</div>
+        ) : (
+          <>
+            {rail}
+            {hovering && (
+              <div className="nav-flyout" onMouseEnter={openFlyout} onMouseLeave={scheduleClose}>
+                {fullMenu}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </aside>
   );
 }

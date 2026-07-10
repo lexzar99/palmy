@@ -74,13 +74,8 @@ export function UsersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const [tab, setTab] = useState<UsersTab>(tabParam === "sakerhet" ? "sakerhet" : "anvandare");
-  useEffect(() => {
-    const next: UsersTab = tabParam === "sakerhet" ? "sakerhet" : "anvandare";
-    if (next !== tab) setTab(next);
-  }, [tabParam]);
+  const tab: UsersTab = tabParam === "sakerhet" ? "sakerhet" : "anvandare";
   const changeTab = (t: UsersTab) => {
-    setTab(t);
     router.replace(`/users?tab=${t}`, { scroll: false });
   };
   const [inviteOpen, setInviteOpen] = useState(false);

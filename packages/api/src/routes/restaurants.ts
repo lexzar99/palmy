@@ -6,8 +6,15 @@ import { slugify } from '../lib/slug';
 import { authenticate, AuthRequest, resolveAdminSessionFromToken } from '../middleware/auth';
 import { getIO } from '../lib/socket';
 import { isRestaurantOpen } from '../lib/openingHours';
-import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
+import { normalizeDeliveryZones } from '../utils/deliveryZones';
+import { moneyDto, nullableMoneyDto, oreToSek, parseOre, sekToOre } from '../utils/money';
 import { getEffectiveEtaMinutes, ETA_DEFAULT_MINUTES } from '../lib/restaurantEta';
+import {
+  ACCEPTING_ORDERS_MODES,
+  AcceptingOrdersMode,
+  normalizeAcceptingOrdersMode,
+  resolveRestaurantAvailability,
+} from '../lib/restaurantAvailability';
 import { resolveOrCreateCity } from '../lib/cityResolver';
 import { cached, bustCache, bustRestaurantCaches } from '../lib/ttlCache';
 import { revalidateWebRestaurant } from '../lib/revalidate';
@@ -16,8 +23,8 @@ import { isDealAvailableNow, parseApplicableRestaurantIds, parseDealProductIds }
 
 const router = Router();
 
-const kr = (amount: number) => Math.round(amount * 100);
-const fromOre = (amount?: number | null) => (amount ?? 0) / 100;
+const kr = (amount: number) => sekToOre(amount, 'amountSek');
+const fromOre = (amount?: number | null) => oreToSek(amount);
 const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
   try {
     return value ? (JSON.parse(value) as T) : fallback;
@@ -53,7 +60,9 @@ const restaurantSchema = z.object({
   heroImageUrl: z.string().nullable().optional(),
   offersImageUrl: z.string().nullable().optional(),
   deliveryFee: z.any().optional(),
+  deliveryFeeOre: z.number().int().nonnegative().optional(),
   minOrderAmount: z.any().optional(),
+  minOrderAmountOre: z.number().int().nonnegative().optional(),
   etaMinutes: z.any().optional(),
   // etaOverrideMinutes: admin-manuell override. Sätt null för att rensa
   // override och låta dynamiska beräkningen styra. Number = nytt override
@@ -62,6 +71,9 @@ const restaurantSchema = z.object({
   tags: z.any().optional(),
   featuredClass: z.any().optional(),
   isOpen: z.boolean().optional(),
+  acceptingOrdersMode: z.enum(ACCEPTING_ORDERS_MODES).optional(),
+  acceptingOrdersOverrideUntil: z.string().datetime().nullable().optional(),
+  acceptingOrdersOverrideReason: z.string().max(500).nullable().optional(),
   comingSoon: z.boolean().optional(),
   // Editing (agent-onboarding). Bara SUPER_ADMIN kan publicera; MENU_AGENT kan starta editing.
   draft: z.boolean().optional(),
@@ -76,6 +88,7 @@ const restaurantSchema = z.object({
   placeId: z.string().nullable().optional(),
   deliveryZones: z.any().optional(),
   freeDeliveryAbove: z.any().optional(),
+  freeDeliveryAboveOre: z.number().int().nonnegative().nullable().optional(),
   deliveryRadius: z.number().optional(),
   logoutCode: z.string().nullable().optional(),
   announcementText: z.string().nullable().optional(),
@@ -91,12 +104,23 @@ const restaurantSchema = z.object({
 
 type DealSummary = { dealMaxPercent: number; dealCoversAll: boolean };
 
-const formatRestaurant = (restaurant: any, includeMenu = false, dealSummary?: DealSummary) => {
+type AvailabilityOverlays = Parameters<typeof resolveRestaurantAvailability>[1];
+
+const formatRestaurant = (
+  restaurant: any,
+  includeMenu = false,
+  dealSummary?: DealSummary,
+  overlays: AvailabilityOverlays = {
+    city: restaurant.city_relation ?? null,
+    platform: restaurant.platformSettings ?? null,
+  },
+) => {
   const activeOrdersCount = (restaurant.orders || []).length;
   // Effektiv ETA: override > beräknad > legacy etaMinutes > 40, clampad 25–55.
   // Detta är det värde som visas för kunden. Kunder ser aldrig
   // "etaCalculatedMinutes" eller "etaOverrideMinutes" råa — bara summan.
   const dynamicEta = getEffectiveEtaMinutes(restaurant);
+  const availability = resolveRestaurantAvailability(restaurant, overlays);
 
   return {
     id: restaurant.id,
@@ -116,7 +140,11 @@ const formatRestaurant = (restaurant: any, includeMenu = false, dealSummary?: De
     offersImageUrl: restaurant.offersImageUrl ?? null,
     rating: restaurant.rating ?? 4.6,
     ratingCount: restaurant.ratingCount ?? 0,
+    deliveryFeeOre: restaurant.deliveryFee ?? 0,
+    deliveryFeeMoney: moneyDto(restaurant.deliveryFee ?? 0),
     deliveryFee: fromOre(restaurant.deliveryFee),
+    minOrderAmountOre: restaurant.minOrderAmount ?? 0,
+    minOrderAmountMoney: moneyDto(restaurant.minOrderAmount ?? 0),
     minOrderAmount: fromOre(restaurant.minOrderAmount),
     etaMinutes: dynamicEta,
     baseEtaMinutes: restaurant.etaMinutes ?? ETA_DEFAULT_MINUTES, // legacy raw stored value
@@ -126,23 +154,23 @@ const formatRestaurant = (restaurant: any, includeMenu = false, dealSummary?: De
     // Visas bara i avhämtningsläge (ej leverans, ej på kort). Inget admin-fält.
     pickupEtaMinutes: Math.max(5, Math.min(25, dynamicEta - 5)),
     activeOrdersCount,
-  isOpen: (() => {
-    try {
-      // Aktiv pause åsidosätter allt annat
-      const pausedUntil = restaurant.pausedUntil
-        ? new Date(restaurant.pausedUntil)
-        : null;
-      if (pausedUntil && pausedUntil.getTime() > Date.now()) return false;
-      return restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
-    } catch (e) {
-      console.error('Error calculating isOpen:', e);
-      return restaurant.isOpen;
-    }
-  })(),
+  isOpen: availability.isOpen,
+  scheduledOpenNow: availability.scheduledOpenNow,
+  acceptingOrdersMode: availability.configuredMode,
+  effectiveAcceptingOrdersMode: availability.effectiveMode,
+  acceptingOrdersOverrideUntil: availability.overrideUntil,
+  acceptingOrdersOverrideReason: availability.overrideReason,
+  acceptingOrdersOverrideActive: availability.manualOverrideActive,
+  availabilityReason: availability.reason,
+  availabilityOverlays: {
+    platformPaused: availability.platformPaused,
+    cityPaused: availability.cityPaused,
+    restaurantPaused: availability.restaurantPaused,
+  },
   comingSoon: restaurant.comingSoon ?? false,
   draft: restaurant.draft ?? false,
   editing: restaurant.draft ?? false,
-  manualIsOpen: restaurant.isOpen,
+  manualIsOpen: availability.legacyManualIsOpen,
   pausedUntil: restaurant.pausedUntil
     ? new Date(restaurant.pausedUntil).toISOString()
     : null,
@@ -165,7 +193,11 @@ const formatRestaurant = (restaurant: any, includeMenu = false, dealSummary?: De
   // bara ser restauranger i sin stad-familj (city + childCities via merge).
   cityId: restaurant.cityId ?? null,
   deliveryRadius: restaurant.deliveryRadius ?? 5.0,
-  deliveryZones: parseJson<any[]>(restaurant.deliveryZones, []),
+  deliveryZones: normalizeDeliveryZones(parseJson<any[]>(restaurant.deliveryZones, [])),
+  freeDeliveryAboveOre: restaurant.freeDeliveryAbove ?? null,
+  freeDeliveryAboveMoney: nullableMoneyDto(restaurant.freeDeliveryAbove),
+  // Legacy admin/web field is formatted in SEK. Explicit ...Ore is canonical.
+  freeDeliveryAbove: restaurant.freeDeliveryAbove == null ? null : fromOre(restaurant.freeDeliveryAbove),
   // Rabatt-sammanfattning för kortbadge: högsta procentrabatt just nu +
   // om den täcker hela menyn (platt) eller bara vissa kategorier/produkter.
   dealMaxPercent: dealSummary?.dealMaxPercent ?? 0,
@@ -185,9 +217,6 @@ const formatRestaurant = (restaurant: any, includeMenu = false, dealSummary?: De
           isVegan: prod.isVegan,
           isVegetarian: prod.isVegetarian,
           isGlutenFree: prod.isGlutenFree,
-          rewardable: !!prod.rewardable,
-          rewardPointsMultiplier: (prod as any).rewardPointsMultiplier ?? 1.5,
-          rewardPointsPrice: (prod as any).rewardPointsPrice ?? null,
           extraGroups: (prod.extraGroups || []).map((peg: any) => ({
             id: peg.extraGroup.id,
             name: peg.extraGroup.name,
@@ -389,7 +418,7 @@ router.get('/', async (req, res) => {
     // Draft-synlighet är en egen cache-dimension så admin-svar aldrig läcker
     // till anonyma anrop.
     const out = await cached('rest:list', `${withMenu === '1' ? 'menu' : 'lite'}|${(city as string) || ''}|d${includeDrafts ? 1 : 0}`, 20_000, async () => {
-    const restaurants = await prisma.restaurant.findMany({
+    const [restaurants, platformSettings] = await Promise.all([prisma.restaurant.findMany({
       where: {
         ...(city ? { city: city as string } : {}),
         ...(includeDrafts ? {} : { draft: false }),
@@ -414,14 +443,20 @@ router.get('/', async (req, res) => {
         orders: {
           where: { status: { in: ['PENDING', 'ACCEPTED', 'COOKING', 'DELIVERING'] } },
           select: { id: true }
-        }
+        },
+        city_relation: {
+          select: { ordersPaused: true, ordersPausedUntil: true, ordersPauseReason: true },
+        },
       },
       orderBy: { featuredClass: 'asc' },
-    });
+    }), prisma.restaurantSettings.findUnique({ where: { id: 'settings' } })]);
 
     const dealSummaries = await buildDealSummaries(restaurants);
 
-    return restaurants.map(r => formatRestaurant(r, withMenu === '1', dealSummaries.get(r.id)));
+    return restaurants.map(r => formatRestaurant(r, withMenu === '1', dealSummaries.get(r.id), {
+      city: r.city_relation,
+      platform: platformSettings,
+    }));
     });
 
     res.json(out);
@@ -447,6 +482,9 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       payload.adminPassword = undefined;
     }
     const slug = slugify(payload.slug || payload.name);
+    const acceptingOrdersMode: AcceptingOrdersMode = payload.acceptingOrdersMode
+      ?? (payload.isOpen === false ? 'FORCE_CLOSED' : 'SCHEDULED');
+    const openingHours = JSON.stringify(payload.openingHours ?? {});
     const data: any = {
       name: payload.name,
       slug: slug,
@@ -461,24 +499,44 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       heroImageUrl: payload.heroImageUrl,
       etaMinutes: payload.etaMinutes !== undefined ? Number(payload.etaMinutes) : undefined,
       featuredClass: payload.featuredClass !== undefined ? Number(payload.featuredClass) : undefined,
-      isOpen: payload.isOpen,
+      // isOpen remains a legacy projection only. New clients use the mode.
+      isOpen: acceptingOrdersMode !== 'FORCE_CLOSED',
+      scheduledOpenNow: isRestaurantOpen(openingHours),
+      acceptingOrdersMode,
+      acceptingOrdersOverrideUntil: payload.acceptingOrdersOverrideUntil
+        ? new Date(payload.acceptingOrdersOverrideUntil)
+        : null,
+      acceptingOrdersOverrideReason: payload.acceptingOrdersOverrideReason ?? null,
       comingSoon: payload.comingSoon,
       draft: payload.draft ?? false,
       rating: payload.rating !== undefined ? Number(payload.rating) : undefined,
       ratingCount: payload.ratingCount !== undefined ? Number(payload.ratingCount) : undefined,
-      deliveryFee: kr(Number(payload.deliveryFee ?? 0)),
-      minOrderAmount: kr(Number(payload.minOrderAmount ?? 0)),
+      deliveryFee: payload.deliveryFeeOre !== undefined
+        ? parseOre(payload.deliveryFeeOre, 'deliveryFeeOre')
+        : kr(Number(payload.deliveryFee ?? 0)),
+      minOrderAmount: payload.minOrderAmountOre !== undefined
+        ? parseOre(payload.minOrderAmountOre, 'minOrderAmountOre')
+        : kr(Number(payload.minOrderAmount ?? 0)),
       tags: JSON.stringify(payload.tags ?? []),
-      openingHours: JSON.stringify(payload.openingHours ?? {}),
+      openingHours,
       internalInfo: payload.internalInfo,
     };
     if (payload.latitude !== undefined) data.latitude = payload.latitude === null ? null : Number(payload.latitude);
     if (payload.longitude !== undefined) data.longitude = payload.longitude === null ? null : Number(payload.longitude);
     if (payload.placeId !== undefined) data.placeId = payload.placeId || null;
-    if (payload.freeDeliveryAbove !== undefined) data.freeDeliveryAbove = normalizeMoneyToOre(Number(payload.freeDeliveryAbove || 0));
+    if (payload.freeDeliveryAboveOre !== undefined) {
+      data.freeDeliveryAbove = payload.freeDeliveryAboveOre === null
+        ? null
+        : parseOre(payload.freeDeliveryAboveOre, 'freeDeliveryAboveOre');
+    } else if (payload.freeDeliveryAbove !== undefined) {
+      // Legacy restaurant form sends this particular field in SEK.
+      data.freeDeliveryAbove = payload.freeDeliveryAbove === null || payload.freeDeliveryAbove === ''
+        ? null
+        : sekToOre(Number(payload.freeDeliveryAbove), 'freeDeliveryAbove');
+    }
     if (payload.deliveryZones !== undefined) {
       const zonesRaw = safeParseAnyJson<any[]>(payload.deliveryZones, []);
-      data.deliveryZones = JSON.stringify(normalizeDeliveryZones(zonesRaw));
+      data.deliveryZones = JSON.stringify(normalizeDeliveryZones(zonesRaw, { strict: true }));
     }
 
     // Auto-resolve cityId från Google Places-stadnamn. Om payload.city kommer
@@ -539,9 +597,19 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
           where: { status: { in: ['PENDING', 'ACCEPTED', 'COOKING', 'DELIVERING'] } },
           select: { id: true },
         },
+        city_relation: {
+          select: { ordersPaused: true, ordersPausedUntil: true, ordersPauseReason: true },
+        },
       },
     });
-    res.status(201).json({ ...formatRestaurant(restaurant), adminCreated });
+    const platformSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
+    res.status(201).json({
+      ...formatRestaurant(restaurant, false, undefined, {
+        city: restaurant.city_relation,
+        platform: platformSettings,
+      }),
+      adminCreated,
+    });
   } catch (err: any) {
     console.error('[restaurants POST] Error:', err.message);
     res.status(400).json({ error: err.message });
@@ -617,6 +685,11 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       const n = Number(v);
       return isNaN(n) ? undefined : n;
     };
+    const toRequiredNum = (v: unknown, field: string) => {
+      const n = Number(v);
+      if (!Number.isFinite(n)) throw new TypeError(`${field} måste vara ett giltigt tal`);
+      return n;
+    };
 
     if (payload.etaMinutes !== undefined) data.etaMinutes = toSafeNum(payload.etaMinutes);
     // Manuell override: number = sätt nytt värde (clampat 25–55), null = rensa override
@@ -629,7 +702,28 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       }
     }
     if (payload.featuredClass !== undefined) data.featuredClass = toSafeNum(payload.featuredClass);
-    if (payload.isOpen !== undefined) data.isOpen = payload.isOpen;
+
+    // Explicit mode is canonical. Legacy isOpen is accepted without turning a
+    // full-form save into a hidden override: true restores SCHEDULED, false
+    // means FORCE_CLOSED. FORCE_OPEN is only expressible through the new field.
+    if (payload.acceptingOrdersMode !== undefined) {
+      data.acceptingOrdersMode = payload.acceptingOrdersMode;
+      data.isOpen = payload.acceptingOrdersMode !== 'FORCE_CLOSED';
+    } else if (payload.isOpen !== undefined) {
+      const currentLegacyToggle = normalizeAcceptingOrdersMode((existingRestaurant as any).acceptingOrdersMode) !== 'FORCE_CLOSED';
+      if (payload.isOpen !== currentLegacyToggle) {
+        data.acceptingOrdersMode = payload.isOpen ? 'SCHEDULED' : 'FORCE_CLOSED';
+        data.isOpen = payload.isOpen;
+      }
+    }
+    if (payload.acceptingOrdersOverrideUntil !== undefined) {
+      data.acceptingOrdersOverrideUntil = payload.acceptingOrdersOverrideUntil
+        ? new Date(payload.acceptingOrdersOverrideUntil)
+        : null;
+    }
+    if (payload.acceptingOrdersOverrideReason !== undefined) {
+      data.acceptingOrdersOverrideReason = payload.acceptingOrdersOverrideReason?.trim() || null;
+    }
     if (payload.comingSoon !== undefined) data.comingSoon = payload.comingSoon;
     if (req.admin?.role === 'MENU_AGENT' && (req.body?.editing === true || req.body?.draft === true)) {
       data.draft = true;
@@ -640,8 +734,16 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.rating !== undefined) data.rating = toSafeNum(payload.rating);
     if (payload.ratingCount !== undefined) data.ratingCount = toSafeNum(payload.ratingCount);
     
-    if (payload.deliveryFee !== undefined) data.deliveryFee = kr(toSafeNum(payload.deliveryFee) ?? 0);
-    if (payload.minOrderAmount !== undefined) data.minOrderAmount = kr(toSafeNum(payload.minOrderAmount) ?? 0);
+    if (payload.deliveryFeeOre !== undefined) {
+      data.deliveryFee = parseOre(payload.deliveryFeeOre, 'deliveryFeeOre');
+    } else if (payload.deliveryFee !== undefined) {
+      data.deliveryFee = sekToOre(toRequiredNum(payload.deliveryFee, 'deliveryFee'), 'deliveryFee');
+    }
+    if (payload.minOrderAmountOre !== undefined) {
+      data.minOrderAmount = parseOre(payload.minOrderAmountOre, 'minOrderAmountOre');
+    } else if (payload.minOrderAmount !== undefined) {
+      data.minOrderAmount = sekToOre(toRequiredNum(payload.minOrderAmount, 'minOrderAmount'), 'minOrderAmount');
+    }
     
     // JSON fields - ensure they aren't double-stringified
     const safeStringify = (val: any) => {
@@ -671,8 +773,14 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     }
     if (payload.deliveryRadius !== undefined) data.deliveryRadius = toSafeNum(payload.deliveryRadius);
     
-    if (payload.freeDeliveryAbove !== undefined) {
-      data.freeDeliveryAbove = normalizeMoneyToOre(toSafeNum(payload.freeDeliveryAbove) ?? 0);
+    if (payload.freeDeliveryAboveOre !== undefined) {
+      data.freeDeliveryAbove = payload.freeDeliveryAboveOre === null
+        ? null
+        : parseOre(payload.freeDeliveryAboveOre, 'freeDeliveryAboveOre');
+    } else if (payload.freeDeliveryAbove !== undefined) {
+      data.freeDeliveryAbove = payload.freeDeliveryAbove === null || payload.freeDeliveryAbove === ''
+        ? null
+        : sekToOre(toRequiredNum(payload.freeDeliveryAbove, 'freeDeliveryAbove'), 'freeDeliveryAbove');
     }
 
     if (payload.logoutCode !== undefined) data.logoutCode = payload.logoutCode || null;
@@ -709,21 +817,13 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
           etaSampleCount: prior.etaSampleCount ?? 0,
         };
       });
-      data.deliveryZones = JSON.stringify(normalizeDeliveryZones(merged));
+      data.deliveryZones = JSON.stringify(normalizeDeliveryZones(merged, { strict: true }));
     }
 
-    // Recompute isOpen from schedule — men bara om admin INTE explicit
-    // skickade isOpen (t.ex. togglade Öppen/Stängd). Annars vinner togglen.
-    // Frontend skickar alltid openingHours i payload (hela formen), så vi
-    // kollar om isOpen-värdet faktiskt ÄNDRADES vs. vad som fanns i DB.
+    // Watchdog owns scheduledOpenNow, but updating opening hours should expose
+    // the new projection immediately without touching a manual override.
     if (payload.openingHours !== undefined) {
-      const newHoursStr = data.openingHours as string;
-      const scheduleIsOpen = isRestaurantOpen(newHoursStr);
-      const adminExplicitlyChangedToggle =
-        payload.isOpen !== undefined && payload.isOpen !== existingRestaurant.isOpen;
-      if (!adminExplicitlyChangedToggle) {
-        data.isOpen = scheduleIsOpen;
-      }
+      data.scheduledOpenNow = isRestaurantOpen(data.openingHours as string);
     }
 
     const previousAdminLogin =
@@ -765,6 +865,9 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
         orders: {
           where: { status: { in: ['PENDING', 'ACCEPTED', 'COOKING', 'DELIVERING'] } },
           select: { id: true },
+        },
+        city_relation: {
+          select: { ordersPaused: true, ordersPausedUntil: true, ordersPauseReason: true },
         },
       },
     });
@@ -814,44 +917,27 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    // Aktiv pause åsidosätter både manualIsOpen och schedule.
+    const platformSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
+    const availability = resolveRestaurantAvailability(restaurant, {
+      city: restaurant.city_relation,
+      platform: platformSettings,
+    });
+
+    // Legacy pause fields remain in the event payload for old web/Swift builds.
     const pausedUntilDate = restaurant.pausedUntil
       ? new Date(restaurant.pausedUntil)
       : null;
-    const isPaused =
-      pausedUntilDate !== null && pausedUntilDate.getTime() > Date.now();
-    const effectiveIsOpen = isPaused
-      ? false
-      : restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
-
-    // Sync global RestaurantSettings so Hero.tsx / Navbar.tsx polling stays correct
-    if (payload.openingHours !== undefined || payload.isOpen !== undefined || payload.deliveryFee !== undefined) {
-      try {
-        await prisma.restaurantSettings.upsert({
-          where: { id: 'settings' },
-          update: {
-            isOpen: restaurant.isOpen,
-            ...(payload.deliveryFee !== undefined ? { deliveryFee: restaurant.deliveryFee } : {}),
-            ...(payload.minOrderAmount !== undefined ? { minOrderAmount: restaurant.minOrderAmount } : {}),
-          },
-          create: {
-            id: 'settings',
-            isOpen: restaurant.isOpen,
-            deliveryFee: restaurant.deliveryFee ?? 0,
-            minOrderAmount: restaurant.minOrderAmount ?? 0,
-          },
-        });
-      } catch {
-        // Non-critical
-      }
-    }
+    const isPaused = availability.restaurantPaused;
 
     // Emit per-restaurant socket event + global event (for Hero/Navbar)
     getIO().emit('settings:updated', {
       restaurantId: restaurant.id,
       slug: restaurant.slug,
-      isOpen: effectiveIsOpen,
-      manualIsOpen: restaurant.isOpen,
+      isOpen: availability.isOpen,
+      manualIsOpen: availability.legacyManualIsOpen,
+      scheduledOpenNow: availability.scheduledOpenNow,
+      acceptingOrdersMode: availability.configuredMode,
+      availabilityReason: availability.reason,
       pausedUntil: pausedUntilDate?.toISOString() ?? null,
       isPaused,
       deliveryFee: fromOre(restaurant.deliveryFee),
@@ -861,7 +947,6 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       // order-appen byter förvald tillagningstid + knapp-etikett LIVE på detta.
       selfDelivery: restaurant.selfDelivery ?? false,
     });
-    getIO().emit('settings:updated', { isOpen: effectiveIsOpen });
 
     // Edit shows immediately: bust the API caches that embed this restaurant
     // (list, detail, zone-check, cities). Open customer pages also update live
@@ -883,7 +968,10 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     // deliveryZones, tags) blir parsade objekt så admin-form kan repopulera
     // utan glitch. Tidigare gick raw Prisma-objekt direkt vilket gjorde att
     // dropdown-tider defaultade till "11:00".
-    res.json(formatRestaurant(restaurant));
+    res.json(formatRestaurant(restaurant, false, undefined, {
+      city: restaurant.city_relation,
+      platform: platformSettings,
+    }));
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }
@@ -979,14 +1067,19 @@ router.get('/:slug', async (req, res) => {
     // The admin-only fields are kept in the cached object but only EXPOSED below
     // after the per-request auth check, so caching never leaks them.
     const data = await cached('rest:detail', slug, 15_000, async () => {
-      const restaurant = await prisma.restaurant.findFirst({
+      const [restaurant, platformSettings] = await Promise.all([prisma.restaurant.findFirst({
         where: {
           OR: [
             { slug },
             { id: slug }
           ]
         },
-      });
+        include: {
+          city_relation: {
+            select: { ordersPaused: true, ordersPausedUntil: true, ordersPauseReason: true },
+          },
+        },
+      }), prisma.restaurantSettings.findUnique({ where: { id: 'settings' } })]);
 
       if (!restaurant) return null;
 
@@ -1024,7 +1117,10 @@ router.get('/:slug', async (req, res) => {
 
       const restaurantWithMenu = { ...restaurant, categories };
       return {
-        formatted: formatRestaurant(restaurantWithMenu, true),
+        formatted: formatRestaurant(restaurantWithMenu, true, undefined, {
+          city: restaurant.city_relation,
+          platform: platformSettings,
+        }),
         restaurantId: restaurant.id,
         adminEmail: restaurant.adminEmail ?? null,
         logoutCode: restaurant.logoutCode ?? null,

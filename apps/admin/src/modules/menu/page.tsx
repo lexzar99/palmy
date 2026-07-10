@@ -43,7 +43,27 @@ import {
   type R2PathsTemplate,
   type RestaurantRef,
 } from "@/modules/menu/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs, Textarea, Toggle } from "@/shared/components/ui";
+import {
+  Badge,
+  Button,
+  CheckboxField,
+  ConfirmDialog,
+  EmptyState,
+  ErrorPanel,
+  Field,
+  Input,
+  IntegerInput,
+  Modal,
+  MoneyInput,
+  PageHeader,
+  PercentInput,
+  Select,
+  Surface,
+  SwitchField,
+  Tabs,
+  Textarea,
+  Toggle,
+} from "@/shared/components/ui";
 import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { useToast } from "@/shared/components/toast";
@@ -51,6 +71,18 @@ import { Copy } from "lucide-react";
 import { formatCurrency } from "@/shared/utils/format";
 
 type MenuTab = "categories" | "products" | "extras";
+
+function parseNumberDraft(value: string): number | null {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseIntegerDraft(value: string): number | null {
+  const parsed = parseNumberDraft(value);
+  return parsed === null ? null : Math.round(parsed);
+}
 
 // Enhetlig monokrom på/av-stil för alla toggle-kontroller i menyeditorn. Aktiv =
 // ifylld accent (vit/silver) med kontrast-text, inaktiv = ren kontur. Ingen
@@ -76,23 +108,32 @@ function StatusBadge({ active }: { active: boolean }) {
 
 function CategoryModal({ open, restaurantId, category, onClose }: { open: boolean; restaurantId: string; category: CategoryRecord | null; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", position: 0, isActive: true });
+  const [form, setForm] = useState({ name: "", description: "", position: "0", isActive: true });
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!open) return;
-    setForm(category ? { name: category.name, description: category.description || "", position: category.position, isActive: category.isActive ?? true } : { name: "", description: "", position: 0, isActive: true });
+    if (!open) {
+      setDeleteConfirmOpen(false);
+      return;
+    }
+    setForm(category ? { name: category.name, description: category.description || "", position: String(category.position), isActive: category.isActive ?? true } : { name: "", description: "", position: "0", isActive: true });
+    setDeleteConfirmOpen(false);
   }, [category, open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
+      const position = parseIntegerDraft(form.position);
+      if (position === null || position < 0) throw new Error("Position måste vara 0 eller högre");
+      const payload = { ...form, position };
       if (category) {
-        return updateCategory(category.id, form);
+        return updateCategory(category.id, payload);
       }
-      return createCategory({ ...form, restaurantId });
+      return createCategory({ ...payload, restaurantId });
     },
     onSuccess: async () => {
+      setDeleteConfirmOpen(false);
       await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(restaurantId) });
       onClose();
     },
@@ -105,104 +146,132 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
       }
     },
     onSuccess: async () => {
+      setDeleteConfirmOpen(false);
       await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(restaurantId) });
       onClose();
     },
   });
 
+  const canSave = form.name.trim().length > 0 && (parseIntegerDraft(form.position) ?? -1) >= 0;
+
   return (
+    <>
     <Modal
-      open={open}
+      open={open && !deleteConfirmOpen}
       onClose={onClose}
       title={category ? "Redigera kategori" : "Ny kategori"}
+      size="sm"
       footer={
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>{category ? (
             <Button
               variant="danger"
-              onClick={() => {
-                if (window.confirm(`Radera kategorin "${category.name}"?\n\nAlla produkter i kategorin försvinner också. Detta kan inte ångras.`)) {
-                  deleteMutation.mutate();
-                }
-              }}
+              onClick={() => setDeleteConfirmOpen(true)}
+              disabled={saveMutation.isPending}
             >Radera</Button>
           ) : null}</div>
-          <div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara"}</Button></div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            <Button onClick={onClose} disabled={saveMutation.isPending}>Stäng</Button>
+            <Button type="submit" form="menu-category-form" variant="primary" loading={saveMutation.isPending} disabled={!canSave}>Spara</Button>
+          </div>
         </div>
       }
     >
-      <div className="grid gap-4">
+      <form id="menu-category-form" className="grid gap-4" onSubmit={(event) => { event.preventDefault(); if (canSave) saveMutation.mutate(); }}>
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Namn"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
-          <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
+          <Field label="Position"><IntegerInput min={0} step={1} value={form.position} onValueChange={(position) => setForm((current) => ({ ...current, position }))} /></Field>
         </div>
-        <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></Select></Field>
+        <SwitchField label="Aktiv kategori" hint="Inaktiva kategorier visas inte för kunder." checked={form.isActive} onChange={(isActive) => setForm((current) => ({ ...current, isActive }))} />
         <Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field>
-      </div>
+      </form>
     </Modal>
+    <ConfirmDialog
+      open={deleteConfirmOpen}
+      title={`Radera ${category?.name ?? "kategori"}?`}
+      description="Alla produkter i kategorin försvinner också. Detta kan inte ångras."
+      confirmLabel="Radera kategori"
+      danger
+      loading={deleteMutation.isPending}
+      onClose={() => { if (!deleteMutation.isPending) setDeleteConfirmOpen(false); }}
+      onConfirm={() => deleteMutation.mutate()}
+    />
+    </>
   );
 }
 
 function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; onClose: () => void }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", note: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, localPriceLocked: false, discountActive: false, discountPercent: 0, extraGroupIds: [] as string[] });
+  const [form, setForm] = useState({ name: "", description: "", note: "", price: "", categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: "0", displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, localPriceLocked: false, discountActive: false, discountPercent: "", extraGroupIds: [] as string[] });
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setDeleteConfirmOpen(false);
+      return;
+    }
     setForm(
       product
         ? {
             name: product.name,
             description: product.description || "",
             note: product.note || "",
-            price: product.price,
+            price: String(product.price),
             categoryId: product.categoryId,
             imageUrl: product.imageUrl || "",
             isActive: product.isActive ?? true,
             isVegan: product.isVegan ?? false,
             isVegetarian: product.isVegetarian ?? false,
             isGlutenFree: product.isGlutenFree ?? false,
-            position: product.position,
+            position: String(product.position),
             displayMode: product.displayMode ?? "FULL",
             hideDescription: product.hideDescription ?? false,
             localPriceLocked: (product as any).localPriceLocked ?? false,
             discountActive: product.discountActive ?? false,
-            discountPercent: product.discountPercent ?? 0,
+            discountPercent: product.discountPercent == null ? "" : String(product.discountPercent),
             extraGroupIds: product.extraGroups.map((group) => group.id),
           }
         : {
             name: "",
             description: "",
             note: "",
-            price: 0,
+            price: "",
             categoryId: categories[0]?.id || "",
             imageUrl: "",
             isActive: true,
             isVegan: false,
             isVegetarian: false,
             isGlutenFree: false,
-            position: 0,
+            position: "0",
             displayMode: "FULL",
             hideDescription: false,
             localPriceLocked: false,
             discountActive: false,
-            discountPercent: 0,
+            discountPercent: "",
             extraGroupIds: [],
           },
     );
+    setDeleteConfirmOpen(false);
   }, [categories, open, product]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
+      const price = parseNumberDraft(form.price);
+      const position = parseIntegerDraft(form.position);
+      const discountPercent = parseNumberDraft(form.discountPercent);
+      if (price === null || price < 0) throw new Error("Pris måste vara 0 kr eller högre");
+      if (position === null || position < 0) throw new Error("Position måste vara 0 eller högre");
       // Backend kräver discountPercent 1-95 när satt; percent 0 eller toggle av = rensa rabatten.
-      const discountOn = form.discountActive && form.discountPercent > 0;
+      const discountOn = form.discountActive && discountPercent !== null && discountPercent > 0;
       const payload = {
         ...form,
+        price,
+        position,
         discountActive: discountOn,
-        discountPercent: discountOn ? Math.min(95, Math.max(1, Math.round(form.discountPercent))) : null,
+        discountPercent: discountOn ? Math.min(95, Math.max(1, Math.round(discountPercent))) : null,
         restaurantId,
       };
       if (product) {
@@ -211,6 +280,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
       return createProduct(payload);
     },
     onSuccess: async () => {
+      setDeleteConfirmOpen(false);
       await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });
       onClose();
     },
@@ -223,6 +293,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
       }
     },
     onSuccess: async () => {
+      setDeleteConfirmOpen(false);
       await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });
       onClose();
     },
@@ -248,27 +319,37 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
     () => existingDeals.filter((deal) => deal.scopeType === "RESTAURANT"),
     [existingDeals],
   );
+  const numericPrice = parseNumberDraft(form.price);
+  const numericPosition = parseIntegerDraft(form.position);
+  const numericDiscount = parseNumberDraft(form.discountPercent);
+  const discountValid = !form.discountActive || (numericDiscount !== null && numericDiscount >= 1 && numericDiscount <= 95);
+  const canSave = form.name.trim().length > 0
+    && Boolean(form.categoryId)
+    && numericPrice !== null
+    && numericPrice >= 0
+    && numericPosition !== null
+    && numericPosition >= 0
+    && discountValid;
   return (
+    <>
     <Modal
-      open={open}
+      open={open && !deleteConfirmOpen}
       onClose={onClose}
       title={product ? "Redigera produkt" : "Ny produkt"}
-      footer={<div className="flex items-center justify-between gap-3"><div>{product ? (
+      size="xl"
+      footer={<div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between"><div>{product ? (
         <Button
           variant="danger"
-          onClick={() => {
-            if (window.confirm(`Radera produkten "${product.name}"?\n\nProdukten försvinner från menyn. Befintliga ordrar påverkas inte. Detta kan inte ångras.`)) {
-              deleteMutation.mutate();
-            }
-          }}
+          onClick={() => setDeleteConfirmOpen(true)}
+          disabled={saveMutation.isPending}
         >Radera</Button>
-      ) : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara"}</Button></div></div>}
+      ) : null}</div><div className="flex flex-col-reverse gap-2 sm:flex-row"><Button onClick={onClose} disabled={saveMutation.isPending}>Stäng</Button><Button type="submit" form="menu-product-form" variant="primary" loading={saveMutation.isPending} disabled={!canSave}>Spara</Button></div></div>}
     >
-        <div className="grid gap-4 md:grid-cols-2">
+        <form id="menu-product-form" className="grid gap-4 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); if (canSave) saveMutation.mutate(); }}>
         {/* P14 vänster: Detaljer-kort med bild-thumb, namn, orange-kantat pris, beskrivning och tillgänglighets-toggle. */}
         <div className="surface px-5 py-5">
           <p className="text-[15px] font-extrabold tracking-[-0.3px] text-[var(--text-primary)]">Detaljer</p>
-          <div className="mt-4 flex gap-3.5">
+          <div className="mt-4 flex flex-col gap-3.5 sm:flex-row">
             <span
               aria-hidden
               className="h-[84px] w-[84px] shrink-0 rounded-[12px] bg-cover bg-center"
@@ -277,18 +358,19 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             <div className="min-w-0 flex-1 grid gap-3">
               <Field label="Namn"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
               <Field label="Pris">
-                <Input
-                  type="number"
+                <MoneyInput
+                  min={0}
+                  step={0.01}
                   className="border-2 border-[var(--accent)] font-bold"
                   value={form.price}
-                  onChange={(event) => setForm((current) => ({ ...current, price: Number(event.target.value) }))}
+                  onValueChange={(price) => setForm((current) => ({ ...current, price }))}
                 />
               </Field>
             </div>
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <Field label="Kategori"><Select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select></Field>
-            <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
+            <Field label="Position"><IntegerInput min={0} step={1} value={form.position} onValueChange={(position) => setForm((current) => ({ ...current, position }))} /></Field>
           </div>
           <div className="mt-4">
             <ImageUploadField
@@ -307,12 +389,8 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
           </div>
           <div className="mt-4"><Field label="Beskrivning"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
           <div className="mt-4"><Field label="Notering (visas längst ner i produktmodalen)"><Textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} /></Field></div>
-          <div className="mt-4 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3.5">
-            <div>
-              <p className="text-[13px] font-semibold text-[var(--text-primary)]">Tillgänglig</p>
-              <p className="text-[11.5px] text-[var(--text-muted)]">Visas för kunder</p>
-            </div>
-            <Toggle checked={form.isActive} onChange={(next) => setForm((current) => ({ ...current, isActive: next }))} />
+          <div className="mt-4 border-t border-[var(--border-subtle)] pt-3.5">
+            <SwitchField label="Tillgänglig" hint="Visas för kunder." checked={form.isActive} onChange={(isActive) => setForm((current) => ({ ...current, isActive }))} />
           </div>
         </div>
         {/* P14 höger: kopplade Tillvalsgrupper med obligatorisk/valfri-badge och en dämpad rad med tillvalen. */}
@@ -358,25 +436,22 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
         </div>
         <div className="md:col-span-2"></div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="card-label">Rabatt</p>
-            <TogglePill active={form.discountActive} onClick={() => setForm((current) => ({ ...current, discountActive: !current.discountActive }))}>Rabatt aktiv</TogglePill>
-          </div>
+          <SwitchField label="Rabatt aktiv" hint="Använd produktens egen rabatt, separat från kampanjdeals." checked={form.discountActive} onChange={(discountActive) => setForm((current) => ({ ...current, discountActive }))} />
           {form.discountActive ? (
             <div className="mt-3 grid items-end gap-4 md:grid-cols-2">
               <Field label="Rabatt %">
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
+                <PercentInput
+                  min={1}
+                  max={95}
+                  step={1}
                   value={form.discountPercent}
-                  onChange={(event) => setForm((current) => ({ ...current, discountPercent: Math.min(100, Math.max(0, Number(event.target.value))) }))}
+                  onValueChange={(discountPercent) => setForm((current) => ({ ...current, discountPercent }))}
                 />
               </Field>
               <p className="pb-2.5 text-[13px] text-[var(--text-secondary)]">
-                {form.discountPercent > 0
-                  ? `${form.price} kr → ${(form.price * (1 - form.discountPercent / 100)).toFixed(2)} kr`
-                  : "Sätt en procent över 0 för att aktivera rabatten."}
+                {numericPrice !== null && numericDiscount !== null && numericDiscount >= 1
+                  ? `${numericPrice.toFixed(2)} kr → ${(numericPrice * (1 - Math.min(95, numericDiscount) / 100)).toFixed(2)} kr`
+                  : "Ange 1–95 % för att aktivera rabatten."}
               </p>
             </div>
           ) : null}
@@ -387,6 +462,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
               <p className="card-label">Kampanjgenväg</p>
             </div>
             <Button
+              type="button"
               variant="secondary"
               disabled={!product}
               onClick={() =>
@@ -424,26 +500,33 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
         </div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <p className="card-label">Alternativ</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <TogglePill active={form.hideDescription} onClick={() => setForm((current) => ({ ...current, hideDescription: !current.hideDescription }))}>Dölj beskrivning i menyn</TogglePill>
-            <TogglePill active={form.localPriceLocked} onClick={() => setForm((current) => ({ ...current, localPriceLocked: !current.localPriceLocked }))}>🔒 Lås lokalt pris (kedja)</TogglePill>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <CheckboxField label="Dölj beskrivning i menyn" checked={form.hideDescription} onChange={(hideDescription) => setForm((current) => ({ ...current, hideDescription }))} />
+            <CheckboxField label="Lås lokalt pris (kedja)" checked={form.localPriceLocked} onChange={(localPriceLocked) => setForm((current) => ({ ...current, localPriceLocked }))} />
           </div>
         </div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <p className="card-label">Kostflaggor</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {([
-              ["isVegan", "Vegan"],
-              ["isVegetarian", "Vegetarian"],
-              ["isGlutenFree", "Glutenfri"],
-            ] as const).map(([key, label]) => (
-              <TogglePill key={key} active={Boolean(form[key])} onClick={() => setForm((current) => ({ ...current, [key]: !current[key] }))}>{label}</TogglePill>
-            ))}
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <CheckboxField label="Vegansk" checked={form.isVegan} onChange={(isVegan) => setForm((current) => ({ ...current, isVegan }))} />
+            <CheckboxField label="Vegetarisk" checked={form.isVegetarian} onChange={(isVegetarian) => setForm((current) => ({ ...current, isVegetarian }))} />
+            <CheckboxField label="Glutenfri" checked={form.isGlutenFree} onChange={(isGlutenFree) => setForm((current) => ({ ...current, isGlutenFree }))} />
           </div>
         </div>
-      </div>
+      </form>
 
     </Modal>
+    <ConfirmDialog
+      open={deleteConfirmOpen}
+      title={`Radera ${product?.name ?? "produkt"}?`}
+      description="Produkten försvinner från menyn. Befintliga ordrar påverkas inte. Detta kan inte ångras."
+      confirmLabel="Radera produkt"
+      danger
+      loading={deleteMutation.isPending}
+      onClose={() => { if (!deleteMutation.isPending) setDeleteConfirmOpen(false); }}
+      onConfirm={() => deleteMutation.mutate()}
+    />
+    </>
   );
 }
 
@@ -471,11 +554,8 @@ function TogglePill({ active, onClick, children }: { active: boolean; onClick: (
 function BulkRow({ label, enabled, onToggle, children }: { label: string; enabled: boolean; onToggle: () => void; children: ReactNode }) {
   return (
     <div className="surface-muted px-4 py-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="card-label">{label}</p>
-        <TogglePill active={enabled} onClick={onToggle}>Skriv över</TogglePill>
-      </div>
-      {enabled ? <div className="mt-3 flex flex-wrap gap-2">{children}</div> : null}
+      <SwitchField label={label} hint="Slå på för att skriva över detta fält på alla markerade produkter." checked={enabled} onChange={onToggle} />
+      {enabled ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{children}</div> : null}
     </div>
   );
 }
@@ -524,8 +604,9 @@ function BulkEditModal({ open, count, extraGroups, onClose, onApply }: { open: b
       open={open}
       onClose={onClose}
       title={`Ändra ${count} produkter`}
+      size="lg"
       footer={
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
           <Button onClick={onClose}>Avbryt</Button>
           <Button variant="primary" disabled={!anyEnabled} onClick={apply}>Använd</Button>
         </div>
@@ -537,19 +618,19 @@ function BulkEditModal({ open, count, extraGroups, onClose, onApply }: { open: b
           <TogglePill active={displayMode === "COMPACT"} onClick={() => setDisplayMode("COMPACT")}>Halv bredd</TogglePill>
         </BulkRow>
         <BulkRow label="Lås lokalt pris" enabled={on.localPriceLocked} onToggle={() => setOn((c) => ({ ...c, localPriceLocked: !c.localPriceLocked }))}>
-          <TogglePill active={localPriceLocked} onClick={() => setLocalPriceLocked((v) => !v)}>{localPriceLocked ? "På" : "Av"}</TogglePill>
+          <SwitchField label="Lokalt pris låst" checked={localPriceLocked} onChange={setLocalPriceLocked} className="sm:col-span-2" />
         </BulkRow>
         <BulkRow label="Kostflaggor" enabled={on.diet} onToggle={() => setOn((c) => ({ ...c, diet: !c.diet }))}>
-          <TogglePill active={isVegan} onClick={() => setIsVegan((v) => !v)}>Vegansk</TogglePill>
-          <TogglePill active={isVegetarian} onClick={() => setIsVegetarian((v) => !v)}>Vegetarisk</TogglePill>
-          <TogglePill active={isGlutenFree} onClick={() => setIsGlutenFree((v) => !v)}>Glutenfri</TogglePill>
+          <CheckboxField label="Vegansk" checked={isVegan} onChange={setIsVegan} />
+          <CheckboxField label="Vegetarisk" checked={isVegetarian} onChange={setIsVegetarian} />
+          <CheckboxField label="Glutenfri" checked={isGlutenFree} onChange={setIsGlutenFree} />
         </BulkRow>
         <BulkRow label="Tillvalsgrupper" enabled={on.extraGroups} onToggle={() => setOn((c) => ({ ...c, extraGroups: !c.extraGroups }))}>
           {extraGroups.length === 0 ? (
             <p className="text-[13px] text-[var(--text-secondary)]">Inga tillvalsgrupper finns.</p>
           ) : (
             extraGroups.map((group) => (
-              <TogglePill key={group.id} active={extraGroupIds.includes(group.id)} onClick={() => toggleGroup(group.id)}>{group.name}</TogglePill>
+              <CheckboxField key={group.id} label={group.name} checked={extraGroupIds.includes(group.id)} onChange={() => toggleGroup(group.id)} />
             ))
           )}
         </BulkRow>
@@ -563,53 +644,67 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
   const [name, setName] = useState("");
   const [type, setType] = useState("CHECKBOX");
   const [required, setRequired] = useState(false);
-  const [minSelections, setMinSelections] = useState(0);
-  const [maxSelections, setMaxSelections] = useState(1);
+  const [minSelections, setMinSelections] = useState("0");
+  const [maxSelections, setMaxSelections] = useState("1");
   const [displayStyle, setDisplayStyle] = useState<"LIST" | "BOX_IMAGE">("LIST");
   const [allowQuantity, setAllowQuantity] = useState(false);
-  const [extras, setExtras] = useState<Array<{ name: string; priceAddon: number; isDefault: boolean; imageUrl: string | null }>>([{ name: "", priceAddon: 0, isDefault: false, imageUrl: null }]);
+  const [extras, setExtras] = useState<Array<{ name: string; priceAddon: string; isDefault: boolean; imageUrl: string | null }>>([{ name: "", priceAddon: "0", isDefault: false, imageUrl: null }]);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setDeleteConfirmOpen(false);
+      return;
+    }
     if (group) {
       setName(group.name);
       setType(group.type || "CHECKBOX");
       setRequired(group.required);
-      setMinSelections(group.minSelections || 0);
-      setMaxSelections(group.maxSelections || 1);
+      setMinSelections(String(group.minSelections ?? 0));
+      setMaxSelections(String(group.maxSelections ?? 1));
       setDisplayStyle(group.displayStyle === "BOX_IMAGE" ? "BOX_IMAGE" : "LIST");
       setAllowQuantity(group.allowQuantity ?? false);
-      setExtras(group.extras.length ? group.extras.map((extra) => ({ name: extra.name, priceAddon: extra.priceAddon, isDefault: extra.isDefault || false, imageUrl: extra.imageUrl ?? null })) : [{ name: "", priceAddon: 0, isDefault: false, imageUrl: null }]);
+      setExtras(group.extras.length ? group.extras.map((extra) => ({ name: extra.name, priceAddon: String(extra.priceAddon), isDefault: extra.isDefault || false, imageUrl: extra.imageUrl ?? null })) : [{ name: "", priceAddon: "0", isDefault: false, imageUrl: null }]);
       setCategoryIds(group.categoryIds ?? []);
     } else {
       setName("");
       setType("CHECKBOX");
       setRequired(false);
-      setMinSelections(0);
-      setMaxSelections(1);
+      setMinSelections("0");
+      setMaxSelections("1");
       setDisplayStyle("LIST");
       setAllowQuantity(false);
-      setExtras([{ name: "", priceAddon: 0, isDefault: false, imageUrl: null }]);
+      setExtras([{ name: "", priceAddon: "0", isDefault: false, imageUrl: null }]);
       setCategoryIds([]);
     }
+    setDeleteConfirmOpen(false);
   }, [group, open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
+      const parsedMin = parseIntegerDraft(minSelections);
+      const parsedMax = parseIntegerDraft(maxSelections);
+      if (parsedMin === null || parsedMin < 0) throw new Error("Min antal måste vara 0 eller högre");
+      if (parsedMax === null || parsedMax < 1) throw new Error("Max antal måste vara minst 1");
+      if (parsedMin > parsedMax) throw new Error("Min antal kan inte vara högre än max antal");
       const payload = {
         name,
         type,
         required,
-        minSelections,
-        maxSelections,
+        minSelections: parsedMin,
+        maxSelections: parsedMax,
         displayStyle,
         allowQuantity,
         restaurantId,
         categoryIds,
-        extras: extras.filter((extra) => extra.name.trim()).map((extra) => ({ ...extra, priceAddon: Number(extra.priceAddon || 0), imageUrl: extra.imageUrl ?? null })),
+        extras: extras.filter((extra) => extra.name.trim()).map((extra) => ({
+          ...extra,
+          priceAddon: parseNumberDraft(extra.priceAddon) ?? 0,
+          imageUrl: extra.imageUrl ?? null,
+        })),
       };
       if (group) {
         return updateExtraGroup(group.id, payload);
@@ -617,6 +712,7 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
       return createExtraGroup(payload);
     },
     onSuccess: async () => {
+      setDeleteConfirmOpen(false);
       await queryClient.invalidateQueries({ queryKey: menuGroupsQueryKey(restaurantId) });
       await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });
       onClose();
@@ -630,35 +726,49 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
       }
     },
     onSuccess: async () => {
+      setDeleteConfirmOpen(false);
       await queryClient.invalidateQueries({ queryKey: menuGroupsQueryKey(restaurantId) });
       await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });
       onClose();
     },
   });
 
-  const updateExtra = (index: number, field: "name" | "priceAddon" | "isDefault" | "imageUrl", value: string | number | boolean | null) => {
+  const updateExtra = (index: number, field: "name" | "priceAddon" | "isDefault" | "imageUrl", value: string | boolean | null) => {
     setExtras((current) => current.map((extra, currentIndex) => (currentIndex === index ? { ...extra, [field]: value } : extra)));
   };
 
   const toggleCategory = (categoryId: string) => setCategoryIds((current) => current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId]);
 
+  const parsedMin = parseIntegerDraft(minSelections);
+  const parsedMax = parseIntegerDraft(maxSelections);
+  const extrasValid = extras.filter((extra) => extra.name.trim()).every((extra) => {
+    const price = parseNumberDraft(extra.priceAddon);
+    return price !== null && price >= 0;
+  });
+  const canSave = name.trim().length > 0
+    && parsedMin !== null
+    && parsedMin >= 0
+    && parsedMax !== null
+    && parsedMax >= 1
+    && parsedMin <= parsedMax
+    && extrasValid;
+
   return (
+    <>
     <Modal
-      open={open}
+      open={open && !deleteConfirmOpen}
       onClose={onClose}
       title={group ? "Redigera tillvalsgrupp" : "Ny tillvalsgrupp"}
-      footer={<div className="flex items-center justify-between gap-3"><div>{group ? (
+      size="lg"
+      footer={<div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between"><div>{group ? (
         <Button
           variant="danger"
-          onClick={() => {
-            if (window.confirm(`Radera tillvalsgruppen "${group.name}"?\n\nProdukter som använder gruppen tappar dessa tillval. Detta kan inte ångras.`)) {
-              deleteMutation.mutate();
-            }
-          }}
+          onClick={() => setDeleteConfirmOpen(true)}
+          disabled={saveMutation.isPending}
         >Radera</Button>
-      ) : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara"}</Button></div></div>}
+      ) : null}</div><div className="flex flex-col-reverse gap-2 sm:flex-row"><Button onClick={onClose} disabled={saveMutation.isPending}>Stäng</Button><Button type="submit" form="menu-extra-group-form" variant="primary" loading={saveMutation.isPending} disabled={!canSave}>Spara</Button></div></div>}
     >
-      <div className="grid gap-4">
+      <form id="menu-extra-group-form" className="grid gap-4" onSubmit={(event) => { event.preventDefault(); if (canSave) saveMutation.mutate(); }}>
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Namn"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
           <Field label="Typ"><Select value={type} onChange={(event) => setType(event.target.value)}><option value="CHECKBOX">Checkbox</option><option value="RADIO">Radio</option></Select></Field>
@@ -672,27 +782,25 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
             <div>
               <span className="field-label">Val</span>
               <div className="mt-1.5 flex items-center gap-2">
-                <Input type="number" className="w-[72px] text-center font-bold" value={minSelections} onChange={(event) => setMinSelections(Number(event.target.value))} aria-label="Min antal" />
+                <IntegerInput min={0} step={1} wrapperClassName="w-[72px]" className="input-compact-number" value={minSelections} onValueChange={setMinSelections} aria-label="Min antal" />
                 <span className="text-[var(--text-muted)]">–</span>
-                <Input type="number" className="w-[72px] text-center font-bold" value={maxSelections} onChange={(event) => setMaxSelections(Number(event.target.value))} aria-label="Max antal" />
+                <IntegerInput min={1} step={1} wrapperClassName="w-[72px]" className="input-compact-number" value={maxSelections} onValueChange={setMaxSelections} aria-label="Max antal" />
               </div>
             </div>
           </div>
-          <div className="mt-4 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3.5">
-            <span className="text-[13px] font-semibold text-[var(--text-primary)]">Obligatorisk</span>
-            <Toggle checked={required} onChange={setRequired} />
+          <div className="mt-4 border-t border-[var(--border-subtle)] pt-3.5">
+            <SwitchField label="Obligatorisk" checked={required} onChange={setRequired} />
           </div>
-          <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3.5">
-            <span className="text-[13px] font-semibold text-[var(--text-primary)]">Antal per val</span>
-            <Toggle checked={allowQuantity} onChange={setAllowQuantity} />
+          <div className="mt-3 border-t border-[var(--border-subtle)] pt-3.5">
+            <SwitchField label="Antal per val" hint="Låt kunden välja fler än en av samma option." checked={allowQuantity} onChange={setAllowQuantity} />
           </div>
         </div>
 
         <div className="surface-muted px-4 py-4">
           <p className="card-label">Kategorier</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {categories.map((category) => (
-              <TogglePill key={category.id} active={categoryIds.includes(category.id)} onClick={() => toggleCategory(category.id)}>{category.name}</TogglePill>
+              <CheckboxField key={category.id} label={category.name} checked={categoryIds.includes(category.id)} onChange={() => toggleCategory(category.id)} />
             ))}
           </div>
         </div>
@@ -703,7 +811,7 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
             <p className="text-[13px] font-extrabold uppercase tracking-[0.04em] text-[var(--text-primary)]">Tillval</p>
             <button
               type="button"
-              onClick={() => setExtras((current) => [...current, { name: "", priceAddon: 0, isDefault: false, imageUrl: null }])}
+              onClick={() => setExtras((current) => [...current, { name: "", priceAddon: "0", isDefault: false, imageUrl: null }])}
               className="inline-flex items-center gap-1 text-[12.5px] font-bold text-[var(--accent-ink)]"
             >
               <Plus size={14} /> Lägg till tillval
@@ -712,7 +820,7 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
           <div className="surface overflow-hidden">
             {extras.map((extra, index) => (
               <div key={index} className={index > 0 ? "border-t border-[var(--row-divider)]" : ""}>
-                <div className="flex items-center gap-3 px-4 py-3">
+                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[auto_minmax(0,1fr)_120px_auto_auto]">
                   <GripVertical size={16} className="shrink-0 cursor-grab text-[var(--text-muted)]" aria-hidden />
                   <Input
                     className="min-w-0 flex-1 border-0 bg-transparent px-0 font-semibold focus:ring-0"
@@ -720,18 +828,8 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
                     onChange={(event) => updateExtra(index, "name", event.target.value)}
                     placeholder="Namn på tillval"
                   />
-                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-[8px] border border-[var(--border-subtle)] px-2.5 py-1.5 text-[13px] font-bold text-[var(--text-primary)]">
-                    +
-                    <input
-                      type="number"
-                      value={extra.priceAddon}
-                      onChange={(event) => updateExtra(index, "priceAddon", Number(event.target.value))}
-                      aria-label="Pristillägg"
-                      className="w-[42px] bg-transparent text-right font-bold outline-none"
-                    />
-                    kr
-                  </span>
-                  <Toggle checked={extra.isDefault} onChange={(next) => updateExtra(index, "isDefault", next)} />
+                  <MoneyInput min={0} step={0.01} value={extra.priceAddon} onValueChange={(priceAddon) => updateExtra(index, "priceAddon", priceAddon)} aria-label={`Pristillägg för ${extra.name || `tillval ${index + 1}`}`} className="font-bold" />
+                  <CheckboxField label="Förvald" checked={extra.isDefault} onChange={(isDefault) => updateExtra(index, "isDefault", isDefault)} className="col-span-2 sm:col-span-1" />
                   <RowIconButton label="Ta bort tillval" onClick={() => setExtras((current) => current.filter((_, currentIndex) => currentIndex !== index))}>
                     <Plus size={14} className="rotate-45" />
                   </RowIconButton>
@@ -753,8 +851,19 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
             ))}
           </div>
         </div>
-      </div>
+      </form>
     </Modal>
+    <ConfirmDialog
+      open={deleteConfirmOpen}
+      title={`Radera ${group?.name ?? "tillvalsgrupp"}?`}
+      description="Produkter som använder gruppen tappar dessa tillval. Detta kan inte ångras."
+      confirmLabel="Radera tillvalsgrupp"
+      danger
+      loading={deleteMutation.isPending}
+      onClose={() => { if (!deleteMutation.isPending) setDeleteConfirmOpen(false); }}
+      onConfirm={() => deleteMutation.mutate()}
+    />
+    </>
   );
 }
 
@@ -840,6 +949,7 @@ function ImportFromOtherModal({
       open={open}
       onClose={onClose}
       title={`Importera ${tab === "categories" ? "kategori" : tab === "products" ? "produkt" : "tillbehörsgrupp"}`}
+      size="lg"
     >
       <div className="grid gap-5">
         <CityRestaurantPicker
@@ -869,13 +979,14 @@ function ImportFromOtherModal({
           ) : (
             <div className="grid gap-2 max-h-[400px] overflow-y-auto">
               {items.map((item) => (
-                <div key={item.id} className="surface-muted flex items-center justify-between gap-3 px-4 py-3">
+                <div key={item.id} className="surface-muted flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold truncate">{item.name}</p>
                     {item.meta && <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{item.meta}</p>}
                   </div>
                   <Button
                     variant="primary"
+                    loading={copyMutation.isPending && copyMutation.variables === item.id}
                     onClick={() => copyMutation.mutate(item.id)}
                     disabled={copyMutation.isPending || (tab === "products" && !targetCategoryId)}
                   >
@@ -965,19 +1076,20 @@ function BulkImportButton({ restaurantId }: { restaurantId: string }) {
         open={open}
         onClose={() => { if (!isBusy) { setOpen(false); } }}
         title="Massimport av meny (YAML / JSON)"
+        size="xl"
         footer={
-          <div className="flex justify-between gap-2">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
             <Button onClick={() => setContent(BULK_IMPORT_TEMPLATE)} disabled={isBusy}>Infoga mall</Button>
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => previewMutation.mutate()} disabled={isBusy || !content.trim()}>
-                {previewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Förhandsvisa
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button variant="secondary" loading={previewMutation.isPending} onClick={() => previewMutation.mutate()} disabled={isBusy || !content.trim()}>
+                Förhandsvisa
               </Button>
               <Button
                 variant="primary"
+                loading={applyMutation.isPending}
                 onClick={() => applyMutation.mutate()}
                 disabled={isBusy || !content.trim() || !result || result.dryRun === false}
               >
-                {applyMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
                 {applyMutation.isPending ? "Importerar…" : "Importera"}
               </Button>
             </div>
@@ -1097,13 +1209,13 @@ function MenuSyncButton({ sourceRestaurantId, restaurants }: { sourceRestaurantI
         open={open}
         onClose={() => { if (!isBusy) setOpen(false); }}
         title="Synka meny till platser"
+        size="lg"
         footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => previewMutation.mutate()} disabled={isBusy || targets.size === 0}>
-              {previewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Förhandsvisa
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="secondary" loading={previewMutation.isPending} onClick={() => previewMutation.mutate()} disabled={isBusy || targets.size === 0}>
+              Förhandsvisa
             </Button>
-            <Button variant="primary" onClick={() => applyMutation.mutate()} disabled={isBusy || targets.size === 0 || !result || result.dryRun === false}>
-              {applyMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+            <Button variant="primary" loading={applyMutation.isPending} onClick={() => applyMutation.mutate()} disabled={isBusy || targets.size === 0 || !result || result.dryRun === false}>
               {applyMutation.isPending ? "Synkar…" : "Synka"}
             </Button>
           </div>
@@ -1117,10 +1229,13 @@ function MenuSyncButton({ sourceRestaurantId, restaurants }: { sourceRestaurantI
               <p className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-muted)]">Målplatser ({targets.size} valda)</p>
               <div className="grid gap-1 max-h-56 overflow-y-auto">
                 {targetOptions.map((r) => (
-                  <label key={r.id} className="surface-muted flex cursor-pointer items-center gap-2.5 px-3 py-2.5 text-sm">
-                    <input type="checkbox" checked={targets.has(r.id)} onChange={() => { toggle(r.id); setResult(null); }} className="h-4 w-4 accent-[var(--accent)]" />
-                    <span>{r.name}</span>
-                  </label>
+                  <CheckboxField
+                    key={r.id}
+                    label={r.name}
+                    checked={targets.has(r.id)}
+                    onChange={() => { toggle(r.id); setResult(null); }}
+                    className="surface-muted px-3 py-2.5"
+                  />
                 ))}
               </div>
             </div>
@@ -1199,8 +1314,7 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
 
   return (
     <>
-      <Button variant="secondary" onClick={() => dryMutation.mutate()} disabled={dryMutation.isPending}>
-        {dryMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+      <Button variant="secondary" loading={dryMutation.isPending} onClick={() => dryMutation.mutate()}>
         Matcha bilder från R2
       </Button>
 
@@ -1208,11 +1322,11 @@ function R2AutoMatchButton({ restaurantId }: { restaurantId: string }) {
         open={open && !!dryRun}
         onClose={() => { setOpen(false); setDryRun(null); }}
         title="R2 auto-match"
+        size="lg"
         footer={
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button onClick={() => { setOpen(false); setDryRun(null); }}>Avbryt</Button>
-            <Button variant="primary" onClick={() => applyMutation.mutate()} disabled={applyMutation.isPending}>
-              {applyMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
+            <Button variant="primary" loading={applyMutation.isPending} onClick={() => applyMutation.mutate()}>
               Skriv till databasen
             </Button>
           </div>
@@ -1309,6 +1423,7 @@ function R2PathsButton({ restaurantId }: { restaurantId: string }) {
         open={open}
         onClose={() => setOpen(false)}
         title="Bulk-upload mall"
+        size="xl"
         footer={
           <div className="flex justify-end gap-2">
             <Button onClick={() => setOpen(false)}>Stäng</Button>
@@ -1513,13 +1628,11 @@ function ProductRow({
   const active = product.isActive !== false;
   return (
     <div className="surface-muted flex w-full items-center gap-3 px-3 py-2">
-      <input
-        type="checkbox"
+      <CheckboxField
+        label={`Markera ${product.name}`}
         checked={selected}
         onChange={onToggleSelect}
-        onClick={(event) => event.stopPropagation()}
-        aria-label={`Markera ${product.name}`}
-        className="h-4 w-4 shrink-0 accent-[var(--accent)]"
+        className="shrink-0 [&_.choice-label]:sr-only"
       />
       <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span
@@ -2010,7 +2123,7 @@ export function MenuPage() {
         <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative flex-1">
             <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Sök i menyn..." />
+            <Input className="input-with-leading-icon" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Sök i menyn..." />
           </div>
           <Tabs value={tab} onChange={setTab} options={[{ value: "categories", label: "Kategorier" }, { value: "products", label: "Produkter" }, { value: "extras", label: "Tillval" }]} />
         </div>
@@ -2047,27 +2160,24 @@ export function MenuPage() {
             {/* Markera alla + bulk-åtgärdsrad */}
             {filteredProducts.length > 0 && (
               <div className="flex flex-wrap items-center gap-3 px-1 pb-1">
-                <label className="flex cursor-pointer select-none items-center gap-2 text-[13px] text-[var(--text-secondary)]">
-                  <input
-                    type="checkbox"
-                    checked={allFilteredSelected}
-                    onChange={() =>
-                      setSelectedIds(allFilteredSelected ? new Set() : new Set(filteredProducts.map((p) => p.id)))
-                    }
-                    className="h-4 w-4 accent-[var(--accent)]"
-                  />
-                  {selectedIds.size > 0 ? `${selectedIds.size} markerade` : "Markera alla"}
-                </label>
+                <CheckboxField
+                  label={selectedIds.size > 0 ? `${selectedIds.size} markerade` : "Markera alla"}
+                  checked={allFilteredSelected}
+                  onChange={(checked) => setSelectedIds(checked ? new Set(filteredProducts.map((product) => product.id)) : new Set())}
+                />
               </div>
             )}
             {selectedIds.size > 0 && (
               <div className="surface-muted sticky top-2 z-10 flex flex-wrap items-center gap-2 px-4 py-3">
                 <div className="flex items-center gap-1.5">
-                  <Input
-                    type="number"
+                  <PercentInput
+                    min={-100}
+                    max={500}
+                    step={1}
                     value={bulkPct}
-                    onChange={(e) => setBulkPct(e.target.value)}
-                    placeholder="±%"
+                    onValueChange={setBulkPct}
+                    aria-label="Prisjustering i procent"
+                    placeholder="±"
                     className="w-20"
                   />
                   <Button

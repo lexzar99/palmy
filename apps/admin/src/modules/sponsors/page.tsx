@@ -21,12 +21,13 @@ import { getRestaurantOverview, restaurantsQueryKey } from "@/modules/restaurant
 import { dealsQueryKey, getAutomaticDeals } from "@/modules/deals/api";
 import { ShowcaseTab } from "@/modules/sponsors/ShowcaseTab";
 import type { ShowcaseSurface } from "@/modules/sponsors/showcase-api";
-import { Button, EmptyState, ErrorPanel, Field, Input, Select, Textarea } from "@/shared/components/ui";
+import { Button, ConfirmDialog, EmptyState, ErrorPanel, Field, Input, Select, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { useToast } from "@/shared/components/toast";
 import { cn } from "@/shared/utils/cn";
+import { contentPlacementsQueryKey } from "@/modules/homepage/api";
 
-type Tab = "champion" | "discounts" | "trending" | "new" | "sponsors" | "ads";
+export type PlacementEditorTab = "champion" | "discounts" | "trending" | "new" | "sponsors" | "ads";
 
 type SponsorDraft = Partial<SponsorRecord> & {
   name: string;
@@ -46,11 +47,11 @@ type AdDraft = Partial<TrackingAdRecord> & {
   imageOnly: boolean;
 };
 
-const orange = "#F47721";
+const orange = "#F04F1A";
 const orangeInk = "#B23C12";
 const pageBg = "#FAF7F1";
 const sponsorThemes = [
-  { value: "sunrise", label: "Sunrise", gradient: "linear-gradient(135deg,#F47721 0%,#FFB156 48%,#FFE3BA 100%)" },
+  { value: "sunrise", label: "Sunrise", gradient: "linear-gradient(135deg,#F04F1A 0%,#FF9B5C 48%,#FFE3BA 100%)" },
   { value: "fresh", label: "Fresh green", gradient: "linear-gradient(135deg,#0F8A4B 0%,#32C879 52%,#D9F7E7 100%)" },
   { value: "sky", label: "Sky blue", gradient: "linear-gradient(135deg,#1769D1 0%,#59B8FF 55%,#DDF2FF 100%)" },
   { value: "berry", label: "Berry", gradient: "linear-gradient(135deg,#7A1D68 0%,#E24A8D 54%,#FFE0EF 100%)" },
@@ -117,6 +118,10 @@ function sponsorToDraft(sponsor?: SponsorRecord | null): SponsorDraft {
     imageOnly: sponsor?.imageOnly ?? (sponsor?.showName === false),
     showName: sponsor?.showName ?? true,
     sortOrder: sponsor?.sortOrder,
+    startsAt: isoDateInput(sponsor?.startsAt),
+    endsAt: isoDateInput(sponsor?.endsAt),
+    placement: sponsor?.placement || "HOME_FEATURED",
+    layout: sponsor?.layout || "LARGE_CARD",
   };
 }
 
@@ -133,12 +138,15 @@ function adToDraft(ad?: TrackingAdRecord | null): AdDraft {
     isActive: ad?.isActive ?? true,
     imageOnly: ad?.imageOnly ?? false,
     sortOrder: ad?.sortOrder,
+    placement: ad?.placement || "ORDER_TRACKING",
+    layout: ad?.layout || "BANNER",
   };
 }
 
-function statusForActive(isActive?: boolean, startsAt?: string) {
+function statusForActive(isActive?: boolean, startsAt?: string, endsAt?: string) {
   if (!isActive) return { label: "Pausad", className: "bg-[#EEEDE8] text-[#6b6b73]" };
   if (startsAt && new Date(startsAt).getTime() > Date.now()) return { label: "Planerad", className: "bg-[#FFF3DC] text-[#9A5A00]" };
+  if (endsAt && new Date(endsAt).getTime() < Date.now()) return { label: "Avslutad", className: "bg-[#FDECEC] text-[#9F1D22]" };
   return { label: "Aktiv", className: "bg-[#EAF7EF] text-[#1F6B41]" };
 }
 
@@ -182,7 +190,7 @@ function ListRow({
       onClick={onClick}
       className={cn(
         "grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl bg-white px-3 py-3 text-left transition",
-        selected ? "shadow-[inset_0_0_0_1.5px_#F47721,0_6px_16px_rgba(244,119,33,0.12)]" : "shadow-[inset_0_0_0_1px_rgba(20,20,22,0.07)] hover:shadow-[inset_0_0_0_1px_rgba(20,20,22,0.13)]",
+        selected ? "shadow-[inset_0_0_0_1.5px_#F04F1A,0_6px_16px_rgba(240,79,26,0.12)]" : "shadow-[inset_0_0_0_1px_rgba(20,20,22,0.07)] hover:shadow-[inset_0_0_0_1px_rgba(20,20,22,0.13)]",
       )}
     >
       <span className="flex min-w-0 items-center gap-3">
@@ -204,7 +212,7 @@ function ListRow({
 
 function UploadHint({ title, description }: { title: string; description: string }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-dashed border-[rgba(244,119,33,0.32)] bg-[#FFF4E9] p-3">
+    <div className="flex items-center gap-3 rounded-xl border border-dashed border-[rgba(240,79,26,0.32)] bg-[#FFF4E9] p-3">
       <div className="grid h-11 w-14 flex-none place-items-center rounded-lg bg-white text-[#B23C12] shadow-[inset_0_0_0_1px_rgba(20,20,22,0.07)]">
         <ImageIcon size={18} />
       </div>
@@ -219,19 +227,19 @@ function UploadHint({ title, description }: { title: string; description: string
 function AdPreview({ draft }: { draft: AdDraft }) {
   return (
     <div className="px-[15px] pt-3">
-      <div className="rounded-[22px] border border-[rgba(244,119,33,0.18)] bg-white p-3.5 shadow-[0_12px_24px_rgba(20,20,22,0.06)]">
+      <div className="rounded-[22px] border border-[rgba(240,79,26,0.18)] bg-white p-3.5 shadow-[0_12px_24px_rgba(20,20,22,0.06)]">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-[9px] font-black tracking-[0.06em] text-[#F47721]">ORDER #A1B2C3</div>
+            <div className="text-[9px] font-black tracking-[0.06em] text-[#F04F1A]">ORDER #A1B2C3</div>
             <div className="mt-0.5 text-[17px] font-extrabold tracking-[-0.02em] text-[#141416]">Budet är på väg</div>
           </div>
           <div className="flex-none text-right">
-            <div className="text-[16px] font-extrabold text-[#F47721]">ca 25 min</div>
+            <div className="text-[16px] font-extrabold text-[#F04F1A]">ca 25 min</div>
             <div className="text-[9.5px] font-bold tracking-[0.04em] text-[#6b6b73]">TRACKING</div>
           </div>
         </div>
         <div className="mt-3 h-[9px] overflow-hidden rounded-full bg-[#F0F0EC]">
-          <div className="h-full w-[66%] rounded-full bg-[#F47721]" />
+          <div className="h-full w-[66%] rounded-full bg-[#F04F1A]" />
         </div>
         <div className="mt-2 flex justify-between">
           <span className="text-[10.5px] font-bold text-[#141416]">Mottagen</span>
@@ -252,7 +260,7 @@ function AdPreview({ draft }: { draft: AdDraft }) {
       >
         {!draft.imageOnly ? (
           <>
-            <span className="relative w-fit rounded-md bg-white/95 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-[#F47721]">Annons</span>
+            <span className="relative w-fit rounded-md bg-white/95 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-[#F04F1A]">Annons</span>
             <div className="relative">
               <div className="text-[17px] font-extrabold leading-[1.05] tracking-[-0.03em] text-white">{draft.title || "Din rubrik här"}</div>
               <div className="mt-0.5 text-[11.5px] font-semibold text-white/90">{draft.subtitle || "Kort slogan om erbjudandet"}</div>
@@ -261,7 +269,7 @@ function AdPreview({ draft }: { draft: AdDraft }) {
         ) : <span aria-hidden="true" />}
       </article>
       <div className="mt-2 flex gap-1.5">
-        <div className="h-0.5 flex-1 rounded bg-[#F47721]" />
+        <div className="h-0.5 flex-1 rounded bg-[#F04F1A]" />
         <div className="h-0.5 flex-1 rounded bg-[#e3ddd2]" />
         <div className="h-0.5 flex-1 rounded bg-[#e3ddd2]" />
       </div>
@@ -313,11 +321,13 @@ function SponsorPreview({ draft, sponsors }: { draft: SponsorDraft; sponsors: Sp
               className="relative aspect-[1.9] w-64 flex-none overflow-hidden rounded-2xl"
               style={{
                 boxShadow: card.selected
-                  ? "0 0 0 2px #F47721, 0 14px 30px rgba(244,119,33,0.22)"
+                  ? "0 0 0 2px #F04F1A, 0 14px 30px rgba(240,79,26,0.22)"
                   : "0 6px 18px rgba(20,20,22,0.10), inset 0 0 0 1px rgba(20,20,22,0.05)",
                 background: sponsorGradient(card.color),
               }}
             >
+              {/* Editor-preview av valfri extern kampanjbild. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               {card.imageUrl ? <img src={card.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
               {!card.imageUrl ? <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.34),transparent_34%),linear-gradient(to_top,rgba(0,0,0,0.26),rgba(0,0,0,0))]" /> : null}
               <div className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.08)_0_16px,rgba(255,255,255,0)_16px_32px)]" />
@@ -338,13 +348,13 @@ function SponsorPreview({ draft, sponsors }: { draft: SponsorDraft; sponsors: Sp
         </div>
       </div>
       <div className="mt-3 flex gap-1.5 px-[15px]">
-        {cards.map((card, index) => <div key={card.id} className={cn("h-0.5 flex-1 rounded", index === 0 ? "bg-[#F47721]" : "bg-[#e3ddd2]")} />)}
+        {cards.map((card, index) => <div key={card.id} className={cn("h-0.5 flex-1 rounded", index === 0 ? "bg-[#F04F1A]" : "bg-[#e3ddd2]")} />)}
       </div>
     </div>
   );
 }
 
-function PhonePreview({ tab, adDraft, sponsorDraft, sponsors }: { tab: Tab; adDraft: AdDraft; sponsorDraft: SponsorDraft; sponsors: SponsorRecord[] }) {
+function PhonePreview({ tab, adDraft, sponsorDraft, sponsors }: { tab: PlacementEditorTab; adDraft: AdDraft; sponsorDraft: SponsorDraft; sponsors: SponsorRecord[] }) {
   return (
     <div className="sticky top-6 rounded-2xl border border-[rgba(20,20,22,0.06)] bg-white p-[18px] shadow-[0_18px_44px_rgba(20,20,22,0.06)]">
       <div className="mb-3 text-center text-[10px] font-black uppercase tracking-[0.08em] text-[#9a9aa2]">Live i appen</div>
@@ -352,7 +362,7 @@ function PhonePreview({ tab, adDraft, sponsorDraft, sponsors }: { tab: Tab; adDr
         <div className="w-[318px] rounded-[44px] bg-[#1a1a1c] p-[11px] shadow-[0_30px_60px_rgba(20,20,22,0.24)]">
           <div className="relative h-[624px] overflow-hidden rounded-[34px] bg-[#FFF8EF]">
             <div className="absolute left-1/2 top-0 z-10 h-[25px] w-[116px] -translate-x-1/2 rounded-b-[15px] bg-[#1a1a1c]" />
-            <div className="rounded-b-[24px] bg-[#F47721] px-4 pb-3.5 pt-3">
+            <div className="rounded-b-[24px] bg-[#F04F1A] px-4 pb-3.5 pt-3">
               <div className="flex items-center justify-between px-1 pb-2 text-[11px] font-bold text-white">
                 <span>9:41</span><span className="h-2.5 w-4 rounded-sm border border-white/90" />
               </div>
@@ -362,8 +372,8 @@ function PhonePreview({ tab, adDraft, sponsorDraft, sponsors }: { tab: Tab; adDr
                   <div className="text-[15px] font-extrabold tracking-[-0.02em] text-white">Lund</div>
                 </div>
                 <div className="inline-flex flex-none items-center gap-1.5 rounded-full bg-white px-3 py-1.5">
-                  <span className="h-2 w-2 rotate-45 rounded-sm bg-[#F47721]" />
-                  <span className="text-[12px] font-extrabold text-[#141416]">1 240 p</span>
+                  <span className="h-2 w-2 rotate-45 rounded-sm bg-[#F04F1A]" />
+                  <span className="text-[12px] font-extrabold text-[#141416]">Kundprofil</span>
                 </div>
               </div>
               <div className="mt-2.5 flex h-10 items-center gap-2 rounded-[13px] bg-white px-3">
@@ -381,10 +391,16 @@ function PhonePreview({ tab, adDraft, sponsorDraft, sponsors }: { tab: Tab; adDr
   );
 }
 
-export function SponsorsPage() {
+export function SponsorsPage({
+  embedded = false,
+  initialTab = "discounts",
+}: {
+  embedded?: boolean;
+  initialTab?: PlacementEditorTab;
+}) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const [tab, setTab] = useState<Tab>("discounts");
+  const [tab, setTab] = useState<PlacementEditorTab>(initialTab);
   const sponsors = useQuery({ queryKey: sponsorsQueryKey, queryFn: getSponsors });
   const ads = useQuery({ queryKey: adsQueryKey, queryFn: getAds });
   const restaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
@@ -394,6 +410,7 @@ export function SponsorsPage() {
   const [selectedAdId, setSelectedAdId] = useState<string | null>(null);
   const [sponsorDraft, setSponsorDraft] = useState<SponsorDraft>(() => sponsorToDraft(null));
   const [adDraft, setAdDraft] = useState<AdDraft>(() => adToDraft(null));
+  const [deleteTarget, setDeleteTarget] = useState<{ kind: "sponsor" | "ad"; id: string; label: string } | null>(null);
 
   const isShowcase = tab === "champion" || tab === "discounts" || tab === "trending" || tab === "new";
   const activeList = tab === "ads" ? ads.data || [] : sponsors.data || [];
@@ -422,11 +439,16 @@ export function SponsorsPage() {
         isClickable: draft.linkType !== "NONE" && draft.isClickable,
         imageOnly: draft.cardType === "TEXT" ? false : draft.imageOnly,
         showName: draft.cardType === "TEXT" ? true : (draft.imageOnly ? false : draft.showName),
+        placement: draft.placement || "HOME_FEATURED",
+        layout: draft.layout || "LARGE_CARD",
+        startsAt: draft.startsAt || undefined,
+        endsAt: draft.endsAt || undefined,
       };
       return draft.id ? updateSponsor(draft.id, payload) : createSponsor(payload);
     },
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: sponsorsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: contentPlacementsQueryKey });
       setSelectedSponsorId(saved.id);
       setSponsorDraft(sponsorToDraft(saved));
       showToast({ type: "success", message: "Partner sparad" });
@@ -448,11 +470,14 @@ export function SponsorsPage() {
         endsAt: draft.endsAt || undefined,
         isActive: draft.isActive,
         imageOnly: draft.imageOnly,
+        placement: draft.placement || "ORDER_TRACKING",
+        layout: draft.layout || "BANNER",
       };
       return draft.id ? updateAd(draft.id, payload) : createAd(payload);
     },
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: adsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: contentPlacementsQueryKey });
       setSelectedAdId(saved.id);
       setAdDraft(adToDraft(saved));
     },
@@ -462,6 +487,7 @@ export function SponsorsPage() {
     mutationFn: (id: string) => deleteSponsor(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: sponsorsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: contentPlacementsQueryKey });
       setSelectedSponsorId(null);
       setSponsorDraft(sponsorToDraft(null));
     },
@@ -471,6 +497,7 @@ export function SponsorsPage() {
     mutationFn: (id: string) => deleteAd(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: contentPlacementsQueryKey });
       setSelectedAdId(null);
       setAdDraft(adToDraft(null));
     },
@@ -488,9 +515,9 @@ export function SponsorsPage() {
   }
 
   return (
-    <div className="-m-6 min-h-[calc(100vh-72px)] px-6 py-8" style={{ background: pageBg }}>
+    <div className={embedded ? "" : "-m-6 min-h-[calc(100vh-72px)] px-6 py-8"} style={embedded ? undefined : { background: pageBg }}>
       <div className="mx-auto max-w-[1200px]">
-        <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className={cn("mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between", embedded && "rounded-2xl border border-[rgba(20,20,22,0.06)] bg-white p-5")}>
           <div>
             <div className="mb-2 text-[11px] font-black uppercase tracking-[0.13em]" style={{ color: orangeInk }}>Marknad</div>
             <h1 className="m-0 text-[27px] font-black leading-tight tracking-[-0.04em] text-[#141416]">Aktuellt</h1>
@@ -580,7 +607,7 @@ export function SponsorsPage() {
                             title={live.brand || ad.brand}
                             subtitle={`${formatPeriod(ad.startsAt, ad.endsAt)}${live.imageOnly ? " · Endast bild" : ""}`}
                             color={colorFromText(live.brand)}
-                            status={statusForActive(ad.isActive, ad.startsAt)}
+                            status={statusForActive(ad.isActive, ad.startsAt, ad.endsAt)}
                             onClick={() => { setSelectedAdId(ad.id); setAdDraft(adToDraft(ad)); }}
                           />
                         );
@@ -595,7 +622,7 @@ export function SponsorsPage() {
                             title={live.name || sponsor.name}
                             subtitle={`${live.cardType === "TEXT" ? "Textkort" : (live.category || "Partner")} · ${live.tier || "Partner"}${live.imageOnly ? " · Endast bild" : ""}`}
                             color={sponsorGradient(live.color)}
-                            status={statusForActive(sponsor.isActive)}
+                            status={statusForActive(sponsor.isActive, sponsor.startsAt, sponsor.endsAt)}
                             onClick={() => { setSelectedSponsorId(sponsor.id); setSponsorDraft(sponsorToDraft(sponsor)); }}
                           />
                         );
@@ -614,7 +641,7 @@ export function SponsorsPage() {
                     setSponsorDraft(sponsorToDraft(null));
                   }
                 }}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[rgba(244,119,33,0.34)] bg-[#FFF4E9] px-4 py-3 text-[13px] font-black text-[#B23C12]"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[rgba(240,79,26,0.34)] bg-[#FFF4E9] px-4 py-3 text-[13px] font-black text-[#B23C12]"
               >
                 <Plus size={14} /> {headerAction}
               </button>
@@ -630,8 +657,8 @@ export function SponsorsPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (tab === "ads" && adDraft.id) deleteAdMutation.mutate(adDraft.id);
-                      if (tab === "sponsors" && sponsorDraft.id) deleteSponsorMutation.mutate(sponsorDraft.id);
+                      if (tab === "ads" && adDraft.id) setDeleteTarget({ kind: "ad", id: adDraft.id, label: adDraft.title || adDraft.brand });
+                      if (tab === "sponsors" && sponsorDraft.id) setDeleteTarget({ kind: "sponsor", id: sponsorDraft.id, label: sponsorDraft.name });
                     }}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-[rgba(220,38,38,0.18)] bg-[rgba(220,38,38,0.05)] px-3 py-2 text-[12px] font-black text-[#B91C1C]"
                   >
@@ -644,6 +671,18 @@ export function SponsorsPage() {
                 <div className="grid gap-3 md:grid-cols-2">
                   <Field label="Företagsnamn"><Input value={adDraft.brand} onChange={(e) => setAdDraft((d) => ({ ...d, brand: e.target.value }))} /></Field>
                   <Field label="Länk / URL"><Input value={adDraft.url || ""} onChange={(e) => setAdDraft((d) => ({ ...d, url: e.target.value }))} /></Field>
+                  <Field label="Placement">
+                    <Select value={adDraft.placement || "ORDER_TRACKING"} onChange={(e) => setAdDraft((d) => ({ ...d, placement: e.target.value as TrackingAdRecord["placement"] }))}>
+                      <option value="ORDER_TRACKING">Under ordertracking</option>
+                      <option value="POST_ORDER">Efter genomförd order</option>
+                    </Select>
+                  </Field>
+                  <Field label="Layout">
+                    <Select value={adDraft.layout || "BANNER"} onChange={(e) => setAdDraft((d) => ({ ...d, layout: e.target.value as TrackingAdRecord["layout"] }))}>
+                      <option value="BANNER">Banner</option>
+                      <option value="COMPACT_CARD">Kompakt kort</option>
+                    </Select>
+                  </Field>
                   <div className="md:col-span-2"><Field label="Rubrik"><Input value={adDraft.title} onChange={(e) => setAdDraft((d) => ({ ...d, title: e.target.value }))} /></Field></div>
                   <div className="md:col-span-2"><Field label="Kort text / slogan"><Input value={adDraft.subtitle} onChange={(e) => setAdDraft((d) => ({ ...d, subtitle: e.target.value }))} /></Field></div>
                   <Field label="Visas från"><Input type="date" value={adDraft.startsAt || ""} onChange={(e) => setAdDraft((d) => ({ ...d, startsAt: e.target.value }))} /></Field>
@@ -682,9 +721,27 @@ export function SponsorsPage() {
                     >
                       <option value="RESTAURANT">Partner/Restaurang</option>
                       <option value="DEAL">Deal (claim i kortet)</option>
-                      <option value="AD">Annons (märks)</option>
                       <option value="TEXT">Text/Kampanj</option>
                     </Select>
+                  </Field>
+                  <Field label="Placement">
+                    <Select value={sponsorDraft.placement || "HOME_FEATURED"} onChange={(e) => setSponsorDraft((d) => ({ ...d, placement: e.target.value as SponsorRecord["placement"] }))}>
+                      <option value="HOME_FEATURED">Hem · featured-kort</option>
+                      <option value="HOME_INLINE">Hem · inline-kort</option>
+                      <option value="POST_ORDER">Efter genomförd order</option>
+                    </Select>
+                  </Field>
+                  <Field label="Layout">
+                    <Select value={sponsorDraft.layout || "LARGE_CARD"} onChange={(e) => setSponsorDraft((d) => ({ ...d, layout: e.target.value as SponsorRecord["layout"] }))}>
+                      <option value="LARGE_CARD">Stort kort</option>
+                      <option value="COMPACT_CARD">Kompakt kort</option>
+                    </Select>
+                  </Field>
+                  <Field label="Visas från">
+                    <Input type="date" value={sponsorDraft.startsAt || ""} onChange={(e) => setSponsorDraft((d) => ({ ...d, startsAt: e.target.value }))} />
+                  </Field>
+                  <Field label="Visas till">
+                    <Input type="date" value={sponsorDraft.endsAt || ""} onChange={(e) => setSponsorDraft((d) => ({ ...d, endsAt: e.target.value }))} />
                   </Field>
                   {sponsorDraft.cardType === "DEAL" ? (
                     <div className="md:col-span-2">
@@ -700,7 +757,7 @@ export function SponsorsPage() {
                     </div>
                   ) : null}
                   {sponsorDraft.cardType === "TEXT" ? (
-                    <div className="md:col-span-2 rounded-xl border border-[rgba(244,119,33,0.18)] bg-[#FFF4E9] p-3 text-[12px] font-semibold leading-relaxed text-[#7A4315]">
+                    <div className="md:col-span-2 rounded-xl border border-[rgba(240,79,26,0.18)] bg-[#FFF4E9] p-3 text-[12px] font-semibold leading-relaxed text-[#7A4315]">
                       Textkort kan publiceras utan bild. Det använder valt gradienttema, titel, brödtext och info direkt i sponsorraden.
                     </div>
                   ) : null}
@@ -769,6 +826,20 @@ export function SponsorsPage() {
           <Link2 size={13} />
           Rabatter, Trendar och Ny i stan fylls dynamiskt. Sponsorer och annonser är manuella kort.
         </div>
+        <ConfirmDialog
+          open={Boolean(deleteTarget)}
+          title={deleteTarget?.kind === "ad" ? "Radera annons?" : "Radera sponsor?"}
+          description={deleteTarget ? `“${deleteTarget.label || "Namnlöst kort"}” tas bort permanent från placement-systemet.` : undefined}
+          confirmLabel="Radera permanent"
+          danger
+          loading={deleteAdMutation.isPending || deleteSponsorMutation.isPending}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => {
+            if (!deleteTarget) return;
+            if (deleteTarget.kind === "ad") deleteAdMutation.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+            else deleteSponsorMutation.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+          }}
+        />
       </div>
     </div>
   );

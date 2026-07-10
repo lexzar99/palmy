@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, BellOff, Ban, DollarSign, Loader2, Megaphone, Pause, Play, Power, RotateCcw, Timer, MapPin } from "lucide-react";
 import { Badge, Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
@@ -20,25 +20,30 @@ import {
 import { getDealRestaurants } from "@/modules/deals/api";
 
 export function CrisisPage() {
-  const queryClient = useQueryClient();
-  const [closeReason, setCloseReason] = useState("");
-  const [bannerMsg, setBannerMsg] = useState("");
-  const [bannerSev, setBannerSev] = useState<"info" | "warning" | "critical">("info");
-  const [bannerUntil, setBannerUntil] = useState("");
-  const [hydrated, setHydrated] = useState(false);
-
   const banner = useQuery({ queryKey: ["platform-banner"], queryFn: getPlatformBanner });
 
-  useEffect(() => {
-    if (banner.data && !hydrated) {
-      setBannerMsg((banner.data as { bannerMessage?: string }).bannerMessage || "");
-      const sev = (banner.data as { bannerSeverity?: string }).bannerSeverity;
-      if (sev === "info" || sev === "warning" || sev === "critical") setBannerSev(sev);
-      const expires = (banner.data as { bannerExpiresAt?: string }).bannerExpiresAt;
-      if (expires) setBannerUntil(expires.slice(0, 16)); // YYYY-MM-DDTHH:MM
-      setHydrated(true);
-    }
-  }, [banner.data, hydrated]);
+  return (
+    <CrisisPageContent
+      key={banner.data ? "hydrated" : "empty"}
+      initialBanner={banner.data}
+    />
+  );
+}
+
+type PlatformBannerData = Awaited<ReturnType<typeof getPlatformBanner>>;
+
+function normalizeBannerSeverity(value: unknown): "info" | "warning" | "critical" {
+  return value === "warning" || value === "critical" ? value : "info";
+}
+
+function CrisisPageContent({ initialBanner }: { initialBanner?: PlatformBannerData }) {
+  const queryClient = useQueryClient();
+  const [closeReason, setCloseReason] = useState("");
+  const [bannerMsg, setBannerMsg] = useState(() => initialBanner?.bannerMessage || "");
+  const [bannerSev, setBannerSev] = useState<"info" | "warning" | "critical">(
+    () => normalizeBannerSeverity(initialBanner?.bannerSeverity),
+  );
+  const [bannerUntil, setBannerUntil] = useState(() => initialBanner?.bannerExpiresAt?.slice(0, 16) || "");
 
   const closeAll = useMutation({
     mutationFn: () => emergencyCloseAll(closeReason || "Manuell kris-stängning"),

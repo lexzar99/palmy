@@ -6,6 +6,7 @@ import { ArrowRight, KeyRound, LockKeyhole, ShieldCheck, UserRound } from "lucid
 import { apiPost } from "@/shared/api/client";
 import { getStoredToken, setStoredAdminSession } from "@/shared/auth/storage";
 import { Button, Field, Input, Surface } from "@/shared/components/ui";
+import viaeatsSymbol from "../../../../../Logotyp/sym-navy.png";
 
 type LoginResponse =
   | {
@@ -106,12 +107,13 @@ export default function LoginPage() {
     <div className="auth-shell">
       <Surface className="w-full max-w-md px-8 py-10">
         <div className="flex items-center justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-2xl font-semibold text-[var(--accent-fg)]">
-            D
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent-soft)]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={viaeatsSymbol.src} alt="" className="h-11 w-11 object-contain" />
           </div>
         </div>
 
-        <h1 className="mt-6 text-center text-[26px] font-semibold tracking-[-0.025em]">ViaEats Admin</h1>
+        <h1 className="mt-6 text-center text-[26px] font-semibold tracking-[-0.025em]">viaeats admin</h1>
         {needsTotp && (
           <p className="mt-2 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
             Ny enhet upptäckt — verifiera med din authenticator-app eller recovery code.
@@ -121,13 +123,14 @@ export default function LoginPage() {
         <form className="mt-8 grid gap-5" onSubmit={submitLogin}>
           {!needsTotp && (
             <>
-              <Field label="Användarnamn">
+              <Field label="Användarnamn" htmlFor="login-identifier">
                 <div className="relative">
                   <UserRound size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                   <Input
+                    id="login-identifier"
                     value={identifier}
                     onChange={(event) => setIdentifier(event.target.value)}
-                    className="pl-11"
+                    className="input-with-leading-icon"
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
@@ -136,14 +139,15 @@ export default function LoginPage() {
                 </div>
               </Field>
 
-              <Field label="Lösenord">
+              <Field label="Lösenord" htmlFor="login-password">
                 <div className="relative">
                   <LockKeyhole size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                   <Input
+                    id="login-password"
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    className="pl-11"
+                    className="input-with-leading-icon"
                     required
                   />
                 </div>
@@ -152,13 +156,14 @@ export default function LoginPage() {
           )}
 
           {needsTotp && !usingRecoveryCode && (
-            <Field label="6-siffrig kod från authenticator-app">
+            <Field label="6-siffrig kod från authenticator-app" htmlFor="login-totp">
               <div className="relative">
                 <ShieldCheck size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                 <Input
+                  id="login-totp"
                   value={totp}
                   onChange={(event) => setTotp(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="pl-11 tracking-widest text-center text-lg"
+                  className="input-with-leading-icon tracking-widest text-center text-lg"
                   placeholder="123456"
                   maxLength={6}
                   inputMode="numeric"
@@ -170,13 +175,14 @@ export default function LoginPage() {
           )}
 
           {needsTotp && usingRecoveryCode && (
-            <Field label="Recovery code (en av dina 10 sparade)">
+            <Field label="Recovery code (en av dina 10 sparade)" htmlFor="login-recovery-code">
               <div className="relative">
                 <KeyRound size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                 <Input
+                  id="login-recovery-code"
                   value={recoveryCode}
                   onChange={(event) => setRecoveryCode(event.target.value.toUpperCase())}
-                  className="pl-11 tracking-widest text-center"
+                  className="input-with-leading-icon tracking-widest text-center"
                   placeholder="ABCD-1234"
                   autoCapitalize="characters"
                   autoFocus

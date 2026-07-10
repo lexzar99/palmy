@@ -66,7 +66,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none">
+      <div
+        className="fixed bottom-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none"
+        aria-live="polite"
+        aria-relevant="additions"
+      >
         {toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} onDismiss={() => dismiss(toast.id)} />
         ))}
@@ -98,6 +102,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
 
   return (
     <div
+      role={toast.type === "error" ? "alert" : "status"}
       className="pointer-events-auto rounded-xl px-4 py-3 shadow-2xl flex items-center gap-3 min-w-[280px] max-w-[420px] transition-all duration-200 ease-out"
       style={{
         backgroundColor: styles.bg,

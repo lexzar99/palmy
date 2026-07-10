@@ -13,13 +13,10 @@ import {
 } from '../lib/restaurantSettings';
 import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, resolveDisplayPromotionForProduct, userDealRestaurantScope, type CartItemForBogo } from '../lib/deals';
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
-import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
 import { bustCache } from '../lib/ttlCache';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
-import { getDpointsSettings, awardOrderPointsIfNotAwarded, resolveDpointsCourierFeeOre, maybeAwardReviewPoints } from '../lib/dpoints';
-import { haversineKm } from '../utils/geo';
 import supabaseAdmin from '../lib/supabase';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
@@ -27,6 +24,8 @@ import { discountPlatformAllowed } from '../lib/clientPlatform';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { sendOrderStatusPush } from '../lib/customerPush';
 import { etaResponseFields, refreshOrderEta } from '../lib/orderEta';
+import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
+import { moneyDto, nullableMoneyDto } from '../utils/money';
 
 const router = Router();
 const STOCKHOLM_TIMEZONE = 'Europe/Stockholm';
@@ -117,9 +116,6 @@ const OrderItemSchema = z.object({
   // att kunden inte smugglar fler gratis-varor än vad dealen tillåter.
   // Vi validerar count mot evaluateBogoCategoryDeal:s maxFreeItems.
   bogoFreeFromDealId: z.string().nullable().optional(),
-  // Vpoints: kunden betalar denna rad med poäng → backend nollar priset och
-  // drar poäng vid betalning. Kräver inloggad användare med tillräckligt saldo.
-  paidWithPoints: z.boolean().optional(),
 });
 
 const CreateOrderSchema = z.object({
@@ -226,14 +222,19 @@ router.post('/', async (req: Request, res: Response) => {
     try {
       const settings = await prisma.restaurantSettings.findUnique({
         where: { id: 'settings' },
-        select: { platformPausedUntil: true, platformPauseReason: true } as any,
+        select: {
+          platformOrdersPaused: true,
+          platformPausedUntil: true,
+          platformPauseReason: true,
+        } as any,
       });
       const until = (settings as any)?.platformPausedUntil;
-      if (until && new Date(until).getTime() > Date.now()) {
+      if ((settings as any)?.platformOrdersPaused === true || (until && new Date(until).getTime() > Date.now())) {
         return res.status(503).json({
           error: 'PLATFORM_PAUSED',
           message: 'Plattformen är tillfälligt pausad. Försök igen om en stund.',
-          until: new Date(until).toISOString(),
+          until: until ? new Date(until).toISOString() : null,
+          indefinite: (settings as any)?.platformOrdersPaused === true,
           reason: (settings as any)?.platformPauseReason || null,
         });
       }
@@ -344,6 +345,11 @@ router.post('/', async (req: Request, res: Response) => {
       where: data.restaurantId
         ? { id: data.restaurantId }
         : { slug: data.restaurantSlug as string },
+      include: {
+        city_relation: {
+          select: { ordersPaused: true, ordersPausedUntil: true, ordersPauseReason: true },
+        },
+      },
     });
     if (!restaurant) {
       res.status(400).json({ error: 'Ogiltig restaurang' });
@@ -377,8 +383,11 @@ router.post('/', async (req: Request, res: Response) => {
 
     const globalSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
     
-    // Use restaurant specific settings or global fallbacks
-    const restaurantOpen = restaurant?.isOpen ?? globalSettings?.isOpen ?? true;
+    const availability = resolveRestaurantAvailability(restaurant, {
+      city: restaurant.city_relation,
+      platform: globalSettings,
+    });
+    const restaurantOpen = availability.isOpen;
 
     // FÖR DELIVERY: ENDAST zon-baserade avgifter används. Tidigare fanns
     // restaurant.deliveryFee/minOrderAmount som fallback men det orsakade
@@ -484,7 +493,12 @@ router.post('/', async (req: Request, res: Response) => {
     // som båda är dev-only.
     const skipClosedCheck = isTestOrder || bypassAllowed;
     if (!skipClosedCheck && !restaurantOpen) {
-      res.status(400).json({ error: 'Tyvärr, restaurangen har för närvarande stängt. Välkommen tillbaka när vi öppnar!' });
+      const isCrisis = availability.reason === 'PLATFORM_PAUSED' || availability.reason === 'CITY_PAUSED';
+      res.status(isCrisis ? 503 : 400).json({
+        error: isCrisis ? 'ORDERS_PAUSED' : 'RESTAURANT_CLOSED',
+        message: 'Tyvärr, restaurangen tar inte emot beställningar just nu.',
+        availabilityReason: availability.reason,
+      });
       return;
     }
 
@@ -532,10 +546,7 @@ router.post('/', async (req: Request, res: Response) => {
     const productMap = new Map(products.map((p) => [p.id, p]));
 
     let subtotal = 0;
-    let pointsToSpend = 0;
-    let pointsPaidValueOre = 0; // brutto-värde (öre) av varor betalda med poäng — för min-order
     let hasCatalogDiscountedItems = false;
-    const dpSettings = await getDpointsSettings();
     const orderItems: any[] = [];
 
     for (const item of data.items) {
@@ -660,80 +671,19 @@ router.post('/', async (req: Request, res: Response) => {
       const itemHasCatalogDiscount = !item.bogoFreeFromDealId && catalogBaseOre < product.price;
       if (itemHasCatalogDiscount) hasCatalogDiscountedItems = true;
       const lineItemOre = (catalogBaseOre + extrasTotal) * item.quantity;
-      // Rabattpris (öre) för POÄNG-kostnaden så den matchar vad kunden ser i
-      // appen (rabattpris i poäng).
-      const discountedBaseOre = (() => {
-        if (itemHasCatalogDiscount) return catalogBaseOre;
-        if (displayPromotion?.salePriceOre && displayPromotion.salePriceOre < product.price) return displayPromotion.salePriceOre;
-        return product.price;
-      })();
-      const pointsBaseOre = (discountedBaseOre + extrasTotal) * item.quantity;
-      const rewardUnitPoints = (() => {
-        const override = Number((product as any).rewardPointsPrice);
-        if (Number.isFinite(override) && override > 0) return Math.ceil(override);
-        const multiplier = Number((product as any).rewardPointsMultiplier ?? 1.5);
-        return Math.ceil(((discountedBaseOre + extrasTotal) / 100) * (Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1.5));
-      })();
-      // Vpoints: betalas raden med poäng nollas priset (gratis-rad) och poängen
-      // dras vid betalning. Kräver inloggad användare + aktiverat system + att
-      // varan är markerad rewardable. Klienten erbjuder bara poäng-köp på
-      // rewardable-varor, men vi litar inte på klienten — server-side gate.
-      if (item.paidWithPoints && dpSettings.dpointsEnabled && !product.rewardable) {
-        throw new OrderValidationError(`${product.name} kan inte köpas med Vpoints`);
-      }
-      const payWithPoints = !!item.paidWithPoints && !!authenticatedUserId && dpSettings.dpointsEnabled && !!product.rewardable;
-      const itemSubtotal = payWithPoints ? 0 : lineItemOre;
-      if (payWithPoints) {
-        pointsToSpend += rewardUnitPoints * item.quantity;
-        pointsPaidValueOre += pointsBaseOre;
-      }
+      const itemSubtotal = lineItemOre;
       subtotal += itemSubtotal;
 
       orderItems.push({
         productId: product.id,
         productName: product.name,
-        basePrice: payWithPoints ? 0 : catalogBaseOre,
+        basePrice: catalogBaseOre,
         quantity: item.quantity,
         note: item.note,
         selectedExtras: JSON.stringify(validatedExtras), // Store as string for SQLite
         subtotal: itemSubtotal,
       });
     }
-
-    // Vpoints budkostnad: en order som betalas ENBART med poäng (subtotal 0 kr,
-    // all mat täckt av poäng) får inte stapla erbjudanden ovanpå poängen.
-    // Vid LEVERANS vinner restaurangens/zonens egen avgift. Saknas sådan avgift
-    // används Vpoints-standard från admin. Vid HÄMTNING finns ingen kurir, men
-    // betalpartnern behöver 5 kr.
-    const isPointsOnlyOrder = pointsToSpend > 0 && subtotal === 0;
-    if (isPointsOnlyOrder) {
-      const requestedOffer =
-        !!data.discountCode ||
-        !!data.userDealId ||
-        data.items.some((item) => !!item.bogoFreeFromDealId);
-
-      if (requestedOffer) {
-        throw new OrderValidationError('Vpoints kan inte kombineras med erbjudanden när hela maten betalas med poäng');
-      }
-
-      if (data.type === 'DELIVERY') {
-        if (resolvedZoneDeliveryFee > 0) {
-          deliveryFee = resolvedZoneDeliveryFee;
-        } else {
-          // Km-baserad budkostnad: avstånd restaurang till kund via haversine,
-          // slå upp i den globala tariffen.
-          const rLat = (restaurant as any).latitude;
-          const rLng = (restaurant as any).longitude;
-          const distKm =
-            typeof data.lat === 'number' && typeof data.lng === 'number' &&
-            typeof rLat === 'number' && typeof rLng === 'number'
-              ? haversineKm(data.lat, data.lng, rLat, rLng)
-              : 0;
-          deliveryFee = resolveDpointsCourierFeeOre(distKm, dpSettings);
-        }
-      }
-    }
-    const pointsPickupPartnerFeeOre = isPointsOnlyOrder && data.type === 'PICKUP' ? 500 : 0;
 
     // Min-order-validering flyttad nedåt — den behöver veta om en rabatt
     // appliceras (eftersom rabatt-tolerans bara aktiveras DÅ). Se
@@ -877,7 +827,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Vi hoppar HELA pickup-loopen (utom BOGO som är knuten till items i
     // kundvagnen och hanteras separat nedan). Detta säkerställer att
     // frontend-totalen (utan auto-deal) matchar backend-totalen.
-    const skipAutoDeals = !!data.skipAutomaticDeal || isPointsOnlyOrder || hasCatalogDiscountedItems;
+    const skipAutoDeals = !!data.skipAutomaticDeal || hasCatalogDiscountedItems;
     const productIdsInCart = data.items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
 
     const cartItemsForBogo: CartItemForBogo[] = orderItems.map((oi) => {
@@ -912,8 +862,6 @@ router.post('/', async (req: Request, res: Response) => {
       });
 
       if (!evaluation.eligible) continue;
-      if (isPointsOnlyOrder) continue;
-
       // Respektera kundens explicita avstängning av auto-deals.
       // BOGO_CATEGORY MED gratis-varor (maxFreeItems > 0) hoppas INTE över —
       // gratis-varorna ligger redan i kundvagnen och dismiss skulle göra
@@ -1152,8 +1100,7 @@ router.post('/', async (req: Request, res: Response) => {
       const deliveryDiscountOre = wantsFreeDelivery ? deliveryFee : 0;
 
       const totalDealOre = subtotalDiscountOre + deliveryDiscountOre;
-      const appDpointsBonus = userDealMeta.appMissionType ? 0 : Math.max(0, Number(userDealMeta.appDpointsBonus || 0));
-      if (totalDealOre > 0 || appDpointsBonus > 0) {
+      if (totalDealOre > 0) {
         // discountAmount absorberar BÅDA komponenterna. Order-formel är
         // total = subtotal - discountAmount + deliveryFee. Med freeDelivery:
         // discountAmount = subtotalDisc + deliveryFee → leveransen blir gratis.
@@ -1199,9 +1146,7 @@ router.post('/', async (req: Request, res: Response) => {
       const effectiveMinOrderAmount = hasActiveDiscount
         ? Math.max(0, minOrderAmount - MIN_ORDER_TOLERANCE_ORE)
         : minOrderAmount;
-      // Vpoints: poäng-betalda varors värde räknas med i min-order (samma tröskel
-      // för pengar och poäng — de "matchar"), annars exkluderas gratis-raderna.
-      const afterDiscountValue = Math.max(0, subtotal + pointsPaidValueOre - discountAmount);
+      const afterDiscountValue = Math.max(0, subtotal - discountAmount);
 
       if (afterDiscountValue < effectiveMinOrderAmount) {
         const shortfall = effectiveMinOrderAmount - afterDiscountValue;
@@ -1242,15 +1187,8 @@ router.post('/', async (req: Request, res: Response) => {
         code: data.discountCode, phone: data.customerPhone, subtotal, restaurantId: restaurant?.id,
       });
     }
-    const rawTotal = subtotal - discountAmount + deliveryFee + tipOre + pointsPickupPartnerFeeOre;
+    const rawTotal = subtotal - discountAmount + deliveryFee + tipOre;
     let total = Math.max(0, Math.ceil(rawTotal / 100) * 100);
-    // Vpoints: betalpartnern kan inte debitera under 5 kr. Om poäng dragit ner
-    // kr-totalen under 5 kr → lägg 5 kr kontantavgift, utan att minska
-    // produktens poängpris. Kunden betalar maten med points + extern avgift.
-    const CARD_FLOOR_ORE = 500;
-    if (pointsToSpend > 0 && total < CARD_FLOOR_ORE) {
-      total = CARD_FLOOR_ORE;
-    }
 
     // Verifiera Stripe-beloppet matchar det vi räknat fram. Tidigare auto-justerade
     // koden order-total NEDÅT om Stripe visade lägre belopp — det betydde att en
@@ -1324,19 +1262,6 @@ router.post('/', async (req: Request, res: Response) => {
     // concurrent duplicate the DB throws P2002 — we catch ONLY that, regenerate
     // (generateOrderNumber re-reads the latest number so it advances), and retry,
     // instead of 500-ing an order whose payment may already have gone through.
-    // Vpoints: ATOMISK reservation av poäng — EN gång, FÖRE retry-loopen (annars
-    // dubbel-dras vid orderNumber-kollision). gte-CAS stänger race/dubbel-spend:
-    // räcker inte saldot (eller hann ta slut i en parallell order) → avbryt ordern.
-    // Poängen är nu dragna; revertas vid betalnings-fail/expiry/refund.
-    if (pointsToSpend > 0) {
-      if (!authenticatedUserId) throw new OrderValidationError('Logga in för att betala med Vpoints');
-      const dec = await prisma.user.updateMany({
-        where: { id: authenticatedUserId, pointsBalance: { gte: pointsToSpend } },
-        data: { pointsBalance: { decrement: pointsToSpend } },
-      });
-      if (dec.count === 0) throw new OrderValidationError('Otillräckligt med Vpoints');
-    }
-
     let order: any = null;
     for (let orderAttempt = 1; orderAttempt <= 8; orderAttempt++) {
       const nextNumber = await generateOrderNumber();
@@ -1344,7 +1269,6 @@ router.post('/', async (req: Request, res: Response) => {
         order = await prisma.order.create({
       data: {
         orderNumber: nextNumber,
-        pointsSpent: pointsToSpend,
         status: isPendingPayment ? 'AWAITING_PAYMENT' : 'PENDING',
         type: data.type,
         customerName: data.customerName,
@@ -1414,17 +1338,10 @@ router.post('/', async (req: Request, res: Response) => {
           console.warn(`[order] orderNumber collision (attempt ${orderAttempt}) — regenerating`);
           continue;
         }
-        // Vpoints reserverades före loopen men ordern misslyckades → ge tillbaka.
-        if (pointsToSpend > 0 && authenticatedUserId) {
-          await prisma.user.updateMany({ where: { id: authenticatedUserId }, data: { pointsBalance: { increment: pointsToSpend } } }).catch(() => {});
-        }
         throw err; // non-collision error, or out of attempts → bubble up as before
       }
     }
     if (!order) {
-      if (pointsToSpend > 0 && authenticatedUserId) {
-        await prisma.user.updateMany({ where: { id: authenticatedUserId }, data: { pointsBalance: { increment: pointsToSpend } } }).catch(() => {});
-      }
       throw new OrderValidationError('Kunde inte skapa order just nu, försök igen.');
     }
     const createdEta = await refreshOrderEta(order.id).catch((e: any) => {
@@ -1432,26 +1349,6 @@ router.post('/', async (req: Request, res: Response) => {
       return null;
     });
     if (createdEta) order = { ...order, ...createdEta };
-
-    // Vpoints: ledger-rad för poängen som reserverats/dragits vid order-skapande
-    // (saldot är redan atomiskt draget ovan; detta är historik + balanceAfter).
-    if (pointsToSpend > 0 && authenticatedUserId) {
-      try {
-        const u = await prisma.user.findUnique({ where: { id: authenticatedUserId }, select: { pointsBalance: true } });
-        await prisma.pointsTransaction.create({
-          data: {
-            userId: authenticatedUserId,
-            amount: -pointsToSpend,
-            type: 'REDEEM',
-            balanceAfter: u?.pointsBalance ?? 0,
-            reason: 'Köpt med poäng',
-            metadata: { orderId: order.id },
-          },
-        });
-      } catch (e: any) {
-        console.error('[order] dpoints redeem-ledger failed:', e?.message);
-      }
-    }
 
     // ── UserDeal-reservation ────────────────────────────────────────────
     // Atomisk reserve så två parallella orders inte kan båda använda samma
@@ -1487,25 +1384,6 @@ router.post('/', async (req: Request, res: Response) => {
         });
       }
 
-      // Vpoints: synkron (direkt-PAID/bypass) väg → intjäning + köp-med-poäng-
-      // avdrag. Idempotent (Order.pointsAwarded race-guard) så det krockar inte
-      // med applyPaymentSuccess för async-vägen. Utan detta blev en köp-med-
-      // poäng-vara gratis UTAN att poäng drogs på sync-vägen (säkerhetshål).
-      await awardOrderPointsIfNotAwarded(order.id);
-
-      // Trigger loyalty/retention rewards (async). Failar tyst i bakgrunden
-      // — vi blockerar inte order-skapandet på det, men loggar med kontext
-      // så vi kan upptäcka i Sentry/loggar om en kund inte fick sin reward.
-      triggerLoyaltyRewards(order).catch((err) => {
-        console.error('[loyalty] reward trigger failed', {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          customerPhone: order.customerPhone ? `${order.customerPhone.slice(0, -4)}xxxx` : null,
-          restaurantId: order.restaurantId,
-          error: err?.message || String(err),
-        });
-      });
-
       // Uppdatera rabattkods-räknare (Skip for 'test' mock).
       // Atomisk increment med villkor "usageCount < maxUsages" via raw SQL —
       // två parallella checkouts kan inte båda räknas upp förbi gränsen.
@@ -1531,12 +1409,28 @@ router.post('/', async (req: Request, res: Response) => {
       // Emit till admin via Socket.IO
       const orderForSocket = {
         ...order,
+        totalOre: order.total,
+        totalMoney: moneyDto(order.total),
         total: order.total / 100,
+        deliveryFeeOre: order.deliveryFee,
+        deliveryFeeMoney: moneyDto(order.deliveryFee),
         deliveryFee: order.deliveryFee / 100,
+        discountAmountOre: order.discountAmount,
+        discountAmountMoney: moneyDto(order.discountAmount),
         discountAmount: order.discountAmount / 100,
+        tipAmountOre: order.tipAmount ?? 0,
+        tipAmountMoney: moneyDto(order.tipAmount ?? 0),
+        tipAmount: (order.tipAmount ?? 0) / 100,
+        refundAmountOre: order.refundAmount ?? null,
+        refundAmountMoney: nullableMoneyDto(order.refundAmount),
+        refundAmount: order.refundAmount != null ? order.refundAmount / 100 : null,
         items: order.items.map((i: any) => ({
           ...i,
+          basePriceOre: i.basePrice,
+          basePriceMoney: moneyDto(i.basePrice),
           basePrice: i.basePrice / 100,
+          subtotalOre: i.subtotal,
+          subtotalMoney: moneyDto(i.subtotal),
           subtotal: i.subtotal / 100,
         })),
         restaurantName: order.restaurant?.name || 'Okänd restaurang',
@@ -1886,8 +1780,6 @@ router.get('/:id', async (req: Request, res: Response) => {
       status: customerStatus,
       type: order.type,
       total: order.total / 100,
-      pointsEarned: order.pointsEarned ?? 0,
-      dpointsEarned: order.pointsEarned ?? 0,
       deliveryFee: order.deliveryFee / 100,
       discountAmount: order.discountAmount / 100,
       tipAmount: (order.tipAmount ?? 0) / 100,
@@ -2384,8 +2276,7 @@ router.post('/:id/review', async (req: Request, res: Response) => {
     }
 
     let isOwner = false;
-    // Inloggad recensents user-id — krediteras Vpoints även om ordern saknar
-    // userId (lades t.ex. som gäst innan kontot fanns).
+    // Inloggad recensents user-id, även om ordern lades som gäst innan kontot fanns.
     let reviewerUserId: string | null = null;
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith('Bearer ')) {
@@ -2475,15 +2366,7 @@ router.post('/:id/review', async (req: Request, res: Response) => {
       }
     }
 
-    // Vpoints: belöna recensionen (text → review_text, annars review_rating).
-    // Endast inloggade (userId). Idempotent + fail-safe i helpern.
-    const dpoints = await maybeAwardReviewPoints({
-      userId: (order as any).userId || reviewerUserId,
-      orderId: order.id,
-      hasText: typeof review === 'string' && review.trim().length > 0,
-    });
-
-    res.json({ success: true, dpoints });
+    res.json({ success: true });
   } catch (error) {
     console.error('Review error:', error);
     res.status(500).json({ error: 'Kunde inte spara recension' });

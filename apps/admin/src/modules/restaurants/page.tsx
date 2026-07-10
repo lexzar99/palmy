@@ -10,7 +10,9 @@ import {
   restaurantsQueryKey,
   type ControlCenterRestaurantSnapshot,
 } from "@/modules/restaurants/api";
-import { Button, EmptyState, ErrorPanel, Input, LoadingPanel, PageHeader, Select, Surface, Toggle } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Input, LoadingPanel, PageHeader, Select, Surface } from "@/shared/components/ui";
+import { AcceptingOrdersModeSelect, RestaurantAvailabilitySummary } from "@/shared/components/restaurant-availability";
+import type { AcceptingOrdersMode } from "@/shared/contracts/restaurants";
 import { cn } from "@/shared/utils/cn";
 
 export function RestaurantsPage() {
@@ -22,11 +24,16 @@ export function RestaurantsPage() {
 
   const overview = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
 
-  // Status-toggle i tabellen återanvänder patchRestaurant({ isOpen }) — samma
-  // fält som detalj-/formuläret skriver mot — och invaliderar listan efteråt.
+  // Beställningsläget är en explicit trelägesmodell. Effektiv status kan även
+  // påverkas av schema, utkast, coming soon och driftöverlägg.
   const statusMutation = useMutation({
     meta: { toast: false },
-    mutationFn: ({ id, isOpen }: { id: string; isOpen: boolean }) => patchRestaurant(id, { isOpen }),
+    mutationFn: ({ id, mode }: { id: string; mode: AcceptingOrdersMode }) =>
+      patchRestaurant(id, {
+        acceptingOrdersMode: mode,
+        acceptingOrdersOverrideUntil: null,
+        acceptingOrdersOverrideReason: mode === "SCHEDULED" ? null : "Ändrad från restauranglistan",
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -85,7 +92,7 @@ export function RestaurantsPage() {
           <>
             <div className="relative w-full sm:w-64">
               <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <Input className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök restaurang" />
+              <Input className="input-with-leading-icon" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök restaurang" />
             </div>
             <Button variant="secondary" onClick={() => void overview.refetch()} aria-label="Uppdatera"><RefreshCw size={14} /></Button>
             <Button variant="primary" onClick={() => router.push("/restaurants/new")}><Plus size={15} /> Ny restaurang</Button>
@@ -121,7 +128,8 @@ export function RestaurantsPage() {
         {filtered.length === 0 ? (
           <div className="p-6"><EmptyState title="Inga restauranger matchar sökningen" /></div>
         ) : (
-          <div role="table">
+          <>
+            <div className="hidden lg:block" role="table">
             {/* Header */}
             <div
               role="row"
@@ -141,11 +149,23 @@ export function RestaurantsPage() {
                 restaurant={r}
                 isLast={i === filtered.length - 1}
                 onOpen={() => router.push(`/restaurants/${r.id}`)}
-                onToggleStatus={(next) => statusMutation.mutate({ id: r.id, isOpen: next })}
+                onChangeMode={(mode) => statusMutation.mutate({ id: r.id, mode })}
                 togglePending={statusMutation.isPending}
               />
             ))}
-          </div>
+            </div>
+            <div className="divide-y divide-[var(--row-divider)] lg:hidden">
+              {filtered.map((restaurant) => (
+                <RestaurantMobileCard
+                  key={restaurant.id}
+                  restaurant={restaurant}
+                  onOpen={() => router.push(`/restaurants/${restaurant.id}`)}
+                  onChangeMode={(mode) => statusMutation.mutate({ id: restaurant.id, mode })}
+                  togglePending={statusMutation.isPending}
+                />
+              ))}
+            </div>
+          </>
         )}
       </Surface>
     </div>
@@ -156,13 +176,13 @@ function RestaurantRow({
   restaurant: r,
   isLast,
   onOpen,
-  onToggleStatus,
+  onChangeMode,
   togglePending,
 }: {
   restaurant: ControlCenterRestaurantSnapshot;
   isLast: boolean;
   onOpen: () => void;
-  onToggleStatus: (next: boolean) => void;
+  onChangeMode: (mode: AcceptingOrdersMode) => void;
   togglePending: boolean;
 }) {
   const avatar = r.imageUrl || r.heroImageUrl;
@@ -212,10 +232,17 @@ function RestaurantRow({
       </span>
 
       {/* Status */}
-      <span className="flex items-center gap-2">
-        <Toggle checked={r.isOpen} disabled={togglePending} onChange={onToggleStatus} />
-        <span className={cn("text-[11.5px] font-bold", r.isOpen ? "text-[var(--success-text)]" : "text-[var(--warning-text)]")}>
-          {r.isOpen ? "Öppen" : "Stängd"}
+      <span className="grid gap-1">
+        <AcceptingOrdersModeSelect
+          className="min-w-0 text-xs"
+          aria-label={`Beställningsläge för ${r.name}`}
+          value={r.acceptingOrdersMode}
+          disabled={togglePending}
+          compactLabels
+          onValueChange={onChangeMode}
+        />
+        <span className={cn("text-[10.5px] font-bold", r.isOpen ? "text-[var(--success-text)]" : "text-[var(--warning-text)]")}>
+          Effektivt {r.isOpen ? "öppen" : "stängd"}
         </span>
       </span>
 
@@ -235,5 +262,54 @@ function RestaurantRow({
         </button>
       </span>
     </div>
+  );
+}
+
+function RestaurantMobileCard({
+  restaurant: r,
+  onOpen,
+  onChangeMode,
+  togglePending,
+}: {
+  restaurant: ControlCenterRestaurantSnapshot;
+  onOpen: () => void;
+  onChangeMode: (mode: AcceptingOrdersMode) => void;
+  togglePending: boolean;
+}) {
+  const avatar = r.imageUrl || r.heroImageUrl;
+  return (
+    <article className="grid gap-4 p-4">
+      <div className="flex items-start gap-3">
+        {avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatar} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" />
+        ) : (
+          <span className="h-11 w-11 shrink-0 rounded-xl bg-[var(--accent-soft)]" aria-hidden />
+        )}
+        <div className="min-w-0 flex-1">
+          <button type="button" onClick={onOpen} className="block max-w-full truncate text-left text-sm font-bold">
+            {r.name}
+          </button>
+          <p className="truncate text-xs text-[var(--text-muted)]">{r.city || r.slug}</p>
+        </div>
+        <Badge tone={r.isOpen ? "success" : "warning"}>{r.isOpen ? "Öppen" : "Stängd"}</Badge>
+      </div>
+
+      <RestaurantAvailabilitySummary isOpen={r.isOpen} reason={r.availabilityReason} compact />
+
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="surface-muted px-3 py-2"><span className="text-[var(--text-muted)]">Betyg</span><strong className="mt-0.5 block">{r.reviewScore ? r.reviewScore.toFixed(1) : "—"}</strong></div>
+        <div className="surface-muted px-3 py-2"><span className="text-[var(--text-muted)]">Ordrar idag</span><strong className="mt-0.5 block">{r.todayOrders}</strong></div>
+      </div>
+
+      <AcceptingOrdersModeSelect
+        aria-label={`Beställningsläge för ${r.name}`}
+        value={r.acceptingOrdersMode}
+        disabled={togglePending}
+        onValueChange={onChangeMode}
+      />
+
+      <Button variant="secondary" onClick={onOpen}>Öppna restaurangen <ChevronRight size={16} /></Button>
+    </article>
   );
 }

@@ -8,7 +8,7 @@
  *
  * Allt här är idempotent — webhook, reconcile-poller och en ev. klient-driven
  * statuskoll kan alla landa här utan dubbelräkning (race-guards på
- * status/RESERVED/discountUsageCounted/pointsAwarded).
+ * status/RESERVED/discountUsageCounted).
  */
 import prisma from '../prisma';
 import { getIO } from '../socket';
@@ -91,18 +91,10 @@ export async function finalizePaymentSuccess(
 
   // Referral-reward — invitee:s första betalda order. Fail-safe.
   try {
-    const { maybeRewardInvite } = await import('../invite');
-    await maybeRewardInvite(order.id);
+    const { maybeTriggerReferralReward } = await import('../../routes/referrals');
+    await maybeTriggerReferralReward(order.id);
   } catch (e: any) {
     console.error('[finalize] referral-reward-trigger error:', e?.message);
-  }
-
-  // Vpoints — intjäning. Idempotent (Order.pointsAwarded), fail-safe.
-  try {
-    const { awardOrderPointsIfNotAwarded } = await import('../dpoints');
-    await awardOrderPointsIfNotAwarded(order.id);
-  } catch (e: any) {
-    console.error('[finalize] dpoints-earn error:', e?.message);
   }
 
   // UserDeal: reserverad welcome/referral-kupong → USED. Race-guard på RESERVED.
@@ -167,14 +159,6 @@ export async function finalizePaymentFailed(
       where: { id: failedOrder.userDealId, status: 'RESERVED', usedOnOrderId: orderId },
       data: { status: 'ACTIVE', usedOnOrderId: null },
     }).catch((e: any) => console.error('[finalize] userDeal revert failed:', e?.message));
-  }
-
-  // Vpoints: återför poäng som reserverades vid order-skapande. Idempotent.
-  try {
-    const { revertOrderPointsForRefund } = await import('../dpoints');
-    await revertOrderPointsForRefund(orderId);
-  } catch (e: any) {
-    console.error('[finalize] dpoints revert failed:', e?.message);
   }
 
   console.log(`[finalize] ❌ Order ${orderId} FAILED via ${input.provider}${input.reason ? ` (${input.reason})` : ''}`);

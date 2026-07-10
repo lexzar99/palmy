@@ -11,7 +11,7 @@
 //    kan ha 86:at (slutsålt) en vara lokalt utan att master rör det.
 //  • Pris/beskrivning/flaggor/extras/RABATTER = master är sanningen, MEN en
 //    plats som låst sitt pris (localPriceLocked) styr då även sina rabatter
-//    lokalt (price + discount* skippas). rewardable är kedjepolicy → synkas alltid.
+//    lokalt (price + discount* skippas).
 //  • Atomiskt per plats: använd runMenuSyncSafe() som wrappar apply i en
 //    transaktion → en plats blir ALDRIG halvsynkad (allt-eller-inget per plats).
 //
@@ -209,12 +209,10 @@ export async function runMenuSync(
       // Master är sanning för namn/beskrivning/flaggor/rabatter. LOKALA undantag bevaras:
       //  • isActive (slutsålt) — skickas ALDRIG i update.
       //  • price + discount* — skippas om platsen låst sitt lokala pris (localPriceLocked).
-      //  • rewardable — kedjepolicy (dpoints-behörighet), synkas alltid.
       const dataCommon: any = {
         name: prod.name, description: prod.description,
         isVegan: prod.isVegan, isVegetarian: prod.isVegetarian, isGlutenFree: prod.isGlutenFree,
         displayMode: prod.displayMode, hideDescription: prod.hideDescription, position: pi,
-        rewardable: (prod as any).rewardable,
       };
       // Lås på en BEFINTLIG produkt → behåll lokalt pris OCH lokala rabatter.
       // Nya produkter (och olåsta) ärver alltid masterns pris + rabatter.

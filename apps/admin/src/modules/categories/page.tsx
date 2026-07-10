@@ -20,6 +20,7 @@ import { getRestaurantOverview } from "@/modules/restaurants/api";
 import {
   Badge,
   Button,
+  ConfirmDialog,
   EmptyState,
   ErrorPanel,
   Field,
@@ -32,6 +33,7 @@ import {
   Toggle,
 } from "@/shared/components/ui";
 import { formatNumber } from "@/shared/utils/format";
+import { contentPlacementsQueryKey } from "@/modules/homepage/api";
 
 const dayOptions = [
   { value: 1, label: "Mån" },
@@ -190,6 +192,7 @@ function CategoryEditorModal({
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(emptyForm());
   const [restaurantSearch, setRestaurantSearch] = useState("");
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const restaurantsQuery = useQuery({
     queryKey: ["categories", "restaurants"],
@@ -213,6 +216,7 @@ function CategoryEditorModal({
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
+      await queryClient.invalidateQueries({ queryKey: contentPlacementsQueryKey });
       onClose();
     },
   });
@@ -224,6 +228,7 @@ function CategoryEditorModal({
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
+      await queryClient.invalidateQueries({ queryKey: contentPlacementsQueryKey });
       onClose();
     },
   });
@@ -262,22 +267,19 @@ function CategoryEditorModal({
   }, [restaurantSearch, restaurantsQuery.data]);
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
       title={section ? section.title : "Ny kategori"}
-      widthClassName="max-w-[1200px]"
+      size="xl"
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             {section ? (
               <Button
                 variant="danger"
-                onClick={() => {
-                  if (window.confirm(`Radera home-sektionen "${section.title}"?\n\nSektionen försvinner från web och app. Detta kan inte ångras.`)) {
-                    deleteMutation.mutate();
-                  }
-                }}
+                onClick={() => setConfirmDeleteOpen(true)}
                 disabled={deleteMutation.isPending}
               >
                 <Trash2 size={16} /> Radera
@@ -565,7 +567,7 @@ function CategoryEditorModal({
           <div className="relative mt-4">
             <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <Input
-              className="pl-11"
+                className="input-with-leading-icon"
               placeholder="Sök restaurang..."
               value={restaurantSearch}
               onChange={(event) => setRestaurantSearch(event.target.value)}
@@ -612,10 +614,21 @@ function CategoryEditorModal({
         </div>
       </div>
     </Modal>
+    <ConfirmDialog
+      open={confirmDeleteOpen}
+      title="Radera hemskärmsrail?"
+      description={section ? `“${section.title}” försvinner från web och app. Åtgärden kan inte ångras.` : undefined}
+      confirmLabel="Radera permanent"
+      danger
+      loading={deleteMutation.isPending}
+      onClose={() => setConfirmDeleteOpen(false)}
+      onConfirm={() => deleteMutation.mutate()}
+    />
+    </>
   );
 }
 
-export function CategoriesPage() {
+export function CategoriesPage({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
   const [activeSection, setActiveSection] = useState<HomeCategorySection | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -639,6 +652,7 @@ export function CategoriesPage() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
+      void queryClient.invalidateQueries({ queryKey: contentPlacementsQueryKey });
     },
   });
 
@@ -647,6 +661,7 @@ export function CategoriesPage() {
       updateCategory(section.id, { isActive: !section.isActive }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
+      void queryClient.invalidateQueries({ queryKey: contentPlacementsQueryKey });
     },
   });
 
@@ -658,7 +673,7 @@ export function CategoriesPage() {
   if (categories.isLoading) {
     return (
       <div className="page-stack">
-        <PageHeader breadcrumb="Katalog" title="Kategorier" />
+        {!embedded ? <PageHeader breadcrumb="Tillväxt" title="Hemskärmsrails" /> : null}
         <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar kategorier...</Surface>
       </div>
     );
@@ -678,18 +693,29 @@ export function CategoriesPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader
-        breadcrumb="Katalog"
-        title="Kategorier"
-        actions={
-          <>
+      {embedded ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface)] p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-black tracking-[-0.03em]">Kategori- och restaurangrails</h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">Ordning, urval, synlighet och schema för hemskärmens rader.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => void categories.refetch()}>Uppdatera</Button>
-            <Button variant="primary" onClick={() => setCreateOpen(true)}>
-              <Plus size={13} /> Ny sektion
-            </Button>
-          </>
-        }
-      />
+            <Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={13} /> Ny rail</Button>
+          </div>
+        </div>
+      ) : (
+        <PageHeader
+          breadcrumb="Tillväxt"
+          title="Hemskärmsrails"
+          actions={
+            <>
+              <Button variant="secondary" onClick={() => void categories.refetch()}>Uppdatera</Button>
+              <Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={13} /> Ny rail</Button>
+            </>
+          }
+        />
+      )}
 
       <DiscountedRailToggle />
 

@@ -15,6 +15,14 @@ export interface ZoneRecord {
   color?: string;
 }
 
+type ZoneApiRecord = Partial<ZoneRecord> & {
+  feeOre?: number;
+  minOrderOre?: number;
+  fee?: number;
+  minOrder?: number;
+  deliveryFeeOre?: number;
+};
+
 export interface CityRestaurantLink {
   id: string;
   name: string;
@@ -23,6 +31,7 @@ export interface CityRestaurantLink {
   city?: string | null;
   deliveryZones?: unknown;
   freeDeliveryAbove?: number;
+  freeDeliveryAboveOre?: number | null;
   latitude?: number | null;
   longitude?: number | null;
 }
@@ -41,6 +50,7 @@ export interface CityRecord {
   radiusKm?: number;
   polygon?: string | null;
   freeDeliveryAbove: number;
+  freeDeliveryAboveOre?: number;
   restaurants: CityRestaurantLink[];
 }
 
@@ -55,20 +65,18 @@ export interface RestaurantLocationRecord {
   deliveryZones?: unknown;
 }
 
-const toKr = (value: unknown): number => {
-  const numeric = Number(value || 0);
-  if (!Number.isFinite(numeric)) return 0;
-  return Math.abs(numeric) >= 1000 ? numeric / 100 : numeric;
-};
-
 const toOre = (kr: number) => Math.round(Number(kr || 0) * 100);
+const oreToKr = (ore: unknown): number => {
+  const numeric = Number(ore ?? 0);
+  return Number.isFinite(numeric) ? numeric / 100 : 0;
+};
 
 export const parseZones = (raw: unknown): ZoneRecord[] => {
   try {
     const zones = typeof raw === "string" ? JSON.parse(raw) : Array.isArray(raw) ? raw : [];
     return zones
       .filter((zone: any) => zone?.id)
-      .map((zone: any): ZoneRecord | null => {
+      .map((zone: ZoneApiRecord): ZoneRecord | null => {
         const type = zone.type === "polygon" ? "polygon" : "circle";
 
         if (type === "polygon") {
@@ -87,8 +95,10 @@ export const parseZones = (raw: unknown): ZoneRecord[] => {
           centerLng: zone.centerLng != null ? Number(zone.centerLng) : undefined,
           radiusKm: zone.radiusKm != null ? Number(zone.radiusKm) : 0,
           polygon: Array.isArray(zone.polygon) ? zone.polygon : undefined,
-          deliveryFee: toKr(zone.fee ?? zone.deliveryFee ?? 0),
-          minOrder: toKr(zone.minOrder ?? 0),
+          // feeOre/minOrderOre är det kanoniska kontraktet. Legacy fee och
+          // minOrder är också uttryckligen öre; inga värdeheuristiker används.
+          deliveryFee: oreToKr(zone.feeOre ?? zone.deliveryFeeOre ?? zone.fee ?? toOre(zone.deliveryFee ?? 0)),
+          minOrder: oreToKr(zone.minOrderOre ?? zone.minOrder ?? toOre(zone.minOrder ?? 0)),
           etaMinutes: zone.etaMinutes != null ? Number(zone.etaMinutes) : undefined,
           isActive: zone.isActive !== false,
           color: zone.color || "",
@@ -109,8 +119,8 @@ export const serializeZones = (zones: ZoneRecord[]) =>
     centerLng: zone.centerLng,
     radiusKm: zone.radiusKm ?? 0,
     polygon: zone.polygon,
-    fee: toOre(zone.deliveryFee),
-    minOrder: toOre(zone.minOrder),
+    feeOre: toOre(zone.deliveryFee),
+    minOrderOre: toOre(zone.minOrder),
     etaMinutes: zone.etaMinutes ?? null,
     isActive: zone.isActive,
     color: zone.color || "",
@@ -158,10 +168,10 @@ export const saveCity = (city: {
 }) =>
   apiPost<CityRecord>("/cities", {
     ...city,
-    freeDeliveryAbove: toOre(city.freeDeliveryAbove),
+    freeDeliveryAboveOre: toOre(city.freeDeliveryAbove),
     zones: serializeZones(city.zones),
     restaurantZones: Object.fromEntries(
-      Object.entries(city.restaurantZones).map(([restaurantId, value]) => [restaurantId, { ...value, freeDeliveryAbove: toOre(value.freeDeliveryAbove) }]),
+      Object.entries(city.restaurantZones).map(([restaurantId, value]) => [restaurantId, { ...value, freeDeliveryAboveOre: toOre(value.freeDeliveryAbove) }]),
     ),
   });
 

@@ -6,16 +6,26 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, ChevronDown, ChevronRight, Loader2, MapPin, Plus, Save, Settings2, Store, Trash2 } from "lucide-react";
 import ZoneEditor from "@/modules/zones/components/zone-editor";
 import { CityHierarchyManager } from "@/modules/zones/city-hierarchy-manager";
-import { createCity, deleteCity, getCities, getZoneRestaurants, parseZones, saveCity, serializeZones, zonesCitiesQueryKey, zonesRestaurantsQueryKey, type CityRecord, type CityRestaurantLink, type RestaurantLocationRecord, type ZoneRecord } from "@/modules/zones/api";
-import { Badge, Button, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
-import { formatNumber } from "@/shared/utils/format";
+import { createCity, deleteCity, getCities, getZoneRestaurants, parseZones, saveCity, serializeZones, zonesCitiesQueryKey, zonesRestaurantsQueryKey, type CityRecord, type CityRestaurantLink, type RestaurantLocationRecord } from "@/modules/zones/api";
+import { Badge, Button, ConfirmDialog, ErrorPanel, Field, Input, MoneyInput, Modal, NumberInput, PageHeader, Select, Surface, SwitchField } from "@/shared/components/ui";
 
 type EnrichedCity = CityRecord & { restaurants: CityRestaurantLink[] };
 
-const toKr = (value: unknown) => {
-  const numeric = Number(value || 0);
-  if (!Number.isFinite(numeric)) return 0;
-  return Math.abs(numeric) >= 1000 ? numeric / 100 : numeric;
+const oreToKr = (value: unknown) => {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric / 100 : 0;
+};
+
+const parseNumericDraft = (value: string): number | null => {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const normalizeNonNegativeDraft = (value: string, fallback = 0) => {
+  const numeric = parseNumericDraft(value);
+  return Math.max(0, numeric ?? fallback);
 };
 
 function mergeCityRestaurants(cityRestaurants: CityRecord["restaurants"], allRestaurants: RestaurantLocationRecord[]): CityRestaurantLink[] {
@@ -26,76 +36,78 @@ function mergeCityRestaurants(cityRestaurants: CityRecord["restaurants"], allRes
       ...matchingRestaurant,
       ...cityRestaurant,
       deliveryZones: matchingRestaurant?.deliveryZones,
-      freeDeliveryAbove: toKr(cityRestaurant.freeDeliveryAbove),
+      freeDeliveryAbove: oreToKr(cityRestaurant.freeDeliveryAboveOre ?? cityRestaurant.freeDeliveryAbove),
     };
   });
 }
 
-function RestaurantOverrideModal({
-  open,
-  restaurant,
-  centerLat,
-  centerLng,
-  onClose,
-  onSave,
-}: {
-  open: boolean;
-  restaurant: CityRestaurantLink | null;
-  centerLat?: number | null;
-  centerLng?: number | null;
-  onClose: () => void;
-  onSave: (restaurantId: string, zones: ZoneRecord[], freeDeliveryAbove: number) => void;
-}) {
-  const [zones, setZones] = useState<ZoneRecord[]>([]);
-  const [freeDeliveryAbove, setFreeDeliveryAbove] = useState(0);
+function CitySettingsFields({ city, onChange }: { city: EnrichedCity; onChange: (patch: Partial<EnrichedCity>) => void }) {
+  const [freeDeliveryDraft, setFreeDeliveryDraft] = useState(() => String(city.freeDeliveryAbove ?? 0));
+  const [radiusDraft, setRadiusDraft] = useState(() => String(city.radiusKm || 10));
 
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!open || !restaurant) return;
-    setZones(parseZones(restaurant.deliveryZones));
-    setFreeDeliveryAbove(restaurant.freeDeliveryAbove || 0);
-  }, [open, restaurant]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  const updateFreeDelivery = (raw: string) => {
+    setFreeDeliveryDraft(raw);
+    const numeric = parseNumericDraft(raw);
+    if (numeric != null) onChange({ freeDeliveryAbove: Math.max(0, numeric) });
+  };
+
+  const commitFreeDelivery = () => {
+    const next = normalizeNonNegativeDraft(freeDeliveryDraft, city.freeDeliveryAbove ?? 0);
+    setFreeDeliveryDraft(String(next));
+    onChange({ freeDeliveryAbove: next });
+  };
+
+  const updateRadius = (raw: string) => {
+    setRadiusDraft(raw);
+    const numeric = parseNumericDraft(raw);
+    if (numeric != null) onChange({ radiusKm: Math.max(0, numeric) });
+  };
+
+  const commitRadius = () => {
+    const next = normalizeNonNegativeDraft(radiusDraft, city.radiusKm || 10);
+    setRadiusDraft(String(next));
+    onChange({ radiusKm: next });
+  };
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={restaurant ? `${restaurant.name}, egna zoner` : "Egna zoner"}
-      widthClassName="max-w-[1600px]"
-      footer={<div className="flex items-center justify-end gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => restaurant && onSave(restaurant.id, zones, freeDeliveryAbove)}>Spara zoner</Button></div>}
-    >
-      {restaurant ? (
-        <div className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-3">
-            <MetricCard label="Zoner" value={formatNumber(zones.length)} />
-            <MetricCard label="Status" value={restaurant.isOpen ? "Öppen" : "Stängd"} />
-            <div className="surface-muted px-4 py-4">
-              <Field label="Fri leverans över (kr)">
-                <Input type="number" value={freeDeliveryAbove} onChange={(event) => setFreeDeliveryAbove(Number(event.target.value))} />
-              </Field>
-            </div>
-          </div>
-          <ZoneEditor zones={zones} onChange={setZones} cityName={restaurant.name} centerLat={centerLat} centerLng={centerLng} mapHeight={720} />
-        </div>
-      ) : null}
-    </Modal>
+    <div className="grid gap-4 md:grid-cols-2">
+      <Field label="Namn"><Input value={city.name} onChange={(event) => onChange({ name: event.target.value })} /></Field>
+      <Field label="Slug"><Input value={city.slug} onChange={(event) => onChange({ slug: event.target.value })} /></Field>
+      <Field label="Leveransmodell"><Select value={city.deliveryMode} onChange={(event) => onChange({ deliveryMode: event.target.value as EnrichedCity["deliveryMode"] })}><option value="ALL">Alla</option><option value="ONLY_DELIVERY">Endast leverans</option><option value="ONLY_PICKUP">Endast avhämtning</option></Select></Field>
+      <SwitchField
+        label="Aktiv stad"
+        hint={city.isActive ? "Staden är synlig och kan användas." : "Staden är dold för kunder."}
+        checked={city.isActive}
+        onChange={(isActive) => onChange({ isActive })}
+      />
+      <Field label="Fri leverans över" hint="0 kr inaktiverar gränsen.">
+        <MoneyInput
+          value={freeDeliveryDraft}
+          onValueChange={updateFreeDelivery}
+          onBlur={commitFreeDelivery}
+          min={0}
+          placeholder="0"
+        />
+      </Field>
+      <Field label="Reservradie" hint="Används när en exakt leveranszon saknas.">
+        <NumberInput
+          value={radiusDraft}
+          onValueChange={updateRadius}
+          onBlur={commitRadius}
+          min={0}
+          step={0.1}
+          suffix="km"
+          placeholder="10"
+        />
+      </Field>
+    </div>
   );
 }
 
 function CitySettingsModal({ open, city, onClose, onChange }: { open: boolean; city: EnrichedCity | null; onClose: () => void; onChange: (patch: Partial<EnrichedCity>) => void }) {
   return (
-    <Modal open={open} onClose={onClose} title={city ? `${city.name}, inställningar` : "Stadsinställningar"} footer={<div className="flex justify-end"><Button onClick={onClose}>Stäng</Button></div>}>
-      {city ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Namn"><Input value={city.name} onChange={(event) => onChange({ name: event.target.value })} /></Field>
-          <Field label="Slug"><Input value={city.slug} onChange={(event) => onChange({ slug: event.target.value })} /></Field>
-          <Field label="Leveransmodell"><Select value={city.deliveryMode} onChange={(event) => onChange({ deliveryMode: event.target.value as EnrichedCity["deliveryMode"] })}><option value="ALL">Alla</option><option value="ONLY_DELIVERY">Endast leverans</option><option value="ONLY_PICKUP">Endast avhämtning</option></Select></Field>
-          <Field label="Status"><Select value={city.isActive ? "active" : "inactive"} onChange={(event) => onChange({ isActive: event.target.value === "active" })}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></Select></Field>
-          <Field label="Fri leverans över (kr)"><Input type="number" value={city.freeDeliveryAbove} onChange={(event) => onChange({ freeDeliveryAbove: Number(event.target.value) })} /></Field>
-          <Field label="Reservradie (km)"><Input type="number" value={city.radiusKm || 10} onChange={(event) => onChange({ radiusKm: Number(event.target.value) })} /></Field>
-        </div>
-      ) : null}
+    <Modal open={open} onClose={onClose} size="md" title={city ? `${city.name}, inställningar` : "Stadsinställningar"} footer={<div className="flex justify-end"><Button onClick={onClose}>Stäng</Button></div>}>
+      {city ? <CitySettingsFields key={city.id} city={city} onChange={onChange} /> : null}
     </Modal>
   );
 }
@@ -108,6 +120,7 @@ export function ZonesPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newCityOpen, setNewCityOpen] = useState(false);
   const [newCityName, setNewCityName] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<EnrichedCity | null>(null);
 
   const citiesQuery = useQuery({ queryKey: zonesCitiesQueryKey, queryFn: getCities });
   const restaurantsQuery = useQuery({ queryKey: zonesRestaurantsQueryKey, queryFn: getZoneRestaurants });
@@ -117,7 +130,7 @@ export function ZonesPage() {
     if (!citiesQuery.data || !restaurantsQuery.data) return;
     const nextCities = citiesQuery.data.map((city) => ({
       ...city,
-      freeDeliveryAbove: toKr(city.freeDeliveryAbove),
+      freeDeliveryAbove: oreToKr(city.freeDeliveryAboveOre ?? city.freeDeliveryAbove),
       restaurants: mergeCityRestaurants(city.restaurants, restaurantsQuery.data),
     }));
     setCities(nextCities);
@@ -126,13 +139,6 @@ export function ZonesPage() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const selectedCity = useMemo(() => cities.find((city) => city.id === selectedCityId) || null, [cities, selectedCityId]);
-  const cityZones = selectedCity ? parseZones(selectedCity.zones) : [];
-
-  const setCityZones = (zones: ZoneRecord[]) => {
-    if (!selectedCity) return;
-    setCities((current) => current.map((city) => (city.id === selectedCity.id ? { ...city, zones: JSON.stringify(serializeZones(zones)) } : city)));
-  };
-
   const updateSelectedCity = (patch: Partial<EnrichedCity>) => {
     if (!selectedCity) return;
     setCities((current) => current.map((city) => (city.id === selectedCity.id ? { ...city, ...patch } : city)));
@@ -212,13 +218,11 @@ export function ZonesPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedCity) return;
-      await deleteCity(selectedCity.id);
-    },
+    mutationFn: (cityId: string) => deleteCity(cityId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["zones"] });
       setSelectedCityId(null);
+      setDeleteTarget(null);
     },
   });
 
@@ -254,7 +258,7 @@ export function ZonesPage() {
         actions={
           <>
             <Button variant="secondary" onClick={() => setNewCityOpen(true)}><Plus size={14} /> Lägg till stad/zon</Button>
-            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!selectedCity || saveMutation.isPending}><Save size={14} /> Spara stad</Button>
+            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!selectedCity} loading={saveMutation.isPending}><Save size={14} /> Spara stad</Button>
           </>
         }
       />
@@ -316,11 +320,7 @@ export function ZonesPage() {
                       type="button"
                       onClick={() => {
                         setSelectedCityId(city.id);
-                        const count = city.restaurants.length;
-                        const msg = count > 0
-                          ? `Radera ${city.name}?\n\n${count} restaurang${count !== 1 ? "er" : ""} länkad${count !== 1 ? "a" : ""} till denna stad får sin city-koppling rensad.\n\nFortsätt?`
-                          : `Radera ${city.name}?`;
-                        if (window.confirm(msg)) deleteMutation.mutate();
+                        setDeleteTarget(city);
                       }}
                       className="icon-button"
                       aria-label="Radera stad"
@@ -423,9 +423,21 @@ export function ZonesPage() {
       <CityHierarchyManager />
 
       <CitySettingsModal open={settingsOpen} city={selectedCity} onClose={() => setSettingsOpen(false)} onChange={updateSelectedCity} />
-      <Modal open={newCityOpen} onClose={() => setNewCityOpen(false)} title="Lägg till stad" footer={<div className="flex justify-end gap-2"><Button onClick={() => setNewCityOpen(false)}>Avbryt</Button><Button variant="primary" onClick={() => createMutation.mutate()} disabled={!newCityName.trim() || createMutation.isPending}>{createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />} Skapa</Button></div>}>
+      <Modal open={newCityOpen} onClose={() => setNewCityOpen(false)} title="Lägg till stad" footer={<div className="flex justify-end gap-2"><Button onClick={() => setNewCityOpen(false)}>Avbryt</Button><Button variant="primary" onClick={() => createMutation.mutate()} disabled={!newCityName.trim()} loading={createMutation.isPending}><Building2 size={16} /> Skapa</Button></div>}>
         <Field label="Stadsnamn"><Input value={newCityName} onChange={(event) => setNewCityName(event.target.value)} placeholder="Lund" /></Field>
       </Modal>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={`Radera ${deleteTarget?.name ?? "staden"}?`}
+        description={deleteTarget && deleteTarget.restaurants.length > 0
+          ? `${deleteTarget.restaurants.length} restaurang${deleteTarget.restaurants.length === 1 ? "" : "er"} får sin stadskoppling rensad. Restaurangerna raderas inte.`
+          : "Staden tas bort permanent."}
+        confirmLabel="Radera stad"
+        danger
+        loading={deleteMutation.isPending}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id); }}
+      />
       {/* RestaurantOverrideModal är borttagen — zone-redigering per restaurang
           sker nu på en standalone full-skärm-sida: /zones/restaurant/{id}.
           Klick på restaurang-kort ovan navigerar dit via router.push(). */}

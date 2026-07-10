@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw, ChevronRight } from "lucide-react";
@@ -46,14 +46,8 @@ export function DealsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const tabParam = searchParams.get("tab");
-  const [tab, setTab] = useState<Tab>(normalizeTab(tabParam));
+  const tab = normalizeTab(searchParams.get("tab"));
   const [filterRestaurantId, setFilterRestaurantId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const next = normalizeTab(tabParam);
-    if (next !== tab) setTab(next);
-  }, [tabParam]);
 
   const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
@@ -94,7 +88,6 @@ export function DealsPage() {
   ];
 
   const changeTab = (t: Tab) => {
-    setTab(t);
     router.replace(`/deals?tab=${t}`, { scroll: false });
   };
 
@@ -323,7 +316,6 @@ interface AppFeedDeal {
   badge?: string | null;
   audience: string;
   claimRequired: boolean;
-  missionType?: string | null;
   freeDelivery: boolean;
   discountPercent?: number | null;
   amountKr?: number | null;
@@ -333,7 +325,6 @@ interface AppFeedDeal {
 
 const APP_FEED_PLACEMENTS: { key: string; label: string; hint: string }[] = [
   { key: "HOME_TOP", label: "Hemskärmen", hint: "Deal-rälsen under sponsorkorten" },
-  { key: "REWARDS", label: "Rewards", hint: "Uppdrag och extra-erbjudanden under Tjäna" },
   { key: "CART", label: "Kassan", hint: "Visas i varukorgen" },
 ];
 
@@ -386,8 +377,7 @@ function AppFeedPreview() {
                   <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11.5px] text-[var(--text-muted)]">
                     <span>{deal.restaurant?.name || "Alla restauranger"}</span>
                     {deal.minOrderKr > 0 && <span>min {deal.minOrderKr} kr</span>}
-                    {deal.missionType && <span>uppdrag</span>}
-                    {deal.claimRequired && !deal.missionType && <span>hämtas av kund</span>}
+                    {deal.claimRequired && <span>hämtas av kund</span>}
                     <span>{deal.audience === "ALL" ? "alla" : deal.audience.toLowerCase().replace(/_/g, " ")}</span>
                   </div>
                 </div>
@@ -407,12 +397,10 @@ const APP_PLACEMENT_LABELS: Record<string, string> = {
   HOME_TOP: "Hemskärmen",
   HOME_INLINE: "Hemskärmen (inline)",
   CART: "Kassan",
-  REWARDS: "Rewards",
   POST_ORDER: "Efter order",
 };
 
 function appDealValueLabel(deal: AutomaticDealRecord): string {
-  if (deal.appMissionType) return "Uppdrag";
   if (deal.freeDelivery) return "Fri leverans";
   if (deal.discountType === "PERCENTAGE") return `-${deal.discountValue}%`;
   if (deal.discountType === "FIXED") return `-${deal.discountValue} kr`;
@@ -465,7 +453,7 @@ function AppDealsTable({
                 {deal.title}
               </button>
               <span className="block truncate text-[11.5px] text-[var(--text-muted)]">
-                {deal.appMissionType ? `Uppdrag · mål ${deal.triggerQuantity ?? 3}` : deal.appClaimRequired ? "Hämtas av kund" : "Visas direkt"}
+                {deal.appClaimRequired ? "Hämtas av kund" : "Visas direkt"}
               </span>
             </span>
             <span className="font-extrabold">{appDealValueLabel(deal)}</span>

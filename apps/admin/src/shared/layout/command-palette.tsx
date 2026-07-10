@@ -4,35 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet } from "@/shared/api/client";
 import {
-  AlertTriangle,
-  BellRing,
-  Bike,
-  Building2,
-  CircleDollarSign,
   ClipboardList,
   ContactRound,
-  Filter,
-  Gauge,
-  Gift,
-  Handshake,
-  History,
-  LayoutDashboard,
   type LucideIcon,
-  Map,
-  MenuSquare,
-  Network,
-  ReceiptText,
-  Shield,
-  Star,
   Store,
-  Tablet,
-  TicketPercent,
-  UserPlus,
-  Users,
 } from "lucide-react";
 import { cn } from "@/shared/utils/cn";
+import { ADMIN_ROUTES, ADMIN_SECTIONS, ADMIN_SECTION_LABELS } from "@/shared/navigation/admin-routes";
 
-type CommandGroup = "Drift" | "Katalog" | "Tillväxt" | "System" | "Kunder" | "Ordrar" | "Restauranger";
+type CommandGroup = string;
 
 type CommandItem = {
   id: string;
@@ -51,41 +31,15 @@ interface GlobalSearchResponse {
   restaurants: { id: string; name: string; slug: string; city: string | null }[];
 }
 
-const COMMANDS: CommandItem[] = [
-  // Drift
-  { id: "dashboard", label: "Översikt", href: "/dashboard", icon: LayoutDashboard, group: "Drift", keywords: "dashboard start hem" },
-  { id: "orders", label: "Ordrar", href: "/orders", icon: ClipboardList, group: "Drift", keywords: "live aktiva nya" },
-  { id: "order-history", label: "Orderhistorik", href: "/order-history", icon: History, group: "Drift", keywords: "historik gamla" },
-  { id: "customers", label: "Kunder", href: "/customers", icon: ContactRound, group: "Drift", keywords: "kund sok lookup gdpr" },
-  { id: "reviews", label: "Recensioner", href: "/reviews", icon: Star, group: "Drift", keywords: "stjarnor betyg" },
-  { id: "couriers", label: "Kurirer", href: "/couriers", icon: Bike, group: "Drift", keywords: "bud leverans" },
-  { id: "crisis", label: "Krisverktyg", href: "/crisis", icon: AlertTriangle, group: "Drift", keywords: "emergency stang refund akut" },
-
-  // Katalog
-  { id: "restaurants", label: "Restauranger", href: "/restaurants", icon: Store, group: "Katalog" },
-  { id: "brands", label: "Kedjor", href: "/brands", icon: Network, group: "Katalog", keywords: "brand kedja chain natverk" },
-  { id: "menu", label: "Meny", href: "/menu", icon: MenuSquare, group: "Katalog", keywords: "ratter produkter items" },
-  { id: "categories", label: "Kategorier", href: "/categories", icon: Filter, group: "Katalog" },
-  { id: "zones", label: "Zoner", href: "/zones", icon: Map, group: "Katalog", keywords: "leverans zone stad city" },
-  { id: "restaurant-devices", label: "Enheter", href: "/restaurant-devices", icon: Tablet, group: "Katalog", keywords: "terminal pos surfplatta" },
-
-  // Tillväxt
-  { id: "deals", label: "Deals", href: "/deals", icon: Gift, group: "Tillväxt", keywords: "kampanj rabatt app" },
-  { id: "coupons", label: "Kuponger", href: "/coupons", icon: TicketPercent, group: "Tillväxt", keywords: "kupong rabattkod kod" },
-  { id: "sponsors", label: "Aktuellt", href: "/sponsors", icon: Handshake, group: "Tillväxt", keywords: "rabatter trendar ny sponsor partner annons" },
-  { id: "referrals", label: "Värva vän", href: "/referrals", icon: UserPlus, group: "Tillväxt", keywords: "referral varva van valkomst valkomstrabatt" },
-  { id: "push", label: "Push-notiser", href: "/push", icon: BellRing, group: "Tillväxt", keywords: "notification meddelande" },
-
-  // System
-  { id: "finance", label: "Ekonomi", href: "/finance", icon: CircleDollarSign, group: "System", keywords: "finance utbetalning intakt" },
-  { id: "tiers", label: "Tiers", href: "/finance?tab=tiers", icon: Shield, group: "System", keywords: "abonnemang placering guld silver brons" },
-  { id: "receipts", label: "Kvitto-mall", href: "/platform-settings?tab=kvitto", icon: ReceiptText, group: "System", keywords: "kvitto utskrift mall" },
-  { id: "users", label: "Admin-användare", href: "/users", icon: Users, group: "System", keywords: "anvandare staff admin" },
-  { id: "api-health", label: "API-status", href: "/api-health", icon: Gauge, group: "System", keywords: "uptime halsa status" },
-  { id: "audit-log", label: "Audit-log", href: "/audit-log", icon: History, group: "System", keywords: "logg compliance" },
-  { id: "platform-settings", label: "Plattform-inställningar", href: "/platform-settings", icon: Building2, group: "System", keywords: "foretag company settings" },
-  { id: "2fa", label: "Tvåfaktor (2FA)", href: "/users?tab=sakerhet", icon: Shield, group: "System", keywords: "totp sakerhet 2fa" },
-];
+const COMMANDS: CommandItem[] = ADMIN_ROUTES.map((item) => ({
+  id: item.id,
+  label: item.label,
+  sublabel: item.description,
+  href: item.href,
+  icon: item.icon,
+  group: ADMIN_SECTION_LABELS[item.section],
+  keywords: item.keywords,
+}));
 
 function matches(item: CommandItem, query: string): boolean {
   if (!query) return true;
@@ -97,9 +51,19 @@ function matches(item: CommandItem, query: string): boolean {
     .every((token) => haystack.includes(token));
 }
 
-const GROUP_ORDER: CommandGroup[] = ["Kunder", "Ordrar", "Restauranger", "Drift", "Katalog", "Tillväxt", "System"];
+const GROUP_ORDER: CommandGroup[] = [
+  "Kunder",
+  "Ordrar",
+  "Restauranger",
+  ...ADMIN_SECTIONS.map((section) => section.label),
+];
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return <CommandPaletteContent onClose={onClose} />;
+}
+
+function CommandPaletteContent({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -111,10 +75,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   // Globalt data-sök: debounce 250 ms, ignorera svar som kommit i fel ordning.
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) {
-      setHits(null);
-      return;
-    }
+    if (q.length < 2) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       apiGet<GlobalSearchResponse>(`/admin/search?q=${encodeURIComponent(q)}`)
@@ -171,21 +132,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const flatItems = useMemo(() => GROUP_ORDER.flatMap((g) => grouped[g]), [grouped]);
 
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      setHits(null);
-      setActiveIndex(0);
-      // Focus next tick so the input is mounted
-      const id = requestAnimationFrame(() => inputRef.current?.focus());
-      return () => cancelAnimationFrame(id);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [query]);
-
-  if (!open) return null;
+    const id = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   const select = (item: CommandItem) => {
     router.push(item.href);
@@ -223,7 +172,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           className="cmdk-input"
           placeholder="Sök sida, kund, order, restaurang…"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            const next = event.target.value;
+            setQuery(next);
+            setActiveIndex(0);
+            if (next.trim().length < 2) setHits(null);
+          }}
           onKeyDown={onKeyDown}
         />
         <div className="cmdk-list">

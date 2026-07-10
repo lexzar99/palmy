@@ -23,6 +23,7 @@ export interface CategoryRecord {
 export interface ExtraRecord {
   id?: string;
   name: string;
+  /** Admin menu API display/input contract: SEK, not öre. */
   priceAddon: number;
   isDefault?: boolean;
   position?: number;
@@ -48,6 +49,7 @@ export interface ProductRecord {
   id: string;
   name: string;
   description?: string | null;
+  /** Admin menu API display/input contract: SEK, not öre. */
   price: number;
   categoryId: string;
   imageUrl?: string | null;

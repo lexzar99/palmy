@@ -33,6 +33,7 @@ import placesRoutes from './routes/places';
 import sponsorsRoutes from './routes/sponsors';
 import showcaseAdminRoutes from './routes/showcaseAdmin';
 import adsRoutes from './routes/ads';
+import contentPlacementsRoutes from './routes/contentPlacements';
 import pushRoutes from './routes/push';
 import homeCategoriesRoutes from './routes/homeCategories';
 import orderRoutes from './routes/orders';
@@ -65,14 +66,11 @@ import printingRoutes from './routes/printing';
 import referralsRoutes, { publicRouter as referralsPublic, adminRouter as referralsAdmin } from './routes/referrals';
 import inviteRoutes, { publicInviteRouter } from './routes/invite';
 import paymentMethodsRoutes from './routes/paymentMethods';
-import dpointsRoutes from './routes/dpoints';
-import dpointsAdminRoutes from './routes/dpointsAdmin';
 import apiHealthAdminRoutes from './routes/apiHealthAdmin';
 import opsAdminRoutes from './routes/opsAdmin';
 import hermesRoutes from './routes/hermes';
 import { recordRateLimitHit, recordRequest } from './lib/opsMetrics';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
-import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
 import { startStripeReconciliation } from './lib/stripeReconcile';
 import { startPaymentReconciliation } from './lib/payments/reconcile';
@@ -334,7 +332,6 @@ app.use('/api/admin/courier-applications', adminCourierApplicationRouter);
 app.use('/api/admin/reviews', reviewsAdminRoutes);
 app.use('/api/admin/printing', printingRoutes);
 app.use('/api/admin', referralsAdmin);
-app.use('/api/admin/dpoints', dpointsAdminRoutes);
 app.use('/api/admin/api-health', apiHealthAdminRoutes);
 app.use('/api/admin/ops', opsAdminRoutes);
 app.use('/api/account', authRoutes);
@@ -369,9 +366,9 @@ app.use('/api/places', placesRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/sponsors', sponsorsRoutes);
 app.use('/api/admin/showcase', showcaseAdminRoutes);
+app.use('/api/admin/content-placements', contentPlacementsRoutes);
 app.use('/api/ads', adsRoutes);
 app.use('/api/push', pushRoutes);
-app.use('/api/dpoints', dpointsRoutes);
 app.use('/api/home-categories', homeCategoriesRoutes);
 
 // Serve uploaded images
@@ -472,7 +469,6 @@ const PORT = Number(process.env.PORT || 4000);
     console.log('🏷️ Home category sections ensured');
 
     // Run daily maintenance once on startup
-    runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Early run error:', err));
     runDailyCleanup().catch(err => console.error('[Cleanup] Early run error:', err));
 
     // Betal-reconciliation — båda providers samtidigt under migreringen.
@@ -483,7 +479,6 @@ const PORT = Number(process.env.PORT || 4000);
     
     // Schedule daily jobs
     setInterval(() => {
-      runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Scheduled run error:', err));
       runDailyCleanup().catch(err => console.error('[Cleanup] Scheduled run error:', err));
     }, 24 * 60 * 60 * 1000);
 
@@ -546,7 +541,9 @@ const PORT = Number(process.env.PORT || 4000);
         const prismaMod = await import('./lib/prisma');
         const prisma = prismaMod.default;
         const restaurants = await prisma.restaurant.findMany({
-          where: { isOpen: true },
+          // Pre-warming is harmless for currently closed restaurants and must
+          // not depend on the deprecated isOpen storage flag.
+          where: { draft: false },
           select: { id: true, slug: true },
         });
         const axiosMod = await import('axios');

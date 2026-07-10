@@ -3,18 +3,13 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authenticateUser } from './auth';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
-import { maybeAwardReviewPoints } from '../lib/dpoints';
 import supabaseAdmin from '../lib/supabase';
 import { deleteSupabaseAuthUser } from '../lib/supabaseUserDelete';
+import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 
 const router = Router();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const isMissionProfileDeal = (deal: any) => {
-  const template = String(deal?.appTemplate || '').toUpperCase();
-  return Boolean(deal?.appMissionType) || template === 'MISSION';
-};
-
 const isRetiredFavoriteUserDeal = (deal: any) => {
   const metadata = (deal?.metadata || {}) as any;
   return deal?.type === 'FAVORITE_PRODUCT' || Boolean(metadata.favoriteProductId);
@@ -122,7 +117,7 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
     // (permanent koppling). Sker om det andra kontot är gäst-likt ELLER ett rent
     // telefon-konto (telefon-OTP utan e-post). Ett annat RIKTIGT konto (med
     // e-post/OAuth) vägrar vi att kapa. Soft-deletar det gamla (undviker FK-krångel)
-    // + flyttar ordrar/poäng + frigör Supabase-telefon-användaren.
+    // + flyttar ordrar + frigör Supabase-telefon-användaren.
     const existingWithPhone = await (prisma as any).user.findFirst({
       where: { phone: { in: phoneVariants(phone) }, deletedAt: null },
     });
@@ -137,11 +132,9 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
       }
       await (prisma as any).$transaction([
         (prisma as any).order.updateMany({ where: { userId: existingWithPhone.id }, data: { userId: req.user.id } }),
-        (prisma as any).pointsTransaction.updateMany({ where: { userId: existingWithPhone.id }, data: { userId: req.user.id } }),
-        (prisma as any).user.update({ where: { id: req.user.id }, data: { pointsBalance: { increment: existingWithPhone.pointsBalance || 0 } } }),
         (prisma as any).user.update({
           where: { id: existingWithPhone.id },
-          data: { deletedAt: new Date(), phone: null, oauthId: null, oauthProvider: null, referralCode: null, pointsBalance: 0 },
+          data: { deletedAt: new Date(), phone: null, oauthId: null, oauthProvider: null, referralCode: null },
         }),
       ]);
       try {
@@ -335,7 +328,6 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
         where: {
           userId: req.user.id,
           status: 'ACTIVE',
-          type: { not: 'APP_MISSION' },
           OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
         },
         orderBy: { createdAt: 'desc' },
@@ -368,12 +360,11 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
 
     const retiredFavoriteIds: string[] = [];
     const formattedAppDeals = appUserDeals.filter((deal: any) => {
-      const metadata = (deal.metadata || {}) as any;
       if (isRetiredFavoriteUserDeal(deal)) {
         retiredFavoriteIds.push(deal.id);
         return false;
       }
-      return deal.type !== 'APP_MISSION' && !metadata.appMissionType && String(metadata.appTemplate || '').toUpperCase() !== 'MISSION';
+      return true;
     }).map((deal: any) => {
       const metadata = (deal.metadata || {}) as any;
       const minOrderKr = Math.max(0, Number(metadata.minOrderKr || 0));
@@ -399,7 +390,6 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
         discountPercent: deal.discountPercent,
         freeDelivery: !!deal.freeDelivery,
         minOrderKr,
-        dpointsBonus: Math.max(0, Math.round(Number(metadata.appDpointsBonus || 0))),
         campaign: {
           id: deal.dealId || deal.id,
           title,
@@ -409,7 +399,6 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
           discountValue,
           minOrder: minOrderKr,
           freeDelivery: !!deal.freeDelivery,
-          appDpointsBonus: Math.max(0, Math.round(Number(metadata.appDpointsBonus || 0))),
         },
       };
     });
@@ -557,12 +546,12 @@ router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
     ]);
 
     const claimedSet = new Set(claimedIds);
-    const visibleClaimed = claimed.filter((deal) => !isMissionProfileDeal(deal));
-    const visibleGlobal = global.filter((deal) => !isMissionProfileDeal(deal));
+    const visibleClaimed = claimed;
+    const visibleGlobal = global;
     const globalSet = new Set(visibleGlobal.map((deal) => deal.id));
     // Available = popup-deals som inte redan finns i claimed eller global
     // (annars dyker de upp dubbelt i Profile-listan).
-    const available = popupCandidates.filter((deal) => !claimedSet.has(deal.id) && !globalSet.has(deal.id) && !isMissionProfileDeal(deal));
+    const available = popupCandidates.filter((deal) => !claimedSet.has(deal.id) && !globalSet.has(deal.id));
 
     const formatDeal = (deal: any) => ({
       id: deal.id,
@@ -692,15 +681,7 @@ router.post('/orders/:id/review', authenticateUser, async (req: any, res: any) =
       }
     }
 
-    // Vpoints: belöna recensionen (text → review_text, annars review_rating).
-    // Idempotent + fail-safe i helpern.
-    const dpoints = await maybeAwardReviewPoints({
-      userId: req.user.id,
-      orderId: order.id,
-      hasText: typeof review === 'string' && review.trim().length > 0,
-    });
-
-    res.json({ success: true, dpoints });
+    res.json({ success: true });
   } catch (error) {
     console.error('Review error:', error);
     res.status(500).json({ error: 'Kunde inte spara recension' });
@@ -714,7 +695,26 @@ router.get('/orders/:id/reorder', authenticateUser, async (req: any, res: any) =
   try {
     const order = await prisma.order.findFirst({
       where: { id: req.params.id, userId: req.user.id },
-      include: { items: true, restaurant: { select: { id: true, slug: true, name: true, isOpen: true } } }
+      include: {
+        items: true,
+        restaurant: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            isOpen: true,
+            openingHours: true,
+            scheduledOpenNow: true,
+            acceptingOrdersMode: true,
+            acceptingOrdersOverrideUntil: true,
+            acceptingOrdersOverrideReason: true,
+            pausedUntil: true,
+            draft: true,
+            comingSoon: true,
+            city_relation: true,
+          },
+        },
+      }
     });
     if (!order) return res.status(404).json({ error: 'Order hittades inte' });
 
@@ -748,12 +748,22 @@ router.get('/orders/:id/reorder', authenticateUser, async (req: any, res: any) =
     }).filter(Boolean);
 
     const unavailable = order.items.filter((i: any) => !productMap.has(i.productId)).map((i: any) => i.productName);
+    const platformSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
+    const availability = order.restaurant
+      ? resolveRestaurantAvailability(order.restaurant, {
+          city: order.restaurant.city_relation,
+          platform: platformSettings,
+        })
+      : null;
 
     res.json({
       restaurantId: order.restaurantId,
       restaurantSlug: (order as any).restaurant?.slug,
       restaurantName: (order as any).restaurant?.name,
-      isOpen: (order as any).restaurant?.isOpen,
+      isOpen: availability?.isOpen ?? false,
+      scheduledOpenNow: availability?.scheduledOpenNow ?? false,
+      acceptingOrdersMode: availability?.configuredMode ?? 'SCHEDULED',
+      availabilityReason: availability?.reason ?? 'OUTSIDE_OPENING_HOURS',
       items: cartItems,
       unavailableItems: unavailable,
       originalOrderNumber: order.orderNumber,
@@ -801,8 +811,8 @@ router.get('/previously-ordered/:restaurantId', authenticateUser, async (req: an
 
 // DELETE /api/profile - GDPR: Delete account
 // DELETE /api/profile — kundens egen kontoradering (App Store-krav). Vi HÅRD-
-// raderar inte User-raden: dels kraschar det på FK-relationer (Referral/UserDeal/
-// PointsTransaction), dels är kundens Supabase-JWT kvar giltig så authenticateUser
+// raderar inte User-raden: dels kraschar det på FK-relationer (Referral/UserDeal),
+// dels är kundens Supabase-JWT kvar giltig så authenticateUser
 // skulle tyst återskapa raden vid nästa anrop (samma anti-mönster som beskrivs i
 // customers.ts admin-radering). Istället: radera Supabase-auth-användaren, koppla
 // loss orders (affärspost som ska sparas) och soft-delete + scrubba all PII. Auth-

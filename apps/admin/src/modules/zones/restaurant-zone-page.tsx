@@ -7,7 +7,8 @@ import { Loader2, Save, Store } from "lucide-react";
 import ZoneEditor from "@/modules/zones/components/zone-editor";
 import { parseZones, serializeZones, type ZoneRecord } from "@/modules/zones/api";
 import { getRestaurantDetail, patchRestaurant, restaurantDetailQueryKey } from "@/modules/restaurants/api";
-import { Badge, Button, ErrorPanel, Field, Input, PageHeader, Surface } from "@/shared/components/ui";
+import { Badge, Button, ErrorPanel, Field, MoneyInput, PageHeader, Surface } from "@/shared/components/ui";
+import { RestaurantAvailabilitySummary } from "@/shared/components/restaurant-availability";
 import { useToast } from "@/shared/components/toast";
 
 /**
@@ -27,12 +28,19 @@ interface Props {
   restaurantId: string;
 }
 
+const parseMoneyDraft = (value: string): number | null => {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? Math.max(0, numeric) : null;
+};
+
 export function RestaurantZonePage({ restaurantId }: Props) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [zones, setZones] = useState<ZoneRecord[]>([]);
-  const [freeDeliveryAbove, setFreeDeliveryAbove] = useState(0);
+  const [freeDeliveryDraft, setFreeDeliveryDraft] = useState("0");
   const [dirty, setDirty] = useState(false);
 
   const restaurantQuery = useQuery({
@@ -43,8 +51,12 @@ export function RestaurantZonePage({ restaurantId }: Props) {
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!restaurantQuery.data) return;
-    setZones(parseZones((restaurantQuery.data as any).deliveryZones));
-    setFreeDeliveryAbove(Number((restaurantQuery.data as any).freeDeliveryAbove ?? 0));
+    setZones(parseZones(restaurantQuery.data.deliveryZones));
+    setFreeDeliveryDraft(String(
+      restaurantQuery.data.freeDeliveryAboveOre != null
+        ? restaurantQuery.data.freeDeliveryAboveOre / 100
+        : Number(restaurantQuery.data.freeDeliveryAbove ?? 0),
+    ));
     setDirty(false);
   }, [restaurantQuery.data]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -58,17 +70,22 @@ export function RestaurantZonePage({ restaurantId }: Props) {
     setDirty(true);
   }, []);
 
-  const handleFreeDeliveryChange = useCallback((value: number) => {
-    setFreeDeliveryAbove(value);
+  const handleFreeDeliveryChange = useCallback((value: string) => {
+    setFreeDeliveryDraft(value);
     setDirty(true);
   }, []);
+
+  const commitFreeDelivery = useCallback(() => {
+    const next = parseMoneyDraft(freeDeliveryDraft) ?? 0;
+    setFreeDeliveryDraft(String(next));
+  }, [freeDeliveryDraft]);
 
   const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       return patchRestaurant(restaurantId, {
-        deliveryZones: serializeZones(zones) as unknown as never,
-        freeDeliveryAbove,
-      } as any);
+        deliveryZones: serializeZones(zones),
+        freeDeliveryAboveOre: Math.round((parseMoneyDraft(freeDeliveryDraft) ?? 0) * 100),
+      });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: restaurantDetailQueryKey(restaurantId) });
@@ -114,14 +131,15 @@ export function RestaurantZonePage({ restaurantId }: Props) {
         actions={
           <>
             {dirty && <Badge tone="warning">Osparade ändringar</Badge>}
-            <Badge tone={restaurant.manualIsOpen ? "success" : "neutral"}>{restaurant.manualIsOpen ? "Öppen" : "Stängd"}</Badge>
-            <div className="md:w-48">
-              <Field label="Fri leverans över (kr)">
-                <Input
-                  type="number"
-                  value={freeDeliveryAbove}
-                  onChange={(e) => handleFreeDeliveryChange(Number(e.target.value))}
-                  placeholder="0 = inaktivt"
+            <RestaurantAvailabilitySummary isOpen={restaurant.isOpen} reason={restaurant.availabilityReason} compact />
+            <div className="w-full sm:w-52">
+              <Field label="Fri leverans över" hint="0 kr = inaktivt">
+                <MoneyInput
+                  value={freeDeliveryDraft}
+                  onValueChange={handleFreeDeliveryChange}
+                  onBlur={commitFreeDelivery}
+                  min={0}
+                  placeholder="0"
                 />
               </Field>
             </div>
@@ -129,9 +147,10 @@ export function RestaurantZonePage({ restaurantId }: Props) {
               variant="primary"
               onClick={() => saveMutation.mutate()}
               disabled={!dirty || saveMutation.isPending}
+              loading={saveMutation.isPending}
             >
-              {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {saveMutation.isPending ? "Sparar..." : "Spara zoner"}
+              {!saveMutation.isPending ? <Save size={14} /> : null}
+              Spara zoner
             </Button>
           </>
         }

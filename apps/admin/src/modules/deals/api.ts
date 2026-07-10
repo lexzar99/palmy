@@ -51,7 +51,7 @@ export interface AutomaticDealRecord {
   bogoMaxRewardsPerOrder?: number | null;
   freeDelivery?: boolean;
   appEnabled?: boolean;
-  appPlacement?: "HOME_TOP" | "HOME_INLINE" | "CART" | "REWARDS" | "POST_ORDER" | string;
+  appPlacement?: "HOME_TOP" | "HOME_INLINE" | "CART" | "POST_ORDER" | string;
   appAudience?: "ALL" | "GUEST" | "LOGGED_IN" | "NEW_CUSTOMER" | "NEW_LOGGED_IN" | "RETURNING" | string;
   appTemplate?: string;
   appSize?: "LARGE" | "COMPACT" | string;
@@ -60,7 +60,6 @@ export interface AutomaticDealRecord {
   appClaimRequired?: boolean;
   appClaimExpiresMinutes?: number | null;
   appCooldownHours?: number | null;
-  appMissionType?: string | null;
   appCtaLabel?: string | null;
   appCtaAction?: string | null;
   appCtaTarget?: string | null;

@@ -12,6 +12,7 @@ import {
   DEFAULT_ESTIMATED_DELIVERY_TIME,
   DEFAULT_DELIVERY_RADIUS,
 } from '../lib/restaurantSettings';
+import { moneyDto, parseOre, sekToOre } from '../utils/money';
 
 const router = Router();
 
@@ -22,40 +23,41 @@ router.get('/', async (_req, res) => {
     // PlatformBanner) and polled every 60s by the banner, so without this it
     // scales linearly with visitors. The time-sensitive isPaused is computed
     // per-request below from the cached pausedUntil, so it stays accurate.
-    const [settings, primaryRestaurant] = await cached('settings:public', 'global', 15_000, () =>
-      Promise.all([
-        prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
-        // Hämta första aktiva restaurang för pause-status (single-tenant setup)
-        prisma.restaurant.findFirst({
-          select: { pausedUntil: true, isOpen: true },
-          orderBy: { createdAt: 'asc' },
-        }),
-      ])
+    const settings = await cached('settings:public', 'global', 15_000, () =>
+      prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
     );
-
-    const pausedUntilDate = primaryRestaurant?.pausedUntil ?? null;
-    const isPaused =
-      pausedUntilDate !== null && pausedUntilDate.getTime() > Date.now();
+    const pausedUntilDate = settings?.platformPausedUntil ?? null;
+    const timedPauseActive = pausedUntilDate !== null && pausedUntilDate.getTime() > Date.now();
+    const isPaused = settings?.platformOrdersPaused === true || timedPauseActive;
 
     if (!settings) {
       res.json({
         ...defaultRestaurantSettings,
+        isOpen: true,
+        manualIsOpen: true,
         pausedUntil: pausedUntilDate?.toISOString() ?? null,
         isPaused,
       });
       return;
     }
 
-    // Aktiv pause åsidosätter manuellt isOpen-flag.
-    const effectiveIsOpen = isPaused ? false : settings.isOpen;
+    // /settings is platform-scoped. It must never inherit the first
+    // restaurant's schedule/city pause; per-restaurant status comes from
+    // /restaurants. Keep isOpen only as the legacy platform projection.
+    const effectiveIsOpen = !isPaused;
 
     res.json({
       isOpen: effectiveIsOpen,
-      manualIsOpen: settings.isOpen,
+      manualIsOpen: settings.platformOrdersPaused !== true,
+      availabilityReason: isPaused ? 'PLATFORM_PAUSED' : effectiveIsOpen ? 'PLATFORM_OPEN' : 'PLATFORM_DISABLED',
       pausedUntil: pausedUntilDate?.toISOString() ?? null,
       isPaused,
       deliveryFee: settings.deliveryFee / 100,
+      deliveryFeeOre: settings.deliveryFee,
+      deliveryFeeMoney: moneyDto(settings.deliveryFee),
       minOrderAmount: settings.minOrderAmount / 100,
+      minOrderAmountOre: settings.minOrderAmount,
+      minOrderAmountMoney: moneyDto(settings.minOrderAmount),
       deliveryRadius: settings.deliveryRadius,
       estimatedPickupTime: settings.estimatedPickupTime,
       estimatedDeliveryTime: settings.estimatedDeliveryTime,
@@ -77,27 +79,6 @@ router.get('/', async (_req, res) => {
       noReplyEmail: (settings as any).noReplyEmail || null,
       // UI-toggles
       showDiscountedRail: (settings as any).showDiscountedRail ?? true,
-      // Vpoints — publika fält: badge nära produkter + gating i klienterna.
-      dpoints: {
-        // Vpoints avstängt plattformsbrett 2026-07-08 — DB-flaggan ignoreras medvetet.
-        enabled: false,
-        perKr: (settings as any).dpointsPerKr ?? 0.1,
-        valuePerKr: (settings as any).dpointsValuePerKr ?? 10,
-        cardOnHome: (settings as any).dpointsCardOnHome ?? true,
-        // Budkostnad (öre) på poäng-ENBART order vid leverans. Web visar den som
-        // egen kassa-rad och inkluderar i totalen (vid hämtning = 0).
-        courierCost: (settings as any).dpointsCourierCost ?? 0,
-        // Km-baserad budkostnad-tariff (poäng-ENBART leverans): [{ maxKm, feeKr }].
-        // Klienten räknar fram avgiften från leveransavståndet. Tom = platt courierCost.
-        courierTiers: (() => {
-          try {
-            const arr = JSON.parse((settings as any).dpointsCourierTiers ?? '[]');
-            return Array.isArray(arr) ? arr : [];
-          } catch {
-            return [];
-          }
-        })(),
-      },
       // Plattform-banner (visas i web när satt och inte expirerad)
       banner: (() => {
         const s = settings as any;
@@ -114,11 +95,12 @@ router.get('/', async (_req, res) => {
       // istället för cryptiska "Kunde inte skapa order"-felmeddelanden.
       platformPause: (() => {
         const s = settings as any;
-        if (!s.platformPausedUntil) return null;
-        const until = new Date(s.platformPausedUntil);
-        if (until.getTime() <= Date.now()) return null;
+        const until = s.platformPausedUntil ? new Date(s.platformPausedUntil) : null;
+        const timedPauseActive = until !== null && until.getTime() > Date.now();
+        if (s.platformOrdersPaused !== true && !timedPauseActive) return null;
         return {
-          until: until.toISOString(),
+          until: timedPauseActive ? until!.toISOString() : null,
+          indefinite: s.platformOrdersPaused === true,
           reason: s.platformPauseReason || null,
         };
       })(),
@@ -151,7 +133,8 @@ router.patch('/', authenticate, async (req, res) => {
     }
 
     const {
-      isOpen, deliveryFee, minOrderAmount, deliveryRadius, estimatedPickupTime, estimatedDeliveryTime,
+      isOpen, deliveryFee, deliveryFeeOre, minOrderAmount, minOrderAmountOre,
+      deliveryRadius, estimatedPickupTime, estimatedDeliveryTime,
       notificationSound, openingHours, contactPhone, contactPhoneHours, contactEmail, contactAddress, aboutBody,
       showDiscountedRail, bannerMessage, bannerSeverity, bannerExpiresAt,
       companyName, organizationNumber, companyAddress,
@@ -187,9 +170,17 @@ router.patch('/', authenticate, async (req, res) => {
     };
 
     const data: Record<string, unknown> = {};
-    if (isOpen !== undefined) data.isOpen = isOpen;
-    if (deliveryFee !== undefined) data.deliveryFee = Math.round(deliveryFee * 100);
-    if (minOrderAmount !== undefined) data.minOrderAmount = Math.round(minOrderAmount * 100);
+    if (isOpen !== undefined) {
+      // Legacy global toggle is translated to the explicit platform overlay.
+      // Keep the old storage flag true so stale watchdog-era values cannot
+      // disable the whole marketplace after this migration.
+      data.isOpen = true;
+      data.platformOrdersPaused = !Boolean(isOpen);
+    }
+    if (deliveryFeeOre !== undefined) data.deliveryFee = parseOre(deliveryFeeOre, 'deliveryFeeOre');
+    else if (deliveryFee !== undefined) data.deliveryFee = sekToOre(Number(deliveryFee), 'deliveryFee');
+    if (minOrderAmountOre !== undefined) data.minOrderAmount = parseOre(minOrderAmountOre, 'minOrderAmountOre');
+    else if (minOrderAmount !== undefined) data.minOrderAmount = sekToOre(Number(minOrderAmount), 'minOrderAmount');
     if (deliveryRadius !== undefined) data.deliveryRadius = deliveryRadius;
     if (estimatedPickupTime !== undefined) data.estimatedPickupTime = estimatedPickupTime;
     if (estimatedDeliveryTime !== undefined) data.estimatedDeliveryTime = estimatedDeliveryTime;
@@ -251,9 +242,18 @@ router.patch('/', authenticate, async (req, res) => {
       update: data,
       create: {
         id: 'settings',
-        isOpen: isOpen ?? true,
-        deliveryFee: deliveryFee !== undefined ? Math.round(deliveryFee * 100) : Math.round(DEFAULT_DELIVERY_FEE * 100),
-        minOrderAmount: minOrderAmount !== undefined ? Math.round(minOrderAmount * 100) : Math.round(DEFAULT_MIN_ORDER_AMOUNT * 100),
+        isOpen: true,
+        platformOrdersPaused: isOpen !== undefined ? !Boolean(isOpen) : false,
+        deliveryFee: deliveryFeeOre !== undefined
+          ? parseOre(deliveryFeeOre, 'deliveryFeeOre')
+          : deliveryFee !== undefined
+            ? sekToOre(Number(deliveryFee), 'deliveryFee')
+            : sekToOre(DEFAULT_DELIVERY_FEE, 'defaultDeliveryFee'),
+        minOrderAmount: minOrderAmountOre !== undefined
+          ? parseOre(minOrderAmountOre, 'minOrderAmountOre')
+          : minOrderAmount !== undefined
+            ? sekToOre(Number(minOrderAmount), 'minOrderAmount')
+            : sekToOre(DEFAULT_MIN_ORDER_AMOUNT, 'defaultMinOrderAmount'),
         deliveryRadius: deliveryRadius ?? DEFAULT_DELIVERY_RADIUS,
         estimatedPickupTime: estimatedPickupTime ?? DEFAULT_ESTIMATED_PICKUP_TIME,
         estimatedDeliveryTime: estimatedDeliveryTime ?? DEFAULT_ESTIMATED_DELIVERY_TIME,
@@ -264,10 +264,16 @@ router.patch('/', authenticate, async (req, res) => {
     });
     bustCache('settings:public', 'global'); // settings change shows immediately
 
+    const returnedTimedPause = settings.platformPausedUntil !== null
+      && settings.platformPausedUntil.getTime() > Date.now();
     const publicSettings = {
-      isOpen: settings.isOpen,
+      isOpen: settings.platformOrdersPaused !== true && !returnedTimedPause,
       deliveryFee: settings.deliveryFee / 100,
+      deliveryFeeOre: settings.deliveryFee,
+      deliveryFeeMoney: moneyDto(settings.deliveryFee),
       minOrderAmount: settings.minOrderAmount / 100,
+      minOrderAmountOre: settings.minOrderAmount,
+      minOrderAmountMoney: moneyDto(settings.minOrderAmount),
       deliveryRadius: settings.deliveryRadius,
       estimatedPickupTime: settings.estimatedPickupTime,
       estimatedDeliveryTime: settings.estimatedDeliveryTime,
@@ -286,6 +292,8 @@ router.patch('/', authenticate, async (req, res) => {
     // Valideringsfel ger 400 — generiska fel ger 500.
     const message = err instanceof Error ? err.message : String(err);
     const looksLikeValidation =
+      err instanceof TypeError ||
+      err instanceof RangeError ||
       message.includes('är för lång') ||
       message.includes('giltig e-postadress');
     if (looksLikeValidation) {

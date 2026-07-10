@@ -4,9 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Save, Check, AlertCircle } from "lucide-react";
-import { Button, Field, Input, PageHeader, Tabs, Textarea, Toggle } from "@/shared/components/ui";
-import { ReceiptsPage } from "@/modules/receipts/page";
-import { ImageUploadField } from "@/shared/components/image-upload";
+import { Button, Field, Input, PageHeader, Textarea, Toggle } from "@/shared/components/ui";
 import {
   getPlatformSettings,
   platformSettingsQueryKey,
@@ -14,78 +12,63 @@ import {
   type PlatformSettings,
 } from "@/modules/platform-settings/api";
 
-type SettingsTab = "allmant" | "kvitto";
+const EMPTY_PLATFORM_SETTINGS: PlatformSettings = {
+  contactPhone: "",
+  contactPhoneHours: "",
+  contactEmail: "",
+  contactAddress: "",
+  aboutBody: "",
+  showDiscountedRail: true,
+  companyName: "",
+  organizationNumber: "",
+  companyAddress: "",
+  supportEmail: "",
+  privacyEmail: "",
+  noReplyEmail: "",
+};
+
+function mapSettingsToForm(settings: PlatformSettings & Record<string, unknown>): PlatformSettings {
+  return {
+    contactPhone: settings.contactPhone ?? "",
+    contactPhoneHours: settings.contactPhoneHours ?? "",
+    contactEmail: settings.contactEmail ?? "",
+    contactAddress: settings.contactAddress ?? "",
+    aboutBody: settings.aboutBody ?? "",
+    showDiscountedRail: settings.showDiscountedRail ?? true,
+    companyName: settings.companyName ?? "",
+    organizationNumber: settings.organizationNumber ?? "",
+    companyAddress: settings.companyAddress ?? "",
+    supportEmail: settings.supportEmail ?? "",
+    privacyEmail: settings.privacyEmail ?? "",
+    noReplyEmail: settings.noReplyEmail ?? "",
+  };
+}
 
 export function PlatformSettingsPage() {
-  const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const tabParam = searchParams.get("tab");
-  const [tab, setTab] = useState<SettingsTab>(tabParam === "kvitto" ? "kvitto" : "allmant");
   useEffect(() => {
-    const next: SettingsTab = tabParam === "kvitto" ? "kvitto" : "allmant";
-    if (next !== tab) setTab(next);
-  }, [tabParam]);
-  const changeTab = (t: SettingsTab) => {
-    setTab(t);
-    router.replace(`/platform-settings?tab=${t}`, { scroll: false });
-  };
+    if (searchParams.get("tab") === "kvitto") router.replace("/receipts");
+  }, [router, searchParams]);
 
   const settings = useQuery({
     queryKey: platformSettingsQueryKey,
     queryFn: getPlatformSettings,
   });
 
-  const [form, setForm] = useState<PlatformSettings>({
-    contactPhone: "",
-    contactPhoneHours: "",
-    contactEmail: "",
-    contactAddress: "",
-    aboutBody: "",
-    showDiscountedRail: true,
-    companyName: "",
-    organizationNumber: "",
-    companyAddress: "",
-    supportEmail: "",
-    privacyEmail: "",
-    noReplyEmail: "",
-    heroTitle: "",
-    heroSubtitle: "",
-    heroImageUrl: "",
-    heroCtaLabel: "",
-    heroCtaUrl: "",
-  });
+  return (
+    <PlatformSettingsEditor
+      key={settings.data ? "hydrated" : "loading"}
+      initialForm={settings.data ? mapSettingsToForm(settings.data) : EMPTY_PLATFORM_SETTINGS}
+    />
+  );
+}
+
+function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings }) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<PlatformSettings>(initialForm);
 
   const [savedFlash, setSavedFlash] = useState(false);
-
-  // Sync state när data laddats — bara första gången
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => {
-    if (settings.data && !hydrated) {
-      // GET /settings returns a `hero` object; flatten it back into form fields.
-      const heroFromApi = (settings.data as { hero?: { title?: string; subtitle?: string; imageUrl?: string; ctaLabel?: string; ctaUrl?: string } | null }).hero ?? null;
-      setForm({
-        contactPhone: settings.data.contactPhone ?? "",
-        contactPhoneHours: settings.data.contactPhoneHours ?? "",
-        contactEmail: settings.data.contactEmail ?? "",
-        contactAddress: settings.data.contactAddress ?? "",
-        aboutBody: settings.data.aboutBody ?? "",
-        showDiscountedRail: (settings.data as { showDiscountedRail?: boolean }).showDiscountedRail ?? true,
-        companyName: settings.data.companyName ?? "",
-        organizationNumber: settings.data.organizationNumber ?? "",
-        companyAddress: settings.data.companyAddress ?? "",
-        supportEmail: settings.data.supportEmail ?? "",
-        privacyEmail: settings.data.privacyEmail ?? "",
-        noReplyEmail: settings.data.noReplyEmail ?? "",
-        heroTitle: heroFromApi?.title ?? "",
-        heroSubtitle: heroFromApi?.subtitle ?? "",
-        heroImageUrl: heroFromApi?.imageUrl ?? "",
-        heroCtaLabel: heroFromApi?.ctaLabel ?? "",
-        heroCtaUrl: heroFromApi?.ctaUrl ?? "",
-      });
-      setHydrated(true);
-    }
-  }, [settings.data, hydrated]);
 
   const saveMutation = useMutation({
     mutationFn: () => updatePlatformSettings(form),
@@ -102,27 +85,12 @@ export function PlatformSettingsPage() {
         breadcrumb="System"
         title="Inställningar"
         actions={
-          tab === "allmant" ? (
-            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : savedFlash ? <Check size={16} /> : <Save size={16} />}
-              {saveMutation.isPending ? "Sparar..." : savedFlash ? "Sparat!" : "Spara ändringar"}
-            </Button>
-          ) : undefined
+          <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+            {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : savedFlash ? <Check size={16} /> : <Save size={16} />}
+            {saveMutation.isPending ? "Sparar..." : savedFlash ? "Sparat!" : "Spara ändringar"}
+          </Button>
         }
       />
-
-      <Tabs<SettingsTab>
-        value={tab}
-        onChange={changeTab}
-        options={[
-          { value: "allmant", label: "Allmänt" },
-          { value: "kvitto", label: "Kvitto-mall" },
-        ]}
-      />
-
-      {tab === "kvitto" && <ReceiptsPage embedded />}
-
-      {tab === "allmant" && (<>
 
       {saveMutation.isError && (
         <div className="surface px-5 py-4">
@@ -270,73 +238,7 @@ export function PlatformSettingsPage() {
           </div>
         </div>
 
-        {/* Hero på startsidan — span 2 (brand CMS) */}
-        <div className="surface px-5 py-[18px] md:col-span-2">
-          <div className="text-[15px] font-extrabold tracking-[-0.3px]">Hero på startsidan</div>
-          <div className="text-[12px] text-[var(--text-muted)] mt-0.5">Det första kunden ser på webben</div>
-
-          <div className="grid gap-3 md:grid-cols-2 mt-[14px]">
-            <Field label="Rubrik">
-              <Input
-                value={form.heroTitle || ""}
-                onChange={(e) => setForm((p) => ({ ...p, heroTitle: e.target.value }))}
-                placeholder="Hungrig?"
-              />
-            </Field>
-            <Field label="Underrubrik">
-              <Input
-                value={form.heroSubtitle || ""}
-                onChange={(e) => setForm((p) => ({ ...p, heroSubtitle: e.target.value }))}
-                placeholder="Vi fixar resten."
-              />
-            </Field>
-            <ImageUploadField
-              label="Hero-bild (visas till höger)"
-              kind="misc"
-              value={form.heroImageUrl || ""}
-              onChange={(url) => setForm((p) => ({ ...p, heroImageUrl: url }))}
-            />
-            <Field label="CTA-knapptext (valfritt)">
-              <Input
-                value={form.heroCtaLabel || ""}
-                onChange={(e) => setForm((p) => ({ ...p, heroCtaLabel: e.target.value }))}
-                placeholder="Beställ nu"
-              />
-            </Field>
-            <Field label="CTA-länk (valfritt)">
-              <Input
-                value={form.heroCtaUrl || ""}
-                onChange={(e) => setForm((p) => ({ ...p, heroCtaUrl: e.target.value }))}
-                placeholder="/upptack"
-              />
-            </Field>
-          </div>
-
-          {form.heroImageUrl && (
-            <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] p-3">
-              <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mb-2">Preview</div>
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <div className="text-2xl font-black">{form.heroTitle || "Hungrig?"}</div>
-                  <div className="text-xl font-bold text-[var(--accent-ink)]">{form.heroSubtitle || "Vi fixar resten."}</div>
-                  {form.heroCtaLabel && (
-                    <div className="mt-2 inline-block px-3 py-1.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent-ink)] text-xs font-bold">
-                      {form.heroCtaLabel}
-                    </div>
-                  )}
-                </div>
-                <img
-                  src={form.heroImageUrl}
-                  alt=""
-                  className="h-20 w-20 object-cover rounded-lg border border-[var(--border-subtle)]"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
       </div>
-      </>)}
     </div>
   );
 }

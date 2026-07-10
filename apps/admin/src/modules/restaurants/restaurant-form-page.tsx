@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Calendar, Loader2, Plus, Store, Trash2, X } from "lucide-react";
+import { Calendar, Plus, Store, Trash2, X } from "lucide-react";
 import {
   createRestaurant,
   deleteRestaurant,
@@ -12,14 +12,38 @@ import {
   getRestaurantOrders,
   patchRestaurant,
   restaurantsQueryKey,
+  type AcceptingOrdersMode,
   type RestaurantDetail,
   type RestaurantFormPayload,
 } from "@/modules/restaurants/api";
-import { Badge, Button, EmptyState, Field, Input, MetricCard, PageHeader, Select, Surface, Tabs, Textarea, Toggle } from "@/shared/components/ui";
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  DurationInput,
+  EmptyState,
+  Field,
+  FieldGroup,
+  Input,
+  IntegerInput,
+  LoadingPanel,
+  MetricCard,
+  NumberInput,
+  PageHeader,
+  PercentInput,
+  Select,
+  Surface,
+  SwitchField,
+  Tabs,
+  Textarea,
+  Toggle,
+} from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { NotesPanel } from "@/shared/components/notes-panel";
 import GooglePlacesInput from "@/shared/components/google-places-input";
+import { AcceptingOrdersModeSelect, RestaurantAvailabilitySummary } from "@/shared/components/restaurant-availability";
 import { useToast } from "@/shared/components/toast";
+import { acceptingOrdersModeLabel } from "@/shared/contracts/restaurants";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, restaurantTierLabel } from "@/shared/utils/format";
 
 type RestaurantTab = "info" | "menu" | "orders" | "hours" | "settings";
@@ -47,6 +71,14 @@ const buildDefaultHours = (): HoursForm =>
     acc[key] = { closed: false, shifts: [{ open: "11:00", close: "22:00" }] };
     return acc;
   }, {} as HoursForm);
+
+const toLocalDateTimeValue = (value: string | null | undefined) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+};
 
 const parseHoursFromDetail = (raw: unknown): HoursForm => {
   const hours = buildDefaultHours();
@@ -81,7 +113,8 @@ type FormState = {
   legalName: string; organizationNumber: string;
   imageUrl: string; heroImageUrl: string;
   etaOverride: string; etaCalculated: number | null; etaEffective: number;
-  featuredClass: number; isOpen: boolean; comingSoon: boolean; rating: number; ratingCount: number;
+  featuredClass: number; acceptingOrdersMode: AcceptingOrdersMode; comingSoon: boolean; rating: string; ratingCount: string;
+  acceptingOrdersOverrideUntil: string; acceptingOrdersOverrideReason: string;
   internalInfo: string; latitude: string; longitude: string;
   placeId: string;
   openingHours: HoursForm; logoutCode: string;
@@ -95,7 +128,8 @@ const emptyForm: FormState = {
   legalName: "", organizationNumber: "",
   imageUrl: "", heroImageUrl: "",
   etaOverride: "", etaCalculated: null, etaEffective: 40,
-  featuredClass: 3, isOpen: true, comingSoon: false, rating: 4.6, ratingCount: 0,
+  featuredClass: 3, acceptingOrdersMode: "SCHEDULED", comingSoon: false, rating: "4.6", ratingCount: "0",
+  acceptingOrdersOverrideUntil: "", acceptingOrdersOverrideReason: "",
   internalInfo: "", latitude: "", longitude: "",
   placeId: "",
   openingHours: buildDefaultHours(), logoutCode: "",
@@ -114,9 +148,12 @@ const mapDetailToForm = (d: RestaurantDetail): FormState => ({
   imageUrl: d.imageUrl || "", heroImageUrl: d.heroImageUrl || "",
   etaOverride: d.etaOverrideMinutes != null ? String(d.etaOverrideMinutes) : "",
   etaCalculated: d.etaCalculatedMinutes ?? null, etaEffective: d.etaMinutes ?? 40,
-  featuredClass: (d as any).featuredClass ?? 3, isOpen: d.manualIsOpen,
+  featuredClass: (d as any).featuredClass ?? 3,
+  acceptingOrdersMode: d.acceptingOrdersMode ?? "SCHEDULED",
+  acceptingOrdersOverrideUntil: toLocalDateTimeValue(d.acceptingOrdersOverrideUntil),
+  acceptingOrdersOverrideReason: d.acceptingOrdersOverrideReason ?? "",
   comingSoon: (d as any).comingSoon ?? false,
-  rating: d.rating || 0, ratingCount: d.ratingCount || 0,
+  rating: String(d.rating ?? 0), ratingCount: String(d.ratingCount ?? 0),
   internalInfo: (d as any).internalInfo || "",
   latitude: d.latitude != null ? String(d.latitude) : "",
   longitude: d.longitude != null ? String(d.longitude) : "",
@@ -140,9 +177,19 @@ const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
   adminEmail: f.adminEmail || undefined,
   imageUrl: f.imageUrl || null, heroImageUrl: f.heroImageUrl || null,
   etaOverrideMinutes: f.etaOverride.trim() === "" ? null : Number(f.etaOverride),
-  featuredClass: Number(f.featuredClass || 3), isOpen: f.isOpen,
+  featuredClass: Number(f.featuredClass || 3),
+  acceptingOrdersMode: f.acceptingOrdersMode,
+  acceptingOrdersOverrideUntil:
+    f.acceptingOrdersMode !== "SCHEDULED" && f.acceptingOrdersOverrideUntil
+      ? new Date(f.acceptingOrdersOverrideUntil).toISOString()
+      : null,
+  acceptingOrdersOverrideReason:
+    f.acceptingOrdersMode !== "SCHEDULED" && f.acceptingOrdersOverrideReason.trim()
+      ? f.acceptingOrdersOverrideReason.trim()
+      : null,
   comingSoon: f.comingSoon,
-  rating: Number(f.rating || 0), ratingCount: Number(f.ratingCount || 0),
+  rating: Number(f.rating.trim().replace(",", ".") || 0),
+  ratingCount: Number(f.ratingCount.trim() || 0),
   internalInfo: f.internalInfo || null,
   latitude: f.latitude.trim() ? Number(f.latitude) : null,
   longitude: f.longitude.trim() ? Number(f.longitude) : null,
@@ -168,6 +215,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   const [savedForm, setSavedForm] = useState<FormState>(emptyForm);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [pendingDraftState, setPendingDraftState] = useState<boolean | null>(null);
 
   const detail = useQuery({
     queryKey: detailQueryKey(restaurantId || null),
@@ -199,6 +248,17 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
   const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
+      if (!form.name.trim()) throw new Error("Restaurangen måste ha ett namn.");
+      if (form.acceptingOrdersMode !== "SCHEDULED" && !form.acceptingOrdersOverrideReason.trim()) {
+        throw new Error("Ange en orsak när beställningsläget åsidosätts manuellt.");
+      }
+      if (
+        form.acceptingOrdersMode !== "SCHEDULED" &&
+        form.acceptingOrdersOverrideUntil &&
+        new Date(form.acceptingOrdersOverrideUntil).getTime() <= Date.now()
+      ) {
+        throw new Error("Sluttiden för det manuella läget måste ligga i framtiden.");
+      }
       const payload = mapFormToPayload(form);
       if (restaurantId) return patchRestaurant(restaurantId, payload);
       return createRestaurant(payload);
@@ -220,7 +280,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       queryClient.invalidateQueries({ queryKey: detailQueryKey(restaurantId!) });
     },
     onError: (e: any) => {
-      const msg = e?.response?.data?.error || "Kunde inte spara.";
+      const msg = e?.response?.data?.error || e?.message || "Kunde inte spara.";
       setSaveError(msg);
       showToast({ type: "error", message: msg });
     },
@@ -252,7 +312,12 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   });
 
   if (!isCreate && detail.isLoading) {
-    return <div className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar restaurang...</div>;
+    return (
+      <div className="page-stack">
+        <PageHeader breadcrumb="Partners / Restauranger" title="Laddar restaurang" onBack={() => router.push("/restaurants")} />
+        <LoadingPanel label="Laddar restaurang…" />
+      </div>
+    );
   }
 
   const detailData = detail.data;
@@ -265,20 +330,11 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         title={isCreate ? "Ny restaurang" : "Redigera restaurang"}
         onBack={() => router.push("/restaurants")}
         actions={
-          <>
-            {!isCreate && (
-              <Button
-                variant="danger"
-                onClick={() => { if (!confirm(`Radera ${form.name}? Kan inte ångras.`)) return; deleteMutation.mutate(); }}
-                disabled={deleteMutation.isPending}
-              >
-                <Trash2 size={14} /> Radera
-              </Button>
-            )}
-            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? <><Loader2 size={14} className="animate-spin" /> Sparar...</> : "Spara"}
+          !isCreate ? (
+            <Button variant="danger" onClick={() => setDeleteConfirmOpen(true)} disabled={deleteMutation.isPending}>
+              <Trash2 size={14} /> Radera
             </Button>
-          </>
+          ) : undefined
         }
       />
 
@@ -286,32 +342,14 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         (() => {
           const isDraft = Boolean((detailData as any)?.draft);
           return (
-            <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--row-divider)] px-4 py-3">
-              <p className="text-sm text-[var(--text-secondary)]">
-                {isDraft ? (
-                  <><span className="font-bold text-[var(--text-primary)]">Utkast.</span> Göms för kunder. Menyagenten kan bygga/ändra menyn.</>
-                ) : (
-                  <><span className="font-bold text-[var(--text-primary)]">Publicerad.</span> Synlig för kunder. Menyagenten är låst från att ändra.</>
-                )}
-              </p>
-              <div className="flex items-center gap-2.5 shrink-0">
-                <span className="text-[12px] font-semibold" style={{ color: isDraft ? "var(--warning-text)" : "var(--success-text)" }}>
-                  {isDraft ? "Utkast" : "Publicerad"}
-                </span>
-                <Toggle
-                  checked={!isDraft}
-                  disabled={setDraftMutation.isPending}
-                  onChange={(nextPublished) => {
-                    if (nextPublished) {
-                      if (!confirm(`Publicera ${form.name}? Den blir synlig i appen och webben direkt.`)) return;
-                      setDraftMutation.mutate(false);
-                    } else {
-                      if (!confirm(`Gör ${form.name} till utkast? Den göms för kunder och menyagenten kan börja jobba på den.`)) return;
-                      setDraftMutation.mutate(true);
-                    }
-                  }}
-                />
-              </div>
+            <div className="rounded-xl border border-[var(--row-divider)] px-4 py-3">
+              <SwitchField
+                label={isDraft ? "Publicera restaurangen" : "Restaurangen är publicerad"}
+                hint={isDraft ? "Gömd för kunder tills den publiceras." : "Synlig i app och webb."}
+                checked={!isDraft}
+                disabled={setDraftMutation.isPending}
+                onChange={(nextPublished) => setPendingDraftState(!nextPublished)}
+              />
             </div>
           );
         })()
@@ -324,6 +362,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         <Tabs
           value={tab}
           onChange={setTab}
+          scroll
           options={[
             { value: "info", label: "Info" },
             { value: "menu", label: "Meny" },
@@ -337,11 +376,11 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       {/* Info tab */}
       {tab === "info" && (
         <div className="grid gap-3.5 lg:grid-cols-[1.5fr_1fr]">
-          <Surface className="px-6 py-6 grid gap-4">
+          <Surface className="grid gap-4 px-4 py-5 sm:px-6 sm:py-6">
             <p className="text-[15px] font-extrabold tracking-[-0.3px]">Grunduppgifter</p>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Namn"><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus={isCreate} /></Field>
-              <Field label="Slug"><Input value={form.slug} onChange={(e) => set("slug", e.target.value)} /></Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Namn" required><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus={isCreate} /></Field>
+              <Field label="Slug" hint="Tomt genereras automatiskt"><Input value={form.slug} onChange={(e) => set("slug", e.target.value)} /></Field>
               <Field label="Mattyp"><Input value={form.cuisine} onChange={(e) => set("cuisine", e.target.value)} placeholder="Pizza, Sushi..." /></Field>
               <Field label="Stad"><Input value={form.city} onChange={(e) => set("city", e.target.value)} /></Field>
               <Field label="Adress (Google Places)">
@@ -370,12 +409,12 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                   placeholder="Börja skriva adress…"
                 />
               </Field>
-              <Field label="Postnummer"><Input value={form.zip} onChange={(e) => set("zip", e.target.value)} /></Field>
-              <Field label="Telefon"><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+              <Field label="Postnummer"><Input inputMode="numeric" autoComplete="postal-code" value={form.zip} onChange={(e) => set("zip", e.target.value)} /></Field>
+              <Field label="Telefon"><Input type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
               <Field label="Kontakt-email (publik)">
                 <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="kontakt@palmyrapizzeria.se" />
               </Field>
-              <Field label="Admin-email"><Input value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} /></Field>
+              <Field label="Admin-email"><Input type="email" autoComplete="email" value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} /></Field>
             </div>
             <div className="grid sm:grid-cols-2 gap-4 mt-1">
               <Field label="Legalt namn (juridisk person)">
@@ -395,26 +434,79 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               <ImageUploadField label="Profilbild" kind="logo" restaurantId={restaurantId} value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
               <ImageUploadField label="Hero-bild" kind="hero" restaurantId={restaurantId} value={form.heroImageUrl} onChange={(url) => set("heroImageUrl", url)} />
             </Surface>
-            <Surface className="px-6 py-6">
+            <Surface className="px-4 py-5 sm:px-6 sm:py-6">
               <p className="text-[15px] font-extrabold tracking-[-0.3px]">Status &amp; synlighet</p>
-              <div className="mt-3 flex items-center justify-between border-t border-[var(--row-divider)] py-3">
-                <span className="text-[13px] font-semibold">Öppen för beställning</span>
-                <Toggle checked={form.isOpen} onChange={(v) => set("isOpen", v)} />
-              </div>
-              <div className="flex items-center justify-between border-t border-[var(--row-divider)] py-3">
-                <span className="text-[13px] font-semibold">Synlig i appen</span>
-                <Toggle
+              <div className="mt-4 grid gap-4">
+                <Field
+                  label="Beställningsläge"
+                  hint="Schema är normalläget. Manuella lägen skriver aldrig över öppettiderna."
+                >
+                  <AcceptingOrdersModeSelect
+                    value={form.acceptingOrdersMode}
+                    onValueChange={(nextMode) => {
+                      set("acceptingOrdersMode", nextMode);
+                      if (nextMode === "SCHEDULED") {
+                        set("acceptingOrdersOverrideUntil", "");
+                        set("acceptingOrdersOverrideReason", "");
+                      }
+                    }}
+                  />
+                </Field>
+
+                {form.acceptingOrdersMode !== savedForm.acceptingOrdersMode ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--warning)] bg-[var(--warning-soft)] px-4 py-3 text-xs">
+                    <Badge tone="warning">Osparat val</Badge>
+                    <span className="font-semibold text-[var(--warning-text)]">
+                      Efter sparning: {acceptingOrdersModeLabel[form.acceptingOrdersMode].toLowerCase()}
+                    </span>
+                  </div>
+                ) : null}
+
+                {!isCreate && detailData ? (
+                  <RestaurantAvailabilitySummary
+                    className="surface-muted px-4 py-3"
+                    isOpen={detailData.isOpen}
+                    reason={detailData.availabilityReason}
+                  />
+                ) : null}
+
+                {form.acceptingOrdersMode !== "SCHEDULED" ? (
+                  <div className="grid gap-4 rounded-xl border border-[var(--warning)] bg-[var(--warning-soft)] p-4">
+                    <Field label="Manuellt läge gäller till" hint="Tomt betyder tills du återställer till schema" optional>
+                      <Input
+                        type="datetime-local"
+                        value={form.acceptingOrdersOverrideUntil}
+                        onChange={(event) => set("acceptingOrdersOverrideUntil", event.target.value)}
+                      />
+                    </Field>
+                    <Field label="Orsak" hint="Syns i admin och används för spårbarhet" required>
+                      <Textarea
+                        rows={2}
+                        value={form.acceptingOrdersOverrideReason}
+                        onChange={(event) => set("acceptingOrdersOverrideReason", event.target.value)}
+                        placeholder="Till exempel: Restaurangen ringde och bad oss pausa beställningar"
+                      />
+                    </Field>
+                  </div>
+                ) : null}
+
+                <div className="divide-y divide-[var(--row-divider)] border-t border-[var(--row-divider)]">
+                <SwitchField
+                  label="Synlig i appen"
                   checked={form.featuredClass !== 0}
                   onChange={(v) => set("featuredClass", v ? (form.featuredClass === 0 ? 3 : form.featuredClass) : 0)}
                 />
-              </div>
-              <div className="flex items-center justify-between border-t border-[var(--row-divider)] py-3">
-                <span className="text-[13px] font-semibold">Coming soon</span>
-                <Toggle checked={form.comingSoon} onChange={(v) => set("comingSoon", v)} />
+                <SwitchField
+                  label="Coming soon"
+                  hint="Visas dimmad och kan inte öppnas av kunden."
+                  checked={form.comingSoon}
+                  onChange={(v) => set("comingSoon", v)}
+                />
+                </div>
               </div>
             </Surface>
             {!isCreate && (
-              <Surface className="px-6 py-5 grid grid-cols-2 gap-2.5">
+              <Surface className="grid gap-2.5 px-4 py-5 sm:grid-cols-2 sm:px-6">
                 <Button variant="secondary" onClick={() => setTab("hours")}>Öppettider ›</Button>
                 <Button variant="secondary" onClick={() => router.push(`/zones?restaurantId=${restaurantId}`)}>Zoner ›</Button>
               </Surface>
@@ -517,9 +609,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         <div className="grid gap-4">
           {/* Topbar-style actions */}
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button variant="secondary" disabled title="Avvikande dagar hanteras snart här">
-              <Calendar size={14} /> Avvikelser
-            </Button>
             <Button
               variant="secondary"
               onClick={() => {
@@ -569,6 +658,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                       {short}
                     </span>
                     <Toggle
+                      ariaLabel={`${label}: ${isOpen ? "öppen" : "stängd"}`}
                       checked={isOpen}
                       onChange={(v) => updateDay({ closed: !v, shifts: v ? (day.shifts.length ? day.shifts : [{ open: "11:00", close: "22:00" }]) : [] })}
                     />
@@ -622,7 +712,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
           <div className="flex items-center gap-2 text-[var(--text-muted)]">
             <Calendar size={15} />
             <span className="text-xs font-medium">
-              Tider gäller direkt. Avvikande dagar (helg, tillfälligt stängt) hanteras under Avvikelser.
+              Ändringar sparas tillsammans med restaurangen. Tillfälliga avvikelser visas först när det flödet är färdigt.
             </span>
           </div>
         </div>
@@ -633,19 +723,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         <div className="grid gap-5 lg:grid-cols-2">
           <Surface className="px-6 py-6 grid gap-4">
             <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Drift</p>
-            <Field label="Status">
-              <Select value={form.isOpen ? "open" : "closed"} onChange={(e) => set("isOpen", e.target.value === "open")}>
-                <option value="open">Öppen</option>
-                <option value="closed">Stängd</option>
-              </Select>
-            </Field>
-            <div className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-3">
-              <div>
-                <p className="text-[13px] font-bold">Coming soon</p>
-                <p className="mt-0.5 text-xs text-[var(--text-secondary)]">Visas dimmad i kundappen och kan inte öppnas.</p>
-              </div>
-              <Toggle checked={form.comingSoon} onChange={(v) => set("comingSoon", v)} />
-            </div>
+            <p className="text-xs leading-relaxed text-[var(--text-secondary)]">Beställningsstatus och synlighet hanteras i Info-fliken så samma värde inte kan redigeras på två ställen.</p>
             <Field label="Tier (abonnemang + ranking)">
               <Select value={String(form.featuredClass)} onChange={(e) => set("featuredClass", Number(e.target.value))}>
                 <option value="1">Gold</option>
@@ -659,15 +737,15 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Leveransmodell (styr provision)</p>
                 <DeliveryModeBadge selfDelivery={form.selfDelivery} />
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <Field label="Modell">
                   <Select value={form.selfDelivery ? "self" : "platform"} onChange={(e) => set("selfDelivery", e.target.value === "self")}>
                     <option value="platform">Vi levererar (20%)</option>
                     <option value="self">Levererar själv (10%)</option>
                   </Select>
                 </Field>
-                <Field label="Provisions-override (%)">
-                  <Input type="number" min={0} max={100} placeholder="global sats" value={form.commissionPctOverride} onChange={(e) => set("commissionPctOverride", e.target.value)} />
+                <Field label="Provisions-override" hint="Tomt använder global sats">
+                  <PercentInput placeholder="Global sats" value={form.commissionPctOverride} onValueChange={(value) => set("commissionPctOverride", value)} />
                 </Field>
               </div>
             </div>
@@ -676,9 +754,11 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">ETA (leveranstid)</p>
                 <Badge tone="info">{form.etaEffective} min effektiv</Badge>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <Field label="Beräknad (auto)"><Input value={form.etaCalculated != null ? `${form.etaCalculated} min` : "Default 40 min"} disabled /></Field>
-                <Field label="Override"><Input type="number" min={25} max={60} placeholder="t.ex. 35" value={form.etaOverride} onChange={(e) => set("etaOverride", e.target.value)} /></Field>
+                <Field label="Override" hint="25–60 minuter">
+                  <DurationInput min={25} max={60} placeholder="35" value={form.etaOverride} onValueChange={(value) => set("etaOverride", value)} />
+                </Field>
               </div>
             </div>
             <Field label="Moms">
@@ -691,15 +771,19 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
           </Surface>
           <Surface className="px-6 py-6 grid gap-4">
             <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Övrigt</p>
-            <Field label="Betyg"><Input type="number" step="0.1" value={form.rating} onChange={(e) => set("rating", Number(e.target.value))} /></Field>
-            <Field label="Antal betyg"><Input type="number" value={form.ratingCount} onChange={(e) => set("ratingCount", Number(e.target.value))} /></Field>
-            <Field label="Logout-kod (Flutter)"><Input value={form.logoutCode} onChange={(e) => set("logoutCode", e.target.value)} placeholder="t.ex. 1234" /></Field>
-            <Field label="Koordinater">
+            <Field label="Betyg" hint="0–5">
+              <NumberInput min={0} max={5} step={0.1} suffix="★" value={form.rating} onValueChange={(value) => set("rating", value)} />
+            </Field>
+            <Field label="Antal betyg">
+              <IntegerInput min={0} value={form.ratingCount} onValueChange={(value) => set("ratingCount", value)} />
+            </Field>
+            <Field label="Logout-kod (Flutter)"><Input type="password" inputMode="numeric" value={form.logoutCode} onChange={(e) => set("logoutCode", e.target.value)} placeholder="t.ex. 1234" /></Field>
+            <FieldGroup label="Koordinater" hint="Hämtas från vald Google Places-adress">
               <div className="flex gap-2">
                 <Input value={form.latitude} disabled placeholder="Lat" />
                 <Input value={form.longitude} disabled placeholder="Lng" />
               </div>
-            </Field>
+            </FieldGroup>
             <Field label="Intern anteckning"><Textarea value={form.internalInfo} onChange={(e) => set("internalInfo", e.target.value)} /></Field>
             <Field label="Kundinfobanner">
               <Textarea value={form.announcementText} onChange={(e) => set("announcementText", e.target.value)} placeholder="Meddelande till kund" />
@@ -720,12 +804,36 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 Återställ
               </Button>
             )}
-            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? <><Loader2 size={14} className="animate-spin" /> Sparar...</> : "Spara ändringar"}
+            <Button variant="primary" onClick={() => saveMutation.mutate()} loading={saveMutation.isPending}>
+              Spara ändringar
             </Button>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title={`Radera ${form.name || "restaurangen"}?`}
+        description="Restaurangen och dess operativa kopplingar tas bort. Åtgärden kan inte ångras."
+        confirmLabel="Radera restaurang"
+        danger
+        loading={deleteMutation.isPending}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => deleteMutation.mutate()}
+      />
+
+      <ConfirmDialog
+        open={pendingDraftState !== null}
+        title={pendingDraftState ? "Gör restaurangen till utkast?" : "Publicera restaurangen?"}
+        description={pendingDraftState ? "Restaurangen göms för kunder tills den publiceras igen." : "Restaurangen blir synlig i appen och webben direkt."}
+        confirmLabel={pendingDraftState ? "Gör till utkast" : "Publicera"}
+        loading={setDraftMutation.isPending}
+        onClose={() => setPendingDraftState(null)}
+        onConfirm={() => {
+          if (pendingDraftState === null) return;
+          setDraftMutation.mutate(pendingDraftState, { onSettled: () => setPendingDraftState(null) });
+        }}
+      />
     </div>
   );
 }

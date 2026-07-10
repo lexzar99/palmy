@@ -4,7 +4,7 @@
 //                  "code" in the UI; it lives in the share LINK /i/<token>.
 //   Attribution  = one Referral row per inviter<->invitee pair (Referral.code
 //                  is a unique per-row id, NOT the share token).
-//   Reward       = handled in lib/invite.ts (maybeRewardInvite) on first paid order.
+//   Reward       = handled by the deal-based referral flow on first paid order.
 //
 // Supports both web (cookie handoff at register) and app (deep-link + a
 // deferred fingerprint "probe" for new installs). No paid third-party SDK.
@@ -14,7 +14,6 @@ import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { authenticateUser } from './auth';
 import { ensureReferralCode, computeFraudFlags, publicShareBase } from './referrals';
-import { getDpointsSettings, getEarnRule } from '../lib/dpoints';
 
 const router = Router();
 export const publicInviteRouter = Router();
@@ -120,7 +119,7 @@ router.post('/invite/probe', writeLimiter, authenticateUser, async (req: any, re
 });
 
 // GET /api/public/invite/info?token=  — landningssidans metadata (ingen auth):
-// är token giltig, vem bjöd in, och hur mycket den nya kunden får.
+// är token giltig och vem som bjöd in.
 publicInviteRouter.get('/invite/info', async (req: any, res) => {
   try {
     const token = (req.query?.token || '').toString().trim().toUpperCase();
@@ -130,12 +129,8 @@ publicInviteRouter.get('/invite/info', async (req: any, res) => {
       select: { name: true },
     });
     if (!inviter) return res.json({ valid: false });
-    const settings = await getDpointsSettings();
-    const rule = await getEarnRule('invite');
-    const points = rule?.enabled ? rule.points : 0;
-    const rewardKr = settings.dpointsValuePerKr > 0 ? Math.floor(points / settings.dpointsValuePerKr) : 0;
     const firstName = (inviter.name || '').trim().split(/\s+/)[0] || null;
-    return res.json({ valid: true, inviterName: firstName, rewardPoints: points, rewardKr });
+    return res.json({ valid: true, inviterName: firstName });
   } catch {
     return res.status(500).json({ valid: false });
   }

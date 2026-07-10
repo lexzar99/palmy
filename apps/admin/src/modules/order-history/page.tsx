@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Download, FileText, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import {
@@ -111,9 +111,6 @@ export function OrderHistoryPage() {
   const [wipeResult, setWipeResult] = useState<string | null>(null);
 
   const restaurants = useQuery({ queryKey: ["restaurants", "overview"], queryFn: getRestaurantOverview });
-
-  // Reset till sida 0 när filter byts.
-  useEffect(() => { setPage(0); }, [restaurantId, fromDate, fromTime, toDate, toTime, status]);
 
   const filters: OrderHistoryFilters = useMemo(() => ({
     restaurantId: restaurantId === "ALL" ? undefined : restaurantId,
@@ -297,7 +294,10 @@ export function OrderHistoryPage() {
               key={option}
               type="button"
               className={cn("chip", status === option && "is-active")}
-              onClick={() => setStatus(option)}
+              onClick={() => {
+                setStatus(option);
+                setPage(0);
+              }}
             >
               {option === "ALL" ? "Alla" : orderStatusLabel(option)}
             </button>
@@ -305,7 +305,13 @@ export function OrderHistoryPage() {
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Field label="Restaurang">
-            <Select value={restaurantId} onChange={(event) => setRestaurantId(event.target.value)}>
+            <Select
+              value={restaurantId}
+              onChange={(event) => {
+                setRestaurantId(event.target.value);
+                setPage(0);
+              }}
+            >
               <option value="ALL">Alla restauranger</option>
               {(restaurants.data || []).map((r) => (
                 <option key={r.id} value={r.id}>{r.name}</option>
@@ -314,14 +320,44 @@ export function OrderHistoryPage() {
           </Field>
           <Field label="Från (datum + tid)">
             <div className="flex gap-2">
-              <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-              <Input type="time" value={fromTime} onChange={(event) => setFromTime(event.target.value)} className="w-28" />
+              <Input
+                type="date"
+                value={fromDate}
+                onChange={(event) => {
+                  setFromDate(event.target.value);
+                  setPage(0);
+                }}
+              />
+              <Input
+                type="time"
+                value={fromTime}
+                onChange={(event) => {
+                  setFromTime(event.target.value);
+                  setPage(0);
+                }}
+                className="w-28"
+              />
             </div>
           </Field>
           <Field label="Till (datum + tid)">
             <div className="flex gap-2">
-              <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
-              <Input type="time" value={toTime} onChange={(event) => setToTime(event.target.value)} className="w-28" />
+              <Input
+                type="date"
+                value={toDate}
+                onChange={(event) => {
+                  setToDate(event.target.value);
+                  setPage(0);
+                }}
+              />
+              <Input
+                type="time"
+                value={toTime}
+                onChange={(event) => {
+                  setToTime(event.target.value);
+                  setPage(0);
+                }}
+                className="w-28"
+              />
             </div>
           </Field>
         </div>

@@ -1,4 +1,9 @@
 import { apiGet, apiPatch } from "@/shared/api/client";
+import type {
+  AcceptingOrdersMode,
+  RestaurantAvailabilityReason,
+  SekMoney,
+} from "@/shared/contracts/restaurants";
 
 export interface ControlCenterSummary {
   todayRevenue: number;
@@ -23,6 +28,10 @@ export interface ControlCenterRestaurantSnapshot {
   selfDelivery: boolean;
   commissionPct: number;
   isOpen: boolean;
+  scheduledOpenNow: boolean;
+  acceptingOrdersMode: AcceptingOrdersMode;
+  availabilityReason: RestaurantAvailabilityReason;
+  /** @deprecated använd acceptingOrdersMode. */
   manualIsOpen: boolean;
   // Utkast (agent-onboarding): syns inte för kunder förrän publicerad.
   draft?: boolean;
@@ -35,7 +44,11 @@ export interface ControlCenterRestaurantSnapshot {
   heroImageUrl?: string | null;
   etaMinutes: number;
   deliveryFee: number;
+  deliveryFeeOre: number;
+  deliveryFeeMoney: SekMoney;
   minOrderAmount: number;
+  minOrderAmountOre: number;
+  minOrderAmountMoney: SekMoney;
   todayRevenue: number;
   todayOrders: number;
   monthRevenue: number;
@@ -151,5 +164,13 @@ export const getControlCenter = (params: ControlCenterParams = {}) => {
 
 export const getSystemHealth = () => apiGet<SystemHealth>("/admin/system/health");
 
-export const updateRestaurantLiveState = (restaurantId: string, isOpen: boolean) =>
-  apiPatch(`/restaurants/${restaurantId}`, { isOpen });
+export const updateRestaurantLiveState = (restaurantId: string, acceptingOrdersMode: AcceptingOrdersMode) =>
+  apiPatch(`/restaurants/${restaurantId}`, {
+    acceptingOrdersMode,
+    // Snabbval är ett nytt, permanent beslut. Rensa en eventuell utgången
+    // tidsgräns så det valda läget faktiskt träder i kraft.
+    acceptingOrdersOverrideUntil: null,
+    acceptingOrdersOverrideReason: acceptingOrdersMode === "SCHEDULED"
+      ? null
+      : "Ändrad från operationsöversikten",
+  });

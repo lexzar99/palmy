@@ -11,7 +11,7 @@ export interface SponsorRecord {
   ctaLink?: string;
   linkType?: "NONE" | "EXTERNAL" | "DEAL" | "RESTAURANT";
   linkTarget?: string;
-  cardType?: "RESTAURANT" | "DEAL" | "AD" | "TEXT";
+  cardType?: "RESTAURANT" | "DEAL" | "TEXT";
   dealId?: string;
   headline?: string;
   bodyText?: string;
@@ -27,6 +27,8 @@ export interface SponsorRecord {
   sortOrder: number;
   createdAt: string;
   updatedAt?: string;
+  placement?: "HOME_FEATURED" | "HOME_INLINE" | "POST_ORDER";
+  layout?: "LARGE_CARD" | "COMPACT_CARD";
 }
 
 export interface TrackingAdRecord {
@@ -43,6 +45,8 @@ export interface TrackingAdRecord {
   sortOrder: number;
   createdAt: string;
   updatedAt?: string;
+  placement?: "ORDER_TRACKING" | "POST_ORDER";
+  layout?: "BANNER" | "COMPACT_CARD";
 }
 
 export const sponsorsQueryKey = ["sponsors", "all"] as const;

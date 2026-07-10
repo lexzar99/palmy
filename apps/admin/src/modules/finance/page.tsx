@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Search } from "lucide-react";
@@ -41,13 +41,8 @@ export function FinancePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const [tab, setTab] = useState<FinanceTab>(tabParam === "tiers" || tabParam === "satser" ? tabParam : "utbetalningar");
-  useEffect(() => {
-    const next: FinanceTab = tabParam === "tiers" || tabParam === "satser" ? tabParam : "utbetalningar";
-    if (next !== tab) setTab(next);
-  }, [tabParam]);
+  const tab: FinanceTab = tabParam === "tiers" || tabParam === "satser" ? tabParam : "utbetalningar";
   const changeTab = (t: FinanceTab) => {
-    setTab(t);
     router.replace(`/finance?tab=${t}`, { scroll: false });
   };
   const init = presetRange("month");

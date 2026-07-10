@@ -41,7 +41,11 @@ export interface DeliveryZone {
   radiusKm: number;
   // polygon fields
   polygon?: [number, number][];
-  // pricing (öre)
+  // Canonical pricing (explicit minor units).
+  feeOre: number;
+  minOrderOre: number;
+  // Deprecated aliases, also in ore. Kept for web/Swift compatibility while
+  // clients migrate to feeOre/minOrderOre.
   fee: number;
   minOrder: number;
   isActive: boolean;

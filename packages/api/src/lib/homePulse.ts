@@ -4,7 +4,6 @@
 // och loggas via EngineSetting/EngineEvent (admin → Motorn).
 
 import prisma from './prisma';
-import { getDpointsSettings } from './dpoints';
 import { getChampionRestaurantIds } from './showcase';
 import { themeForKey, dailyPick, dailyScore, dayOfYear } from './themeRotation';
 
@@ -18,13 +17,10 @@ export type EngineKey =
   | 'hot_products'
   | 'favorite_product'
   | 'fastest_today'
-  | 'points_nudge'
   | 'daily_drop'
   | 'new_restaurants'
   | 'trending'
   | 'comeback'
-  | 'streak_card'
-  | 'surprise_bonus'
   | 'occasions'
   | 'weather_pulse';
 
@@ -101,13 +97,6 @@ export const ENGINE_DEFS: EngineDef[] = [
     paramLabels: { minOrders: 'Min tidigare ordrar', quietDays: 'Tyst i (dagar)' },
   },
   {
-    key: 'streak_card',
-    title: 'Uppdrag på hemskärmen',
-    description: 'Pågående uppdrag med progress visas på hemskärmen, inte bara under Rewards.',
-    defaultParams: {},
-    paramLabels: {},
-  },
-  {
     key: 'occasions',
     title: 'Occasions-kalendern',
     description: 'Återkommande tillfällen (fredagsmys, lönehelg) blir kort automatiskt de dagar och timmar de gäller. Redigera tillfällena nedan.',
@@ -120,20 +109,6 @@ export const ENGINE_DEFS: EngineDef[] = [
     description: 'Regn eller snö i stan (SMHI, gratis) ger ett comfort-kort. Ingen API-nyckel behövs.',
     defaultParams: { lat: 55.7, lon: 13.19 },
     paramLabels: { lat: 'Latitud', lon: 'Longitud' },
-  },
-  {
-    key: 'surprise_bonus',
-    title: 'Överraskningen',
-    description: 'En liten poängbonus på var N:e order, deterministiskt utvald. Variabel belöning, budgeterad och loggad.',
-    defaultParams: { points: 25, everyNOrders: 7 },
-    paramLabels: { points: 'Bonuspoäng', everyNOrders: 'Var N:e order' },
-  },
-  {
-    key: 'points_nudge',
-    title: 'Nästan framme',
-    description: 'Visar ibland (inte varje start) en reward-produkt kunden är ~70 % nära, så att köpet som behövs har god marginal.',
-    defaultParams: { minRatioPct: 50, maxRatioPct: 85, showEveryNDays: 3 },
-    paramLabels: { minRatioPct: 'Min andel (%)', maxRatioPct: 'Max andel (%)', showEveryNDays: 'Visas var N:e dag' },
   },
 ];
 
@@ -504,80 +479,6 @@ async function previewFastestToday() {
   };
 }
 
-// ── Nästan framme: reward-produkt kunden är ~70 % nära (visas ibland) ───────
-function rewardPointsPrice(product: { price: number; rewardPointsMultiplier?: number | null; rewardPointsPrice?: number | null }): number {
-  if (typeof product.rewardPointsPrice === 'number' && product.rewardPointsPrice > 0) return Math.ceil(product.rewardPointsPrice);
-  const priceKr = Math.round(product.price) / 100;
-  const multiplier = typeof product.rewardPointsMultiplier === 'number' && product.rewardPointsMultiplier > 0 ? product.rewardPointsMultiplier : 1.5;
-  return Math.ceil(priceKr * multiplier);
-}
-
-async function buildPointsNudge(userId: string, params: Record<string, number>) {
-  // Inte varje start: dagsstabil rytm per kund (var N:e dag).
-  const everyN = Math.max(1, Math.round(params.showEveryNDays || 3));
-  if (dailyScore(`nudge:${userId}`) % everyN !== 0) return null;
-
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { pointsBalance: true } });
-  const balance = user?.pointsBalance ?? 0;
-  if (balance <= 0) return null;
-
-  const products = await prisma.product.findMany({
-    where: { rewardable: true, isActive: true, category: { isActive: true, restaurant: { comingSoon: false } } },
-    include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true } } } } },
-    take: 120,
-  });
-  const minRatio = (params.minRatioPct || 50) / 100;
-  const maxRatio = (params.maxRatioPct || 85) / 100;
-  let best: { product: any; cost: number; ratio: number } | null = null;
-  for (const product of products as any[]) {
-    if (!product.category?.restaurant) continue;
-    const cost = rewardPointsPrice(product);
-    if (cost <= 0) continue;
-    const ratio = balance / cost;
-    if (ratio < minRatio || ratio > maxRatio) continue;
-    // Närmast 70 % vinner — kunden behöver handla med god marginal för resten.
-    if (!best || Math.abs(ratio - 0.7) < Math.abs(best.ratio - 0.7)) best = { product, cost, ratio };
-  }
-  if (!best) return null;
-  return {
-    type: 'POINTS_NUDGE',
-    id: `points_nudge:${best.product.id}`,
-    theme: themeForKey(`nudge:${best.product.id}`),
-    title: 'Nästan framme',
-    product: {
-      productId: best.product.id,
-      name: best.product.name,
-      imageUrl: best.product.imageUrl || null,
-      costPoints: best.cost,
-      restaurant: restaurantDto(best.product.category.restaurant),
-    },
-    balance,
-    remainingPoints: Math.max(0, best.cost - balance),
-  };
-}
-
-async function previewPointsNudge() {
-  const products = await previewProducts(1);
-  const product = products[0];
-  if (!product) return null;
-  const costPoints = Math.max(120, Math.round(product.priceKr * 1.5));
-  return {
-    type: 'POINTS_NUDGE',
-    id: `preview:points_nudge:${product.productId}`,
-    theme: themeForKey(`preview:points_nudge:${product.productId}`),
-    title: 'Nästan framme',
-    product: {
-      productId: product.productId,
-      name: product.name,
-      imageUrl: product.imageUrl,
-      costPoints,
-      restaurant: product.restaurant,
-    },
-    balance: Math.max(10, Math.round(costPoints * 0.7)),
-    remainingPoints: Math.max(1, Math.round(costPoints * 0.3)),
-  };
-}
-
 // ── Dagens drop: EN utvald bestseller per dag, tidsfönster + nedräkning ─────
 async function buildDailyDrop(params: Record<string, number>, force = false) {
   const now = new Date();
@@ -687,53 +588,6 @@ async function previewComeback() {
     title: `${restaurant.name} saknar dig`,
     subtitle: 'Dags igen?',
     restaurant,
-  };
-}
-
-// ── Uppdrag på hemskärmen: pågående mission med progress ────────────────────
-async function buildStreakCard(userId: string) {
-  const mission = await (prisma as any).userDeal.findFirst({
-    where: {
-      userId,
-      type: 'APP_MISSION',
-      status: 'ACTIVE',
-      OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
-    },
-    orderBy: { createdAt: 'desc' },
-    select: { id: true, createdAt: true, metadata: true },
-  });
-  if (!mission) return null;
-  const meta = (mission.metadata || {}) as any;
-  const target = Math.max(1, Math.round(Number(meta.missionTarget || 3)));
-  const rewardPoints = Math.max(0, Math.round(Number(meta.missionRewardPoints || 0)));
-  const allTime = String(meta.appMissionType || '').toUpperCase() === 'TOTAL_ORDERS';
-  const count = await prisma.order.count({
-    where: {
-      userId,
-      pointsAwarded: true,
-      ...(allTime ? {} : { createdAt: { gte: mission.createdAt } }),
-      status: { notIn: EXCLUDED_STATUSES },
-    },
-  });
-  if (count >= target) return null; // klart uppdrag firas i Rewards, inte här
-  return {
-    type: 'STREAK',
-    id: `streak:${mission.id}`,
-    theme: themeForKey(`streak:${mission.id}`),
-    title: meta.title || 'Ditt uppdrag',
-    subtitle: `${Math.min(count, target)} av ${target} · ${rewardPoints} p väntar`,
-    progress: { count: Math.min(count, target), target, rewardPoints },
-  };
-}
-
-async function previewStreakCard() {
-  return {
-    type: 'STREAK',
-    id: 'preview:streak',
-    theme: themeForKey('preview:streak'),
-    title: 'Ditt uppdrag',
-    subtitle: '2 av 3 · 50 p väntar',
-    progress: { count: 2, target: 3, rewardPoints: 50 },
   };
 }
 
@@ -982,7 +836,6 @@ const MAX_MODULES = 6;
 export async function buildHomePulse(userId: string | null): Promise<{ greeting: string; modules: any[] }> {
   const settings = await getEngineSettings();
   const previewAll = await isPreviewAllModulesEnabled();
-  const { dpointsEnabled } = await getDpointsSettings();
   const buildForPreview = async (normal: Promise<any>, preview: () => Promise<any>) => {
     const module = await normal.catch(() => null);
     return module || (previewAll ? preview() : null);
@@ -996,9 +849,7 @@ export async function buildHomePulse(userId: string | null): Promise<{ greeting:
     engineOn('daily_drop') ? buildForPreview(buildDailyDrop(settings.daily_drop.params, previewAll), () => previewDailyDrop(settings.daily_drop.params)) : Promise.resolve(null),
     // Trendar + Ny i stan hanteras nu som enskilda hero-kort i sponsor-karusellen
     // (lib/showcase), inte som pulse-rälsar. Därför inte med här längre.
-    dpointsEnabled && engineOn('points_nudge') && userId ? buildForPreview(buildPointsNudge(userId, settings.points_nudge.params), previewPointsNudge) : Promise.resolve(null),
     engineOn('comeback') && userId ? buildForPreview(buildComeback(userId, settings.comeback.params), previewComeback) : previewAll ? previewComeback() : Promise.resolve(null),
-    dpointsEnabled && engineOn('streak_card') && userId ? buildForPreview(buildStreakCard(userId), previewStreakCard) : Promise.resolve(null),
     engineOn('occasions') ? buildForPreview(buildOccasion(previewAll), previewOccasion) : Promise.resolve(null),
     engineOn('weather_pulse') ? buildForPreview(buildWeather(settings.weather_pulse.params, previewAll), () => previewWeather(settings.weather_pulse.params)) : Promise.resolve(null),
   ];

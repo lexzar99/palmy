@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { isRestaurantOpen, hasOpeningHours } from '../lib/openingHours';
+import { hasOpeningHours } from '../lib/openingHours';
 import { computePayout, economyFromSettings } from '../lib/financeCalc';
+import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
+import { moneyDto } from '../utils/money';
 
 const router = Router();
 router.use(authenticate);
@@ -72,6 +74,12 @@ router.get('/control-center', async (req, res) => {
         slug: true,
         city: true,
         isOpen: true,
+        scheduledOpenNow: true,
+        acceptingOrdersMode: true,
+        acceptingOrdersOverrideUntil: true,
+        acceptingOrdersOverrideReason: true,
+        pausedUntil: true,
+        comingSoon: true,
         draft: true,
         featuredClass: true,
         selfDelivery: true,
@@ -86,6 +94,9 @@ router.get('/control-center', async (req, res) => {
         deliveryFee: true,
         minOrderAmount: true,
         updatedAt: true,
+        city_relation: {
+          select: { ordersPaused: true, ordersPausedUntil: true, ordersPauseReason: true },
+        },
       },
       orderBy: [{ featuredClass: 'asc' }, { name: 'asc' }],
     });
@@ -309,9 +320,8 @@ router.get('/control-center', async (req, res) => {
       monthByRestaurant.set(order.restaurantId || 'unknown', existing);
     }
 
-    const economy = economyFromSettings(
-      await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
-    );
+    const platformSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
+    const economy = economyFromSettings(platformSettings);
 
     const restaurantSnapshots = restaurants.map((restaurant) => {
       const orders = groupedByRestaurant.get(restaurant.id) || [];
@@ -319,12 +329,11 @@ router.get('/control-center', async (req, res) => {
       const currentMonthOrders = monthByRestaurant.get(restaurant.id) || [];
       const openingHours = parseJson<Record<string, any>>(restaurant.openingHours, {});
       const hasHours = hasOpeningHours(openingHours);
-      let effectiveIsOpen = restaurant.isOpen;
-      try {
-        effectiveIsOpen = restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
-      } catch {
-        effectiveIsOpen = restaurant.isOpen;
-      }
+      const availability = resolveRestaurantAvailability(restaurant, {
+        city: restaurant.city_relation,
+        platform: platformSettings,
+      });
+      const effectiveIsOpen = availability.isOpen;
       const todayRestaurantOrders = orders.filter((order) => new Date(order.createdAt) >= today);
       const reviewOrders = orders.filter((order) => typeof order.rating === 'number' && order.rating > 0);
       const econ = computePayout(
@@ -359,7 +368,10 @@ router.get('/control-center', async (req, res) => {
         selfDelivery: restaurant.selfDelivery ?? false,
         commissionPct: econ.commissionPct,
         isOpen: effectiveIsOpen,
-        manualIsOpen: restaurant.isOpen,
+        manualIsOpen: availability.legacyManualIsOpen,
+        scheduledOpenNow: availability.scheduledOpenNow,
+        acceptingOrdersMode: availability.configuredMode,
+        availabilityReason: availability.reason,
         draft: (restaurant as any).draft ?? false,
         adminEmail: restaurant.adminEmail ?? null,
         hasHours,
@@ -371,7 +383,11 @@ router.get('/control-center', async (req, res) => {
         heroImageUrl: restaurant.heroImageUrl ?? null,
         etaMinutes: restaurant.etaMinutes,
         deliveryFee: restaurant.deliveryFee / 100,
+        deliveryFeeOre: restaurant.deliveryFee,
+        deliveryFeeMoney: moneyDto(restaurant.deliveryFee),
         minOrderAmount: restaurant.minOrderAmount / 100,
+        minOrderAmountOre: restaurant.minOrderAmount,
+        minOrderAmountMoney: moneyDto(restaurant.minOrderAmount),
         todayRevenue: todayRestaurantOrders.reduce((sum, order) => sum + order.total, 0) / 100,
         todayOrders: todayRestaurantOrders.length,
         monthRevenue: monthSales,

@@ -199,6 +199,8 @@ export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
         <Surface className="px-6 py-6">
           <h3 className="section-title mb-3">Scanna QR-koden</h3>
           <div className="flex flex-wrap gap-6 items-start mb-5">
+            {/* Data-URL från 2FA-setup; Next Image kan inte optimera den. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={setupData.qrDataUrl}
               alt="2FA QR-kod"

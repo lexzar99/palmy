@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type InputHTMLAttributes } from "react";
 import { MapPin, Check, Loader2 } from "lucide-react";
 
 /**
@@ -25,7 +25,10 @@ export interface PlaceSelection {
   city?: string;
 }
 
-interface Props {
+interface Props extends Pick<
+  InputHTMLAttributes<HTMLInputElement>,
+  "id" | "name" | "disabled" | "required" | "autoComplete" | "aria-invalid" | "aria-describedby" | "aria-required"
+> {
   value: string;
   onChange: (text: string) => void;
   onSelect: (place: PlaceSelection) => void;
@@ -46,12 +49,28 @@ function generateSessionToken(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-export default function GooglePlacesInput({ value, onChange, onSelect, placeholder, currentPlaceId }: Props) {
+export default function GooglePlacesInput({
+  value,
+  onChange,
+  onSelect,
+  placeholder,
+  currentPlaceId,
+  id,
+  name,
+  disabled,
+  required,
+  autoComplete,
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
+  "aria-required": ariaRequired,
+}: Props) {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const listboxId = useId();
   const sessionTokenRef = useRef<string>(generateSessionToken());
   const debounceRef = useRef<number | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -92,6 +111,7 @@ export default function GooglePlacesInput({ value, onChange, onSelect, placehold
           return;
         }
         setPredictions(data.predictions || []);
+        setActiveIndex(-1);
         setOpen((data.predictions || []).length > 0);
       } catch {
         setError("Nätverksfel");
@@ -104,6 +124,7 @@ export default function GooglePlacesInput({ value, onChange, onSelect, placehold
 
   const handleSelect = async (prediction: Prediction) => {
     setOpen(false);
+    setActiveIndex(-1);
     setResolving(true);
     setError(null);
     onChange(prediction.description);
@@ -146,8 +167,21 @@ export default function GooglePlacesInput({ value, onChange, onSelect, placehold
         />
         <input
           ref={inputRef}
+          id={id}
+          name={name}
           type="text"
           value={value}
+          disabled={disabled}
+          required={required}
+          autoComplete={autoComplete}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          aria-activedescendant={activeIndex >= 0 ? `${listboxId}-${activeIndex}` : undefined}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
+          aria-required={ariaRequired}
           onChange={(e) => {
             const v = e.target.value;
             onChange(v);
@@ -155,6 +189,24 @@ export default function GooglePlacesInput({ value, onChange, onSelect, placehold
           }}
           onFocus={() => {
             if (predictions.length > 0 && value.trim().length >= 3) setOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setOpen(false);
+              setActiveIndex(-1);
+              return;
+            }
+            if (!open || predictions.length === 0) return;
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setActiveIndex((current) => Math.min(predictions.length - 1, current + 1));
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setActiveIndex((current) => Math.max(0, current - 1));
+            } else if (event.key === "Enter" && activeIndex >= 0) {
+              event.preventDefault();
+              void handleSelect(predictions[activeIndex]);
+            }
           }}
           placeholder={placeholder || "Sök adress…"}
           className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] py-2.5 pl-9 pr-9 text-sm font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-all"
@@ -174,15 +226,19 @@ export default function GooglePlacesInput({ value, onChange, onSelect, placehold
 
       {open && predictions.length > 0 && (
         <div
+          id={listboxId}
           role="listbox"
           className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-72 overflow-y-auto rounded-xl border shadow-2xl py-1"
           style={{ backgroundColor: "var(--bg-primary)", borderColor: "var(--border-subtle)" }}
         >
-          {predictions.map((p) => (
+          {predictions.map((p, index) => (
             <button
               key={p.place_id}
+              id={`${listboxId}-${index}`}
               type="button"
               role="option"
+              aria-selected={index === activeIndex}
+              onMouseEnter={() => setActiveIndex(index)}
               onClick={() => handleSelect(p)}
               className="w-full px-3 py-2.5 flex items-start gap-2.5 text-left transition-colors hover:bg-[rgba(231,178,75,0.08)]"
             >

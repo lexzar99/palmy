@@ -34,7 +34,7 @@ export function CityHierarchyManager() {
     queryFn: getCityHierarchy,
   });
 
-  const allRoots = hierarchyQuery.data || [];
+  const allRoots = useMemo(() => hierarchyQuery.data || [], [hierarchyQuery.data]);
 
   // Beräkna fristående städer (rotnoder utan barn + < 2 restauranger) som
   // troliga merge-kandidater. Användaren ser de markerade med varning för

@@ -7,7 +7,10 @@ export interface OpeningHours {
 
 export type WeeklyOpeningHours = Record<string, OpeningHours>;
 
-export function isRestaurantOpen(openingHours: any | string | null | undefined): boolean {
+export function isRestaurantOpen(
+  openingHours: any | string | null | undefined,
+  now = new Date(),
+): boolean {
   if (!openingHours) return true;
   
   let hours: any;
@@ -21,51 +24,55 @@ export function isRestaurantOpen(openingHours: any | string | null | undefined):
     hours = openingHours;
   }
 
-  // Use Sweden (Europe/Stockholm) time
-  const nowInSweden = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
-  const todayStr = nowInSweden.toISOString().split('T')[0];
+  // Use Sweden (Europe/Stockholm) time. `now` is injectable so status checks
+  // and tests use the same instant, including DST transitions.
+  const nowInSweden = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Stockholm' }));
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const dayKey = dayNames[nowInSweden.getDay()];
+  const yesterday = new Date(nowInSweden);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = dayNames[yesterday.getDay()];
+  const dateKey = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const todayStr = dateKey(nowInSweden);
+  const yesterdayStr = dateKey(yesterday);
+
+  const slotsFor = (day: any): any[] => {
+    if (!day || day.closed === true) return [];
+    if (Array.isArray(day)) return day;
+    if (Array.isArray(day.shifts)) return day.shifts;
+    return [day];
+  };
+
+  const specialHours = Array.isArray(hours.specialHours) ? hours.specialHours : [];
+  const todaySpecial = specialHours.find((sh: any) => sh?.date === todayStr);
+  const yesterdaySpecial = specialHours.find((sh: any) => sh?.date === yesterdayStr);
 
   // Check Special Hours (Exceptions)
-  if (hours.specialHours && Array.isArray(hours.specialHours)) {
-    const special = hours.specialHours.find((sh: any) => sh.date === todayStr);
-    if (special) {
-      if (special.closed) return false;
-      if (special.open && special.close) {
-        return isWithinSlot(nowInSweden, special.open, special.close);
-      }
-    }
-  }
-
-  const todayData = hours[dayKey] || hours.regular?.[dayKey];
+  if (todaySpecial?.closed === true) return false;
+  const todayData = todaySpecial || hours[dayKey] || hours.regular?.[dayKey];
+  const yesterdayData = yesterdaySpecial?.closed === true
+    ? null
+    : yesterdaySpecial || hours[yesterdayKey] || hours.regular?.[yesterdayKey];
 
   // If no hours set at all (completely empty object), default to open for new restaurants
   const allKeys = Object.keys(hours);
   const hasRegular = hours.regular && Object.keys(hours.regular).length > 0;
   if (allKeys.length === 0 && !hasRegular) return true;
 
-  // If we have some data but nothing for today, it means we are closed today
-  if (!todayData) return false;
-
-  // Handle { closed: true, shifts: [...] } format
-  if ((todayData as any).closed === true) return false;
-
-  // Extract slots
-  let slots: any[] = [];
-  if (Array.isArray(todayData)) {
-    slots = todayData;
-  } else if ((todayData as any).shifts && Array.isArray((todayData as any).shifts)) {
-    slots = (todayData as any).shifts;
-  } else {
-    slots = [todayData];
+  // Today's own shifts cover their same-calendar-day segment. For a 22-02
+  // shift that is 22:00-24:00 here; 00:00-02:00 belongs to yesterday's shift.
+  for (const slot of slotsFor(todayData)) {
+    if (!slot.open || !slot.close) continue;
+    const open = isWithinSlot(nowInSweden, slot.open, slot.close, false);
+    if (open) return true;
   }
 
-  for (const slot of slots) {
+  // Carry the previous day's overnight shifts across midnight. This avoids
+  // closing a Friday 22-02 restaurant at 00:01 on Saturday.
+  for (const slot of slotsFor(yesterdayData)) {
     if (!slot.open || !slot.close) continue;
-    const open = isWithinSlot(nowInSweden, slot.open, slot.close);
-    console.log(`[OpeningHours] Slot ${slot.open}-${slot.close} isWithin: ${open}`);
-    if (open) return true;
+    if (isWithinSlot(nowInSweden, slot.open, slot.close, true)) return true;
   }
 
   return false;
@@ -175,7 +182,7 @@ export function minutesUntilClose(openingHours: any | string | null | undefined)
   return null;
 }
 
-function isWithinSlot(now: Date, open: any, close: any): boolean {
+function isWithinSlot(now: Date, open: any, close: any, previousDayCarry = false): boolean {
   if (typeof open !== 'string' || typeof close !== 'string') return false;
   if (!open.includes(':') || !close.includes(':')) return false;
 
@@ -189,8 +196,10 @@ function isWithinSlot(now: Date, open: any, close: any): boolean {
   let closeTimeInMinutes = closeH * 60 + closeM;
 
   if (closeTimeInMinutes <= openTimeInMinutes) {
-    closeTimeInMinutes += 24 * 60;
+    return previousDayCarry
+      ? currentTimeInMinutes < closeTimeInMinutes
+      : currentTimeInMinutes >= openTimeInMinutes;
   }
 
-  return currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes;
+  return !previousDayCarry && currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes;
 }

@@ -25,6 +25,8 @@ import { bustCache } from '../lib/ttlCache';
 import { parseMenuImport, runMenuImport } from '../lib/menuImport';
 import { runMenuSyncSafe } from '../lib/menuSync';
 import { getPaymentProvider } from '../lib/payments';
+import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
+import { moneyDto, nullableMoneyDto } from '../utils/money';
 
 const router = Router();
 router.use(authenticate);
@@ -571,16 +573,32 @@ router.get('/orders', async (req, res) => {
         const stats = o.userId ? statsByUser.get(o.userId) : undefined;
         const base = {
           ...o,
+          totalOre: o.total,
+          totalMoney: moneyDto(o.total),
           total: o.total / 100,
+          deliveryFeeOre: o.deliveryFee,
+          deliveryFeeMoney: moneyDto(o.deliveryFee),
           deliveryFee: o.deliveryFee / 100,
+          discountAmountOre: o.discountAmount,
+          discountAmountMoney: moneyDto(o.discountAmount),
           discountAmount: o.discountAmount / 100,
+          tipAmountOre: o.tipAmount ?? 0,
+          tipAmountMoney: moneyDto(o.tipAmount ?? 0),
+          // Legacy/admin display field is SEK. It used to leak raw ore.
+          tipAmount: (o.tipAmount ?? 0) / 100,
           // refundAmount lagras i öre i DB — konvertera till kr som
           // alla andra monetära fält ovan, annars visar admin "500 kr"
           // när det egentligen var en 5 kr-refund.
+          refundAmountOre: o.refundAmount ?? null,
+          refundAmountMoney: nullableMoneyDto(o.refundAmount),
           refundAmount: o.refundAmount != null ? o.refundAmount / 100 : null,
           items: o.items.map((i) => ({
             ...i,
+            basePriceOre: i.basePrice,
+            basePriceMoney: moneyDto(i.basePrice),
             basePrice: i.basePrice / 100,
+            subtotalOre: i.subtotal,
+            subtotalMoney: moneyDto(i.subtotal),
             subtotal: i.subtotal / 100,
           })),
           restaurantName: o.restaurant?.name || 'Okänd restaurang',
@@ -690,13 +708,6 @@ router.post('/orders/bulk-refund', async (req, res) => {
             data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
           });
         }
-        // Vpoints: återför inlösta + claw-backa intjänade poäng (idempotent).
-        try {
-          const { revertOrderPointsForRefund } = await import('../lib/dpoints');
-          await revertOrderPointsForRefund(orderId);
-        } catch (e: any) {
-          console.error('[admin/bulk-refund] dpoints-revert error:', e?.message);
-        }
         try {
           getIO().to('admin-room').emit('order:updated', { orderId });
           if (order.restaurantId) getIO().to(`admin-room:${order.restaurantId}`).emit('order:updated', { orderId });
@@ -787,15 +798,30 @@ router.get('/orders/:id', async (req, res) => {
     const base = {
       ...order,
       courier,
+      totalOre: order.total,
+      totalMoney: moneyDto(order.total),
       total: order.total / 100,
+      deliveryFeeOre: order.deliveryFee,
+      deliveryFeeMoney: moneyDto(order.deliveryFee),
       deliveryFee: order.deliveryFee / 100,
+      discountAmountOre: order.discountAmount,
+      discountAmountMoney: moneyDto(order.discountAmount),
       discountAmount: order.discountAmount / 100,
+      tipAmountOre: order.tipAmount ?? 0,
+      tipAmountMoney: moneyDto(order.tipAmount ?? 0),
+      tipAmount: (order.tipAmount ?? 0) / 100,
       // refundAmount lagras i öre i DB — konvertera till kr för konsekvent
       // display i admin (annars visas 500 när det var en 5 kr-refund).
+      refundAmountOre: order.refundAmount ?? null,
+      refundAmountMoney: nullableMoneyDto(order.refundAmount),
       refundAmount: order.refundAmount != null ? order.refundAmount / 100 : null,
       items: order.items.map((i) => ({
         ...i,
+        basePriceOre: i.basePrice,
+        basePriceMoney: moneyDto(i.basePrice),
         basePrice: i.basePrice / 100,
+        subtotalOre: i.subtotal,
+        subtotalMoney: moneyDto(i.subtotal),
         subtotal: i.subtotal / 100,
       })),
       restaurantName: order.restaurant?.name || 'Okänd restaurang',
@@ -898,20 +924,6 @@ router.patch('/orders/:id/status', async (req, res) => {
     });
     if (refreshedEta) order = { ...order, ...refreshedEta };
     bustCache('order:byid', order.id);
-
-    // Avvisad/avbruten order → backend-auktoritativ Vpoints-återföring:
-    // claw-backa intjänade poäng + återbetala inlösta. Idempotent via
-    // Order.pointsReverted (använder orderns LAGRADE värden, aldrig klient-
-    // input) så kunden inte kan frysa/hacka clawbacken från frontend. Awaitas
-    // så att saldot är korrekt innan svaret (kort, en enda updateMany + tx).
-    if (status === 'REJECTED' || status === 'CANCELLED') {
-      try {
-        const { revertOrderPointsForRefund } = await import('../lib/dpoints');
-        await revertOrderPointsForRefund(order.id);
-      } catch (e: any) {
-        console.error('[admin] dpoints revert on reject failed:', e?.message);
-      }
-    }
 
     // När en order går till DELIVERING får vi en ny datapunkt för
     // restaurangens dynamiska ETA: tiden från createdAt till deliveringAt.
@@ -1700,10 +1712,6 @@ const ProductSchema = z.object({
   discountImageUrl: z.string().nullable().optional(),
   discountLabel: z.string().nullable().optional(),
   discountActive: z.boolean().optional(),
-  // Vpoints: markera varan som köpbar med poäng (rewardable).
-  rewardable: z.boolean().optional(),
-  rewardPointsMultiplier: z.number().min(1).max(10).optional().nullable(),
-  rewardPointsPrice: z.number().int().min(1).max(100000).optional().nullable(),
   // Kedja: lås lokalt pris (master→plats-synk skriver inte över priset här).
   localPriceLocked: z.boolean().optional(),
 });
@@ -2132,9 +2140,6 @@ router.post('/products', async (req, res) => {
         discountImageUrl: data.discountImageUrl ?? null,
         discountLabel: data.discountLabel ?? null,
         discountActive: data.discountActive ?? false,
-        rewardable: data.rewardable ?? false,
-        rewardPointsMultiplier: Number(data.rewardPointsMultiplier ?? 1.5),
-        rewardPointsPrice: data.rewardPointsPrice ?? null,
         localPriceLocked: data.localPriceLocked ?? false,
         ...(data.extraGroupIds && data.extraGroupIds.length > 0 ? {
           extraGroups: {
@@ -2189,13 +2194,9 @@ router.patch('/products/:id', async (req, res) => {
       res.status(400).json({ error: 'Ogiltig produktdata', details: parsed.error.flatten() });
       return;
     }
-    const { extraGroupIds, price, discountPrice, rewardPointsMultiplier, rewardPointsPrice, ...rest } = parsed.data;
+    const { extraGroupIds, price, discountPrice, ...rest } = parsed.data;
     const updateData: Record<string, unknown> = { ...rest };
     if (price !== undefined) updateData.price = Math.round(price * 100);
-    if (rewardPointsMultiplier !== undefined) {
-      updateData.rewardPointsMultiplier = rewardPointsMultiplier == null ? 1.5 : Number(rewardPointsMultiplier);
-    }
-    if (rewardPointsPrice !== undefined) updateData.rewardPointsPrice = rewardPointsPrice == null ? null : Math.ceil(Number(rewardPointsPrice));
     if (discountPrice !== undefined) {
       updateData.discountPrice = discountPrice == null
         ? null
@@ -2429,9 +2430,6 @@ router.post('/products/:id/duplicate', async (req, res) => {
         discountImageUrl: source.discountImageUrl,
         discountLabel: source.discountLabel,
         discountActive: source.discountActive,
-        rewardable: source.rewardable,
-        rewardPointsMultiplier: (source as any).rewardPointsMultiplier ?? 1.5,
-        rewardPointsPrice: (source as any).rewardPointsPrice ?? null,
         localPriceLocked: source.localPriceLocked,
         ...(source.extraGroups.length > 0 ? {
           extraGroups: {
@@ -3111,8 +3109,6 @@ const formatDealForAdmin = (deal: any) => ({
   appClaimRequired: deal.appClaimRequired !== false,
   appClaimExpiresMinutes: deal.appClaimExpiresMinutes ?? null,
   appCooldownHours: deal.appCooldownHours ?? null,
-  appDpointsBonus: deal.appDpointsBonus ?? 0,
-  appMissionType: deal.appMissionType ?? null,
   appCtaLabel: deal.appCtaLabel ?? null,
   appCtaAction: deal.appCtaAction ?? 'CLAIM',
   appCtaTarget: deal.appCtaTarget ?? null,
@@ -3219,7 +3215,6 @@ const DealInputSchema = z.object({
   appWeight: z.number().int().min(1).max(100).optional(),
   appClaimExpiresMinutes: z.number().int().min(1).nullable().optional(),
   appCooldownHours: z.number().int().min(0).nullable().optional(),
-  appDpointsBonus: z.number().int().min(0).optional(),
 }).passthrough();
 
 const validateDealPayload = (body: any): string | null => {
@@ -3380,12 +3375,10 @@ const normalizeDealInputForDb = (body: any) => {
   if (body.appCtaLabel !== undefined) next.appCtaLabel = body.appCtaLabel ? String(body.appCtaLabel) : null;
   if (body.appCtaAction !== undefined) {
     const action = String(body.appCtaAction || 'CLAIM').toUpperCase();
-    next.appCtaAction = ['CLAIM', 'CART', 'RESTAURANT', 'REWARDS', 'URL'].includes(action) ? action : 'CLAIM';
+    next.appCtaAction = ['CLAIM', 'CART', 'RESTAURANT', 'URL'].includes(action) ? action : 'CLAIM';
   }
   if (body.appCtaTarget !== undefined) next.appCtaTarget = body.appCtaTarget ? String(body.appCtaTarget) : null;
-  if (body.appMissionType !== undefined) next.appMissionType = body.appMissionType ? String(body.appMissionType).toUpperCase() : null;
   if (body.appWeight !== undefined) next.appWeight = Math.max(1, Math.min(100, Math.round(Number(body.appWeight) || 10)));
-  if (body.appDpointsBonus !== undefined) next.appDpointsBonus = Math.max(0, Math.round(Number(body.appDpointsBonus) || 0));
   if (body.freeDelivery !== undefined) next.freeDelivery = Boolean(body.freeDelivery);
   if (body.maxUsesPerCustomer !== undefined) {
     const n = Number(body.maxUsesPerCustomer);
@@ -4480,14 +4473,34 @@ router.get('/system/health', async (req, res) => {
     const memory = process.memoryUsage();
     const uptime = process.uptime();
 
-    const [restaurantCount, openRestaurantCount, userCount, pendingOrders, liveOrders, payoutInReview] = await Promise.all([
-      prisma.restaurant.count(),
-      prisma.restaurant.count({ where: { isOpen: true } }),
+    const [restaurantRows, platformSettings, userCount, pendingOrders, liveOrders, payoutInReview] = await Promise.all([
+      prisma.restaurant.findMany({
+        select: {
+          openingHours: true,
+          scheduledOpenNow: true,
+          acceptingOrdersMode: true,
+          acceptingOrdersOverrideUntil: true,
+          acceptingOrdersOverrideReason: true,
+          pausedUntil: true,
+          draft: true,
+          comingSoon: true,
+          isOpen: true,
+          city_relation: true,
+        },
+      }),
+      prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
       (prisma as any).user.count({ where: { deletedAt: null } }),
       prisma.order.count({ where: { status: 'PENDING' } }),
       prisma.order.count({ where: { status: { in: ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'DELIVERING'] } } }),
       prisma.restaurantPayout.count({ where: { status: { in: ['DRAFT', 'APPROVED', 'HOLD'] } } }),
     ]);
+    const restaurantCount = restaurantRows.length;
+    const openRestaurantCount = restaurantRows.filter((restaurant) =>
+      resolveRestaurantAvailability(restaurant, {
+        city: restaurant.city_relation,
+        platform: platformSettings,
+      }).isOpen,
+    ).length;
 
     const r2Configured = Boolean(
       process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY &&
@@ -5016,16 +5029,6 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
       });
     }
 
-    // Vpoints: återför inlösta poäng (köp-med-poäng) + claw-backa intjänade för
-    // ordern. Idempotent + server-auktoritativt.
-    let dpointsRevert = { refunded: 0, clawedBack: 0 };
-    try {
-      const { revertOrderPointsForRefund } = await import('../lib/dpoints');
-      dpointsRevert = await revertOrderPointsForRefund(order.id);
-    } catch (e: any) {
-      console.error('[admin/refund] dpoints-revert error:', e?.message);
-    }
-
     await audit(authReq, 'ORDER_REFUND', {
       resourceType: 'Order',
       resourceId: order.id,
@@ -5036,8 +5039,6 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
         provider: provider.name,
         refundId: refund.refundRef,
         refundStatus: 'sent',
-        dpointsRefunded: dpointsRevert.refunded,
-        dpointsClawedBack: dpointsRevert.clawedBack,
       },
     });
     res.json({
@@ -5045,7 +5046,6 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
       refundedAmount: refundAmountOre / 100,
       refundId: refund.refundRef,
       refundStatus: 'sent',
-      dpoints: dpointsRevert,
     });
   } catch (error: any) {
     console.error('Refund error:', error);
@@ -5413,9 +5413,21 @@ router.get('/customers/:id/orders', authenticate, async (req: AuthRequest, res) 
     res.json({
       orders: orders.map((o) => ({
         ...o,
+        totalOre: o.total,
+        totalMoney: moneyDto(o.total),
         total: o.total / 100,
+        deliveryFeeOre: o.deliveryFee,
+        deliveryFeeMoney: moneyDto(o.deliveryFee),
         deliveryFee: o.deliveryFee / 100,
+        discountAmountOre: o.discountAmount,
+        discountAmountMoney: moneyDto(o.discountAmount),
         discountAmount: o.discountAmount / 100,
+        tipAmountOre: o.tipAmount ?? 0,
+        tipAmountMoney: moneyDto(o.tipAmount ?? 0),
+        tipAmount: (o.tipAmount ?? 0) / 100,
+        refundAmountOre: o.refundAmount ?? null,
+        refundAmountMoney: nullableMoneyDto(o.refundAmount),
+        refundAmount: o.refundAmount != null ? o.refundAmount / 100 : null,
         customerPhone: showPII ? o.customerPhone : maskPhone(o.customerPhone),
         restaurantName: o.restaurant?.name || null,
       })),
@@ -5532,11 +5544,6 @@ router.post('/restaurants/:id/bulk-refund', authenticate, requireSuperAdmin, asy
             data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
           });
         }
-        // Vpoints: återför inlösta + claw-backa intjänade poäng (idempotent).
-        try {
-          const { revertOrderPointsForRefund } = await import('../lib/dpoints');
-          await revertOrderPointsForRefund(o.id);
-        } catch { /* ignore */ }
         return { id: o.id, status: 'refunded', amount: o.total / 100 };
       }),
     );
@@ -5580,7 +5587,12 @@ router.post('/restaurants/:id/deactivate', authenticate, requireSuperAdmin, asyn
 
     await prisma.restaurant.update({
       where: { id: req.params.id },
-      data: { isOpen: false } as any,
+      data: {
+        acceptingOrdersMode: 'FORCE_CLOSED',
+        acceptingOrdersOverrideUntil: null,
+        acceptingOrdersOverrideReason: reason,
+        isOpen: false,
+      } as any,
     });
     // Sätt alla aktiva deals inactive
     await prisma.deal.updateMany({
@@ -5609,37 +5621,56 @@ router.post('/restaurants/:id/deactivate', authenticate, requireSuperAdmin, asyn
 });
 
 // POST /api/admin/emergency-close-all
-// Kris-knapp: pausar ALLA restauranger samtidigt.
+// Kris-knapp: lägger en global overlay utan att skriva om restaurangerna.
 router.post('/emergency-close-all', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
   try {
     const { reason } = req.body as { reason?: string };
-    const result = await prisma.restaurant.updateMany({
-      where: { isOpen: true },
-      data: { isOpen: false },
+    const affected = await prisma.restaurant.count({ where: { draft: false } });
+    await prisma.restaurantSettings.upsert({
+      where: { id: 'settings' },
+      update: { platformOrdersPaused: true, platformPauseReason: reason || null } as any,
+      create: { id: 'settings', platformOrdersPaused: true, platformPauseReason: reason || null } as any,
     });
     await audit(req, 'EMERGENCY_CLOSE_ALL', {
       resourceType: 'Platform',
-      changes: { reason: reason || 'no reason given', restaurantsClosed: result.count },
+      changes: { reason: reason || 'no reason given', restaurantsClosed: affected, overlay: true },
     });
-    res.json({ success: true, closedCount: result.count });
+    bustCache('settings:public');
+    bustCache('rest:list');
+    bustCache('rest:detail');
+    bustCache('cities:list');
+    bustCache('zone:validate');
+    try { getIO().emit('platform:paused', { until: null, reason: reason || null, indefinite: true }); } catch {}
+    res.json({ success: true, closedCount: affected });
   } catch (err) {
     console.error('[emergency-close-all] error:', err);
     res.status(500).json({ error: 'Crisis-close misslyckades' });
   }
 });
 
-// POST /api/admin/emergency-open-all — återställ efter close-all
+// POST /api/admin/emergency-open-all — ta bort global overlay
 router.post('/emergency-open-all', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
   try {
-    const result = await prisma.restaurant.updateMany({
-      where: { isOpen: false },
-      data: { isOpen: true },
+    const affected = await prisma.restaurant.count({ where: { draft: false } });
+    await prisma.restaurantSettings.updateMany({
+      where: { id: 'settings' },
+      data: {
+        platformOrdersPaused: false,
+        platformPausedUntil: null,
+        platformPauseReason: null,
+      } as any,
     });
     await audit(req, 'EMERGENCY_OPEN_ALL', {
       resourceType: 'Platform',
-      changes: { restaurantsOpened: result.count },
+      changes: { restaurantsOpened: affected, overlayRemoved: true },
     });
-    res.json({ success: true, openedCount: result.count });
+    bustCache('settings:public');
+    bustCache('rest:list');
+    bustCache('rest:detail');
+    bustCache('cities:list');
+    bustCache('zone:validate');
+    try { getIO().emit('platform:unpaused', {}); } catch {}
+    res.json({ success: true, openedCount: affected });
   } catch (err) {
     res.status(500).json({ error: 'Re-open misslyckades' });
   }
@@ -5668,6 +5699,11 @@ router.post('/crisis/pause-platform', authenticate, requireSuperAdmin, async (re
       resourceType: 'Platform',
       changes: { until: until.toISOString(), minutes: m, reason: reason || null },
     });
+    bustCache('settings:public');
+    bustCache('rest:list');
+    bustCache('rest:detail');
+    bustCache('cities:list');
+    bustCache('zone:validate');
     try {
       getIO().emit('platform:paused', { until: until.toISOString(), reason: reason || null });
     } catch {}
@@ -5683,9 +5719,14 @@ router.post('/crisis/unpause-platform', authenticate, requireSuperAdmin, async (
   try {
     await prisma.restaurantSettings.update({
       where: { id: 'settings' },
-      data: { platformPausedUntil: null, platformPauseReason: null } as any,
+      data: { platformOrdersPaused: false, platformPausedUntil: null, platformPauseReason: null } as any,
     });
     await audit(req, 'PLATFORM_UNPAUSE', { resourceType: 'Platform', changes: {} });
+    bustCache('settings:public');
+    bustCache('rest:list');
+    bustCache('rest:detail');
+    bustCache('cities:list');
+    bustCache('zone:validate');
     try {
       getIO().emit('platform:unpaused', {});
     } catch {}
@@ -5695,8 +5736,8 @@ router.post('/crisis/unpause-platform', authenticate, requireSuperAdmin, async (
   }
 });
 
-// POST /api/admin/crisis/pause-city — close all restaurants in a single city
-// (or matching a city name) without taking down the rest of the platform.
+// POST /api/admin/crisis/pause-city — overlay a city without mutating any
+// restaurant's schedule/manual mode.
 // Body: { cityId?: string, city?: string, reason?: string }
 // Returns the affected restaurant count. Use the existing emergency-open-all
 // or per-restaurant toggle to bring them back.
@@ -5707,16 +5748,27 @@ router.post('/crisis/pause-city', authenticate, requireSuperAdmin, async (req: A
       res.status(400).json({ error: 'cityId eller city krävs' });
       return;
     }
-    const where: any = { isOpen: true };
-    if (cityId) where.cityId = cityId;
-    if (city && !cityId) where.city = city;
-    const result = await prisma.restaurant.updateMany({ where, data: { isOpen: false } });
+    const cityWhere: any = cityId ? { id: cityId } : { name: city };
+    const target = await prisma.city.findFirst({ where: cityWhere, select: { id: true, name: true } });
+    if (!target) return res.status(404).json({ error: 'Stad hittades inte' });
+    const [result] = await prisma.$transaction([
+      prisma.restaurant.count({ where: { cityId: target.id, draft: false } }),
+      prisma.city.update({
+        where: { id: target.id },
+        data: { ordersPaused: true, ordersPausedUntil: null, ordersPauseReason: reason || null } as any,
+      }),
+    ]);
     await audit(req, 'CITY_PAUSE', {
       resourceType: 'City',
-      resourceId: cityId || city,
-      changes: { reason: reason || null, restaurantsClosed: result.count },
+      resourceId: target.id,
+      changes: { reason: reason || null, restaurantsClosed: result, overlay: true },
     });
-    res.json({ success: true, closedCount: result.count, cityId: cityId || null, city: city || null });
+    bustCache('rest:list');
+    bustCache('rest:detail');
+    bustCache('cities:list');
+    bustCache('zone:validate');
+    try { getIO().emit('city:paused', { cityId: target.id, city: target.name, reason: reason || null }); } catch {}
+    res.json({ success: true, closedCount: result, cityId: target.id, city: target.name });
   } catch (err) {
     console.error('[crisis/pause-city] error:', err);
     res.status(500).json({ error: 'Stadspaus misslyckades' });
@@ -5731,16 +5783,27 @@ router.post('/crisis/unpause-city', authenticate, requireSuperAdmin, async (req:
       res.status(400).json({ error: 'cityId eller city krävs' });
       return;
     }
-    const where: any = { isOpen: false };
-    if (cityId) where.cityId = cityId;
-    if (city && !cityId) where.city = city;
-    const result = await prisma.restaurant.updateMany({ where, data: { isOpen: true } });
+    const cityWhere: any = cityId ? { id: cityId } : { name: city };
+    const target = await prisma.city.findFirst({ where: cityWhere, select: { id: true, name: true } });
+    if (!target) return res.status(404).json({ error: 'Stad hittades inte' });
+    const [result] = await prisma.$transaction([
+      prisma.restaurant.count({ where: { cityId: target.id, draft: false } }),
+      prisma.city.update({
+        where: { id: target.id },
+        data: { ordersPaused: false, ordersPausedUntil: null, ordersPauseReason: null } as any,
+      }),
+    ]);
     await audit(req, 'CITY_UNPAUSE', {
       resourceType: 'City',
-      resourceId: cityId || city,
-      changes: { restaurantsOpened: result.count },
+      resourceId: target.id,
+      changes: { restaurantsOpened: result, overlayRemoved: true },
     });
-    res.json({ success: true, openedCount: result.count });
+    bustCache('rest:list');
+    bustCache('rest:detail');
+    bustCache('cities:list');
+    bustCache('zone:validate');
+    try { getIO().emit('city:unpaused', { cityId: target.id, city: target.name }); } catch {}
+    res.json({ success: true, openedCount: result });
   } catch (err) {
     res.status(500).json({ error: 'Stadsåteröppning misslyckades' });
   }
@@ -5752,14 +5815,28 @@ router.get('/crisis/state', authenticate, requireSuperAdmin, async (_req: AuthRe
     const [settings, cities] = await Promise.all([
       prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
       prisma.city.findMany({
-        select: { id: true, name: true, slug: true, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          isActive: true,
+          ordersPaused: true,
+          ordersPausedUntil: true,
+          ordersPauseReason: true,
+        },
         orderBy: { name: 'asc' },
       }),
     ]);
     const s = settings as any;
     const pausedUntil = s?.platformPausedUntil ? new Date(s.platformPausedUntil) : null;
     const platformPaused = pausedUntil && pausedUntil.getTime() > Date.now() ? { until: pausedUntil.toISOString(), reason: s.platformPauseReason || null } : null;
-    res.json({ platformPaused, cities });
+    res.json({
+      platformPaused,
+      platformStopped: s?.platformOrdersPaused === true
+        ? { reason: s.platformPauseReason || null, indefinite: true }
+        : null,
+      cities,
+    });
   } catch (err) {
     res.status(500).json({ error: 'Kunde inte hämta krisstatus' });
   }

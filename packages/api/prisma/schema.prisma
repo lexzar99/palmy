@@ -60,14 +60,6 @@ model Product {
   discountImageUrl    String?             // Optional alt image shown in discount rail
   discountLabel       String?             // e.g. "Dagens deal", "-20%"
   discountActive      Boolean             @default(false)
-  // Vpoints: när true kan varan köpas direkt med poäng (rewardable). Endast
-  // rewardable-varor visar poäng-pris + "köp med poäng" i klienterna. Togglas
-  // i admin (produkt-edit) och i Flutter (Meny → Rewards).
-  rewardable          Boolean             @default(false)
-  // Reward-pris i Vpoints. Om rewardPointsPrice är null räknas priset som
-  // ceil(priceKr * rewardPointsMultiplier). Default 1.5x = aggressiv launch.
-  rewardPointsMultiplier Float             @default(1.5)
-  rewardPointsPrice      Int?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   orderItems          OrderItem[]
@@ -214,14 +206,6 @@ model Order {
   delivery              Delivery?
   userId                String?
   user                  User?       @relation(fields: [userId], references: [id])
-
-  // Vpoints — idempotent intjäning vid betald order (pointsAwarded = race-guard).
-  pointsAwarded         Boolean     @default(false)
-  pointsEarned          Int         @default(0)
-  // Vpoints som ska dras när ordern betalas (varor köpta med poäng → gratis-rad).
-  pointsSpent           Int         @default(0)
-  // Idempotens-guard för poäng-återföring vid återbetalning.
-  pointsReverted        Boolean     @default(false)
 
   @@index([restaurantId, status, createdAt])
   @@index([customerPhone])
@@ -449,19 +433,17 @@ model Deal {
   // App-deals: styr korten som visas i kundappen. Deal är fortfarande
   // den ekonomiska regeln; dessa fält är presentation, målgrupp och rotation.
   appEnabled            Boolean   @default(false)
-  appPlacement          String    @default("HOME_TOP") // HOME_TOP | HOME_INLINE | CART | REWARDS | POST_ORDER
+  appPlacement          String    @default("HOME_TOP") // HOME_TOP | HOME_INLINE | CART | POST_ORDER
   appAudience           String    @default("ALL")      // ALL | GUEST | LOGGED_IN | NEW_CUSTOMER | NEW_LOGGED_IN | RETURNING
-  appTemplate           String    @default("DEAL_HERO") // FREE_DELIVERY_HERO | FREE_DELIVERY_COMPACT | PERCENT | FIXED | DPOINTS | MISSION | RESTAURANT_SPOTLIGHT
+  appTemplate           String    @default("DEAL_HERO") // FREE_DELIVERY_HERO | FREE_DELIVERY_COMPACT | PERCENT | FIXED | RESTAURANT_SPOTLIGHT
   appSize               String    @default("LARGE")    // LARGE | COMPACT
   appRotating           Boolean   @default(true)
   appWeight             Int       @default(10)
   appClaimRequired      Boolean   @default(true)
   appClaimExpiresMinutes Int?
   appCooldownHours      Int?
-  appDpointsBonus       Int       @default(0)
-  appMissionType        String?
   appCtaLabel           String?
-  appCtaAction          String?   @default("CLAIM") // CLAIM | CART | RESTAURANT | REWARDS | URL
+  appCtaAction          String?   @default("CLAIM") // CLAIM | CART | RESTAURANT | URL
   appCtaTarget          String?
   appTheme              String?
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
@@ -696,6 +678,9 @@ model RestaurantSettings {
   // Plattform-paus: när satt blockerar API:t nya orderskapanden globalt
   // (t.ex. betalleverantörs-utfall). Auto-rensar när tiden passerat.
   // Sätts via /api/admin/crisis/pause-platform och rensas av unpause/expiry.
+  // platformOrdersPaused är den explicita, tills-vidare-overlayn som används
+  // av nödstopp. Den ändrar aldrig en restaurangs egen konfiguration.
+  platformOrdersPaused Boolean   @default(false)
   platformPausedUntil   DateTime?
   platformPauseReason   String?
 
@@ -718,11 +703,6 @@ model RestaurantSettings {
   // ordrar den appliceras. audience: FIRST_ORDER | ALL | LOGGED_IN.
   welcomeAudience         String    @default("FIRST_ORDER")
   welcomeMaxOrders        Int       @default(1)
-  // Poäng-belöning för nya kunder (claimas efter registrering). Sponsor-valfri:
-  // welcomePointsSponsorCardId satt = sponsor-brandad bonus, null = ren plattform-bonus.
-  welcomePointsActive        Boolean  @default(false)
-  welcomePointsAmount        Int      @default(100)
-  welcomePointsSponsorCardId String?
   welcomeDealAmountKr     Int       @default(50)   // legacy
   welcomeDealPercent      Int       @default(20)   // legacy
   welcomeDealMinOrderKr   Int       @default(150)  // legacy
@@ -745,33 +725,6 @@ model RestaurantSettings {
   referralMinOrderKr           Int       @default(150)  // legacy
   referralMaxRewardsPerInviter Int       @default(20)
 
-  // ── Vpoints lojalitetssystem ──────────────────────────────────────────────
-  // Master-toggle + takter. Allt av tills admin aktiverar. dpointsPerKr = poäng
-  // per spenderad kr (intjäning). dpointsValuePerKr = poäng per 1 kr produkt-
-  // värde ("kostar X poäng"-etiketten nära produkter + standard i inlösen).
-  dpointsEnabled      Boolean   @default(false)
-  dpointsPerKr        Float     @default(0.1)
-  dpointsValuePerKr   Int       @default(10)
-  // Visa Vpoints-registreringskortet bland sponsorerna på hemsidan. Togglas
-  // från admin → Sponsorer. true = synligt (för utloggade besökare).
-  dpointsCardOnHome   Boolean   @default(true)
-  // Tak för saldo: intjäning (köp + kampanjer) pausas vid taket → kunden måste
-  // lösa in poäng för att tjäna mer. Begränsar utestående skuld. 0 = inget tak.
-  dpointsMaxBalance   Int       @default(2500)
-  // Budkostnad (öre) som läggs på en order som betalas ENBART med poäng vid
-  // leverans (poängen täcker maten men inte kuriren). Vid hämtning = gratis.
-  // Global, sätts i admin → Vpoints. 0 = ingen budkostnad.
-  dpointsCourierCost  Int       @default(0)
-  // Km-baserad budkostnad-tariff (poäng-ENBART leverans). JSON-array
-  // [{ "maxKm": 1, "feeKr": 39 }, ...] sorterad lågt→högt. Tom = fall tillbaka
-  // till dpointsCourierCost (platt). Bortom sista tier:n gäller sista avgiften.
-  dpointsCourierTiers String    @default("[]")
-  // Intjänings-regler (JSON [{key,label,points,enabled}]) — hur många Vpoints
-  // varje handling ger (värva vän, recensioner, osv). Null = standarduppsättning.
-  dpointsEarnRules    String?
-  // Antal betalda ordrar inom 7 dagar som krävs för streak-bonusen (order_streak).
-  // Repeterbar: efter utdelning gäller 7 dagars cooldown innan nästa kan tjänas.
-  dpointsStreakTarget Int       @default(3)
 }
 
 model OrderDraft {
@@ -812,7 +765,13 @@ model Restaurant {
   etaMinutes     Int          @default(30)
   etaCalculatedMinutes Int?               // Auto-beräknad ETA baserad på senaste 20 ordrarnas createdAt → deliveringAt (clampad 25–55 min). null = för få ordrar än
   etaOverrideMinutes   Int?               // Manuell admin-override. Om satt åsidosätter etaCalculatedMinutes
+  // Legacy-kompatibilitet för gamla klienter. Nya beslut använder de tre
+  // separata lagren nedan; watchdoggen får endast skriva scheduledOpenNow.
   isOpen         Boolean      @default(true)
+  scheduledOpenNow Boolean    @default(true)
+  acceptingOrdersMode RestaurantAcceptingOrdersMode @default(SCHEDULED)
+  acceptingOrdersOverrideUntil DateTime?
+  acceptingOrdersOverrideReason String?
   comingSoon     Boolean      @default(false)
   // Utkast: agent-onboarding (MENU_AGENT). Osynlig i alla kund-ytor, kan inte
   // ta emot ordrar. Bara SUPER_ADMIN publicerar (draft=false); MENU_AGENT kan
@@ -896,6 +855,12 @@ model Brand {
   deals              Deal[]
 }
 
+enum RestaurantAcceptingOrdersMode {
+  SCHEDULED
+  FORCE_OPEN
+  FORCE_CLOSED
+}
+
 // Support-anteckningar (delade, append). Polymorf koppling till restaurang,
 // order ELLER kund (telefon) — ingen FK, håller det enkelt/scope-fritt.
 // authorName snapshotas så den överlever att admin-kontot tas bort.
@@ -928,6 +893,11 @@ model City {
   latitude          Float?       // Legacy
   longitude         Float?       // Legacy
   freeDeliveryAbove Int          @default(0)
+  // Kris-overlay för staden. Den ligger ovanpå restaurangens schema/manuella
+  // läge och skriver aldrig om dessa värden.
+  ordersPaused      Boolean      @default(false)
+  ordersPausedUntil DateTime?
+  ordersPauseReason String?
   // Hierarki: städer kan ha en föräldra-stad. Exempel: "Arlöv" och "Oxie" har
   // parentCityId = id för "Malmö". Kund i Arlöv ser då hela Storstadens utbud
   // (Malmö + Arlöv + Oxie restauranger). Lund kan vara separat även om den
@@ -1005,10 +975,6 @@ model User {
   referralsSent     Referral[]   @relation("ReferralInviter")
   referralReceived  Referral?    @relation("ReferralInvitee")
 
-  // Vpoints — cachat saldo (uppdateras atomiskt med PointsTransaction-ledgern).
-  pointsBalance      Int                      @default(0)
-  pointsTransactions PointsTransaction[]
-  campaignProgress   PointsCampaignProgress[]
 }
 
 // UserDeal — en personlig rabattkupong som tillhör EN användare. Skapas av:
@@ -1081,10 +1047,6 @@ model Referral {
   // Invite-tracking (opaque-token share-link system). Additive.
   channel             String?  // web | app_installed | app_deferred | manual
   inviteeFingerprint  String?
-  rewardInviterPoints Int?
-  rewardInviteePoints Int?
-  rewardLedgerKey     String?  @unique
-
   inviter           User      @relation("ReferralInviter", fields: [inviterUserId], references: [id])
   invitee           User?     @relation("ReferralInvitee", fields: [inviteeUserId], references: [id])
 
@@ -1295,105 +1257,6 @@ model ScheduledPush {
   createdBy    String?   // adminUserId
 
   @@index([sentAt, scheduledFor])
-}
-
-// ─── Vpoints lojalitetssystem ───────────────────────────────────────────────
-// Append-only liggare. En rad per händelse. Saldot cachas på User.pointsBalance
-// och uppdateras i SAMMA transaktion som raden skapas → en källa till sanning.
-model PointsTransaction {
-  id           String   @id @default(cuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount       Int      // signerat: + intjäning/bonus, - inlösen/återtag
-  type         String   // EARN_ORDER | SIGNUP_BONUS | CAMPAIGN | REDEEM | ADMIN_ADJUST | REVERSAL
-  reason       String?  // fritext — visas för kund + admin
-  balanceAfter Int      // saldo direkt efter posten (snapshot för historik)
-  orderId      String?  @unique // idempotens: en order ger poäng max en gång
-  campaignId   String?
-  adminId      String?  // admin som utfärdade (ADMIN_ADJUST/REVERSAL)
-  metadata     Json?
-  createdAt    DateTime @default(now())
-
-  @@index([userId, createdAt])
-  @@index([type])
-}
-
-// Temporär signup-banner. Visas för utloggade besökare; vid registrering får
-// kunden bonusPoints. Vi visar den senast skapade aktiva inom sitt fönster.
-model SponsorCard {
-  id          String    @id @default(cuid())
-  title       String
-  sponsorName String?
-  description String?
-  imageUrl    String?
-  bonusPoints Int       @default(100)
-  ctaLabel    String?
-  isActive    Boolean   @default(true)
-  startsAt    DateTime?
-  endsAt      DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@index([isActive])
-}
-
-// Inlösenskatalog. Admin definierar "X poäng → denna deal". Vid inlösen skapas
-// en PERSONLIG kod (Campaign + CustomerDeal) låst till kontot; poängen dras
-// direkt. Koden funkar bara på kundens konto och syns i admin.
-model DpointsReward {
-  id            String   @id @default(cuid())
-  title         String
-  description   String?
-  pointsCost    Int
-  discountType  String   @default("FIXED") // FIXED | PERCENTAGE | FREE_DELIVERY
-  discountValue Int      @default(0)        // FIXED: öre, PERCENTAGE: %
-  minOrderKr    Int      @default(0)
-  freeDelivery  Boolean  @default(false)
-  validDays     Int      @default(30)
-  isActive      Boolean  @default(true)
-  imageUrl      String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([isActive])
-}
-
-// Kampanj/utmaning. MULTIPLIER ändrar intjäningstakt vid köp;
-// STREAK_DAILY/STREAK_WEEKLY ger fast bonus när målet nås.
-model PointsCampaign {
-  id           String                   @id @default(cuid())
-  name         String
-  description  String?
-  type         String                   // MULTIPLIER | STREAK_DAILY | STREAK_WEEKLY
-  isActive     Boolean                  @default(true)
-  startsAt     DateTime?
-  endsAt       DateTime?
-  minOrderKr   Int                      @default(0)
-  multiplier   Float?                   // MULTIPLIER (2 = dubbelt)
-  rewardPoints Int?                     // STREAK (fast bonus)
-  targetCount  Int?                     // STREAK (antal dagar/veckor)
-  repeatable   Boolean                  @default(false)
-  createdAt    DateTime                 @default(now())
-  updatedAt    DateTime                 @updatedAt
-  progress     PointsCampaignProgress[]
-
-  @@index([isActive, type])
-}
-
-model PointsCampaignProgress {
-  id             String         @id @default(cuid())
-  campaignId     String
-  campaign       PointsCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  streakCount    Int            @default(0)
-  lastCountedDay String?        // "YYYY-MM-DD" i Europe/Stockholm
-  periodsJson    Json?          // STREAK_WEEKLY: räknade ISO-veckor
-  timesRewarded  Int            @default(0)
-  updatedAt      DateTime       @updatedAt
-
-  @@unique([campaignId, userId])
-  @@index([userId])
 }
 
 // API-användningsräknare per tjänst + månad. Driver admin "API-hälsa"-sidan

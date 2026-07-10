@@ -1311,10 +1311,6 @@ router.post('/register-user', authLimiter, async (req, res) => {
       console.error('[register-user] welcome-deal-trigger error:', e?.message);
     }
 
-    // Vpoints-välkomstbonusen delas INTE ut automatiskt — kunden hämtar den
-    // själv efteråt (claim) via /api/dpoints/claim-signup. Path-agnostiskt så
-    // det funkar lika för email- och Google/Apple-registrering.
-
     // Auto-login: utfärda JWT direkt och returnera user-payload. Klienten
     // persistar token och navigerar vidare; verifieringsmejlet kommer som
     // notifikation och kan användas senare för att markera kontot som

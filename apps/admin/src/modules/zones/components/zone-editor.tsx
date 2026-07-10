@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Circle as CircleIcon, Loader2, MapPin, Navigation2, PenLine, Search, Trash2, X, ZoomIn } from "lucide-react";
 import type { ZoneRecord } from "@/modules/zones/api";
-import { Toggle } from "@/shared/components/ui";
+import { Button, DurationInput, Field, Input, MoneyInput, NumberInput, SwitchField } from "@/shared/components/ui";
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "";
 
@@ -37,6 +37,19 @@ const palette = [
 
 const colorAt = (index: number) => palette[index % palette.length];
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+const parseNumericDraft = (value: string): number | null => {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const normalizeDraft = (value: string, fallback: number, min: number, integer = false) => {
+  const parsed = parseNumericDraft(value);
+  const numeric = Math.max(min, parsed ?? fallback);
+  return integer ? Math.round(numeric) : numeric;
+};
 
 function loadGoogleMaps(onAuthError: () => void): Promise<void> {
   window.gm_authFailure = () => {
@@ -113,22 +126,27 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState<Array<{ description: string; place_id: string }>>([]);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<number | null>(null);
+  const searchInputId = useId();
+  const suggestionsId = useId();
 
+  const [draftRadius, setDraftRadius] = useState<Record<string, string>>({});
   const [draftFee, setDraftFee] = useState<Record<string, string>>({});
   const [draftMin, setDraftMin] = useState<Record<string, string>>({});
   const [draftEta, setDraftEta] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!selectedId) return;
-    const selected = zones.find((zone) => zone.id === selectedId);
+    const selected = zonesRef.current.find((zone) => zone.id === selectedId);
     if (!selected) return;
+    setDraftRadius((current) => ({ ...current, [selectedId]: String(selected.radiusKm ?? 0) }));
     setDraftFee((current) => ({ ...current, [selectedId]: String(selected.deliveryFee) }));
     setDraftMin((current) => ({ ...current, [selectedId]: String(selected.minOrder) }));
     setDraftEta((current) => ({ ...current, [selectedId]: selected.etaMinutes != null ? String(selected.etaMinutes) : "" }));
-  }, [selectedId, zones]);
+  }, [selectedId]);
 
   const fallbackCenter = useMemo(
     () => ({
@@ -375,6 +393,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
   const fetchSuggestions = useCallback(async (text: string) => {
     if (text.length < 3) {
       setSuggestions([]);
+      setActiveSuggestionIndex(-1);
       return;
     }
     setLoadingSuggestions(true);
@@ -386,8 +405,10 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
       });
       const data = await response.json();
       setSuggestions(data.predictions || []);
+      setActiveSuggestionIndex(-1);
     } catch {
       setSuggestions([]);
+      setActiveSuggestionIndex(-1);
     } finally {
       setLoadingSuggestions(false);
     }
@@ -396,6 +417,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
   const handleSearchChange = (value: string) => {
     setSearch(value);
     setSuggestions([]);
+    setActiveSuggestionIndex(-1);
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     debounceRef.current = window.setTimeout(() => {
       void fetchSuggestions(value);
@@ -405,6 +427,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
   const selectSuggestion = useCallback(async (placeId: string, description: string) => {
     setSearch(description.split(",")[0]);
     setSuggestions([]);
+    setActiveSuggestionIndex(-1);
     setSearching(true);
     try {
       const response = await fetch("/api/places/geocode", {
@@ -429,6 +452,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
     if (!search.trim() || !mapInstance.current) return;
     setSearching(true);
     setSuggestions([]);
+    setActiveSuggestionIndex(-1);
     const g = window.google;
     new g.maps.Geocoder().geocode({ address: `${search.trim()}, Sverige`, region: "SE" }, (results: any[], status: string) => {
       setSearching(false);
@@ -491,46 +515,80 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
 
   if (authError) {
     return (
-      <div className="rounded-2xl border border-[rgba(240,178,79,0.28)] bg-[rgba(240,178,79,0.08)] p-8 text-sm text-[#ffe6bf]">
-        Google Maps could not authenticate. Check that Maps JavaScript, Places and Geocoding APIs are enabled for `NEXT_PUBLIC_GOOGLE_MAPS_KEY`.
+      <div className="rounded-2xl border border-[color-mix(in_srgb,var(--warning)_28%,transparent)] bg-[var(--warning-soft)] p-6 text-sm text-[var(--warning-text)]" role="alert">
+        Google Maps kunde inte autentiseras. Kontrollera att Maps JavaScript, Places och Geocoding är aktiverade för `NEXT_PUBLIC_GOOGLE_MAPS_KEY`.
       </div>
     );
   }
 
   if (loadError) {
     return (
-      <div className="flex items-center justify-center rounded-2xl border border-[rgba(239,107,115,0.2)] bg-[rgba(239,107,115,0.08)] text-sm text-[#ffd2d5]" style={{ height: mapHeight }}>
-        Unable to load the Google Maps script.
+      <div className="flex min-h-64 items-center justify-center rounded-2xl border border-[color-mix(in_srgb,var(--danger)_24%,transparent)] bg-[var(--danger-soft)] p-6 text-sm text-[var(--danger-text)]" role="alert">
+        Google Maps kunde inte laddas.
       </div>
     );
   }
 
   const selectedZone = zones.find((zone) => zone.id === selectedId) || null;
+  const responsiveMapHeight = `clamp(420px, 68vh, ${mapHeight}px)`;
+  const inspectorStyle = { "--zone-editor-max-height": `${mapHeight}px` } as CSSProperties;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex min-w-[220px] flex-1">
+        <div className="relative flex w-full min-w-0 sm:min-w-[220px] sm:flex-1">
           <div className="flex flex-1 items-center gap-2 rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-4 py-2.5 transition-colors focus-within:border-[var(--accent)]">
             <Search size={14} className="shrink-0 text-[var(--text-muted)]" />
+            <label htmlFor={searchInputId} className="sr-only">Sök adress eller stad</label>
             <input
+              id={searchInputId}
               value={search}
               onChange={(event) => handleSearchChange(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") {
+                if (event.key === "ArrowDown" && suggestions.length > 0) {
+                  event.preventDefault();
+                  setActiveSuggestionIndex((current) => (current + 1) % suggestions.length);
+                } else if (event.key === "ArrowUp" && suggestions.length > 0) {
+                  event.preventDefault();
+                  setActiveSuggestionIndex((current) => (current <= 0 ? suggestions.length - 1 : current - 1));
+                } else if (event.key === "Enter") {
+                  event.preventDefault();
+                  const activeSuggestion = suggestions[activeSuggestionIndex];
+                  if (activeSuggestion) {
+                    void selectSuggestion(activeSuggestion.place_id, activeSuggestion.description);
+                    return;
+                  }
                   setSuggestions([]);
                   geocodeSearch();
+                } else if (event.key === "Escape") {
+                  setSuggestions([]);
+                  setActiveSuggestionIndex(-1);
                 }
               }}
               placeholder={cityName ? `Sök adress i ${cityName}` : "Sök stad eller adress"}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={suggestions.length > 0}
+              aria-controls={suggestions.length > 0 ? suggestionsId : undefined}
+              aria-activedescendant={activeSuggestionIndex >= 0 ? `${suggestionsId}-${activeSuggestionIndex}` : undefined}
               className="flex-1 bg-transparent text-[13px] font-semibold text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
             />
-            {loadingSuggestions ? <Loader2 size={12} className="animate-spin text-[var(--text-muted)]" /> : null}
+            {loadingSuggestions ? <Loader2 size={12} className="animate-spin text-[var(--text-muted)]" aria-hidden /> : null}
+            {loadingSuggestions ? <span className="sr-only" role="status">Laddar adressförslag</span> : null}
           </div>
           {suggestions.length > 0 ? (
-            <div className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-[12px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] shadow-[var(--shadow-lift)]">
-              {suggestions.map((suggestion) => (
-                <button key={suggestion.place_id} type="button" onClick={() => void selectSuggestion(suggestion.place_id, suggestion.description)} className="flex w-full items-center gap-3 border-b border-[var(--row-divider)] px-4 py-3 text-left transition-colors last:border-none hover:bg-[var(--bg-hover)]">
+            <div id={suggestionsId} role="listbox" aria-label="Adressförslag" className="absolute left-0 right-0 top-full z-50 mt-1.5 overflow-hidden rounded-[12px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] shadow-[var(--shadow-lift)]">
+              {suggestions.map((suggestion, index) => (
+                <button
+                  id={`${suggestionsId}-${index}`}
+                  key={suggestion.place_id}
+                  type="button"
+                  role="option"
+                  aria-selected={index === activeSuggestionIndex}
+                  onMouseEnter={() => setActiveSuggestionIndex(index)}
+                  onClick={() => void selectSuggestion(suggestion.place_id, suggestion.description)}
+                  className={`flex w-full items-center gap-3 border-b border-[var(--row-divider)] px-4 py-3 text-left transition-colors last:border-none ${index === activeSuggestionIndex ? "bg-[var(--bg-hover)]" : "hover:bg-[var(--bg-hover)]"}`}
+                >
                   <MapPin size={12} className="shrink-0 text-[var(--accent-ink)]" />
                   <div>
                     <span className="block text-[12px] font-bold text-[var(--text-primary)]">{suggestion.description.split(",")[0]}</span>
@@ -542,34 +600,34 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
           ) : null}
         </div>
 
-        <button type="button" onClick={geocodeSearch} disabled={searching || !search.trim() || !mapsReady} className="inline-flex items-center gap-1.5 rounded-[11px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3.5 py-2.5 text-[13px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40">
-          {searching ? <Loader2 size={14} className="animate-spin" /> : <Navigation2 size={14} />} Sätt center
-        </button>
+        <Button type="button" onClick={geocodeSearch} disabled={searching || !search.trim() || !mapsReady} loading={searching}>
+          {!searching ? <Navigation2 size={14} /> : null} Sätt center
+        </Button>
 
         {drawing ? (
-          <button type="button" onClick={cancelDraw} className="inline-flex items-center gap-1.5 rounded-[11px] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[var(--danger-soft)] px-3.5 py-2.5 text-[13px] font-bold text-[var(--danger-text)]">
+          <Button type="button" variant="danger" onClick={cancelDraw}>
             <X size={14} /> Avbryt
-          </button>
+          </Button>
         ) : (
           <>
-            <button type="button" onClick={() => startDraw("circle")} disabled={!mapsReady} className="inline-flex items-center gap-1.5 rounded-[11px] bg-[var(--accent)] px-3.5 py-2.5 text-[13px] font-extrabold text-[var(--accent-fg)] shadow-[var(--shadow-cta)] transition-colors hover:bg-[var(--accent-deep)] disabled:opacity-40">
+            <Button type="button" variant="primary" onClick={() => startDraw("circle")} disabled={!mapsReady}>
               <CircleIcon size={14} /> Cirkel
-            </button>
-            <button type="button" onClick={() => startDraw("polygon")} disabled={!mapsReady} className="inline-flex items-center gap-1.5 rounded-[11px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3.5 py-2.5 text-[13px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40">
+            </Button>
+            <Button type="button" onClick={() => startDraw("polygon")} disabled={!mapsReady}>
               <PenLine size={14} /> Polygon
-            </button>
+            </Button>
           </>
         )}
 
         {zones.length > 0 ? (
-          <button type="button" onClick={fitBounds} disabled={!mapsReady} className="inline-flex items-center gap-1.5 rounded-[11px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3.5 py-2.5 text-[13px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40">
+          <Button type="button" onClick={fitBounds} disabled={!mapsReady}>
             <ZoomIn size={14} /> Anpassa
-          </button>
+          </Button>
         ) : null}
       </div>
 
-      <div className="flex gap-4" style={{ minHeight: mapHeight }}>
-        <div className="relative min-w-0 flex-1 overflow-hidden rounded-[14px] border border-[var(--border-subtle)]" style={{ height: mapHeight }}>
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="relative min-w-0 overflow-hidden rounded-[14px] border border-[var(--border-subtle)]" style={{ height: responsiveMapHeight }}>
           {!mapsReady ? (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[var(--bg-page)]">
               <Loader2 size={24} className="animate-spin text-[var(--accent)]" />
@@ -578,7 +636,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
           ) : null}
           <div ref={mapRef} className="h-full w-full" />
           {drawing ? (
-            <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-full bg-[var(--accent)] px-5 py-2.5 text-[12px] font-extrabold text-white shadow-[var(--shadow-cta)]">
+            <div className="pointer-events-none absolute left-1/2 top-4 z-20 max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-full bg-[var(--accent)] px-5 py-2.5 text-center text-[12px] font-extrabold text-white shadow-[var(--shadow-cta)]">
               {drawing === "circle" ? "Klicka och dra för att rita en cirkel" : "Klicka punkter, dubbelklicka för att avsluta polygonen"}
             </div>
           ) : null}
@@ -597,130 +655,130 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
           ) : null}
         </div>
 
-        <div className="flex w-[340px] shrink-0 flex-col overflow-y-auto rounded-[14px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5" style={{ maxHeight: mapHeight }}>
+        <aside
+          className="flex min-w-0 flex-col rounded-[14px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4 sm:p-5 xl:max-h-[var(--zone-editor-max-height)] xl:overflow-y-auto"
+          style={inspectorStyle}
+          aria-label="Zoninställningar"
+        >
           {/* Vald zons editor */}
           {selectedZone ? (
             <div className="mb-5">
-              <input
-                className="w-full bg-transparent text-[16px] font-extrabold tracking-[-0.3px] text-[var(--text-primary)] outline-none"
-                value={selectedZone.name}
-                onChange={(event) => updateZone(selectedZone.id, { name: event.target.value })}
-                aria-label="Zonnamn"
-              />
+              <Field label="Zonnamn">
+                <Input
+                  className="text-[16px] font-extrabold tracking-[-0.3px]"
+                  value={selectedZone.name}
+                  onChange={(event) => updateZone(selectedZone.id, { name: event.target.value })}
+                />
+              </Field>
 
               {selectedZone.type === "circle" ? (
                 <div className="mt-4">
-                  <p className="eyebrow mb-2">Avstånd (radie)</p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
+                  <Field label="Radie" hint="Cirkelns avstånd från restaurangen.">
+                    <NumberInput
+                      value={draftRadius[selectedZone.id] ?? String(selectedZone.radiusKm ?? 0)}
+                      onValueChange={(raw) => {
+                        setDraftRadius((current) => ({ ...current, [selectedZone.id]: raw }));
+                        const parsed = parseNumericDraft(raw);
+                        if (parsed != null) updateZone(selectedZone.id, { radiusKm: Math.max(0.1, parsed) });
+                      }}
+                      onBlur={() => {
+                        const next = normalizeDraft(draftRadius[selectedZone.id] ?? "", selectedZone.radiusKm ?? 0.1, 0.1);
+                        setDraftRadius((current) => ({ ...current, [selectedZone.id]: String(next) }));
+                        updateZone(selectedZone.id, { radiusKm: next });
+                      }}
                       min={0.1}
                       step={0.1}
-                      className="w-full rounded-[10px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3 py-2 text-center text-[14px] font-bold text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
-                      value={selectedZone.radiusKm ?? 0}
-                      onChange={(event) => updateZone(selectedZone.id, { radiusKm: Math.max(0.1, Number(event.target.value)) })}
-                      aria-label="Radie (km)"
+                      suffix="km"
                     />
-                    <span className="text-[13px] font-bold text-[var(--text-muted)]">km</span>
-                  </div>
+                  </Field>
                 </div>
               ) : (
                 <p className="mt-3 text-[12px] text-[var(--text-muted)]">Polygon med {Math.max((selectedZone.polygon?.length || 1) - 1, 0)} punkter. Dra hörnen på kartan för att ändra formen.</p>
               )}
 
-              <div className="mt-5 flex items-center justify-between border-t border-[var(--row-divider)] pt-4">
-                <span className="text-[13px] font-semibold">Leveransavgift</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    className="w-[88px] rounded-[10px] border-2 border-[var(--accent)] bg-[var(--bg-panel)] px-3 py-2 text-right text-[14px] font-bold text-[var(--text-primary)] outline-none"
+              <div className="mt-5 grid gap-3 border-t border-[var(--row-divider)] pt-4 sm:grid-cols-3 xl:grid-cols-1">
+                <Field label="Leveransavgift">
+                  <MoneyInput
                     value={draftFee[selectedZone.id] ?? String(selectedZone.deliveryFee)}
-                    onChange={(event) => {
-                      const raw = event.target.value.replace(/[^0-9]/g, "");
+                    onValueChange={(raw) => {
                       setDraftFee((current) => ({ ...current, [selectedZone.id]: raw }));
-                      if (raw !== "") updateZone(selectedZone.id, { deliveryFee: Number(raw) });
+                      const parsed = parseNumericDraft(raw);
+                      if (parsed != null) updateZone(selectedZone.id, { deliveryFee: Math.max(0, parsed) });
                     }}
                     onBlur={() => {
-                      const nextValue = Math.max(0, Number(draftFee[selectedZone.id] ?? selectedZone.deliveryFee) || 0);
-                      setDraftFee((current) => ({ ...current, [selectedZone.id]: String(nextValue) }));
-                      updateZone(selectedZone.id, { deliveryFee: nextValue });
+                      const next = normalizeDraft(draftFee[selectedZone.id] ?? "", selectedZone.deliveryFee, 0);
+                      setDraftFee((current) => ({ ...current, [selectedZone.id]: String(next) }));
+                      updateZone(selectedZone.id, { deliveryFee: next });
                     }}
-                    aria-label="Leveransavgift (kr)"
+                    min={0}
+                    placeholder="0"
                   />
-                  <span className="text-[13px] font-bold text-[var(--text-muted)]">kr</span>
-                </div>
-              </div>
+                </Field>
 
-              <div className="mt-4 flex items-center justify-between border-t border-[var(--row-divider)] pt-4">
-                <span className="text-[13px] font-semibold">Min. ordervärde</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    className="w-[88px] rounded-[10px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3 py-2 text-right text-[14px] font-bold text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+                <Field label="Minsta ordervärde">
+                  <MoneyInput
                     value={draftMin[selectedZone.id] ?? String(selectedZone.minOrder)}
-                    onChange={(event) => {
-                      const raw = event.target.value.replace(/[^0-9]/g, "");
+                    onValueChange={(raw) => {
                       setDraftMin((current) => ({ ...current, [selectedZone.id]: raw }));
-                      if (raw !== "") updateZone(selectedZone.id, { minOrder: Number(raw) });
+                      const parsed = parseNumericDraft(raw);
+                      if (parsed != null) updateZone(selectedZone.id, { minOrder: Math.max(0, parsed) });
                     }}
                     onBlur={() => {
-                      const nextValue = Math.max(0, Number(draftMin[selectedZone.id] ?? selectedZone.minOrder) || 0);
-                      setDraftMin((current) => ({ ...current, [selectedZone.id]: String(nextValue) }));
-                      updateZone(selectedZone.id, { minOrder: nextValue });
+                      const next = normalizeDraft(draftMin[selectedZone.id] ?? "", selectedZone.minOrder, 0);
+                      setDraftMin((current) => ({ ...current, [selectedZone.id]: String(next) }));
+                      updateZone(selectedZone.id, { minOrder: next });
                     }}
-                    aria-label="Min. ordervärde (kr)"
+                    min={0}
+                    placeholder="0"
                   />
-                  <span className="text-[13px] font-bold text-[var(--text-muted)]">kr</span>
-                </div>
+                </Field>
+
+                <Field label="Leveranstid" optional>
+                  <DurationInput
+                    value={draftEta[selectedZone.id] ?? (selectedZone.etaMinutes != null ? String(selectedZone.etaMinutes) : "")}
+                    onValueChange={(raw) => {
+                      setDraftEta((current) => ({ ...current, [selectedZone.id]: raw }));
+                      if (!raw.trim()) {
+                        updateZone(selectedZone.id, { etaMinutes: undefined });
+                        return;
+                      }
+                      const parsed = parseNumericDraft(raw);
+                      if (parsed != null) updateZone(selectedZone.id, { etaMinutes: Math.max(1, Math.round(parsed)) });
+                    }}
+                    onBlur={() => {
+                      const raw = draftEta[selectedZone.id] ?? "";
+                      if (!raw.trim()) {
+                        setDraftEta((current) => ({ ...current, [selectedZone.id]: "" }));
+                        updateZone(selectedZone.id, { etaMinutes: undefined });
+                        return;
+                      }
+                      const next = normalizeDraft(raw, selectedZone.etaMinutes ?? 30, 1, true);
+                      setDraftEta((current) => ({ ...current, [selectedZone.id]: String(next) }));
+                      updateZone(selectedZone.id, { etaMinutes: next });
+                    }}
+                    integer
+                    min={1}
+                    placeholder="–"
+                  />
+                </Field>
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-[var(--row-divider)] pt-4">
-                <div>
-                  <span className="block text-[13px] font-semibold">Leveranstid</span>
-                  <span className="text-[11.5px] text-[var(--text-muted)]">minuter, valfritt</span>
-                </div>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  placeholder="–"
-                  className="w-[88px] rounded-[10px] border border-[var(--border-strong)] bg-[var(--bg-panel)] px-3 py-2 text-right text-[14px] font-bold text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
-                  value={draftEta[selectedZone.id] ?? (selectedZone.etaMinutes != null ? String(selectedZone.etaMinutes) : "")}
-                  onChange={(event) => {
-                    const raw = event.target.value.replace(/[^0-9]/g, "");
-                    setDraftEta((current) => ({ ...current, [selectedZone.id]: raw }));
-                    updateZone(selectedZone.id, { etaMinutes: raw === "" ? undefined : Number(raw) });
-                  }}
-                  onBlur={() => {
-                    const raw = draftEta[selectedZone.id] ?? "";
-                    if (raw === "") {
-                      updateZone(selectedZone.id, { etaMinutes: undefined });
-                    } else {
-                      const nextValue = Math.max(1, Number(raw) || 30);
-                      setDraftEta((current) => ({ ...current, [selectedZone.id]: String(nextValue) }));
-                      updateZone(selectedZone.id, { etaMinutes: nextValue });
-                    }
-                  }}
-                  aria-label="Leveranstid (min)"
-                />
-              </div>
+              <SwitchField
+                className="mt-4 border-t border-[var(--row-divider)] pt-4"
+                label="Aktiv zon"
+                hint={selectedZone.isActive ? "Zonen används vid leveransberäkning." : "Zonen ignoreras tills den aktiveras."}
+                checked={selectedZone.isActive}
+                onChange={(isActive) => updateZone(selectedZone.id, { isActive })}
+              />
 
-              <div className="mt-4 flex items-center justify-between border-t border-[var(--row-divider)] pt-4">
-                <span className="text-[13px] font-semibold">Aktiv</span>
-                <Toggle checked={selectedZone.isActive} onChange={(v) => updateZone(selectedZone.id, { isActive: v })} />
-              </div>
-
-              <button
+              <Button
                 type="button"
+                variant="danger"
                 onClick={() => removeZone(selectedZone.id)}
-                className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--danger-text)]"
+                className="mt-4"
               >
                 <Trash2 size={14} /> Ta bort zon
-              </button>
+              </Button>
             </div>
           ) : null}
 
@@ -761,7 +819,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
               })}
             </div>
           )}
-        </div>
+        </aside>
       </div>
 
     </div>

@@ -70,6 +70,18 @@ const mergeTemplateElements = (template: ReceiptTemplate): ReceiptTemplate => {
   };
 };
 
+function HR() {
+  return <div className="my-2 border-t-2 border-black" />;
+}
+
+function BoxBadge({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <span className="inline-block border-[3px] border-black px-4 py-1 tracking-wide" style={{ fontWeight: 900, fontSize: "14px", ...style }}>
+      {children}
+    </span>
+  );
+}
+
 function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; template: ReceiptTemplate }) {
   const h = (data.header ?? {}) as Record<string, unknown>;
   const o = (data.orderInfo ?? {}) as Record<string, unknown>;
@@ -102,11 +114,6 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
   const allergenStr = Array.isArray(allergensRaw)
     ? (allergensRaw as unknown[]).map((e) => s(e)).filter(Boolean).join(", ")
     : s(allergensRaw);
-
-  const HR = () => <div className="border-t-2 border-black my-2" />;
-  const BoxBadge = ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) => (
-    <span className="inline-block border-[3px] border-black px-4 py-1 tracking-wide" style={{ fontWeight: 900, fontSize: "14px", ...style }}>{children}</span>
-  );
 
   return (
     <div className="text-[12px] leading-[1.6] font-medium" style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" }}>
@@ -301,8 +308,8 @@ export function ReceiptsPage({ embedded = false }: { embedded?: boolean } = {}) 
         </div>
       ) : (
         <PageHeader
-          breadcrumb="System / Kvitto-mall"
-          title="Utskriftsmall"
+          breadcrumb="Partners / Kvitto & utskrift"
+          title="Restaurangkvitto"
           actions={
           <>
             {saveStatus === "saved" && <span className="text-[13px] font-bold text-[var(--success-text)]">Sparat</span>}
@@ -322,7 +329,7 @@ export function ReceiptsPage({ embedded = false }: { embedded?: boolean } = {}) 
         Gäller kvitton som skrivs ut på restaurangernas kvittoskrivare. Ändringar syns direkt i förhandsvisningen.
       </p>
 
-      <Surface className="px-6 py-6">
+      <Surface className="px-4 py-5 sm:px-6 sm:py-6">
         <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
           {/* Left: element controls */}
           <div className="space-y-4">
@@ -476,18 +483,18 @@ export function ReceiptsPage({ embedded = false }: { embedded?: boolean } = {}) 
 
           {/* Right: live preview */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="eyebrow">Kvittoskrivare · {draft?.paperWidth ?? "80mm"}</p>
-              <div className="w-[220px]">
+              <div className="w-full sm:w-[220px]">
                 <Select value={previewOrderId || ""} onChange={(e) => setPreviewOrderId(e.target.value)}>
                   {previewOrders.data.map((order) => <option key={order.id} value={order.id}>{order.orderNumber} • {order.customerName}</option>)}
                 </Select>
               </div>
             </div>
 
-            <div className="flex justify-center rounded-[16px] bg-[var(--bg-page)] px-4 py-8">
+            <div className="flex min-w-0 justify-center rounded-[16px] bg-[var(--bg-page)] px-2 py-6 sm:px-4 sm:py-8">
               {/* 72 mm-rulle: 72 × 3.78 ≈ 272 px, marginal px-3 → ~65 mm utskriftsyta */}
-              <div className="w-[272px] rounded-[6px] bg-white px-4 py-5 text-black shadow-[0_18px_60px_rgba(17,17,19,0.18)]">
+              <div className="w-full max-w-[272px] rounded-[6px] bg-white px-4 py-5 text-black shadow-[0_18px_60px_rgba(17,17,19,0.18)]">
                 {!previewOrderId ? (
                   <p className="py-10 text-center text-xs text-[#888]">Välj en order ovan</p>
                 ) : preview.isLoading ? (

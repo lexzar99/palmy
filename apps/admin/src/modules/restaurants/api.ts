@@ -1,5 +1,12 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
 import type { ControlCenterData, ControlCenterRestaurantSnapshot } from "@/modules/dashboard/api";
+import type {
+  AcceptingOrdersMode,
+  RestaurantAvailabilityReason,
+  SekMoney,
+} from "@/shared/contracts/restaurants";
+
+export type { AcceptingOrdersMode } from "@/shared/contracts/restaurants";
 
 export interface RestaurantMenuCategory {
   id: string;
@@ -35,14 +42,32 @@ export interface RestaurantDetail {
   heroImageUrl?: string | null;
   rating?: number | null;
   ratingCount?: number | null;
+  deliveryFeeOre: number;
+  deliveryFeeMoney: SekMoney;
   deliveryFee: number;
+  minOrderAmountOre: number;
+  minOrderAmountMoney: SekMoney;
   minOrderAmount: number;
   etaMinutes: number;
   baseEtaMinutes?: number;
   etaCalculatedMinutes?: number | null;
   etaOverrideMinutes?: number | null;
   activeOrdersCount: number;
+  /** Effektiv kundstatus efter schema, manuellt läge och driftöverlägg. */
   isOpen: boolean;
+  scheduledOpenNow: boolean;
+  acceptingOrdersMode: AcceptingOrdersMode;
+  effectiveAcceptingOrdersMode: AcceptingOrdersMode;
+  acceptingOrdersOverrideUntil?: string | null;
+  acceptingOrdersOverrideReason?: string | null;
+  acceptingOrdersOverrideActive?: boolean;
+  availabilityReason: RestaurantAvailabilityReason;
+  availabilityOverlays?: {
+    platformPaused: boolean;
+    cityPaused: boolean;
+    restaurantPaused: boolean;
+  };
+  /** @deprecated använd acceptingOrdersMode. */
   manualIsOpen: boolean;
   comingSoon?: boolean;
   featuredClass: number;
@@ -58,6 +83,8 @@ export interface RestaurantDetail {
   longitude?: number | null;
   placeId?: string | null;
   freeDeliveryAbove?: number | null;
+  freeDeliveryAboveOre?: number | null;
+  freeDeliveryAboveMoney?: SekMoney | null;
   deliveryZones?: unknown[];
   menu?: RestaurantMenuCategory[];
   logoutCode?: string | null;
@@ -88,11 +115,17 @@ export interface RestaurantFormPayload {
   adminEmail?: string;
   imageUrl?: string | null;
   heroImageUrl?: string | null;
+  deliveryFeeOre?: number;
   deliveryFee?: number;
+  minOrderAmountOre?: number;
   minOrderAmount?: number;
   etaMinutes?: number;
   etaOverrideMinutes?: number | null;
   featuredClass?: number;
+  acceptingOrdersMode?: AcceptingOrdersMode;
+  acceptingOrdersOverrideUntil?: string | null;
+  acceptingOrdersOverrideReason?: string | null;
+  /** @deprecated använd acceptingOrdersMode. */
   isOpen?: boolean;
   comingSoon?: boolean;
   // Publicera utkast (bara super admin, servern ignorerar annat).
@@ -105,7 +138,10 @@ export interface RestaurantFormPayload {
   latitude?: number | null;
   longitude?: number | null;
   placeId?: string | null;
-  freeDeliveryAbove?: number;
+  freeDeliveryAboveOre?: number | null;
+  /** @deprecated använd freeDeliveryAboveOre. */
+  freeDeliveryAbove?: number | null;
+  deliveryZones?: unknown[];
   openingHours?: Record<string, { closed: boolean; shifts: { open: string; close: string }[] }>;
   logoutCode?: string | null;
   announcementText?: string | null;

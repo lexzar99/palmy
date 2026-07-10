@@ -1,4 +1,5 @@
 import type { DeliveryZone } from './geo';
+import { parseOre, sekToOre } from './money';
 
 const toNum = (v: unknown): number | null => {
   const n = typeof v === 'string' ? Number(v) : (v as number);
@@ -11,10 +12,13 @@ const toNum = (v: unknown): number | null => {
  * - Handles new zones (type + centerLat/centerLng or polygon)
  * - All money values → öre
  */
-export const normalizeDeliveryZones = (raw: unknown): DeliveryZone[] => {
+export const normalizeDeliveryZones = (
+  raw: unknown,
+  options: { strict?: boolean } = {},
+): DeliveryZone[] => {
   if (!Array.isArray(raw)) return [];
 
-  return raw
+  const normalized = raw
     .map((z: any): DeliveryZone | null => {
       const id = String(z?.id ?? '');
       const name = String(z?.name ?? '');
@@ -25,11 +29,34 @@ export const normalizeDeliveryZones = (raw: unknown): DeliveryZone[] => {
 
       const radiusKm = toNum(z?.radiusKm) ?? 0;
 
-      const feeRaw = toNum(z?.fee ?? z?.deliveryFee ?? z?.delivery_fee) ?? 0;
-      const minRaw = toNum(z?.minOrder ?? z?.min_order) ?? 0;
+      // New contract: feeOre/minOrderOre are always integer minor units.
+      // Existing persisted/admin payloads use fee/minOrder as ore too. The
+      // oldest deliveryFee alias is the only major-unit (SEK) compatibility
+      // input. Crucially, no branch guesses a unit from the value magnitude.
+      const explicitFeeOre = toNum(z?.feeOre ?? z?.deliveryFeeOre);
+      const legacyCanonicalFeeOre = toNum(z?.fee ?? z?.delivery_fee);
+      const legacyFeeSek = toNum(z?.deliveryFee);
+      const explicitMinOrderOre = toNum(z?.minOrderOre);
+      const legacyCanonicalMinOrderOre = toNum(z?.minOrder ?? z?.min_order);
 
-      const fee = normalizeMoneyToOre(feeRaw);
-      const minOrder = normalizeMoneyToOre(minRaw);
+      let feeOre = 0;
+      let minOrderOre = 0;
+      try {
+        feeOre = explicitFeeOre !== null
+          ? parseOre(explicitFeeOre, `deliveryZones[${id}].feeOre`)
+          : legacyCanonicalFeeOre !== null
+            ? parseOre(legacyCanonicalFeeOre, `deliveryZones[${id}].fee`)
+            : legacyFeeSek !== null
+              ? sekToOre(legacyFeeSek, `deliveryZones[${id}].deliveryFee`)
+              : 0;
+        minOrderOre = explicitMinOrderOre !== null
+          ? parseOre(explicitMinOrderOre, `deliveryZones[${id}].minOrderOre`)
+          : legacyCanonicalMinOrderOre !== null
+            ? parseOre(legacyCanonicalMinOrderOre, `deliveryZones[${id}].minOrder`)
+            : 0;
+      } catch {
+        return null;
+      }
       const isActive = z?.isActive === false ? false : true;
 
       const zone: DeliveryZone = {
@@ -37,8 +64,10 @@ export const normalizeDeliveryZones = (raw: unknown): DeliveryZone[] => {
         name,
         type,
         radiusKm,
-        fee,
-        minOrder,
+        feeOre,
+        minOrderOre,
+        fee: feeOre,
+        minOrder: minOrderOre,
         isActive,
       };
 
@@ -64,6 +93,11 @@ export const normalizeDeliveryZones = (raw: unknown): DeliveryZone[] => {
       return zone;
     })
     .filter((z): z is DeliveryZone => z !== null);
+
+  if (options.strict && normalized.length !== raw.length) {
+    throw new TypeError('En eller flera leveranszoner har ogiltig geometri eller pengaenhet');
+  }
+  return normalized;
 };
 
 /**
@@ -183,7 +217,9 @@ export const resolveDeliveryFee = async (
 };
 
 /**
- * Heuristic: if value >= 1000 treat as already in öre, else multiply by 100.
+ * @deprecated Ambiguous legacy helper for campaign/deal compatibility only.
+ * New admin APIs must use parseOre() for `...Ore` fields or sekToOre() for
+ * `...Sek`/legacy major-unit fields. Never add new call sites here.
  */
 export const normalizeMoneyToOre = (value: number): number => {
   if (!Number.isFinite(value)) return 0;

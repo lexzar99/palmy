@@ -1,5 +1,5 @@
-import { CategoriesPage } from "@/modules/categories/page";
+import { redirect } from "next/navigation";
 
 export default function RouteCategoriesPage() {
-  return <CategoriesPage />;
+  redirect("/homepage?tab=rails");
 }

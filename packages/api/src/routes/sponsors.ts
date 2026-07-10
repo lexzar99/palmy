@@ -16,7 +16,7 @@ import { getShowcaseCarousel } from '../lib/showcase';
 const router = Router();
 const RECORD_ID = 'global_sponsors';
 
-interface Sponsor {
+export interface Sponsor {
   id: string;
   name: string;
   imageUrl: string;
@@ -46,9 +46,11 @@ interface Sponsor {
   sortOrder: number;
   createdAt: string;
   updatedAt?: string;
+  placement?: 'HOME_FEATURED' | 'HOME_INLINE' | 'POST_ORDER';
+  layout?: 'LARGE_CARD' | 'COMPACT_CARD';
 }
 
-async function readSponsors(): Promise<Sponsor[]> {
+export async function readAllSponsors(): Promise<Sponsor[]> {
   try {
     const row = await (prisma as any).restaurantSettings.findUnique({ where: { id: RECORD_ID } });
     if (!row) return [];
@@ -84,7 +86,7 @@ async function writeSponsors(sponsors: Sponsor[]): Promise<void> {
 router.get('/', async (_req, res) => {
   try {
     // Cache 60s: sponsors change rarely and are identical for everyone.
-    const all = await cached('sponsors:public', 'all', 60_000, () => readSponsors());
+    const all = await cached('sponsors:public', 'all', 60_000, () => readAllSponsors());
     const now = new Date();
     const visible = all
       .filter(s => s.isActive)
@@ -98,7 +100,7 @@ router.get('/', async (_req, res) => {
     if (dealIds.length) {
       const deals = await prisma.deal.findMany({
         where: { id: { in: dealIds }, isActive: true, appEnabled: true },
-        select: { id: true, title: true, discountType: true, discountValue: true, freeDelivery: true, minOrder: true, appDpointsBonus: true, appMissionType: true },
+        select: { id: true, title: true, discountType: true, discountValue: true, freeDelivery: true, minOrder: true },
       });
       dealById = new Map(deals.map((d) => [d.id, d]));
     }
@@ -111,9 +113,7 @@ router.get('/', async (_req, res) => {
           ? `${deal.discountValue}% rabatt`
           : deal.discountType === 'FIXED'
             ? `${Math.round(deal.discountValue) / 100} kr rabatt`
-            : deal.appDpointsBonus > 0
-              ? `+${deal.appDpointsBonus} Vpoints`
-              : '';
+            : '';
       return { ...s, dealInfo: { id: deal.id, title: deal.title, valueLabel, minOrderKr: Math.round(deal.minOrder || 0) / 100 } };
     });
 
@@ -154,7 +154,7 @@ router.get('/', async (_req, res) => {
 // ── GET /api/sponsors/all — admin, returns all sponsors ──────────────────────
 router.get('/all', authenticate, requireSuperAdmin, async (_req, res) => {
   try {
-    const all = await readSponsors();
+    const all = await readAllSponsors();
     res.json(all.sort((a, b) => a.sortOrder - b.sortOrder));
   } catch {
     res.status(500).json({ error: 'Kunde inte hämta sponsorer' });
@@ -164,12 +164,12 @@ router.get('/all', authenticate, requireSuperAdmin, async (_req, res) => {
 // ── POST /api/sponsors — create sponsor ──────────────────────────────────────
 router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, imageUrl, videoUrl, cardType, dealId, headline, bodyText, isClickable, infoText, ctaText, ctaLink, linkType, linkTarget, showName, imageOnly, category, tier, tagline, color, startsAt, endsAt } = req.body;
-    const resolvedCardType = ['RESTAURANT', 'DEAL', 'AD', 'TEXT'].includes(String(cardType)) ? cardType : 'RESTAURANT';
+    const { name, imageUrl, videoUrl, cardType, dealId, headline, bodyText, isClickable, infoText, ctaText, ctaLink, linkType, linkTarget, showName, imageOnly, category, tier, tagline, color, startsAt, endsAt, placement, layout } = req.body;
+    const resolvedCardType = ['RESTAURANT', 'DEAL', 'TEXT'].includes(String(cardType)) ? cardType : 'RESTAURANT';
     // TEXT-kort behöver ingen bild; övriga kräver den som tidigare.
     if (!name || (!imageUrl && resolvedCardType !== 'TEXT')) return res.status(400).json({ error: 'name och imageUrl krävs' });
 
-    const sponsors = await readSponsors();
+    const sponsors = await readAllSponsors();
     const newSponsor: Sponsor = {
       id: Math.random().toString(36).slice(2, 12),
       name: String(name),
@@ -196,6 +196,8 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
       endsAt: endsAt || undefined,
       sortOrder: sponsors.length,
       createdAt: new Date().toISOString(),
+      placement: ['HOME_FEATURED', 'HOME_INLINE', 'POST_ORDER'].includes(String(placement)) ? placement : 'HOME_FEATURED',
+      layout: layout === 'COMPACT_CARD' ? 'COMPACT_CARD' : 'LARGE_CARD',
     };
     sponsors.push(newSponsor);
     await writeSponsors(sponsors);
@@ -208,11 +210,17 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
 // ── PATCH /api/sponsors/:id — update sponsor ─────────────────────────────────
 router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const sponsors = await readSponsors();
+    const sponsors = await readAllSponsors();
     const idx = sponsors.findIndex(s => s.id === req.params.id);
     if (idx < 0) return res.status(404).json({ error: 'Sponsor hittades inte' });
 
-    sponsors[idx] = { ...sponsors[idx], ...req.body, id: sponsors[idx].id, updatedAt: new Date().toISOString() };
+    const next = { ...sponsors[idx], ...req.body, id: sponsors[idx].id, updatedAt: new Date().toISOString() } as Sponsor;
+    next.cardType = ['RESTAURANT', 'DEAL', 'TEXT'].includes(String(next.cardType)) ? next.cardType : 'RESTAURANT';
+    next.placement = ['HOME_FEATURED', 'HOME_INLINE', 'POST_ORDER'].includes(String(next.placement))
+      ? next.placement
+      : 'HOME_FEATURED';
+    next.layout = next.layout === 'COMPACT_CARD' ? 'COMPACT_CARD' : 'LARGE_CARD';
+    sponsors[idx] = next;
     await writeSponsors(sponsors);
     res.json(sponsors[idx]);
   } catch {
@@ -223,7 +231,7 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
 // ── DELETE /api/sponsors/:id ─────────────────────────────────────────────────
 router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const sponsors = await readSponsors();
+    const sponsors = await readAllSponsors();
     const filtered = sponsors.filter(s => s.id !== req.params.id);
     await writeSponsors(filtered);
     res.json({ ok: true });

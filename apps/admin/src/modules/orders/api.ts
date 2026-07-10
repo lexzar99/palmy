@@ -1,4 +1,5 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
+import type { SekMoney } from "@/shared/contracts/restaurants";
 
 export interface OrderItem {
   id: string;
@@ -37,6 +38,10 @@ export interface AdminOrder {
   total: number;
   deliveryFee?: number;
   discountAmount?: number;
+  /** Display value in SEK. Canonical minor-unit fields are exposed alongside it. */
+  tipAmount?: number | null;
+  tipAmountOre?: number;
+  tipAmountMoney?: SekMoney;
   createdAt: string;
   updatedAt?: string;
   preparingAt?: string | null;
@@ -61,9 +66,6 @@ export interface AdminOrder {
   scheduledFor?: string | null;
   paymentStatus?: string | null;
   customerStats?: CustomerStats | null;
-  pointsEarned?: number | null;
-  pointsSpent?: number | null;
-  pointsReverted?: boolean | null;
   // Tilldelad kurir + statusövergångs-tider (null = avhämtning/self/ej tilldelad)
   courier?: {
     id: string | null;

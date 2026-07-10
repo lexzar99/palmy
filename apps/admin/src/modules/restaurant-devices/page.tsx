@@ -265,7 +265,7 @@ export function RestaurantDevicesPage() {
         open={linkOpen}
         title="Koppla ny enhet"
         description="Enheter är restaurang-specifika. Välj stad och restaurang, generera sedan en engångskod att skriva in på plattan."
-        widthClassName="max-w-3xl"
+        size="lg"
         onClose={() => setLinkOpen(false)}
       >
         <div className="grid gap-4 lg:grid-cols-2">

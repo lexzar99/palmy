@@ -1,6 +1,7 @@
 import prisma from './prisma';
 import { isRestaurantOpen } from './openingHours';
 import { getIO } from './socket';
+import { resolveRestaurantAvailability } from './restaurantAvailability';
 
 let statusCheckInFlight = false;
 
@@ -13,51 +14,58 @@ export async function checkAllRestaurantsStatus() {
 
   // console.log('[Watchdog] Checking all restaurants status...');
   try {
-    const restaurants = await prisma.restaurant.findMany({
+    const [restaurants, platformSettings] = await Promise.all([prisma.restaurant.findMany({
       select: {
         id: true,
         name: true,
         openingHours: true,
-        isOpen: true,
+        scheduledOpenNow: true,
+        acceptingOrdersMode: true,
+        acceptingOrdersOverrideUntil: true,
+        acceptingOrdersOverrideReason: true,
+        pausedUntil: true,
+        draft: true,
+        comingSoon: true,
+        city_relation: {
+          select: { ordersPaused: true, ordersPausedUntil: true, ordersPauseReason: true },
+        },
         slug: true
       }
-    });
+    }), prisma.restaurantSettings.findUnique({ where: { id: 'settings' } })]);
 
     for (const r of restaurants) {
       const shouldBeOpen = isRestaurantOpen(r.openingHours);
-      const currentStatus = r.isOpen;
+      const currentScheduleProjection = r.scheduledOpenNow;
 
-      if (shouldBeOpen !== currentStatus) {
-        console.log(`[Watchdog] !!! STATUS MISMATCH for ${r.name}: Changing ${currentStatus} -> ${shouldBeOpen}`);
+      if (shouldBeOpen !== currentScheduleProjection) {
+        console.log(`[Watchdog] Schedule projection for ${r.name}: ${currentScheduleProjection} -> ${shouldBeOpen}`);
         const updated = await prisma.restaurant.update({
           where: { id: r.id },
-          data: { isOpen: shouldBeOpen }
+          // The watchdog owns only this projection. It must never rewrite
+          // acceptingOrdersMode, crisis overlays, or the legacy manual flag.
+          data: { scheduledOpenNow: shouldBeOpen }
         });
-
-        // Sync global RestaurantSettings so Hero.tsx / Navbar.tsx polling stays correct
-        try {
-          await prisma.restaurantSettings.upsert({
-            where: { id: 'settings' },
-            update: { isOpen: shouldBeOpen },
-            create: { id: 'settings', isOpen: shouldBeOpen, deliveryFee: 0, minOrderAmount: 0 },
-          });
-        } catch { /* non-critical */ }
+        const availability = resolveRestaurantAvailability(
+          { ...r, scheduledOpenNow: shouldBeOpen },
+          { city: r.city_relation, platform: platformSettings },
+        );
 
         // Broadcast per-restaurant change
         getIO().emit('settings:updated', {
           restaurantId: updated.id,
           slug: updated.slug,
-          isOpen: shouldBeOpen,
-          manualIsOpen: shouldBeOpen
+          isOpen: availability.isOpen,
+          manualIsOpen: availability.legacyManualIsOpen,
+          scheduledOpenNow: shouldBeOpen,
+          acceptingOrdersMode: availability.configuredMode,
+          availabilityReason: availability.reason,
         });
-
-        // Broadcast global change (picked up by Hero.tsx / Navbar.tsx)
-        getIO().emit('settings:updated', { isOpen: shouldBeOpen });
         
         // Also notify the admin room specific to this restaurant
         getIO().to(`admin-room:${updated.id}`).emit('status:auto-updated', {
-          isOpen: shouldBeOpen,
-          message: `Restaurangen har ${shouldBeOpen ? 'öppnats' : 'stängts'} automatiskt enligt schema.`
+          isOpen: availability.isOpen,
+          scheduledOpenNow: shouldBeOpen,
+          message: `Schemat är nu ${shouldBeOpen ? 'öppet' : 'stängt'}; effektiv status är ${availability.isOpen ? 'öppen' : 'stängd'}.`
         });
       }
     }

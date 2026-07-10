@@ -1,5 +1,5 @@
-import { SponsorsPage } from "@/modules/sponsors/page";
+import { redirect } from "next/navigation";
 
 export default function RouteSponsorsPage() {
-  return <SponsorsPage />;
+  redirect("/homepage?tab=cards");
 }

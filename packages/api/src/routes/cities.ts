@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
-import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
-import { isPointInZone, pointInPolygon, haversineKm, findDeliveryZone, DeliveryZone } from '../utils/geo';
+import { normalizeDeliveryZones } from '../utils/deliveryZones';
+import { isPointInZone, pointInPolygon, findDeliveryZone, DeliveryZone } from '../utils/geo';
 import { getEffectiveZoneEta } from '../lib/restaurantZoneEta';
-import { getDpointsSettings, resolveDpointsCourierFeeOre } from '../lib/dpoints';
 import { resolveOrCreateCity, getCityFamilyIds } from '../lib/cityResolver';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { cached, bustCache } from '../lib/ttlCache';
+import { moneyDto, nullableMoneyDto, parseOre } from '../utils/money';
+import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 
 const router = Router();
 
@@ -21,27 +22,56 @@ const safeJsonParse = <T>(value: unknown, fallback: T): T => {
   try { return JSON.parse(value) as T; } catch { return fallback; }
 };
 
+const formatCityForApi = (city: any, platformSettings?: any) => ({
+  ...city,
+  // Keep legacy freeDeliveryAbove in ore for the current admin client.
+  freeDeliveryAboveOre: city.freeDeliveryAbove ?? 0,
+  freeDeliveryAboveMoney: moneyDto(city.freeDeliveryAbove ?? 0),
+  restaurants: Array.isArray(city.restaurants)
+    ? city.restaurants.map((restaurant: any) => {
+        const availability = resolveRestaurantAvailability(restaurant, {
+          city,
+          platform: platformSettings,
+        });
+        return {
+          ...restaurant,
+          isOpen: availability.isOpen,
+          manualIsOpen: availability.legacyManualIsOpen,
+          scheduledOpenNow: availability.scheduledOpenNow,
+          acceptingOrdersMode: availability.configuredMode,
+          availabilityReason: availability.reason,
+          freeDeliveryAboveOre: restaurant.freeDeliveryAbove ?? null,
+          freeDeliveryAboveMoney: nullableMoneyDto(restaurant.freeDeliveryAbove),
+        };
+      })
+    : [],
+});
+
 // ── GET /api/cities ───────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     const all = req.query.all === 'true';
     // Cache 30s: identical for all anonymous callers; collapses the home herd.
-    const cities = await cached('cities:list', all ? 'all' : 'active', 30_000, () =>
-      (prisma as any).city.findMany({
+    const [cities, platformSettings] = await cached('cities:list', all ? 'all' : 'active', 30_000, () =>
+      Promise.all([(prisma as any).city.findMany({
         where: all ? {} : { isActive: true },
         include: {
           restaurants: {
             select: {
               id: true, name: true, slug: true, isOpen: true, city: true,
+              openingHours: true, scheduledOpenNow: true,
+              acceptingOrdersMode: true, acceptingOrdersOverrideUntil: true,
+              acceptingOrdersOverrideReason: true, pausedUntil: true,
+              draft: true, comingSoon: true,
               freeDeliveryAbove: true, // EXCLUDED deliveryZones
               latitude: true, longitude: true,
             }
           }
         },
         orderBy: { name: 'asc' }
-      })
+      }), prisma.restaurantSettings.findUnique({ where: { id: 'settings' } })])
     );
-    res.json(cities);
+    res.json(cities.map((city: any) => formatCityForApi(city, platformSettings)));
   } catch (err) {
     console.error('Cities fetch error:', err);
     res.status(500).json({ error: 'Kunde inte hämta städer' });
@@ -205,30 +235,41 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
     const {
       id, name, slug, deliveryMode, zones, isActive,
       latitude, longitude, centerLat, centerLng, radiusKm, polygon,
-      freeDeliveryAbove, restaurantIds, restaurantZones,
+      freeDeliveryAbove, freeDeliveryAboveOre, restaurantIds, restaurantZones,
     } = req.body;
 
     const citySlug = slug || (name || '').toLowerCase().replace(/[^a-zåäö0-9]+/gi, '-').replace(/^-|-$/g, '');
+    if (restaurantIds !== undefined && (!Array.isArray(restaurantIds) || !restaurantIds.every((rid) => typeof rid === 'string'))) {
+      throw new TypeError('restaurantIds måste vara string[]');
+    }
 
-    // Normalise zones — pass through new geometry fields
-    const zonesRaw = typeof zones === 'string' ? safeJsonParse(zones, []) : (zones || []);
-    const normalizedZones = normalizeDeliveryZones(zonesRaw);
-
-    const data: any = {
-      name,
-      deliveryMode: deliveryMode || 'ALL',
-      zones: JSON.stringify(normalizedZones),
-      isActive: isActive !== undefined ? Boolean(isActive) : true,
-      latitude:  latitude  ? Number(latitude)  : null,
-      longitude: longitude ? Number(longitude) : null,
-      centerLat: centerLat ? Number(centerLat) : undefined,
-      centerLng: centerLng ? Number(centerLng) : undefined,
-      radiusKm:  radiusKm  ? Number(radiusKm)  : undefined,
-      polygon: polygon
-        ? (typeof polygon === 'string' ? polygon : JSON.stringify(polygon))
-        : null,
-      freeDeliveryAbove: normalizeMoneyToOre(Number(freeDeliveryAbove || 0)),
-    };
+    // Dirty-only update: omitted fields are never converted to empty/default
+    // values. This route is an upsert for legacy reasons, but update semantics
+    // must still behave like PATCH.
+    const data: any = {};
+    if (name !== undefined) data.name = String(name);
+    if (deliveryMode !== undefined) data.deliveryMode = deliveryMode || 'ALL';
+    if (zones !== undefined) {
+      const zonesRaw = typeof zones === 'string' ? safeJsonParse(zones, []) : zones;
+      data.zones = JSON.stringify(normalizeDeliveryZones(zonesRaw, { strict: true }));
+    }
+    if (isActive !== undefined) data.isActive = Boolean(isActive);
+    if (latitude !== undefined) data.latitude = latitude == null ? null : Number(latitude);
+    if (longitude !== undefined) data.longitude = longitude == null ? null : Number(longitude);
+    if (centerLat !== undefined) data.centerLat = centerLat == null ? null : Number(centerLat);
+    if (centerLng !== undefined) data.centerLng = centerLng == null ? null : Number(centerLng);
+    if (radiusKm !== undefined) data.radiusKm = Number(radiusKm);
+    if (polygon !== undefined) {
+      data.polygon = polygon == null || polygon === ''
+        ? null
+        : typeof polygon === 'string' ? polygon : JSON.stringify(polygon);
+    }
+    if (freeDeliveryAboveOre !== undefined) {
+      data.freeDeliveryAbove = parseOre(freeDeliveryAboveOre, 'freeDeliveryAboveOre');
+    } else if (freeDeliveryAbove !== undefined) {
+      // Current city admin already sends this legacy field in ore.
+      data.freeDeliveryAbove = parseOre(Number(freeDeliveryAbove), 'freeDeliveryAbove');
+    }
 
     const city = await (prisma as any).$transaction(async (tx: any) => {
       let cityRecord: any;
@@ -243,6 +284,10 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
         restaurants: {
           select: {
             id: true, name: true, slug: true, isOpen: true, city: true,
+            openingHours: true, scheduledOpenNow: true,
+            acceptingOrdersMode: true, acceptingOrdersOverrideUntil: true,
+            acceptingOrdersOverrideReason: true, pausedUntil: true,
+            draft: true, comingSoon: true,
             deliveryZones: true, freeDeliveryAbove: true,
           }
         }
@@ -253,7 +298,9 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
           where: { id: cityRecord.id },
           data: {
             ...data,
-            ...(restaurantIds ? { restaurants: { set: restaurantIds.map((rid: string) => ({ id: rid })) } } : {}),
+            ...(restaurantIds !== undefined
+              ? { restaurants: { set: (restaurantIds as string[]).map((rid: string) => ({ id: rid })) } }
+              : {}),
           },
           include,
         });
@@ -262,7 +309,9 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
           data: {
             ...data,
             slug: citySlug,
-            ...(restaurantIds ? { restaurants: { connect: restaurantIds.map((rid: string) => ({ id: rid })) } } : {}),
+            ...(restaurantIds !== undefined
+              ? { restaurants: { connect: (restaurantIds as string[]).map((rid: string) => ({ id: rid })) } }
+              : {}),
           },
           include,
         });
@@ -273,13 +322,15 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
         for (const [rid, rdata] of Object.entries(restaurantZones)) {
           const rz = rdata as any;
           const rzRaw = typeof rz.zones === 'string' ? safeJsonParse(rz.zones, []) : (rz.zones || []);
-          const rzNorm = normalizeDeliveryZones(rzRaw);
+          const rzNorm = normalizeDeliveryZones(rzRaw, { strict: true });
           await tx.restaurant.update({
             where: { id: rid },
             data: {
               deliveryZones: JSON.stringify(rzNorm),
-              ...(rz.freeDeliveryAbove !== undefined
-                ? { freeDeliveryAbove: normalizeMoneyToOre(Number(rz.freeDeliveryAbove || 0)) }
+              ...(rz.freeDeliveryAboveOre !== undefined
+                ? { freeDeliveryAbove: parseOre(rz.freeDeliveryAboveOre, `restaurantZones.${rid}.freeDeliveryAboveOre`) }
+                : rz.freeDeliveryAbove !== undefined
+                ? { freeDeliveryAbove: parseOre(Number(rz.freeDeliveryAbove), `restaurantZones.${rid}.freeDeliveryAbove`) }
                 : {}),
             },
           });
@@ -297,10 +348,14 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
     bustCache('rest:list');
     bustCache('rest:detail');
 
-    res.json(city);
+    const platformSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
+    res.json(formatCityForApi(city, platformSettings));
   } catch (err) {
     console.error('City save error:', err);
-    res.status(500).json({ error: 'Kunde inte spara stad' });
+    const badInput = err instanceof TypeError || err instanceof RangeError;
+    res.status(badInput ? 400 : 500).json({
+      error: badInput ? (err as Error).message : 'Kunde inte spara stad',
+    });
   }
 });
 
@@ -326,7 +381,7 @@ router.post('/validate-location', async (req, res) => {
     // concurrent address checks each re-run the full scan and exhaust the DB pool.
     const geoKey = `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
     const result = await cached('zone:validate', geoKey, 60_000, async () => {
-    const cities = await (prisma as any).city.findMany({
+    const [cities, platformSettings] = await Promise.all([(prisma as any).city.findMany({
       where: { isActive: true },
       include: {
         restaurants: {
@@ -336,13 +391,14 @@ router.post('/validate-location', async (req, res) => {
             deliveryRadius: true, deliveryZones: true,
             latitude: true, longitude: true, placeId: true,
             featuredClass: true, cuisine: true, rating: true, isOpen: true,
+            openingHours: true, scheduledOpenNow: true,
+            acceptingOrdersMode: true, acceptingOrdersOverrideUntil: true,
+            acceptingOrdersOverrideReason: true, pausedUntil: true,
+            draft: true, comingSoon: true,
           }
         }
       }
-    });
-
-    // Vpoints budkostnad-tariff (km-baserad) — hämtas en gång per cache-miss.
-    const dpSettings = await getDpointsSettings();
+    }), prisma.restaurantSettings.findUnique({ where: { id: 'settings' } })]);
 
     const matchedCities: any[] = [];
 
@@ -371,33 +427,38 @@ router.post('/validate-location', async (req, res) => {
           // > admin-kickstart (rZone.etaMinutes) > restaurang-default.
           // getEffectiveZoneEta applicerar snap till 5-min-intervall.
           const effectiveEta = getEffectiveZoneEta(rZone as any, r.etaMinutes ?? undefined);
-
-          // Budkostnad (öre) för poäng-ENBART leverans till denna adress.
-          // Samma haversine + km-tariff som orders.ts → klienten kan visa exakt
-          // belopp och det matchar serverns order-total.
-          const dpointsCourierFee = rZone.fee > 0
-            ? rZone.fee
-            : (
-              typeof r.latitude === 'number' && typeof r.longitude === 'number'
-                ? resolveDpointsCourierFeeOre(haversineKm(lat, lng, r.latitude, r.longitude), dpSettings)
-                : (dpSettings.dpointsCourierCost ?? 0)
-            );
+          const availability = resolveRestaurantAvailability(r, {
+            city,
+            platform: platformSettings,
+          });
 
           return {
             ...r,
+            isOpen: availability.isOpen,
+            manualIsOpen: availability.legacyManualIsOpen,
+            scheduledOpenNow: availability.scheduledOpenNow,
+            acceptingOrdersMode: availability.configuredMode,
+            availabilityReason: availability.reason,
             // Skriv över restaurangens default deliveryFee/minOrderAmount med
             // zon-specifika värden. Klienten ska ALDRIG visa
             // restaurang-default-fee — bara zon-fee. Vi sätter dem här för
             // bakåtkompat med klienter som läser fältet direkt.
             deliveryFee: rZone.fee,
+            deliveryFeeOre: rZone.feeOre,
+            deliveryFeeMoney: moneyDto(rZone.feeOre),
             minOrderAmount: rZone.minOrder,
-            dpointsCourierFee,
+            minOrderAmountOre: rZone.minOrderOre,
+            minOrderAmountMoney: moneyDto(rZone.minOrderOre),
             etaMinutes: effectiveEta,
             matchedZone: {
               id: rZone.id,
               name: rZone.name,
               deliveryFee: rZone.fee,
+              deliveryFeeOre: rZone.feeOre,
+              deliveryFeeMoney: moneyDto(rZone.feeOre),
               minOrder: rZone.minOrder,
+              minOrderOre: rZone.minOrderOre,
+              minOrderMoney: moneyDto(rZone.minOrderOre),
               etaMinutes: effectiveEta,
               // Diagnostik så admin/web kan visa "auto-räknat efter X ordrar"
               // istället för att gissa om värdet är manuellt eller beräknat.

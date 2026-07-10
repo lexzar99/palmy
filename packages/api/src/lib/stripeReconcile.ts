@@ -88,20 +88,10 @@ export async function applyPaymentSuccess(orderId: string, paymentIntent: Stripe
   // Referral-reward — kollar om detta är invitee:s första betalda order
   // och triggar 50/50-rewarden om så. Fail-safe: kastar aldrig.
   try {
-    const { maybeRewardInvite } = await import('./invite');
-    await maybeRewardInvite(order.id);
+    const { maybeTriggerReferralReward } = await import('../routes/referrals');
+    await maybeTriggerReferralReward(order.id);
   } catch (e: any) {
     console.error('[stripeReconcile] referral-reward-trigger error:', e?.message);
-  }
-
-  // Vpoints — intjäning + streak-utmaningar. Idempotent (Order.pointsAwarded
-  // race-guard), fail-safe (kastar aldrig). Enda intjäningspunkten i systemet →
-  // confirm/webhook/reconcile landar alla här.
-  try {
-    const { awardOrderPointsIfNotAwarded } = await import('./dpoints');
-    await awardOrderPointsIfNotAwarded(order.id);
-  } catch (e: any) {
-    console.error('[stripeReconcile] dpoints-earn error:', e?.message);
   }
 
   // UserDeal: markera reserverad welcome/referral-kupong som USED.
@@ -167,15 +157,6 @@ export async function applyPaymentFailed(orderId: string, paymentIntent: Stripe.
       where: { id: failedOrder.userDealId, status: 'RESERVED', usedOnOrderId: orderId },
       data: { status: 'ACTIVE', usedOnOrderId: null },
     }).catch((e: any) => console.error('[stripe-reconcile] userDeal revert failed:', e?.message));
-  }
-
-  // Vpoints: ge tillbaka poäng som reserverades vid order-skapande (köp-med-poäng).
-  // Idempotent (Order.pointsReverted); earn=0 på obetald order så bara inlöst återförs.
-  try {
-    const { revertOrderPointsForRefund } = await import('./dpoints');
-    await revertOrderPointsForRefund(orderId);
-  } catch (e: any) {
-    console.error('[stripe-reconcile] dpoints revert failed:', e?.message);
   }
 
   console.log(`[stripe-reconcile] ❌ Markerade order ${orderId} som FAILED (intent ${paymentIntent.id}, reason: ${paymentIntent.last_payment_error?.message || 'unknown'})`);
