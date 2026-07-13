@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Calendar, Plus, Store, Trash2, X } from "lucide-react";
+import { Calendar, Plus, Save, Store, Trash2, X } from "lucide-react";
 import {
   createRestaurant,
   deleteRestaurant,
@@ -22,6 +22,7 @@ import {
   ConfirmDialog,
   DurationInput,
   EmptyState,
+  ErrorPanel,
   Field,
   FieldGroup,
   Input,
@@ -41,7 +42,7 @@ import {
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { NotesPanel } from "@/shared/components/notes-panel";
 import GooglePlacesInput from "@/shared/components/google-places-input";
-import { AcceptingOrdersModeSelect, RestaurantAvailabilitySummary } from "@/shared/components/restaurant-availability";
+import { AcceptingOrdersModeToggle, RestaurantAvailabilitySummary } from "@/shared/components/restaurant-availability";
 import { useToast } from "@/shared/components/toast";
 import { acceptingOrdersModeLabel } from "@/shared/contracts/restaurants";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, restaurantTierLabel } from "@/shared/utils/format";
@@ -291,9 +292,16 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   // Båda riktningarna är super admin-only, servern avvisar andra.
   const setDraftMutation = useMutation({ meta: { toast: false },
     mutationFn: async (nextDraft: boolean) => patchRestaurant(restaurantId!, { draft: nextDraft }),
-    onSuccess: async (_data, nextDraft) => {
+    onSuccess: async (saved, nextDraft) => {
       showToast({ type: "success", message: nextDraft ? "Satt till utkast (agenten kan nu jobba)" : "Restaurangen är publicerad" });
-      setInitialized(false);
+      // Use the mutation response immediately. Waiting for the invalidated
+      // detail query made the switch look stuck and could leave the form in
+      // the old draft state when the follow-up request hit a stale cache.
+      const mapped = mapDetailToForm(saved as RestaurantDetail);
+      setForm(mapped);
+      setSavedForm(mapped);
+      setInitialized(true);
+      queryClient.setQueryData(detailQueryKey(restaurantId!), saved);
       await queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
       await queryClient.invalidateQueries({ queryKey: detailQueryKey(restaurantId!) });
     },
@@ -320,6 +328,19 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
     );
   }
 
+  if (!isCreate && (detail.isError || !detail.data)) {
+    return (
+      <div className="page-stack">
+        <PageHeader breadcrumb="Partners / Restauranger" title="Kunde inte läsa restaurangen" onBack={() => router.push("/restaurants")} />
+        <ErrorPanel
+          title="Restaurangdetaljen kunde inte hämtas"
+          description="Statusen för utkast/publicerad visas inte förrän servern har svarat korrekt."
+          action={<Button onClick={() => void detail.refetch()}>Försök igen</Button>}
+        />
+      </div>
+    );
+  }
+
   const detailData = detail.data;
 
   return (
@@ -329,31 +350,32 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         breadcrumb={`Restauranger / ${isCreate ? "Ny" : form.name || "Restaurang"}`}
         title={isCreate ? "Ny restaurang" : "Redigera restaurang"}
         onBack={() => router.push("/restaurants")}
-        actions={
-          !isCreate ? (
-            <Button variant="danger" onClick={() => setDeleteConfirmOpen(true)} disabled={deleteMutation.isPending}>
-              <Trash2 size={14} /> Radera
-            </Button>
-          ) : undefined
-        }
+        actions={(
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {!isCreate && (
+              <div className="flex items-center gap-2 rounded-[9px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-3 py-1.5">
+                <span className="text-xs font-bold text-[var(--text-secondary)]">{detailData?.draft ? "Utkast" : "Publicerad"}</span>
+                <Toggle
+                  ariaLabel="Ändra publiceringsstatus"
+                  checked={!detailData?.draft}
+                  disabled={setDraftMutation.isPending}
+                  onChange={(nextPublished) => setPendingDraftState(!nextPublished)}
+                />
+              </div>
+            )}
+            {(isDirty || isCreate) ? (
+              <Button variant="primary" onClick={() => saveMutation.mutate()} loading={saveMutation.isPending}>
+                {!saveMutation.isPending ? <Save size={14} /> : null} Spara
+              </Button>
+            ) : null}
+            {!isCreate ? (
+              <Button variant="danger" onClick={() => setDeleteConfirmOpen(true)} disabled={deleteMutation.isPending}>
+                <Trash2 size={14} /> Radera
+              </Button>
+            ) : null}
+          </div>
+        )}
       />
-
-      {!isCreate && (
-        (() => {
-          const isDraft = Boolean((detailData as any)?.draft);
-          return (
-            <div className="rounded-xl border border-[var(--row-divider)] px-4 py-3">
-              <SwitchField
-                label={isDraft ? "Publicera restaurangen" : "Restaurangen är publicerad"}
-                hint={isDraft ? "Gömd för kunder tills den publiceras." : "Synlig i app och webb."}
-                checked={!isDraft}
-                disabled={setDraftMutation.isPending}
-                onChange={(nextPublished) => setPendingDraftState(!nextPublished)}
-              />
-            </div>
-          );
-        })()
-      )}
 
       {saveError && <p className="rounded-xl bg-[rgba(239,68,68,0.1)] px-4 py-3 text-sm text-red-400">{saveError}</p>}
 
@@ -433,21 +455,15 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
           </Surface>
           <div className="grid content-start gap-4">
             <Surface className="grid content-start gap-4 p-5">
-              <div>
-                <p className="text-[15px] font-extrabold tracking-[-0.3px]">Media</p>
-                <p className="mt-1 text-xs leading-relaxed text-[var(--text-muted)]">Logotypen används i kompakta listor. Omslagsbilden används på restaurangsidan och i marknadsföringskort.</p>
-              </div>
+              <p className="text-[15px] font-extrabold tracking-[-0.3px]">Media</p>
               <ImageUploadField label="Logotyp" kind="logo" restaurantId={restaurantId} value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
               <ImageUploadField label="Omslagsbild" kind="hero" restaurantId={restaurantId} value={form.heroImageUrl} onChange={(url) => set("heroImageUrl", url)} />
             </Surface>
             <Surface className="p-5">
               <p className="text-[15px] font-extrabold tracking-[-0.3px]">Status &amp; synlighet</p>
               <div className="mt-4 grid gap-3.5">
-                <Field
-                  label="Beställningsläge"
-                  hint="Schema är normalläget. Manuella lägen skriver aldrig över öppettiderna."
-                >
-                  <AcceptingOrdersModeSelect
+                <Field label="Beställningsläge">
+                  <AcceptingOrdersModeToggle
                     value={form.acceptingOrdersMode}
                     onValueChange={(nextMode) => {
                       set("acceptingOrdersMode", nextMode);
@@ -504,7 +520,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 />
                 <SwitchField
                   label="Coming soon"
-                  hint="Visas dimmad och kan inte öppnas av kunden."
                   checked={form.comingSoon}
                   onChange={(v) => set("comingSoon", v)}
                 />
@@ -512,26 +527,22 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               </div>
             </Surface>
             {!isCreate && (
-              <Surface className="grid gap-2 p-3 sm:grid-cols-2">
-                <Button className="h-9 min-h-9 text-xs" variant="secondary" onClick={() => setTab("hours")}>Öppettider ›</Button>
-                <Button className="h-9 min-h-9 text-xs" variant="secondary" onClick={() => router.push(`/zones?restaurantId=${restaurantId}`)}>Zoner ›</Button>
+              <Surface className="flex flex-wrap gap-2 p-3">
+                <Button className="h-9 min-h-9 flex-1 text-xs" variant="secondary" onClick={() => setTab("hours")}>Öppettider ›</Button>
+                <Button className="h-9 min-h-9 flex-1 text-xs" variant="secondary" onClick={() => router.push(`/zones?restaurantId=${restaurantId}`)}>Zoner ›</Button>
+                <Button className="h-9 min-h-9 flex-1 text-xs" variant="secondary" onClick={() => router.push(`/menu?restaurantId=${restaurantId}`)}>Meny ›</Button>
+                <Button className="h-9 min-h-9 flex-1 text-xs" variant="secondary" onClick={() => router.push(`/deals?tab=kampanjer&restaurantId=${restaurantId}`)}>Deals ›</Button>
               </Surface>
             )}
-            {!isCreate && (
-              <Surface className="p-3">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button className="h-9 min-h-9 text-xs" variant="secondary" onClick={() => router.push(`/menu?restaurantId=${restaurantId}`)}>Meny →</Button>
-                  <Button className="h-9 min-h-9 text-xs" variant="secondary" onClick={() => router.push(`/deals?tab=kampanjer&restaurantId=${restaurantId}`)}>Deals →</Button>
-                </div>
-              </Surface>
-            )}
-            {/* Support-anteckningar på restaurangen (super-admin-only). */}
-            {!isCreate && restaurantId ? (
-              <NotesPanel target={{ restaurantId }} title="Support-anteckningar" />
-            ) : null}
           </div>
         </div>
       )}
+
+      {/* Support-anteckningar ligger under huvudlayouten så de inte skapar en
+          lång, tom vänsterspalt i den primära restauranginformationen. */}
+      {tab === "info" && !isCreate && restaurantId ? (
+        <NotesPanel target={{ restaurantId }} title="Support-anteckningar" />
+      ) : null}
 
       {/* Menu tab */}
       {tab === "menu" && (
@@ -727,8 +738,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       {tab === "settings" && (
         <div className="grid items-start gap-4 lg:grid-cols-2">
           <Surface className="grid content-start gap-4 p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Drift</p>
-            <p className="text-xs leading-relaxed text-[var(--text-secondary)]">Beställningsstatus och synlighet hanteras i Info-fliken så samma värde inte kan redigeras på två ställen.</p>
+            <p className="text-[15px] font-extrabold tracking-[-0.3px]">Drift</p>
             <Field label="Tier (abonnemang + ranking)">
               <Select value={String(form.featuredClass)} onChange={(e) => set("featuredClass", Number(e.target.value))}>
                 <option value="1">Gold</option>
@@ -737,9 +747,9 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <option value="0">Dold</option>
               </Select>
             </Field>
-            <div className="rounded-[10px] border border-[var(--row-divider)] p-4">
+            <div className="grid gap-3.5 border-t border-[var(--row-divider)] pt-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Leveransmodell (styr provision)</p>
+                <p className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">Leveransmodell</p>
                 <DeliveryModeBadge selfDelivery={form.selfDelivery} />
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -749,19 +759,19 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                     <option value="self">Levererar själv (10%)</option>
                   </Select>
                 </Field>
-                <Field label="Provisions-override" hint="Tomt använder global sats">
+                <Field label="Provisions-override">
                   <PercentInput placeholder="Global sats" value={form.commissionPctOverride} onValueChange={(value) => set("commissionPctOverride", value)} />
                 </Field>
               </div>
             </div>
-            <div className="rounded-[10px] border border-[var(--row-divider)] p-4">
+            <div className="grid gap-3.5 border-t border-[var(--row-divider)] pt-4">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">ETA (leveranstid)</p>
+                <p className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">ETA</p>
                 <Badge tone="neutral">{form.etaEffective} min effektiv</Badge>
               </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Beräknad (auto)"><Input value={form.etaCalculated != null ? `${form.etaCalculated} min` : "Default 40 min"} disabled /></Field>
-                <Field label="Override" hint="25–60 minuter">
+                <Field label="Override">
                   <DurationInput min={25} max={60} placeholder="35" value={form.etaOverride} onValueChange={(value) => set("etaOverride", value)} />
                 </Field>
               </div>
@@ -775,15 +785,15 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             </Field>
           </Surface>
           <Surface className="grid content-start gap-4 p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Övrigt</p>
-            <Field label="Betyg" hint="0–5">
+            <p className="text-[15px] font-extrabold tracking-[-0.3px]">Övrigt</p>
+            <Field label="Betyg">
               <NumberInput min={0} max={5} step={0.1} suffix="★" value={form.rating} onValueChange={(value) => set("rating", value)} />
             </Field>
             <Field label="Antal betyg">
               <IntegerInput min={0} value={form.ratingCount} onValueChange={(value) => set("ratingCount", value)} />
             </Field>
             <Field label="Logout-kod (Flutter)"><Input type="password" inputMode="numeric" value={form.logoutCode} onChange={(e) => set("logoutCode", e.target.value)} placeholder="t.ex. 1234" /></Field>
-            <FieldGroup label="Koordinater" hint="Hämtas från vald Google Places-adress">
+            <FieldGroup label="Koordinater">
               <div className="flex gap-2">
                 <Input value={form.latitude} disabled placeholder="Lat" />
                 <Input value={form.longitude} disabled placeholder="Lng" />
@@ -797,24 +807,12 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         </div>
       )}
 
-      {/* Sticky save bar — visas vid osparade ändringar */}
-      {(isDirty || isCreate) && (
-        <div className="save-bar">
-          <span className="save-bar-status">
-            {isCreate ? "Ny restaurang" : "Osparade ändringar"}
-          </span>
-          <div className="flex items-center gap-2">
-            {!isCreate && isDirty && (
-              <Button variant="secondary" onClick={() => setForm(savedForm)} disabled={saveMutation.isPending}>
-                Återställ
-              </Button>
-            )}
-            <Button variant="primary" onClick={() => saveMutation.mutate()} loading={saveMutation.isPending}>
-              Spara ändringar
-            </Button>
-          </div>
+      {isDirty && !isCreate ? (
+        <div className="flex items-center justify-between border-t border-[var(--row-divider)] pt-3 text-xs text-[var(--text-muted)]">
+          <span>Osparade ändringar</span>
+          <Button className="h-8 min-h-8 text-xs" variant="secondary" onClick={() => setForm(savedForm)} disabled={saveMutation.isPending}>Återställ</Button>
         </div>
-      )}
+      ) : null}
 
       <ConfirmDialog
         open={deleteConfirmOpen}

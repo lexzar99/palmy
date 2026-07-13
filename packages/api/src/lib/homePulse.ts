@@ -190,7 +190,7 @@ const productDto = (p: any) => ({
 
 async function previewRestaurants(limit = 4) {
   const restaurants = await prisma.restaurant.findMany({
-    where: { comingSoon: false },
+    where: { comingSoon: false, draft: false },
     select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true },
     orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
     take: limit,
@@ -200,7 +200,7 @@ async function previewRestaurants(limit = 4) {
 
 async function previewProducts(limit = 4) {
   const products = await prisma.product.findMany({
-    where: { isActive: true, category: { isActive: true, restaurant: { comingSoon: false } } },
+    where: { isActive: true, category: { isActive: true, restaurant: { comingSoon: false, draft: false } } },
     include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true } } } } },
     orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
     take: limit,
@@ -214,9 +214,9 @@ async function buildChampion(params: Record<string, number>) {
   if (!restaurantId) return null;
   const restaurant = await prisma.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, comingSoon: true },
+    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, comingSoon: true, draft: true },
   });
-  if (!restaurant || restaurant.comingSoon) return null;
+  if (!restaurant || restaurant.comingSoon || restaurant.draft) return null;
   const orders7d = await prisma.order.count({
     where: {
       restaurantId: restaurant.id,
@@ -282,7 +282,7 @@ async function buildHotProducts(params: Record<string, number>) {
   const products = await prisma.product.findMany({
     where: { id: { in: (grouped as any[]).map((g) => g.productId) }, isActive: true, price: { gte: minPriceOre } },
     include: {
-      category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, comingSoon: true } } } },
+      category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, comingSoon: true, draft: true } } } },
     },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
@@ -296,7 +296,7 @@ async function buildHotProducts(params: Record<string, number>) {
     if (items.length >= maxItems) break;
     const product = byId.get(g.productId) as any;
     const restaurant = product?.category?.restaurant;
-    if (!product || !restaurant || restaurant.comingSoon) continue;
+    if (!product || !restaurant || restaurant.comingSoon || restaurant.draft) continue;
     const used = perRestaurant.get(restaurant.id) || 0;
     if (used >= maxPerRestaurant) continue;
     perRestaurant.set(restaurant.id, used + 1);
@@ -340,7 +340,7 @@ async function buildNewMenuItems(params: Record<string, number>) {
     where: {
       createdAt: { gte: windowStart },
       isActive: true,
-      category: { isActive: true, restaurant: { comingSoon: false, createdAt: { lte: minRestaurantCreated } } },
+      category: { isActive: true, restaurant: { comingSoon: false, draft: false, createdAt: { lte: minRestaurantCreated } } },
     },
     include: {
       category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, createdAt: true } } } },
@@ -439,7 +439,7 @@ async function buildFastestToday(params: Record<string, number>) {
   if (!candidates.length) return null;
 
   const restaurants = await prisma.restaurant.findMany({
-    where: { id: { in: candidates.map((c) => c.restaurantId) }, comingSoon: false },
+    where: { id: { in: candidates.map((c) => c.restaurantId) }, comingSoon: false, draft: false },
     select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true },
   });
   const byId = new Map(restaurants.map((r) => [r.id, r]));
@@ -504,10 +504,10 @@ async function buildDailyDrop(params: Record<string, number>, force = false) {
   if (!pick) return null;
   const product = await prisma.product.findFirst({
     where: { id: pick.productId, isActive: true },
-    include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, comingSoon: true } } } } },
+    include: { category: { select: { restaurant: { select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, comingSoon: true, draft: true } } } } },
   });
   const restaurant = (product as any)?.category?.restaurant;
-  if (!product || !restaurant || restaurant.comingSoon) return null;
+  if (!product || !restaurant || restaurant.comingSoon || restaurant.draft) return null;
   const endsAt = new Date(now);
   endsAt.setHours(endHour, 0, 0, 0);
   await logEngineEvent('daily_drop', `Dagens drop: ${product.name} hos ${restaurant.name}`, { productId: product.id });
@@ -566,7 +566,7 @@ async function buildComeback(userId: string, params: Record<string, number>) {
   const pick = dailyPick(candidates, `comeback:${userId}`);
   if (!pick) return null;
   const restaurant = await prisma.restaurant.findFirst({
-    where: { id: pick.restaurantId, comingSoon: false },
+    where: { id: pick.restaurantId, comingSoon: false, draft: false },
     select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true },
   });
   if (!restaurant) return null;

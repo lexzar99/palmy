@@ -70,6 +70,7 @@ export interface RestaurantDetail {
   /** @deprecated använd acceptingOrdersMode. */
   manualIsOpen: boolean;
   comingSoon?: boolean;
+  draft?: boolean;
   featuredClass: number;
   selfDelivery?: boolean;
   commissionPctOverride?: number | null;

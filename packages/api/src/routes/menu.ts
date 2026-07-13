@@ -91,12 +91,24 @@ router.get('/categories', async (req, res) => {
           id: true,
           slug: true,
           city: true,
+          draft: true,
           offersImageUrl: true,
           city_relation: { select: { slug: true, name: true } },
         },
       });
     })();
     const resolvedRestaurantId = resolvedRestaurant?.id ?? null;
+
+    // The admin editor intentionally reads draft menus through /admin/*.
+    // Customer clients (web, Swift and older app builds) must never receive
+    // the same data while a restaurant is still being edited. Keep this gate
+    // before the menu cache and before any category query so a draft response
+    // can never be cached under a public restaurant key.
+    if (hasRestaurantScope && (!resolvedRestaurant || resolvedRestaurant.draft)) {
+      res.status(404).json({ error: 'Restaurang hittades inte' });
+      return;
+    }
+
     const restSlugForR2 = resolvedRestaurant?.slug ?? '';
     const citySlugForR2 = resolvedRestaurant
       ? (resolvedRestaurant.city_relation?.slug
@@ -323,7 +335,14 @@ router.get('/categories', async (req, res) => {
 router.get('/products/:id', async (req, res) => {
   try {
     const product = await prisma.product.findFirst({
-      where: { id: req.params.id, isActive: true },
+      where: {
+        id: req.params.id,
+        isActive: true,
+        category: {
+          isActive: true,
+          restaurant: { draft: false },
+        },
+      },
       include: {
         category: true,
         extraGroups: {

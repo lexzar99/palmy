@@ -25,6 +25,14 @@ const router = Router();
 
 const kr = (amount: number) => sekToOre(amount, 'amountSek');
 const fromOre = (amount?: number | null) => oreToSek(amount);
+// Extra options may intentionally adjust a base price downwards (for example
+// a smaller pizza size). Product/delivery amounts are non-negative, but an
+// addon is a signed delta and must not make the whole restaurant response 500.
+const fromSignedOre = (amount?: number | null) => {
+  if (amount == null) return 0;
+  const numeric = Number(amount);
+  return Number.isFinite(numeric) ? Math.round(numeric) / 100 : 0;
+};
 const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
   try {
     return value ? (JSON.parse(value) as T) : fallback;
@@ -229,7 +237,7 @@ const formatRestaurant = (
             extras: (peg.extraGroup.extras || []).map((e: any) => ({
               id: e.id,
               name: e.name,
-              priceAddon: fromOre(e.priceAddon),
+              priceAddon: fromSignedOre(e.priceAddon),
               isDefault: e.isDefault,
               imageUrl: e.imageUrl,
             })),
