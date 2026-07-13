@@ -1419,16 +1419,12 @@ router.get('/categories', async (req, res) => {
     }
 
     const includeProducts = req.query.includeProducts === 'true';
-    // includeGlobal=true  → always include categories with restaurantId=null
-    // includeGlobal=auto  → include globals only if no restaurant-specific categories exist
-    const includeGlobal = req.query.includeGlobal === 'true' || req.query.includeGlobal === '1';
-    const includeGlobalAuto = req.query.includeGlobal === 'auto';
-
     const productInclude = includeProducts ? {
       products: {
         orderBy: { position: 'asc' as const },
         include: {
           extraGroups: {
+            where: { extraGroup: { restaurantId: scopedRestaurantId } },
             orderBy: { position: 'asc' as const },
             include: {
               extraGroup: {
@@ -1442,36 +1438,22 @@ router.get('/categories', async (req, res) => {
       }
     } : {};
 
-    const queryWhere = (withGlobal: boolean) => ({
+    const queryWhere = {
       isActive: true,
       name: { not: ARCHIVE_CATEGORY_NAME },
-      ...(scopedRestaurantId
-        ? (withGlobal
-            ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
-            : { restaurantId: scopedRestaurantId })
-        : {}),
-    });
+      restaurantId: scopedRestaurantId,
+    };
 
     const baseInclude = {
       _count: { select: { products: true } },
       ...productInclude,
     };
 
-    let categories = await prisma.category.findMany({
-      where: queryWhere(includeGlobal),
+    const categories = await prisma.category.findMany({
+      where: queryWhere,
       orderBy: { position: 'asc' },
       include: baseInclude,
     });
-
-    // Auto-mode: Palmyra's menu was seeded with restaurantId=null (global).
-    // If a restaurant admin has no own categories, fall back to global ones.
-    if (includeGlobalAuto && scopedRestaurantId && categories.length === 0) {
-      categories = await prisma.category.findMany({
-        where: queryWhere(true),
-        orderBy: { position: 'asc' },
-        include: baseInclude,
-      });
-    }
 
     res.json(categories);
   } catch {
@@ -1720,6 +1702,25 @@ const ProductSchema = z.object({
 // igenom delvisa uppdateringar utan att kräva name/price/categoryId.
 const ProductPatchSchema = ProductSchema.partial();
 
+// En produkt får bara länkas till valgrupper med samma scope som kategorin.
+// Detta gäller även super-admin, annars kan en felaktig import eller kopiering
+// göra att en restaurang börjar läsa en annan restaurangs valgrupper.
+async function validateProductExtraGroupScope(
+  extraGroupIds: string[] | undefined,
+  restaurantId: string | null,
+): Promise<string | null> {
+  if (!extraGroupIds?.length) return null;
+  const ids = [...new Set(extraGroupIds)];
+  const groups = await prisma.extraGroup.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, restaurantId: true },
+  });
+  if (groups.length !== ids.length || groups.some((group) => group.restaurantId !== restaurantId)) {
+    return 'Valgrupperna måste tillhöra samma restaurang som kategorin';
+  }
+  return null;
+}
+
 // GET /api/admin/products
 router.get('/products', async (req, res) => {
   try {
@@ -1728,31 +1729,22 @@ router.get('/products', async (req, res) => {
       ? (restaurantId ? (restaurantId as string) : null)
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
-    // includeGlobal=true/1 → always widen to products in global (restaurantId=null) categories.
-    // includeGlobal=auto  → widen to globals only if the scoped restaurant has no own products
-    //                       (mirrors the /categories auto-branch; Palmyra's menu was seeded global).
-    const includeGlobal = req.query.includeGlobal === 'true' || req.query.includeGlobal === '1';
-    const includeGlobalAuto = req.query.includeGlobal === 'auto';
-
-    const categoryWhere = (withGlobal: boolean) => ({
+    const categoryWhere = {
       isActive: true,
       name: { not: ARCHIVE_CATEGORY_NAME },
-      ...(scopedRestaurantId
-        ? (withGlobal
-            ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
-            : { restaurantId: scopedRestaurantId })
-        : {}),
-    });
+      restaurantId: scopedRestaurantId,
+    };
 
-    const findProducts = (withGlobal: boolean) => prisma.product.findMany({
+    const products = await prisma.product.findMany({
       where: {
         ...(categoryId ? { categoryId: categoryId as string } : {}),
-        category: categoryWhere(withGlobal),
+        category: categoryWhere,
       },
       orderBy: [{ categoryId: 'asc' as const }, { position: 'asc' as const }],
       include: {
         category: { select: { name: true, restaurantId: true } },
         extraGroups: {
+          where: { extraGroup: { restaurantId: scopedRestaurantId } },
           include: {
             extraGroup: {
               include: { extras: { orderBy: { position: 'asc' as const } } },
@@ -1761,14 +1753,6 @@ router.get('/products', async (req, res) => {
         },
       },
     });
-
-    let products = await findProducts(includeGlobal);
-
-    // Auto-mode: only fall back to global products when the scoped restaurant has
-    // zero own products, so a real restaurant never sees another tenant's items.
-    if (includeGlobalAuto && scopedRestaurantId && products.length === 0) {
-      products = await findProducts(true);
-    }
 
     res.json(products.map((p) => ({
       ...p,
@@ -1860,6 +1844,7 @@ router.post('/menu/sync', async (req, res) => {
         broadcastMenuChange(targetId, { kind: 'menu-sync', sourceRestaurantId });
       }
     }
+
     if (apply) {
       await audit(req as AuthRequest, 'MENU_SYNC', {
         resourceType: 'Restaurant', resourceId: sourceRestaurantId,
@@ -2109,6 +2094,15 @@ router.post('/products', async (req, res) => {
       }
     }
 
+    const extraGroupScopeError = await validateProductExtraGroupScope(
+      data.extraGroupIds,
+      category.restaurantId,
+    );
+    if (extraGroupScopeError) {
+      res.status(400).json({ error: extraGroupScopeError });
+      return;
+    }
+
     // Deterministisk, restaurang-scopad slug — kedjeplatser kan ha samma
     // produktnamn utan global slug-krock (se lib/slug.ts).
     const slug = await uniqueMenuSlug(
@@ -2168,17 +2162,18 @@ router.post('/products', async (req, res) => {
 // PATCH /api/admin/products/:id
 router.patch('/products/:id', async (req, res) => {
   try {
+    const existing = await prisma.product.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, category: { select: { restaurantId: true } } },
+    });
+    if (!existing) {
+      res.status(404).json({ error: 'Produkt hittades inte' });
+      return;
+    }
+
     if (!isSuperAdmin(req as AuthRequest)) {
       const rid = requireRestaurantScope(req as AuthRequest, res);
       if (!rid) return;
-      const existing = await prisma.product.findUnique({
-        where: { id: req.params.id },
-        select: { id: true, category: { select: { restaurantId: true } } },
-      });
-      if (!existing) {
-        res.status(404).json({ error: 'Produkt hittades inte' });
-        return;
-      }
       if (existing.category.restaurantId !== rid) {
         res.status(403).json({ error: 'Du kan bara uppdatera produkter för din restaurang' });
         return;
@@ -2195,6 +2190,14 @@ router.patch('/products/:id', async (req, res) => {
       return;
     }
     const { extraGroupIds, price, discountPrice, ...rest } = parsed.data;
+    const extraGroupScopeError = await validateProductExtraGroupScope(
+      extraGroupIds,
+      existing.category.restaurantId,
+    );
+    if (extraGroupScopeError) {
+      res.status(400).json({ error: extraGroupScopeError });
+      return;
+    }
     const updateData: Record<string, unknown> = { ...rest };
     if (price !== undefined) updateData.price = Math.round(price * 100);
     if (discountPrice !== undefined) {
@@ -2386,7 +2389,10 @@ router.post('/products/:id/duplicate', async (req, res) => {
       where: { id: req.params.id },
       include: {
         category: { select: { restaurantId: true, restaurant: { select: { slug: true } } } },
-        extraGroups: { orderBy: { position: 'asc' }, select: { extraGroupId: true, position: true } },
+        extraGroups: {
+          orderBy: { position: 'asc' },
+          select: { extraGroupId: true, position: true, extraGroup: { select: { restaurantId: true } } },
+        },
       },
     });
     if (!source) {
@@ -2433,10 +2439,12 @@ router.post('/products/:id/duplicate', async (req, res) => {
         localPriceLocked: source.localPriceLocked,
         ...(source.extraGroups.length > 0 ? {
           extraGroups: {
-            create: source.extraGroups.map((peg, i) => ({
-              extraGroupId: peg.extraGroupId,
-              position: peg.position ?? i,
-            })),
+            create: source.extraGroups
+              .filter((peg) => peg.extraGroup.restaurantId === source.category.restaurantId)
+              .map((peg, i) => ({
+                extraGroupId: peg.extraGroupId,
+                position: peg.position ?? i,
+              })),
           },
         } : {}),
       },

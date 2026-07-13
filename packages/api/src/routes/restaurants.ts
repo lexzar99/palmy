@@ -225,7 +225,9 @@ const formatRestaurant = (
           isVegan: prod.isVegan,
           isVegetarian: prod.isVegetarian,
           isGlutenFree: prod.isGlutenFree,
-          extraGroups: (prod.extraGroups || []).map((peg: any) => ({
+          extraGroups: (prod.extraGroups || [])
+            .filter((peg: any) => peg.extraGroup?.restaurantId === restaurant.id)
+            .map((peg: any) => ({
             id: peg.extraGroup.id,
             name: peg.extraGroup.name,
             type: peg.extraGroup.type,
@@ -993,7 +995,55 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
       return;
     }
 
-    await prisma.restaurant.delete({ where: { id: req.params.id } });
+    const restaurantId = req.params.id;
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { id: true },
+    });
+    if (!restaurant) {
+      res.status(404).json({ error: 'Restaurang hittades inte' });
+      return;
+    }
+
+    // Category/ExtraGroup/Deal.restaurantId är nullable eftersom plattformen
+    // historiskt stödde globala mallar. Prisma sätter därför dessa FK:er till
+    // NULL när restaurangen raderas. Det gör gammal restaurangdata global och
+    // är exakt orsaken till att en borttagen meny senare blandas in hos andra.
+    // Radera restaurangens tenant-data explicit i samma transaktion i stället.
+    await prisma.$transaction(async (tx) => {
+      const categories = await tx.category.findMany({
+        where: { restaurantId },
+        select: { id: true },
+      });
+      const categoryIds = categories.map((category) => category.id);
+
+      if (categoryIds.length) {
+        const products = await tx.product.findMany({
+          where: { categoryId: { in: categoryIds } },
+          select: { id: true },
+        });
+        const productIds = products.map((product) => product.id);
+        if (productIds.length) {
+          await tx.productExtraGroup.deleteMany({ where: { productId: { in: productIds } } });
+          await tx.product.deleteMany({ where: { id: { in: productIds } } });
+        }
+        await tx.category.deleteMany({ where: { id: { in: categoryIds } } });
+      }
+
+      const extraGroups = await tx.extraGroup.findMany({
+        where: { restaurantId },
+        select: { id: true },
+      });
+      const extraGroupIds = extraGroups.map((group) => group.id);
+      if (extraGroupIds.length) {
+        // onDelete: Cascade removes extras and product links.
+        await tx.extraGroup.deleteMany({ where: { id: { in: extraGroupIds } } });
+      }
+
+      // A restaurant deal must not become a global deal after deletion.
+      await tx.deal.deleteMany({ where: { restaurantId } });
+      await tx.restaurant.delete({ where: { id: restaurantId } });
+    });
     bustRestaurantCaches(); // restaurant gone → clear list/detail/zone/cities
     res.json({ success: true });
   } catch (err) {
@@ -1094,13 +1144,7 @@ router.get('/:slug', async (req, res) => {
 
       // Explicitly fetch categories using the same unified logic as the admin/app
       const categories = await prisma.category.findMany({
-        where: {
-          OR: [
-            { restaurantId: restaurant.id },
-            { restaurantId: null }
-          ],
-          isActive: true,
-        },
+        where: { restaurantId: restaurant.id, isActive: true },
         orderBy: { position: 'asc' },
         include: {
           products: {
@@ -1108,6 +1152,7 @@ router.get('/:slug', async (req, res) => {
             orderBy: { position: 'asc' },
             include: {
               extraGroups: {
+                where: { extraGroup: { restaurantId: restaurant.id } },
                 include: {
                   extraGroup: {
                     include: {

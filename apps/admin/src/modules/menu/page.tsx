@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronRight, ChevronUp, GripVertical, Loader2, Plus, Search, Tags, Upload } from "lucide-react";
-import { dealsQueryKey, getAutomaticDeals, type AutomaticDealRecord } from "@/modules/deals/api";
+import { getAutomaticDeals, restaurantDealsQueryKey, type AutomaticDealRecord } from "@/modules/deals/api";
 import {
   copyCategory,
   copyExtraGroup,
@@ -1777,7 +1777,11 @@ export function MenuPage() {
     });
 
   const restaurants = useQuery({ queryKey: menuRestaurantsQueryKey, queryFn: getMenuRestaurants });
-  const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
+  const automaticDeals = useQuery({
+    queryKey: restaurantDealsQueryKey(activeRestaurantId),
+    queryFn: () => getAutomaticDeals(activeRestaurantId),
+    enabled: Boolean(activeRestaurantId),
+  });
 
   // One-shot auto-pick av första restaurang vid första load. Utan denna ref
   // skulle effekten nedan reagera så fort `activeRestaurantId` blir null

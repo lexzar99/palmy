@@ -90,7 +90,7 @@ export const updateRestaurant = (id: string, payload: Partial<RestaurantRef> & R
   apiPatch<RestaurantRef>(`/restaurants/${id}`, payload);
 
 export const getCategories = (restaurantId: string) =>
-  apiGet<CategoryRecord[]>(`/admin/categories?restaurantId=${restaurantId}&includeGlobal=auto`);
+  apiGet<CategoryRecord[]>(`/admin/categories?restaurantId=${restaurantId}`);
 
 export const getProducts = (restaurantId: string) =>
   apiGet<ProductRecord[]>(`/admin/products?restaurantId=${restaurantId}`);

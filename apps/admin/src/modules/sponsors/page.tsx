@@ -404,7 +404,7 @@ export function SponsorsPage({
   const sponsors = useQuery({ queryKey: sponsorsQueryKey, queryFn: getSponsors });
   const ads = useQuery({ queryKey: adsQueryKey, queryFn: getAds });
   const restaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
-  const appDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
+  const appDeals = useQuery({ queryKey: dealsQueryKey, queryFn: () => getAutomaticDeals() });
 
   const [selectedSponsorId, setSelectedSponsorId] = useState<string | null>(null);
   const [selectedAdId, setSelectedAdId] = useState<string | null>(null);

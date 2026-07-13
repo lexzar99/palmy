@@ -144,6 +144,7 @@ export interface DealProductRef {
 }
 
 export const dealsQueryKey = ["deals", "automatic"] as const;
+export const restaurantDealsQueryKey = (restaurantId: string | null) => ["deals", "automatic", restaurantId] as const;
 export const discountCodesQueryKey = ["deals", "codes"] as const;
 export const personalCodesQueryKey = ["deals", "personal-codes"] as const;
 export const dealRestaurantsQueryKey = ["deals", "restaurants"] as const;
@@ -151,14 +152,15 @@ export const dealCustomersQueryKey = ["deals", "customers"] as const;
 export const dealCategoriesQueryKey = (restaurantId: string | null) => ["deals", "categories", restaurantId] as const;
 export const dealProductsQueryKey = (restaurantId: string | null) => ["deals", "products", restaurantId] as const;
 
-export const getAutomaticDeals = () => apiGet<AutomaticDealRecord[]>("/admin/deals");
+export const getAutomaticDeals = (restaurantId?: string | null) =>
+  apiGet<AutomaticDealRecord[]>(restaurantId ? `/admin/deals?restaurantId=${encodeURIComponent(restaurantId)}` : "/admin/deals");
 export const getDealById = (id: string) => apiGet<AutomaticDealRecord>(`/admin/deals/${id}`);
 export const dealByIdQueryKey = (id: string) => ["deals", "automatic", id] as const;
 export const getDiscountCodes = () => apiGet<DiscountCodeRecord[]>("/admin/discounts");
 export const getPersonalCodes = () => apiGet<PersonalCodeRecord[]>("/admin/customer-deals");
 export const getDealRestaurants = () => apiGet<DealRestaurantRef[]>("/restaurants");
 export const getDealCustomers = () => apiGet<DealCustomerRef[]>("/customers");
-export const getDealCategories = (restaurantId: string) => apiGet<DealCategoryRef[]>(`/admin/categories?restaurantId=${restaurantId}&includeGlobal=auto`);
+export const getDealCategories = (restaurantId: string) => apiGet<DealCategoryRef[]>(`/admin/categories?restaurantId=${restaurantId}`);
 export const getDealProducts = (restaurantId: string) => apiGet<DealProductRef[]>(`/admin/products?restaurantId=${restaurantId}`);
 
 export const createAutomaticDeal = (payload: Record<string, unknown>) => apiPost<AutomaticDealRecord>("/admin/deals", payload);

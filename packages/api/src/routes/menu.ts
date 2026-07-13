@@ -156,6 +156,7 @@ router.get('/categories', async (req, res) => {
             orderBy: { position: 'asc' },
             include: {
               extraGroups: {
+                where: { extraGroup: { restaurantId: rid } },
                 orderBy: { position: 'asc' },
                 include: {
                   extraGroup: {
@@ -373,7 +374,9 @@ router.get('/products/:id', async (req, res) => {
       price: product.price / 100,
       imageUrl: product.imageUrl,
       category: product.category.name,
-      extraGroups: product.extraGroups.map((peg) => ({
+      extraGroups: product.extraGroups
+        .filter((peg) => peg.extraGroup.restaurantId === product.category.restaurantId)
+        .map((peg) => ({
         id: peg.extraGroup.id,
         name: peg.extraGroup.name,
         type: peg.extraGroup.type,

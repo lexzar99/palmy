@@ -49,7 +49,7 @@ export function DealsPage() {
   const tab = normalizeTab(searchParams.get("tab"));
   const [filterRestaurantId, setFilterRestaurantId] = useState<string | null>(null);
 
-  const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
+  const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: () => getAutomaticDeals() });
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
   const allRestaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
 
