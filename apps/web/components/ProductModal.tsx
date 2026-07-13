@@ -451,30 +451,36 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
 
                   {isBox ? (
                     /* ── BOX_IMAGE: bild-kort i rutnät (à la McDonald's) ── */
-                    <div className="grid grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                       {group.extras.map((extra: any) => {
                         const isSelected = selectedExtras.some((e) => e.extraId === extra.id);
                         return (
                           <div
                             key={extra.id}
-                            className="rounded-2xl overflow-hidden flex flex-col transition-colors"
-                            style={{ border: `1.5px solid ${isSelected ? "var(--gold-500, #F0531C)" : "var(--border-muted)"}`, backgroundColor: "var(--bg-secondary)" }}
+                            className="min-h-[156px] rounded-2xl overflow-hidden flex flex-col transition-colors"
+                            style={{
+                              // Selection is communicated by the frame only.
+                              // Keep the card surface white so the text and price
+                              // remain readable when a long option is selected.
+                              border: `${isSelected ? "2px" : "1.5px"} solid ${isSelected ? "var(--orange, #F04F1A)" : "var(--border-muted)"}`,
+                              backgroundColor: "var(--bg-secondary)",
+                            }}
                           >
                             <button
                               type="button"
                               onClick={() => { if (!isQty) handleToggleExtra(group, extra); else setExtraQty(group, extra, getQty(extra.id) > 0 ? 0 : 1 - getQty(extra.id)); }}
-                              className="flex flex-col items-center gap-1 px-2 pt-3 pb-2 text-center transition-opacity active:opacity-70"
+                              className="flex min-h-[124px] flex-1 flex-col items-center gap-1 px-2.5 pt-3 pb-2 text-center transition-opacity active:opacity-70"
                             >
                               {extra.imageUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={extra.imageUrl} alt={extra.name} className="w-16 h-16 object-contain" loading="lazy" decoding="async" />
+                                <img src={extra.imageUrl} alt="" className="h-14 w-14 object-contain" loading="lazy" decoding="async" />
                               ) : (
-                                <div className="w-16 h-16 rounded-xl" style={{ backgroundColor: "var(--bg-deep)" }} />
+                                <div className="h-14 w-14 rounded-xl" style={{ backgroundColor: "var(--bg-deep)" }} />
                               )}
-                              <span className="text-[12px] font-medium leading-tight line-clamp-2" style={{ color: "var(--text-primary)" }}>{extra.name}</span>
-                              {extra.priceAddon > 0 && (
-                                <span className="text-[11px]" style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>+{extra.priceAddon} kr</span>
-                              )}
+                              <span className="line-clamp-2 min-h-[2.5rem] w-full break-words text-[12.5px] font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>{extra.name}</span>
+                              <span className="min-h-[1.1rem] text-[11.5px] font-medium" style={{ color: extra.priceAddon > 0 ? "var(--text-secondary)" : "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                                {extra.priceAddon > 0 ? `+${extra.priceAddon} kr` : "Ingår"}
+                              </span>
                             </button>
                             {isQty && (
                               <div className="flex items-center justify-center pb-2.5 pt-0.5">{renderStepper(group, extra)}</div>
