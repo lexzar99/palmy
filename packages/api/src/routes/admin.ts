@@ -5336,7 +5336,7 @@ router.get('/customers/overview', authenticate, async (req: AuthRequest, res) =>
     const week = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const month = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const u = (prisma as any).user;
-    const [total, guests, registered, newToday, newWeek, activeMonth, recent] = await Promise.all([
+    const [total, guests, registered, newToday, newWeek, activeMonth, recent, convertedFromGuest, allCustomers, orderGroups, launchVisits, launchDiscountClicks, launchSessions] = await Promise.all([
       u.count({ where: { deletedAt: null } }),
       u.count({ where: { deletedAt: null, isGuest: true } }),
       u.count({ where: { deletedAt: null, isGuest: false } }),
@@ -5348,12 +5348,37 @@ router.get('/customers/overview', authenticate, async (req: AuthRequest, res) =>
         select: { id: true, name: true, email: true, phone: true, createdAt: true },
         take: 10, orderBy: { createdAt: 'desc' },
       }),
+      u.count({ where: { deletedAt: null, isGuest: false, convertedFromGuestAt: { not: null } } }),
+      u.findMany({ where: { deletedAt: null }, select: { id: true, isGuest: true } }),
+      prisma.order.groupBy({
+        by: ['userId'],
+        where: { userId: { not: null }, status: { notIn: ['CANCELLED', 'REJECTED'] } },
+        _count: { _all: true },
+      }),
+      (prisma as any).launchEvent.count({ where: { eventType: 'PAGE_VIEW' } }),
+      (prisma as any).launchEvent.count({ where: { eventType: 'DISCOUNT_CTA_CLICK' } }),
+      (prisma as any).launchEvent.findMany({
+        where: { eventType: 'PAGE_VIEW', sessionId: { not: null } },
+        select: { sessionId: true },
+        distinct: ['sessionId'],
+      }),
     ]);
+    const guestIds = new Set(allCustomers.filter((customer: any) => customer.isGuest).map((customer: any) => customer.id));
+    const registeredIds = new Set(allCustomers.filter((customer: any) => !customer.isGuest).map((customer: any) => customer.id));
+    const repeatGuests = orderGroups.filter((row: any) => guestIds.has(row.userId) && row._count._all >= 2).length;
+    const repeatRegistered = orderGroups.filter((row: any) => registeredIds.has(row.userId) && row._count._all >= 2).length;
     const showPII = canSeeCustomerPII(req);
     res.json({
       totalCustomers: total,
       registered,            // inloggade (konto)
       guests,                // gäst-checkout
+      convertedFromGuest,
+      guestConversionRate: guests + convertedFromGuest > 0 ? Number((convertedFromGuest / (guests + convertedFromGuest)).toFixed(4)) : 0,
+      repeatGuests,
+      repeatRegistered,
+      launchVisits,
+      launchDiscountClicks,
+      launchUniqueVisitors: launchSessions.length,
       newToday,
       newThisWeek: newWeek,
       activeLast30Days: activeMonth.length,

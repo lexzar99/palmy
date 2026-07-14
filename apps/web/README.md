@@ -9,6 +9,18 @@ You can start editing the page by modifying `app/page.tsx`.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Launch-gate
+
+Hemsidan är låst tills en signerad HttpOnly-cookie finns. Sätt dessa server-only
+variabler i Vercel innan launch:
+
+```text
+LAUNCH_ACCESS_CODE_SHA256=<sha256-hash av intern åtkomstkod>
+LAUNCH_ACCESS_COOKIE_SECRET=<slumpmässig lång hemlighet>
+```
+
+Klartextkoden ska inte läggas i repo, frontend eller publika miljövariabler.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

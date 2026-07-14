@@ -17,8 +17,12 @@ export interface CustomerRecord {
   zip?: string | null;
   isActive: boolean;
   isVerified: boolean;
+  isGuest: boolean;
   internalInfo?: string | null;
   createdAt: string;
+  firstOrderAt?: string | null;
+  convertedFromGuestAt?: string | null;
+  conversionSource?: string | null;
   totalSpent: number;
   lastOrder: string | null;
   _count?: { orders: number };
@@ -67,10 +71,37 @@ export interface CustomerDetail extends CustomerRecord {
   }>;
 }
 
+export interface CustomerAnalytics {
+  guests: number;
+  registered: number;
+  convertedFromGuest: number;
+  conversionRate: number;
+  guestsWithOrders: number;
+  repeatGuests: number;
+  repeatRegistered: number;
+  convertedAndReordered: number;
+  ordersFromGuests: number;
+  ordersFromRegistered: number;
+  conversions: Array<{
+    id: string;
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+    convertedAt: string;
+    source: string;
+    orderCount: number;
+    totalSpent: number;
+    firstOrderAt: string | null;
+    lastOrderAt: string | null;
+    reordered: boolean;
+  }>;
+}
+
 export const customersQueryKey = ["customers", "list"] as const;
 export const customerDetailQueryKey = (customerId: string | null) => ["customers", "detail", customerId] as const;
 
 export const getCustomers = () => apiGet<CustomerRecord[]>("/customers");
+export const getCustomerAnalytics = () => apiGet<CustomerAnalytics>("/customers/analytics");
 export const getCustomer = (customerId: string) => apiGet<CustomerDetail>(`/customers/${customerId}`);
 export const updateCustomer = (customerId: string, payload: Record<string, unknown>) => apiPatch<CustomerDetail>(`/customers/${customerId}`, payload);
 export const deleteCustomer = (customerId: string) => apiDelete<{ success: boolean }>(`/customers/${customerId}`);

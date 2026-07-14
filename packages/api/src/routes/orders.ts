@@ -38,6 +38,16 @@ const stockholmDayFormatter = new Intl.DateTimeFormat('sv-SE', {
 
 const getStockholmCalendarDay = (date: Date) => stockholmDayFormatter.format(date);
 
+// Gästprofiler använder samma enkla normalisering som auth-flödet gör. Vi
+// söker både med och utan plustecken så äldre checkout-data inte skapar flera
+// gästprofiler för samma nummer.
+const guestPhoneVariants = (phone: string) => {
+  const trimmed = phone.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  const normalized = trimmed.startsWith('+') ? `+${digits}` : `+${digits}`;
+  return Array.from(new Set([normalized, normalized.slice(1), trimmed]));
+};
+
 const dealMatchesRestaurant = (deal: {
   restaurantId?: string | null;
   isGlobal?: boolean | null;
@@ -359,6 +369,52 @@ router.post('/', async (req: Request, res: Response) => {
     if ((restaurant as any).draft) {
       res.status(400).json({ error: 'Restaurangen tar inte emot beställningar ännu' });
       return;
+    }
+
+    // En gästorder ska fortfarande ge admin en kundrad med namn + telefon.
+    // Registrerade användare länkas aldrig genom ett osignerat telefonnummer;
+    // bara en befintlig gästprofil återanvänds. Det förhindrar att en felaktig
+    // telefoninmatning kopplar ordern till någon annans konto.
+    let orderUserId = authenticatedUserId;
+    if (!authenticatedUserId) {
+      const phoneVariants = guestPhoneVariants(data.customerPhone);
+      const existingGuest = await (prisma as any).user.findFirst({
+        where: { phone: { in: phoneVariants }, deletedAt: null, isGuest: true },
+        select: { id: true, name: true },
+      });
+
+      if (existingGuest) {
+        orderUserId = existingGuest.id;
+        if (!existingGuest.name && data.customerName.trim()) {
+          await (prisma as any).user.update({
+            where: { id: existingGuest.id },
+            data: { name: data.customerName.trim() },
+          });
+        }
+      } else {
+        const normalizedGuestPhone = phoneVariants[0];
+        try {
+          const guest = await (prisma as any).user.create({
+            data: {
+              name: data.customerName.trim(),
+              phone: normalizedGuestPhone,
+              isGuest: true,
+              isVerified: false,
+            },
+            select: { id: true },
+          });
+          orderUserId = guest.id;
+        } catch (error: any) {
+          // Race eller ett äldre registrerat konto med samma telefon: lämna
+          // ordern som oassocierad hellre än att länka den till fel konto.
+          if (error?.code !== 'P2002') throw error;
+          const racedGuest = await (prisma as any).user.findFirst({
+            where: { phone: { in: phoneVariants }, deletedAt: null, isGuest: true },
+            select: { id: true },
+          });
+          orderUserId = racedGuest?.id ?? null;
+        }
+      }
     }
 
     // Validate scheduled time if provided
@@ -1307,7 +1363,7 @@ router.post('/', async (req: Request, res: Response) => {
         paymentMethod: 'ONLINE',
         estimatedTime,
         scheduledFor: data.scheduledFor ? new Date(data.scheduledFor) : null,
-        userId: authenticatedUserId,
+        userId: orderUserId,
         allergens: authUser?.allergens || '[]',
         // Access-token för guest-tracking-URL: slumpad 32-byte. Returneras
         // till klienten en gång och kan användas i 30 min via `?token=...`

@@ -71,7 +71,7 @@ function normalizePhone(phone: string): string {
 // Returns all variants of a phone to search across legacy and normalized formats.
 function phoneVariants(phone: string): string[] {
   const n = normalizePhone(phone);
-  return [n, n.slice(1)]; // e.g. ["+46728357970", "46728357970"]
+  return [n, n.slice(1)]; // e.g. ["+46701234567", "46701234567"]
 }
 
 // ── OAuth id_token-verifiering ──────────────────────────────────────────────
@@ -1184,7 +1184,8 @@ router.post('/register-user', authLimiter, async (req, res) => {
     const existingPhone = await (prisma as any).user.findFirst({
       where: { phone: { in: phoneVariantList } }
     });
-    if (existingPhone) {
+    const guestToConvert = existingPhone?.isGuest && !existingPhone.deletedAt ? existingPhone : null;
+    if (existingPhone && !guestToConvert) {
       return res.status(400).json({ error: 'Telefonnumret används redan. Använd ett annat nummer eller logga in.' });
     }
 
@@ -1197,18 +1198,38 @@ router.post('/register-user', authLimiter, async (req, res) => {
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
-    const user = await (prisma as any).user.create({
-      data: {
-        name,
-        firstName,
-        lastName,
-        email: normalizedEmail,
-        phone,
-        password: hashedPassword,
-        emailVerificationToken: verificationToken,
-        emailVerificationExpiresAt: verificationExpiresAt,
-      }
-    });
+    // Konvertera gästprofilen på samma rad så orderhistoriken och första
+    // ordern följer med. Det ger en riktig gäst→kund-signal i admin utan att
+    // skapa dubbletter på telefonnumret.
+    const user = guestToConvert
+      ? await (prisma as any).user.update({
+          where: { id: guestToConvert.id },
+          data: {
+            name,
+            firstName,
+            lastName,
+            email: normalizedEmail,
+            phone: normalizePhone(phone),
+            password: hashedPassword,
+            isGuest: false,
+            convertedFromGuestAt: new Date(),
+            conversionSource: 'GUEST_ORDER',
+            emailVerificationToken: verificationToken,
+            emailVerificationExpiresAt: verificationExpiresAt,
+          },
+        })
+      : await (prisma as any).user.create({
+          data: {
+            name,
+            firstName,
+            lastName,
+            email: normalizedEmail,
+            phone: normalizePhone(phone),
+            password: hashedPassword,
+            emailVerificationToken: verificationToken,
+            emailVerificationExpiresAt: verificationExpiresAt,
+          }
+        });
 
     // Fire-and-forget: skicka verifieringsmejlet via Supabase i bakgrunden.
     // Tidigare användes Brevo (kräver verifierad domän, fungerar inte gratis).

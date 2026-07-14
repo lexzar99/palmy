@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, ChevronDown, ChevronUp, Loader2, RefreshCw } from "lucide-react";
 import {
   dashboardQueryKey,
+  customerOverviewQueryKey,
   getControlCenter,
+  getCustomerOverview,
   getRestaurantRefs,
   getSystemHealth,
   healthQueryKey,
@@ -64,6 +66,11 @@ export function DashboardPage() {
     queryKey: healthQueryKey,
     queryFn: getSystemHealth,
     refetchInterval: 30_000,
+  });
+  const customerOverview = useQuery({
+    queryKey: customerOverviewQueryKey,
+    queryFn: getCustomerOverview,
+    refetchInterval: 60_000,
   });
 
   const toggleRestaurant = useMutation({
@@ -198,6 +205,24 @@ export function DashboardPage() {
           }
         />
       </div>
+
+      {customerOverview.data ? (
+        <Surface className="px-5 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="section-title">Kund- och launchöversikt</h2>
+              <p className="section-subtitle">Gäster, registreringar, återköp och intresse för lanseringen</p>
+            </div>
+            <Button variant="secondary" onClick={() => router.push("/customers")}>Öppna kundflödet</Button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Gästkunder</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.guests)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.repeatGuests)} beställer om</p></div>
+            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Gäst → kund</p><p className="mt-2 text-2xl font-black">{(customerOverview.data.guestConversionRate * 100).toFixed(1)} %</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.convertedFromGuest)} konverterade</p></div>
+            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Launch-besök</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.launchUniqueVisitors)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.launchVisits)} sidvisningar</p></div>
+            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">30 % intresse</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.launchDiscountClicks)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">klick på rabattknappen</p></div>
+          </div>
+        </Surface>
+      ) : null}
 
       {/* ── Trend: omsättning/ordrar per dag — alltid synlig ── */}
       <Surface className="px-5 py-5">

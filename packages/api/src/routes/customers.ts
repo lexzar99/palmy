@@ -22,6 +22,7 @@ router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
         where: { userId: { not: null } },
         _sum: { total: true },
         _max: { createdAt: true },
+        _min: { createdAt: true },
         _count: { _all: true },
       }),
       // Refunds in last 30 days
@@ -47,6 +48,7 @@ router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
       aggregates.map((a: any) => [a.userId, {
         totalSpent: a._sum.total ?? 0,
         lastOrder: a._max.createdAt ?? null,
+        firstOrder: a._min.createdAt ?? null,
         orderCount: a._count?._all ?? 0,
       }])
     );
@@ -62,7 +64,7 @@ router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
     }
 
     res.json(users.map((u: any) => {
-      const agg = aggMap.get(u.id) as { totalSpent: number; lastOrder: string | null; orderCount: number } | undefined;
+      const agg = aggMap.get(u.id) as { totalSpent: number; lastOrder: string | null; firstOrder: string | null; orderCount: number } | undefined;
       const refundCount30d = (refundMap.get(u.id) as number | undefined) ?? 0;
       const failedPayments24h = (failMap.get(u.id) as number | undefined) ?? 0;
       const distinctAddresses90d = addrMap.get(u.id)?.size ?? 0;
@@ -82,6 +84,10 @@ router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
         ...u,
         totalSpent: agg ? agg.totalSpent / 100 : 0,
         lastOrder: agg?.lastOrder ?? null,
+        firstOrderAt: agg?.firstOrder ?? null,
+        isGuest: Boolean(u.isGuest),
+        convertedFromGuestAt: u.convertedFromGuestAt ?? null,
+        conversionSource: u.conversionSource ?? null,
         // A12 — fraud signals
         refundCount30d,
         failedPayments24h,
@@ -93,6 +99,91 @@ router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
     }));
   } catch (error) {
     res.status(500).json({ error: 'Kunde inte hämta kunder' });
+  }
+});
+
+// GET /api/customers/analytics - Conversion, repeat-order and guest-funnel
+// statistics for the admin customer tabs.
+// Must be declared before /:id so "analytics" is not treated as a user id.
+router.get('/analytics', authenticate, requireSuperAdmin, async (_req, res) => {
+  try {
+    const [users, aggregates] = await Promise.all([
+      (prisma as any).user.findMany({
+        where: { deletedAt: null },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+          isGuest: true,
+          createdAt: true,
+          convertedFromGuestAt: true,
+          conversionSource: true,
+        },
+        orderBy: { convertedFromGuestAt: 'desc' },
+      }),
+      prisma.order.groupBy({
+        by: ['userId'],
+        where: { userId: { not: null }, status: { notIn: ['CANCELLED', 'REJECTED'] } },
+        _sum: { total: true },
+        _min: { createdAt: true },
+        _max: { createdAt: true },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const orderMap = new Map<string, { count: number; totalSpent: number; firstOrderAt: Date | null; lastOrderAt: Date | null }>();
+    for (const row of aggregates as any[]) {
+      if (!row.userId) continue;
+      orderMap.set(row.userId, {
+        count: row._count?._all ?? 0,
+        totalSpent: row._sum?.total ?? 0,
+        firstOrderAt: row._min?.createdAt ?? null,
+        lastOrderAt: row._max?.createdAt ?? null,
+      });
+    }
+
+    const guestUsers = users.filter((user: any) => user.isGuest);
+    const registeredUsers = users.filter((user: any) => !user.isGuest);
+    const convertedUsers = registeredUsers.filter((user: any) => user.convertedFromGuestAt);
+    const guestsWithOrders = guestUsers.filter((user: any) => (orderMap.get(user.id)?.count ?? 0) > 0);
+    const repeatGuests = guestUsers.filter((user: any) => (orderMap.get(user.id)?.count ?? 0) >= 2);
+    const repeatRegistered = registeredUsers.filter((user: any) => (orderMap.get(user.id)?.count ?? 0) >= 2);
+    const funnelBase = guestUsers.length + convertedUsers.length;
+
+    const conversions = convertedUsers.map((user: any) => {
+      const stats = orderMap.get(user.id);
+      return {
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        email: user.email,
+        convertedAt: user.convertedFromGuestAt,
+        source: user.conversionSource || 'GUEST_ORDER',
+        orderCount: stats?.count ?? 0,
+        totalSpent: (stats?.totalSpent ?? 0) / 100,
+        firstOrderAt: stats?.firstOrderAt ?? null,
+        lastOrderAt: stats?.lastOrderAt ?? null,
+        reordered: (stats?.count ?? 0) >= 2,
+      };
+    });
+
+    res.json({
+      guests: guestUsers.length,
+      registered: registeredUsers.length,
+      convertedFromGuest: convertedUsers.length,
+      conversionRate: funnelBase > 0 ? Number((convertedUsers.length / funnelBase).toFixed(4)) : 0,
+      guestsWithOrders: guestsWithOrders.length,
+      repeatGuests: repeatGuests.length,
+      repeatRegistered: repeatRegistered.length,
+      convertedAndReordered: conversions.filter((row) => row.reordered).length,
+      ordersFromGuests: Array.from(orderMap.entries()).filter(([id]) => guestUsers.some((user: any) => user.id === id)).reduce((sum, [, stats]) => sum + stats.count, 0),
+      ordersFromRegistered: Array.from(orderMap.entries()).filter(([id]) => registeredUsers.some((user: any) => user.id === id)).reduce((sum, [, stats]) => sum + stats.count, 0),
+      conversions,
+    });
+  } catch (error) {
+    console.error('[customers/analytics] error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta kundstatistik' });
   }
 });
 

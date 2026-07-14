@@ -12,6 +12,7 @@ import {
   deleteCustomerDeal,
   getCustomer,
   getCustomers,
+  getCustomerAnalytics,
   updateCustomer,
   updateCustomerDeal,
   type CustomerDetail,
@@ -355,6 +356,7 @@ function exportCsv(rows: CustomerRecord[]) {
 }
 
 export function CustomersPage() {
+  const [activeListTab, setActiveListTab] = useState<"registered" | "guests" | "conversions">("registered");
   const [nameFilter, setNameFilter] = useState("");
   const [emailFilter, setEmailFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
@@ -365,17 +367,19 @@ export function CustomersPage() {
   const [deepLinkId, setDeepLinkId] = useState<string | null>(searchParams.get("id"));
 
   const customers = useQuery({ queryKey: customersQueryKey, queryFn: getCustomers });
+  const analytics = useQuery({ queryKey: ["customers", "analytics"], queryFn: getCustomerAnalytics });
 
   const filtered = useMemo(() => {
     const name = nameFilter.trim().toLowerCase();
     const email = emailFilter.trim().toLowerCase();
     const phone = phoneFilter.trim().toLowerCase();
     return (customers.data || []).filter((c) =>
+      (activeListTab === "guests" ? c.isGuest : activeListTab === "registered" ? !c.isGuest : true) &&
       (!name || (c.name || "").toLowerCase().includes(name)) &&
       (!email || (c.email || "").toLowerCase().includes(email)) &&
       (!phone || (c.phone || "").toLowerCase().includes(phone))
     );
-  }, [customers.data, nameFilter, emailFilter, phoneFilter]);
+  }, [activeListTab, customers.data, nameFilter, emailFilter, phoneFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -415,6 +419,61 @@ export function CustomersPage() {
         }
       />
 
+      <Tabs
+        value={activeListTab}
+        onChange={setActiveListTab}
+        options={[
+          { value: "registered", label: `Registrerade kunder${analytics.data ? ` (${analytics.data.registered})` : ""}` },
+          { value: "guests", label: `Gästkunder${analytics.data ? ` (${analytics.data.guests})` : ""}` },
+          { value: "conversions", label: `Konverteringar${analytics.data ? ` (${analytics.data.convertedFromGuest})` : ""}` },
+        ]}
+      />
+
+      {activeListTab === "conversions" ? (
+        <div className="space-y-4">
+          {analytics.isLoading ? <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar konverteringsstatistik…</Surface> : null}
+          {analytics.isError || !analytics.data ? (
+            <ErrorPanel title="Konverteringar kunde inte laddas" description="Kundstatistiken svarar inte." action={<Button onClick={() => void analytics.refetch()}>Försök igen</Button>} />
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  ["Gäst → kund", `${(analytics.data.conversionRate * 100).toFixed(1)} %`, `${analytics.data.convertedFromGuest} konverterade`],
+                  ["Gäster med order", formatNumber(analytics.data.guestsWithOrders), `${analytics.data.ordersFromGuests} gästordrar`],
+                  ["Gäster som beställer om", formatNumber(analytics.data.repeatGuests), "minst två ordrar"],
+                  ["Konverterade som beställer om", formatNumber(analytics.data.convertedAndReordered), `${analytics.data.repeatRegistered} registrerade totalt`],
+                ].map(([label, value, detail]) => (
+                  <Surface key={label} className="px-5 py-5">
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">{label}</p>
+                    <p className="mt-3 text-3xl font-black tracking-[-0.04em] text-[var(--text-primary)]">{value}</p>
+                    <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{detail}</p>
+                  </Surface>
+                ))}
+              </div>
+              <Surface className="p-0 overflow-hidden">
+                {analytics.data.conversions.length === 0 ? <div className="px-6 py-12"><EmptyState title="Inga gäst→kund-konverteringar ännu" /></div> : (
+                  <div className="table-shell">
+                    <table className="data-table">
+                      <thead><tr><th>Kund</th><th>Konverterad</th><th>Ordrar</th><th>Spenderat</th><th>Beställer om</th></tr></thead>
+                      <tbody>
+                        {analytics.data.conversions.map((conversion) => (
+                          <tr key={conversion.id}>
+                            <td><div className="font-bold">{conversion.name || "—"}</div><div className="text-xs text-[var(--text-muted)]">{conversion.phone || conversion.email || "—"}</div></td>
+                            <td>{formatDateTime(conversion.convertedAt)}</td>
+                            <td>{formatNumber(conversion.orderCount)}</td>
+                            <td>{formatCurrency(conversion.totalSpent)}</td>
+                            <td><Badge tone={conversion.reordered ? "success" : "neutral"}>{conversion.reordered ? "Ja" : "Inte ännu"}</Badge></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Surface>
+            </>
+          )}
+        </div>
+      ) : (
       <Surface className="p-0 overflow-hidden">
         {filtered.length === 0 ? (
           <div className="px-6 py-12">
@@ -449,6 +508,7 @@ export function CustomersPage() {
                     <span className="min-w-0">
                       <span className="flex items-center gap-2">
                         <span className="truncate font-bold text-[var(--text-primary)]">{customer.name || "—"}</span>
+                        {customer.isGuest ? <Badge tone="warning">Gäst</Badge> : null}
                         {customer.accountAgeDays !== undefined && customer.accountAgeDays <= 7 && (
                           <span className="text-[10px] uppercase tracking-wider text-[var(--accent)]">ny</span>
                         )}
@@ -481,6 +541,7 @@ export function CustomersPage() {
           </>
         )}
       </Surface>
+      )}
 
       <CustomerModal customerId={activeCustomer?.id || deepLinkId} open={Boolean(activeCustomer) || Boolean(deepLinkId)} onClose={() => { setActiveCustomer(null); setDeepLinkId(null); }} />
     </div>

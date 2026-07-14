@@ -928,6 +928,11 @@ model User {
   isActive       Boolean        @default(true)
   isVerified     Boolean        @default(false)
   isGuest        Boolean        @default(false)
+  // Sätts när en tidigare gästprofil blir ett riktigt konto. Gör att admin
+  // kan mäta gäst→kund-konvertering utan att läsa gamla rader eller gissa via
+  // telefonnummer.
+  convertedFromGuestAt DateTime?
+  conversionSource     String?
   oauthProvider  String?
   oauthId        String?
   image          String?
@@ -1172,6 +1177,21 @@ model CustomerDeal {
   maxUsages    Int       @default(1)
   isUsed       Boolean   @default(false)
   createdAt    DateTime  @default(now())
+}
+
+// Anonymiserad förstaparts-statistik för launch-sidan. Vi sparar inte IP-adress
+// eller namn; sessionId skapas i webbläsaren och används bara för deduplicering
+// av upprepade events från samma besök.
+model LaunchEvent {
+  id         String   @id @default(cuid())
+  eventType  String
+  sessionId  String?
+  referrer   String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([sessionId, createdAt])
 }
 
 model VerificationCode {

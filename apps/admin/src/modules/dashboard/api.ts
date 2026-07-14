@@ -164,6 +164,25 @@ export const getControlCenter = (params: ControlCenterParams = {}) => {
 
 export const getSystemHealth = () => apiGet<SystemHealth>("/admin/system/health");
 
+export interface CustomerOverview {
+  totalCustomers: number;
+  registered: number;
+  guests: number;
+  convertedFromGuest: number;
+  guestConversionRate: number;
+  repeatGuests: number;
+  repeatRegistered: number;
+  launchVisits: number;
+  launchDiscountClicks: number;
+  launchUniqueVisitors: number;
+  newToday: number;
+  newThisWeek: number;
+  activeLast30Days: number;
+}
+
+export const customerOverviewQueryKey = ["dashboard", "customer-overview"] as const;
+export const getCustomerOverview = () => apiGet<CustomerOverview>("/admin/customers/overview");
+
 export const updateRestaurantLiveState = (restaurantId: string, acceptingOrdersMode: AcceptingOrdersMode) =>
   apiPatch(`/restaurants/${restaurantId}`, {
     acceptingOrdersMode,

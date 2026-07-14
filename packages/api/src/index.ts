@@ -36,6 +36,7 @@ import adsRoutes from './routes/ads';
 import contentPlacementsRoutes from './routes/contentPlacements';
 import pushRoutes from './routes/push';
 import homeCategoriesRoutes from './routes/homeCategories';
+import launchRoutes from './routes/launch';
 import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
 import controlCenterRoutes from './routes/controlCenter';
@@ -370,6 +371,7 @@ app.use('/api/admin/content-placements', contentPlacementsRoutes);
 app.use('/api/ads', adsRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/home-categories', homeCategoriesRoutes);
+app.use('/api/launch', launchRoutes);
 
 // Serve uploaded images
 import path from 'path';
