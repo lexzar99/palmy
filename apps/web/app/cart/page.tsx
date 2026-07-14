@@ -45,7 +45,7 @@ import {
   writeQuickAddresses,
 } from "@/lib/quickAddresses";
 import { PublicDeal, pickBestDeal, formatDealReward } from "@/lib/deals";
-import { readActiveUserDealId, writeActiveUserDeal, clearActiveUserDeal } from "@/lib/appDeal";
+import { readActiveUserDealId, readActiveUserDealSnapshot, writeActiveUserDeal, clearActiveUserDeal } from "@/lib/appDeal";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -236,7 +236,23 @@ export default function CartPage() {
     // rewards eller en tidigare vänkod). Kassan nollar snapshot när den själv
     // äger valet — Swift gör samma sak.
     const stored = readActiveUserDealId();
-    if (stored) setSelectedAccountDealId(stored);
+    if (stored) {
+      setSelectedAccountDealId(stored);
+      const snapshot = readActiveUserDealSnapshot<any>();
+      if (snapshot) {
+        setAccountDeals((current) => [{
+          id: stored,
+          type: snapshot.type || "REFERRAL_INVITER",
+          status: "ACTIVE",
+          amountKr: typeof snapshot.amountKr === "number" ? snapshot.amountKr : undefined,
+          discountPercent: typeof snapshot.discountPercent === "number" ? snapshot.discountPercent : undefined,
+          discountType: snapshot.discountType ?? null,
+          freeDelivery: !!snapshot.freeDelivery,
+          minOrderKr: typeof snapshot.minOrderKr === "number" ? snapshot.minOrderKr : 0,
+          metadata: { title: snapshot.title || "Din deal" },
+        }, ...current.filter((deal) => deal.id !== stored)]);
+      }
+    }
   }, []);
   // Kund kan välja att avbryta den automatiskt applicerade dealen (t.ex.
   // "25% första beställning") för att använda en egen rabattkod istället.
@@ -1014,7 +1030,9 @@ export default function CartPage() {
           const bx = b.expiresAt ? new Date(b.expiresAt).getTime() : Number.POSITIVE_INFINITY;
           return ax - bx;
         });
-      setAccountDeals(acctDeals);
+      // Utloggade gäster har ingen /account/deals-session. Behåll då den
+      // telefonverifierade referral-deal som precis löstes in lokalt i kassan.
+      setAccountDeals((current) => (acctDeals.length > 0 || userRes.data ? acctDeals : current));
 
       if (userRes.data) {
         setUser(userRes.data);
@@ -1076,17 +1094,36 @@ export default function CartPage() {
   // Returnerar true om koden hanterades (succé ELLER eget servermeddelande)
   // så det generiska rabattkodsfelet döljs.
   const tryRedeemReferral = async (code: string): Promise<boolean> => {
-    // OBS: ingen !user-spärr längre. Vänkoder är app-only, så backend svarar
-    // { appOnly: true } för giltiga koder på webben — vi vill visa den nudgen
-    // även för utloggade gäster (inte det generiska "ogiltig kod"-felet).
     if (!code) return false;
+    if (!formData.customerPhone?.trim()) {
+      setError(null);
+      setReferralMessage({ ok: false, text: "Fyll i telefonnumret för beställningen innan du använder vänkoden." });
+      return true;
+    }
     try {
       const res = await axios.post(`/api/platform/account/redeem-code`, {
         code,
+        phone: formData.customerPhone,
+        name: formData.customerName || undefined,
         deviceFingerprint: getDeviceFingerprint(),
       });
       const userDealId: string | undefined = res.data?.userDealId;
       if (!res.data?.ok || !userDealId) return false;
+      const referralDeal = res.data?.deal || {};
+      setAccountDeals((current) => {
+        const localDeal: UserAccountDeal = {
+          id: userDealId,
+          type: "REFERRAL_INVITEE",
+          status: "ACTIVE",
+          amountKr: typeof referralDeal.amountKr === "number" ? referralDeal.amountKr : undefined,
+          discountPercent: typeof referralDeal.discountPercent === "number" ? referralDeal.discountPercent : undefined,
+          discountType: referralDeal.discountType ?? null,
+          freeDelivery: !!referralDeal.freeDelivery,
+          minOrderKr: typeof referralDeal.minOrderKr === "number" ? referralDeal.minOrderKr : 0,
+          metadata: { title: referralDeal.title || "Vänrabatt" },
+        };
+        return [localDeal, ...current.filter((deal) => deal.id !== userDealId)];
+      });
       // Dealen appliceras direkt + skrivs till aktiva deal-kontraktet.
       // Snapshot nollas när kassan själv sätter dealen (som i Swift).
       writeActiveUserDeal(userDealId);
@@ -1102,17 +1139,6 @@ export default function CartPage() {
     } catch (err: any) {
       const data = err?.response?.data;
       const msg: string | undefined = data?.error;
-      // Vänkoder är APP-ONLY (driver app-nedladdningar). Backend svarar
-      // { appOnly: true } för en giltig kod på webben → visa en tydlig nudge
-      // om att lösa in den i appen istället för det generiska rabattkodsfelet.
-      if (data?.appOnly) {
-        setError(null);
-        setReferralMessage({
-          ok: false,
-          text: msg || "Den här vänkoden löser du in i appen. Ladda ner appen för att få rabatten.",
-        });
-        return true;
-      }
       // "hittades inte" = ingen vänkod heller → behåll rabattkodens generiska
       // fel. Andra servermeddelanden (t.ex. "Du har redan använt en referral-
       // kod") visas ordagrant.

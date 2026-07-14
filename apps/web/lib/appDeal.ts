@@ -18,6 +18,16 @@ export function readActiveUserDealId(): string {
   }
 }
 
+export function readActiveUserDealSnapshot<T = Record<string, unknown>>(): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(ACTIVE_USER_DEAL_SNAPSHOT_KEY);
+    return raw ? JSON.parse(raw) as T : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Sätt aktiv deal. snapshot = HomeAppDeal-objekt, eller utelämnad → "" (kassan äger valet). */
 export function writeActiveUserDeal(userDealId: string, snapshot?: unknown) {
   if (typeof window === "undefined") return;

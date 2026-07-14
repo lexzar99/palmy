@@ -924,6 +924,11 @@ router.patch('/orders/:id/status', async (req, res) => {
     });
     if (refreshedEta) order = { ...order, ...refreshedEta };
     bustCache('order:byid', order.id);
+    if (dbStatus === 'DELIVERED' || (existing.type === 'PICKUP' && dbStatus === 'READY')) {
+      void import('./referrals').then(({ maybeTriggerReferralReward }) =>
+        maybeTriggerReferralReward(order.id),
+      );
+    }
 
     // När en order går till DELIVERING får vi en ny datapunkt för
     // restaurangens dynamiska ETA: tiden från createdAt till deliveringAt.

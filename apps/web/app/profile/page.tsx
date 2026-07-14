@@ -25,8 +25,7 @@ import SocialAuthButton from "@/components/SocialAuthButton";
 import PhoneAuth from "@/components/PhoneAuth";
 import PhoneCountrySelect from "@/components/PhoneCountrySelect";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
-// ReferralCard import removed — referral UI is disabled platform-wide.
-// Backend redeem-code endpoint stays intact for legacy URLs.
+import ReferralProfileCard from "@/components/ReferralProfileCard";
 import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import ViaEatsWordmark from "@/components/ViaEatsWordmark";
@@ -865,6 +864,8 @@ function ProfileContent() {
             <PhoneAuth />
           </div>
 
+          <ReferralProfileCard />
+
           {/* Information — Om oss, Kontakt och policy bakom EN knapp som leder
               till en samlad sida. */}
           <Link
@@ -1528,6 +1529,8 @@ function ProfileContent() {
                   Ändra
                 </button>
               </div>
+
+              <ReferralProfileCard phone={user.phone} />
 
               <div className="rounded-2xl overflow-hidden shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                 {[

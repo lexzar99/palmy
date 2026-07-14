@@ -1,16 +1,92 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
-import { Surface, Button, Badge, Field, Input, LoadingPanel, EmptyState, MetricCard, Modal } from "@/shared/components/ui";
+import { Gift, Loader2, Save, Truck, UserPlus } from "lucide-react";
+import { Surface, Button, Badge, Field, Input, LoadingPanel, EmptyState, MetricCard, Modal, Select, Toggle, ErrorPanel } from "@/shared/components/ui";
 import {
+  getWelcomeDealSettings,
   getReferralStats,
   referralStatsQueryKey,
   getReferrals,
   referralsListQueryKey,
   revertReferral,
+  updateWelcomeDealSettings,
+  welcomeDealQueryKey,
+  type ReferralOffer,
 } from "./api";
+
+const DEFAULT_OFFER: ReferralOffer = {
+  discountKind: "PERCENT",
+  discountValue: 20,
+  freeDelivery: false,
+  minOrderKr: 150,
+};
+
+function offerIsEmpty(offer: ReferralOffer) {
+  return (offer.discountKind === "NONE" || offer.discountValue <= 0) && !offer.freeDelivery;
+}
+
+function OfferEditor({
+  title,
+  description,
+  icon,
+  offer,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  offer: ReferralOffer;
+  onChange: (next: ReferralOffer) => void;
+}) {
+  const set = <K extends keyof ReferralOffer>(key: K, value: ReferralOffer[K]) => onChange({ ...offer, [key]: value });
+  return (
+    <Surface className="px-6 py-6">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">{icon}</span>
+        <div>
+          <h3 className="font-semibold">{title}</h3>
+          <p className="text-sm text-[var(--text-secondary)]">{description}</p>
+        </div>
+      </div>
+      <div className="mt-5 grid gap-4 border-t border-[var(--border-subtle)] pt-5 sm:grid-cols-2">
+        <Field label="Rabattmodell">
+          <Select value={offer.discountKind} onChange={(e) => set("discountKind", e.target.value as ReferralOffer["discountKind"])}>
+            <option value="PERCENT">Procent av ordern</option>
+            <option value="FIXED">Fast belopp (kr)</option>
+            <option value="NONE">Ingen varurabatt</option>
+          </Select>
+        </Field>
+        {offer.discountKind !== "NONE" && (
+          <Field label={offer.discountKind === "PERCENT" ? "Rabatt (%)" : "Rabatt (kr)"}>
+            <Input
+              type="number"
+              min={0}
+              max={offer.discountKind === "PERCENT" ? 100 : undefined}
+              value={offer.discountValue}
+              onChange={(e) => set("discountValue", e.target.value ? Number(e.target.value) : 0)}
+            />
+          </Field>
+        )}
+        <Field label="Minsta ordervärde (kr)">
+          <Input type="number" min={0} value={offer.minOrderKr} onChange={(e) => set("minOrderKr", e.target.value ? Number(e.target.value) : 0)} />
+        </Field>
+      </div>
+      <div className="mt-4 flex items-center justify-between rounded-xl bg-[var(--bg-panel-muted)] px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <Truck size={17} />
+          <div>
+            <p className="text-sm font-semibold">Kombinera med fri leverans</p>
+            <p className="text-xs text-[var(--text-secondary)]">Kan användas tillsammans med procent eller fast rabatt.</p>
+          </div>
+        </div>
+        <Toggle checked={offer.freeDelivery} onChange={(value) => set("freeDelivery", value)} />
+      </div>
+      {offerIsEmpty(offer) && <p className="mt-3 text-xs text-[var(--danger)]">Välj en rabatt eller fri leverans.</p>}
+    </Surface>
+  );
+}
 
 // Värva vän = den nya invite-attributionen (samma Referral-modell, nya tokens).
 // Visar tratten + värvningarna med möjlighet att återta en belöning.
@@ -37,7 +113,11 @@ export default function VarvaVanTab() {
   const [query, setQuery] = useState("");
   const [revertId, setRevertId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [enabled, setEnabled] = useState(false);
+  const [inviteeOffer, setInviteeOffer] = useState<ReferralOffer>(DEFAULT_OFFER);
+  const [inviterOffer, setInviterOffer] = useState<ReferralOffer>(DEFAULT_OFFER);
 
+  const settings = useQuery({ queryKey: welcomeDealQueryKey, queryFn: getWelcomeDealSettings });
   const stats = useQuery({ queryKey: referralStatsQueryKey, queryFn: getReferralStats });
   const list = useQuery({ queryKey: referralsListQueryKey({ search: query }), queryFn: () => getReferrals({ search: query }) });
   const revert = useMutation({
@@ -49,11 +129,60 @@ export default function VarvaVanTab() {
     },
   });
 
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!settings.data) return;
+    setEnabled(!!settings.data.referralEnabled);
+    setInviteeOffer(settings.data.referralInviteeOffer ?? DEFAULT_OFFER);
+    setInviterOffer(settings.data.referralInviterOffer ?? DEFAULT_OFFER);
+  }, [settings.data]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const save = useMutation({
+    mutationFn: () => updateWelcomeDealSettings({
+      referralEnabled: enabled,
+      ...(enabled ? { referralInviteeOffer: inviteeOffer, referralInviterOffer: inviterOffer } : {}),
+      referralCouponsPerSide: 1,
+      referralMaxRewardsPerInviter: 0,
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: welcomeDealQueryKey }),
+  });
+
   const f = stats.data?.funnel;
   const rows = list.data?.data ?? [];
 
+  if (settings.isLoading) return <LoadingPanel label="Laddar referral-inställningar..." />;
+  if (settings.isError || !settings.data) return <ErrorPanel title="Kunde inte ladda referral-inställningar" action={<Button onClick={() => void settings.refetch()}>Försök igen</Button>} />;
+  const invalid = enabled && (offerIsEmpty(inviteeOffer) || offerIsEmpty(inviterOffer));
+
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">Telefonbaserad värvning</h2>
+          <p className="mt-1 max-w-2xl text-sm text-[var(--text-secondary)]">Koden låses upp efter första betalda ordern. Den inbjudna får sin rabatt utan konto; värvaren får en ny personlig engångskod efter slutförd order.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Toggle checked={enabled} onChange={setEnabled} />
+          <Button variant="primary" disabled={save.isPending || invalid} onClick={() => save.mutate()}>
+            {save.isPending ? <Loader2 className="animate-spin" size={15} /> : <Save size={15} />} Spara
+          </Button>
+        </div>
+      </div>
+
+      {enabled && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <OfferEditor title="Den inbjudna får" description="Gäller på telefonnumrets första lyckade beställning." icon={<UserPlus size={18} />} offer={inviteeOffer} onChange={setInviteeOffer} />
+          <OfferEditor title="Värvaren får" description="En ny unik engångskod för varje slutförd referral-order." icon={<Gift size={18} />} offer={inviterOffer} onChange={setInviterOffer} />
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <Badge tone={enabled ? "success" : "neutral"}>{enabled ? "Referral aktiv" : "Referral avstängd"}</Badge>
+        {save.isSuccess && <span className="text-sm text-[var(--success)]">Sparat</span>}
+        {save.isError && <span className="text-sm text-[var(--danger)]">Kunde inte spara inställningarna</span>}
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Inbjudna" value={(f?.invited ?? 0).toLocaleString("sv-SE")} />
         <MetricCard label="Registrerade" value={(f?.registered ?? 0).toLocaleString("sv-SE")} />
@@ -84,9 +213,9 @@ export default function VarvaVanTab() {
                 <div key={r.id} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t border-[var(--border-subtle)]" : ""}`}>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">
-                      {r.inviterName || r.inviterEmail || "Okänd"}
+                      {r.inviterName || r.inviterEmail || r.inviterPhone || "Okänd"}
                       <span className="px-1.5 text-[var(--text-muted)]">till</span>
-                      {r.inviteeName || r.inviteeEmail || "Väntar"}
+                      {r.inviteeName || r.inviteeEmail || r.inviteePhone || "Väntar"}
                     </p>
                     <p className="text-xs text-[var(--text-secondary)]">
                       {new Date(r.createdAt).toLocaleDateString("sv-SE")}

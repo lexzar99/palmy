@@ -24,6 +24,8 @@ export interface WelcomeOffer {
   minOrderKr: number;
 }
 
+export type ReferralOffer = WelcomeOffer;
+
 export interface WelcomeDealSettings {
   welcomeDealActive: boolean;
   // Welcome-deal pekar nu på en Personal Template-Deal (samma pattern
@@ -36,6 +38,10 @@ export interface WelcomeDealSettings {
   welcomeMaxOrders?: number;
   referralEnabled: boolean;
   referralDealId: string | null;
+  referralInviteeDealId?: string | null;
+  referralInviterDealId?: string | null;
+  referralInviteeOffer?: ReferralOffer;
+  referralInviterOffer?: ReferralOffer;
   referralCouponsPerSide: number;
   referralMaxRewardsPerInviter: number;
   availableDeals?: AvailableDeal[];
@@ -93,9 +99,11 @@ export interface ReferralRecord {
   inviterUserId: string | null;
   inviterName: string | null;
   inviterEmail: string | null;
+  inviterPhone?: string | null;
   inviteeUserId: string | null;
   inviteeName: string | null;
   inviteeEmail: string | null;
+  inviteePhone?: string | null;
   status: ReferralStatus;
   fraudFlags: string[];
   createdAt: string;

@@ -719,6 +719,10 @@ model RestaurantSettings {
   // används INTE av ny logik — Dealen själv bär dessa värden nu.
   referralEnabled              Boolean   @default(false)
   referralDealId               String?
+  // Separata personliga mallar: invitee får sin rabatt direkt i första
+  // kassan, inviter får en ny engångskod efter varje slutförd referral-order.
+  referralInviteeDealId        String?
+  referralInviterDealId        String?
   referralCouponsPerSide       Int       @default(1)
   referralRewardKr             Int       @default(50)   // legacy
   referralRewardPercent        Int       @default(20)   // legacy
@@ -996,6 +1000,7 @@ model User {
 model UserDeal {
   id              String    @id @default(cuid())
   userId          String
+  code            String?   @unique // unik personlig engångskod, t.ex. referral-reward
   dealId          String?   // referens till befintlig Deal-modell, null för auto-cash-rabatt
   type            String    // WELCOME | REFERRAL_INVITER | REFERRAL_INVITEE | MANUAL
   status          String    @default("ACTIVE") // ACTIVE | USED | EXPIRED
@@ -1013,6 +1018,7 @@ model UserDeal {
   deal            Deal?     @relation(fields: [dealId], references: [id], onDelete: SetNull)
 
   @@index([userId, status])
+  @@index([code, status])
   @@index([type])
 }
 
@@ -1034,8 +1040,11 @@ model UserDeal {
 model Referral {
   id                String    @id @default(cuid())
   code              String    @unique // typ "ANNA8X3K"
+  shareCode         String?   // ägarens stabila referralCode; code är radens unika id
   inviterUserId     String
   inviteeUserId     String?   @unique // en användare kan bara bli refererad EN gång
+  inviterPhone      String?
+  inviteePhone      String?   @unique
   inviteeEmail      String?
   inviteeIP         String?
   inviteeDeviceId   String?
@@ -1056,6 +1065,7 @@ model Referral {
   invitee           User?     @relation("ReferralInvitee", fields: [inviteeUserId], references: [id])
 
   @@index([inviterUserId])
+  @@index([shareCode])
   @@index([status])
   @@index([inviteeFingerprint, status])
 }

@@ -397,6 +397,9 @@ router.post('/deliveries/:id/complete', requireCourier, async (req: CourierReque
     },
   });
   const order = await prisma.order.update({ where: { id: d.orderId }, data: { status: 'DELIVERED' } });
+  void import('./referrals').then(({ maybeTriggerReferralReward }) =>
+    maybeTriggerReferralReward(order.id),
+  );
   const eta = await refreshOrderEta(d.orderId, { courierId: req.courier.id, courier: req.courier });
   void refreshCourierActiveEtas(req.courier.id, { courier: req.courier }).catch(() => null);
   emitOrderStatus({ ...order, ...(eta ?? {}) });

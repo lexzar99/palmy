@@ -8,6 +8,7 @@ import SocialAuthButton from "@/components/SocialAuthButton";
 import PhoneAuth from "@/components/PhoneAuth";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import ReferralProfileCard from "@/components/ReferralProfileCard";
 
 // auth-input-stilen används av PhoneAuth (telefon/kod-fälten). Behålls även
 // efter att e-post/lösenord-inloggningen tagits bort.
@@ -115,6 +116,8 @@ export default function LoginPage() {
           <SocialAuthButton provider="google" />
           <PhoneAuth />
         </div>
+
+        <ReferralProfileCard />
 
         {/* Registrera */}
         <p className="text-center text-[14px]" style={{ color: "var(--text-secondary)" }}>

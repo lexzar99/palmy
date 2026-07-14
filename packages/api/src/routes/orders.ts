@@ -26,6 +26,7 @@ import { sendOrderStatusPush } from '../lib/customerPush';
 import { etaResponseFields, refreshOrderEta } from '../lib/orderEta';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto, nullableMoneyDto } from '../utils/money';
+import { referralPhoneVariants } from '../lib/referralRules';
 
 const router = Router();
 const STOCKHOLM_TIMEZONE = 'Europe/Stockholm';
@@ -41,12 +42,7 @@ const getStockholmCalendarDay = (date: Date) => stockholmDayFormatter.format(dat
 // Gästprofiler använder samma enkla normalisering som auth-flödet gör. Vi
 // söker både med och utan plustecken så äldre checkout-data inte skapar flera
 // gästprofiler för samma nummer.
-const guestPhoneVariants = (phone: string) => {
-  const trimmed = phone.trim();
-  const digits = trimmed.replace(/\D/g, '');
-  const normalized = trimmed.startsWith('+') ? `+${digits}` : `+${digits}`;
-  return Array.from(new Set([normalized, normalized.slice(1), trimmed]));
-};
+const guestPhoneVariants = (phone: string) => referralPhoneVariants(phone);
 
 const dealMatchesRestaurant = (deal: {
   restaurantId?: string | null;
@@ -1037,11 +1033,11 @@ router.post('/', async (req: Request, res: Response) => {
     // percent-migreringen (vissa kan ha gamla 50 kr-rabatter i DB).
     let appliedUserDealId: string | null = null;
     let appliedUserDealAmountKr: number | null = null;
-    if (data.userDealId && authenticatedUserId) {
+    if (data.userDealId && orderUserId) {
       const userDeal = await (prisma as any).userDeal.findFirst({
         where: {
           id: data.userDealId,
-          userId: authenticatedUserId,
+          userId: orderUserId,
           status: 'ACTIVE',
           OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
         },
@@ -1051,6 +1047,19 @@ router.post('/', async (req: Request, res: Response) => {
         throw new OrderValidationError('Kupongen är inte längre giltig');
       }
       const userDealMeta = (userDeal.metadata || {}) as any;
+      const normalizeCouponPhone = (value: unknown) => {
+        let digits = String(value ?? '').replace(/\D/g, '');
+        if (digits.startsWith('00')) digits = digits.slice(2);
+        if (digits.startsWith('0')) digits = `46${digits.slice(1)}`;
+        if (!digits.startsWith('46') && digits.length === 9 && digits.startsWith('7')) digits = `46${digits}`;
+        return digits;
+      };
+      if (
+        userDealMeta.ownerPhone &&
+        normalizeCouponPhone(userDealMeta.ownerPhone) !== normalizeCouponPhone(data.customerPhone)
+      ) {
+        throw new OrderValidationError('Kupongen tillhör ett annat telefonnummer');
+      }
       if (userDeal.type === 'FAVORITE_PRODUCT' || userDealMeta.favoriteProductId) {
         await (prisma as any).userDeal.updateMany({
           where: { id: userDeal.id, status: { in: ['ACTIVE', 'RESERVED'] } },
@@ -1416,12 +1425,12 @@ router.post('/', async (req: Request, res: Response) => {
     // refund-flow vilket är overkill för v1.
     if (appliedUserDealId) {
       const reservedCount = await (prisma as any).userDeal.updateMany({
-        where: { id: appliedUserDealId, userId: authenticatedUserId, status: 'ACTIVE' },
+        where: { id: appliedUserDealId, userId: orderUserId, status: 'ACTIVE' },
         data: { status: 'RESERVED', usedOnOrderId: order.id },
       });
       if (reservedCount.count === 0) {
         console.warn(
-          `[order] UserDeal reservation race lost — userDealId=${appliedUserDealId} orderId=${order.id} userId=${authenticatedUserId}. Ordern fick rabatten men dealen kunde inte reserveras.`,
+          `[order] UserDeal reservation race lost — userDealId=${appliedUserDealId} orderId=${order.id} userId=${orderUserId}. Ordern fick rabatten men dealen kunde inte reserveras.`,
         );
       }
     }
@@ -1429,6 +1438,10 @@ router.post('/', async (req: Request, res: Response) => {
     // For pending-payment orders, skip all post-creation side effects until
     // the Stripe webhook confirms the payment.
     if (!isPendingPayment) {
+      if (!isTestOrder) {
+        const { maybeTriggerReferralReward } = await import('./referrals');
+        await maybeTriggerReferralReward(order.id);
+      }
       // UserDeal: vi har redan reserverat och vet att Stripe-betalningen
       // gick igenom (sync path). Markera som USED direkt så användaren ser
       // den i historiken som "använd 2026-05-15". Atomisk uppdatering med
@@ -2261,6 +2274,11 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       void pushLiveActivityForOrder(orderId).catch((e) =>
         console.warn(`[orders/status] LA dispatch failed order=${orderId}:`, e?.message),
       );
+      if (newStatus === 'DELIVERED' || newStatus === 'COMPLETED') {
+        void import('./referrals').then(({ maybeTriggerReferralReward }) =>
+          maybeTriggerReferralReward(orderId),
+        );
+      }
 
       return res.json({ changed: true, status: updated.status, devStepper: true });
     }
@@ -2298,6 +2316,9 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     // Sync the iOS Live Activity if one is registered.
     void pushLiveActivityForOrder(orderId).catch((e) =>
       console.warn(`[orders/status] LA dispatch failed order=${orderId}:`, e?.message),
+    );
+    void import('./referrals').then(({ maybeTriggerReferralReward }) =>
+      maybeTriggerReferralReward(orderId),
     );
 
     return res.json({ changed: true, status: updated.status });

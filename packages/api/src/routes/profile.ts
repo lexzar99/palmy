@@ -6,6 +6,7 @@ import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import supabaseAdmin from '../lib/supabase';
 import { deleteSupabaseAuthUser } from '../lib/supabaseUserDelete';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
+import { referralPhoneVariants } from '../lib/referralRules';
 
 const router = Router();
 
@@ -107,11 +108,7 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
       return res.status(401).json({ error: 'Sessionen saknar användar-id' });
     }
 
-    const phoneVariants = (p: string) => {
-      const trimmed = p.trim();
-      const withPlus = trimmed.startsWith('+') ? trimmed : `+${trimmed.replace(/\D/g, '')}`;
-      return [withPlus, withPlus.slice(1)];
-    };
+    const phoneVariants = (p: string) => referralPhoneVariants(p);
 
     // Slå ihop ett befintligt konto med samma telefon in i det inloggade kontot
     // (permanent koppling). Sker om det andra kontot är gäst-likt ELLER ett rent
@@ -130,13 +127,51 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
           error: 'Detta telefonnummer är redan kopplat till ett annat konto',
         });
       }
-      await (prisma as any).$transaction([
-        (prisma as any).order.updateMany({ where: { userId: existingWithPhone.id }, data: { userId: req.user.id } }),
-        (prisma as any).user.update({
+      await (prisma as any).$transaction(async (tx: any) => {
+        const target = await tx.user.findUnique({
+          where: { id: req.user.id },
+          select: { referralCode: true },
+        });
+        const [sourceInviteeReferral, targetInviteeReferral] = await Promise.all([
+          tx.referral.findFirst({ where: { inviteeUserId: existingWithPhone.id } }),
+          tx.referral.findFirst({ where: { inviteeUserId: req.user.id } }),
+        ]);
+
+        await tx.order.updateMany({ where: { userId: existingWithPhone.id }, data: { userId: req.user.id } });
+        await tx.userDeal.updateMany({ where: { userId: existingWithPhone.id }, data: { userId: req.user.id } });
+        await tx.referral.updateMany({ where: { inviterUserId: existingWithPhone.id }, data: { inviterUserId: req.user.id } });
+
+        if (sourceInviteeReferral && !targetInviteeReferral) {
+          await tx.referral.update({
+            where: { id: sourceInviteeReferral.id },
+            data: { inviteeUserId: req.user.id },
+          });
+        } else if (sourceInviteeReferral && targetInviteeReferral) {
+          await tx.referral.update({
+            where: { id: sourceInviteeReferral.id },
+            data: {
+              status: 'REVERTED',
+              revertedAt: new Date(),
+              revertReason: 'Dubblett slogs ihop vid telefonlänkning',
+              inviteeUserId: null,
+            },
+          });
+        }
+
+        // Frigör koden på källraden före target-update för att inte slå i
+        // User.referralCode-unikheten. Ett redan upplåst target-konto behåller
+        // sin kod, annars följer gästkodens historik med.
+        await tx.user.update({
           where: { id: existingWithPhone.id },
           data: { deletedAt: new Date(), phone: null, oauthId: null, oauthProvider: null, referralCode: null },
-        }),
-      ]);
+        });
+        if (!target?.referralCode && existingWithPhone.referralCode) {
+          await tx.user.update({
+            where: { id: req.user.id },
+            data: { referralCode: existingWithPhone.referralCode },
+          });
+        }
+      });
       try {
         if (supabaseAdmin && UUID_RE.test(existingWithPhone.id)) {
           await supabaseAdmin.auth.admin.deleteUser(existingWithPhone.id);
@@ -382,7 +417,7 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
       return {
         id: deal.id,
         userDealId: deal.id,
-        code: null,
+        code: deal.code ?? null,
         source: 'APP_DEAL',
         status: deal.status,
         expiresAt: deal.expiresAt,
