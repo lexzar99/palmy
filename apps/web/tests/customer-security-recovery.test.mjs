@@ -139,7 +139,7 @@ test("guest order web access uses scoped HttpOnly sessions and clean deep links"
     "app/cart/page.tsx",
     "app/orders/page.tsx",
     "components/RecentOrderCard.tsx",
-    "components/LiveOrderBanner.tsx",
+    "lib/activeOrder.ts",
     "components/HomeClient.tsx",
   ]) {
     assert.doesNotMatch(read(path), /`\/order\/\$\{[^}]+}\?token=/, `${path} must not create token deep links`);

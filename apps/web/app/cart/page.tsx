@@ -31,7 +31,12 @@ import {
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
-import { rememberActiveOrder } from "@/components/LiveOrderBanner";
+import {
+  ACTIVE_ORDER_KEY,
+  ACTIVE_ORDERS_KEY,
+  isActiveOrderStatus,
+  rememberActiveOrder,
+} from "@/lib/activeOrder";
 // Betalning sker via provider-neutralt hosted checkout-flöde.
 import ProductModal from "@/components/ProductModal";
 import { saveOrderToHistory } from "@/lib/orderHistory";
@@ -256,6 +261,48 @@ export default function CartPage() {
   // tomt-läge istället för en falsk "full varukorg"-skeleton.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  // Kundvagnen är inte rätt destination när en order redan pågår. Kontrollera
+  // både den lokala orderkontinuiteten (gäst) och kontots orderhistorik (inloggad)
+  // så ett klick på Kundvagn alltid återgår till samma tracking-kort.
+  useEffect(() => {
+    if (!mounted || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    // Betalningsretur och återupptagen pending-order måste få slutföra först.
+    if (params.has("payment_return") || localStorage.getItem("pending_order_id")) return;
+    let cancelled = false;
+
+    const redirectIfActive = async () => {
+      const ids: string[] = [];
+      const addId = (value: unknown) => {
+        const id = String(value || "").trim();
+        if (id && !ids.includes(id)) ids.push(id);
+      };
+      addId(localStorage.getItem(ACTIVE_ORDER_KEY));
+      try {
+        const stored = JSON.parse(localStorage.getItem(ACTIVE_ORDERS_KEY) || "[]");
+        (Array.isArray(stored) ? stored : []).forEach((order: any) => addId(order?.id));
+      } catch { /* ignore malformed continuity state */ }
+
+      // Ett konto kan ha en pågående order från en annan enhet även utan lokal
+      // ordernyckel. En 401 här är normalt för gäster och ska vara helt tyst.
+      const profileOrders = await axios.get("/api/platform/profile/orders").catch(() => ({ data: [] }));
+      (Array.isArray(profileOrders.data) ? profileOrders.data : []).forEach((order: any) => {
+        if (isActiveOrderStatus(order?.status)) addId(order.id);
+      });
+
+      for (const id of ids.slice(0, 5)) {
+        const order = await axios.get(`/api/platform/orders/${id}`).then((res) => res.data).catch(() => null);
+        const paymentStatus = String(order?.paymentStatus || "").toUpperCase();
+        if (order && isActiveOrderStatus(order.status) && !["FAILED", "EXPIRED", "CANCELLED"].includes(paymentStatus)) {
+          if (!cancelled) router.replace(`/order/${id}`);
+          return;
+        }
+      }
+    };
+
+    void redirectIfActive();
+    return () => { cancelled = true; };
+  }, [mounted, router]);
   const [error, setError] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   // True när kunden återvänt från Mollie och vi pollar orderns betalstatus.
@@ -1606,8 +1653,8 @@ export default function CartPage() {
         // the temporary recovery token until the order page confirms access.
       }
     }
-    // Spara i lokal order-historik + registrera aktiv order så /orders OCH
-    // LiveOrderBanner ser ordern. Gäster har inget konto — detta är källan.
+    // Spara i lokal order-historik + registrera aktiv order så hemkortet och
+    // ordersidan hittar ordern även för gäster utan konto.
     saveOrderToHistory({
       id: orderId,
       phone: phone,

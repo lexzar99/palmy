@@ -117,24 +117,30 @@ export function OrderTrackingCard({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`relative isolate overflow-hidden rounded-[20px] bg-white p-4 ${className}`}
-      style={{ border: "1px solid rgba(17,17,19,0.08)", boxShadow: full ? "0 18px 40px rgba(17,17,19,0.10)" : "0 8px 22px rgba(17,17,19,0.07)" }}
+      className={`relative isolate overflow-hidden ${full ? "rounded-[20px] bg-white p-4" : "rounded-[26px] bg-white p-4 sm:p-5"} ${className}`}
+      style={{
+        border: "1px solid rgba(17,17,19,0.08)",
+        background: full ? "#fff" : "linear-gradient(135deg, #ffffff 0%, #fffaf5 100%)",
+        boxShadow: full ? "0 18px 40px rgba(17,17,19,0.10)" : "0 12px 30px rgba(17,17,19,0.08)",
+      }}
     >
+      {!full && <div className="absolute inset-x-0 top-0 h-1" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}55)` }} />}
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ backgroundColor: soft }}>
+          <span className={`${full ? "h-9 w-9 rounded-full" : "h-11 w-11 rounded-2xl"} grid shrink-0 place-items-center`} style={{ backgroundColor: soft }}>
             <Icon size={18} style={{ color: accent }} />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[9px] font-black uppercase tracking-[0.09em]" style={{ color: "var(--text-secondary)" }}>
-              ORDER {orderNumber ? `#${orderNumber}` : ""}
+            <p className="text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: "var(--text-secondary)" }}>
+              {full ? `ORDER ${orderNumber ? `#${orderNumber}` : ""}` : "Pågående order"}
             </p>
             <h3 className="mt-0.5 truncate text-[16px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>
-              {statusText(status, isPickup)}
+              {full ? statusText(status, isPickup) : restaurantLabel}
             </h3>
+            {!full && <p className="mt-0.5 truncate text-[11px] font-bold" style={{ color: accentInk }}>{statusText(status, isPickup)} · {modeLabel}</p>}
           </div>
         </div>
-        <div className="rounded-full px-3 py-1.5 text-right" style={{ backgroundColor: soft }}>
+        <div className={`${full ? "rounded-full px-3 py-1.5" : "rounded-2xl px-3 py-2"} text-right`} style={{ backgroundColor: soft }}>
           <p className="text-[15px] font-black tabular-nums" style={{ color: accent }}>{isCancelled ? "Stängd" : etaLabel(order, now)}</p>
           {full ? <p className="text-[10.5px] font-bold" style={{ color: "var(--text-secondary)" }}>{modeLabel}</p> : null}
         </div>
@@ -171,10 +177,10 @@ export function OrderTrackingCard({
         ) : (
           <div className="flex h-full items-center px-4">
             <div>
-              <p className="text-[11px] font-bold" style={{ color: accentInk }}>{modeLabel}</p>
-              <p className="mt-1 text-[18px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
-                {status === "AWAITING_PAYMENT" ? "Betalning krävs" : "Order pågår"}
+              <p className="text-[13px] font-black" style={{ color: "var(--text-primary)" }}>
+                {status === "AWAITING_PAYMENT" ? "Betalning krävs" : statusText(status, isPickup)}
               </p>
+              {!full && <p className="mt-1 text-[11px] font-bold" style={{ color: accentInk }}>Vi håller dig uppdaterad</p>}
             </div>
           </div>
         )}
@@ -204,9 +210,9 @@ export function OrderTrackingCard({
       ) : null}
 
       <div className="mt-3 flex items-center justify-between gap-3 border-t border-[rgba(17,17,19,0.07)] pt-3">
-        <p className="min-w-0 flex-1 truncate text-[12px] font-bold" style={{ color: "var(--text-secondary)" }}>{restaurantLabel}</p>
+        <p className="min-w-0 flex-1 truncate text-[12px] font-bold" style={{ color: "var(--text-secondary)" }}>{full ? restaurantLabel : `#${orderNumber}`}</p>
         <span className="inline-flex items-center gap-1 text-[12px] font-black" style={{ color: "var(--text-primary)" }}>
-          {full ? "Orderdetaljer" : "Visa order"} <ChevronRight size={15} />
+          {full ? "Orderdetaljer" : "Öppna tracking"} <ChevronRight size={15} />
         </span>
       </div>
     </motion.div>
