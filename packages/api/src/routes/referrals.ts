@@ -694,6 +694,17 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
           inviterName: existing.inviter?.firstName || existing.inviter?.name || 'En vän',
           dealsCreated: 0,
           userDealId: existingDeal.id,
+          // Return the frozen offer on repeated redemption too. The checkout
+          // uses this payload for its local preview; omitting it made the
+          // referral look active while calculating 0 kr discount.
+          deal: {
+            title: (existingDeal.metadata as any)?.title || 'Vänrabatt',
+            discountType: existingDeal.discountType,
+            discountPercent: existingDeal.discountPercent,
+            amountKr: existingDeal.amountKr,
+            freeDelivery: !!existingDeal.freeDelivery,
+            minOrderKr: Math.max(0, Number((existingDeal.metadata as any)?.minOrderKr || 0)),
+          },
         });
       }
       return res.status(409).json({

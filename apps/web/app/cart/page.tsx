@@ -916,6 +916,15 @@ export default function CartPage() {
     selectedAccountDeal.freeDelivery || selectedAccountDeal.discountType === "FREE_DELIVERY"
   ) ? Math.min(deliveryFee, accountDealDiscount) : 0;
 
+  // A referral/user-deal minimum is an independent checkout gate. The
+  // restaurant minimum can be lower (or zero), but an active 150 kr referral
+  // coupon must never be allowed through below 150 kr. The customer can remove
+  // the coupon and enter another code instead.
+  const activeDealMinOrder = selectedAccountDealId
+    ? Math.max(0, Number(selectedAccountDeal?.minOrderKr ?? appDealQuote?.minOrderKr ?? 0))
+    : 0;
+  const activeDealBelowMinimum = !!selectedAccountDealId && subtotal < activeDealMinOrder;
+
   // Quota vald deal mot servern när korgens belopp/läge/restaurang ändras.
   // Debounce 350 ms så stepper-klick inte hammrar API:t. Vid 404 (dealen
   // använd/utgången) släpps valet och kontraktet nollas; vid nätverksfel
@@ -1922,6 +1931,10 @@ export default function CartPage() {
     // hindrar "dryck + 100%-rabatt"-bypass eftersom basbeloppet då är för
     // lågt för att klara även den lägre tröskeln.
     if (!isTestFlow) {
+      if (activeDealBelowMinimum) {
+        setError(`Den aktiva kupongen kräver en beställning på minst ${activeDealMinOrder} kr. Ta bort kupongen för att använda en annan kod.`);
+        return;
+      }
       const afterDiscount = Math.max(0, subtotal - foodDiscountComponent);
       if (afterDiscount < effectiveMinOrder && minOrderTopUp === 0) {
         const shortfall = Math.ceil(effectiveMinOrder - afterDiscount);
@@ -2258,7 +2271,10 @@ export default function CartPage() {
         const meetsMin = subtotal >= min;
         const isActive = selectedAccountDealId === d.id;
         const blockedByPromo = !!selectedPersonalDeal && !isActive;
-        const disabled = hasCatalogDiscountedItems || !meetsMin || blockedByPromo;
+        // Keep the active deal clickable even below its minimum so the
+        // customer can remove it and enter another code. Only inactive deals
+        // are disabled while their minimum is unmet.
+        const disabled = hasCatalogDiscountedItems || (!meetsMin && !isActive) || blockedByPromo;
         return (
           <button
             key={d.id}
@@ -2747,6 +2763,7 @@ export default function CartPage() {
                   disabled={
                     loading
                     || bogoMustPick
+                    || (!isTestFlow && activeDealBelowMinimum)
                     || (!isTestFlow && Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
                     || (!isTestFlow && !restaurantSettings.isOpen)
                     || (!isTestFlow && addressZoneStatus === "error")
@@ -3126,6 +3143,7 @@ export default function CartPage() {
                           disabled={
                             loading
                             || bogoMustPick
+                            || (!isTestFlow && activeDealBelowMinimum)
                             || (!isTestFlow && Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
                             || (!isTestFlow && !restaurantSettings.isOpen)
                             || (!isTestFlow && addressZoneStatus === "error")
