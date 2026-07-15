@@ -14,6 +14,9 @@ export interface TerminalDevice {
 export interface PendingPairingCode {
   code: string;
   expiresAt: string;
+  reused?: boolean;
+  serverTime?: string;
+  validForSeconds?: number;
 }
 
 export interface RestaurantDevicesResponse {

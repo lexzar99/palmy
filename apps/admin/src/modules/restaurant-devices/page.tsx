@@ -314,10 +314,10 @@ export function RestaurantDevicesPage() {
                 </Button>
                 <p className="mt-5 flex items-center gap-2 text-[12px] leading-relaxed text-white/70">
                   <RefreshCw size={13} className="animate-spin opacity-70" />
-                  Väntar på att plattan parar. Giltig till {formatWhen(pendingCode.expiresAt)}, engångskod.
+                  Väntar på att plattan parar. Giltig till {formatWhen(pendingCode.expiresAt)} i din lokala tid.
                 </p>
                 <p className="mt-2 max-w-[30ch] text-[12px] leading-relaxed text-white/60">
-                  Öppna ViaEats Business på enheten och ange koden.
+                  Engångskoden gäller i upp till 24 timmar. Upprepade klick visar samma kod och ändrar inte den du redan skickat.
                 </p>
               </>
             ) : (

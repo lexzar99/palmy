@@ -6033,7 +6033,17 @@ const generatePairCode = (len = 6): string => {
   return out;
 };
 
-// POST /restaurants/:id/devices/pairing-code — generera en ny engångskod (15 min).
+// En remote-leverantör kan befinna sig flera tidszoner bort och behöver hinna
+// installera APK:n innan parning. Koden är fortfarande single-use, men gäller
+// ett dygn och återanvänds vid upprepade klick så en redan skickad kod inte
+// råkar ogiltigförklaras av dubbelklick/refetch.
+const DEVICE_PAIRING_CODE_TTL_MS = 24 * 60 * 60 * 1000;
+// Minst en timme kvar krävs för återanvändning. Därmed ersätts även gamla
+// 15-minuterskoder direkt efter deploy, medan en ny 24-timmarskod är stabil
+// vid upprepade klick.
+const DEVICE_PAIRING_CODE_MIN_REMAINING_MS = 60 * 60 * 1000;
+
+// POST /restaurants/:id/devices/pairing-code — skapa/hämta engångskod (24 h).
 router.post('/restaurants/:id/devices/pairing-code', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const restaurant = await prisma.restaurant.findUnique({
@@ -6042,7 +6052,26 @@ router.post('/restaurants/:id/devices/pairing-code', authenticate, requireSuperA
     });
     if (!restaurant) return res.status(404).json({ error: 'Restaurang hittades inte' });
 
-    // Bara en giltig kod i taget per restaurang.
+    const now = new Date();
+    const reusable = await (prisma as any).devicePairingCode.findFirst({
+      where: {
+        restaurantId: restaurant.id,
+        usedAt: null,
+        expiresAt: { gt: new Date(now.getTime() + DEVICE_PAIRING_CODE_MIN_REMAINING_MS) },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { code: true, expiresAt: true },
+    });
+    if (reusable) {
+      return res.json({
+        ...reusable,
+        reused: true,
+        serverTime: now,
+        validForSeconds: Math.max(0, Math.floor((reusable.expiresAt.getTime() - now.getTime()) / 1000)),
+      });
+    }
+
+    // Rensa bara gamla/nästan utgångna koder. En aktiv kod returnerades ovan.
     await (prisma as any).devicePairingCode.deleteMany({
       where: { restaurantId: restaurant.id, usedAt: null },
     });
@@ -6053,7 +6082,7 @@ router.post('/restaurants/:id/devices/pairing-code', authenticate, requireSuperA
       if (!exists) break;
       code = generatePairCode();
     }
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    const expiresAt = new Date(now.getTime() + DEVICE_PAIRING_CODE_TTL_MS);
     await (prisma as any).devicePairingCode.create({
       data: { code, restaurantId: restaurant.id, expiresAt },
     });
@@ -6061,7 +6090,13 @@ router.post('/restaurants/:id/devices/pairing-code', authenticate, requireSuperA
       resourceType: 'Restaurant',
       resourceId: restaurant.id,
     });
-    res.json({ code, expiresAt });
+    res.json({
+      code,
+      expiresAt,
+      reused: false,
+      serverTime: now,
+      validForSeconds: Math.floor(DEVICE_PAIRING_CODE_TTL_MS / 1000),
+    });
   } catch (error) {
     console.error('[devices/pairing-code] error:', error);
     res.status(500).json({ error: 'Kunde inte generera pairing-kod' });

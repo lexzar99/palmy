@@ -101,11 +101,48 @@ router.post('/pair', async (req, res) => {
       return res.status(400).json({ error: 'code och deviceId krävs' });
     }
 
+    const normalizedCode = String(code).replace(/\s+/g, '').toUpperCase();
+    const now = new Date();
     const pairing = await (prisma as any).devicePairingCode.findUnique({
-      where: { code: String(code).trim().toUpperCase() },
+      where: { code: normalizedCode },
     });
-    if (!pairing || pairing.usedAt || pairing.expiresAt < new Date()) {
-      return res.status(400).json({ error: 'Ogiltig eller utgången pairing-kod' });
+    if (!pairing) {
+      console.warn('[terminal/pair] rejected', {
+        reason: 'not_found',
+        device: String(deviceId).slice(0, 8),
+      });
+      return res.status(400).json({
+        error: 'Parningskoden finns inte. Kontrollera koden i admin.',
+        code: 'PAIRING_CODE_NOT_FOUND',
+        serverTime: now,
+      });
+    }
+    if (pairing.usedAt) {
+      console.warn('[terminal/pair] rejected', {
+        reason: 'already_used',
+        pairingId: pairing.id,
+        device: String(deviceId).slice(0, 8),
+      });
+      return res.status(409).json({
+        error: 'Parningskoden har redan använts.',
+        code: 'PAIRING_CODE_USED',
+        serverTime: now,
+      });
+    }
+    if (pairing.expiresAt <= now) {
+      console.warn('[terminal/pair] rejected', {
+        reason: 'expired',
+        pairingId: pairing.id,
+        expiredAt: pairing.expiresAt,
+        serverTime: now,
+        device: String(deviceId).slice(0, 8),
+      });
+      return res.status(410).json({
+        error: 'Parningskoden har gått ut. Generera en ny kod i admin.',
+        code: 'PAIRING_CODE_EXPIRED',
+        expiresAt: pairing.expiresAt,
+        serverTime: now,
+      });
     }
 
     const ensured = await ensureRestaurantAdminUser(pairing.restaurantId);
@@ -142,6 +179,15 @@ router.post('/pair', async (req, res) => {
       accessToken,
       refreshToken,
       restaurant: { id: ensured.restaurant.id, name: ensured.restaurant.name, slug: ensured.restaurant.slug },
+      admin: {
+        id: ensured.admin.id,
+        email: ensured.admin.email,
+        role: ensured.admin.role,
+        name: ensured.restaurant.name,
+        restaurantId: ensured.restaurant.id,
+        restaurantSlug: ensured.restaurant.slug,
+      },
+      serverTime: new Date(),
     });
   } catch (error) {
     console.error('[terminal/pair] error:', error);
@@ -190,6 +236,15 @@ router.post('/session', async (req, res) => {
       accessToken,
       refreshToken: newRefresh,
       restaurant: { id: ensured.restaurant.id, name: ensured.restaurant.name, slug: ensured.restaurant.slug },
+      admin: {
+        id: ensured.admin.id,
+        email: ensured.admin.email,
+        role: ensured.admin.role,
+        name: ensured.restaurant.name,
+        restaurantId: ensured.restaurant.id,
+        restaurantSlug: ensured.restaurant.slug,
+      },
+      serverTime: new Date(),
     });
   } catch (error) {
     console.error('[terminal/session] error:', error);
