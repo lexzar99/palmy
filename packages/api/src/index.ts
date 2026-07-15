@@ -390,6 +390,7 @@ getIO().on('connection', (socket) => {
     const token = payload?.token || socket.handshake.auth?.token || null;
 
     if (!token) {
+      console.warn(`⚠️ Admin room rejected (missing token): ${socket.id}`);
       socket.emit('admin:join-error', { error: 'Token krävs för admin-room' });
       return;
     }
@@ -397,6 +398,7 @@ getIO().on('connection', (socket) => {
     try {
       const admin = await resolveAdminSessionFromToken(String(token));
       if (!admin) {
+        console.warn(`⚠️ Admin room rejected (invalid session): ${socket.id}`);
         socket.emit('admin:join-error', { error: 'Ogiltig session' });
         return;
       }
@@ -407,28 +409,34 @@ getIO().on('connection', (socket) => {
       if (admin.role === 'SUPER_ADMIN') {
         if (requestedRestaurantId) {
           socket.join(`admin-room:${requestedRestaurantId}`);
+          socket.emit('admin:joined', { restaurantId: requestedRestaurantId, scope: 'restaurant' });
           console.log(`👮 Super Admin joined restaurant room ${requestedRestaurantId}: ${socket.id}`);
           return;
         }
 
         socket.join('admin-room');
+        socket.emit('admin:joined', { restaurantId: null, scope: 'global' });
         console.log(`👮 Super Admin joined global room: ${socket.id}`);
         return;
       }
 
       if (!admin.restaurantId) {
+        console.warn(`⚠️ Admin room rejected (missing restaurant scope): ${socket.id}`);
         socket.emit('admin:join-error', { error: 'Kontot saknar restaurangscope' });
         return;
       }
 
       if (requestedRestaurantId && requestedRestaurantId !== admin.restaurantId) {
+        console.warn(`⚠️ Admin room rejected (restaurant scope mismatch): ${socket.id}`);
         socket.emit('admin:join-error', { error: 'Otillåten restaurangscope' });
         return;
       }
 
       socket.join(`admin-room:${admin.restaurantId}`);
+      socket.emit('admin:joined', { restaurantId: admin.restaurantId, scope: 'restaurant' });
       console.log(`👮 Restaurant admin joined room ${admin.restaurantId}: ${socket.id}`);
     } catch {
+      console.warn(`⚠️ Admin room rejected (token verification failed): ${socket.id}`);
       socket.emit('admin:join-error', { error: 'Kunde inte verifiera admin-session' });
     }
   });
