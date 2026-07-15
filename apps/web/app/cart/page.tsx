@@ -1136,9 +1136,12 @@ export default function CartPage() {
           const bx = b.expiresAt ? new Date(b.expiresAt).getTime() : Number.POSITIVE_INFINITY;
           return ax - bx;
         });
-      // Utloggade gäster har ingen /account/deals-session. Behåll då den
-      // telefonverifierade referral-deal som precis löstes in lokalt i kassan.
-      setAccountDeals((current) => (acctDeals.length > 0 || userRes.data ? acctDeals : current));
+      // Guests have no authenticated /account/deals session. Preserve a
+      // phone-verified referral deal that was just redeemed locally; a
+      // profile refresh may still return a guest profile, and replacing the
+      // local list with [] here used to leave the coupon looking active while
+      // dropping its userDealId before order creation (0 kr discount).
+      setAccountDeals((current) => (acctDeals.length > 0 ? acctDeals : current));
 
       if (userRes.data) {
         setUser(userRes.data);
