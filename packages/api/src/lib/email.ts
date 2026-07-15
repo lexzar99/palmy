@@ -101,7 +101,7 @@ function parseFromAddress(from: string): { name?: string; email: string } {
   return { email: from.trim() };
 }
 
-export async function sendEmail(msg: EmailMessage): Promise<void> {
+export async function sendEmail(msg: EmailMessage): Promise<boolean> {
   const from = msg.from || await resolveDefaultFrom();
 
   // Gmail SMTP (om konfigurerad). Funkar lokalt; från Railway kan port 587 vara
@@ -116,10 +116,11 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
         html: msg.html,
       });
       console.log(`[email] Gmail sent to ${msg.to}`);
+      return true;
     } catch (err) {
       console.error('[email] gmail SMTP send failed:', err);
     }
-    return;
+    return false;
   }
 
   // Console-log fallback (ingen e-post-transport konfigurerad).
@@ -136,6 +137,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
     console.log('  HTML-version finns (loggas ej; använd transporten).');
   }
   console.log('────────────────────────────────────────────────────');
+  return false;
 }
 
 // ----------------------------------------------------------------------------

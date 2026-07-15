@@ -9,62 +9,66 @@ datasource db {
 }
 
 model Category {
-  id              String         @id @default(cuid())
-  name            String
-  slug            String         @unique
-  description     String?
-  position        Int            @default(0)
-  isActive        Boolean        @default(true)
-  imageUrl        String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  restaurantId    String?
-  restaurant      Restaurant?    @relation(fields: [restaurantId], references: [id])
-  products        Product[]
+  id           String      @id @default(cuid())
+  name         String
+  slug         String      @unique
+  description  String?
+  position     Int         @default(0)
+  isActive     Boolean     @default(true)
+  imageUrl     String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  products     Product[]
 
   // Meny-queryn hämtar kategorier per restaurang, ordnade på position.
   @@index([restaurantId, position])
 }
 
 model Product {
-  id                  String              @id @default(cuid())
-  name                String
-  slug                String              @unique
-  description         String?
-  price               Int
+  id               String              @id @default(cuid())
+  name             String
+  slug             String              @unique
+  description      String?
+  price            Int
+  // Valfri moms-override för artikeln. null = restaurangens matmoms
+  // (normalt 6 % för avhämtning/leverans från 2026-04-01). 25 används
+  // exempelvis för starköl/vin. Tillval ärver huvudartikelns momssats.
+  vatPercent       Int?
   // Kedja: när true skriver master→plats-synken ALDRIG över detta pris — platsen
   // håller sitt eget lokala pris (t.ex. dyrare på flygplatsen). Övriga fält
   // synkas ändå. Sätts per produkt i admin. Default false = master styr priset.
-  localPriceLocked    Boolean             @default(false)
-  categoryId          String
-  imageUrl            String?
-  isActive            Boolean             @default(true)
-  isVegan             Boolean             @default(false)
-  isVegetarian        Boolean             @default(false)
-  isGlutenFree        Boolean             @default(false)
-  position            Int                 @default(0)
+  localPriceLocked Boolean             @default(false)
+  categoryId       String
+  imageUrl         String?
+  isActive         Boolean             @default(true)
+  isVegan          Boolean             @default(false)
+  isVegetarian     Boolean             @default(false)
+  isGlutenFree     Boolean             @default(false)
+  position         Int                 @default(0)
   // Visningsläge i kundens meny. "FULL" = en per rad med stora bild + beskrivning
   // + VARUKORG-knapp. "COMPACT" = 2 per rad, kompakt kort för drycker, sidor,
   // chili cheese etc. Bestäms i admin per produkt.
-  displayMode         String              @default("FULL")
+  displayMode      String              @default("FULL")
   // När true: hoppa över beskrivningen i menyn (för compact-items där beskrivning
   // inte behövs eller bara är brus). Admin-styrt.
-  hideDescription     Boolean             @default(false)
+  hideDescription  Boolean             @default(false)
   // Valfri admin-notering som visas längst ner i produktmodalen i appen,
   // skild från description. Null = ingen notering.
-  note                String?
+  note             String?
   // Discount / sale fields for "Rea & rabatterat" section on home.
   // discountPercent overrides discountPrice if both are set.
-  discountPercent     Int?                // 1-95 (%)
-  discountPrice       Int?                // in öre - direct sale price
-  discountImageUrl    String?             // Optional alt image shown in discount rail
-  discountLabel       String?             // e.g. "Dagens deal", "-20%"
-  discountActive      Boolean             @default(false)
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  orderItems          OrderItem[]
-  category            Category            @relation(fields: [categoryId], references: [id])
-  extraGroups         ProductExtraGroup[]
+  discountPercent  Int? // 1-95 (%)
+  discountPrice    Int? // in öre - direct sale price
+  discountImageUrl String? // Optional alt image shown in discount rail
+  discountLabel    String? // e.g. "Dagens deal", "-20%"
+  discountActive   Boolean             @default(false)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  orderItems       OrderItem[]
+  category         Category            @relation(fields: [categoryId], references: [id])
+  extraGroups      ProductExtraGroup[]
 
   // Meny-queryn filtrerar isActive + ordnar position inom categoryId. Det
   // sammansatta indexet täcker både det och rena categoryId-uppslag.
@@ -88,8 +92,10 @@ model ExtraGroup {
   position      Int                 @default(0)
   restaurantId  String?
   extras        Extra[]
-  restaurant    Restaurant?         @relation(fields: [restaurantId], references: [id])
+  restaurant    Restaurant?         @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
   productGroups ProductExtraGroup[]
+
+  @@index([restaurantId])
 }
 
 model ProductExtraGroup {
@@ -119,93 +125,113 @@ model Extra {
 }
 
 model Order {
-  id                    String      @id @default(cuid())
-  orderNumber           String      @unique
-  status                String      @default("PENDING")
-  type                  String
-  customerName          String
-  customerPhone         String
-  customerEmail         String?
-  deliveryStreet        String?
-  deliveryCity          String?
-  deliveryZip           String?
+  id                        String                    @id @default(cuid())
+  orderNumber               String                    @unique
+  // Stable client checkout-attempt key. Unlike the old in-memory replay
+  // cache, this survives restarts and works across multiple API replicas.
+  clientRequestId           String?                   @unique
+  status                    String                    @default("PENDING")
+  type                      String
+  customerName              String
+  customerPhone             String
+  customerEmail             String?
+  deliveryStreet            String?
+  deliveryCity              String?
+  deliveryZip               String?
   // Kundens leverans-koordinater vid order-tid. Sparas för att matcha mot
   // restaurangens zoner i efterhand när vi räknar per-zon-ETA: vilka orders
   // ramlade inom vilken zon → snitt-leveranstid per zon.
-  deliveryLatitude      Float?
-  deliveryLongitude     Float?
-  deliveryNote          String?
-  deliveryInstructions  String?     // Preset: RING_DOORBELL, LEAVE_AT_DOOR, MEET_OUTSIDE, ENTER_CODE
-  total                 Int
-  deliveryFee           Int         @default(0)
-  discountAmount        Int         @default(0)
+  deliveryLatitude          Float?
+  deliveryLongitude         Float?
+  deliveryNote              String?
+  deliveryInstructions      String? // Preset: RING_DOORBELL, LEAVE_AT_DOOR, MEET_OUTSIDE, ENTER_CODE
+  total                     Int
+  deliveryFee               Int                       @default(0)
+  discountAmount            Int                       @default(0)
+  // Frysta rabattkomponenter. discountAmount = food + delivery. De behövs
+  // för korrekta PSP-/momsrader när fri leverans kombineras med matrabatt.
+  foodDiscountAmount        Int                       @default(0)
+  deliveryDiscountAmount    Int                       @default(0)
+  // Frivillig komplettering till minsta ordervärde är inte leveransavgift.
+  // Separat lagring förhindrar fel moms, payout och fri-leverans-rabatt.
+  smallOrderFee             Int                       @default(0)
+  // Momssatser fryses på ordern så senare restaurangändringar inte skriver om
+  // betalningsunderlag/kvitton. Artiklar har dessutom egen snapshot nedan.
+  foodVatPercent            Int                       @default(6)
+  deliveryVatPercent        Int?
   // Dricks (öre). Kund anger valfritt belopp i kassan, går till leverans-
   // personalen. Inkluderas i total + Stripe-belopp så amount-check
   // matchar (annars rejectar backend payment med "beloppet matchar inte").
-  tipAmount             Int         @default(0)
-  discountCode          String?
-  appliedDealId         String?
-  appliedDealTitle      String?
+  tipAmount                 Int                       @default(0)
+  discountCode              String?
+  appliedDealId             String?
+  appliedDealTitle          String?
   // UserDeal applied at checkout (welcome/referral-coupon från användarens
   // /api/account/deals). Frusen vid order-creation och reserverad atomiskt
   // tills payment success → markeras USED. Vid payment fail/cancel → revertas
   // till ACTIVE så användaren kan använda den igen.
-  userDealId            String?
-  userDealAmountKr      Int?
-  stripePaymentIntentId String?
-  // Provider-neutral betalning. paymentProvider = aktiv PSP vid order-tid.
-  // Legacy-ordrar (Stripe) defaultar till "stripe"; nya skapas som "adyen".
-  paymentProvider       String      @default("stripe")
-  molliePaymentId       String?
-  adyenSessionId        String?     // sätts vid /sessions (reconcile-uppslag)
-  adyenPspReference     String?     // backfillas av AUTHORISATION-webhooken (för refund)
+  userDealId                String?
+  userDealAmountKr          Int?
+  stripePaymentIntentId     String?
+  // Provider-neutral betalning. Alla order-skapare måste ange aktiv PSP
+  // explicit; befintliga legacy-ordrar behåller sitt lagrade värde.
+  paymentProvider           String
+  molliePaymentId           String?
+  adyenSessionId            String? // sätts vid /sessions (reconcile-uppslag)
+  adyenPspReference         String? // backfillas av AUTHORISATION-webhooken (för refund)
   // 32-byte slumpad access-token för att tillåta gäst-bookmark/redirect-
   // åtkomst till order-tracking utan auth. Sätts vid order-skapande och
-  // returneras till klienten EN gång. Användbar i 30 min (kollas i GET-
-  // routen). Ersätter den gamla "5-min grace by age"-loophole:n som lät
+  // returneras till klienten EN gång. Användbar i 48 timmar för initial
+  // sessionsväxling. Ersätter den gamla "5-min grace by age"-loophole:n som lät
   // attackerare enumerera cuid:er för PII.
-  accessToken           String?
-  paymentStatus         String      @default("PENDING")
-  paymentMethod         String      @default("ONLINE")
-  note                  String?
-  estimatedTime         Int?
-  refundAmount          Int?        // Partial or full refund in öre
-  refundReason          String?     // Reason for refund
-  refundedAt            DateTime?   // When the refund was issued
-  rating                Int?        // 1-5 star rating from customer
-  review                String?     // Customer review text
-  reviewedAt            DateTime?   // When the review was submitted
-  reviewFlagged         Boolean     @default(false)
-  reviewReply           String?
+  accessToken               String?
+  paymentStatus             String                    @default("PENDING")
+  // Durable completion marker for idempotent coupon/referral/payment effects.
+  // Existing paid rows are backfilled by migration; new orders start null.
+  paymentEffectsCompletedAt DateTime?
+  paymentMethod             String                    @default("ONLINE")
+  note                      String?
+  estimatedTime             Int?
+  refundAmount              Int? // Partial or full refund in öre
+  refundReason              String? // Reason for refund
+  refundedAt                DateTime? // When the refund was issued
+  rating                    Int? // 1-5 star rating from customer
+  review                    String? // Customer review text
+  reviewedAt                DateTime? // When the review was submitted
+  reviewFlagged             Boolean                   @default(false)
+  reviewReply               String?
   // JSON-array av OrderItem.productId som kunden "likade" i sin review.
   // Visas under reviewen på restaurangens reviews-sida som tags. Tomt
   // array = inga rätter explicit likade.
-  likedItemIds          String      @default("[]")
-  reviewRepliedAt       DateTime?
-  allergens             String      @default("[]") // Customer allergens captured at order time
+  likedItemIds              String                    @default("[]")
+  reviewRepliedAt           DateTime?
+  allergens                 String                    @default("[]") // Customer allergens captured at order time
   // Guard mot dubbel-increment av discount/deal usageCount. Både Stripe-
   // webhook och reconcile-poller kan trigga increment-logiken — utan denna
   // flag riskerade samma order räknas 2x. Atomisk uppdatering med
   // `where: { id, discountUsageCounted: false }` säkrar att bara en path vinner.
-  discountUsageCounted  Boolean     @default(false)
-  preparingAt           DateTime?   // When admin moved order into PREPARING — anchor for the countdown shown in the LiveActivity widget
-  deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer + LA on-the-way countdown)
-  etaReadyAt            DateTime?   // Backend ETA: när maten förväntas vara klar hos restaurangen
-  etaPickupAt           DateTime?   // Backend ETA: när bud förväntas ha hämtat ordern
-  etaCustomerAt         DateTime?   // Backend ETA: när ordern förväntas vara hos kunden
-  etaCustomerMin        Int?        // Minuter från senaste beräkningen till etaCustomerAt
-  etaPriorityScore      Float?      // Högre = mer tidskritisk vid kurir-prioritering
-  etaReason             String?     // Kort läsbar förklaring för admin/kurir/kund
-  scheduledFor          DateTime?   // Customer-requested delivery/pickup time (null = ASAP)
-  liveActivityToken     String?     // iOS Live Activity push token (per-activity, lets backend push state updates to Dynamic Island)
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
-  restaurantId          String?
-  restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
-  items                 OrderItem[]
-  delivery              Delivery?
-  userId                String?
-  user                  User?       @relation(fields: [userId], references: [id])
+  discountUsageCounted      Boolean                   @default(false)
+  preparingAt               DateTime? // When admin moved order into PREPARING — anchor for the countdown shown in the LiveActivity widget
+  deliveringAt              DateTime? // When order was marked as DELIVERING (for delayed display to customer + LA on-the-way countdown)
+  etaReadyAt                DateTime? // Backend ETA: när maten förväntas vara klar hos restaurangen
+  etaPickupAt               DateTime? // Backend ETA: när bud förväntas ha hämtat ordern
+  etaCustomerAt             DateTime? // Backend ETA: när ordern förväntas vara hos kunden
+  etaCustomerMin            Int? // Minuter från senaste beräkningen till etaCustomerAt
+  etaPriorityScore          Float? // Högre = mer tidskritisk vid kurir-prioritering
+  etaReason                 String? // Kort läsbar förklaring för admin/kurir/kund
+  scheduledFor              DateTime? // Customer-requested delivery/pickup time (null = ASAP)
+  liveActivityToken         String? // iOS Live Activity push token (per-activity, lets backend push state updates to Dynamic Island)
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  restaurantId              String?
+  restaurant                Restaurant?               @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  items                     OrderItem[]
+  delivery                  Delivery?
+  userId                    String?
+  user                      User?                     @relation(fields: [userId], references: [id])
+  deviceOrderSubscriptions  DeviceOrderSubscription[]
+  notificationOutbox        NotificationOutbox[]
+  paymentRefunds            PaymentRefund[]
 
   @@index([restaurantId, status, createdAt])
   @@index([customerPhone])
@@ -221,35 +247,64 @@ model Order {
   @@index([restaurantId, etaCustomerAt])
 }
 
+// Durable PSP refund ledger. Database guards make the economic/source fields
+// immutable and block hard deletes; only lifecycle status may advance.
+model PaymentRefund {
+  id                String    @id @default(cuid())
+  orderId           String
+  order             Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  provider          String
+  paymentRef        String
+  refundRef         String?
+  idempotencyKey    String    @unique
+  amount            Int
+  cumulativeAmount  Int
+  status            String    @default("REQUESTED")
+  source            String
+  actorAdminId      String?
+  reason            String?
+  providerCreatedAt DateTime?
+  firstSeenAt       DateTime  @default(now())
+  lastSeenAt        DateTime  @default(now())
+  completedAt       DateTime?
+  failedAt          DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([provider, refundRef])
+  @@index([orderId, createdAt])
+  @@index([provider, status, lastSeenAt])
+}
+
 // --- Kurir-domän (Fas 3) ---
 model Courier {
-  id               String     @id @default(cuid())
-  name             String
-  email            String     @unique
-  passwordHash     String
-  phone            String?
-  personalNumber   String?    // PII — super-admin-only, exponeras aldrig i kurir-API
-  address          String?
-  profileImageUrl  String?
-  city             String     @default("Lund") // stad-koppling: får bara ordrar i sin stad
-  vehicle          String     @default("BIKE") // BIKE | CAR
-  payoutAccount    String?    // PII — bank/IBAN/Swish
-  ratePerKm        Int        @default(1500)    // öre/km
-  online           Boolean    @default(false)   // session aktiv = tar emot ordrar
-  sessionStartedAt DateTime?
-  isActive         Boolean    @default(true)
-  currentLat       Float?
-  currentLng       Float?
-  lastSeenAt       DateTime?
-  tokenVersion     Int        @default(0)       // bump = återkalla session
+  id                String                    @id @default(cuid())
+  name              String
+  email             String                    @unique
+  passwordHash      String
+  phone             String?
+  personalNumber    String? // PII — super-admin-only, exponeras aldrig i kurir-API
+  address           String?
+  profileImageUrl   String?
+  city              String                    @default("Lund") // stad-koppling: får bara ordrar i sin stad
+  vehicle           String                    @default("BIKE") // BIKE | CAR
+  payoutAccount     String? // PII — bank/IBAN/Swish
+  ratePerKm         Int                       @default(1500) // öre/km
+  online            Boolean                   @default(false) // session aktiv = tar emot ordrar
+  sessionStartedAt  DateTime?
+  isActive          Boolean                   @default(true)
+  currentLat        Float?
+  currentLng        Float?
+  lastSeenAt        DateTime?
+  tokenVersion      Int                       @default(0) // bump = återkalla session
   // Native push (Flutter-appen): FCM-token funkar för både Android och iOS
   // (FCM proxar iOS via APNs). Notiser når kuriren även när appen är helt stängd.
-  fcmToken         String?
-  fcmPlatform      String?    // "ios" | "android" — info/debug
-  apnsDeviceToken  String?    // Native Swift iOS-kurir: rå APNs device token
-  apnsPlatform     String?    // "ios" — info/debug
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  fcmToken          String?
+  fcmPlatform       String? // "ios" | "android" — info/debug
+  apnsDeviceToken   String? // Native Swift iOS-kurir: rå APNs device token
+  apnsPlatform      String? // "ios" — info/debug
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
   deliveries        Delivery[]
   pushSubscriptions CourierPushSubscription[]
 
@@ -274,26 +329,26 @@ model CourierPushSubscription {
 }
 
 model Delivery {
-  id            String    @id @default(cuid())
-  orderId       String    @unique
-  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  courierId     String?
-  courier       Courier?  @relation(fields: [courierId], references: [id])
-  status        String    @default("EN_ROUTE_PICKUP") // EN_ROUTE_PICKUP | PICKED_UP | DELIVERED | FAILED
-  distanceKm    Float     @default(0)
-  ratePerKmOre  Int       @default(0)
-  payOre        Int       @default(0)            // fryst ersättning = distanceKm * ratePerKmOre
-  tipOre        Int       @default(0)
-  proofMethod   String?                          // HANDED | LEFT_AT_DOOR
-  proofPhotoUrl String?
-  proofPhotoKey String?                           // R2-nyckel — behövs för att radera bilden efter 2 dygn
-  proofMessage  String?                           // kurirens valfria notering (hand/dörr) — speglas även som order-Note
-  proofExpiresAt DateTime?                         // när leveransbilden ska raderas permanent (≈ +2 dygn)
-  acceptedAt    DateTime  @default(now())
-  pickedUpAt    DateTime?
-  deliveredAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  orderId        String    @unique
+  order          Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courierId      String?
+  courier        Courier?  @relation(fields: [courierId], references: [id])
+  status         String    @default("EN_ROUTE_PICKUP") // EN_ROUTE_PICKUP | PICKED_UP | DELIVERED | FAILED
+  distanceKm     Float     @default(0)
+  ratePerKmOre   Int       @default(0)
+  payOre         Int       @default(0) // fryst ersättning = distanceKm * ratePerKmOre
+  tipOre         Int       @default(0)
+  proofMethod    String? // HANDED | LEFT_AT_DOOR
+  proofPhotoUrl  String?
+  proofPhotoKey  String? // R2-nyckel — behövs för att radera bilden efter 2 dygn
+  proofMessage   String? // kurirens valfria notering (hand/dörr) — speglas även som order-Note
+  proofExpiresAt DateTime? // när leveransbilden ska raderas permanent (≈ +2 dygn)
+  acceptedAt     DateTime  @default(now())
+  pickedUpAt     DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([courierId, status])
   @@index([proofExpiresAt])
@@ -324,6 +379,7 @@ model OrderItem {
   note           String?
   selectedExtras String   @default("[]")
   subtotal       Int
+  vatPercent     Int      @default(6)
   createdAt      DateTime @default(now())
   order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product        Product  @relation(fields: [productId], references: [id])
@@ -333,17 +389,17 @@ model OrderItem {
 }
 
 model DiscountCode {
-  id                    String    @id @default(cuid())
-  code                  String    @unique
-  description           String?
-  type                  String    @default("PERCENTAGE")
-  value                 Int
-  minOrder              Int       @default(0)
-  isActive              Boolean   @default(true)
-  maxUsages             Int?
-  usageCount            Int       @default(0)
-  validFrom             DateTime?
-  validUntil            DateTime?
+  id                      String    @id @default(cuid())
+  code                    String    @unique
+  description             String?
+  type                    String    @default("PERCENTAGE")
+  value                   Int
+  minOrder                Int       @default(0)
+  isActive                Boolean   @default(true)
+  maxUsages               Int?
+  usageCount              Int       @default(0)
+  validFrom               DateTime?
+  validUntil              DateTime?
   applicableCategoryIds   String    @default("[]")
   restaurantId            String?
   applicableRestaurantIds String    @default("[]")
@@ -353,106 +409,106 @@ model DiscountCode {
   // type=FIXED → kunden får t.ex. "20% rabatt + fri leverans" från en enda
   // kupong-kod. Om type=FREE_DELIVERY (standalone): denna flagga ignoreras
   // (fri leverans är redan kupongens huvudfunktion).
-  freeDelivery         Boolean   @default(false)
+  freeDelivery            Boolean   @default(false)
   // Var koden får lösas in: ALL (default, överallt) | APP (bara mobilappen,
   // för att driva nedladdningar) | WEB (bara webben). Servern läser klientens
   // X-Client-Type-header och avvisar koden om plattformen inte matchar. Alla
   // äldre koder är ALL → oförändrat beteende.
-  platform             String    @default("ALL")
+  platform                String    @default("ALL")
 }
 
 model Deal {
-  id                    String      @id @default(cuid())
-  title                 String
-  description           String?
-  imageUrl              String?
-  badgeText             String?
+  id                      String      @id @default(cuid())
+  title                   String
+  description             String?
+  imageUrl                String?
+  badgeText               String?
   // Popup-specifika fält. Används av claim-popupen i web/RN. När popupBuilder
   // skapar en deal sätter admin dessa: vad popupen säger, vilken kod kunden
   // ser efter claim, och CTA-knappens text. Lämnas tomma blir popup en
   // standard-rendering av title + description.
-  popupHeadline         String?
-  popupBody             String?
-  popupCtaLabel         String?
-  popupCode             String?
+  popupHeadline           String?
+  popupBody               String?
+  popupCtaLabel           String?
+  popupCode               String?
   // Popup-typ: false (default) = "Spara erbjudande" + "Inte nu" knappar.
   // true = bara "OK"-knapp (för informativa popups utan kod att claima).
-  popupOkOnly           Boolean     @default(false)
-  triggerType           String      @default("NONE")
-  discountType          String      @default("PERCENTAGE")
-  discountValue         Int
-  minOrder              Int         @default(0)
-  comboProductIds       String      @default("[]")
-  isActive              Boolean     @default(true)
-  showOnSite            Boolean     @default(true)
-  popupEnabled          Boolean     @default(true)
-  maxUsages             Int?
-  maxUsesPerCustomer    Int?
-  usageCount            Int         @default(0)
-  validFrom             DateTime?
-  validUntil            DateTime?
-  sortOrder             Int         @default(0)
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
-  restaurantId          String?
-  isGlobal              Boolean     @default(false)
-  applicableRestaurantIds   String    @default("[]")
-  triggerCategoryId         String?
-  triggerQuantity           Int       @default(2)
-  rewardCategoryId          String?
-  bogoExcludedProductIds    String    @default("[]")
-  bogoRewardProductIds      String    @default("[]")
-  bogoExcludedExtraIds      String    @default("[]")    // JSON-array av Extra.id som hindras när BOGO-gratisvara väljs (t.ex. "vitlökssås", "panpizza-storlek")
-  bogoMaxRewardPriceOre     Int?
-  bogoMinOrderAmountOre     Int?
-  bogoTriggerProductIds     String    @default("[]")
+  popupOkOnly             Boolean     @default(false)
+  triggerType             String      @default("NONE")
+  discountType            String      @default("PERCENTAGE")
+  discountValue           Int
+  minOrder                Int         @default(0)
+  comboProductIds         String      @default("[]")
+  isActive                Boolean     @default(true)
+  showOnSite              Boolean     @default(true)
+  popupEnabled            Boolean     @default(true)
+  maxUsages               Int?
+  maxUsesPerCustomer      Int?
+  usageCount              Int         @default(0)
+  validFrom               DateTime?
+  validUntil              DateTime?
+  sortOrder               Int         @default(0)
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+  restaurantId            String?
+  isGlobal                Boolean     @default(false)
+  applicableRestaurantIds String      @default("[]")
+  triggerCategoryId       String?
+  triggerQuantity         Int         @default(2)
+  rewardCategoryId        String?
+  bogoExcludedProductIds  String      @default("[]")
+  bogoRewardProductIds    String      @default("[]")
+  bogoExcludedExtraIds    String      @default("[]") // JSON-array av Extra.id som hindras när BOGO-gratisvara väljs (t.ex. "vitlökssås", "panpizza-storlek")
+  bogoMaxRewardPriceOre   Int?
+  bogoMinOrderAmountOre   Int?
+  bogoTriggerProductIds   String      @default("[]")
   // Antal gratis-varor som ges per gång trigger uppfylls. Default 1.
   // Exempel: triggerQuantity=2 + bogoRewardsPerTrigger=1 → "köp 2 pizzor, få 1 gratis"
   // Exempel: triggerQuantity=1 + bogoRewardsPerTrigger=2 → "köp 1 pizza, få 2 drycker"
-  bogoRewardsPerTrigger     Int       @default(1)
+  bogoRewardsPerTrigger   Int         @default(1)
   // Hård cap på totala antal gratis-varor på en order. null = obegränsat
   // (skalar med antal trigger-uppfyllelser). Default 1 så befintliga
   // BOGO-deals fortsätter funka som "1 gratis per order" utan ändring.
   // Sätt null om du vill ha "1 dryck per kebabpizza, ingen cap".
-  bogoMaxRewardsPerOrder    Int?      @default(1)
-  showAsBanner              Boolean   @default(false)
+  bogoMaxRewardsPerOrder  Int?        @default(1)
+  showAsBanner            Boolean     @default(false)
   // Personal-template: Dealen syns INTE som global rabatt på sajten
   // (inte i /api/deals, inga popups, inga banners). Den används endast
   // som mall av referral-systemet som snapshotar dess värden in i
   // UserDeal-rader per användare. true = exklusivt för referral/welcome.
-  isPersonalTemplate    Boolean   @default(false)
+  isPersonalTemplate      Boolean     @default(false)
   // Engine-mall: används av DealCampaign-motorn som en variant-mall.
   // Syns INTE i browse-feeden (/api/deals/app hämtar bara appEnabled &&
   // !isTemplate); motorn snapshotar dess värden till per-kund UserDeal-rader.
-  isTemplate            Boolean   @default(false)
+  isTemplate              Boolean     @default(false)
   // Stackbar fri-leverans-flagga. Kan kombineras med discountType
   // PERCENTAGE/FIXED → kunden får t.ex. "25% rabatt + fri leverans"
   // på samma order. Om discountType=NONE och freeDelivery=true →
   // bara fri leverans, inget annat.
-  freeDelivery          Boolean   @default(false)
+  freeDelivery            Boolean     @default(false)
   // App-deals: styr korten som visas i kundappen. Deal är fortfarande
   // den ekonomiska regeln; dessa fält är presentation, målgrupp och rotation.
-  appEnabled            Boolean   @default(false)
-  appPlacement          String    @default("HOME_TOP") // HOME_TOP | HOME_INLINE | CART | POST_ORDER
-  appAudience           String    @default("ALL")      // ALL | GUEST | LOGGED_IN | NEW_CUSTOMER | NEW_LOGGED_IN | RETURNING
-  appTemplate           String    @default("DEAL_HERO") // FREE_DELIVERY_HERO | FREE_DELIVERY_COMPACT | PERCENT | FIXED | RESTAURANT_SPOTLIGHT
-  appSize               String    @default("LARGE")    // LARGE | COMPACT
-  appRotating           Boolean   @default(true)
-  appWeight             Int       @default(10)
-  appClaimRequired      Boolean   @default(true)
-  appClaimExpiresMinutes Int?
-  appCooldownHours      Int?
-  appCtaLabel           String?
-  appCtaAction          String?   @default("CLAIM") // CLAIM | CART | RESTAURANT | URL
-  appCtaTarget          String?
-  appTheme              String?
-  restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
-  userDeals             UserDeal[]
+  appEnabled              Boolean     @default(false)
+  appPlacement            String      @default("HOME_TOP") // HOME_TOP | HOME_INLINE | CART | POST_ORDER
+  appAudience             String      @default("ALL") // ALL | GUEST | LOGGED_IN | NEW_CUSTOMER | NEW_LOGGED_IN | RETURNING
+  appTemplate             String      @default("DEAL_HERO") // FREE_DELIVERY_HERO | FREE_DELIVERY_COMPACT | PERCENT | FIXED | RESTAURANT_SPOTLIGHT
+  appSize                 String      @default("LARGE") // LARGE | COMPACT
+  appRotating             Boolean     @default(true)
+  appWeight               Int         @default(10)
+  appClaimRequired        Boolean     @default(true)
+  appClaimExpiresMinutes  Int?
+  appCooldownHours        Int?
+  appCtaLabel             String?
+  appCtaAction            String?     @default("CLAIM") // CLAIM | CART | RESTAURANT | URL
+  appCtaTarget            String?
+  appTheme                String?
+  restaurant              Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  userDeals               UserDeal[]
   // Kedje-scopad deal: gäller alla platser i en Brand. När satt expanderas den
   // till applicableRestaurantIds (alla nuvarande platser) vid spar + medlems-
   // ändring, så framtida platser ärver automatiskt. restaurantId/isGlobal = null/false.
-  brandId               String?
-  brand                 Brand?      @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  brandId                 String?
+  brand                   Brand?      @relation(fields: [brandId], references: [id], onDelete: SetNull)
 
   @@index([isActive, restaurantId, validUntil])
   @@index([isActive, isGlobal])
@@ -470,13 +526,13 @@ model Deal {
 model DealCampaign {
   id             String    @id @default(cuid())
   title          String
-  status         String    @default("DRAFT")  // DRAFT | SCHEDULED | ACTIVE | PAUSED | DONE
-  segment        String    @default("ALL")    // ALL | new_users_7d | inactive_30d | active_repeaters
-  restaurantId   String?                       // scope för snapshottad deal (null = mallens egen scope)
+  status         String    @default("DRAFT") // DRAFT | SCHEDULED | ACTIVE | PAUSED | DONE
+  segment        String    @default("ALL") // ALL | new_users_7d | inactive_30d | active_repeaters
+  restaurantId   String? // scope för snapshottad deal (null = mallens egen scope)
   brandId        String?
-  variants       Json      @default("[]")      // [{ dealTemplateId: string, weight: number }]
+  variants       Json      @default("[]") // [{ dealTemplateId: string, weight: number }]
   capPerCustomer Int       @default(1)
-  validDays      Int       @default(7)         // UserDeal.expiresAt = tilldelning + validDays
+  validDays      Int       @default(7) // UserDeal.expiresAt = tilldelning + validDays
   scheduledAt    DateTime?
   lastRunAt      DateTime?
   createdAt      DateTime  @default(now())
@@ -486,38 +542,38 @@ model DealCampaign {
 }
 
 model HomeCategorySection {
-  id                String   @id @default(cuid())
-  title             String
+  id                  String   @id @default(cuid())
+  title               String
   // Engelska översättningar för plattformens flerspråks-stöd. null = falla
   // tillbaka på svenska originalet i UI:t. Sätts manuellt av admin.
-  titleEn           String?
-  slug              String   @unique
-  subtitle          String?
-  subtitleEn        String?
-  description       String?
-  descriptionEn     String?
-  isActive          Boolean  @default(true)
-  sortOrder         Int      @default(0)
-  filterMode        String   @default("FILTER") // FILTER, MANUAL, HYBRID
-  maxRestaurants    Int      @default(8)
-  manualRestaurantIds String @default("[]")
-  filters           String   @default("{}")
-  schedule          String   @default("{}")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  titleEn             String?
+  slug                String   @unique
+  subtitle            String?
+  subtitleEn          String?
+  description         String?
+  descriptionEn       String?
+  isActive            Boolean  @default(true)
+  sortOrder           Int      @default(0)
+  filterMode          String   @default("FILTER") // FILTER, MANUAL, HYBRID
+  maxRestaurants      Int      @default(8)
+  manualRestaurantIds String   @default("[]")
+  filters             String   @default("{}")
+  schedule            String   @default("{}")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model AdminUser {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  password      String
-  name          String
-  role          String   @default("STAFF")
-  isActive      Boolean  @default(true)
+  id                  String          @id @default(cuid())
+  email               String          @unique
+  password            String
+  name                String
+  role                String          @default("STAFF")
+  isActive            Boolean         @default(true)
   // TOTP (2FA) — otplib-genererat base32-secret. När totpEnabled=true
   // krävs en kod vid login från ny enhet. Lagras encrypted-at-rest av Postgres.
-  totpSecret    String?
-  totpEnabled   Boolean  @default(false)
+  totpSecret          String?
+  totpEnabled         Boolean         @default(false)
   // Tidstämpel när recovery codes senast genererades (för att visa varning
   // till admin om de är gamla)
   recoveryGeneratedAt DateTime?
@@ -525,11 +581,11 @@ model AdminUser {
   // issued JWTs for this admin. Login embeds the current value in the
   // token payload; the auth middleware rejects any token whose version
   // doesn't match what's stored here.
-  tokenVersion  Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  trustedDevices TrustedDevice[]
-  recoveryCodes  RecoveryCode[]
+  tokenVersion        Int             @default(0)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  trustedDevices      TrustedDevice[]
+  recoveryCodes       RecoveryCode[]
 }
 
 // En restaurang-platta (Flutter-appen) parad till en restaurang. Nycklas på ett
@@ -570,21 +626,21 @@ model DevicePairingCode {
 // gäller 30 dagar. Då slipper man TOTP-prompt nästa gång på samma dator.
 // Admin kan revoka enheter från /2fa-sidan om de tappat dem.
 model TrustedDevice {
-  id           String    @id @default(cuid())
-  adminId      String
+  id          String    @id @default(cuid())
+  adminId     String
   // bcrypt-hash av cookie-tokenen (samma princip som lösenord — vi vill
   // inte lagra tokens i klartext)
-  tokenHash    String
+  tokenHash   String
   // User-friendly label så admin kan känna igen enheten i listan
   // ('Chrome på MacBook Pro · Stockholm')
-  deviceLabel  String
-  ipAddress    String?
-  userAgent    String?
-  createdAt    DateTime  @default(now())
-  lastSeenAt   DateTime  @default(now())
-  expiresAt    DateTime
-  revokedAt    DateTime?
-  admin        AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  deviceLabel String
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  admin       AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
   @@index([expiresAt])
@@ -595,7 +651,7 @@ model TrustedDevice {
 model RecoveryCode {
   id        String    @id @default(cuid())
   adminId   String
-  codeHash  String    // bcrypt-hash av en kod som "ABCD-1234"
+  codeHash  String // bcrypt-hash av en kod som "ABCD-1234"
   usedAt    DateTime?
   createdAt DateTime  @default(now())
   admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
@@ -607,12 +663,12 @@ model RecoveryCode {
 // (vem ändrade vad), forensics (vid intrång) och compliance.
 model AuditLog {
   id           String   @id @default(cuid())
-  adminId      String?  // Null om endpoint är publik eller webhook
-  adminEmail   String?  // Snapshot — kvarstår om admin-kontot raderas
-  action       String   // ORDER_REFUND, RESTAURANT_DEACTIVATE, etc.
-  resourceType String   // Order, Restaurant, Customer, etc.
+  adminId      String? // Null om endpoint är publik eller webhook
+  adminEmail   String? // Snapshot — kvarstår om admin-kontot raderas
+  action       String // ORDER_REFUND, RESTAURANT_DEACTIVATE, etc.
+  resourceType String // Order, Restaurant, Customer, etc.
   resourceId   String?
-  changes      String?  // JSON-string av {before, after}
+  changes      String? // JSON-string av {before, after}
   ipAddress    String?
   userAgent    String?
   createdAt    DateTime @default(now())
@@ -638,42 +694,42 @@ model RestaurantSettings {
   // Platform/företags-info — används av kontakt- och om-oss-sidorna på web.
   // Inget med restauranger att göra (trots tabellnamnet). Egen tabell senare,
   // men för enkelhetens skull återanvänder vi singleton-raden här.
-  contactPhone          String?
-  contactPhoneHours     String?  // ex: "Mån-Fre 09:00 – 17:00"
-  contactEmail          String?
-  contactAddress        String?  // multiline OK
-  aboutBody             String?  // markdown / plain text för om-oss-sidan
+  contactPhone      String?
+  contactPhoneHours String? // ex: "Mån-Fre 09:00 – 17:00"
+  contactEmail      String?
+  contactAddress    String? // multiline OK
+  aboutBody         String? // markdown / plain text för om-oss-sidan
 
   // Företagsidentitet — visas i Terms + Privacy + RN-support-flöden. Singleton
   // för hela plattformen. Fallback-värden hanteras i klienterna när null.
-  companyName           String?  // ex: "ViaEats AB"
-  organizationNumber    String?  // ex: "559123-4567"
-  companyAddress        String?  // postal/registrerad adress, multiline OK
-  supportEmail          String?  // primär support — RN + web SupportChat
-  privacyEmail          String?  // GDPR/DPO-kontakt
-  noReplyEmail          String?  // From-adress i sendEmail (valbar)
+  companyName        String? // ex: "ViaEats AB"
+  organizationNumber String? // ex: "559123-4567"
+  companyAddress     String? // postal/registrerad adress, multiline OK
+  supportEmail       String? // primär support — RN + web SupportChat
+  privacyEmail       String? // GDPR/DPO-kontakt
+  noReplyEmail       String? // From-adress i sendEmail (valbar)
 
   // Platform-wide UI-toggles
-  showDiscountedRail    Boolean  @default(true)  // Rea & Rabatter-sektion på hem-sidan
+  showDiscountedRail Boolean @default(true) // Rea & Rabatter-sektion på hem-sidan
 
   // --- Plattform-ekonomi (singleton). Admin-styrt, aldrig hårdkodat. ---
   // Provisionssatser i procent, väljs av restaurangens selfDelivery-flagga.
-  commissionSelfPct     Int      @default(10)    // restaurangen levererar själv
-  commissionPlatformPct Int      @default(20)    // plattformen levererar
+  commissionSelfPct     Int @default(10) // restaurangen levererar själv
+  commissionPlatformPct Int @default(20) // plattformen levererar
   // Moms i procent. Kund/mat (6 nu → 12 senare) vs plattformens avgifter till
   // partnern (provision + abonnemang som B2B-tjänst = 25%).
-  vatCustomerPct        Int      @default(6)
-  vatPlatformFeePct     Int      @default(25)
+  vatCustomerPct        Int @default(6)
+  vatPlatformFeePct     Int @default(25)
   // Tier-abonnemang i ÖRE/månad (oberoende av provision). Standard = alla andra.
-  tierGoldFee           Int      @default(100000) // 1000 kr
-  tierSilverFee         Int      @default(70000)  // 700 kr
-  tierStandardFee       Int      @default(0)
+  tierGoldFee           Int @default(100000) // 1000 kr
+  tierSilverFee         Int @default(70000) // 700 kr
+  tierStandardFee       Int @default(0)
 
   // Plattform-banner: visas högst upp i web när satt. Används för
   // "Underhåll pågår 13-14", "Vi har problem med betalningar just nu", etc.
-  bannerMessage         String?
-  bannerSeverity        String?  // "info" | "warning" | "critical"
-  bannerExpiresAt       DateTime? // Auto-rensar — null = visas tills manuellt borttagen
+  bannerMessage   String?
+  bannerSeverity  String? // "info" | "warning" | "critical"
+  bannerExpiresAt DateTime? // Auto-rensar — null = visas tills manuellt borttagen
 
   // Plattform-paus: när satt blockerar API:t nya orderskapanden globalt
   // (t.ex. betalleverantörs-utfall). Auto-rensar när tiden passerat.
@@ -681,32 +737,32 @@ model RestaurantSettings {
   // platformOrdersPaused är den explicita, tills-vidare-overlayn som används
   // av nödstopp. Den ändrar aldrig en restaurangs egen konfiguration.
   platformOrdersPaused Boolean   @default(false)
-  platformPausedUntil   DateTime?
-  platformPauseReason   String?
+  platformPausedUntil  DateTime?
+  platformPauseReason  String?
 
   // Hero / brand-CMS — visas på kund-webbens startsida.
   // Tomt = använd default-strängar i översättningsfiler (status quo).
-  heroTitle             String?  // ex: "Hungrig?"
-  heroSubtitle          String?  // ex: "Vi fixar resten."
-  heroImageUrl          String?  // bild visad till höger om hero-texten
-  heroCtaLabel          String?  // valfri CTA-knapptext
-  heroCtaUrl            String?  // valfri CTA-länk
+  heroTitle    String? // ex: "Hungrig?"
+  heroSubtitle String? // ex: "Vi fixar resten."
+  heroImageUrl String? // bild visad till höger om hero-texten
+  heroCtaLabel String? // valfri CTA-knapptext
+  heroCtaUrl   String? // valfri CTA-länk
 
   // Welcome deal — auto-tilldelas vid registrering om aktiv. Pekar på
   // en Personal Template-Deal (samma pattern som referral). Admin skapar
   // mallen i /marketing-referrals och pekar hit via welcomeDealId.
   // Legacy-fälten (amountKr/Percent/MinOrderKr/ExpiresDays) behålls för
   // bakåtkompat men används INTE av ny logik.
-  welcomeDealActive       Boolean   @default(false)
-  welcomeDealId           String?
+  welcomeDealActive      Boolean @default(false)
+  welcomeDealId          String?
   // Vem välkomstrabatten gäller i kassan + på hur många av kundens FÖRSTA
   // ordrar den appliceras. audience: FIRST_ORDER | ALL | LOGGED_IN.
-  welcomeAudience         String    @default("FIRST_ORDER")
-  welcomeMaxOrders        Int       @default(1)
-  welcomeDealAmountKr     Int       @default(50)   // legacy
-  welcomeDealPercent      Int       @default(20)   // legacy
-  welcomeDealMinOrderKr   Int       @default(150)  // legacy
-  welcomeDealExpiresDays  Int       @default(30)   // legacy
+  welcomeAudience        String  @default("FIRST_ORDER")
+  welcomeMaxOrders       Int     @default(1)
+  welcomeDealAmountKr    Int     @default(50) // legacy
+  welcomeDealPercent     Int     @default(20) // legacy
+  welcomeDealMinOrderKr  Int     @default(150) // legacy
+  welcomeDealExpiresDays Int     @default(30) // legacy
 
   // Referral-system — använder en valfri Deal som mall för rabatten.
   // Admin skapar Dealen i /admin/deals och pekar hit via referralDealId.
@@ -717,18 +773,17 @@ model RestaurantSettings {
   //
   // referralRewardKr/Percent/MinOrderKr behålls för bakåtkompat men
   // används INTE av ny logik — Dealen själv bär dessa värden nu.
-  referralEnabled              Boolean   @default(false)
+  referralEnabled              Boolean @default(false)
   referralDealId               String?
   // Separata personliga mallar: invitee får sin rabatt direkt i första
   // kassan, inviter får en ny engångskod efter varje slutförd referral-order.
   referralInviteeDealId        String?
   referralInviterDealId        String?
-  referralCouponsPerSide       Int       @default(1)
-  referralRewardKr             Int       @default(50)   // legacy
-  referralRewardPercent        Int       @default(20)   // legacy
-  referralMinOrderKr           Int       @default(150)  // legacy
-  referralMaxRewardsPerInviter Int       @default(20)
-
+  referralCouponsPerSide       Int     @default(1)
+  referralRewardKr             Int     @default(50) // legacy
+  referralRewardPercent        Int     @default(20) // legacy
+  referralMinOrderKr           Int     @default(150) // legacy
+  referralMaxRewardsPerInviter Int     @default(20)
 }
 
 model OrderDraft {
@@ -739,97 +794,100 @@ model OrderDraft {
 }
 
 model Restaurant {
-  id             String       @id @default(cuid())
-  name           String
-  slug           String       @unique
-  description    String?
-  cuisine        String       @default("Blandat")
-  address        String?
-  city           String?      @default("Lund")
-  zip            String?
-  phone          String?
+  id                            String                        @id @default(cuid())
+  name                          String
+  slug                          String                        @unique
+  description                   String?
+  cuisine                       String                        @default("Blandat")
+  address                       String?
+  city                          String?                       @default("Lund")
+  zip                           String?
+  phone                         String?
   // Public contact email shown in the restaurant info modal + used by the
   // order tracking "contact restaurant" button. Optional.
-  email          String?
+  email                         String?
   // Legal / billing identity — shown in the restaurant info modal so customers
   // can verify who they're buying from before checkout (consumer-protection
   // best-practice + transparency). All optional; nothing breaks if blank.
-  legalName            String?     // ex: "Palmyra Pizzeria AB"
-  organizationNumber   String?     // ex: "559123-4567"
-  imageUrl       String?
-  heroImageUrl   String?
+  legalName                     String? // ex: "Palmyra Pizzeria AB"
+  organizationNumber            String? // ex: "559123-4567"
+  imageUrl                      String?
+  heroImageUrl                  String?
   // Bild för den virtuella "Erbjudanden"-tilen i menyns huvudkategori-switcher.
   // Tilen genereras automatiskt från rabatterade produkter och har ingen egen
   // DB-rad → bilden lagras här per restaurang. null = ingen bild (visar fallback).
-  offersImageUrl String?
-  rating         Float?       @default(4.6)
-  ratingCount    Int?         @default(120)
-  deliveryFee    Int          @default(0)
-  minOrderAmount Int          @default(0)
-  etaMinutes     Int          @default(30)
-  etaCalculatedMinutes Int?               // Auto-beräknad ETA baserad på senaste 20 ordrarnas createdAt → deliveringAt (clampad 25–55 min). null = för få ordrar än
-  etaOverrideMinutes   Int?               // Manuell admin-override. Om satt åsidosätter etaCalculatedMinutes
+  offersImageUrl                String?
+  rating                        Float?                        @default(4.6)
+  ratingCount                   Int?                          @default(120)
+  deliveryFee                   Int                           @default(0)
+  minOrderAmount                Int                           @default(0)
+  etaMinutes                    Int                           @default(30)
+  etaCalculatedMinutes          Int? // Auto-beräknad ETA baserad på senaste 20 ordrarnas createdAt → deliveringAt (clampad 25–55 min). null = för få ordrar än
+  etaOverrideMinutes            Int? // Manuell admin-override. Om satt åsidosätter etaCalculatedMinutes
   // Legacy-kompatibilitet för gamla klienter. Nya beslut använder de tre
   // separata lagren nedan; watchdoggen får endast skriva scheduledOpenNow.
-  isOpen         Boolean      @default(true)
-  scheduledOpenNow Boolean    @default(true)
-  acceptingOrdersMode RestaurantAcceptingOrdersMode @default(SCHEDULED)
-  acceptingOrdersOverrideUntil DateTime?
+  isOpen                        Boolean                       @default(true)
+  scheduledOpenNow              Boolean                       @default(true)
+  acceptingOrdersMode           RestaurantAcceptingOrdersMode @default(SCHEDULED)
+  acceptingOrdersOverrideUntil  DateTime?
   acceptingOrdersOverrideReason String?
-  comingSoon     Boolean      @default(false)
+  comingSoon                    Boolean                       @default(false)
   // Utkast: agent-onboarding (MENU_AGENT). Osynlig i alla kund-ytor, kan inte
   // ta emot ordrar. Bara SUPER_ADMIN publicerar (draft=false); MENU_AGENT kan
   // bara skriva mot restauranger där draft=true.
-  draft          Boolean      @default(false)
-  tags           String       @default("[]")
-  openingHours   String       @default("{}")
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  featuredClass  Int          @default(3)
-  internalInfo   String?
-  adminEmail     String?
-  logoutCode     String?
-  pausedUntil    DateTime?
-  latitude       Float?
-  longitude      Float?
+  draft                         Boolean                       @default(false)
+  // Restauranger arkiveras i stället för att hårdraderas. Meny, orders och
+  // ekonomihistorik behåller då alltid sin tenant-koppling.
+  archivedAt                    DateTime?
+  tags                          String                        @default("[]")
+  openingHours                  String                        @default("{}")
+  createdAt                     DateTime                      @default(now())
+  updatedAt                     DateTime                      @updatedAt
+  featuredClass                 Int                           @default(3)
+  internalInfo                  String?
+  adminEmail                    String?
+  logoutCode                    String?
+  pausedUntil                   DateTime?
+  latitude                      Float?
+  longitude                     Float?
   // Google Places place_id för restaurangen — sätts när admin väljer adress
   // via Places autocomplete. Används för djup-länkar till Maps på web
   // (order-tracking + restaurang-info-modal) och för att centrera kartan
   // i zone-editorn på rätt punkt utan extra geokodning.
-  placeId        String?
-  deliveryRadius Float              @default(5.0)
-  cityId         String?
-  city_relation  City?              @relation(fields: [cityId], references: [id])
-  deliveryZones  String             @default("[]")  // JSON: [{name, radiusKm, fee, minOrder, isActive}]
-  freeDeliveryAbove Int?            // Free delivery if order > this amount in öre (kr*100)
+  placeId                       String?
+  deliveryRadius                Float                         @default(5.0)
+  cityId                        String?
+  city_relation                 City?                         @relation(fields: [cityId], references: [id])
+  deliveryZones                 String                        @default("[]") // JSON: [{name, radiusKm, fee, minOrder, isActive}]
+  freeDeliveryAbove             Int? // Free delivery if order > this amount in öre (kr*100)
   // Direkt FK till AdminUser-kontot som Flutter-restaurang-appen loggar
   // in med. Sätts automatiskt vid första GET /admin/restaurants/:id/login
   // baserat på fuzzy-match, eller manuellt när admin skapar/byter konto.
   // Garanterar 1-till-1 — ingen mer fuzzy-gissning i UI:t.
-  adminUserId    String?            @unique
-  announcementText String?          // Info-banner på restaurangsidan (t.ex. adressändring, stängt idag)
-  vatPercent     Int?               // Moms i % som visas i kassan (6 eller 12). null = visas inte
+  adminUserId                   String?                       @unique
+  announcementText              String? // Info-banner på restaurangsidan (t.ex. adressändring, stängt idag)
+  vatPercent                    Int? // Moms i % som visas i kassan (6 eller 12). null = visas inte
   // Leveransansvar. false = plattformen levererar (vi matchar bud, 20% provision-default).
   // true = restaurangen levererar själv (10% provision-default, ingen budmatchning).
   // Styr provisionssats, dispatch-grind och färg-separation i admin.
-  selfDelivery          Boolean  @default(false)
+  selfDelivery                  Boolean                       @default(false)
   // Manuell provisions-override i procent (t.ex. ny restaurang 5% första månaden).
   // null = använd den globala self/platform-satsen från RestaurantSettings.
-  commissionPctOverride Int?
-  devices        RestaurantDevice[]
-  pairingCodes   DevicePairingCode[]
-  categories     Category[]
-  deals          Deal[]
-  extraGroups    ExtraGroup[]
-  orders         Order[]
-  groupOrders    GroupOrder[]
-  payouts        RestaurantPayout[]
-  printers       RestaurantPrinter[]
+  commissionPctOverride         Int?
+  devices                       RestaurantDevice[]
+  pairingCodes                  DevicePairingCode[]
+  categories                    Category[]
+  deals                         Deal[]
+  extraGroups                   ExtraGroup[]
+  orders                        Order[]
+  groupOrders                   GroupOrder[]
+  payouts                       RestaurantPayout[]
+  printers                      RestaurantPrinter[]
 
   // Kedjekoppling: en plats kan tillhöra ett Brand (t.ex. "Max", "BK").
   // null = fristående restaurang. Menyn synkas från brandets master-plats.
-  brandId        String?
-  brand          Brand?             @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  brandId String?
+  brand   Brand?  @relation(fields: [brandId], references: [id], onDelete: SetNull)
 
   // Publika listan sorterar på featuredClass, filtrerar på city och joinar
   // city_relation (cityId). Indexen håller cold-queryn snabb när antalet
@@ -838,6 +896,7 @@ model Restaurant {
   @@index([city])
   @@index([cityId])
   @@index([brandId])
+  @@index([archivedAt])
 }
 
 // Kedja/varumärke som grupperar flera platser (Restaurant). En plats utses
@@ -890,12 +949,12 @@ model City {
   isActive          Boolean      @default(true)
   deliveryMode      String       @default("ALL")
   zones             String       @default("[]")
-  polygon           String?      // GeoJSON polygon coords [[lng,lat],...] for delivery boundary
-  centerLat         Float?       // Map center lat
-  centerLng         Float?       // Map center lng
+  polygon           String? // GeoJSON polygon coords [[lng,lat],...] for delivery boundary
+  centerLat         Float? // Map center lat
+  centerLng         Float? // Map center lng
   radiusKm          Float        @default(10.0) // Fallback radius if no polygon
-  latitude          Float?       // Legacy
-  longitude         Float?       // Legacy
+  latitude          Float? // Legacy
+  longitude         Float? // Legacy
   freeDeliveryAbove Int          @default(0)
   // Kris-overlay för staden. Den ligger ovanpå restaurangens schema/manuella
   // läge och skriver aldrig om dessa värden.
@@ -919,71 +978,58 @@ model City {
 }
 
 model User {
-  id             String         @id @default(cuid())
-  email          String?        @unique
-  phone          String?        @unique
-  password       String?
-  name           String
-  firstName      String?
-  lastName       String?
-  address        String?
-  city           String?
-  zip            String?
-  isActive       Boolean        @default(true)
-  isVerified     Boolean        @default(false)
-  isGuest        Boolean        @default(false)
+  id                   String               @id @default(cuid())
+  email                String?              @unique
+  phone                String?              @unique
+  name                 String
+  firstName            String?
+  lastName             String?
+  address              String?
+  city                 String?
+  zip                  String?
+  isActive             Boolean              @default(true)
+  isVerified           Boolean              @default(false)
+  isGuest              Boolean              @default(false)
   // Sätts när en tidigare gästprofil blir ett riktigt konto. Gör att admin
   // kan mäta gäst→kund-konvertering utan att läsa gamla rader eller gissa via
   // telefonnummer.
   convertedFromGuestAt DateTime?
   conversionSource     String?
-  oauthProvider  String?
-  oauthId        String?
-  image          String?
-  // Forgot-password flow — vi lagrar en kryptografiskt slumpad token + utgångstid.
-  // Tokenen mejlas till användaren via en länk; klienten POSTar tillbaka token +
-  // nytt lösenord till /api/account/reset-password. Båda fälten nollställs när
-  // återställningen är gjord. Index på tokenen för snabb lookup.
-  passwordResetToken     String?   @unique
-  passwordResetExpiresAt DateTime?
-  // Email-verifierings-flöde — POST /api/account/send-verification-email
-  // genererar en token, mejlar länk; klienten POSTar tillbaka till
-  // /api/account/verify-email vilket sätter emailVerifiedAt och nollar
-  // tokenen. RN-klienten pollar /api/account/check-email-verified.
-  emailVerificationToken     String?   @unique
-  emailVerificationExpiresAt DateTime?
-  emailVerifiedAt            DateTime?
-  orders         Order[]
-  deals          CustomerDeal[]
-  savedAddresses SavedAddress[]
-  allergens      String         @default("[]")
-  pushToken      String?
-  apnsDeviceToken String?       // Raw iOS APNs device token (hex) for direct push with apns-collapse-id support
-  internalInfo   String?
-  deletedAt      DateTime?      // Soft-delete marker. authenticateUser rejects with 401 when set, so a deleted customer can't auto-recreate themselves through token validation.
+  oauthProvider        String?
+  oauthId              String?
+  image                String?
+  orders               Order[]
+  deviceInstallations  DeviceInstallation[]
+  notificationOutbox   NotificationOutbox[]
+  deals                CustomerDeal[]
+  savedAddresses       SavedAddress[]
+  allergens            String               @default("[]")
+  pushToken            String?
+  apnsDeviceToken      String? // Raw iOS APNs device token (hex) for direct push with apns-collapse-id support
+  internalInfo         String?
+  deletedAt            DateTime? // Soft-delete marker. authenticateUser rejects with 401 when set, so a deleted customer can't auto-recreate themselves through token validation.
   // JSON-array av Deal.id som kunden har "claimat" från admin-broadcast
   // popup. Visas i profile/deals tillsammans med globala deals och
   // appliceras i checkout om villkoren matchar.
-  claimedDealIds String         @default("[]")
+  claimedDealIds       String               @default("[]")
   // Referral-system. `referralCode` är det unika invite-code som
   // genereras lazily när användaren öppnar referral-sidan. `referredByCode`
   // sätts om användaren registrerade sig via en delningslänk.
   // `deviceFingerprint` är ett opaque klient-värde (best-effort) som vi
   // använder för soft-fraud-flags — aldrig som hard-block.
-  referralCode        String?  @unique
-  referredByCode      String?
-  deviceFingerprint   String?
+  referralCode         String?              @unique
+  referredByCode       String?
+  deviceFingerprint    String?
   // Senaste IP-adressen vi sett från användaren. Används BARA som signal
   // för fraud-flags (samma IP som inviter → soft-flag). Skrivs lazily när
   // referral-endpointer triggas; legacy-konton har null tills de aktiverar
   // referral-flödet.
-  lastSeenIp          String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  deals_v2       UserDeal[]
-  referralsSent     Referral[]   @relation("ReferralInviter")
-  referralReceived  Referral?    @relation("ReferralInvitee")
-
+  lastSeenIp           String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  deals_v2             UserDeal[]
+  referralsSent        Referral[]           @relation("ReferralInviter")
+  referralReceived     Referral?            @relation("ReferralInvitee")
 }
 
 // UserDeal — en personlig rabattkupong som tillhör EN användare. Skapas av:
@@ -1001,12 +1047,12 @@ model UserDeal {
   id              String    @id @default(cuid())
   userId          String
   code            String?   @unique // unik personlig engångskod, t.ex. referral-reward
-  dealId          String?   // referens till befintlig Deal-modell, null för auto-cash-rabatt
-  type            String    // WELCOME | REFERRAL_INVITER | REFERRAL_INVITEE | MANUAL
+  dealId          String? // referens till befintlig Deal-modell, null för auto-cash-rabatt
+  type            String // WELCOME | REFERRAL_INVITER | REFERRAL_INVITEE | MANUAL
   status          String    @default("ACTIVE") // ACTIVE | USED | EXPIRED
-  amountKr        Int?      // kr-rabatt (50 = 50 kr).
-  discountPercent Int?      // procent-rabatt på subtotal (20 = 20%).
-  discountType    String?   // NONE | PERCENTAGE | FIXED. Snapshotad från Deal.
+  amountKr        Int? // kr-rabatt (50 = 50 kr).
+  discountPercent Int? // procent-rabatt på subtotal (20 = 20%).
+  discountType    String? // NONE | PERCENTAGE | FIXED. Snapshotad från Deal.
   freeDelivery    Boolean   @default(false) // Stackbar fri-leverans-flagga.
   expiresAt       DateTime?
   usedAt          DateTime?
@@ -1014,8 +1060,8 @@ model UserDeal {
   metadata        Json?
   createdAt       DateTime  @default(now())
 
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deal            Deal?     @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deal Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
 
   @@index([userId, status])
   @@index([code, status])
@@ -1029,8 +1075,8 @@ model UserDeal {
 //      Vi vet ofta bara email/ip/deviceFingerprint i detta läge.
 //   2. REGISTERED — när invitee-kontot skapas och vi kan länka
 //      inviteeUserId.
-//   3. ORDERED — när invitee:s första betalda order trillar in:
-//      vi skapar UserDeals för båda parter och flippar till ORDERED.
+//   3. ORDERED — när invitee:s första betalda order är levererad/hämtad:
+//      vi skapar värvarens UserDeal och flippar till ORDERED.
 //   4. REVERTED — admin kan i monitorn nolla ut en reward (ex. uppenbar
 //      fusk) vilket också nollar tillhörande UserDeals.
 //
@@ -1038,31 +1084,31 @@ model UserDeal {
 // SAME_DEVICE, etc.) som vi SAMLAR men ALDRIG blockar på. Admin ser dem
 // i listan och avgör manuellt.
 model Referral {
-  id                String    @id @default(cuid())
-  code              String    @unique // typ "ANNA8X3K"
-  shareCode         String?   // ägarens stabila referralCode; code är radens unika id
-  inviterUserId     String
-  inviteeUserId     String?   @unique // en användare kan bara bli refererad EN gång
-  inviterPhone      String?
-  inviteePhone      String?   @unique
-  inviteeEmail      String?
-  inviteeIP         String?
-  inviteeDeviceId   String?
-  status            String    @default("PENDING") // PENDING | REGISTERED | ORDERED | REVERTED
-  fraudFlags        String[]  @default([])
-  inviteeOrderId    String?   // ordern som triggade rewarden
-  createdAt         DateTime  @default(now())
-  registeredAt      DateTime?
-  rewardedAt        DateTime?
-  revertedAt        DateTime?
-  revertedBy        String?   // adminUserId
-  revertReason      String?
+  id              String    @id @default(cuid())
+  code            String    @unique // typ "ANNA8X3K"
+  shareCode       String? // ägarens stabila referralCode; code är radens unika id
+  inviterUserId   String
+  inviteeUserId   String?   @unique // en användare kan bara bli refererad EN gång
+  inviterPhone    String?
+  inviteePhone    String?   @unique
+  inviteeEmail    String?
+  inviteeIP       String?
+  inviteeDeviceId String?
+  status          String    @default("PENDING") // PENDING | REGISTERED | ORDERED | REVERTED
+  fraudFlags      String[]  @default([])
+  inviteeOrderId  String? // ordern som triggade rewarden
+  createdAt       DateTime  @default(now())
+  registeredAt    DateTime?
+  rewardedAt      DateTime?
+  revertedAt      DateTime?
+  revertedBy      String? // adminUserId
+  revertReason    String?
 
   // Invite-tracking (opaque-token share-link system). Additive.
-  channel             String?  // web | app_installed | app_deferred | manual
-  inviteeFingerprint  String?
-  inviter           User      @relation("ReferralInviter", fields: [inviterUserId], references: [id])
-  invitee           User?     @relation("ReferralInvitee", fields: [inviteeUserId], references: [id])
+  channel            String? // web | app_installed | app_deferred | manual
+  inviteeFingerprint String?
+  inviter            User    @relation("ReferralInviter", fields: [inviterUserId], references: [id])
+  invitee            User?   @relation("ReferralInvitee", fields: [inviteeUserId], references: [id])
 
   @@index([inviterUserId])
   @@index([shareCode])
@@ -1085,29 +1131,60 @@ model InviteClick {
 }
 
 model RestaurantPayout {
-  id                 String     @id @default(cuid())
-  restaurantId       String
-  restaurant         Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  periodStart        DateTime
-  periodEnd          DateTime
-  grossSales         Int        @default(0)
-  orderCount         Int        @default(0)
-  commissionAmount   Int        @default(0)
-  subscriptionAmount Int        @default(0)
-  adjustmentAmount   Int        @default(0)
-  payoutAmount       Int        @default(0)
-  status             String     @default("DRAFT")
-  notes              String?
-  payoutReference    String?
-  approvedAt         DateTime?
-  approvedBy         String?
-  paidAt             DateTime?
-  paidBy             String?
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  id                         String                     @id @default(cuid())
+  restaurantId               String
+  restaurant                 Restaurant                 @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  periodStart                DateTime
+  periodEnd                  DateTime
+  grossSales                 Int                        @default(0)
+  orderCount                 Int                        @default(0)
+  commissionAmount           Int                        @default(0)
+  subscriptionAmount         Int                        @default(0)
+  manualAdjustmentAmount     Int                        @default(0)
+  lateRefundAdjustmentAmount Int                        @default(0)
+  payoutAmount               Int                        @default(0)
+  // Frozen on approval. A paid source period is recomputed with these exact
+  // commercial terms when a later cumulative refund must be recovered.
+  commissionPctSnapshot      Int?
+  feeVatPctSnapshot          Int?
+  selfDeliverySnapshot       Boolean?
+  status                     String                     @default("DRAFT")
+  notes                      String?
+  payoutReference            String?
+  approvedAt                 DateTime?
+  approvedBy                 String?
+  paidAt                     DateTime?
+  paidBy                     String?
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  recoveryAsSource           PayoutRecoveryAllocation[] @relation("PayoutRecoverySource")
+  recoveryAsTarget           PayoutRecoveryAllocation[] @relation("PayoutRecoveryTarget")
 
   @@unique([restaurantId, periodStart, periodEnd])
   @@index([status, periodStart, periodEnd])
+}
+
+// Append-only accounting link for automatic recovery of refunds that arrive
+// after a source payout has already been paid. RELEASED rows are retained for
+// audit; APPLIED rows are immutable at database level.
+model PayoutRecoveryAllocation {
+  id             String           @id @default(cuid())
+  sourcePayoutId String
+  sourcePayout   RestaurantPayout @relation("PayoutRecoverySource", fields: [sourcePayoutId], references: [id], onDelete: Restrict)
+  targetPayoutId String
+  targetPayout   RestaurantPayout @relation("PayoutRecoveryTarget", fields: [targetPayoutId], references: [id], onDelete: Restrict)
+  amount         Int
+  status         String           @default("RESERVED")
+  reservedAt     DateTime         @default(now())
+  appliedAt      DateTime?
+  releasedAt     DateTime?
+  releaseReason  String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([sourcePayoutId, targetPayoutId])
+  @@index([sourcePayoutId, status])
+  @@index([targetPayoutId, status])
 }
 
 model RestaurantPrinter {
@@ -1145,11 +1222,11 @@ model SavedAddress {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  label     String   @default("Hem")  // Hem, Jobb, Annat
+  label     String   @default("Hem") // Hem, Jobb, Annat
   street    String
   city      String
   zip       String
-  note      String?  // Door code, floor, etc.
+  note      String? // Door code, floor, etc.
   isDefault Boolean  @default(false)
   latitude  Float?
   longitude Float?
@@ -1160,48 +1237,50 @@ model SavedAddress {
 }
 
 model Campaign {
-  id                    String         @id @default(cuid())
-  title                 String
-  description           String?
-  discountType          String         @default("PERCENTAGE") // PERCENTAGE or FIXED
-  discountValue         Int
-  minOrder              Int            @default(0)
-  maxUsagesPerCustomer  Int            @default(1)
-  isActive              Boolean        @default(true)
-  validFrom             DateTime?
-  validUntil            DateTime?
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
-  deals                 CustomerDeal[]
+  id                   String         @id @default(cuid())
+  title                String
+  description          String?
+  discountType         String         @default("PERCENTAGE") // PERCENTAGE or FIXED
+  discountValue        Int
+  minOrder             Int            @default(0)
+  maxUsagesPerCustomer Int            @default(1)
+  isActive             Boolean        @default(true)
+  validFrom            DateTime?
+  validUntil           DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  deals                CustomerDeal[]
 }
 
 model CustomerDeal {
-  id           String    @id @default(cuid())
-  campaignId   String
-  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  userId       String?
-  user         User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  phone        String
-  code         String    @unique
-  usageCount   Int       @default(0)
-  maxUsages    Int       @default(1)
-  isUsed       Boolean   @default(false)
-  createdAt    DateTime  @default(now())
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone      String
+  code       String   @unique
+  usageCount Int      @default(0)
+  maxUsages  Int      @default(1)
+  isUsed     Boolean  @default(false)
+  createdAt  DateTime @default(now())
 }
 
-// Anonymiserad förstaparts-statistik för launch-sidan. Vi sparar inte IP-adress
-// eller namn; sessionId skapas i webbläsaren och används bara för deduplicering
-// av upprepade events från samma besök.
-model LaunchEvent {
-  id         String   @id @default(cuid())
-  eventType  String
-  sessionId  String?
-  referrer   String?
-  userAgent  String?
-  createdAt  DateTime @default(now())
+// Personer som uttryckligen vill få launchkupongen. Hålls separat från
+// operativ statistik eftersom tabellen innehåller PII och samtycke.
+model LaunchLead {
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
+  couponCode         String    @unique
+  status             String    @default("INTERESTED") // INTERESTED | COUPON_SENT | UNSUBSCRIBED
+  marketingConsentAt DateTime
+  couponSentAt       DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  @@index([eventType, createdAt])
-  @@index([sessionId, createdAt])
+  @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 model VerificationCode {
@@ -1232,27 +1311,27 @@ model GroupOrder {
 }
 
 model GroupOrderItem {
-  id           String     @id @default(cuid())
-  groupOrderId String
-  groupOrder   GroupOrder @relation(fields: [groupOrderId], references: [id], onDelete: Cascade)
-  productId    String
-  productName  String
-  userName     String
-  quantity     Int        @default(1)
-  basePrice    Int
-  selectedExtras String   @default("[]")
-  note         String?
-  subtotal     Int
-  createdAt    DateTime   @default(now())
+  id             String     @id @default(cuid())
+  groupOrderId   String
+  groupOrder     GroupOrder @relation(fields: [groupOrderId], references: [id], onDelete: Cascade)
+  productId      String
+  productName    String
+  userName       String
+  quantity       Int        @default(1)
+  basePrice      Int
+  selectedExtras String     @default("[]")
+  note           String?
+  subtotal       Int
+  createdAt      DateTime   @default(now())
 }
 
 model PushLog {
   id         String   @id @default(cuid())
   createdAt  DateTime @default(now())
-  target     String   // "all" | "user" | "city" | "cohort"
-  identifier String?  // userId/email/phone for "user" target
-  city       String?  // city name for "city" target
-  cohort     String?  // cohort key for "cohort" target (e.g. "inactive_30d")
+  target     String // "all" | "user" | "city" | "cohort"
+  identifier String? // userId/email/phone for "user" target
+  city       String? // city name for "city" target
+  cohort     String? // cohort key for "cohort" target (e.g. "inactive_30d")
   title      String
   body       String
   deeplink   String?
@@ -1272,10 +1351,10 @@ model ScheduledPush {
   id           String    @id @default(cuid())
   createdAt    DateTime  @default(now())
   scheduledFor DateTime
-  target       String    // "all" | "user" | "city" | "cohort"
+  target       String // "all" | "user" | "city" | "cohort"
   identifier   String?
   city         String?
-  cohort       String?   // "inactive_30d" | "new_users_7d" | etc.
+  cohort       String? // "inactive_30d" | "new_users_7d" | etc.
   title        String
   body         String
   deeplink     String?
@@ -1284,17 +1363,125 @@ model ScheduledPush {
   sentSuccess  Boolean?
   sentError    String?
   cancelledAt  DateTime?
-  createdBy    String?   // adminUserId
+  createdBy    String? // adminUserId
 
   @@index([sentAt, scheduledFor])
+}
+
+// En rad per fysisk/app-installation och push-provider. Själva provider-
+// tokenen måste kunna användas vid sändning och lagras därför AES-GCM-
+// krypterad. tokenHash är en envägs-hash för global dedupe; den nollas när
+// installationen återkallas så att samma roterade token kan registreras igen.
+model DeviceInstallation {
+  id                  String                    @id @default(cuid())
+  userId              String?
+  provider            String // FCM_FID | APNS | EXPO | WEB_PUSH
+  installationId      String // stabilt opaque device-id; aldrig en rå token i nya klienter
+  platform            String?
+  tokenCiphertext     String?
+  tokenHash           String?                   @unique
+  active              Boolean                   @default(true)
+  revokedAt           DateTime?
+  revokedReason       String?
+  lastSeenAt          DateTime                  @default(now())
+  lastSuccessAt       DateTime?
+  lastFailureAt       DateTime?
+  consecutiveFailures Int                       @default(0)
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  user                User?                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderSubscriptions  DeviceOrderSubscription[]
+  deliveries          NotificationDelivery[]
+
+  @@unique([provider, installationId])
+  @@index([userId, active])
+  @@index([provider, active])
+  @@index([lastSeenAt])
+}
+
+// Orderspecifik notifieringsbehörighet för gäster och browserpush. Samma
+// installation kan följa flera aktiva order, men relationen ger aldrig
+// behörighet till en annan order eller till marknadsföringsutskick.
+model DeviceOrderSubscription {
+  id                   String             @id @default(cuid())
+  deviceInstallationId String
+  orderId              String
+  expiresAt            DateTime
+  revokedAt            DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  deviceInstallation   DeviceInstallation @relation(fields: [deviceInstallationId], references: [id], onDelete: Cascade)
+  order                Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceInstallationId, orderId])
+  @@index([orderId, revokedAt, expiresAt])
+}
+
+// Durable outbox: affärshändelsen skapar exakt en rad via dedupeKey. En
+// worker tar ett tidsbegränsat lease; bara provider-accepterade leveranser
+// markeras klara. Ett process-stopp frigör jobbet automatiskt när leaset går ut.
+model NotificationOutbox {
+  id             String                 @id @default(cuid())
+  dedupeKey      String                 @unique
+  kind           String
+  userId         String?
+  orderId        String?
+  title          String
+  body           String
+  data           Json?
+  status         String                 @default("PENDING") // PENDING | PROCESSING | RETRY | COMPLETED | DEAD
+  availableAt    DateTime               @default(now())
+  leaseOwner     String?
+  leaseExpiresAt DateTime?
+  attemptCount   Int                    @default(0)
+  maxAttempts    Int                    @default(8)
+  acceptedCount  Int                    @default(0)
+  invalidCount   Int                    @default(0)
+  failureCount   Int                    @default(0)
+  lastError      String?
+  completedAt    DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  user           User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order          Order?                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  deliveries     NotificationDelivery[]
+
+  @@index([status, availableAt])
+  @@index([leaseExpiresAt])
+  @@index([userId, createdAt])
+  @@index([orderId, createdAt])
+}
+
+// Ett försök per outbox-rad och installation. ACCEPTED betyder att Apple,
+// Google, Expo eller browser-push-gatewayn tog emot meddelandet; det är inte
+// ett kvitto på att användaren faktiskt såg notisen.
+model NotificationDelivery {
+  id                   String              @id @default(cuid())
+  outboxId             String
+  deviceInstallationId String?
+  provider             String
+  attemptNo            Int
+  status               String // ACCEPTED | RETRY | INVALID | FAILED | SKIPPED
+  providerMessageId    String?
+  errorCode            String?
+  errorDetail          String?
+  attemptedAt          DateTime            @default(now())
+  acceptedAt           DateTime?
+  outbox               NotificationOutbox  @relation(fields: [outboxId], references: [id], onDelete: Cascade)
+  deviceInstallation   DeviceInstallation? @relation(fields: [deviceInstallationId], references: [id], onDelete: SetNull)
+
+  @@unique([outboxId, deviceInstallationId, attemptNo])
+  @@index([outboxId, status])
+  @@index([deviceInstallationId, attemptedAt])
+  @@index([provider, status, attemptedAt])
 }
 
 // API-användningsräknare per tjänst + månad. Driver admin "API-hälsa"-sidan
 // (hur mycket vi använt en extern API denna månad vs ev. gräns).
 model ApiUsageCounter {
   id        String   @id @default(cuid())
-  service   String   // "google_maps" | "r2" | "resend" | ...
-  period    String   // "YYYY-MM" (UTC-månad)
+  service   String // "google_maps" | "r2" | "resend" | ...
+  period    String // "YYYY-MM" (UTC-månad)
   count     Int      @default(0)
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())

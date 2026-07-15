@@ -1,65 +1,71 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { FormEvent, useEffect, useState } from "react";
 
-type Consent = "accepted" | "essential-only" | "rejected";
-const CONSENT_KEY = "viaeats_cookie_consent";
-const CONSENT_EVENT = "viaeats:cookie-consent";
-
-function readConsent(): Consent | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const value = window.localStorage.getItem(CONSENT_KEY);
-    return value === "accepted" || value === "essential-only" || value === "rejected" ? value : null;
-  } catch {
-    return null;
-  }
-}
+const INTEREST_COOKIE = "viaeats_launch_interest";
 
 export default function LaunchGate() {
-  const [consent, setConsent] = useState<Consent | null>(null);
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState("");
   const [unlocking, setUnlocking] = useState(false);
-  const [interestSent, setInterestSent] = useState(false);
-  const trackedVisit = useRef(false);
+  const [interestRegistered, setInterestRegistered] = useState(false);
+  const [showInterestForm, setShowInterestForm] = useState(false);
+  const [interestName, setInterestName] = useState("");
+  const [interestEmail, setInterestEmail] = useState("");
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [interestError, setInterestError] = useState("");
+  const [submittingInterest, setSubmittingInterest] = useState(false);
 
   useEffect(() => {
-    const sync = () => setConsent(readConsent());
-    sync();
-    window.addEventListener(CONSENT_EVENT, sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(CONSENT_EVENT, sync);
-      window.removeEventListener("storage", sync);
-    };
+    try {
+      const cookieValue = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${INTEREST_COOKIE}=`))?.split("=")[1];
+      setInterestRegistered(cookieValue === "1" || window.localStorage.getItem(INTEREST_COOKIE) === "1");
+    } catch {
+      // The form remains available when browser storage is disabled.
+    }
   }, []);
 
-  useEffect(() => {
-    if (consent !== "accepted" || trackedVisit.current) return;
-    trackedVisit.current = true;
-    void fetch("/api/launch/events", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        eventType: "PAGE_VIEW",
-        sessionId: getSessionId(),
-        referrer: document.referrer || null,
-      }),
-      keepalive: true,
-    }).catch(() => null);
-  }, [consent]);
-
   const claimInterest = () => {
-    if (consent === "accepted") {
-      void fetch("/api/launch/events", {
+    if (interestRegistered) return;
+    setInterestError("");
+    setShowInterestForm(true);
+  };
+
+  const submitInterest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!marketingConsent) {
+      setInterestError("Godkänn att vi kontaktar dig manuellt om launchkupongen.");
+      return;
+    }
+    setSubmittingInterest(true);
+    setInterestError("");
+    try {
+      const response = await fetch("/api/launch/interest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventType: "DISCOUNT_CTA_CLICK", sessionId: getSessionId(), referrer: document.referrer || null }),
-        keepalive: true,
-      }).catch(() => null);
+        body: JSON.stringify({
+          name: interestName,
+          email: interestEmail,
+          marketingConsent: true,
+        }),
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) {
+        setInterestError(payload?.error || "Kunde inte registrera ditt intresse.");
+        return;
+      }
+      try {
+        window.localStorage.setItem(INTEREST_COOKIE, "1");
+        document.cookie = `${INTEREST_COOKIE}=1; path=/; max-age=${180 * 24 * 60 * 60}; samesite=lax`;
+      } catch {}
+      setInterestRegistered(true);
+      setShowInterestForm(false);
+    } catch {
+      setInterestError("Servern svarade inte. Kontrollera anslutningen och försök igen.");
+    } finally {
+      setSubmittingInterest(false);
     }
-    setInterestSent(true);
   };
 
   const unlock = async (event: FormEvent<HTMLFormElement>) => {
@@ -78,6 +84,8 @@ export default function LaunchGate() {
         return;
       }
       window.location.reload();
+    } catch {
+      setCodeError("Servern svarade inte. Kontrollera anslutningen och försök igen.");
     } finally {
       setUnlocking(false);
     }
@@ -97,8 +105,32 @@ export default function LaunchGate() {
             <p className="text-xs font-black uppercase tracking-[0.25em] text-[#f0531c]">Lund först</p>
             <h1 className="mt-4 max-w-xl text-4xl font-black leading-[0.98] tracking-[-0.055em] text-[#f8f0e6] sm:text-6xl">Du är här.<br />Vi lanserar snart.</h1>
             <p className="mt-6 max-w-lg text-base font-semibold leading-relaxed text-[#f8f0e6]/75 sm:text-lg">Tack för ditt intresse. Vi bygger en snabbare och enklare plats för att beställa mat från lokala favoriter.</p>
-            <button type="button" onClick={claimInterest} className="mt-8 w-fit rounded-full bg-[#f0531c] px-6 py-4 text-sm font-black text-white transition-transform hover:scale-[1.02] active:scale-[0.98]">{interestSent ? "Tack — vi har noterat ditt intresse" : "Ge mig 30 % rabatt första veckan"}</button>
-            <p className="mt-4 text-xs font-semibold text-[#f8f0e6]/45">Intresseknappen registrerar bara ett anonymt klick efter analys-samtycke.</p>
+            <nav aria-label="Juridisk information" className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-bold text-[#f8f0e6]/70">
+              <Link href="/privacy" className="underline underline-offset-4 hover:text-[#f8f0e6]">Integritet</Link>
+              <Link href="/terms" className="underline underline-offset-4 hover:text-[#f8f0e6]">Villkor</Link>
+              <Link href="/contact" className="underline underline-offset-4 hover:text-[#f8f0e6]">Kontakt</Link>
+            </nav>
+            <button type="button" onClick={claimInterest} disabled={interestRegistered} className="mt-8 w-fit rounded-full bg-[#f0531c] px-6 py-4 text-sm font-black text-white transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-default disabled:opacity-80">{interestRegistered ? "Tack — ditt intresse är registrerat" : "Ge mig 30 % rabatt första veckan"}</button>
+            {interestRegistered ? (
+              <p className="mt-4 max-w-md text-sm font-bold leading-relaxed text-[#f8f0e6]/80">Tack för ditt intresse. Vi följer upp manuellt via e-post inför lanseringen.</p>
+            ) : (
+              <p className="mt-4 max-w-md text-xs font-semibold leading-relaxed text-[#f8f0e6]/50">Knappen öppnar ett kort formulär. Vi sparar bara namn, e-post och ditt uttryckliga samtycke för manuell uppföljning.</p>
+            )}
+            {showInterestForm ? (
+              <form onSubmit={submitInterest} className="mt-5 max-w-md rounded-3xl border border-white/10 bg-white/10 p-5">
+                <p className="text-sm font-black text-[#f8f0e6]">Registrera ditt intresse</p>
+                <div className="mt-3 grid gap-2">
+                  <input value={interestName} onChange={(event) => setInterestName(event.target.value)} required minLength={2} maxLength={100} placeholder="Ditt namn" autoComplete="name" className="rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-semibold text-[#102b4e] outline-none focus:border-[#f0531c]" />
+                  <input value={interestEmail} onChange={(event) => setInterestEmail(event.target.value)} required type="email" maxLength={254} placeholder="Din e-post" autoComplete="email" className="rounded-2xl border border-white/10 bg-white px-4 py-3 text-sm font-semibold text-[#102b4e] outline-none focus:border-[#f0531c]" />
+                </div>
+                <label className="mt-3 flex items-start gap-2 text-xs font-semibold leading-relaxed text-[#f8f0e6]/75">
+                  <input type="checkbox" checked={marketingConsent} onChange={(event) => setMarketingConsent(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#f0531c]" />
+                  <span>Jag godkänner att ViaEats använder mitt namn och min e-post för att kontakta mig manuellt om launchkupongen och lanseringen. Läs vår <Link href="/privacy" className="underline">integritetspolicy</Link>.</span>
+                </label>
+                {interestError ? <p className="mt-3 text-xs font-bold text-[#ffb4a4]">{interestError}</p> : null}
+                <button type="submit" disabled={submittingInterest} className="mt-4 w-full rounded-2xl bg-[#f0531c] px-4 py-3 text-sm font-black text-white disabled:opacity-60">{submittingInterest ? "Sparar…" : "Registrera mitt intresse"}</button>
+              </form>
+            ) : null}
           </div>
 
           <div className="flex flex-col justify-between bg-[#f6ecdf] px-7 py-10 sm:px-12 lg:px-12 lg:py-12">
@@ -119,17 +151,4 @@ export default function LaunchGate() {
       </div>
     </main>
   );
-}
-
-function getSessionId() {
-  const key = "viaeats_launch_session";
-  try {
-    const existing = window.localStorage.getItem(key);
-    if (existing) return existing;
-    const created = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    window.localStorage.setItem(key, created);
-    return created;
-  } catch {
-    return null;
-  }
 }

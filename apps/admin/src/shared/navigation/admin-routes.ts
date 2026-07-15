@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  BarChart3,
   BellRing,
   Bike,
   Building2,
@@ -76,10 +77,10 @@ export const ADMIN_ROUTES: AdminRouteDefinition[] = [
   route({ id: "deals", href: "/deals", label: "Deals & kampanjer", shortLabel: "Deals", icon: Gift, section: "growth", keywords: "kampanj rabatt app" }),
   route({ id: "coupons", href: "/coupons", label: "Kuponger", icon: TicketPercent, section: "growth", keywords: "kupong rabattkod kod" }),
   route({ id: "referrals", href: "/referrals", label: "Värva vän", icon: UserPlus, section: "growth", keywords: "referral värva vän välkomst" }),
+  route({ id: "launch-campaign", href: "/launch-campaign", label: "Launch-kampanj", shortLabel: "Launch", icon: BarChart3, section: "growth", keywords: "launch intresse leads rabatt kampanj statistik funnel" }),
   route({ id: "push", href: "/push", label: "Push-notiser", shortLabel: "Push", icon: BellRing, section: "growth", keywords: "notification meddelande" }),
 
-  route({ id: "finance", href: "/finance", label: "Ekonomi & utbetalningar", shortLabel: "Översikt", icon: CircleDollarSign, section: "finance", keywords: "finance payout intäkt reconciliation" }),
-  route({ id: "tiers", href: "/finance?tab=tiers", label: "Tiers", icon: Shield, section: "finance", keywords: "abonnemang placering guld silver brons" }),
+  route({ id: "finance", href: "/finance", label: "Ekonomi", shortLabel: "Ekonomi", icon: CircleDollarSign, section: "finance", keywords: "finance payout intäkt reconciliation utbetalningar tiers provision moms" }),
 
   route({ id: "users", href: "/users", label: "Superadmin", icon: Users, section: "system", keywords: "admin användare säkerhet" }),
   route({ id: "api-health", href: "/api-health", label: "API-status", icon: Gauge, section: "system", keywords: "uptime hälsa status" }),

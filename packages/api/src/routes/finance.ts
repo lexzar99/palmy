@@ -2,6 +2,19 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { computePayout, economyFromSettings, type OrderEcon } from '../lib/financeCalc';
+import {
+  netPayoutOrder,
+  PAYOUT_ORDER_STATUSES,
+  PAYOUT_PAYMENT_STATUSES,
+  PAYOUT_TEST_ORDER_EXCLUSIONS,
+  payoutRefundWindowClosesAt,
+  payoutRefundWindowHours,
+} from '../lib/payoutPolicy';
+import { calculateLateRefundRecoveryPlan, PayoutRecoveryError } from '../lib/payoutRecovery';
+import {
+  selectFinanceSummaryEconomicValues,
+  sumFinanceSummaryRows,
+} from '../lib/financeSummary';
 
 const router = Router();
 router.use(authenticate, requireSuperAdmin);
@@ -11,15 +24,6 @@ const fromOre = (n?: number | null) => Number(n || 0) / 100;
 const parseDate = (value: unknown): Date | null => {
   const d = value ? new Date(String(value)) : null;
   return d && Number.isFinite(d.getTime()) ? d : null;
-};
-
-// Test-/auto-ordrar ska aldrig in i utbetalningar (samma filter som reports.ts).
-const excludeTestOrders = {
-  AND: [
-    { discountCode: { notIn: ['test', 'testa', 'TEST', 'TESTA'] } },
-    { stripePaymentIntentId: { not: 'TEST_PAYMENT' } },
-    { customerName: { not: 'AUTOTEST' } },
-  ],
 };
 
 /** Periodgränser: default = innevarande månad → nu. Slut görs inklusive (dygnsslut). */
@@ -53,15 +57,37 @@ router.get('/summary', async (req, res) => {
       }),
       prisma.order.findMany({
         where: {
-          status: { notIn: ['CANCELLED', 'REJECTED'] as any },
+          status: { in: [...PAYOUT_ORDER_STATUSES] },
+          paymentStatus: { in: [...PAYOUT_PAYMENT_STATUSES] },
           createdAt: { gte: start, lte: end },
-          ...excludeTestOrders,
+          NOT: [...PAYOUT_TEST_ORDER_EXCLUSIONS],
         },
-        select: { restaurantId: true, total: true, deliveryFee: true, tipAmount: true },
+        select: {
+          restaurantId: true,
+          status: true,
+          paymentStatus: true,
+          total: true,
+          deliveryFee: true,
+          tipAmount: true,
+          refundAmount: true,
+        },
       }),
       prisma.restaurantPayout.findMany({
         where: { periodStart: start, periodEnd: end },
-        select: { restaurantId: true, status: true, payoutReference: true, updatedAt: true },
+        select: {
+          restaurantId: true,
+          status: true,
+          payoutReference: true,
+          updatedAt: true,
+          grossSales: true,
+          orderCount: true,
+          commissionAmount: true,
+          subscriptionAmount: true,
+          payoutAmount: true,
+          commissionPctSnapshot: true,
+          feeVatPctSnapshot: true,
+          selfDeliverySnapshot: true,
+        },
       }),
     ]);
 
@@ -69,17 +95,35 @@ router.get('/summary', async (req, res) => {
     const persistedMap = new Map(persisted.map((p) => [p.restaurantId, p]));
 
     const ordersByRestaurant = new Map<string, OrderEcon[]>();
+    const refundsByRestaurant = new Map<string, number>();
     for (const o of orders) {
       if (!o.restaurantId) continue;
+      const netOrder = netPayoutOrder(o);
+      if (!netOrder) continue;
       const list = ordersByRestaurant.get(o.restaurantId) || [];
-      list.push({ total: o.total, deliveryFee: o.deliveryFee, tipAmount: o.tipAmount });
+      list.push(netOrder);
       ordersByRestaurant.set(o.restaurantId, list);
+      refundsByRestaurant.set(
+        o.restaurantId,
+        (refundsByRestaurant.get(o.restaurantId) || 0) + netOrder.refundAmount,
+      );
     }
 
     const rows = restaurants
       .map((r) => {
         const b = computePayout(ordersByRestaurant.get(r.id) || [], r, economy);
         const p = persistedMap.get(r.id) || null;
+        const economic = selectFinanceSummaryEconomicValues({
+          orderCount: b.orderCount,
+          grossSales: b.restaurantGrossOre,
+          commission: b.commissionOre,
+          subscription: b.subscriptionOre,
+          feeVat: b.feeVatOre,
+          payout: b.payoutOre,
+          owed: b.owedOre,
+          commissionPct: b.commissionPct,
+          selfDelivery: r.selfDelivery,
+        }, p);
         return {
           restaurantId: r.id,
           name: r.name,
@@ -87,38 +131,28 @@ router.get('/summary', async (req, res) => {
           city: r.city,
           featuredClass: r.featuredClass ?? 3,
           tierLabel: b.tierLabel,
-          selfDelivery: r.selfDelivery,
-          commissionPct: b.commissionPct,
-          orderCount: b.orderCount,
-          grossSales: fromOre(b.restaurantGrossOre),
+          selfDelivery: economic.selfDelivery,
+          commissionPct: economic.commissionPct,
+          orderCount: economic.orderCount,
+          grossSales: fromOre(economic.grossSales),
+          refunds: fromOre(refundsByRestaurant.get(r.id)),
           foodBase: fromOre(b.foodBase),
           deliveryFee: fromOre(b.deliveryFeeTotal),
           tip: fromOre(b.tipTotal),
-          commission: fromOre(b.commissionOre),
-          subscription: fromOre(b.subscriptionOre),
-          feeVat: fromOre(b.feeVatOre),
-          payout: fromOre(b.payoutOre),
-          owed: fromOre(b.owedOre),
+          commission: fromOre(economic.commission),
+          subscription: fromOre(economic.subscription),
+          feeVat: fromOre(economic.feeVat),
+          payout: fromOre(economic.payout),
+          owed: fromOre(economic.owed),
+          usesFrozenSnapshot: economic.usesFrozenSnapshot,
           status: p?.status ?? null,
           payoutReference: p?.payoutReference ?? null,
         };
       })
       // Tomma restauranger utan abonnemang är inte intressanta i kön.
-      .filter((row) => row.orderCount > 0 || row.subscription > 0);
+      .filter((row) => row.usesFrozenSnapshot || row.orderCount > 0 || row.subscription > 0);
 
-    const totals = rows.reduce(
-      (acc, r) => {
-        acc.grossSales += r.grossSales;
-        acc.commission += r.commission;
-        acc.subscription += r.subscription;
-        acc.feeVat += r.feeVat;
-        acc.payout += r.payout;
-        acc.owed += r.owed;
-        acc.orderCount += r.orderCount;
-        return acc;
-      },
-      { grossSales: 0, commission: 0, subscription: 0, feeVat: 0, payout: 0, owed: 0, orderCount: 0 },
-    );
+    const totals = sumFinanceSummaryRows(rows);
 
     res.json({
       period: { from: start.toISOString(), to: end.toISOString() },
@@ -166,16 +200,20 @@ router.get('/payout/:restaurantId', async (req, res) => {
       prisma.order.findMany({
         where: {
           restaurantId,
-          status: { notIn: ['CANCELLED', 'REJECTED'] as any },
+          status: { in: [...PAYOUT_ORDER_STATUSES] },
+          paymentStatus: { in: [...PAYOUT_PAYMENT_STATUSES] },
           createdAt: { gte: start, lte: end },
-          ...excludeTestOrders,
+          NOT: [...PAYOUT_TEST_ORDER_EXCLUSIONS],
         },
         select: {
           orderNumber: true,
           createdAt: true,
+          status: true,
+          paymentStatus: true,
           total: true,
           deliveryFee: true,
           tipAmount: true,
+          refundAmount: true,
           type: true,
         },
         orderBy: { createdAt: 'asc' },
@@ -192,12 +230,56 @@ router.get('/payout/:restaurantId', async (req, res) => {
     }
 
     const economy = economyFromSettings(settingsRow);
+    const eligibleOrders = orders.flatMap((order) => {
+      const net = netPayoutOrder(order);
+      return net ? [{ order, net }] : [];
+    });
     const b = computePayout(
-      orders.map((o) => ({ total: o.total, deliveryFee: o.deliveryFee, tipAmount: o.tipAmount })),
+      eligibleOrders.map(({ net }) => net),
       restaurant,
       economy,
     );
+    const originalGrossTotal = eligibleOrders.reduce((sum, { net }) => sum + net.originalTotal, 0);
+    const refundTotal = eligibleOrders.reduce((sum, { net }) => sum + net.refundAmount, 0);
+    const refundWindowHours = payoutRefundWindowHours();
+    const refundWindowClosesAt = payoutRefundWindowClosesAt(end, refundWindowHours);
     const s = (settingsRow as any) || {};
+    const manualAdjustmentAmount = Number(persisted?.manualAdjustmentAmount || 0);
+    let recoveryPreview: {
+      blocked: boolean;
+      error: string | null;
+      reserved: number;
+      remaining: number;
+      sourceCount: number;
+    };
+    try {
+      const recovery = await calculateLateRefundRecoveryPlan(prisma, {
+        restaurantId,
+        targetPayoutId: persisted?.id,
+        targetPeriodStart: start,
+        // A PAID target cannot absorb more recovery. Capacity zero makes the
+        // response expose the exact carry remainder for the next period.
+        targetCapacityAmount: persisted?.status === 'PAID' || b.owedOre > 0
+          ? 0
+          : Math.max(0, b.payoutOre - manualAdjustmentAmount),
+      });
+      recoveryPreview = {
+        blocked: false,
+        error: null,
+        reserved: fromOre(recovery.totalAmount),
+        remaining: fromOre(recovery.remainingAmount),
+        sourceCount: recovery.sources.filter((source) => source.requiredRecoveryAmount > 0).length,
+      };
+    } catch (error) {
+      if (!(error instanceof PayoutRecoveryError)) throw error;
+      recoveryPreview = {
+        blocked: true,
+        error: error.message,
+        reserved: 0,
+        remaining: 0,
+        sourceCount: 0,
+      };
+    }
 
     res.json({
       restaurant: {
@@ -218,8 +300,16 @@ router.get('/payout/:restaurantId', async (req, res) => {
         address: s.companyAddress || null,
       },
       period: { from: start.toISOString(), to: end.toISOString() },
+      refundWindow: {
+        hours: refundWindowHours,
+        closesAt: refundWindowClosesAt.toISOString(),
+        closed: new Date().getTime() >= refundWindowClosesAt.getTime(),
+      },
+      lateRefundRecovery: recoveryPreview,
       breakdown: {
         orderCount: b.orderCount,
+        originalGrossTotal: fromOre(originalGrossTotal),
+        refunds: fromOre(refundTotal),
         grossTotal: fromOre(b.grossTotal),
         foodBase: fromOre(b.foodBase),
         deliveryFee: fromOre(b.deliveryFeeTotal),
@@ -236,23 +326,35 @@ router.get('/payout/:restaurantId', async (req, res) => {
         foodVatPct: b.foodVatPct,
         foodVat: fromOre(b.foodVatOre),
       },
-      orders: orders.map((o) => ({
-        orderNumber: o.orderNumber,
-        createdAt: o.createdAt,
-        type: o.type,
-        total: fromOre(o.total),
-        deliveryFee: fromOre(o.deliveryFee),
-        tip: fromOre(o.tipAmount),
+      orders: eligibleOrders.map(({ order, net }) => ({
+        orderNumber: order.orderNumber,
+        createdAt: order.createdAt,
+        type: order.type,
+        originalTotal: fromOre(net.originalTotal),
+        refundAmount: fromOre(net.refundAmount),
+        total: fromOre(net.total),
+        deliveryFee: fromOre(net.deliveryFee),
+        tip: fromOre(net.tipAmount),
       })),
       persisted: persisted
         ? {
             status: persisted.status,
-            adjustmentAmount: fromOre(persisted.adjustmentAmount),
+            grossSales: fromOre(persisted.grossSales),
+            orderCount: persisted.orderCount,
+            commissionAmount: fromOre(persisted.commissionAmount),
+            subscriptionAmount: fromOre(persisted.subscriptionAmount),
+            manualAdjustmentAmount: fromOre(persisted.manualAdjustmentAmount),
+            lateRefundAdjustmentAmount: fromOre(persisted.lateRefundAdjustmentAmount),
             payoutAmount: fromOre(persisted.payoutAmount),
+            commissionPctSnapshot: persisted.commissionPctSnapshot,
+            feeVatPctSnapshot: persisted.feeVatPctSnapshot,
+            selfDeliverySnapshot: persisted.selfDeliverySnapshot,
             notes: persisted.notes,
             payoutReference: persisted.payoutReference,
             approvedAt: persisted.approvedAt,
+            approvedBy: persisted.approvedBy,
             paidAt: persisted.paidAt,
+            paidBy: persisted.paidBy,
             updatedAt: persisted.updatedAt,
           }
         : null,

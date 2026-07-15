@@ -21,47 +21,38 @@ export async function dispatchDueScheduledPushes(): Promise<void> {
   if (due.length === 0) return;
 
   for (const row of due) {
-    const reservedAt = new Date();
-    // Optimistic claim — set sentAt to "in progress" so a concurrent tick
-    // (multi-process restart) doesn't pick the same row again. We always
-    // overwrite with the real outcome below.
-    try {
-      const claim = await (prisma as any).scheduledPush.updateMany({
-        where: { id: row.id, sentAt: null, cancelledAt: null },
-        data: { sentAt: reservedAt },
-      });
-      if (claim.count !== 1) continue; // somebody else got it
-    } catch (err) {
-      console.warn('[scheduledPush] claim failed', row.id, err);
-      continue;
-    }
-
     let count = 0;
     let success = true;
     let firstError: string | null = null;
+    let queueErrors = 0;
+    const queueOptions = { dedupeKeyPrefix: `scheduled:${row.id}`, kind: 'SCHEDULED_PUSH' };
 
     try {
       const data: Record<string, unknown> | undefined = row.deeplink ? { deeplink: row.deeplink } : undefined;
       if (row.target === 'all') {
-        const r = await sendToAllUsers(row.title, row.body, data);
+        const r = await sendToAllUsers(row.title, row.body, data, queueOptions);
         count = r.count || 0;
         if (!r.success) success = false;
-        if (r.errors > 0) firstError = `${r.errors} ticket errors`;
+        queueErrors += r.errors || 0;
+        if (r.errors > 0) firstError = `${r.errors} queue errors`;
       } else if (row.target === 'user' && row.identifier) {
-        const r = await sendToUser(row.identifier, row.title, row.body, data);
+        const r = await sendToUser(row.identifier, row.title, row.body, data, queueOptions);
         count = r.count || 0;
         success = r.success;
+        queueErrors += r.errors || 0;
         firstError = r.error ?? null;
       } else if (row.target === 'city' && row.city) {
-        const r = await sendToCity(row.city, row.title, row.body, data);
+        const r = await sendToCity(row.city, row.title, row.body, data, queueOptions);
         count = r.count || 0;
         if (!r.success) success = false;
+        queueErrors += r.errors || 0;
       } else if (row.target === 'cohort' && row.cohort) {
         const userIds = await resolveCohort(row.cohort);
         for (const userId of userIds) {
           try {
-            const r = await sendToUser(userId, row.title, row.body, data);
+            const r = await sendToUser(userId, row.title, row.body, data, queueOptions);
             count += r.count || 0;
+            queueErrors += r.errors || 0;
             if (!r.success && !firstError) firstError = r.error ?? null;
           } catch (e: any) {
             if (!firstError) firstError = e?.message?.slice(0, 200) || 'unknown';
@@ -76,27 +67,40 @@ export async function dispatchDueScheduledPushes(): Promise<void> {
       firstError = err?.message?.slice(0, 200) || 'unknown';
     }
 
-    // Record outcome
+    // Stable per-row/per-user dedupe makes concurrent replicas and a crash
+    // between enqueue and sentAt safe. Queue failures leave sentAt NULL so the
+    // next tick retries only the missing outbox rows.
     try {
+      const retryQueue = queueErrors > 0;
       await (prisma as any).scheduledPush.update({
         where: { id: row.id },
-        data: { sentAt: new Date(), sentCount: count, sentSuccess: success, sentError: firstError },
-      });
-      await (prisma as any).pushLog.create({
         data: {
-          target: row.target,
-          identifier: row.identifier,
-          city: row.city,
-          cohort: row.cohort,
-          title: row.title,
-          body: row.body,
-          deeplink: row.deeplink,
-          count,
-          success,
-          error: firstError,
-          sentBy: row.createdBy,
+          sentAt: retryQueue ? null : new Date(),
+          sentCount: count,
+          sentSuccess: retryQueue ? false : success,
+          sentError: firstError,
         },
       });
+      if (!retryQueue) {
+        await (prisma as any).pushLog.upsert({
+          where: { id: `scheduled_${row.id}` },
+          create: {
+            id: `scheduled_${row.id}`,
+            target: row.target,
+            identifier: row.identifier,
+            city: row.city,
+            cohort: row.cohort,
+            title: row.title,
+            body: row.body,
+            deeplink: row.deeplink,
+            count,
+            success,
+            error: firstError,
+            sentBy: row.createdBy,
+          },
+          update: { count, success, error: firstError },
+        });
+      }
     } catch (err) {
       console.warn('[scheduledPush] post-send write failed', row.id, err);
     }
@@ -115,7 +119,16 @@ async function resolveCohort(cohort: string): Promise<string[]> {
     });
     const recentSet = new Set(recentByUser.map((r) => r.userId!));
     const users = await (prisma as any).user.findMany({
-      where: { deletedAt: null, createdAt: { lte: since7 }, OR: [{ pushToken: { not: null } }, { apnsDeviceToken: { not: null } }] },
+      where: {
+        deletedAt: null,
+        isActive: true,
+        createdAt: { lte: since7 },
+        OR: [
+          { deviceInstallations: { some: { active: true, provider: { not: 'WEB_PUSH' } } } },
+          { pushToken: { not: null } },
+          { apnsDeviceToken: { not: null } },
+        ],
+      },
       select: { id: true },
     });
     return (users as any[]).map((u) => u.id).filter((id) => !recentSet.has(id));
@@ -123,7 +136,16 @@ async function resolveCohort(cohort: string): Promise<string[]> {
   if (cohort === 'new_users_7d') {
     const since7 = new Date(now - 7 * 24 * 60 * 60 * 1000);
     const users = await (prisma as any).user.findMany({
-      where: { deletedAt: null, createdAt: { gte: since7 }, OR: [{ pushToken: { not: null } }, { apnsDeviceToken: { not: null } }] },
+      where: {
+        deletedAt: null,
+        isActive: true,
+        createdAt: { gte: since7 },
+        OR: [
+          { deviceInstallations: { some: { active: true, provider: { not: 'WEB_PUSH' } } } },
+          { pushToken: { not: null } },
+          { apnsDeviceToken: { not: null } },
+        ],
+      },
       select: { id: true, _count: { select: { orders: true } } },
     });
     return (users as any[]).filter((u) => (u._count?.orders ?? 0) === 0).map((u) => u.id);

@@ -5,8 +5,12 @@ import { authenticateUser } from './auth';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import supabaseAdmin from '../lib/supabase';
 import { deleteSupabaseAuthUser } from '../lib/supabaseUserDelete';
+import { hasVerifiedSupabasePhone } from '../lib/customerAuthPolicy';
+import { isDealAvailableNow } from '../lib/deals';
+import { invalidateCachedCustomerIdentity } from '../lib/customerIdentityCache';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
-import { referralPhoneVariants } from '../lib/referralRules';
+import { normalizeReferralPhone, referralPhoneVariants } from '../lib/referralRules';
+import { calculateOrderVat } from '../lib/tax';
 
 const router = Router();
 
@@ -20,6 +24,27 @@ const isRetiredFavoriteUserDeal = (deal: any) => {
 // Helper: build a full name from first + last (or fallback to existing).
 function joinFullName(first: string | null | undefined, last: string | null | undefined): string {
   return [first, last].filter(Boolean).join(' ').trim();
+}
+
+function preferProfileValue(primary: unknown, fallback: unknown): string | null {
+  const current = typeof primary === 'string' ? primary.trim() : '';
+  if (current) return primary as string;
+  const inherited = typeof fallback === 'string' ? fallback.trim() : '';
+  return inherited ? fallback as string : null;
+}
+
+function mergeJsonStringList(primary: unknown, fallback: unknown): string {
+  const parse = (value: unknown): string[] => {
+    try {
+      const parsed = JSON.parse(typeof value === 'string' ? value : '[]');
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        : [];
+    } catch {
+      return [];
+    }
+  };
+  return JSON.stringify(Array.from(new Set([...parse(primary), ...parse(fallback)])));
 }
 
 router.get('/', authenticateUser, async (req: any, res: any) => {
@@ -100,51 +125,153 @@ router.get('/', authenticateUser, async (req: any, res: any) => {
 // merges den in.
 router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
   try {
-    const { phone } = req.body;
-    if (!phone) {
+    const { phone, token: phoneVerificationToken } = req.body as {
+      phone?: string;
+      token?: string;
+    };
+    const requestedPhone = normalizeReferralPhone(phone);
+    if (!requestedPhone) {
       return res.status(400).json({ error: 'Telefonnummer krävs' });
     }
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Sessionen saknar användar-id' });
+    }
+    if (!supabaseAdmin || !phoneVerificationToken) {
+      return res.status(401).json({
+        error: 'Verifiera telefonnumret med SMS först',
+        code: 'VERIFIED_PHONE_SESSION_REQUIRED',
+      });
+    }
+
+    // Account auth and phone ownership are two separate proofs. The platform
+    // bearer identifies the OAuth account; this Supabase token proves that the
+    // caller just completed SMS OTP for the exact number being linked.
+    const { data: { user: verifiedPhoneUser }, error: phoneProofError } =
+      await supabaseAdmin.auth.getUser(phoneVerificationToken);
+    const verifiedPhone = normalizeReferralPhone(verifiedPhoneUser?.phone);
+    if (
+      phoneProofError ||
+      !verifiedPhoneUser ||
+      !hasVerifiedSupabasePhone(verifiedPhoneUser) ||
+      !verifiedPhone ||
+      verifiedPhone !== requestedPhone
+    ) {
+      return res.status(401).json({
+        error: 'SMS-verifieringen matchar inte telefonnumret',
+        code: 'VERIFIED_PHONE_MISMATCH',
+      });
     }
 
     const phoneVariants = (p: string) => referralPhoneVariants(p);
 
     // Slå ihop ett befintligt konto med samma telefon in i det inloggade kontot
     // (permanent koppling). Sker om det andra kontot är gäst-likt ELLER ett rent
-    // telefon-konto (telefon-OTP utan e-post). Ett annat RIKTIGT konto (med
-    // e-post/OAuth) vägrar vi att kapa. Soft-deletar det gamla (undviker FK-krångel)
+    // telefon-konto. Ett annat konto med en Google-/Apple-identitet vägrar vi
+    // att kapa. E-post i sig är kontaktdata och inget inloggningsbevis.
+    // Soft-deletar det gamla (undviker FK-krångel)
     // + flyttar ordrar + frigör Supabase-telefon-användaren.
     const existingWithPhone = await (prisma as any).user.findFirst({
-      where: { phone: { in: phoneVariants(phone) }, deletedAt: null },
+      where: { phone: { in: phoneVariants(requestedPhone) }, deletedAt: null, isActive: true },
     });
+    let updated: any;
     if (existingWithPhone && existingWithPhone.id !== req.user.id) {
-      const isGuestLike = !existingWithPhone.oauthId && !existingWithPhone.email && !existingWithPhone.password;
-      const isPhoneOnly = !existingWithPhone.email && !existingWithPhone.password
-        && (existingWithPhone.oauthProvider === 'phone' || !existingWithPhone.oauthProvider);
-      if (!isGuestLike && !isPhoneOnly) {
+      const hasSocialIdentity =
+        existingWithPhone.oauthProvider === 'google' ||
+        existingWithPhone.oauthProvider === 'apple' ||
+        (Boolean(existingWithPhone.oauthId) && existingWithPhone.oauthProvider !== 'phone');
+      if (hasSocialIdentity) {
         return res.status(409).json({
           error: 'Detta telefonnummer är redan kopplat till ett annat konto',
         });
       }
-      await (prisma as any).$transaction(async (tx: any) => {
-        const target = await tx.user.findUnique({
-          where: { id: req.user.id },
-          select: { referralCode: true },
+      updated = await (prisma as any).$transaction(async (tx: any) => {
+        const [source, target] = await Promise.all([
+          tx.user.findUnique({ where: { id: existingWithPhone.id } }),
+          tx.user.findUnique({ where: { id: req.user.id } }),
+        ]);
+        if (!source || !target || target.deletedAt || target.isActive === false) {
+          const conflict: any = new Error('PHONE_ACCOUNT_MERGE_CONFLICT');
+          conflict.code = 'PHONE_ACCOUNT_MERGE_CONFLICT';
+          throw conflict;
+        }
+
+        // Claim and scrub the source row first. updateMany makes concurrent
+        // merge attempts serialize on the row and only one transaction wins.
+        const claimed = await tx.user.updateMany({
+          where: {
+            id: source.id,
+            deletedAt: null,
+            isActive: true,
+            phone: { in: phoneVariants(requestedPhone) },
+          },
+          data: {
+            deletedAt: new Date(),
+            isActive: false,
+            isVerified: false,
+            isGuest: false,
+            email: null,
+            phone: null,
+            name: '',
+            firstName: null,
+            lastName: null,
+            address: null,
+            city: null,
+            zip: null,
+            image: null,
+            pushToken: null,
+            apnsDeviceToken: null,
+            oauthProvider: null,
+            oauthId: null,
+            referralCode: null,
+            referredByCode: null,
+            claimedDealIds: '[]',
+            allergens: '[]',
+            deviceFingerprint: null,
+            lastSeenIp: null,
+            internalInfo: null,
+            convertedFromGuestAt: null,
+            conversionSource: null,
+          },
         });
+        if (claimed.count !== 1) {
+          const conflict: any = new Error('PHONE_ACCOUNT_MERGE_CONFLICT');
+          conflict.code = 'PHONE_ACCOUNT_MERGE_CONFLICT';
+          throw conflict;
+        }
+
         const [sourceInviteeReferral, targetInviteeReferral] = await Promise.all([
-          tx.referral.findFirst({ where: { inviteeUserId: existingWithPhone.id } }),
+          tx.referral.findFirst({ where: { inviteeUserId: source.id } }),
           tx.referral.findFirst({ where: { inviteeUserId: req.user.id } }),
         ]);
 
-        await tx.order.updateMany({ where: { userId: existingWithPhone.id }, data: { userId: req.user.id } });
-        await tx.userDeal.updateMany({ where: { userId: existingWithPhone.id }, data: { userId: req.user.id } });
-        await tx.referral.updateMany({ where: { inviterUserId: existingWithPhone.id }, data: { inviterUserId: req.user.id } });
+        const targetHasDefaultAddress = await tx.savedAddress.findFirst({
+          where: { userId: target.id, isDefault: true },
+          select: { id: true },
+        });
+        if (targetHasDefaultAddress) {
+          await tx.savedAddress.updateMany({
+            where: { userId: source.id, isDefault: true },
+            data: { isDefault: false },
+          });
+        }
+
+        await Promise.all([
+          tx.order.updateMany({ where: { userId: source.id }, data: { userId: target.id } }),
+          tx.userDeal.updateMany({ where: { userId: source.id }, data: { userId: target.id } }),
+          tx.savedAddress.updateMany({ where: { userId: source.id }, data: { userId: target.id } }),
+          tx.customerDeal.updateMany({ where: { userId: source.id }, data: { userId: target.id } }),
+          tx.deviceInstallation.updateMany({ where: { userId: source.id }, data: { userId: target.id } }),
+          tx.notificationOutbox.updateMany({
+            where: { userId: source.id, status: { in: ['PENDING', 'RETRY', 'PROCESSING'] } },
+            data: { userId: target.id },
+          }),
+          tx.referral.updateMany({ where: { inviterUserId: source.id }, data: { inviterUserId: target.id } }),
+        ]);
 
         if (sourceInviteeReferral && !targetInviteeReferral) {
           await tx.referral.update({
             where: { id: sourceInviteeReferral.id },
-            data: { inviteeUserId: req.user.id },
+            data: { inviteeUserId: target.id },
           });
         } else if (sourceInviteeReferral && targetInviteeReferral) {
           await tx.referral.update({
@@ -158,38 +285,67 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
           });
         }
 
-        // Frigör koden på källraden före target-update för att inte slå i
-        // User.referralCode-unikheten. Ett redan upplåst target-konto behåller
-        // sin kod, annars följer gästkodens historik med.
-        await tx.user.update({
-          where: { id: existingWithPhone.id },
-          data: { deletedAt: new Date(), phone: null, oauthId: null, oauthProvider: null, referralCode: null },
+        // Target values win. Empty profile/referral fields inherit safe data
+        // from the phone account; contact email never does because it was not
+        // itself an authentication proof.
+        return tx.user.update({
+          where: { id: target.id },
+          data: {
+            phone: requestedPhone,
+            isVerified: true,
+            isGuest: false,
+            name: preferProfileValue(target.name, source.name) || '',
+            firstName: preferProfileValue(target.firstName, source.firstName),
+            lastName: preferProfileValue(target.lastName, source.lastName),
+            address: preferProfileValue(target.address, source.address),
+            city: preferProfileValue(target.city, source.city),
+            zip: preferProfileValue(target.zip, source.zip),
+            image: preferProfileValue(target.image, source.image),
+            pushToken: preferProfileValue(target.pushToken, source.pushToken),
+            apnsDeviceToken: preferProfileValue(target.apnsDeviceToken, source.apnsDeviceToken),
+            internalInfo: preferProfileValue(target.internalInfo, source.internalInfo),
+            referralCode: target.referralCode || source.referralCode || null,
+            referredByCode: target.referredByCode || source.referredByCode || null,
+            deviceFingerprint: target.deviceFingerprint || source.deviceFingerprint || null,
+            lastSeenIp: target.lastSeenIp || source.lastSeenIp || null,
+            convertedFromGuestAt: target.convertedFromGuestAt || source.convertedFromGuestAt || null,
+            conversionSource: target.conversionSource || source.conversionSource || null,
+            claimedDealIds: mergeJsonStringList(target.claimedDealIds, source.claimedDealIds),
+            allergens: mergeJsonStringList(target.allergens, source.allergens),
+          },
+          select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, isVerified: true, image: true, oauthProvider: true },
         });
-        if (!target?.referralCode && existingWithPhone.referralCode) {
-          await tx.user.update({
-            where: { id: req.user.id },
-            data: { referralCode: existingWithPhone.referralCode },
-          });
-        }
       });
+      invalidateCachedCustomerIdentity(existingWithPhone.id);
+      invalidateCachedCustomerIdentity(req.user.id);
       try {
         if (supabaseAdmin && UUID_RE.test(existingWithPhone.id)) {
           await supabaseAdmin.auth.admin.deleteUser(existingWithPhone.id);
         }
       } catch (e: any) { console.error('[link-phone] supabase cleanup:', e?.message); }
       console.log(`[link-phone] merged account ${existingWithPhone.id} into ${req.user.id}`);
+    } else {
+      updated = await (prisma as any).user.update({
+        where: { id: req.user.id },
+        data: { phone: requestedPhone, isVerified: true },
+        select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, isVerified: true, image: true, oauthProvider: true },
+      });
+      invalidateCachedCustomerIdentity(req.user.id);
     }
-
-    const updated = await (prisma as any).user.update({
-      where: { id: req.user.id },
-      data: { phone, isVerified: true },
-      select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, isVerified: true, image: true, oauthProvider: true },
-    });
 
     res.json({ user: updated });
   } catch (error: any) {
     console.error('[link-phone] error:', error?.stack || error?.message || error);
-    res.status(500).json({ error: 'Kunde inte koppla telefonnumret', detail: error?.message });
+    if (['PHONE_ACCOUNT_MERGE_CONFLICT', 'P2002', 'P2003', 'P2025'].includes(error?.code)) {
+      return res.status(409).json({
+        error: 'Kontot kunde inte slås ihop säkert. Försök igen eller kontakta support.',
+        code: 'PHONE_ACCOUNT_MERGE_CONFLICT',
+      });
+    }
+    res.status(500).json({
+      error: 'Kunde inte koppla telefonnumret',
+      ...(process.env.NODE_ENV !== 'production' ? { detail: error?.message } : {}),
+    });
   }
 });
 
@@ -241,21 +397,37 @@ router.get('/orders', authenticateUser, async (req: any, res: any) => {
       },
       orderBy: { createdAt: 'desc' }
     });
-    const serialized = orders.map((o: any) => ({
-      ...o,
-      total: (o.total ?? 0) / 100,
-      deliveryFee: (o.deliveryFee ?? 0) / 100,
-      discountAmount: (o.discountAmount ?? 0) / 100,
-      tipAmount: (o.tipAmount ?? 0) / 100,
-      items: (o.items || []).map((it: any) => ({
-        ...it,
-        basePrice: (it.basePrice ?? 0) / 100,
-        subtotal: (it.subtotal ?? 0) / 100,
-        selectedExtras: typeof it.selectedExtras === 'string' ? JSON.parse(it.selectedExtras || '[]') : (it.selectedExtras || []),
-      })),
-      // accessToken läcker inte i klient-svar (servern verifierar mot DB)
-      accessToken: undefined,
-    }));
+    const serialized = orders.map((o: any) => {
+      const vatSummary = calculateOrderVat(o);
+      return {
+        ...o,
+        total: (o.total ?? 0) / 100,
+        deliveryFee: (o.deliveryFee ?? 0) / 100,
+        discountAmount: (o.discountAmount ?? 0) / 100,
+        foodDiscountAmount: (o.foodDiscountAmount ?? 0) / 100,
+        deliveryDiscountAmount: (o.deliveryDiscountAmount ?? 0) / 100,
+        smallOrderFee: (o.smallOrderFee ?? 0) / 100,
+        tipAmount: (o.tipAmount ?? 0) / 100,
+        vatAmount: vatSummary.totalVatOre / 100,
+        vatBreakdown: vatSummary.breakdown.map((row) => ({
+          rate: row.rate,
+          gross: row.grossOre / 100,
+          vat: row.vatOre / 100,
+        })),
+        restaurant: o.restaurant ? {
+          ...o.restaurant,
+          vatPercent: o.foodVatPercent ?? o.restaurant.vatPercent ?? 6,
+        } : null,
+        items: (o.items || []).map((it: any) => ({
+          ...it,
+          basePrice: (it.basePrice ?? 0) / 100,
+          subtotal: (it.subtotal ?? 0) / 100,
+          selectedExtras: typeof it.selectedExtras === 'string' ? JSON.parse(it.selectedExtras || '[]') : (it.selectedExtras || []),
+        })),
+        // accessToken läcker inte i klient-svar (servern verifierar mot DB)
+        accessToken: undefined,
+      };
+    });
     res.json(serialized);
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
@@ -557,6 +729,8 @@ router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
             where: {
               id: { in: claimedIds },
               isActive: true,
+              isPersonalTemplate: false,
+              isTemplate: false,
               OR: [{ validUntil: null }, { validUntil: { gte: now } }],
             },
           })
@@ -566,6 +740,8 @@ router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
       prisma.deal.findMany({
         where: {
           isActive: true,
+          isPersonalTemplate: false,
+          isTemplate: false,
           popupEnabled: true,
           OR: [{ validUntil: null }, { validUntil: { gte: now } }],
           NOT: { popupHeadline: null },
@@ -575,18 +751,25 @@ router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
         where: {
           isGlobal: true,
           isActive: true,
+          isPersonalTemplate: false,
+          isTemplate: false,
           OR: [{ validUntil: null }, { validUntil: { gte: now } }],
         },
       }),
     ]);
 
     const claimedSet = new Set(claimedIds);
-    const visibleClaimed = claimed;
-    const visibleGlobal = global;
+    const visibleClaimed = claimed.filter((deal) => isDealAvailableNow(deal, now));
+    const visibleGlobal = global.filter((deal) => isDealAvailableNow(deal, now));
     const globalSet = new Set(visibleGlobal.map((deal) => deal.id));
     // Available = popup-deals som inte redan finns i claimed eller global
     // (annars dyker de upp dubbelt i Profile-listan).
-    const available = popupCandidates.filter((deal) => !claimedSet.has(deal.id) && !globalSet.has(deal.id));
+    const available = popupCandidates.filter(
+      (deal) =>
+        isDealAvailableNow(deal, now) &&
+        !claimedSet.has(deal.id) &&
+        !globalSet.has(deal.id),
+    );
 
     const formatDeal = (deal: any) => ({
       id: deal.id,
@@ -628,12 +811,23 @@ router.post('/deals/:dealId/claim', authenticateUser, async (req: any, res: any)
     const dealId = req.params.dealId;
     const deal = await prisma.deal.findUnique({
       where: { id: dealId },
-      select: { id: true, isActive: true, popupEnabled: true, validUntil: true },
+      select: {
+        id: true,
+        isActive: true,
+        popupEnabled: true,
+        isPersonalTemplate: true,
+        isTemplate: true,
+        validFrom: true,
+        validUntil: true,
+        maxUsages: true,
+        usageCount: true,
+      },
     });
-    if (!deal) return res.status(404).json({ error: 'Erbjudandet hittades inte' });
-    if (!deal.isActive) return res.status(400).json({ error: 'Erbjudandet är inte aktivt' });
-    if (deal.validUntil && new Date(deal.validUntil) < new Date()) {
-      return res.status(400).json({ error: 'Erbjudandet har gått ut' });
+    if (!deal || !deal.popupEnabled || deal.isPersonalTemplate || deal.isTemplate) {
+      return res.status(404).json({ error: 'Erbjudandet hittades inte' });
+    }
+    if (!isDealAvailableNow(deal)) {
+      return res.status(400).json({ error: 'Erbjudandet är inte aktivt' });
     }
 
     const user = await (prisma as any).user.findUnique({
@@ -849,9 +1043,10 @@ router.get('/previously-ordered/:restaurantId', authenticateUser, async (req: an
 // raderar inte User-raden: dels kraschar det på FK-relationer (Referral/UserDeal),
 // dels är kundens Supabase-JWT kvar giltig så authenticateUser
 // skulle tyst återskapa raden vid nästa anrop (samma anti-mönster som beskrivs i
-// customers.ts admin-radering). Istället: radera Supabase-auth-användaren, koppla
-// loss orders (affärspost som ska sparas) och soft-delete + scrubba all PII. Auth-
-// middleware avvisar deletedAt-konton med 401, klienten rensar sin token.
+// customers.ts admin-radering). Istället: koppla loss orders (affärspost som ska
+// sparas) och soft-delete + scrubba all PII. Auth-middleware avvisar deletedAt-
+// konton med 401, klienten rensar sin token. Supabase tas bort först efter att
+// den lokala transaktionen har lyckats.
 router.delete('/', authenticateUser, async (req: any, res: any) => {
   try {
     const userId = req.user.id;
@@ -862,39 +1057,78 @@ router.delete('/', authenticateUser, async (req: any, res: any) => {
       where: { id: userId },
       select: { id: true, email: true, phone: true, oauthId: true },
     });
+    const deletedAt = new Date();
+    await prisma.$transaction(async (tx) => {
+      // Koppla loss orders (affärspost) från kunden istället för att radera dem.
+      await tx.order.updateMany({
+        where: { userId },
+        data: { userId: null },
+      });
+
+      // Sparade adresser är ren kund-PII och ska inte ligga kvar efter
+      // anonymisering.
+      await tx.savedAddress.deleteMany({ where: { userId } });
+
+      // Revokera varje installation INNAN användaren anonymiseras. En redan
+      // köad worker får då varken dekryptera eller retrya en gammal device-token
+      // efter kontoradering.
+      await tx.deviceInstallation.updateMany({
+        where: { userId },
+        data: {
+          active: false,
+          revokedAt: deletedAt,
+          tokenHash: null,
+          tokenCiphertext: null,
+          revokedReason: 'account_deleted',
+        },
+      });
+
+      // Soft-delete + scrubba identifierande fält. Nulla unika slots
+      // (email/phone/oauth/referralCode) så framtida signup inte blockeras.
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          deletedAt,
+          email: null,
+          phone: null,
+          name: '',
+          firstName: null,
+          lastName: null,
+          address: null,
+          city: null,
+          zip: null,
+          image: null,
+          pushToken: null,
+          apnsDeviceToken: null,
+          oauthProvider: null,
+          oauthId: null,
+          referralCode: null,
+          referredByCode: null,
+          isVerified: false,
+          claimedDealIds: '[]',
+          deviceFingerprint: null,
+          lastSeenIp: null,
+          internalInfo: null,
+          allergens: '[]',
+          convertedFromGuestAt: null,
+          conversionSource: null,
+        },
+      });
+    });
+
+    // authenticateUser caches a resolved identity for 30 seconds. Revoke it
+    // synchronously so the token used for this DELETE cannot make one more
+    // successful request after the tombstone commits.
+    invalidateCachedCustomerIdentity(userId);
+
+    // Auth-kontot tas bort efter den atomiska lokala anonymiseringen. Om den
+    // externa tjänsten tillfälligt misslyckas är det lokala kontot ändå spärrat.
     if (before) await deleteSupabaseAuthUser(before);
 
-    // Koppla loss orders (affärspost) från kunden istället för att radera dem.
-    await prisma.order.updateMany({
-      where: { userId },
-      data: { userId: null },
+    res.json({
+      success: true,
+      message: 'Ditt konto har raderats. Orderunderlag som måste bevaras har kopplats loss från kontot.',
     });
-
-    // Soft-delete + scrubba identifierande fält. Nulla unika slots (email/phone/
-    // oauth/referralCode) så framtida signup inte blockeras av tombstonen.
-    await (prisma as any).user.update({
-      where: { id: userId },
-      data: {
-        deletedAt: new Date(),
-        email: null,
-        phone: null,
-        name: '',
-        firstName: null,
-        lastName: null,
-        address: null,
-        city: null,
-        zip: null,
-        image: null,
-        pushToken: null,
-        apnsDeviceToken: null,
-        oauthProvider: null,
-        oauthId: null,
-        referralCode: null,
-        referredByCode: null,
-      },
-    });
-
-    res.json({ success: true, message: 'Ditt konto och all tillhörande data har raderats.' });
   } catch (error) {
     console.error('Delete account error:', error);
     res.status(500).json({ error: 'Kunde inte radera kontot. Kontakta support om problemet kvarstår.' });

@@ -5,11 +5,11 @@ import Link from "next/link";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { ArrowRight, Clock, ReceiptText } from "lucide-react";
-import { API_URL } from "@/lib/api";
 import { readOrderHistory } from "@/lib/orderHistory";
 
 type RecentOrder = {
   id: string;
+  accessToken?: string | null;
   orderNumber?: string;
   restaurantSlug?: string | null;
   restaurantName?: string | null;
@@ -28,6 +28,11 @@ const STATUS_LABEL: Record<string, string> = {
   REJECTED: "Avvisad",
 };
 
+function isStaleTerminalOrder(order: RecentOrder) {
+  const terminal = ["DELIVERED", "CANCELLED", "REJECTED"].includes(order.status || "");
+  return terminal && Date.now() - new Date(order.createdAt).getTime() > 24 * 60 * 60 * 1000;
+}
+
 /**
  * RecentOrderCard — visar senaste beställningen som ett kort högst upp på
  * home-sidan när användaren har minst en order (inloggad ELLER gäst via
@@ -38,7 +43,6 @@ const STATUS_LABEL: Record<string, string> = {
  */
 export default function RecentOrderCard() {
   const [order, setOrder] = useState<RecentOrder | null>(null);
-  const [phone, setPhone] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,15 +53,15 @@ export default function RecentOrderCard() {
         const res = await axios.get(`/api/platform/profile/orders`, { timeout: 5000 });
         if (!cancelled && Array.isArray(res.data) && res.data.length > 0) {
           const latest = res.data[0];
-          setOrder({
+          const nextOrder: RecentOrder = {
             id: latest.id,
             orderNumber: latest.orderNumber,
             restaurantSlug: latest.restaurantSlug ?? null,
             restaurantName: latest.restaurantName ?? null,
             status: latest.status,
             createdAt: latest.createdAt || new Date().toISOString(),
-          });
-          setPhone(latest.customerPhone || null);
+          };
+          setOrder(isStaleTerminalOrder(nextOrder) ? null : nextOrder);
           return;
         }
       } catch {
@@ -67,15 +71,16 @@ export default function RecentOrderCard() {
       // Gäst-flöde: läs senaste från localStorage
       if (cancelled) return;
       const history = readOrderHistory();
-      if (history.length > 0) {
-        const latest = history[0];
-        setOrder({
+      const latest = history[0];
+      if (latest) {
+        const nextOrder: RecentOrder = {
           id: latest.id,
+          accessToken: latest.accessToken,
           restaurantSlug: latest.restaurantSlug ?? null,
           restaurantName: latest.restaurantName ?? null,
           createdAt: latest.createdAt,
-        });
-        setPhone(latest.phone);
+        };
+        setOrder(isStaleTerminalOrder(nextOrder) ? null : nextOrder);
       }
     };
 
@@ -92,15 +97,7 @@ export default function RecentOrderCard() {
   // backend-fetch och guests som har AWAITING_PAYMENT i localStorage-history.
   if (order.status === "AWAITING_PAYMENT") return null;
 
-  // Dölj kortet för gamla "DELIVERED" eller "CANCELLED" orders (>24h) —
-  // ingen poäng med "fortsätt"-CTA då
-  const ageMs = Date.now() - new Date(order.createdAt).getTime();
-  const isStale = ageMs > 24 * 60 * 60 * 1000 && ["DELIVERED", "CANCELLED", "REJECTED"].includes(order.status || "");
-  if (isStale) return null;
-
-  const href = phone
-    ? `/order/${order.id}?phone=${encodeURIComponent(phone)}`
-    : `/order/${order.id}`;
+  const href = `/order/${order.id}`;
 
   const statusText = order.status ? STATUS_LABEL[order.status] || order.status : null;
   const isActive = order.status && !["DELIVERED", "CANCELLED", "REJECTED", "DELIVERY_FAILED"].includes(order.status);

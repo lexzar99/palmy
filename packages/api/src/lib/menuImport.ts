@@ -54,6 +54,7 @@ const ProductSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   price: z.coerce.number(),
+  vatPercent: z.union([z.literal(0), z.literal(6), z.literal(12), z.literal(25)]).optional(),
   extras: z.array(z.string()).default([]),
   displayMode: z.string().optional(),
   hideDescription: z.boolean().optional(),
@@ -136,14 +137,12 @@ export async function runMenuImport(
     productsCreated: 0, productsUpdated: 0, links: 0,
   };
 
-  // Befintlig data → namn-uppslag (upsert-matchning). Pålägg kan vara
-  // restaurang-scopade ELLER globala (restaurantId=null, delas av flera
-  // restauranger). Vi tar med båda: globala får ALDRIG ändras av en import
-  // (det skulle påverka andra restauranger) men kan återanvändas för koppling.
-  // Restaurang-scopad grupp vinner över en global med samma namn.
+  // Befintlig data → namn-uppslag (upsert-matchning), strikt per restaurang.
+  // Globala grupper återanvänds aldrig: en senare ändring hos restaurang A får
+  // inte ändra val eller priser hos restaurang B.
   const [existingGroups, existingCats] = await Promise.all([
     prisma.extraGroup.findMany({
-      where: { OR: [{ restaurantId }, { restaurantId: null }] },
+      where: { restaurantId },
       select: { id: true, name: true, restaurantId: true },
     }),
     prisma.category.findMany({
@@ -154,9 +153,7 @@ export async function runMenuImport(
   const groupByName = new Map<string, { id: string; global: boolean }>();
   existingGroups.forEach((g) => {
     const k = norm(g.name);
-    const scoped = g.restaurantId != null;
-    const cur = groupByName.get(k);
-    if (!cur || (scoped && cur.global)) groupByName.set(k, { id: g.id, global: !scoped });
+    groupByName.set(k, { id: g.id, global: false });
   });
 
   // ── 1) Extra-grupper (pålägg) ──────────────────────────────────────────────
@@ -164,13 +161,6 @@ export async function runMenuImport(
     const key = norm(g.name);
     const existing = groupByName.get(key);
     const cfg = normalizeGroup(g);
-
-    if (existing?.global) {
-      // Delad global grupp — rör inte, återanvänd bara för koppling.
-      warnings.push(`Pålägg "${g.name}" finns redan globalt (delas av flera restauranger) — lämnas orört; produkter kopplas till den befintliga.`);
-      examples.push(`Pålägg ↩ ${g.name} (global, återanvänds)`);
-      continue;
-    }
 
     if (existing) summary.extraGroupsUpdated++; else summary.extraGroupsCreated++;
     examples.push(`Pålägg ${existing ? '↻' : '＋'} ${g.name} (${cfg.type}${cfg.required ? ', required' : ''}, ${g.options.length} val)`);
@@ -257,6 +247,7 @@ export async function runMenuImport(
           where: { id: pid },
           data: {
             description: p.description ?? null, price: toOre(p.price),
+            ...(p.vatPercent != null ? { vatPercent: p.vatPercent } : {}),
             ...(p.displayMode ? { displayMode: p.displayMode.toUpperCase() === 'COMPACT' ? 'COMPACT' : 'FULL' } : {}),
             ...(p.hideDescription != null ? { hideDescription: p.hideDescription } : {}),
           },
@@ -274,6 +265,7 @@ export async function runMenuImport(
           data: {
             categoryId: catId, name: p.name, slug: uniqueSlug(p.name),
             description: p.description ?? null, price: toOre(p.price),
+            ...(p.vatPercent != null ? { vatPercent: p.vatPercent } : {}),
             displayMode: p.displayMode?.toUpperCase() === 'COMPACT' ? 'COMPACT' : 'FULL',
             ...(p.hideDescription != null ? { hideDescription: p.hideDescription } : {}),
             ...(groupIds.length ? { extraGroups: { create: groupIds.map((extraGroupId, i) => ({ extraGroupId, position: i })) } } : {}),

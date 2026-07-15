@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronRight, ChevronUp, GripVertical, Loader2, Plus, Search, Tags, Upload } from "lucide-react";
@@ -203,7 +203,7 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
 function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; onClose: () => void }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", note: "", price: "", categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: "0", displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, localPriceLocked: false, discountActive: false, discountPercent: "", extraGroupIds: [] as string[] });
+  const [form, setForm] = useState({ name: "", description: "", note: "", price: "", vatPercent: "", categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: "0", displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, localPriceLocked: false, discountActive: false, discountPercent: "", extraGroupIds: [] as string[] });
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -219,6 +219,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             description: product.description || "",
             note: product.note || "",
             price: String(product.price),
+            vatPercent: product.vatPercent == null ? "" : String(product.vatPercent),
             categoryId: product.categoryId,
             imageUrl: product.imageUrl || "",
             isActive: product.isActive ?? true,
@@ -238,6 +239,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
             description: "",
             note: "",
             price: "",
+            vatPercent: "",
             categoryId: categories[0]?.id || "",
             imageUrl: "",
             isActive: true,
@@ -269,6 +271,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
       const payload = {
         ...form,
         price,
+        vatPercent: form.vatPercent ? Number(form.vatPercent) : null,
         position,
         discountActive: discountOn,
         discountPercent: discountOn ? Math.min(95, Math.max(1, Math.round(discountPercent))) : null,
@@ -503,6 +506,16 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
           <div className="mt-3 grid gap-2 md:grid-cols-2">
             <CheckboxField label="Dölj beskrivning i menyn" checked={form.hideDescription} onChange={(hideDescription) => setForm((current) => ({ ...current, hideDescription }))} />
             <CheckboxField label="Lås lokalt pris (kedja)" checked={form.localPriceLocked} onChange={(localPriceLocked) => setForm((current) => ({ ...current, localPriceLocked }))} />
+          </div>
+          <div className="mt-4 max-w-sm">
+            <Field label="Moms-override">
+              <Select value={form.vatPercent} onChange={(event) => setForm((current) => ({ ...current, vatPercent: event.target.value }))}>
+                <option value="">Ärv restaurangens matmoms</option>
+                <option value="6">6 % — mat/alkoholfri dryck</option>
+                <option value="12">12 % — restaurang-/cateringtjänst</option>
+                <option value="25">25 % — t.ex. vin/starköl</option>
+              </Select>
+            </Field>
           </div>
         </div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
@@ -1739,7 +1752,10 @@ function DishRow({
 }
 
 export function MenuPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const requestedRestaurantId = searchParams.get("restaurantId");
+  const requestedProductId = searchParams.get("productId");
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
   const [pendingRouteProductId, setPendingRouteProductId] = useState<string | null>(null);
   const [tab, setTab] = useState<MenuTab>("categories");
@@ -1783,40 +1799,17 @@ export function MenuPage() {
     enabled: Boolean(activeRestaurantId),
   });
 
-  // One-shot auto-pick av första restaurang vid första load. Utan denna ref
-  // skulle effekten nedan reagera så fort `activeRestaurantId` blir null
-  // (t.ex. när admin byter stad i CityRestaurantPicker) och tvinga tillbaka
-  // den första restaurangen → city-bytet blir omöjligt.
-  const didAutoSelectRef = useRef(false);
-
   useEffect(() => {
-    // Läs URL-param OCH applicera den i ett enda effekt-pass. Tidigare fanns
-    // två separata effekter (sätt pendingRouteRestaurantId → sätt activeRestaurantId).
-    // De körde i samma render-batch men auto-pick-grenen läste pendingRouteRestaurantId
-    // från gammal closure (= null) → activeRestaurantId blev "första restaurang i listan"
-    // i stället för restaurangen i URL:en. Det här var bakomliggande orsaken till att
-    // "Öppna menyeditor" från en restaurangsida ibland visade fel restaurang på första
-    // renderingen (rapporterat av A6 Fredrik).
-    const restaurantId = searchParams.get("restaurantId");
-    const productId = searchParams.get("productId");
-
-    if (productId) setPendingRouteProductId(productId);
-
-    // URL-param har ALLTID företräde — sätt activeRestaurantId direkt utan att gå
-    // via pendingRoute-state, så ingen efterföljande auto-pick-pass kan ta över.
-    if (restaurantId) {
-      setActiveRestaurantId(restaurantId);
-      didAutoSelectRef.current = true;
+    if (!restaurants.data) return;
+    if (!requestedRestaurantId) {
+      setPendingRouteProductId(null);
       return;
     }
 
-    // Fallback: auto-pick första restaurang om ingen URL-param finns och vi inte
-    // redan har gjort ett val.
-    if (!didAutoSelectRef.current && !activeRestaurantId && restaurants.data?.length) {
-      setActiveRestaurantId(restaurants.data[0].id);
-      didAutoSelectRef.current = true;
-    }
-  }, [searchParams, activeRestaurantId, restaurants.data]);
+    const validatedRestaurant = restaurants.data.find((restaurant) => restaurant.id === requestedRestaurantId);
+    setActiveRestaurantId(validatedRestaurant?.id ?? null);
+    setPendingRouteProductId(validatedRestaurant ? requestedProductId : null);
+  }, [requestedProductId, requestedRestaurantId, restaurants.data]);
 
   const categories = useQuery({ queryKey: menuCategoriesQueryKey(activeRestaurantId), queryFn: () => getCategories(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
   const products = useQuery({ queryKey: menuProductsQueryKey(activeRestaurantId), queryFn: () => getProducts(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
@@ -2083,7 +2076,16 @@ export function MenuPage() {
     return <ErrorPanel title="Menymodulen kunde inte laddas" description="Restauranglistan för menyhantering är inte tillgänglig." action={<Button onClick={() => void restaurants.refetch()}>Försök igen</Button>} />;
   }
 
-  const activeRestaurantName = restaurants.data?.find((r) => r.id === activeRestaurantId)?.name || null;
+  const activeRestaurant = restaurants.data.find((restaurant) => restaurant.id === activeRestaurantId) ?? null;
+  const activeRestaurantName = activeRestaurant?.name || null;
+  const routeRestaurantIsInvalid = Boolean(requestedRestaurantId && !restaurants.data.some((restaurant) => restaurant.id === requestedRestaurantId));
+
+  const handleRestaurantChange = (restaurantId: string) => {
+    const validatedRestaurantId = restaurants.data.some((restaurant) => restaurant.id === restaurantId) ? restaurantId : null;
+    setActiveRestaurantId(validatedRestaurantId);
+    setPendingRouteProductId(null);
+    router.replace(validatedRestaurantId ? `/menu?restaurantId=${encodeURIComponent(validatedRestaurantId)}` : "/menu", { scroll: false });
+  };
 
   return (
     <div className="page-stack">
@@ -2122,8 +2124,17 @@ export function MenuPage() {
       <Surface className="px-5 py-4">
         <CityRestaurantPicker
           value={activeRestaurantId || ""}
-          onChange={(rid) => setActiveRestaurantId(rid || null)}
+          onChange={handleRestaurantChange}
         />
+        {!activeRestaurantId ? (
+          <div className="mt-5">
+            <EmptyState
+              title={routeRestaurantIsInvalid ? "Restaurangen kunde inte väljas" : "Välj en restaurang"}
+              description={routeRestaurantIsInvalid ? "Länken innehåller ett ogiltigt restaurang-id. Välj en restaurang i listan för att öppna rätt meny." : "Menyeditorn laddar ingen meny förrän du uttryckligen har valt en restaurang."}
+            />
+          </div>
+        ) : (
+          <>
         <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative flex-1">
             <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
@@ -2343,6 +2354,8 @@ export function MenuPage() {
             ))}
           </div>
         ) : null}
+          </>
+        )}
       </Surface>
 
       {activeRestaurantId ? (

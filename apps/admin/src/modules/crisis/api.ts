@@ -6,20 +6,6 @@ export const emergencyCloseAll = (reason: string) =>
 export const emergencyOpenAll = () =>
   apiPost<{ success: boolean; openedCount: number }>("/admin/emergency-open-all");
 
-export interface BulkRefundResult {
-  summary: {
-    total: number;
-    refunded: number;
-    skipped: number;
-    failed: number;
-  };
-}
-
-export const bulkRefundRestaurant = (
-  restaurantId: string,
-  payload: { fromDate: string; toDate: string; reason: string },
-) => apiPost<BulkRefundResult>(`/admin/restaurants/${restaurantId}/bulk-refund`, payload);
-
 export const deactivateRestaurant = (restaurantId: string, reason: string) =>
   apiPost<{ success: boolean; datadump: unknown }>(`/admin/restaurants/${restaurantId}/deactivate`, { reason });
 

@@ -31,13 +31,14 @@ import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import EmptyState from "@/components/EmptyState";
 import type { TrackingAd } from "@/components/OrderTrackingCard";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
-import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
+import { getPlatformSessionStatus, LAST_CUSTOMER_ID_KEY } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
 import { useCartStore } from "@/store/cartStore";
 import { useFavorites } from "@/lib/favoritesStore";
 import { addSkippedReviewOrderId, readSkippedReviewOrderIds } from "@/lib/reviewPrompt";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { optimizedImageUrl } from "@/lib/imageOptimization";
+import { forgetRawOrderAccessToken } from "@/lib/orderHistory";
 
 const OrderTrackingCard = dynamic(
   () => import("@/components/OrderTrackingCard").then((mod) => mod.OrderTrackingCard),
@@ -737,13 +738,31 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   // ordersidan och Swift-appen via viaeats.skippedReviewOrderIds.
   const [skippedReviewIds, setSkippedReviewIds] = useState<string[]>([]);
   useEffect(() => {
-    setSkippedReviewIds(readSkippedReviewOrderIds());
-  }, []);
-
-  useEffect(() => {
-    try {
-      setActiveUserDealId(localStorage.getItem(ACTIVE_USER_DEAL_ID_KEY) || "");
-    } catch { /* noop */ }
+    const syncCustomerChoices = (event?: StorageEvent) => {
+      if (event?.key === LAST_CUSTOMER_ID_KEY || event?.key === "dlv_logged_out") {
+        // Cross-tab account switch/logout: remove personalized response state
+        // before resolving the new shared HttpOnly session.
+        setIsLoggedIn(false);
+        setPersonalDeals([]);
+        setAppDeals((initialData?.appDeals ?? []).filter((deal: any) => !isRetiredFavoriteDeal(deal)));
+        setPulseModules((initialData?.pulse?.modules ?? []).filter((deal: any) => !isRetiredFavoriteDeal(deal)));
+        setHomeGreeting(initialData?.pulse?.greeting ?? null);
+        void getPlatformSessionStatus().then(setIsLoggedIn);
+      }
+      if (!event?.key || event.key === "viaeats.skippedReviewOrderIds") {
+        setSkippedReviewIds(readSkippedReviewOrderIds());
+      }
+      if (!event?.key || event.key === ACTIVE_USER_DEAL_ID_KEY || event.key === ACTIVE_USER_DEAL_SNAPSHOT_KEY) {
+        try {
+          setActiveUserDealId(localStorage.getItem(ACTIVE_USER_DEAL_ID_KEY) || "");
+        } catch {
+          setActiveUserDealId("");
+        }
+      }
+    };
+    syncCustomerChoices();
+    window.addEventListener("storage", syncCustomerChoices);
+    return () => window.removeEventListener("storage", syncCustomerChoices);
   }, []);
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -781,18 +800,20 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
     const fetchOrderDetail = async (order: any) => {
       const id = order?.id;
       if (!id) return null;
-      const qs = new URLSearchParams();
       const phone = order.customerPhone || order.phone || order.__trackingPhone || localStorage.getItem(ACTIVE_ORDER_PHONE_KEY);
       const token = order.__trackingToken || order.token || order.accessToken || localStorage.getItem(ACTIVE_ORDER_TOKEN_KEY);
-      if (token) qs.set("token", token);
-      if (phone) qs.set("phone", phone);
-      const url = qs.toString()
-        ? `${API_URL}/api/orders/${id}?${qs.toString()}`
-        : `${API_URL}/api/orders/${id}`;
-      return axios.get(url).then((res) => ({
+      if (token) {
+        try {
+          await axios.post(`/api/platform/orders/${id}/session`, { accessToken: token });
+          forgetRawOrderAccessToken(String(id));
+        } catch {
+          // Existing account/order cookies can still authorize the GET below.
+        }
+      }
+      return axios.get(`/api/platform/orders/${id}`).then((res) => ({
         ...res.data,
         __trackingPhone: phone || null,
-        __trackingToken: token || null,
+        __trackingToken: null,
       })).catch(() => order);
     };
 
@@ -1822,14 +1843,7 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
           <section className="mb-5">
             <div className="space-y-2">
               {activeOrders.map((order, index) => {
-                  const qs = new URLSearchParams();
-                  try {
-                  const token = order.__trackingToken || localStorage.getItem(ACTIVE_ORDER_TOKEN_KEY);
-                  const phone = order.__trackingPhone || order.customerPhone || localStorage.getItem(ACTIVE_ORDER_PHONE_KEY);
-                  if (token) qs.set("token", token);
-                  if (phone) qs.set("phone", phone);
-                } catch { /* noop */ }
-                const href = qs.toString() ? `/order/${order.id}?${qs.toString()}` : `/order/${order.id}`;
+                const href = `/order/${order.id}`;
                 // Recensionsprompt (Swift-paritet): levererad, ej recenserad,
                 // ej skippad. "Recensera" öppnar ordersidans review-kort,
                 // "Skippa" sparas i viaeats.skippedReviewOrderIds.

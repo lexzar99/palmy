@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { getSafeNativeAuthRedirect } from "@/lib/nativeAuthRedirect";
 
 /**
- * Supabase Auth callback — handles OAuth and magic-link redirects.
+ * Supabase Auth callback — handles Google and Apple OAuth redirects.
  *
  * Supabase redirects here after Google / Apple / Phone sign-in with a ?code=.
  * VIKTIGT: session-cookies från exchangeCodeForSession MÅSTE bindas till exakt
@@ -16,7 +15,6 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/profile";
   const nativeRedirect = searchParams.get("native_redirect");
-  const safeNativeRedirect = getSafeNativeAuthRedirect(nativeRedirect);
 
   // Slutdestination bestäms upp-front så cookies kan bindas till rätt response.
   const forwardedHost = request.headers.get("x-forwarded-host");
@@ -25,6 +23,20 @@ export async function GET(request: NextRequest) {
 
   if (!code) {
     return NextResponse.redirect(`${baseUrl}/profile?error=auth_callback_failed`);
+  }
+
+  // The old native bridge put Supabase access/refresh bearers in a custom-
+  // scheme URL. Custom schemes are claimable by another app and URLs leak to
+  // history/logs, so fail closed until native ships PKCE + claimed HTTPS links.
+  // Do this before exchanging the single-use OAuth code or setting cookies.
+  if (nativeRedirect) {
+    return NextResponse.json(
+      {
+        error: "Uppdatera ViaEats-appen för att logga in",
+        code: "NATIVE_AUTH_UPDATE_REQUIRED",
+      },
+      { status: 410, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   // Bygg redirect-responsen FÖRST och låt Supabase skriva session-cookies på DEN.
@@ -46,15 +58,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${baseUrl}/profile?error=auth_callback_failed`);
   }
 
-  // Native app (mobil): lämna tokens via deep-link istället för cookie-session.
-  if (nativeRedirect) {
-    if (!safeNativeRedirect) {
-      return NextResponse.redirect(`${baseUrl}/profile?error=invalid_native_redirect`);
-    }
-    const separator = safeNativeRedirect.includes("?") ? "&" : "?";
-    return NextResponse.redirect(
-      `${safeNativeRedirect}${separator}access_token=${data.session.access_token}&refresh_token=${data.session.refresh_token}`,
-    );
+  const provider = String(data.user?.app_metadata?.provider || "").toLowerCase();
+  if (provider !== "google" && provider !== "apple") {
+    // Email/password and magic-link sessions are intentionally not customer
+    // login methods. Phone OTP is completed directly in PhoneAuth and does not
+    // use this OAuth callback.
+    return NextResponse.redirect(`${baseUrl}/profile?error=unsupported_auth_method`);
   }
 
   // Web: returnera responsen som bär session-cookies → kunden är inloggad.

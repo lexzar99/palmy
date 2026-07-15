@@ -16,6 +16,11 @@ export interface OrderForPayment {
   total: number; // öre — auktoritativ, härledd ur DB
   deliveryFee: number;
   discountAmount: number;
+  foodDiscountAmount: number;
+  deliveryDiscountAmount: number;
+  smallOrderFee: number;
+  foodVatPercent: number;
+  deliveryVatPercent: number | null;
   tipAmount: number;
   customerName: string;
   customerEmail: string | null;
@@ -23,12 +28,18 @@ export interface OrderForPayment {
   deliveryStreet: string | null;
   deliveryCity: string | null;
   deliveryZip: string | null;
-  items: Array<{ productName: string; quantity: number; subtotal: number }>;
+  items: Array<{ productName: string; quantity: number; subtotal: number; vatPercent: number }>;
   restaurantName?: string | null;
 }
 
 export interface CreatePaymentArgs {
   order: OrderForPayment;
+  /**
+   * Stabil nyckel per order/betalningsförsök. PSP:n använder den för att
+   * returnera samma session när klienten retry:ar efter timeout, app-restart
+   * eller dubbelt tryck i stället för att skapa två debiterbara betalningar.
+   */
+  idempotencyKey: string;
   /** Dit PSP:n skickar tillbaka kunden (deep link i appen / kassa-URL på webben). */
   returnUrl: string;
   /** Publik https-URL för async-notifieringar. Utelämnas i lokal dev (PSP:n når ej localhost). */
@@ -56,10 +67,33 @@ export interface CreatePaymentResult {
 
 export type RemotePaymentState = 'paid' | 'failed' | 'canceled' | 'expired' | 'open' | 'pending';
 
+export type RemoteRefundState =
+  | 'queued'
+  | 'pending'
+  | 'processing'
+  | 'refunded'
+  | 'failed'
+  | 'canceled'
+  | 'unknown';
+
+export interface RemoteRefundStatus {
+  refundRef: string;
+  state: RemoteRefundState;
+  amountOre: number;
+  /** PSP timestamp when available; retained once in the immutable ledger. */
+  createdAt?: Date | string | null;
+  /** Cumulative refunded/requested amount immediately after this refund. */
+  cumulativeAmountOre?: number;
+}
+
 export interface RemotePaymentStatus {
   state: RemotePaymentState;
   /** Vad PSP:n faktiskt drog, i öre (när betalt). */
   amountReceivedOre?: number;
+  /** PSP:ns kumulativa återbetalade belopp, i öre. */
+  amountRefundedOre?: number;
+  /** Enskilda refunds behövs för async recovery (queued/failed/refunded). */
+  refunds?: RemoteRefundStatus[];
   /** Stripe Checkout skapas som cs_ men finaliseras/refundas mot pi_. */
   paymentIntentId?: string;
 }
@@ -71,5 +105,9 @@ export interface PaymentProvider {
   /** Hämta auktoritativ status från PSP:n (för webhook-finalisering + reconcile). */
   getRemoteStatus(paymentRef: string): Promise<RemotePaymentStatus>;
   /** Refundera (hel eller delvis). amountOre utelämnat = hela betalningen. */
-  refund(paymentRef: string, amountOre?: number): Promise<{ refundRef: string }>;
+  refund(
+    paymentRef: string,
+    amountOre?: number,
+    idempotencyKey?: string,
+  ): Promise<{ refundRef: string; status?: RemoteRefundState }>;
 }

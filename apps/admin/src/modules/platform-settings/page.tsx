@@ -83,7 +83,7 @@ function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings
     <div className="page-stack">
       <PageHeader
         breadcrumb="System"
-        title="Inställningar"
+        title="Plattform"
         actions={
           <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
             {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : savedFlash ? <Check size={16} /> : <Save size={16} />}
@@ -109,10 +109,20 @@ function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings
         </div>
       )}
 
-      <div className="grid gap-3.5 md:grid-cols-2 items-start">
+      <div className="flex items-center justify-between rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] px-5 py-4">
+        <div>
+          <p className="text-[13px] font-extrabold">Plattformens grundinställningar</p>
+          <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Ändringar här används i appen, supportflöden och systemutskick.</p>
+        </div>
+        <span className="hidden items-center gap-2 text-[12px] font-semibold text-[var(--text-secondary)] sm:flex">
+          <span className="h-2 w-2 rounded-full bg-[var(--success)]" /> Aktiv
+        </span>
+      </div>
+
+      <div className="grid items-start gap-4 lg:grid-cols-12">
         {/* Företagsuppgifter — juridiskt namn, org.nr, momsreg.nr (companyAddress kept here) */}
-        <div className="surface px-5 py-[18px]">
-          <div className="text-[15px] font-extrabold tracking-[-0.3px]">Företagsuppgifter</div>
+        <div className="surface px-5 py-5 lg:col-span-7">
+          <div className="text-[16px] font-extrabold tracking-[-0.3px]">Företagsuppgifter</div>
           <div className="text-[12px] text-[var(--text-muted)] mt-0.5">Juridiskt namn och registrering</div>
 
           <SettingRow label="Juridiskt namn" first>
@@ -140,8 +150,8 @@ function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings
         </div>
 
         {/* Betalning & utbetalning — Adyen badge + system-mejl avsändare */}
-        <div className="surface px-5 py-[18px]">
-          <div className="text-[15px] font-extrabold tracking-[-0.3px]">Betalning &amp; utbetalning</div>
+        <div className="surface px-5 py-5 lg:col-span-5">
+          <div className="text-[16px] font-extrabold tracking-[-0.3px]">Betalning &amp; utbetalning</div>
           <div className="text-[12px] text-[var(--text-muted)] mt-0.5">Adyen och systemavsändare</div>
 
           <div className="flex items-center justify-between border-t border-[var(--row-divider)] mt-[13px] pt-[14px] pb-[13px]">
@@ -167,11 +177,11 @@ function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings
         </div>
 
         {/* Support & kontakt — span 2; 3-col inputs + Live-chatt toggle (reusing showDiscountedRail) */}
-        <div className="surface px-5 py-[18px] md:col-span-2">
-          <div className="text-[15px] font-extrabold tracking-[-0.3px]">Support &amp; kontakt</div>
+        <div className="surface px-5 py-5 lg:col-span-8">
+          <div className="text-[16px] font-extrabold tracking-[-0.3px]">Support &amp; kontakt</div>
           <div className="text-[12px] text-[var(--text-muted)] mt-0.5">Visas för kunder i appen och i kvitton</div>
 
-          <div className="grid gap-3 md:grid-cols-3 mt-[14px]">
+          <div className="mt-4 grid gap-x-4 gap-y-3 md:grid-cols-2">
             <Field label="Support-mejl">
               <Input
                 type="email"
@@ -212,29 +222,37 @@ function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings
             </Field>
           </div>
 
-          <div className="flex items-center justify-between border-t border-[var(--row-divider)] mt-[14px] pt-[13px]">
-            <div>
-              <div className="text-[13px] font-semibold">Rabatterade-raden i appen</div>
-              <div className="text-[11.5px] text-[var(--text-muted)]">Visa karusellen med nedsatta priser på startsidan</div>
-            </div>
-            <Toggle
-              checked={form.showDiscountedRail ?? true}
-              onChange={(v) => setForm((p) => ({ ...p, showDiscountedRail: v }))}
-            />
-          </div>
         </div>
 
         {/* Om oss-text — span 2 */}
-        <div className="surface px-5 py-[18px] md:col-span-2">
-          <div className="text-[15px] font-extrabold tracking-[-0.3px]">Om oss</div>
+        <div className="surface px-5 py-5 lg:col-span-8">
+          <div className="text-[16px] font-extrabold tracking-[-0.3px]">Om oss</div>
           <div className="text-[12px] text-[var(--text-muted)] mt-0.5">Texten på Om oss-sidan</div>
           <div className="mt-[14px]">
             <Textarea
               value={form.aboutBody || ""}
               onChange={(e) => setForm((p) => ({ ...p, aboutBody: e.target.value }))}
               placeholder="ViaEats är en plattform som..."
-              rows={8}
+              rows={7}
             />
+          </div>
+        </div>
+
+        <div className="surface px-5 py-5 lg:col-span-4">
+          <div className="text-[16px] font-extrabold tracking-[-0.3px]">Appinnehåll</div>
+          <div className="mt-0.5 text-[12px] text-[var(--text-muted)]">Styr vad som lyfts på startsidan</div>
+          <div className="mt-4 flex items-center justify-between gap-4 border-t border-[var(--row-divider)] pt-4">
+            <div>
+              <div className="text-[13px] font-semibold">Rabatterade raden</div>
+              <div className="mt-1 text-[11.5px] leading-[1.4] text-[var(--text-muted)]">Visa karusellen med nedsatta priser i appen.</div>
+            </div>
+            <Toggle
+              checked={form.showDiscountedRail ?? true}
+              onChange={(v) => setForm((p) => ({ ...p, showDiscountedRail: v }))}
+            />
+          </div>
+          <div className="mt-5 rounded-xl bg-[var(--bg-panel-soft)] px-3.5 py-3 text-[11.5px] leading-[1.45] text-[var(--text-secondary)]">
+            Ändringar publiceras när du sparar plattformen.
           </div>
         </div>
 

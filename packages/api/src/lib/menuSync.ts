@@ -211,6 +211,7 @@ export async function runMenuSync(
       //  • price + discount* — skippas om platsen låst sitt lokala pris (localPriceLocked).
       const dataCommon: any = {
         name: prod.name, description: prod.description,
+        vatPercent: (prod as any).vatPercent,
         isVegan: prod.isVegan, isVegetarian: prod.isVegetarian, isGlutenFree: prod.isGlutenFree,
         displayMode: prod.displayMode, hideDescription: prod.hideDescription, position: pi,
       };

@@ -172,9 +172,6 @@ export interface CustomerOverview {
   guestConversionRate: number;
   repeatGuests: number;
   repeatRegistered: number;
-  launchVisits: number;
-  launchDiscountClicks: number;
-  launchUniqueVisitors: number;
   newToday: number;
   newThisWeek: number;
   activeLast30Days: number;
@@ -182,6 +179,57 @@ export interface CustomerOverview {
 
 export const customerOverviewQueryKey = ["dashboard", "customer-overview"] as const;
 export const getCustomerOverview = () => apiGet<CustomerOverview>("/admin/customers/overview");
+
+export interface LaunchCampaignData {
+  days: 7 | 30 | 90;
+  from: string;
+  to: string;
+  totals: {
+    leads: number;
+    leadsInPeriod: number;
+    couponsSent: number;
+    couponsPending: number;
+    averageDailyLeads: number;
+  };
+  daily: Array<{
+    date: string;
+    leads: number;
+  }>;
+  pageInfo: {
+    limit: number;
+    hasNextPage: boolean;
+    nextCursor: string | null;
+  };
+  leads: Array<{
+    id: string;
+    name: string;
+    email: string;
+    couponCode: string;
+    status: string;
+    createdAt: string;
+    couponSentAt: string | null;
+  }>;
+}
+
+export interface LaunchCampaignParams {
+  days: 7 | 30 | 90;
+  cursor?: string | null;
+  limit?: number;
+}
+
+export const launchCampaignQueryKey = ({ days, cursor = null, limit = 50 }: LaunchCampaignParams) =>
+  ["launch-campaign", days, cursor, limit] as const;
+
+export const getLaunchCampaign = ({ days, cursor, limit = 50 }: LaunchCampaignParams) => {
+  const search = new URLSearchParams({ days: String(days), limit: String(limit) });
+  if (cursor) search.set("cursor", cursor);
+  return apiGet<LaunchCampaignData>(`/admin/launch-campaign?${search.toString()}`);
+};
+export const setLaunchCouponManualStatus = (leadId: string, sent: boolean) =>
+  apiPatch<{ id: string; status: string; couponSentAt: string | null }>(
+    `/admin/launch-campaign/${leadId}/coupon-status`,
+    { sent },
+  );
 
 export const updateRestaurantLiveState = (restaurantId: string, acceptingOrdersMode: AcceptingOrdersMode) =>
   apiPatch(`/restaurants/${restaurantId}`, {

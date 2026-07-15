@@ -70,6 +70,10 @@ router.get('/categories', async (req, res) => {
     res.set('Cache-Control', 'no-store');
     const { restaurantId, slug } = req.query;
     const hasRestaurantScope = Boolean(restaurantId || slug);
+    if (!hasRestaurantScope) {
+      res.status(400).json({ error: 'restaurantId eller slug krävs' });
+      return;
+    }
     // ?format=normalized → tillvalsgrupper skickas EN gång i en top-level
     // `extraGroups`-map och produkter bär bara `extraGroupIds`. Krymper en
     // kedjemeny 5–10× (en dryckesgrupp med 30 val dupliceras annars i varje
@@ -80,9 +84,9 @@ router.get('/categories', async (req, res) => {
     // för bilder som saknas i databasen (Auto-discovery vid manuell R2-upload).
     const resolvedRestaurant = await (async () => {
       const where = restaurantId
-        ? { id: restaurantId as string }
+        ? { id: restaurantId as string, archivedAt: null }
         : slug
-          ? { slug: slug as string }
+          ? { slug: slug as string, archivedAt: null }
           : null;
       if (!where) return null;
       return prisma.restaurant.findFirst({
@@ -209,7 +213,7 @@ router.get('/categories', async (req, res) => {
       return counts;
     };
 
-    const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
+    const primaryRestaurantId = resolvedRestaurantId!;
     const [categories, productPopularity] = await Promise.all([
       queryActiveMenuByRestaurantId(primaryRestaurantId),
       queryProductPopularity(primaryRestaurantId),
@@ -437,6 +441,7 @@ router.get('/discounted', async (req, res) => {
         category: {
           isActive: true,
           restaurant: {
+            archivedAt: null,
             draft: false,
             ...(cityId ? { cityId: cityId as string } : {}),
           },
@@ -529,6 +534,7 @@ router.get('/free-delivery', async (req, res) => {
     const { cityId } = req.query;
     const [restaurants, platformSettings] = await Promise.all([prisma.restaurant.findMany({
       where: {
+        archivedAt: null,
         draft: false,
         ...(cityId ? { cityId: cityId as string } : {}),
       },

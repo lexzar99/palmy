@@ -17,8 +17,13 @@ import {
 } from './liveActivityPush';
 import { computeDeliveryWindowMs } from './deliveryWindow';
 import { getIO } from './socket';
-import { sendOrderStatusPush } from './customerPush';
+import { dispatchCustomerOrderStatus } from './customerOrderNotifier';
 import { bustCache } from './ttlCache';
+import {
+  decryptCustomerPushToken,
+  importLegacyUserInstallations,
+  revokeInvalidDeviceInstallation,
+} from './deviceInstallations';
 
 const PICKUP_READY_WINDOW_MS = 10 * 60 * 1000;
 
@@ -72,7 +77,7 @@ export async function finalizeDueOrders(): Promise<void> {
     } catch {
       // Socket may not be ready during the first startup tick. DB remains truth.
     }
-    void sendOrderStatusPush(order.id, 'DELIVERED');
+    void dispatchCustomerOrderStatus(order.id, 'DELIVERED');
     void import('../routes/referrals').then(({ maybeTriggerReferralReward }) =>
       maybeTriggerReferralReward(order.id),
     );
@@ -175,21 +180,36 @@ async function sendSilentWake(
   customerPhone: string,
 ): Promise<void> {
   try {
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          ...(userId ? [{ id: userId }] : []),
-          { phone: customerPhone },
-        ],
-      },
-      select: { apnsDeviceToken: true },
+    const user = userId
+      ? await prisma.user.findFirst({
+          where: { id: userId, isActive: true, deletedAt: null },
+          select: { id: true },
+        })
+      : await prisma.user.findFirst({
+          where: { phone: customerPhone, isActive: true, deletedAt: null },
+          select: { id: true },
+        });
+    if (!user) return;
+    await importLegacyUserInstallations(user.id);
+    const devices = await prisma.deviceInstallation.findMany({
+      where: { userId: user.id, provider: 'APNS', active: true, tokenCiphertext: { not: null } },
+      select: { id: true, tokenCiphertext: true },
     });
-    if (!user?.apnsDeviceToken) return;
-    await sendApnsSilentWake({
-      token: user.apnsDeviceToken,
-      data: { orderId, kind: 'la-wake' },
-      collapseId: `order-${orderId}-wake`,
-    });
+    await Promise.all(devices.map(async (device) => {
+      try {
+        await sendApnsSilentWake({
+          token: decryptCustomerPushToken(device.tokenCiphertext!),
+          data: { orderId, kind: 'la-wake' },
+          collapseId: `order-${orderId}-wake`,
+        });
+      } catch (error) {
+        if (error instanceof ApnsError && error.invalidToken) {
+          await revokeInvalidDeviceInstallation(device.id, `apns_${error.reason}`);
+          return;
+        }
+        throw error;
+      }
+    }));
   } catch (e) {
     console.warn('[liveActivityFinalize] silent wake failed for', orderId, ':', (e as Error)?.message);
   }

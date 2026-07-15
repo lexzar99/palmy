@@ -1,8 +1,10 @@
 import jwt from 'jsonwebtoken';
+import { adminTokenVersionMatches } from '../lib/adminSessionVersion';
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { buildRestaurantAdminLoginLookup } from '../lib/adminLogin';
 import { JWT_SECRET } from '../lib/config';
+import { adminSessionTokenFromRequest } from '../lib/adminSessionVerification';
 
 export interface AuthRequest extends Request {
   admin?: {
@@ -13,6 +15,7 @@ export interface AuthRequest extends Request {
     restaurantId?: string | null;
     restaurantSlug?: string | null;
     restaurantName?: string | null;
+    deviceId?: string | null;
   };
 }
 
@@ -22,6 +25,7 @@ interface AdminJwtPayload {
   role: string;
   restaurantId?: string | null;
   restaurantSlug?: string | null;
+  deviceId?: string | null;
 }
 
 type AdminRecord = {
@@ -46,15 +50,15 @@ const getRestaurantScope = async (admin: AdminRecord, payload: AdminJwtPayload) 
   let restaurant = null;
 
   if (payload.restaurantId) {
-    restaurant = await prisma.restaurant.findUnique({
-      where: { id: payload.restaurantId },
+    restaurant = await prisma.restaurant.findFirst({
+      where: { id: payload.restaurantId, archivedAt: null },
       select: { id: true, slug: true, name: true, logoutCode: true },
     });
   }
 
   if (!restaurant && payload.restaurantSlug) {
     restaurant = await prisma.restaurant.findFirst({
-      where: { slug: payload.restaurantSlug },
+      where: { slug: payload.restaurantSlug, archivedAt: null },
       select: { id: true, slug: true, name: true, logoutCode: true },
     });
   }
@@ -62,6 +66,7 @@ const getRestaurantScope = async (admin: AdminRecord, payload: AdminJwtPayload) 
   if (!restaurant) {
     const loginKey = (admin.email || '').toLowerCase();
     const restaurants = await prisma.restaurant.findMany({
+      where: { archivedAt: null },
       select: { id: true, slug: true, name: true, adminEmail: true, logoutCode: true },
     });
     const lookup = buildRestaurantAdminLoginLookup(restaurants);
@@ -92,19 +97,35 @@ export const resolveAdminSessionFromToken = async (token: string) => {
     return null;
   }
 
+  // Terminal-JWT:er bär deviceId. Kontrollera enhetsbindningen vid varje ny
+  // HTTP-/Socket-session så en revokad eller flyttad restaurangplatta inte kan
+  // fortsätta använda en ännu giltig 24h-token.
+  if (payload.deviceId) {
+    const device = await prisma.restaurantDevice.findUnique({
+      where: { deviceId: payload.deviceId },
+      select: { restaurantId: true, revoked: true },
+    });
+    if (
+      !device ||
+      device.revoked ||
+      !payload.restaurantId ||
+      device.restaurantId !== payload.restaurantId
+    ) {
+      return null;
+    }
+  }
+
   // A5 — reject tokens issued before the admin's tokenVersion was bumped.
   // Tokens missing the field (issued before this migration) are treated as
   // version 0. We do a second tiny lookup to keep TS happy without casting
   // the parameterized findFirst result.
-  if (typeof payload.tokenVersion === 'number') {
-    const versionRow = await prisma.adminUser.findUnique({
-      where: { id: admin.id },
-      select: { tokenVersion: true } as any,
-    });
-    const adminVersion = (versionRow as any)?.tokenVersion ?? 0;
-    if (payload.tokenVersion !== adminVersion) {
-      return null;
-    }
+  const versionRow = await prisma.adminUser.findUnique({
+    where: { id: admin.id },
+    select: { tokenVersion: true } as any,
+  });
+  const adminVersion = (versionRow as any)?.tokenVersion ?? 0;
+  if (!adminTokenVersionMatches(payload.tokenVersion, adminVersion)) {
+    return null;
   }
 
   const scope = await getRestaurantScope(admin, payload);
@@ -118,6 +139,7 @@ export const resolveAdminSessionFromToken = async (token: string) => {
     restaurantSlug: scope.restaurantSlug,
     restaurantName: scope.restaurantName,
     logoutCode: scope.logoutCode ?? null,
+    deviceId: payload.deviceId ?? null,
   };
 };
 
@@ -128,11 +150,9 @@ export const authenticate = async (
 ): Promise<void> => {
   // Prioritet: HttpOnly cookie först (säker mot XSS), sedan Authorization
   // header som fallback för bakåt-kompatibilitet med klienter som ännu inte
-  // migrerats till cookie-baserad auth.
-  const cookieToken = (req as any).cookies?.admin_token as string | undefined;
-  const authHeader = req.headers.authorization;
-  const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
-  const token = cookieToken || headerToken;
+  // migrerats till cookie-baserad auth. Samma väljare används av /verify så
+  // dashboardens auktoritativa sessionskontroll inte skiljer sig från resten.
+  const token = adminSessionTokenFromRequest(req);
 
   if (!token) {
     res.status(401).json({ error: 'Ingen autentiseringstoken' });

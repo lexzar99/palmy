@@ -16,8 +16,9 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { API_URL, SOCKET_URL } from "@/lib/api";
+import { SOCKET_URL } from "@/lib/api";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import { getOrderAccessProof } from "@/lib/webPushClient";
 
 // Visuell konfiguration per status. Label/subtext resolveras via t()
 // (order.status.*.label / .desc) inne i komponenten — här bor bara ikon,
@@ -82,9 +83,9 @@ function getEtaDisplay(
 const TERMINAL_STATUSES = new Set(["DELIVERED", "COMPLETED", "CANCELLED", "REJECTED"]);
 const STORAGE_KEY = "viaeats_active_order_id";
 const DISMISS_KEY = "viaeats_dismissed_order_id";
-// Ägar-bevis för GET /api/orders/:id. Utan dessa svarar backend 404 (PII-skydd)
-// och bannern rensar sig själv → "försvann". phone är durabelt (matchar
-// order.customerPhone), token är 30-min-fallbacken direkt efter köp.
+// Legacy-tokennyckeln behålls bara för att kunna rensa gamla installationer.
+// Ny gästbehörighet ligger i en HttpOnly-cookie och telefonen är enbart lokal
+// kontaktmetadata, aldrig ett behörighetsbevis.
 const TOKEN_KEY = "viaeats_active_order_token";
 const PHONE_KEY = "viaeats_active_order_phone";
 const ACTIVE_ORDERS_KEY = "viaeats_active_orders";
@@ -119,6 +120,7 @@ export default function LiveOrderBanner() {
   const [order, setOrder] = useState<any | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [etaLeftSecs, setEtaLeftSecs] = useState<number | null>(null);
+  const [etaReadyAtMs, setEtaReadyAtMs] = useState<number | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const pathname = usePathname();
 
@@ -147,18 +149,7 @@ export default function LiveOrderBanner() {
 
     const load = async () => {
       try {
-        // Skicka ägar-bevis (token/phone) så backend inte 404:ar bort ordern.
-        const qs = new URLSearchParams();
-        try {
-          const tk = localStorage.getItem(TOKEN_KEY);
-          const ph = localStorage.getItem(PHONE_KEY);
-          if (tk) qs.set("token", tk);
-          if (ph) qs.set("phone", ph);
-        } catch { }
-        const url = qs.toString()
-          ? `${API_URL}/api/orders/${orderId}?${qs.toString()}`
-          : `${API_URL}/api/orders/${orderId}`;
-        const res = await axios.get(url);
+        const res = await axios.get(`/api/platform/orders/${orderId}`);
         if (cancelled) return;
         setOrder(res.data);
         if (TERMINAL_STATUSES.has(res.data.status)) {
@@ -183,7 +174,10 @@ export default function LiveOrderBanner() {
 
     const socket = socketIO(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
     socketRef.current = socket;
-    socket.on("connect", () => { socket.emit("join:order", orderId); });
+    socket.on("connect", async () => {
+      const proof = await getOrderAccessProof(orderId);
+      if (socket.connected && proof) socket.emit("join:order", { orderId, proof });
+    });
     socket.on("order:status", (payload: any) => {
       if (!payload || payload.orderId !== orderId) return;
       setOrder((prev: any) => prev ? {
@@ -205,15 +199,26 @@ export default function LiveOrderBanner() {
 
   // Live countdown — updates every second
   useEffect(() => {
-    if (TERMINAL_STATUSES.has(order?.status)) { setEtaLeftSecs(0); return; }
-    if (!order?.etaEndsAt && !order?.estimatedTime) { setEtaLeftSecs(null); return; }
+    if (TERMINAL_STATUSES.has(order?.status)) {
+      setEtaLeftSecs(0);
+      setEtaReadyAtMs(null);
+      return;
+    }
+    if (!order?.etaEndsAt && !order?.estimatedTime) {
+      setEtaLeftSecs(null);
+      setEtaReadyAtMs(null);
+      return;
+    }
+    const remoteDeadline = order?.etaEndsAt
+      ? new Date(order.etaEndsAt).getTime()
+      : Number.NaN;
+    const deadline = Number.isFinite(remoteDeadline)
+      ? remoteDeadline
+      : Date.now() + Math.max(0, Number(order?.estimatedTime || 0)) * 60_000;
+    setEtaReadyAtMs(deadline);
     const calc = () => {
-      if (order?.etaEndsAt) {
-        const ms = new Date(order.etaEndsAt).getTime() - Date.now();
-        setEtaLeftSecs(Math.max(0, Math.ceil(ms / 1000)));
-      } else if (order?.estimatedTime) {
-        setEtaLeftSecs(order.estimatedTime * 60);
-      }
+      const ms = deadline - Date.now();
+      setEtaLeftSecs(Math.max(0, Math.ceil(ms / 1000)));
     };
     calc();
     const t = setInterval(calc, 1000);
@@ -235,18 +240,7 @@ export default function LiveOrderBanner() {
   const isTerminal = order.status === "DELIVERED" || order.status === "COMPLETED";
   const isCancelled = visual.tone === "danger";
 
-  // Länka MED ägar-bevis (token/phone) så order-sidan inte 404:ar — samma proof
-  // som bannern själv pollar med. Utan detta gav klick "order ej hittad".
-  const trackHref = (() => {
-    const qs = new URLSearchParams();
-    try {
-      const tk = localStorage.getItem(TOKEN_KEY);
-      const ph = localStorage.getItem(PHONE_KEY);
-      if (tk) qs.set("token", tk);
-      if (ph) qs.set("phone", ph);
-    } catch { }
-    return qs.toString() ? `/order/${order.id}?${qs.toString()}` : `/order/${order.id}`;
-  })();
+  const trackHref = `/order/${order.id}`;
 
   const etaDisplay = isTerminal || isCancelled ? null : getEtaDisplay(order, etaLeftSecs, t);
   const showEtaUnit = etaDisplay !== null && etaLeftSecs !== null && etaLeftSecs > 0;
@@ -254,8 +248,8 @@ export default function LiveOrderBanner() {
   // Underrad: "Klar ca 18:25" när vi har en nedräkning, annars statusens subtext.
   const subline = (() => {
     if (isTerminal) return t("order.banner.thanks");
-    if (etaLeftSecs !== null && etaLeftSecs > 0) {
-      const readyAt = new Date(Date.now() + etaLeftSecs * 1000)
+    if (etaLeftSecs !== null && etaLeftSecs > 0 && etaReadyAtMs !== null) {
+      const readyAt = new Date(etaReadyAtMs)
         .toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
       return t("order.eta.readyAt", { time: readyAt });
     }
@@ -384,20 +378,18 @@ export default function LiveOrderBanner() {
 
 export function rememberActiveOrder(
   orderId: string,
-  proof?: { token?: string | null; phone?: string | null },
+  proof?: { phone?: string | null },
 ) {
   try {
     localStorage.setItem(STORAGE_KEY, orderId);
-    // Spara/uppdatera ägar-beviset så bannern kan hämta ordern utan 404. Sätt
-    // alltid (eller rensa) båda så ingen stale proof från en tidigare order
-    // hänger kvar.
-    if (proof?.token) localStorage.setItem(TOKEN_KEY, proof.token);
-    else localStorage.removeItem(TOKEN_KEY);
+    // Ägarbeviset finns enbart i en HttpOnly-cookie. Rensa gammal token-state
+    // från installationer som uppgraderas till det nya flödet.
+    localStorage.removeItem(TOKEN_KEY);
     if (proof?.phone) localStorage.setItem(PHONE_KEY, proof.phone);
     else localStorage.removeItem(PHONE_KEY);
     const existing = JSON.parse(localStorage.getItem(ACTIVE_ORDERS_KEY) || "[]");
     const next = [
-      { id: orderId, token: proof?.token || null, phone: proof?.phone || null },
+      { id: orderId, phone: proof?.phone || null },
       ...(Array.isArray(existing) ? existing : []).filter((order: any) => order?.id && String(order.id) !== orderId),
     ].slice(0, 3);
     localStorage.setItem(ACTIVE_ORDERS_KEY, JSON.stringify(next));

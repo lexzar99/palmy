@@ -64,7 +64,7 @@ function buildLineItems(order: OrderForPayment): any[] {
 export const adyenProvider: PaymentProvider = {
   name: 'adyen',
 
-  async createPayment({ order, returnUrl, channel, storePaymentMethod }: CreatePaymentArgs): Promise<CreatePaymentResult> {
+  async createPayment({ order, returnUrl, channel, storePaymentMethod, idempotencyKey }: CreatePaymentArgs): Promise<CreatePaymentResult> {
     const canStorePaymentMethod = Boolean(storePaymentMethod && order.userId);
     const res = await checkout().PaymentsApi.sessions({
       merchantAccount: merchantAccount(),
@@ -86,7 +86,7 @@ export const adyenProvider: PaymentProvider = {
       // detta tystar även "you support X but not configured"-varningarna.
       allowedPaymentMethods: ['scheme', 'klarna', 'swish', 'applepay', 'googlepay'],
       metadata: { orderId: order.id },
-    } as any);
+    } as any, { idempotencyKey });
     return {
       paymentRef: res.id as string, // session-id (lagras som adyenSessionId)
       session: { id: res.id as string, sessionData: res.sessionData as string },
@@ -100,12 +100,12 @@ export const adyenProvider: PaymentProvider = {
     return { state: 'pending' };
   },
 
-  async refund(paymentPspReference: string, amountOre?: number): Promise<{ refundRef: string }> {
+  async refund(paymentPspReference: string, amountOre?: number, idempotencyKey?: string): Promise<{ refundRef: string }> {
     const r = await checkout().ModificationsApi.refundCapturedPayment(paymentPspReference, {
       merchantAccount: merchantAccount(),
       ...(amountOre != null ? { amount: { currency: CURRENCY, value: amountOre } } : {}),
-      reference: `refund_${paymentPspReference}`,
-    } as any);
+      reference: idempotencyKey || `refund_${paymentPspReference}`,
+    } as any, idempotencyKey ? { idempotencyKey } : undefined);
     return { refundRef: (r.pspReference as string) || '' };
   },
 };

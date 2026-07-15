@@ -1,10 +1,7 @@
-// Lagrar order-references lokalt så att kund kan se sina senaste beställningar
-// även utan inloggning. Lagras bara order-ID + telefon (för att kunna återhämta
-// detaljer från /api/orders/:id?phone=...).
-//
-// Telefonen som sparas är den som användes vid checkout — vi använder den som
-// "ägarbevis" mot backend istället för auth-token. Backend matchar
-// query-phone mot order.customerPhone (se orders.ts ownership-check).
+// Lagrar icke-hemliga orderreferenser lokalt så att kunden kan se sina senaste
+// beställningar även utan inloggning. Nya webbordrar använder en orderspecifik
+// HttpOnly-session; accessToken finns bara för att växla bort äldre sparade
+// credentials. Telefonnummer är visningsdata och ger aldrig API-behörighet.
 
 const KEY = "platform_order_history";
 const MAX_ITEMS = 20;
@@ -12,6 +9,7 @@ const MAX_ITEMS = 20;
 export type StoredOrderRef = {
   id: string;
   phone: string;
+  accessToken?: string | null;
   createdAt: string;
   restaurantName?: string | null;
   restaurantSlug?: string | null;
@@ -64,5 +62,44 @@ export function clearOrderHistory(): void {
     localStorage.removeItem(KEY);
   } catch {
     // ignored
+  }
+}
+
+/**
+ * Remove legacy raw checkout credentials after the API has issued the
+ * HttpOnly order session. Keep the non-secret order id/metadata for history.
+ */
+export function forgetRawOrderAccessToken(id: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const next = readOrderHistory().map((order) =>
+      order.id === id ? { ...order, accessToken: null } : order,
+    );
+    localStorage.setItem(KEY, JSON.stringify(next));
+
+    if (localStorage.getItem("viaeats_active_order_id") === id) {
+      localStorage.removeItem("viaeats_active_order_token");
+    }
+
+    const activeRaw = localStorage.getItem("viaeats_active_orders");
+    if (activeRaw) {
+      const active = JSON.parse(activeRaw);
+      if (Array.isArray(active)) {
+        localStorage.setItem(
+          "viaeats_active_orders",
+          JSON.stringify(active.map((order) =>
+            String(order?.id || "") === id
+              ? { ...order, token: null, accessToken: null, __trackingToken: null }
+              : order,
+          )),
+        );
+      }
+    }
+
+    if (localStorage.getItem("pending_order_id") === id) {
+      localStorage.removeItem("pending_order_token");
+    }
+  } catch {
+    // A blocked/corrupt localStorage must not invalidate the HttpOnly session.
   }
 }

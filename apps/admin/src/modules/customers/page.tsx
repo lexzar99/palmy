@@ -136,7 +136,25 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
   const data = customer.data;
 
   return (
-    <Modal open={open} onClose={onClose} title={data ? data.name : "Kund"} description={data ? `${data.phone || "Ingen telefon"} • ${data.email || "Ingen e-post"}` : undefined} size="xl" footer={<div className="flex items-center justify-between gap-3"><div className="flex gap-2">{data ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Radera kund</Button> : null}{data ? <a href={`/api/admin/customers/${data.id}/gdpr-export`} download className="inline-flex items-center rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-xs font-bold uppercase tracking-[0.08em] text-[var(--text-primary)] transition-colors hover:border-[var(--accent)]">GDPR-export</a> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>Spara profil</Button></div></div>}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={data ? data.name : "Kund"}
+      description={data ? `${data.phone || "Ingen telefon"} • ${data.email || "Ingen e-post"}` : undefined}
+      size="xl"
+      footer={(
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex">
+            {data ? <Button className="min-w-0 justify-center px-2 sm:px-4" variant="danger" onClick={() => deleteMutation.mutate()}>Radera kund</Button> : null}
+            {data ? <a href={`/api/admin/customers/${data.id}/gdpr-export`} download className="inline-flex min-w-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] px-2 py-2 text-center text-xs font-bold uppercase tracking-[0.04em] text-[var(--text-primary)] transition-colors hover:border-[var(--accent)] sm:px-3 sm:tracking-[0.08em]">GDPR-export</a> : null}
+          </div>
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex">
+            <Button className="min-w-0 justify-center" onClick={onClose}>Stäng</Button>
+            <Button className="min-w-0 justify-center" variant="primary" onClick={() => saveMutation.mutate()}>Spara profil</Button>
+          </div>
+        </div>
+      )}
+    >
       {customer.isLoading || !data ? (
         <div className="surface-muted px-5 py-5 text-sm text-[var(--text-secondary)]">Laddar kund...</div>
       ) : (
@@ -217,9 +235,9 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
                   <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Senaste ordrar</p>
                   <div className="mt-2">
                     {data.orders.slice(0, 5).map((order) => (
-                      <div key={order.id} className="flex items-center justify-between gap-3 border-b border-[var(--row-divider)] py-2.5 text-[13px] last:border-b-0">
+                      <div key={order.id} className="flex flex-col items-start gap-1 border-b border-[var(--row-divider)] py-2.5 text-[13px] last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                         <span className="min-w-0 truncate font-semibold text-[var(--text-primary)]">{order.orderNumber} · {order.restaurant?.name || "ViaEats"}</span>
-                        <span className="shrink-0 text-[var(--text-secondary)]">{formatCurrency(order.total / 100)} · {formatDate(order.createdAt)} · {orderStatusLabel(order.status)}</span>
+                        <span className="text-[var(--text-secondary)] sm:shrink-0">{formatCurrency(order.total / 100)} · {formatDate(order.createdAt)} · {orderStatusLabel(order.status)}</span>
                       </div>
                     ))}
                   </div>
@@ -406,13 +424,13 @@ export function CustomersPage() {
         breadcrumb="Drift"
         title="Kunder"
         actions={
-          <div className="flex items-center gap-2">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="flex w-full min-w-0 flex-col items-stretch gap-2 xl:flex-row xl:items-center">
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
               <Input value={nameFilter} onChange={(e) => { setNameFilter(e.target.value); resetPage(); }} placeholder="Sök namn…" />
               <Input value={emailFilter} onChange={(e) => { setEmailFilter(e.target.value); resetPage(); }} placeholder="Sök e-post…" />
               <Input value={phoneFilter} onChange={(e) => { setPhoneFilter(e.target.value); resetPage(); }} placeholder="Sök telefon…" />
             </div>
-            <Button variant="secondary" onClick={() => exportCsv(filtered)}>
+            <Button className="w-full justify-center xl:w-auto" variant="secondary" onClick={() => exportCsv(filtered)}>
               Exportera CSV
             </Button>
           </div>
@@ -482,7 +500,7 @@ export function CustomersPage() {
         ) : (
           <>
             <div
-              className="grid items-center gap-4 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+              className="hidden items-center gap-4 border-b border-[var(--border-subtle)] px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)] md:grid"
               style={{ gridTemplateColumns: "1.7fr 1.2fr 0.8fr 1fr 50px" }}
             >
               <span>Kund</span>
@@ -498,15 +516,14 @@ export function CustomersPage() {
                   key={customer.id}
                   type="button"
                   onClick={() => setActiveCustomer(customer)}
-                  className="grid w-full items-center gap-4 border-b border-[var(--row-divider)] px-[18px] py-[13px] text-left text-[13px] transition-colors last:border-b-0 hover:bg-[var(--bg-page)]"
-                  style={{ gridTemplateColumns: "1.7fr 1.2fr 0.8fr 1fr 50px" }}
+                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--row-divider)] px-3 py-[13px] text-left text-[13px] transition-colors last:border-b-0 hover:bg-[var(--bg-page)] sm:px-[18px] md:grid-cols-[minmax(0,1.7fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1fr)_50px] md:gap-4"
                 >
                   <span className="flex min-w-0 items-center gap-[11px]">
                     <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#111113] text-[12px] font-extrabold text-white">
                       {initials(customer.name)}
                     </span>
                     <span className="min-w-0">
-                      <span className="flex items-center gap-2">
+                      <span className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
                         <span className="truncate font-bold text-[var(--text-primary)]">{customer.name || "—"}</span>
                         {customer.isGuest ? <Badge tone="warning">Gäst</Badge> : null}
                         {customer.accountAgeDays !== undefined && customer.accountAgeDays <= 7 && (
@@ -517,11 +534,16 @@ export function CustomersPage() {
                         ))}
                       </span>
                       <span className="block truncate text-[12px] text-[var(--text-muted)]">{customer.email || "Ingen e-post"}</span>
+                      <span className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--text-secondary)] md:hidden">
+                        <span>{customer.phone || "Ingen telefon"}</span>
+                        <span>{formatNumber(customer._count?.orders || 0)} ordrar</span>
+                        <span className="font-bold text-[var(--text-primary)]">{formatCurrency(customer.totalSpent)}</span>
+                      </span>
                     </span>
                   </span>
-                  <span className="text-[var(--text-secondary)]">{customer.phone || "—"}</span>
-                  <span>{formatNumber(customer._count?.orders || 0)}</span>
-                  <span className="font-bold text-[var(--text-primary)]">{formatCurrency(customer.totalSpent)}</span>
+                  <span className="hidden min-w-0 truncate text-[var(--text-secondary)] md:block">{customer.phone || "—"}</span>
+                  <span className="hidden md:block">{formatNumber(customer._count?.orders || 0)}</span>
+                  <span className="hidden min-w-0 truncate font-bold text-[var(--text-primary)] md:block">{formatCurrency(customer.totalSpent)}</span>
                   <span className="flex justify-end text-[var(--text-muted)]">
                     <ChevronRight size={18} />
                   </span>
@@ -530,11 +552,11 @@ export function CustomersPage() {
             </div>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-[var(--border-subtle)] px-[18px] py-4 text-sm text-[var(--text-secondary)]">
+              <div className="flex flex-col gap-3 border-t border-[var(--border-subtle)] px-3 py-4 text-sm text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between sm:px-[18px]">
                 <span>{filtered.length} kunder • sida {safePage} av {totalPages}</span>
-                <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}>‹ Föregående</Button>
-                  <Button variant="secondary" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>Nästa ›</Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button className="min-w-0 justify-center" variant="secondary" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}>‹ Föregående</Button>
+                  <Button className="min-w-0 justify-center" variant="secondary" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>Nästa ›</Button>
                 </div>
               </div>
             )}

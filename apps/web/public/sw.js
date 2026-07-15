@@ -8,6 +8,8 @@
  *   - Statiska byggassets (/_next/, bilder, fonter): stale-while-revalidate.
  */
 const CACHE = "viaeats-cache-v1";
+const PUSH_STATE_CACHE = "viaeats-push-state-v1";
+const PUSH_DISABLED_KEY = "/__viaeats_push_disabled__";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -17,10 +19,33 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+      await Promise.all(
+        keys
+          .filter((k) => k !== CACHE && k !== PUSH_STATE_CACHE)
+          .map((k) => caches.delete(k))
+      );
       await self.clients.claim();
     })()
   );
+});
+
+async function setPushEnabled(enabled) {
+  const cache = await caches.open(PUSH_STATE_CACHE);
+  if (enabled) {
+    await cache.delete(PUSH_DISABLED_KEY);
+  } else {
+    await cache.put(PUSH_DISABLED_KEY, new Response("1"));
+  }
+}
+
+async function isPushDisabled() {
+  const cache = await caches.open(PUSH_STATE_CACHE);
+  return Boolean(await cache.match(PUSH_DISABLED_KEY));
+}
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "VIAEATS_PUSH_STATE") return;
+  event.waitUntil(setPushEnabled(event.data.enabled === true));
 });
 
 self.addEventListener("fetch", (event) => {
@@ -89,16 +114,22 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { title: "ViaEats", body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "ViaEats";
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body || "",
-      tag: data.tag || "viaeats-order",
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      data: { url: data.url || "/orders" },
-      renotify: true,
-    })
+    (async () => {
+      // Logout writes this durable marker before attempting any network
+      // revocation. Stale pushes are therefore dropped on shared/offline
+      // devices rather than exposing the previous customer's order status.
+      if (await isPushDisabled()) return;
+      const title = data.title || "ViaEats";
+      await self.registration.showNotification(title, {
+        body: data.body || "",
+        tag: data.tag || "viaeats-order",
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        data: { url: data.url || "/orders" },
+        renotify: true,
+      });
+    })()
   );
 });
 
@@ -108,6 +139,7 @@ self.addEventListener("notificationclick", (event) => {
   const url = (event.notification.data && event.notification.data.url) || "/orders";
   event.waitUntil(
     (async () => {
+      if (await isPushDisabled()) return;
       const all = await clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const client of all) {
         if (client.url.includes(url) && "focus" in client) return client.focus();

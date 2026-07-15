@@ -210,16 +210,16 @@ export function DashboardPage() {
         <Surface className="px-5 py-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="section-title">Kund- och launchöversikt</h2>
-              <p className="section-subtitle">Gäster, registreringar, återköp och intresse för lanseringen</p>
+              <h2 className="section-title">Kundöversikt</h2>
+              <p className="section-subtitle">Gäster, registreringar, konvertering och återköp</p>
             </div>
             <Button variant="secondary" onClick={() => router.push("/customers")}>Öppna kundflödet</Button>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Gästkunder</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.guests)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.repeatGuests)} beställer om</p></div>
             <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Gäst → kund</p><p className="mt-2 text-2xl font-black">{(customerOverview.data.guestConversionRate * 100).toFixed(1)} %</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.convertedFromGuest)} konverterade</p></div>
-            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Launch-besök</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.launchUniqueVisitors)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.launchVisits)} sidvisningar</p></div>
-            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">30 % intresse</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.launchDiscountClicks)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">klick på rabattknappen</p></div>
+            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Registrerade kunder</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.registered)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.newThisWeek)} nya denna vecka</p></div>
+            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Återkommande kunder</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.repeatRegistered)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">registrerade med minst två order</p></div>
           </div>
         </Surface>
       ) : null}

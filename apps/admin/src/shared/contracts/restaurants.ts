@@ -6,6 +6,7 @@ export type RestaurantAvailabilityReason =
   | "PLATFORM_PAUSED"
   | "CITY_PAUSED"
   | "RESTAURANT_PAUSED"
+  | "ARCHIVED"
   | "DRAFT"
   | "COMING_SOON"
   | "MANUAL_FORCE_CLOSED"
@@ -28,6 +29,7 @@ export const availabilityReasonLabel: Record<RestaurantAvailabilityReason, strin
   PLATFORM_PAUSED: "Plattformen är pausad",
   CITY_PAUSED: "Staden är pausad",
   RESTAURANT_PAUSED: "Restaurangen är tillfälligt pausad",
+  ARCHIVED: "Restaurangen är arkiverad",
   DRAFT: "Restaurangen är ett utkast",
   COMING_SOON: "Restaurangen är markerad som coming soon",
   MANUAL_FORCE_CLOSED: "Manuellt tvingad stängd",

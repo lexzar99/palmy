@@ -9,8 +9,6 @@ import {
 } from "lucide-react";
 import { loadLeaflet, CARTO_LIGHT, CARTO_ATTRIBUTION, DEFAULT_MAP_CENTER } from "@/lib/leaflet";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 // Liten cookie-hjälpare — kommer ihåg om användaren nekat GPS, så vi inte
 // auto-promptar plats varje omstart.
 const getCookie = (name: string): string | null => {
@@ -119,7 +117,7 @@ export default function AddressModal({
     setMapError(false);
     setSelectedCity(null);
     setCitySearch("");
-  }, [isOpen]);
+  }, [isOpen, orderType]);
 
   // ── Reverse-geocoda en kart-position via backend (keyless) → adressfält ───────
   const handleMapPosition = useCallback(async (lat: number, lng: number) => {
@@ -195,7 +193,7 @@ export default function AddressModal({
   }, []);
 
   // ── "Använd min plats" ───────────────────────────────────────────────────────
-  const useMyLocation = useCallback((opts?: { silent?: boolean }) => {
+  const requestMyLocation = useCallback((opts?: { silent?: boolean }) => {
     if (!navigator.geolocation) return;
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
@@ -228,15 +226,15 @@ export default function AddressModal({
     if (hasStored) return; // redan en vald adress → ingen GPS
     if (getCookie("viaeats_gps") === "denied") return; // användaren nekade tidigare
     autoLocatedRef.current = true;
-    useMyLocation({ silent: true });
-  }, [isOpen, orderType, mapReady, useMyLocation]);
+    requestMyLocation({ silent: true });
+  }, [isOpen, orderType, mapReady, requestMyLocation]);
 
   // ── Fetch cities for pickup ──────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen || orderType !== "PICKUP") return;
     if (cityGroups.length > 0) return;
     setCitiesLoading(true);
-    fetch(`${API_BASE}/api/cities`)
+    fetch("/api/cities")
       .then(r => r.json())
       .then((data: any[]) => {
         const all: CityOption[] = (Array.isArray(data) ? data : [])
@@ -268,7 +266,7 @@ export default function AddressModal({
       })
       .catch(() => {})
       .finally(() => setCitiesLoading(false));
-  }, [isOpen, orderType]);
+  }, [isOpen, orderType, cityGroups.length]);
 
   // ── Autocomplete (proxied through Next.js → server-side key) ─────────────────
   const fetchPredictions = useCallback(async (text: string) => {
@@ -530,7 +528,7 @@ export default function AddressModal({
                     {/* Use-my-location knapp */}
                     {!mapError && (
                       <button
-                        onClick={() => useMyLocation()}
+                        onClick={() => requestMyLocation()}
                         aria-label="Använd min plats"
                         className="absolute bottom-3 right-3 z-[1000] w-11 h-11 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all bg-white text-zinc-900"
                       >

@@ -4,12 +4,12 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowRight, CalendarClock, CheckCircle2, ChevronDown, MapPin, Phone, ReceiptText, RefreshCw, Search, SlidersHorizontal, Trash2, UserRound } from "lucide-react";
-import { bulkRefundOrders, deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
+import { AlertCircle, ArrowRight, CalendarClock, CheckCircle2, ChevronDown, MapPin, Phone, ReceiptText, RefreshCw, Search, SlidersHorizontal, UserRound } from "lucide-react";
+import { getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
 import { CustomerModal } from "@/modules/customers/page";
 import { NotesPanel } from "@/shared/components/notes-panel";
 import { LiveMap } from "@/shared/components/live-map";
-import { Badge, Button, CheckboxField, ConfirmDialog, DurationInput, EmptyState, ErrorPanel, Field, Input, Modal, MoneyInput, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, ConfirmDialog, DurationInput, EmptyState, ErrorPanel, Field, Input, Modal, MoneyInput, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, orderTypeLabel } from "@/shared/utils/format";
 
 const DELIVERY_STEPS = ["PENDING", "PREPARING", "DELIVERING", "DELIVERED"] as const;
@@ -230,7 +230,7 @@ function OrderDetailsModalContent({
   // Förstora leveransfotot (lightbox).
   const [proofZoom, setProofZoom] = useState(false);
   const [pendingConfirmation, setPendingConfirmation] = useState<
-    { kind: "delete" } | { kind: "refund"; amountKr: number | null } | null
+    { kind: "refund"; amountKr: number | null } | null
   >(null);
 
   const orderQuery = useQuery({
@@ -288,17 +288,6 @@ function OrderDetailsModalContent({
     },
   });
 
-  const deleteMutation = useMutation({
-    meta: { successMessage: "Order raderad", errorMessage: "Kunde inte radera ordern" },
-    mutationFn: () => deleteOrder(orderId!),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["orders"] });
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      setPendingConfirmation(null);
-      onClose();
-    },
-  });
-
   const order = orderQuery.data;
   const isDelivery = order?.type === "DELIVERY";
   const next = order ? nextAction(order.status, isDelivery) : null;
@@ -312,12 +301,18 @@ function OrderDetailsModalContent({
   const estimatedTimeError = estimatedTime && (estimatedMinutes === null || !Number.isInteger(estimatedMinutes) || estimatedMinutes < 1 || estimatedMinutes > 240)
     ? "Ange hela minuter mellan 1 och 240."
     : undefined;
+  const refundedAmount = Math.max(0, Number(order?.refundAmount || 0));
+  const remainingRefundAmount = Math.max(0, Number(order?.total || 0) - refundedAmount);
+  const paymentStatus = String(order?.paymentStatus || "").toUpperCase();
+  const refundIsPending = paymentStatus === "REFUNDING";
+  const refundIsComplete = paymentStatus === "REFUNDED" || remainingRefundAmount <= 0;
+  const refundCanStart = ["PAID", "PARTIALLY_REFUNDED"].includes(paymentStatus) && remainingRefundAmount > 0;
   const partialRefundAmount = parseDecimalInput(refundAmount);
   const partialRefundError = order && refundMode === "partial"
     ? partialRefundAmount === null || partialRefundAmount <= 0
       ? "Ange ett belopp större än 0 kr."
-      : partialRefundAmount >= order.total
-        ? "Delbeloppet måste vara lägre än orderns totalbelopp."
+      : partialRefundAmount >= remainingRefundAmount
+        ? "Delbeloppet måste vara lägre än återstående belopp. Välj hela beloppet för resten."
         : undefined
     : undefined;
   const deliveryMapMarkers = order && isDelivery
@@ -367,22 +362,7 @@ function OrderDetailsModalContent({
       size="xl"
       title={order ? `Order ${order.orderNumber}` : "Orderdetaljer"}
       description={order ? `${order.restaurantName || "Okänd restaurang"} · ${formatDateTime(order.createdAt)} · ${orderTypeLabel(order.type)}` : undefined}
-      footer={
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <Button
-            variant="danger"
-            className="w-full sm:w-auto"
-            onClick={() => {
-              if (!order) return;
-              setPendingConfirmation({ kind: "delete" });
-            }}
-            disabled={deleteMutation.isPending || !order}
-          >
-            <Trash2 size={16} /> Radera
-          </Button>
-          <Button className="w-full sm:w-auto" onClick={onClose}>Stäng</Button>
-        </div>
-      }
+      footer={<Button className="w-full sm:w-auto" onClick={onClose}>Stäng</Button>}
     >
       {orderQuery.isLoading || !order ? (
         <div className="surface-muted px-5 py-8 text-center text-sm text-[var(--text-secondary)]">Laddar order…</div>
@@ -500,13 +480,21 @@ function OrderDetailsModalContent({
                     <a href={`tel:${order.customerPhone}`} className="contents">
                       <Button variant="primary" className="w-full"><Phone size={15} /> Kontakta kund</Button>
                     </a>
-                    {!order.refundedAt ? (
+                    {refundCanStart ? (
                       <Button variant="danger" className="w-full" onClick={() => setShowRefund((v) => !v)}>
-                        <ReceiptText size={15} /> Återbetala
+                        <ReceiptText size={15} /> Återbetala {formatCurrency(remainingRefundAmount)}
+                      </Button>
+                    ) : refundIsPending ? (
+                      <Button variant="secondary" className="w-full" disabled>
+                        <RefreshCw size={15} className="animate-spin" /> Återbetalning behandlas
+                      </Button>
+                    ) : refundIsComplete ? (
+                      <Button variant="secondary" className="w-full" disabled>
+                        <CheckCircle2 size={15} /> Fullt återbetald
                       </Button>
                     ) : (
                       <Button variant="secondary" className="w-full" disabled>
-                        <CheckCircle2 size={15} /> Återbetald
+                        <ReceiptText size={15} /> Ej återbetalningsbar
                       </Button>
                     )}
                   </div>
@@ -757,12 +745,49 @@ function OrderDetailsModalContent({
             </div>
 
               {/* ── Återbetalning ── */}
-              {order.refundedAt ? (
+              {refundedAmount > 0 ? (
                 <div className="surface flex items-center gap-2.5 px-5 py-4 text-[13px] font-semibold text-[var(--success-text)]">
-                  <CheckCircle2 size={16} /> Återbetald {formatCurrency(order.refundAmount || 0)}
+                  <CheckCircle2 size={16} /> {refundIsComplete ? "Fullt återbetald" : "Delvis återbetald"} {formatCurrency(refundedAmount)}
+                  {!refundIsComplete ? <span className="font-normal text-[var(--text-muted)]">· {formatCurrency(remainingRefundAmount)} återstår</span> : null}
                   {order.refundReason ? <span className="font-normal text-[var(--text-muted)]">· {order.refundReason}</span> : null}
                 </div>
-              ) : showRefund ? (
+              ) : null}
+              {refundIsPending ? (
+                <div className="surface flex items-center gap-2.5 px-5 py-4 text-[13px] font-semibold text-[var(--warning-text)]">
+                  <RefreshCw size={16} className="animate-spin" /> Återbetalningen behandlas hos Mollie. Nytt försök är spärrat tills statusen är slutlig.
+                </div>
+              ) : null}
+              {order.paymentRefunds?.length ? (
+                <div className="surface px-5 py-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="card-label">Refund-ledger</p>
+                    <span className="text-[11px] font-semibold text-[var(--text-muted)]">{order.paymentRefunds.length} ekonomisk post</span>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {order.paymentRefunds.map((refund) => {
+                      const status = refund.status.toUpperCase();
+                      const tone = status === "REFUNDED" ? "success" : status === "FAILED" || status === "CANCELED" ? "danger" : "warning";
+                      return (
+                        <div key={refund.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-3.5 py-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Badge tone={tone}>{status}</Badge>
+                              <span className="text-[13px] font-extrabold tabular-nums">{formatCurrency(refund.amount)}</span>
+                              <span className="text-[11px] font-semibold uppercase text-[var(--text-muted)]">{refund.provider}</span>
+                            </div>
+                            <span className="text-[11px] text-[var(--text-muted)]">{formatDateTime(refund.lastSeenAt)}</span>
+                          </div>
+                          <p className="mt-2 break-all font-[ui-monospace,Menlo,monospace] text-[10px] text-[var(--text-muted)]">
+                            {refund.refundRef || "PSP-referens inväntas"} · {refund.source}
+                          </p>
+                          {refund.reason ? <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{refund.reason}</p> : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+              {showRefund && refundCanStart ? (
                 <div className="surface overflow-hidden border-[color-mix(in_srgb,var(--danger)_28%,transparent)] px-5 py-5">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[14px] font-extrabold tracking-[-0.01em] text-[var(--danger-text)]">Återbetala order</p>
@@ -779,7 +804,7 @@ function OrderDetailsModalContent({
                           if (mode === "full") setRefundAmount("");
                         }}
                       >
-                        <option value="full">Hela beloppet · {formatCurrency(order.total)}</option>
+                        <option value="full">Hela återstående beloppet · {formatCurrency(remainingRefundAmount)}</option>
                         <option value="partial">Delbelopp</option>
                       </Select>
                     </Field>
@@ -790,13 +815,13 @@ function OrderDetailsModalContent({
                           onValueChange={setRefundAmount}
                           placeholder="0"
                           min={0}
-                          max={order.total}
+                          max={remainingRefundAmount}
                         />
                       </Field>
                     ) : (
                       <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-4 py-3">
                         <p className="card-label">Återbetalas</p>
-                        <p className="mt-1 text-[17px] font-extrabold tabular-nums">{formatCurrency(order.total)}</p>
+                        <p className="mt-1 text-[17px] font-extrabold tabular-nums">{formatCurrency(remainingRefundAmount)}</p>
                       </div>
                     )}
                   </div>
@@ -852,7 +877,7 @@ function OrderDetailsModalContent({
                       <ReceiptText size={16} />
                       {refundMode === "partial" && partialRefundAmount !== null
                         ? `Återbetala ${formatCurrency(partialRefundAmount)}`
-                        : `Återbetala ${formatCurrency(order.total)}`}
+                        : `Återbetala ${formatCurrency(remainingRefundAmount)}`}
                     </Button>
                   </div>
                 </div>
@@ -885,22 +910,18 @@ function OrderDetailsModalContent({
 
     <ConfirmDialog
       open={pendingConfirmation !== null}
-      title={pendingConfirmation?.kind === "delete" ? `Radera order ${order?.orderNumber || ""}?` : `Bekräfta återbetalning`}
-      description={pendingConfirmation?.kind === "delete"
-        ? "Ordern raderas permanent och åtgärden kan inte ångras."
-        : pendingConfirmation?.kind === "refund" && order
-          ? `Återbetala ${formatCurrency(pendingConfirmation.amountKr ?? order.total)} för order ${order.orderNumber}${refundReason ? ` · ${refundReason}` : ""}.`
-          : undefined}
-      confirmLabel={pendingConfirmation?.kind === "delete" ? "Radera order" : "Skicka återbetalning"}
+      title="Bekräfta återbetalning"
+      description={pendingConfirmation && order
+        ? `Återbetala ${formatCurrency(pendingConfirmation.amountKr ?? Math.max(0, order.total - Number(order.refundAmount || 0)))} för order ${order.orderNumber}${refundReason ? ` · ${refundReason}` : ""}.`
+        : undefined}
+      confirmLabel="Skicka återbetalning"
       danger
-      loading={pendingConfirmation?.kind === "delete" ? deleteMutation.isPending : refundMutation.isPending}
+      loading={refundMutation.isPending}
       onClose={() => {
-        if (!deleteMutation.isPending && !refundMutation.isPending) setPendingConfirmation(null);
+        if (!refundMutation.isPending) setPendingConfirmation(null);
       }}
       onConfirm={() => {
-        if (pendingConfirmation?.kind === "delete") {
-          deleteMutation.mutate();
-        } else if (pendingConfirmation?.kind === "refund") {
+        if (pendingConfirmation) {
           refundMutation.mutate(pendingConfirmation.amountKr);
         }
       }}
@@ -927,30 +948,21 @@ function StatusBadge({ status, isPickup = false }: { status: string; isPickup?: 
 
 type OrderRowProps = {
   order: AdminOrder;
-  isSelected: boolean;
   nowMs: number;
   isAdvancing: boolean;
   onOpen: (id: string) => void;
-  onToggleSelect: (id: string, checked: boolean) => void;
   onOpenCustomer: (userId: string) => void;
   onAdvance: (order: AdminOrder, nextStatus: string) => void;
 };
 
 // Memo-iserad orderrad. Vid 70 ordrar var listan trög för att VARJE rad
-// renderades om dels på 30s-ticken (nowMs), dels vid varje markering. Nu:
-// • slutförda rader hoppar over nowMs-ticken (tid-i-status visas bara live),
-// • bara den togglade raden renderas om vid markering (stabila callbacks).
-function OrderRowBase({ order, isSelected, nowMs, isAdvancing, onOpen, onToggleSelect, onOpenCustomer, onAdvance }: OrderRowProps) {
+// renderades om på 30s-ticken (nowMs). Slutförda rader hoppar över ticken
+// eftersom tid-i-status bara visas för liveordrar.
+function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdvance }: OrderRowProps) {
   const isLive = LIVE_STATUSES.includes(order.status);
   const isDelivery = order.type === "DELIVERY";
   const tis = isLive ? formatTimeInStatus(order, nowMs) : null;
   const next = nextAction(order.status, isDelivery);
-  const paymentRef = order.paymentProvider === "mollie"
-    ? order.molliePaymentId
-    : order.paymentProvider === "adyen"
-      ? order.adyenPspReference
-      : order.stripePaymentIntentId;
-  const isRefundable = !order.refundedAt && Boolean(paymentRef) && !["TEST_PAYMENT", "FREE_PROMO", "BYPASS"].includes(String(paymentRef));
   const isPending = order.status === "PENDING";
   const isLate = tis?.tone === "danger";
 
@@ -985,17 +997,6 @@ function OrderRowBase({ order, isSelected, nowMs, isAdvancing, onOpen, onToggleS
     return <span className="text-[12px] font-bold text-[var(--text-secondary)]">Detaljer ›</span>;
   };
 
-  const selectionControl = (compact: boolean) => isRefundable ? (
-    <div onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-      <CheckboxField
-        label={compact ? `Välj order ${order.orderNumber}` : "Välj för återbetalning"}
-        checked={isSelected}
-        onChange={(checked) => onToggleSelect(order.id, checked)}
-        className={compact ? "gap-0 [&_.choice-label]:sr-only" : "items-center"}
-      />
-    </div>
-  ) : null;
-
   return (
     <>
       <div
@@ -1010,7 +1011,6 @@ function OrderRowBase({ order, isSelected, nowMs, isAdvancing, onOpen, onToggleS
         style={{ gridTemplateColumns: ORDERS_GRID, ...(isPending ? { background: "var(--warning-soft)" } : {}) }}
       >
         <div className="flex min-w-0 items-center gap-2">
-          {selectionControl(true)}
           <span className={`${MONO} truncate text-[12px] font-bold text-[var(--text-primary)]`}>{order.orderNumber}</span>
         </div>
 
@@ -1085,7 +1085,6 @@ function OrderRowBase({ order, isSelected, nowMs, isAdvancing, onOpen, onToggleS
                 {isLive && tis ? `${tis.label} i status` : formatDateTime(order.createdAt)}
               </span>
               {orderTipAmount(order) > 0 ? <span>{formatCurrency(orderTipAmount(order))} dricks</span> : null}
-              {selectionControl(true)}
             </div>
           </div>
           <div className="flex min-w-[92px] flex-col items-end gap-2">
@@ -1100,10 +1099,8 @@ function OrderRowBase({ order, isSelected, nowMs, isAdvancing, onOpen, onToggleS
 
 const OrderRow = memo(OrderRowBase, (a, b) =>
   a.order === b.order &&
-  a.isSelected === b.isSelected &&
   a.isAdvancing === b.isAdvancing &&
   a.onOpen === b.onOpen &&
-  a.onToggleSelect === b.onToggleSelect &&
   a.onOpenCustomer === b.onOpenCustomer &&
   a.onAdvance === b.onAdvance &&
   // nowMs påverkar bara live-ordrar (tid-i-status-badgen) → slutförda rader
@@ -1120,9 +1117,6 @@ export function OrdersPage() {
   const [page, setPage] = useState(1);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(searchParams.get("order"));
   const [activeCustomerId, setActiveCustomerId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkResult, setBulkResult] = useState<string | null>(null);
-  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
 
   // Tick `nowMs` every 30s so the "time in status" badge updates without
   // refetching. Cheap — just a state bump.
@@ -1135,7 +1129,6 @@ export function OrdersPage() {
   const changeStatus = useCallback((nextStatus: (typeof statusOptions)[number]) => {
     setStatus(nextStatus);
     setPage(1);
-    setSelectedIds(new Set());
   }, []);
 
   const orders = useQuery({
@@ -1145,27 +1138,6 @@ export function OrdersPage() {
     // Pollen är bara en fallback om en socket-händelse missas → 20s räcker och
     // halverar den redundanta DB-lasten jämfört med 10s.
     refetchInterval: 20_000,
-  });
-
-  const bulkRefundMutation = useMutation({
-    meta: { successMessage: "Massåterbetalningen är klar", errorMessage: "Massåterbetalningen misslyckades" },
-    mutationFn: (orderIds: string[]) => bulkRefundOrders(orderIds, "Massåterbetalning från admin"),
-    onSuccess: async (data) => {
-      setBulkResult(
-        `Refunderade ${data.refunded} av ${data.total} ordrar` +
-        (data.skipped ? ` · ${data.skipped} redan refunderade` : "") +
-        (data.failed ? ` · ${data.failed} misslyckades` : "") +
-        ` · totalt ${data.totalRefundedKr.toFixed(2)} kr`
-      );
-      setSelectedIds(new Set());
-      setBulkConfirmOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["orders"] });
-      await queryClient.invalidateQueries({ queryKey: ["finance"] });
-    },
-    onError: (error: unknown) => {
-      const message = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setBulkResult(message || "Massåterbetalning misslyckades");
-    },
   });
 
   const totalPages = orders.data ? Math.max(1, Math.ceil(orders.data.total / ORDERS_PAGE_SIZE)) : 1;
@@ -1190,14 +1162,6 @@ export function OrdersPage() {
     setAdvancingId(order.id);
     advanceMutation.mutate({ id: order.id, status: nextStatus });
   }, [advanceMutation]);
-  const toggleSelect = useCallback((id: string, checked: boolean) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id); else next.delete(id);
-      return next;
-    });
-  }, []);
-
   const filteredOrders = useMemo(() => {
     const list = orders.data?.orders || [];
     const query = search.trim().toLowerCase();
@@ -1260,41 +1224,6 @@ export function OrdersPage() {
           </div>
         </div>
 
-        {/* Bulk action bar — only refundable orders are eligible; the API
-            silently skips already-refunded ones, so we keep this UX permissive. */}
-        {selectedIds.size > 0 && (
-          <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-[var(--accent-strong)]/40 bg-[var(--accent-strong)]/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 size={14} className="text-[var(--accent-strong)]" />
-              <span className="font-bold">{selectedIds.size} valda</span>
-              <button
-                type="button"
-                onClick={() => setSelectedIds(new Set())}
-                className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-              >
-                Rensa val
-              </button>
-            </div>
-            <Button
-              variant="secondary"
-              className="w-full sm:w-auto"
-              disabled={bulkRefundMutation.isPending}
-              onClick={() => {
-                setBulkResult(null);
-                setBulkConfirmOpen(true);
-              }}
-            >
-              <ReceiptText size={16} /> Refundera {selectedIds.size} valda
-            </Button>
-          </div>
-        )}
-        {bulkResult && (
-          <div className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-4 py-2.5 text-xs flex items-start justify-between gap-3">
-            <span>{bulkResult}</span>
-            <button onClick={() => setBulkResult(null)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">×</button>
-          </div>
-        )}
-
         {filteredOrders.length === 0 ? (
           <div className="mt-6"><EmptyState title="Inga ordrar i den här vyn" /></div>
         ) : (
@@ -1316,11 +1245,9 @@ export function OrdersPage() {
               <OrderRow
                 key={order.id}
                 order={order}
-                isSelected={selectedIds.has(order.id)}
                 nowMs={nowMs}
                 isAdvancing={advancingId === order.id}
                 onOpen={openOrder}
-                onToggleSelect={toggleSelect}
                 onOpenCustomer={openCustomer}
                 onAdvance={advanceOrder}
               />
@@ -1370,25 +1297,6 @@ export function OrdersPage() {
         onClose={() => setActiveCustomerId(null)}
       />
 
-      <ConfirmDialog
-        open={bulkConfirmOpen}
-        title={`Återbetala ${selectedIds.size} ordrar?`}
-        description="Alla valda ordrar återbetalas fullt. Redan återbetalda ordrar hoppas över, men genomförda återbetalningar kan inte ångras."
-        confirmLabel={`Återbetala ${selectedIds.size}`}
-        danger
-        loading={bulkRefundMutation.isPending}
-        onClose={() => {
-          if (!bulkRefundMutation.isPending) setBulkConfirmOpen(false);
-        }}
-        onConfirm={() => {
-          const ids = Array.from(selectedIds);
-          if (ids.length === 0) {
-            setBulkConfirmOpen(false);
-            return;
-          }
-          bulkRefundMutation.mutate(ids);
-        }}
-      />
     </div>
   );
 }

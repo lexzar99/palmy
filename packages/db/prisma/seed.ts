@@ -9,9 +9,17 @@ const kr = (amount: number) => Math.round(amount * 100);
 async function main() {
   console.log('🌱 Seeding ViaEats Lund database (Neon/Postgres)...');
 
+  const [orderCount, payoutCount] = await Promise.all([
+    prisma.order.count(),
+    prisma.restaurantPayout.count(),
+  ]);
+  if (orderCount > 0 || payoutCount > 0) {
+    throw new Error(
+      `Refusing destructive seed: ${orderCount} orders and ${payoutCount} payout records must be preserved. Use a fresh database.`,
+    );
+  }
+
   // Rensa befintlig data
-  await prisma.orderItem.deleteMany().catch(() => {});
-  await prisma.order.deleteMany().catch(() => {});
   await prisma.productExtraGroup.deleteMany().catch(() => {});
   await prisma.extra.deleteMany().catch(() => {});
   await prisma.extraGroup.deleteMany().catch(() => {});

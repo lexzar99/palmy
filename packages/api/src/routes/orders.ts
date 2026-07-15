@@ -4,7 +4,6 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { getIO } from '../lib/socket';
-import jwt from 'jsonwebtoken';
 import {
   DEFAULT_DELIVERY_FEE,
   DEFAULT_ESTIMATED_DELIVERY_TIME,
@@ -13,22 +12,68 @@ import {
 } from '../lib/restaurantSettings';
 import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, resolveDisplayPromotionForProduct, userDealRestaurantScope, type CartItemForBogo } from '../lib/deals';
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
-import { JWT_SECRET } from '../lib/config';
+import { ALLOW_TEST_ORDERS } from '../lib/config';
 import { bustCache } from '../lib/ttlCache';
-import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
+import { getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
-import supabaseAdmin from '../lib/supabase';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
 import { discountPlatformAllowed } from '../lib/clientPlatform';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
-import { sendOrderStatusPush } from '../lib/customerPush';
+import { dispatchCustomerOrderStatus } from '../lib/customerOrderNotifier';
 import { etaResponseFields, refreshOrderEta } from '../lib/orderEta';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto, nullableMoneyDto } from '../utils/money';
 import { referralPhoneVariants } from '../lib/referralRules';
+import { notifyPartnerDevicesOfNewOrder } from '../lib/partnerFcm';
+import { getPaymentProvider, getPaymentProviderByName } from '../lib/payments';
+import { finalizePaymentFailed, finalizePaymentSuccess } from '../lib/payments/finalize';
+import type { PaymentProviderName } from '../lib/payments/finalize';
+import {
+  allowLegacyOrderPhoneProof,
+  exchangeOrderAccessForHttpSession,
+  issueOrderAccessProof,
+  issueOrderHttpSession,
+  ORDER_HTTP_SESSION_HEADER,
+  ORDER_HTTP_SESSION_ID_HEADER,
+  ORDER_HTTP_SESSION_TTL_SECONDS,
+  ownsOrderWithActiveRawSecret,
+  resolveActiveCustomerFromAuthorization,
+  resolveActiveCustomerIdFromAuthorization,
+  resolveOrderAccess,
+  validOrderId,
+  verifyOrderHttpSession,
+} from '../lib/orderAccess';
+import { calculateOrderVat, deliveryVatPercent, normalizeVatPercent } from '../lib/tax';
+import {
+  assertNonnegativeCatalogLine,
+  OrderExtraPricingError,
+  resolveAuthoritativeExtraSelection,
+} from '../lib/orderExtraPricing';
 
 const router = Router();
+
+/**
+ * Next's same-origin proxy converts these internal response headers into a
+ * Secure + HttpOnly per-order cookie. Direct/native clients keep using their
+ * existing response body and never need to understand the browser session.
+ */
+function attachWebOrderSession(req: Request, res: Response, orderId: string) {
+  if (req.headers['x-client-type'] !== 'web' || !validOrderId(orderId)) return;
+  res.setHeader(ORDER_HTTP_SESSION_HEADER, issueOrderHttpSession(orderId));
+  res.setHeader(ORDER_HTTP_SESSION_ID_HEADER, orderId);
+}
+
+function rawOrderAccessForNonWebClient(req: Request, accessToken: string | null) {
+  return req.headers['x-client-type'] === 'web' ? {} : { accessToken };
+}
+
+function rejectExpiredOrderReplay(res: Response) {
+  return res.status(410).json({
+    error: 'Det tidigare checkout-försöket har gått ut. Försök igen.',
+    code: 'ORDER_REPLAY_EXPIRED',
+  });
+}
 const STOCKHOLM_TIMEZONE = 'Europe/Stockholm';
 const stockholmDayFormatter = new Intl.DateTimeFormat('sv-SE', {
   timeZone: STOCKHOLM_TIMEZONE,
@@ -115,6 +160,8 @@ const OrderItemSchema = z.object({
     groupName: z.string(),
     extraId: z.string(),
     extraName: z.string(),
+    // Presentation-only input. Negativa katalogtillval är legitima (t.ex.
+    // barnpizza), men klientens belopp används aldrig som prissanning.
     priceAddon: z.number(),
     quantity: z.number().int().min(1).max(500).optional(),
   })),
@@ -187,10 +234,19 @@ router.post('/', async (req: Request, res: Response) => {
   const idempotencyKey = getIdempotencyKey(req);
   // Scope keyen till user (om authed via Authorization-header) eller IP (gäst).
   // Hindrar att User B med samma idempotency-key får ut User A:s order-respons.
-  // OBS: authenticatedUserId resolveras längre ned — vi använder header-token-prefix
-  // som temporär scope-proxy här. För säkerhets skull bryts cache-keyen ändå per
-  // klient via IP-fallback. Det här är säkert nog för att eliminera cross-user leak.
+  // Resolve the account before replay lookup so a deleted/banned/disallowed
+  // bearer cannot use a remembered idempotency key as a second order secret.
+  // The full token hash still scopes the persisted attempt across retries.
   const authHeaderForScope = req.headers.authorization || '';
+  const authenticatedIdentity = authHeaderForScope.startsWith('Bearer ')
+    ? await resolveActiveCustomerFromAuthorization(authHeaderForScope).catch(() => null)
+    : null;
+  if (authHeaderForScope.startsWith('Bearer ') && !authenticatedIdentity) {
+    return res.status(401).json({
+      error: 'Kundsessionen är ogiltig eller kontot är inte tillgängligt',
+      code: 'CUSTOMER_SESSION_NOT_ALLOWED',
+    });
+  }
   // Hash the WHOLE token for the per-user scope. The previous slice(7,39) took the
   // first 32 token chars, but for Supabase JWTs those are the CONSTANT header
   // (eyJhbG...) — identical for every user → all logged-in users shared one scope,
@@ -198,21 +254,58 @@ router.post('/', async (req: Request, res: Response) => {
   const tokenScopeHash = authHeaderForScope.startsWith('Bearer ')
     ? crypto.createHash('sha256').update(authHeaderForScope.slice(7)).digest('hex').slice(0, 32)
     : '';
-  const scope = tokenScopeHash || req.ip || 'anon';
-  if (idempotencyKey) {
-    const cached = getCachedResponse(scope, `orders:${idempotencyKey}`);
-    if (cached) {
-      console.log(`♻️ Replaying cached response for idempotency-key ${idempotencyKey}`);
-      return res.status(cached.status).json(cached.body);
-    }
-    // Wrap res.json so any successful 2xx response is captured before sending.
-    const originalJson = res.json.bind(res);
-    res.json = (body: any) => {
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        cacheResponse(scope, `orders:${idempotencyKey}`, res.statusCode, body);
+  const phoneScope = String(req.body?.customerPhone || '').replace(/\D/g, '');
+  const scope = tokenScopeHash || phoneScope || req.ip || 'anon';
+  const clientRequestId = idempotencyKey
+    ? crypto.createHash('sha256').update(`${scope}:${idempotencyKey}`).digest('hex')
+    : null;
+
+  // Database-backed replay survives deploys/restarts and is shared by every
+  // Railway replica. The previous Map cache could still create duplicate paid
+  // orders when retry #2 landed on another process.
+  if (clientRequestId) {
+    const existing = await prisma.order.findUnique({
+      where: { clientRequestId },
+      select: {
+        id: true,
+        userId: true,
+        orderNumber: true,
+        total: true,
+        appliedDealTitle: true,
+        estimatedTime: true,
+        accessToken: true,
+        createdAt: true,
+        etaReadyAt: true,
+        etaPickupAt: true,
+        etaCustomerAt: true,
+        etaCustomerMin: true,
+        etaPriorityScore: true,
+        etaReason: true,
+      },
+    });
+    if (existing) {
+      if (authenticatedIdentity && existing.userId !== authenticatedIdentity.id) {
+        return res.status(404).json({ error: 'Order hittades inte' });
       }
-      return originalJson(body);
-    };
+      // The idempotency key prevents duplicate creation; it must not become a
+      // second long-lived order credential. After the raw 48-hour exchange
+      // window, a replay may no longer mint a fresh browser session or return
+      // the stored native access token.
+      if (!ownsOrderWithActiveRawSecret(existing, existing.accessToken)) {
+        return rejectExpiredOrderReplay(res);
+      }
+      console.log(`♻️ Replaying persisted order for idempotency-key ${idempotencyKey}`);
+      attachWebOrderSession(req, res, existing.id);
+      return res.status(200).json({
+        orderId: existing.id,
+        orderNumber: existing.orderNumber,
+        total: existing.total / 100,
+        appliedDealTitle: existing.appliedDealTitle,
+        estimatedTime: existing.estimatedTime,
+        ...etaResponseFields(existing),
+        ...rawOrderAccessForNonWebClient(req, existing.accessToken),
+      });
+    }
   }
 
   try {
@@ -253,17 +346,29 @@ router.post('/', async (req: Request, res: Response) => {
     const isPendingPayment = data.pendingPayment === true;
     const hasPaymentIntent = Boolean(data.stripePaymentIntentId);
 
+    // Launch checkout is Mollie-only. The direct Stripe-intent order path is
+    // retained in non-production solely for legacy testing and reconciliation;
+    // new production clients must create an unpaid order and start Mollie via
+    // the payment endpoint.
+    if (process.env.NODE_ENV === 'production' && !isPendingPayment) {
+      res.status(410).json({
+        error: 'Den äldre betalningsvägen är avstängd. Starta betalningen med Mollie.',
+        code: 'MOLLIE_CHECKOUT_REQUIRED',
+      });
+      return;
+    }
+
     const intentId = data.stripePaymentIntentId?.toUpperCase();
-    // Test-order: medveten testkanal som funkar även i prod. Användaren har
-    // sagt att "test"/"testa" + FREE_PROMO/TEST_PAYMENT ska kringgå Stripe
-    // för testflöden (inkl. referral-unlock-test). Tidigare gated på
-    // NODE_ENV !== 'production' vilket bröt bypass på Railway. Den ENDA
-    // vägen in är via discount-code "test"/"testa" på webbens cart-flow —
-    // alltså inte triggable av andra klienter eller av externa angripare
-    // utan kod-kännedom.
-    const isTestOrder =
+    const testOrderRequested =
       (data.discountCode?.toLowerCase() === 'test' || data.discountCode?.toLowerCase() === 'testa') &&
       (intentId === 'TEST_PAYMENT' || intentId === 'FREE_PROMO');
+    // En rabattkod är inte ett autentiseringsbevis. Gratis testordrar är
+    // därför explicit dev-only och kan aldrig slås på i production.
+    if (testOrderRequested && !ALLOW_TEST_ORDERS) {
+      res.status(403).json({ error: 'Testordrar är avstängda' });
+      return;
+    }
+    const isTestOrder = testOrderRequested && ALLOW_TEST_ORDERS;
 
     // Enforce mandatory payment (unless pending-payment flow or test order)
     if (!hasPaymentIntent) {
@@ -273,66 +378,22 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    // 0. Check for auth user to link account
-    // Supports both Supabase JWTs (primary) and legacy custom JWTs (fallback)
+    // 0. Resolve account identity through the single customer policy. A
+    // supplied but invalid/disallowed/tombstoned bearer fails closed instead
+    // of silently becoming a guest checkout.
     let authenticatedUserId: string | null = null;
     let authUser: any = null;
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-
-      // ── 1. Try Supabase JWT ─────────────────────────────────────────────
-      if (supabaseAdmin) {
-        try {
-          const { data: { user: sbUser }, error } = await supabaseAdmin.auth.getUser(token);
-          if (!error && sbUser) {
-            // Ensure a corresponding row exists in the local User table
-            authUser = await (prisma as any).user.upsert({
-              where: { id: sbUser.id },
-              update: {
-                email: sbUser.email || undefined,
-                name: sbUser.user_metadata?.name || sbUser.user_metadata?.full_name || undefined,
-                image: sbUser.user_metadata?.avatar_url || sbUser.user_metadata?.picture || undefined,
-                phone: sbUser.phone || undefined,
-                isVerified: !!sbUser.phone_confirmed_at || !!sbUser.email_confirmed_at || undefined,
-              },
-              create: {
-                id: sbUser.id,
-                email: sbUser.email ?? null,
-                name: sbUser.user_metadata?.name ?? sbUser.user_metadata?.full_name ?? 'Användare',
-                image: sbUser.user_metadata?.avatar_url ?? sbUser.user_metadata?.picture ?? null,
-                phone: sbUser.phone ?? null,
-                oauthProvider: sbUser.app_metadata?.provider ?? null,
-                oauthId: sbUser.id,
-                isVerified: !!sbUser.phone_confirmed_at || !!sbUser.email_confirmed_at,
-              },
-            }).catch(() => null);
-
-            if (authUser) {
-              authenticatedUserId = authUser.id;
-              // Force use official profile phone to prevent discount abuse
-              if (authUser.phone) data.customerPhone = authUser.phone;
-            }
-          }
-        } catch (_sbErr) {
-          // Not a Supabase JWT — try legacy
-        }
+      authUser = await (prisma as any).user.findFirst({
+        where: { id: authenticatedIdentity!.id, deletedAt: null, isActive: true },
+      });
+      if (!authUser) {
+        return res.status(401).json({ error: 'Kundkontot är inte tillgängligt' });
       }
-
-      // ── 2. Fall back to legacy custom JWT ──────────────────────────────
-      if (!authenticatedUserId) {
-        try {
-          const payload = jwt.verify(token, JWT_SECRET) as any;
-          authUser = await (prisma as any).user.findUnique({ where: { id: payload.id } });
-          if (authUser) {
-            authenticatedUserId = authUser.id;
-            // Force use official profile phone to prevent discount abuse
-            if (authUser.phone) data.customerPhone = authUser.phone;
-          }
-        } catch (_jwtErr) {
-          // Token invalid, proceed as guest
-        }
-      }
+      authenticatedUserId = authUser.id;
+      // Force use official profile phone to prevent discount abuse.
+      if (authUser.phone) data.customerPhone = authUser.phone;
     }
 
     // Hard gate: a Google/Apple-signed user without a verified phone cannot
@@ -349,8 +410,8 @@ router.post('/', async (req: Request, res: Response) => {
     // Resolve restaurant (must be explicit to avoid routing orders to the wrong restaurant)
     const restaurant = await prisma.restaurant.findFirst({
       where: data.restaurantId
-        ? { id: data.restaurantId }
-        : { slug: data.restaurantSlug as string },
+        ? { id: data.restaurantId, archivedAt: null }
+        : { slug: data.restaurantSlug as string, archivedAt: null },
       include: {
         city_relation: {
           select: { ordersPaused: true, ordersPausedUntil: true, ordersPauseReason: true },
@@ -504,10 +565,10 @@ router.post('/', async (req: Request, res: Response) => {
       res.status(403).json({ error: 'Ogiltig betalning' });
       return;
     }
-    const bypassAllowed = data.stripePaymentIntentId === 'BYPASS' && process.env.NODE_ENV !== 'production';
+    const bypassAllowed = data.stripePaymentIntentId === 'BYPASS' && ALLOW_TEST_ORDERS;
     // Idempotency: if this PaymentIntent already has an order, return that order directly.
     // Skip for TEST_PAYMENT, FREE_PROMO and BYPASS to allow multiple tests by developers.
-    const isSpecialMockId = data.stripePaymentIntentId === 'TEST_PAYMENT' || data.stripePaymentIntentId === 'FREE_PROMO' || (bypassAllowed);
+    const isSpecialMockId = isTestOrder || bypassAllowed;
     const existingOrder = (data.stripePaymentIntentId && !isSpecialMockId) ? await prisma.order.findFirst({
       where: { stripePaymentIntentId: data.stripePaymentIntentId },
       select: {
@@ -565,6 +626,10 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const now = new Date();
+    const restaurantFoodVatPercent = normalizeVatPercent((restaurant as any).vatPercent, 6);
+    const orderDeliveryVatPercent = data.type === 'DELIVERY'
+      ? deliveryVatPercent(Boolean((restaurant as any).selfDelivery), restaurantFoodVatPercent)
+      : null;
 
     // Hämta produkter och beräkna priser
     const activeDeals = await prisma.deal.findMany({
@@ -576,18 +641,24 @@ router.post('/', async (req: Request, res: Response) => {
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
     const productIds = [...new Set(data.items.map((i) => i.productId))];
-    const requireActiveProducts = !confirmedPayment || isPendingPayment;
+    const requireActiveCatalog = !confirmedPayment || isPendingPayment;
     const products = await prisma.product.findMany({
       where: {
         id: { in: productIds },
-        ...(requireActiveProducts ? { isActive: true } : {}),
+        ...(requireActiveCatalog ? { isActive: true } : {}),
+        // Never accept a product from another restaurant merely because the
+        // client supplied a valid global product id.
+        category: {
+          restaurantId: restaurant.id,
+          ...(requireActiveCatalog ? { isActive: true } : {}),
+        },
       },
       include: {
         extraGroups: {
           include: {
             extraGroup: {
               include: {
-                extras: confirmedPayment ? true : { where: { isActive: true } },
+                extras: requireActiveCatalog ? { where: { isActive: true } } : true,
               },
             },
           },
@@ -627,44 +698,20 @@ router.post('/', async (req: Request, res: Response) => {
 
       const validatedExtras = item.selectedExtras.map((selected) => {
         const group = groupMap.get(selected.groupId);
-        if (!group) {
-          if (confirmedPayment) {
-            return {
-              groupId: selected.groupId,
-              groupName: selected.groupName,
-              extraId: selected.extraId,
-              extraName: selected.extraName,
-              priceAddon: selected.priceAddon,
-              quantity: selected.quantity ?? 1,
-            };
+        const extra = group?.extraMap.get(selected.extraId);
+        try {
+          return resolveAuthoritativeExtraSelection({
+            productName: product.name,
+            group,
+            extra,
+            selected,
+          });
+        } catch (error) {
+          if (error instanceof OrderExtraPricingError) {
+            throw new OrderValidationError(error.userMessage);
           }
-          throw new OrderValidationError(`Ogiltigt tillval för ${product.name}`);
+          throw error;
         }
-
-        const extra = group.extraMap.get(selected.extraId);
-        if (!extra) {
-          if (confirmedPayment) {
-            return {
-              groupId: group.id,
-              groupName: group.name,
-              extraId: selected.extraId,
-              extraName: selected.extraName,
-              priceAddon: selected.priceAddon,
-              quantity: selected.quantity ?? 1,
-            };
-          }
-          throw new OrderValidationError(`Tillvalet ${selected.extraName} finns inte längre`);
-        }
-
-        return {
-          groupId: group.id,
-          groupName: group.name,
-          extraId: extra.id,
-          extraName: extra.name,
-          priceAddon: extra.priceAddon / 100,
-          quantity: selected.quantity ?? 1,
-          groupRequired: group.required || group.minSelections > 0,
-        };
       });
 
       // Lagra tillvalen i EXAKT samma ordning som produktmodalen visar dem:
@@ -683,7 +730,7 @@ router.post('/', async (req: Request, res: Response) => {
         return ea - eb;
       });
 
-      if (!confirmedPayment) {
+      if (requireActiveCatalog) {
         for (const group of groupMap.values()) {
           // Defensiv null-coalescing — schemat säger NOT NULL men gammal data
           // från före migration kan ha null-värden.
@@ -720,6 +767,16 @@ router.post('/', async (req: Request, res: Response) => {
       const catalogBaseOre = !item.bogoFreeFromDealId && displayPromotion?.salePriceOre && displayPromotion.salePriceOre < product.price
         ? displayPromotion.salePriceOre
         : product.price;
+      // Negativa katalogtillval används för t.ex. barnpizza, men en felaktig
+      // admin-konfiguration får aldrig skapa en negativ produktrad/utbetalning.
+      try {
+        assertNonnegativeCatalogLine(product.name, catalogBaseOre, extrasTotal);
+      } catch (error) {
+        if (error instanceof OrderExtraPricingError) {
+          throw new OrderValidationError(error.userMessage);
+        }
+        throw error;
+      }
       const itemHasCatalogDiscount = !item.bogoFreeFromDealId && catalogBaseOre < product.price;
       if (itemHasCatalogDiscount) hasCatalogDiscountedItems = true;
       const lineItemOre = (catalogBaseOre + extrasTotal) * item.quantity;
@@ -734,6 +791,9 @@ router.post('/', async (req: Request, res: Response) => {
         note: item.note,
         selectedExtras: JSON.stringify(validatedExtras), // Store as string for SQLite
         subtotal: itemSubtotal,
+        // Snapshot the tax rate used at purchase time. Product overrides are
+        // for mixed baskets (for example alcohol at 25%); extras inherit it.
+        vatPercent: normalizeVatPercent((product as any).vatPercent, restaurantFoodVatPercent),
       });
     }
 
@@ -745,7 +805,8 @@ router.post('/', async (req: Request, res: Response) => {
     const pendingMinOrderTopUpOre = Math.max(0, Math.round(Number(data.minOrderTopUp || 0) * 100));
 
     // Rabattkod och automatiska deals
-    let manualDiscountAmount = 0;
+    let manualFoodDiscountAmount = 0;
+    let manualDeliveryDiscountAmount = 0;
     let validatedCode: string | undefined;
     const hasRequestedBogoFreeItem = data.items.some((item) => !!item.bogoFreeFromDealId);
 
@@ -763,7 +824,7 @@ router.post('/', async (req: Request, res: Response) => {
       const codeVal = data.discountCode?.toLowerCase();
       if (codeVal === 'test' || codeVal === 'testa') {
         validatedCode = codeVal;
-        manualDiscountAmount = 0; // Total will be forced to 0 via confirmedPayment
+        manualFoodDiscountAmount = 0; // Total will be forced to 0 below.
       } else {
         const code = await prisma.discountCode.findUnique({
           where: { code: data.discountCode.toUpperCase(), isActive: true },
@@ -791,11 +852,11 @@ router.post('/', async (req: Request, res: Response) => {
 
           if (!isExpired && subtotal >= code.minOrder && restaurantAllowed && platformAllowed) {
             if (code.type === 'PERCENTAGE') {
-              manualDiscountAmount = Math.round(subtotal * code.value / 100);
+              manualFoodDiscountAmount = Math.round(subtotal * code.value / 100);
             } else if (code.type === 'FREE_DELIVERY') {
-              manualDiscountAmount = deliveryFee; // zeroes out the delivery fee
+              manualDeliveryDiscountAmount = deliveryFee;
             } else {
-              manualDiscountAmount = Math.min(code.value, subtotal);
+              manualFoodDiscountAmount = Math.min(code.value, subtotal);
             }
             // Stackbar fri leverans-flagga: PERCENTAGE eller FIXED kupong
             // kan ha freeDelivery=true → leveransavgiften absorberas också.
@@ -807,7 +868,7 @@ router.post('/', async (req: Request, res: Response) => {
               code.type !== 'FREE_DELIVERY' &&
               deliveryFee > 0
             ) {
-              manualDiscountAmount += deliveryFee;
+              manualDeliveryDiscountAmount = deliveryFee;
             }
             validatedCode = code.code;
           }
@@ -847,10 +908,10 @@ router.post('/', async (req: Request, res: Response) => {
             const minOrderOre = normalizeMoneyToOre(personalDeal.campaign.minOrder ?? 0);
             if (isUsable && subtotal >= minOrderOre) {
               if (personalDeal.campaign.discountType === 'PERCENTAGE') {
-                manualDiscountAmount = Math.round(subtotal * personalDeal.campaign.discountValue / 100);
+                manualFoodDiscountAmount = Math.round(subtotal * personalDeal.campaign.discountValue / 100);
               } else {
                 const fixedDiscountOre = normalizeMoneyToOre(personalDeal.campaign.discountValue ?? 0);
-                manualDiscountAmount = Math.min(fixedDiscountOre, subtotal);
+                manualFoodDiscountAmount = Math.min(fixedDiscountOre, subtotal);
               }
               validatedCode = personalDeal.code;
             }
@@ -874,7 +935,8 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     let appliedDeal: (typeof activeDeals)[number] | null = null;
-    let automaticDiscountAmount = 0;
+    let automaticFoodDiscountAmount = 0;
+    let automaticDeliveryDiscountAmount = 0;
     // skipAutomaticDeal=true → kunden har stängt av auto-dealen i UI:n.
     // Vi hoppar HELA pickup-loopen (utom BOGO som är knuten till items i
     // kundvagnen och hanteras separat nedan). Detta säkerställer att
@@ -925,8 +987,9 @@ router.post('/', async (req: Request, res: Response) => {
       const isBogoWithFreeItems = isBogoCategoryDeal && hasFreeItems;
       if (skipAutoDeals && !isBogoWithFreeItems) continue;
 
-      if (evaluation.discountAmountOre > automaticDiscountAmount) {
-        automaticDiscountAmount = evaluation.discountAmountOre;
+      if (evaluation.discountAmountOre > automaticFoodDiscountAmount + automaticDeliveryDiscountAmount) {
+        automaticFoodDiscountAmount = evaluation.discountAmountOre;
+        automaticDeliveryDiscountAmount = 0;
         appliedDeal = deal;
         // maxFreeItems exponeras bara av BOGO_CATEGORY-evalueringen.
         appliedBogoMaxFreeItems = (evaluation as any).maxFreeItems ?? 0;
@@ -988,8 +1051,9 @@ router.post('/', async (req: Request, res: Response) => {
             const welcomeTotal =
               welcomeOfferDiscountOre(welcomeOffer, subtotal) +
               (welcomeOffer.freeDelivery ? Math.max(0, deliveryFee) : 0);
-            if (welcomeTotal > automaticDiscountAmount) {
-              automaticDiscountAmount = welcomeTotal;
+            if (welcomeTotal > automaticFoodDiscountAmount + automaticDeliveryDiscountAmount) {
+              automaticFoodDiscountAmount = welcomeOfferDiscountOre(welcomeOffer, subtotal);
+              automaticDeliveryDiscountAmount = welcomeOffer.freeDelivery ? Math.max(0, deliveryFee) : 0;
               appliedDeal = null;
               welcomeAppliedTitle = welcomeOffer.title;
               welcomeAppliedDealId = welcomeOffer.dealId;
@@ -1007,10 +1071,15 @@ router.post('/', async (req: Request, res: Response) => {
     // en avstängbar knapp och förväntar samma beteende här. Om data.discountCode
     // är skickat OCH validerades (manualDiscountAmount > 0 eller test-flow),
     // använd det. Annars fall tillbaka på automaticDiscountAmount.
+    const manualDiscountAmount = manualFoodDiscountAmount + manualDeliveryDiscountAmount;
     const userSentDiscountCode = !!data.discountCode && (manualDiscountAmount > 0 || validatedCode);
-    let discountAmount = userSentDiscountCode
-      ? manualDiscountAmount
-      : automaticDiscountAmount;
+    let foodDiscountAmount = userSentDiscountCode
+      ? manualFoodDiscountAmount
+      : automaticFoodDiscountAmount;
+    let deliveryDiscountAmount = userSentDiscountCode
+      ? manualDeliveryDiscountAmount
+      : automaticDeliveryDiscountAmount;
+    let discountAmount = foodDiscountAmount + deliveryDiscountAmount;
 
     if (userSentDiscountCode) {
       appliedDeal = null;
@@ -1170,7 +1239,9 @@ router.post('/', async (req: Request, res: Response) => {
         // total = subtotal - discountAmount + deliveryFee. Med freeDelivery:
         // discountAmount = subtotalDisc + deliveryFee → leveransen blir gratis.
         if (totalDealOre > 0) {
-          discountAmount = totalDealOre;
+          foodDiscountAmount = subtotalDiscountOre;
+          deliveryDiscountAmount = deliveryDiscountOre;
+          discountAmount = foodDiscountAmount + deliveryDiscountAmount;
           appliedDeal = null;
           validatedCode = undefined;
           // UserDeal vinner → välkomst-auto-erbjudandet gäller inte.
@@ -1189,7 +1260,13 @@ router.post('/', async (req: Request, res: Response) => {
     // positivt total som matchar inte den 0-betalning bypass:en gör.
     // Vi maxar discountAmount till subtotal+deliveryFee = allt absorberas.
     if (isTestOrder) {
-      discountAmount = subtotal + deliveryFee;
+      foodDiscountAmount = subtotal;
+      deliveryDiscountAmount = deliveryFee;
+      discountAmount = foodDiscountAmount + deliveryDiscountAmount;
+    } else {
+      foodDiscountAmount = Math.min(Math.max(0, foodDiscountAmount), subtotal);
+      deliveryDiscountAmount = Math.min(Math.max(0, deliveryDiscountAmount), deliveryFee);
+      discountAmount = foodDiscountAmount + deliveryDiscountAmount;
     }
 
     // ── RABATT-TOLERANS: min-order-validering ────────────────────────────────
@@ -1205,18 +1282,19 @@ router.post('/', async (req: Request, res: Response) => {
     // Kund kan dessutom betala mellanskillnaden manuellt via `minOrderTopUp`.
     // confirmedPayment hoppar över checken (en pre-payment-order har redan
     // passerat denna validering en gång).
-    if (!confirmedPayment && !isTestOrder) {
+    let smallOrderFee = 0;
+    if ((!confirmedPayment || isPendingPayment) && !isTestOrder) {
       const MIN_ORDER_TOLERANCE_ORE = 4000; // 40 kr
-      const hasActiveDiscount = discountAmount > 0;
+      const hasActiveDiscount = foodDiscountAmount > 0;
       const effectiveMinOrderAmount = hasActiveDiscount
         ? Math.max(0, minOrderAmount - MIN_ORDER_TOLERANCE_ORE)
         : minOrderAmount;
-      const afterDiscountValue = Math.max(0, subtotal - discountAmount);
+      const afterDiscountValue = Math.max(0, subtotal - foodDiscountAmount);
 
       if (afterDiscountValue < effectiveMinOrderAmount) {
         const shortfall = effectiveMinOrderAmount - afterDiscountValue;
         if (pendingMinOrderTopUpOre >= shortfall) {
-          deliveryFee = deliveryFee + pendingMinOrderTopUpOre;
+          smallOrderFee = pendingMinOrderTopUpOre;
         } else {
           const minKr = minOrderAmount / 100;
           const effectiveMinKr = effectiveMinOrderAmount / 100;
@@ -1238,12 +1316,8 @@ router.post('/', async (req: Request, res: Response) => {
       ? Math.max(0, Math.round(Number(data.tip) * 100))
       : 0;
 
-    // Räkna ut total och avrunda UPP till hela kronor (öre-multipel av 100).
-    // Frontend gör samma Math.ceil i cart/page.tsx så cart-display ↔ Stripe ↔
-    // order.total alla matchar. Utan denna ceil hamnade vi på t.ex.
-    // "154.28999999999996 kr" på Stripe-knappen (JS-float-precision på
-    // rabatt-procent). Ceil betyder kunden betalar max 99 öre mer än
-    // exakt-beloppet — försumbart, men håller siffrorna rena.
+    // Alla komponenter är redan heltalsöre. Ta exakt belopp; att avrunda upp
+    // till nästa krona överdebiterade tidigare kunden med upp till 99 öre.
     // Diagnostik: klienten skickade en rabattkod men servern applicerade 0 rabatt
     // → kunden skulle debiteras fullpris (carten visade rabatt). Logga så att
     // ev. kvarvarande mismatch syns direkt i loggarna.
@@ -1252,8 +1326,8 @@ router.post('/', async (req: Request, res: Response) => {
         code: data.discountCode, phone: data.customerPhone, subtotal, restaurantId: restaurant?.id,
       });
     }
-    const rawTotal = subtotal - discountAmount + deliveryFee + tipOre;
-    let total = Math.max(0, Math.ceil(rawTotal / 100) * 100);
+    const rawTotal = subtotal - foodDiscountAmount + deliveryFee - deliveryDiscountAmount + smallOrderFee + tipOre;
+    const total = Math.max(0, rawTotal);
 
     // Verifiera Stripe-beloppet matchar det vi räknat fram. Tidigare auto-justerade
     // koden order-total NEDÅT om Stripe visade lägre belopp — det betydde att en
@@ -1331,9 +1405,11 @@ router.post('/', async (req: Request, res: Response) => {
     for (let orderAttempt = 1; orderAttempt <= 8; orderAttempt++) {
       const nextNumber = await generateOrderNumber();
       try {
-        order = await prisma.order.create({
+        order = await prisma.$transaction(async (tx) => {
+          const created = await tx.order.create({
       data: {
         orderNumber: nextNumber,
+        clientRequestId,
         status: isPendingPayment ? 'AWAITING_PAYMENT' : 'PENDING',
         type: data.type,
         customerName: data.customerName,
@@ -1358,10 +1434,19 @@ router.post('/', async (req: Request, res: Response) => {
         userDealId: appliedUserDealId,
         userDealAmountKr: appliedUserDealAmountKr,
         discountAmount,
+        foodDiscountAmount,
+        deliveryDiscountAmount,
+        smallOrderFee,
+        foodVatPercent: restaurantFoodVatPercent,
+        deliveryVatPercent: orderDeliveryVatPercent,
         deliveryFee,
         tipAmount: tipOre,
         total,
         stripePaymentIntentId: isPendingPayment ? null : confirmedPayment.id,
+        // Sätt provider redan när den obetalda ordern skapas. Då kan abandon,
+        // recovery och reconcile aldrig misstolka en ny Mollie-order som den
+        // historiska schema-defaulten "stripe" innan PSP-referensen har länkats.
+        paymentProvider: isPendingPayment ? getPaymentProvider().name : 'stripe',
         paymentStatus: isPendingPayment ? 'PENDING' : 'PAID',
         // paymentMethod är non-nullable i schemat (default 'ONLINE'). Den
         // tidigare `isPendingPayment ? null : 'ONLINE'` orsakade Prisma-
@@ -1374,9 +1459,9 @@ router.post('/', async (req: Request, res: Response) => {
         scheduledFor: data.scheduledFor ? new Date(data.scheduledFor) : null,
         userId: orderUserId,
         allergens: authUser?.allergens || '[]',
-        // Access-token för guest-tracking-URL: slumpad 32-byte. Returneras
-        // till klienten en gång och kan användas i 30 min via `?token=...`
-        // i /order/{id} (se GET /orders/:id ovan).
+        // Slumpad 32-byte exchange-nyckel för gäster. Webben byter den direkt
+        // mot en HttpOnly order-session; native-klienter har ett tidsbegränsat
+        // kompatibilitetsfönster och får aldrig behandla den som permanent.
         accessToken: crypto.randomBytes(32).toString('base64url'),
 
         items: {
@@ -1390,6 +1475,20 @@ router.post('/', async (req: Request, res: Response) => {
         restaurant: { select: { name: true } },
         items: true,
       },
+          });
+
+          if (appliedUserDealId) {
+            const reserved = await tx.userDeal.updateMany({
+              where: { id: appliedUserDealId, userId: orderUserId, status: 'ACTIVE' },
+              data: { status: 'RESERVED', usedOnOrderId: created.id },
+            });
+            if (reserved.count !== 1) {
+              // Throwing rolls back the newly created order and all nested
+              // items. A concurrent checkout can never keep the same coupon.
+              throw new OrderValidationError('Kupongen används redan i en annan beställning');
+            }
+          }
+          return created;
         });
         break; // success
       } catch (err: any) {
@@ -1403,6 +1502,29 @@ router.post('/', async (req: Request, res: Response) => {
           console.warn(`[order] orderNumber collision (attempt ${orderAttempt}) — regenerating`);
           continue;
         }
+        const isClientRequestCollision =
+          err?.code === 'P2002' &&
+          (Array.isArray(target)
+            ? target.includes('clientRequestId')
+            : String(target ?? '').includes('clientRequestId'));
+        if (isClientRequestCollision && clientRequestId) {
+          const replay = await prisma.order.findUnique({ where: { clientRequestId } });
+          if (replay) {
+            if (!ownsOrderWithActiveRawSecret(replay, replay.accessToken)) {
+              return rejectExpiredOrderReplay(res);
+            }
+            attachWebOrderSession(req, res, replay.id);
+            return res.status(200).json({
+              orderId: replay.id,
+              orderNumber: replay.orderNumber,
+              total: replay.total / 100,
+              appliedDealTitle: replay.appliedDealTitle,
+              estimatedTime: replay.estimatedTime,
+              ...etaResponseFields(replay),
+              ...rawOrderAccessForNonWebClient(req, replay.accessToken),
+            });
+          }
+        }
         throw err; // non-collision error, or out of attempts → bubble up as before
       }
     }
@@ -1414,26 +1536,6 @@ router.post('/', async (req: Request, res: Response) => {
       return null;
     });
     if (createdEta) order = { ...order, ...createdEta };
-
-    // ── UserDeal-reservation ────────────────────────────────────────────
-    // Atomisk reserve så två parallella orders inte kan båda använda samma
-    // deal. updateMany med where:{status:'ACTIVE'} fungerar som compare-and-
-    // swap. Räknaren `count` säger om vi vann race:n. Om 0: dealen användes
-    // av en annan order parallellt — vi loggar warning men ordern är redan
-    // skapad med rabatten. I praktiken nästintill omöjligt eftersom samma
-    // user måste ha två concurrent checkouts. Hard-rollback skulle kräva
-    // refund-flow vilket är overkill för v1.
-    if (appliedUserDealId) {
-      const reservedCount = await (prisma as any).userDeal.updateMany({
-        where: { id: appliedUserDealId, userId: orderUserId, status: 'ACTIVE' },
-        data: { status: 'RESERVED', usedOnOrderId: order.id },
-      });
-      if (reservedCount.count === 0) {
-        console.warn(
-          `[order] UserDeal reservation race lost — userDealId=${appliedUserDealId} orderId=${order.id} userId=${orderUserId}. Ordern fick rabatten men dealen kunde inte reserveras.`,
-        );
-      }
-    }
 
     // For pending-payment orders, skip all post-creation side effects until
     // the Stripe webhook confirms the payment.
@@ -1508,6 +1610,11 @@ router.post('/', async (req: Request, res: Response) => {
       getIO().to('admin-room').emit('order:new', orderForSocket);
       if (order.restaurantId) {
         getIO().to(`admin-room:${order.restaurantId}`).emit('order:new', orderForSocket);
+        void notifyPartnerDevicesOfNewOrder({
+          restaurantId: order.restaurantId,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+        });
       }
 
       // 5. Update personal deal usage (CustomerDeal)
@@ -1530,6 +1637,7 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
+    attachWebOrderSession(req, res, order.id);
     res.status(200).json({
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -1537,9 +1645,10 @@ router.post('/', async (req: Request, res: Response) => {
       appliedDealTitle: order.appliedDealTitle,
       estimatedTime: order.estimatedTime ?? estimatedTime,
       ...etaResponseFields(order),
-      // Klienten ska skicka tokenen som ?token= på order-tracking-URL:n så
-      // gäst-redirect efter Stripe (utan auth-header) får tillgång inom 30 min.
-      accessToken: order.accessToken,
+      // Native/äldre klienter får fortfarande den råa exchange-nyckeln. Webben
+      // får samtidigt ett HttpOnly order-session-bevis via proxyheadern ovan
+      // och ska aldrig lägga accessToken i en URL.
+      ...rawOrderAccessForNonWebClient(req, order.accessToken),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -1644,13 +1753,51 @@ router.get('/draft/:id', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/orders/status-batch?ids=a,b,c&phone=46... — lightweight status for
-// many orders in ONE request (guest order-history list). Replaces the per-order
-// fan-out (~21 requests/load) so 1000 concurrent history loads don't melt the DB.
-// Same ownership model as GET /:id: phone must match (ids are unguessable cuids).
-// NOTE: must be declared BEFORE GET /:id so it isn't captured as id="status-batch".
+// POST /api/orders/status-batch — one secure lightweight request for guest
+// history. Each id carries its own random checkout token; a phone number is
+// contact data, never an authorization secret.
+router.post('/status-batch', async (req: Request, res: Response) => {
+  try {
+    const input = z.object({
+      orders: z.array(z.object({
+        id: z.string().min(1).max(100),
+        accessToken: z.string().min(20).max(512),
+      })).min(1).max(30),
+    }).parse(req.body);
+    const proofById = new Map(input.orders.map((item) => [item.id, item.accessToken]));
+    const orders = await prisma.order.findMany({
+      where: { id: { in: [...proofById.keys()] } },
+      select: {
+        id: true,
+        accessToken: true,
+        createdAt: true,
+        orderNumber: true,
+        status: true,
+        total: true,
+        restaurant: { select: { name: true } },
+      },
+    });
+    res.json(orders
+      .filter((order) => ownsOrderWithActiveRawSecret(order, proofById.get(order.id)))
+      .map((order) => ({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        total: (order.total ?? 0) / 100,
+        restaurantName: order.restaurant?.name ?? null,
+      })));
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Ogiltiga orderbevis' });
+    console.error('status-batch error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta orderstatus' });
+  }
+});
+
+// Legacy GET exists only for local compatibility testing. Production clients
+// must use the token-based POST route above.
 router.get('/status-batch', async (req: Request, res: Response) => {
   try {
+    if (process.env.NODE_ENV === 'production') return res.json([]);
     const idsParam = typeof req.query.ids === 'string' ? req.query.ids : '';
     const phone = typeof req.query.phone === 'string' ? req.query.phone : '';
     const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 30);
@@ -1679,11 +1826,91 @@ router.get('/status-batch', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/orders/:id/session — exchange a short-lived raw checkout secret
+// (or an authenticated account) for the browser's Secure + HttpOnly order
+// session. The signed proof is returned only through an internal proxy header;
+// it is never exposed to application JavaScript.
+router.post('/:id/session', async (req: Request, res: Response) => {
+  const orderId = req.params.id;
+  const allowed = await exchangeOrderAccessForHttpSession({
+    orderId,
+    accessToken: req.body?.accessToken,
+    orderSession: req.headers[ORDER_HTTP_SESSION_HEADER],
+    authorization: req.headers.authorization,
+  }).catch(() => false);
+
+  if (!allowed || !validOrderId(orderId)) {
+    return res.status(404).json({ error: 'Order hittades inte' });
+  }
+
+  attachWebOrderSession(req, res, orderId);
+  return res.json({ ok: true, expiresInSeconds: ORDER_HTTP_SESSION_TTL_SECONDS });
+});
+
+// POST /api/orders/:id/access-proof — mint the five-minute Socket.IO/push
+// capability through the order-cookie path. This lets the browser keep every
+// long-lived credential out of JavaScript while realtime remains order-scoped.
+router.post('/:id/access-proof', async (req: Request, res: Response) => {
+  const orderId = req.params.id;
+  const allowed = await resolveOrderAccess({
+    orderId,
+    orderSession: req.headers[ORDER_HTTP_SESSION_HEADER],
+    authorization: req.headers.authorization,
+  }).catch(() => false);
+
+  if (!allowed || !validOrderId(orderId)) {
+    return res.status(404).json({ error: 'Order hittades inte' });
+  }
+
+  attachWebOrderSession(req, res, orderId);
+  return res.json({ proof: issueOrderAccessProof(orderId) });
+});
+
+// GET /api/orders/:id/summary — minimal guest history row. Browser callers
+// use the HttpOnly order proof; account callers use active customer auth.
+router.get('/:id/summary', async (req: Request, res: Response) => {
+  const orderId = req.params.id;
+  const allowed = await resolveOrderAccess({
+    orderId,
+    orderSession: req.headers[ORDER_HTTP_SESSION_HEADER],
+    authorization: req.headers.authorization,
+  }).catch(() => false);
+  if (!allowed || !validOrderId(orderId)) {
+    return res.status(404).json({ error: 'Order hittades inte' });
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+      paymentStatus: true,
+      total: true,
+      createdAt: true,
+      restaurant: { select: { name: true } },
+      _count: { select: { items: true } },
+    },
+  });
+  if (!order) return res.status(404).json({ error: 'Order hittades inte' });
+
+  attachWebOrderSession(req, res, orderId);
+  return res.json({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    total: (order.total ?? 0) / 100,
+    createdAt: order.createdAt,
+    restaurantName: order.restaurant?.name ?? null,
+    itemCount: order._count.items,
+  });
+});
+
 // GET /api/orders/:id - Hämta en order (för kund att följa sin order).
-// Ägarskap krävs: antingen via JWT (inloggad kund) ELLER customerPhone som
-// query-param som matchar order.customerPhone (för guest-ordrar).
-// Utan dessa returnerar vi 404 (samma som om order inte fanns) så att
-// ID-gissning inte avslöjar vilka ordrar som existerar.
+// Ägarskap krävs via JWT eller den slumpade per-order-tokenen. Telefonnummer
+// är kontaktdata, inte ett lösenord. Lokal utveckling behåller en phone-fallback
+// för gamla testverktyg; produktion gör det aldrig.
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const order: any = await prisma.order.findUnique({
@@ -1722,53 +1949,22 @@ router.get('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    // Ägarskaps-kontroll
-    let isOwner = false;
+    // Account access is always resolved through the same provider allow-list
+    // and local tombstone check as every other customer order endpoint.
+    const callerUserId = await resolveActiveCustomerIdFromAuthorization(
+      req.headers.authorization,
+    ).catch(() => null);
+    let isOwner =
+      verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], order.id) ||
+      Boolean(callerUserId && order.userId === callerUserId);
 
-    // 1. JWT-baserad auth — om header finns och token-userId matchar order.userId
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      // Supabase
-      if (supabaseAdmin) {
-        try {
-          const { data: { user: sbUser } } = await supabaseAdmin.auth.getUser(token);
-          if (sbUser && order.userId === sbUser.id) isOwner = true;
-        } catch { /* try legacy */ }
-      }
-      // Legacy custom JWT
-      if (!isOwner) {
-        try {
-          const payload = jwt.verify(token, JWT_SECRET) as any;
-          if (payload?.id && order.userId === payload.id) isOwner = true;
-        } catch { /* fallthrough */ }
-      }
-    }
-
-    // 2. customerPhone-match — för guest-ordrar och nyligen lagda ordrar där
-    // kunden ännu inte loggat in. Telefonnumret normaliseras (siffror + +).
-    if (!isOwner) {
+    // Local-only compatibility for old dev builds. Production never accepts a
+    // phone number as proof of access to customer PII.
+    if (!isOwner && allowLegacyOrderPhoneProof()) {
       const queryPhone = typeof req.query.phone === 'string' ? req.query.phone : null;
       const normalize = (p: string | null | undefined) => (p || '').replace(/[^\d+]/g, '');
       if (queryPhone && normalize(queryPhone) === normalize(order.customerPhone)) {
         isOwner = true;
-      }
-    }
-
-    // 3. SnabbVERIFY-token: efter en lyckad pre-payment-order returnerar
-    //    POST /api/orders en `orderToken` (sätts på ordern). Klienten skickar
-    //    den som `?token=...` direkt efter Stripe-redirect och vi godkänner
-    //    åtkomst inom 30 min. Tokenen är 32-byte slumpad så ID-gissning är
-    //    omöjlig. (Tidigare hade vi 5-min grace baserat enbart på ageMs
-    //    vilket lät vem som helst läsa kundens PII via enumerable cuid:er.)
-    if (!isOwner) {
-      const queryToken = typeof req.query.token === 'string' ? req.query.token : null;
-      const orderToken = (order as any).accessToken as string | null | undefined;
-      if (queryToken && orderToken && queryToken === orderToken) {
-        const ageMs = Date.now() - new Date(order.createdAt).getTime();
-        if (ageMs < 30 * 60 * 1000) {
-          isOwner = true;
-        }
       }
     }
 
@@ -1819,7 +2015,9 @@ router.get('/:id', async (req: Request, res: Response) => {
       order.delivery?.courierId &&
       typeof order.delivery?.courier?.currentLat === 'number' &&
       typeof order.delivery?.courier?.currentLng === 'number';
+    const vatSummary = calculateOrderVat(order);
 
+    attachWebOrderSession(req, res, order.id);
     res.json({
       id: order.id,
       orderNumber: order.orderNumber,
@@ -1828,7 +2026,19 @@ router.get('/:id', async (req: Request, res: Response) => {
       total: order.total / 100,
       deliveryFee: order.deliveryFee / 100,
       discountAmount: order.discountAmount / 100,
+      foodDiscountAmount: order.foodDiscountAmount / 100,
+      deliveryDiscountAmount: order.deliveryDiscountAmount / 100,
+      smallOrderFee: order.smallOrderFee / 100,
       tipAmount: (order.tipAmount ?? 0) / 100,
+      vatAmount: vatSummary.totalVatOre / 100,
+      vatAmountOre: vatSummary.totalVatOre,
+      vatBreakdown: vatSummary.breakdown.map((row) => ({
+        rate: row.rate,
+        gross: row.grossOre / 100,
+        grossOre: row.grossOre,
+        vat: row.vatOre / 100,
+        vatOre: row.vatOre,
+      })),
       paymentStatus: order.paymentStatus,
       paymentMethod: order.paymentMethod,
       rating: order.rating ?? null,
@@ -1857,7 +2067,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       courierLastSeenAt: courierCanBeShown && order.delivery.courier.lastSeenAt ? order.delivery.courier.lastSeenAt.toISOString() : null,
       // Moms i % som restaurangen visar i kvittot (6/12). null = restaurangen
       // visar ingen momsrad → klienten döljer den.
-      restaurantVatPercent: (order.restaurant as any)?.vatPercent ?? null,
+      restaurantVatPercent: (order as any).foodVatPercent ?? normalizeVatPercent((order.restaurant as any)?.vatPercent, 6),
       // Budets aktiva orderantal (bara satt under leverans) — driver ETA-spannet.
       courierActiveOrders,
       etaEndsAt,
@@ -1881,6 +2091,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         quantity: item.quantity,
         basePrice: item.basePrice / 100,
         subtotal: item.subtotal / 100,
+        vatPercent: item.vatPercent,
         selectedExtras: JSON.parse(item.selectedExtras),
         note: item.note,
       })),
@@ -2067,19 +2278,33 @@ router.post('/:id/debug-la-push', authenticate, requireSuperAdmin, blockInProduc
 
 router.post('/:id/live-activity-token', async (req: Request, res: Response) => {
   try {
-    const { token } = req.body ?? {};
+    const { token, accessToken } = req.body ?? {};
     const orderId = req.params.id;
     if (typeof token !== 'string' || token.length < 32 || token.length > 256 || !/^[a-f0-9]+$/i.test(token)) {
       console.warn(`[live-activity-token] ❌ invalid token for order=${orderId}, len=${(token as any)?.length}`);
       res.status(400).json({ error: 'Ogiltig token' });
       return;
     }
-    // TODO(mobile-launch): kräv ägar-bevis (JWT-match eller accessToken)
-    // när iOS-appen uppdaterats att forwarda Authorization-header eller
-    // order.accessToken. För nuvarande RN-klient (src/lib/api.ts saknar
-    // global Authorization-injection) skulle en strikt check breaka push-
-    // notiser i Live Activity för alla iOS-användare. Webappen påverkas
-    // inte — endpointen är iOS-only.
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, userId: true, accessToken: true, createdAt: true },
+    });
+    if (!order) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+
+    const callerUserId = await resolveActiveCustomerIdFromAuthorization(
+      req.headers.authorization,
+    ).catch(() => null);
+    const ownsByUser = !!callerUserId && callerUserId === order.userId;
+    const ownsBySession = verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], orderId);
+    const ownsByToken = ownsOrderWithActiveRawSecret(order, accessToken);
+    if (!ownsByUser && !ownsBySession && !ownsByToken) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+
     const updated = await prisma.order.updateMany({
       where: { id: orderId },
       data: { liveActivityToken: token },
@@ -2128,6 +2353,9 @@ router.post('/:id/live-activity-token', async (req: Request, res: Response) => {
 // needs the orderId to do anything.
 router.post('/:id/live-activity-push', async (req: Request, res: Response) => {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(404).json({ error: 'Not found' });
+    }
     const orderId = req.params.id;
     const overrideStatus =
       typeof req.body?.status === 'string' ? req.body.status : undefined;
@@ -2181,51 +2409,29 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Ogiltig teststatus' });
     }
 
-    // Resolve caller identity
-    const auth = req.headers.authorization;
-    let callerUserId: string | null = null;
-
-    if (auth?.startsWith('Bearer ')) {
-      const token = auth.slice(7);
-      // Try Supabase JWT first
-      try {
-        const sb = await supabaseAdmin.auth.getUser(token);
-        if (sb.data.user) {
-          callerUserId = sb.data.user.id;
-        }
-      } catch {}
-
-      // Fall back to legacy custom JWT
-      if (!callerUserId) {
-        try {
-          const payload = jwt.verify(token, JWT_SECRET) as any;
-          if (payload?.id) callerUserId = String(payload.id);
-        } catch {}
-      }
-    }
-
-    if (!callerUserId && !devStepper) {
-      return res.status(401).json({ error: 'Ogiltig token' });
-    }
+    const callerUserId = await resolveActiveCustomerIdFromAuthorization(
+      req.headers.authorization,
+    ).catch(() => null);
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, userId: true, status: true, restaurantId: true, customerPhone: true, accessToken: true, deliveringAt: true, restaurant: { select: { selfDelivery: true } } },
+      select: { id: true, userId: true, status: true, restaurantId: true, customerPhone: true, accessToken: true, createdAt: true, deliveringAt: true, restaurant: { select: { selfDelivery: true } } },
     });
     if (!order) return res.status(404).json({ error: 'Ordern hittades inte' });
-    const normalizePhone = (p: string | null | undefined) => (p || '').replace(/[^\d+]/g, '');
     const phoneProof =
       typeof req.query.phone === 'string' ? req.query.phone :
       typeof req.body?.phone === 'string' ? req.body.phone :
       null;
     const tokenProof =
-      typeof req.query.token === 'string' ? req.query.token :
-      typeof req.body?.accessToken === 'string' ? req.body.accessToken :
-      null;
+      typeof req.body?.accessToken === 'string' ? req.body.accessToken : null;
     const ownsByUser = !!callerUserId && order.userId === callerUserId;
-    const ownsByPhone = !!phoneProof && normalizePhone(phoneProof) === normalizePhone(order.customerPhone);
-    const ownsByAccessToken = !!tokenProof && !!order.accessToken && tokenProof === order.accessToken;
-    if (!ownsByUser && !ownsByPhone && !ownsByAccessToken) {
+    const ownsBySession = verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], orderId);
+    const ownsByAccessToken = ownsOrderWithActiveRawSecret(order, tokenProof);
+    // A phone number is not a secret and must never authorize a mutation.
+    // Legacy devStepper may still use it locally; production requires JWT or
+    // the random per-order access token returned only at checkout.
+    const ownsDevOrderByPhone = devStepper && !!phoneProof && phoneProof.replace(/\D/g, '') === order.customerPhone.replace(/\D/g, '');
+    if (!ownsByUser && !ownsBySession && !ownsByAccessToken && !ownsDevOrderByPhone) {
       return res.status(403).json({ error: 'Du äger inte denna order' });
     }
     if (devStepper) {
@@ -2246,11 +2452,8 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
         getIO()?.to(`order:${orderId}`).emit('order:status', { id: orderId, orderId, status: updated.status, ...etaResponseFields(updated) });
         getIO()?.to('admin-room').emit('order:updated', { id: orderId, orderId, status: updated.status });
         if (order.restaurantId) getIO()?.to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: orderId, orderId, status: updated.status });
-        void sendOrderStatusPush(orderId, updated.status);
+        void dispatchCustomerOrderStatus(orderId, updated.status);
       } catch {}
-      void pushLiveActivityForOrder(orderId).catch((e) =>
-        console.warn(`[orders/status] LA dispatch failed order=${orderId}:`, e?.message),
-      );
       if (newStatus === 'DELIVERED' || newStatus === 'COMPLETED') {
         void import('./referrals').then(({ maybeTriggerReferralReward }) =>
           maybeTriggerReferralReward(orderId),
@@ -2278,9 +2481,16 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       return res.json({ changed: false, status: order.status });
     }
 
-    let updated = await prisma.order.update({
-      where: { id: orderId },
+    const changed = await prisma.order.updateMany({
+      where: { id: orderId, status: 'DELIVERING' },
       data: { status: 'DELIVERED' },
+    });
+    if (changed.count !== 1) {
+      const latest = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+      return res.json({ changed: false, status: latest?.status || order.status });
+    }
+    let updated = await prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
       select: { id: true, status: true, etaReadyAt: true, etaPickupAt: true, etaCustomerAt: true, etaCustomerMin: true, etaPriorityScore: true, etaReason: true },
     });
     const refreshedEta = await refreshOrderEta(orderId).catch(() => null);
@@ -2293,13 +2503,8 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       // kund-mockens auto-DELIVERED först vid nästa poll).
       getIO()?.to('admin-room').emit('order:updated', { id: orderId, orderId, status: 'DELIVERED' });
       if (order.restaurantId) getIO()?.to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: orderId, orderId, status: 'DELIVERED' });
-      void sendOrderStatusPush(orderId, 'DELIVERED');
+      void dispatchCustomerOrderStatus(orderId, 'DELIVERED');
     } catch {}
-
-    // Sync the iOS Live Activity if one is registered.
-    void pushLiveActivityForOrder(orderId).catch((e) =>
-      console.warn(`[orders/status] LA dispatch failed order=${orderId}:`, e?.message),
-    );
     void import('./referrals').then(({ maybeTriggerReferralReward }) =>
       maybeTriggerReferralReward(orderId),
     );
@@ -2314,12 +2519,12 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 // POST /api/orders/:id/review  (kräver ägar-bevis — guest eller inloggad).
 // Tidigare var endpointen helt publik och en angripare kunde betygsätta vilken
 // levererad order som helst, vilket gav en rating-attack-vektor mot konkurrenter.
-// Samma trefaldiga ägar-check som GET /:id: JWT (Supabase eller legacy) som
-// matchar order.userId, query/body-phone som matchar order.customerPhone, eller
-// accessToken som matchar order.accessToken (32-byte slumpad, 30 min TTL).
+// Ägar-check: JWT (Supabase eller legacy) som matchar order.userId, eller
+// accessToken som matchar order.accessToken. Telefonnummer är inte ett
+// autentiseringsbevis och får aldrig ge rätt att skriva ett betyg.
 router.post('/:id/review', async (req: Request, res: Response) => {
   try {
-    const { rating, review, likedItemIds, phone: bodyPhone, accessToken: bodyAccessToken } = req.body;
+    const { rating, review, likedItemIds, accessToken: bodyAccessToken } = req.body;
     if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({ error: 'Betyg måste vara mellan 1-5' });
     }
@@ -2328,7 +2533,7 @@ router.post('/:id/review', async (req: Request, res: Response) => {
       include: { items: { select: { productId: true, productName: true } } },
     });
     if (!order) return res.status(404).json({ error: 'Order hittades inte' });
-    if (!['DELIVERED', 'READY', 'COMPLETED'].includes(order.status)) {
+    if (!['DELIVERED', 'COMPLETED'].includes(order.status)) {
       return res.status(400).json({ error: 'Du kan bara betygsätta levererade ordrar' });
     }
     if ((order as any).rating) {
@@ -2336,50 +2541,20 @@ router.post('/:id/review', async (req: Request, res: Response) => {
     }
 
     let isOwner = false;
-    // Inloggad recensents user-id, även om ordern lades som gäst innan kontot fanns.
-    let reviewerUserId: string | null = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      const bearer = authHeader.split(' ')[1];
-      if (supabaseAdmin) {
-        try {
-          const { data: { user: sbUser } } = await supabaseAdmin.auth.getUser(bearer);
-          if (sbUser) {
-            reviewerUserId = sbUser.id;
-            if ((order as any).userId === sbUser.id) isOwner = true;
-          }
-        } catch { /* fallthrough */ }
-      }
-      if (!reviewerUserId) {
-        try {
-          const payload = jwt.verify(bearer, JWT_SECRET) as any;
-          if (payload?.id) {
-            reviewerUserId = payload.id;
-            if ((order as any).userId === payload.id) isOwner = true;
-          }
-        } catch { /* fallthrough */ }
-      }
+    if (verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], order.id)) {
+      isOwner = true;
     }
-    if (!isOwner) {
-      const phoneCandidate =
-        (typeof req.query.phone === 'string' ? req.query.phone : null) ||
-        (typeof bodyPhone === 'string' ? bodyPhone : null);
-      const normalize = (p: string | null | undefined) => (p || '').replace(/[^\d+]/g, '');
-      if (phoneCandidate && normalize(phoneCandidate) === normalize((order as any).customerPhone)) {
-        isOwner = true;
-      }
-    }
+    const reviewerUserId = await resolveActiveCustomerIdFromAuthorization(
+      req.headers.authorization,
+    ).catch(() => null);
+    if (reviewerUserId && (order as any).userId === reviewerUserId) isOwner = true;
     if (!isOwner) {
       const tokenCandidate =
-        (typeof req.query.token === 'string' ? req.query.token : null) ||
-        (typeof bodyAccessToken === 'string' ? bodyAccessToken : null);
-      const orderToken = (order as any).accessToken as string | null | undefined;
-      if (tokenCandidate && orderToken && tokenCandidate === orderToken) {
-        // Reviews får vi tillåta hela 30 dagar efter delivery — review-fönstret
-        // är längre än access-fönstret för PII (30 min). Stoppar bara mycket
-        // gamla orders som ändå inte borde kunna betygsättas.
-        const ageMs = Date.now() - new Date(order.createdAt).getTime();
-        if (ageMs < 30 * 24 * 60 * 60 * 1000) isOwner = true;
+        typeof bodyAccessToken === 'string' ? bodyAccessToken : null;
+      // Native-/legacy-hemligheten följer samma hårda 48h-gräns som övrig
+      // orderåtkomst. Webben använder normalt sin HttpOnly-session ovan.
+      if (ownsOrderWithActiveRawSecret(order, tokenCandidate)) {
+        isOwner = true;
       }
     }
     if (!isOwner) {
@@ -2434,17 +2609,9 @@ router.post('/:id/review', async (req: Request, res: Response) => {
 });
 
 // ── POST /:id/abandon ────────────────────────────────────────────────────────
-// Idempotent cancel av en AWAITING_PAYMENT-order. Anropas när kunden trycker
-// browser-back / stänger taben / Stripe redirectar tillbaka utan succeeded.
-//
-// Säker mot race med webhook: re-assertar status=AWAITING_PAYMENT + paymentStatus
-// != PAID i deleteMany — om Stripe just bekräftade betalningen mellan vår fetch
-// och delete så raderas ordern INTE (den blev en riktig PENDING-order i samma
-// transaktion). Reverterar reserverad UserDeal samma sätt som
-// expireAbandonedAwaitingPayment-cronen.
-//
-// Returnerar alltid 200 (idempotent — sendBeacon/beforeunload kan trigga
-// flera gånger; vi vill inte krascha klienten på en redan-raderad order).
+// Idempotent abandon av en AWAITING_PAYMENT-order. Vi hard-delete:ar aldrig en
+// order som kan ha en pågående PSP-betalning: en sen Swish/Klarna/3DS-success
+// måste fortfarande kunna bli en riktig restaurangorder. PSP:n är sanningskälla.
 router.post('/:id/abandon', async (req: Request, res: Response) => {
   try {
     const { phone: bodyPhone, accessToken: bodyAccessToken } = req.body || {};
@@ -2456,53 +2623,37 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
         paymentStatus: true,
         customerPhone: true,
         userId: true,
-        userDealId: true,
         accessToken: true,
+        createdAt: true,
+        paymentProvider: true,
+        molliePaymentId: true,
+        stripePaymentIntentId: true,
+        adyenSessionId: true,
       },
     });
 
-    // Order hittades inte = redan raderad av tidigare abandon-call eller av
-    // cleanup-cronen. Idempotent: returnera 200 så klienten inte retryar.
+    // Okänd order är idempotent för klienten.
     if (!order) return res.json({ success: true, alreadyGone: true });
 
-    // Bara AWAITING_PAYMENT som inte är PAID får raderas. Allt annat är
-    // antingen en betald order (vill inte radera!) eller en redan cancellerad.
-    // Returnera 200 även här — klienten ska inte logga fel.
-    if (order.status !== 'AWAITING_PAYMENT' || (order as any).paymentStatus === 'PAID') {
-      return res.json({ success: true, skipped: 'not-awaiting' });
-    }
-
-    // ── Owner-check (samma pattern som /:id/review) ────────────────────────
+    // Owner-check görs före status-svaret. Annars kunde ett gissat order-id
+    // avslöja om ordern existerade och om den fortfarande väntade på betalning.
     let isOwner = false;
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      const bearer = authHeader.split(' ')[1];
-      if (supabaseAdmin) {
-        try {
-          const { data: { user: sbUser } } = await supabaseAdmin.auth.getUser(bearer);
-          if (sbUser && (order as any).userId === sbUser.id) isOwner = true;
-        } catch { /* fallthrough */ }
-      }
-      if (!isOwner) {
-        try {
-          const payload = jwt.verify(bearer, JWT_SECRET) as any;
-          if (payload?.id && (order as any).userId === payload.id) isOwner = true;
-        } catch { /* fallthrough */ }
-      }
+    if (verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], order.id)) {
+      isOwner = true;
     }
+    const callerUserId = await resolveActiveCustomerIdFromAuthorization(
+      req.headers.authorization,
+    ).catch(() => null);
+    if (callerUserId && (order as any).userId === callerUserId) isOwner = true;
     if (!isOwner) {
       const tokenCandidate =
-        (typeof req.query.token === 'string' ? req.query.token : null) ||
-        (typeof bodyAccessToken === 'string' ? bodyAccessToken : null);
-      const orderToken = (order as any).accessToken as string | null | undefined;
-      if (tokenCandidate && orderToken && tokenCandidate === orderToken) {
+        typeof bodyAccessToken === 'string' ? bodyAccessToken : null;
+      if (ownsOrderWithActiveRawSecret(order, tokenCandidate)) {
         isOwner = true;
       }
     }
-    if (!isOwner) {
-      const phoneCandidate =
-        (typeof req.query.phone === 'string' ? req.query.phone : null) ||
-        (typeof bodyPhone === 'string' ? bodyPhone : null);
+    if (!isOwner && allowLegacyOrderPhoneProof()) {
+      const phoneCandidate = typeof bodyPhone === 'string' ? bodyPhone : null;
       const normalize = (p: string | null | undefined) => (p || '').replace(/[^\d+]/g, '');
       if (phoneCandidate && normalize(phoneCandidate) === normalize((order as any).customerPhone)) {
         isOwner = true;
@@ -2513,33 +2664,62 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Order hittades inte' });
     }
 
-    // ── Revert UserDeal (om någon reserverats) ─────────────────────────────
-    if ((order as any).userDealId) {
-      await (prisma as any).userDeal
-        .updateMany({
-          where: { id: (order as any).userDealId, status: 'RESERVED', usedOnOrderId: order.id },
-          data: { status: 'ACTIVE', usedOnOrderId: null },
-        })
-        .catch(() => {});
+    // Bara en obetald AWAITING_PAYMENT-order kan överges.
+    if (order.status !== 'AWAITING_PAYMENT' || (order as any).paymentStatus === 'PAID') {
+      return res.json({ success: true, skipped: 'not-awaiting' });
     }
 
-    // ── Delete (race-safe via re-assertad where) ───────────────────────────
-    // Om webhook precis flippade ordern till PENDING+PAID i en parallell
-    // transaktion så matchar where-klausulen INTE → 0 rows affected → ordern
-    // bevaras. Det är exakt vad vi vill.
-    const deleted = await prisma.order.deleteMany({
-      where: {
-        id: order.id,
-        status: 'AWAITING_PAYMENT',
-        paymentStatus: { not: 'PAID' },
-      },
-    });
+    if (!['mollie', 'stripe', 'adyen'].includes(order.paymentProvider)) {
+      await finalizePaymentFailed(order.id, { provider: 'stripe', reason: 'unknown-provider' });
+      return res.json({ success: true, failed: true });
+    }
+    const provider = getPaymentProviderByName(order.paymentProvider as PaymentProviderName);
+    const ref =
+      provider.name === 'mollie'
+        ? order.molliePaymentId
+        : provider.name === 'stripe'
+          ? order.stripePaymentIntentId
+          : order.adyenSessionId;
+    if (!ref) {
+      await finalizePaymentFailed(order.id, {
+        provider: provider.name,
+        reason: 'abandoned-before-payment-start',
+      });
+      return res.json({ success: true, failed: true });
+    }
 
-    return res.json({ success: true, deleted: deleted.count });
+    try {
+      const remote = await provider.getRemoteStatus(ref);
+      if (remote.state === 'paid') {
+        await finalizePaymentSuccess(order.id, {
+          provider: provider.name,
+          ref: remote.paymentIntentId || ref,
+          amountReceivedOre: remote.amountReceivedOre ?? 0,
+        });
+        return res.json({ success: true, paid: true });
+      }
+      if (['failed', 'canceled', 'expired'].includes(remote.state)) {
+        await finalizePaymentFailed(order.id, {
+          provider: provider.name,
+          ref,
+          reason: remote.state,
+        });
+        return res.json({ success: true, failed: true });
+      }
+      // Fortfarande open/pending: bevara order, reservation och PSP-ref. En
+      // webhook eller reconcile kan fortfarande bekräfta betalningen säkert.
+      return res.json({ success: true, pending: true, preserved: true });
+    } catch (error) {
+      console.error(
+        '[orders/abandon] kunde inte verifiera PSP-status:',
+        (error as Error)?.message,
+      );
+      return res.json({ success: true, pending: true, preserved: true });
+    }
   } catch (error) {
     console.error('Abandon order error:', error);
-    // Idempotent: även vid serverfel ska klienten inte spinna i en retry-
-    // loop. Cleanup-cronen tar hand om kvarvarande ordrar inom 5 min ändå.
+    // Idempotent: klienten ska inte spinna i en retry-loop. Reconcile/cleanup
+    // bevarar underlaget och stämmer av PSP-status igen.
     return res.json({ success: false, error: 'internal' });
   }
 });

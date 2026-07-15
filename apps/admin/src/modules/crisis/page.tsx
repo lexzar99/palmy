@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, BellOff, Ban, DollarSign, Loader2, Megaphone, Pause, Play, Power, RotateCcw, Timer, MapPin } from "lucide-react";
+import { Bell, BellOff, Ban, Loader2, Megaphone, Pause, Play, Power, RotateCcw, Timer, MapPin } from "lucide-react";
 import { Badge, Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import {
-  bulkRefundRestaurant,
   deactivateRestaurant,
   emergencyCloseAll,
   emergencyOpenAll,
@@ -342,23 +341,12 @@ function CityPauseControls() {
   );
 }
 
-// Bulk-refund + akut deactivate för en vald restaurang
+// Akut deactivation för en vald restaurang. Refunds hanteras alltid manuellt
+// från den enskilda ordern.
 function PerRestaurantCrisis() {
   const restaurants = useQuery({ queryKey: ["restaurants-for-crisis"], queryFn: getDealRestaurants });
   const [selectedId, setSelectedId] = useState("");
-  const [fromDate, setFromDate] = useState(new Date().toISOString().slice(0, 10));
-  const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
-  const [refundReason, setRefundReason] = useState("");
   const [deactivateReason, setDeactivateReason] = useState("");
-
-  const refundMut = useMutation({
-    mutationFn: () => bulkRefundRestaurant(selectedId, { fromDate, toDate, reason: refundReason }),
-    onSuccess: (data) => {
-      alert(`Bulk-refund klar.\n\nRefunderat: ${data.summary.refunded}\nSkippade: ${data.summary.skipped}\nFailade: ${data.summary.failed}\nTotalt: ${data.summary.total}`);
-      setRefundReason("");
-    },
-    onError: (err: any) => alert(err?.response?.data?.error || "Bulk-refund misslyckades."),
-  });
 
   const deactivateMut = useMutation({
     mutationFn: () => deactivateRestaurant(selectedId, deactivateReason),
@@ -384,7 +372,7 @@ function PerRestaurantCrisis() {
         <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Per-restaurang krisåtgärder</h2>
       </div>
       <p className="mt-2 mb-4 text-[13px] leading-relaxed text-[var(--text-secondary)]">
-        Riktade åtgärder för en enskild restaurang. Refundering och deaktivering kan inte ångras.
+        Riktad akut deaktivering för en enskild restaurang. Eventuella refunds görs manuellt, en order i taget, från ordervyn.
       </p>
 
       <Field label="Välj restaurang">
@@ -398,38 +386,6 @@ function PerRestaurantCrisis() {
 
       {selectedId && (
         <>
-          {/* Bulk-refund */}
-          <div className="mt-6 pt-6 border-t" style={{ borderColor: "var(--row-divider)" }}>
-            <div className="flex items-center gap-2.5 mb-3">
-              <DollarSign size={16} className="text-[var(--warning)]" />
-              <h3 className="text-[14px] font-extrabold tracking-[-0.3px]">Bulk-refund alla orders</h3>
-            </div>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <Field label="Från">
-                <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} max={toDate} />
-              </Field>
-              <Field label="Till">
-                <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} min={fromDate} />
-              </Field>
-            </div>
-            <Field label="Anledning">
-              <Input value={refundReason} onChange={(e) => setRefundReason(e.target.value)} placeholder="Kvalitetsproblem 2026-05-11" />
-            </Field>
-            <Button
-              variant="danger"
-              className="mt-3"
-              onClick={() => {
-                if (!refundReason.trim()) { alert("Anledning krävs."); return; }
-                const ok = window.confirm(`Återbetala ALLA ordrar ${fromDate} → ${toDate}?\n\nAnledning: ${refundReason}\n\nKan inte ångras.`);
-                if (ok) refundMut.mutate();
-              }}
-              disabled={refundMut.isPending}
-            >
-              {refundMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />}
-              Bulk-refund nu
-            </Button>
-          </div>
-
           {/* Deactivate */}
           <div className="mt-6 pt-6 border-t" style={{ borderColor: "var(--row-divider)" }}>
             <div className="flex items-center gap-2.5 mb-3">

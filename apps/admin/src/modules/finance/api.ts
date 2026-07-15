@@ -31,6 +31,7 @@ export interface FinanceRow {
   feeVat: number;
   payout: number; // netto att betala ut (≥ 0)
   owed: number; // restaurangen är skyldig oss (faktureras) — > 0 ersätter payout
+  usesFrozenSnapshot: boolean;
   status: string | null;
   payoutReference: string | null;
 }
@@ -74,6 +75,14 @@ export interface PayoutSpec {
   };
   company: { name: string | null; organizationNumber: string | null; address: string | null };
   period: { from: string; to: string };
+  refundWindow: { hours: number; closesAt: string; closed: boolean };
+  lateRefundRecovery: {
+    blocked: boolean;
+    error: string | null;
+    reserved: number;
+    remaining: number;
+    sourceCount: number;
+  };
   breakdown: {
     orderCount: number;
     grossTotal: number;
@@ -95,12 +104,22 @@ export interface PayoutSpec {
   orders: PayoutSpecOrder[];
   persisted: {
     status: string;
-    adjustmentAmount: number;
+    grossSales: number;
+    orderCount: number;
+    commissionAmount: number;
+    subscriptionAmount: number;
+    manualAdjustmentAmount: number;
+    lateRefundAdjustmentAmount: number;
     payoutAmount: number;
+    commissionPctSnapshot: number | null;
+    feeVatPctSnapshot: number | null;
+    selfDeliverySnapshot: boolean | null;
     notes: string | null;
     payoutReference: string | null;
     approvedAt: string | null;
+    approvedBy: string | null;
     paidAt: string | null;
+    paidBy: string | null;
     updatedAt: string;
   } | null;
 }
@@ -128,12 +147,7 @@ export const upsertPayout = (payload: {
   restaurantId: string;
   periodStart: string;
   periodEnd: string;
-  grossSales: number;
-  orderCount: number;
-  commissionAmount: number;
-  subscriptionAmount: number;
-  adjustmentAmount: number;
-  payoutAmount: number;
+  manualAdjustmentAmount: number;
   status: string;
   notes?: string | null;
   payoutReference?: string | null;

@@ -1,13 +1,14 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import prisma from '../lib/prisma';
 import { JWT_SECRET } from '../lib/config';
 import { getIO } from '../lib/socket';
 import { haversineKm } from '../utils/geo';
 import { authenticate, requireSuperAdmin, type AuthRequest } from '../middleware/auth';
 import { saveSubscription, removeSubscription, getVapidPublicKey, notifyCourierAccepted, notifyCouriersOrderReady } from '../lib/courierPush';
-import { sendOrderStatusPush } from '../lib/customerPush';
+import { dispatchCustomerOrderStatus } from '../lib/customerOrderNotifier';
 import { registerCourierFcmToken, clearCourierFcmToken, sendCourierFcm, sendTestFcm, isFcmConfigured } from '../lib/courierFcm';
 import { clearCourierApnsToken, registerCourierApnsToken, sendTestCourierApns } from '../lib/courierApns';
 import { uploadToR2, deleteFromR2, r2Enabled } from '../lib/r2';
@@ -121,7 +122,7 @@ function emitOrderStatus(order: any) {
       etaPriorityScore: order.etaPriorityScore ?? null,
       etaReason: order.etaReason ?? null,
     });
-    void sendOrderStatusPush(order.id, order.status);
+    void dispatchCustomerOrderStatus(order.id, order.status);
     io.to('admin-room').emit('order:updated', { orderId: order.id });
     if (order.restaurantId) io.to(`admin-room:${order.restaurantId}`).emit('order:updated', { orderId: order.id });
   } catch {
@@ -341,8 +342,36 @@ router.post('/jobs/:orderId/accept', requireCourier, async (req: CourierRequest,
 router.post('/deliveries/:id/picked-up', requireCourier, async (req: CourierRequest, res) => {
   const d = await prisma.delivery.findFirst({ where: { id: req.params.id, courierId: req.courier.id }, include: { order: true } });
   if (!d) return res.status(404).json({ error: 'Leveransen hittades inte' });
-  await prisma.delivery.update({ where: { id: d.id }, data: { status: 'PICKED_UP', pickedUpAt: new Date() } });
-  const order = await prisma.order.update({ where: { id: d.orderId }, data: { status: 'DELIVERING', deliveringAt: new Date() } });
+  if (d.status === 'PICKED_UP' && d.order.status === 'DELIVERING') {
+    const full = await prisma.delivery.findUnique({ where: { id: d.id }, include: { order: { include: { restaurant: true, items: true } } } });
+    return res.json({ ...activeFromDelivery(full), idempotent: true });
+  }
+  if (d.status !== 'EN_ROUTE_PICKUP') {
+    return res.status(409).json({ error: `Leveransen kan inte hämtas från status ${d.status}` });
+  }
+  if (d.order.status !== 'READY') {
+    return res.status(409).json({ error: 'Restaurangen har inte markerat maten som redo ännu' });
+  }
+
+  const now = new Date();
+  const order = await prisma.$transaction(async (tx) => {
+    const deliveryChanged = await tx.delivery.updateMany({
+      where: { id: d.id, courierId: req.courier.id, status: 'EN_ROUTE_PICKUP' },
+      data: { status: 'PICKED_UP', pickedUpAt: now },
+    });
+    const orderChanged = await tx.order.updateMany({
+      where: { id: d.orderId, status: 'READY' },
+      data: { status: 'DELIVERING', deliveringAt: now },
+    });
+    if (deliveryChanged.count !== 1 || orderChanged.count !== 1) {
+      throw new Error('PICKUP_STATUS_CONFLICT');
+    }
+    return tx.order.findUniqueOrThrow({ where: { id: d.orderId } });
+  }).catch((error) => {
+    if ((error as Error)?.message === 'PICKUP_STATUS_CONFLICT') return null;
+    throw error;
+  });
+  if (!order) return res.status(409).json({ error: 'Ordern uppdaterades på en annan enhet. Försök igen.' });
   const etaByOrder = await refreshCourierActiveEtas(req.courier.id, { courier: req.courier });
   const eta = etaByOrder.get(d.orderId) ?? null;
   emitOrderStatus({ ...order, ...(eta ?? {}) });
@@ -357,9 +386,15 @@ router.post('/deliveries/:id/complete', requireCourier, async (req: CourierReque
 
   const d = await prisma.delivery.findFirst({
     where: { id: req.params.id, courierId: req.courier.id },
-    include: { order: { select: { id: true, orderNumber: true, customerName: true } } },
+    include: { order: { select: { id: true, orderNumber: true, customerName: true, status: true } } },
   });
   if (!d) return res.status(404).json({ error: 'Leveransen hittades inte' });
+  if (d.status === 'DELIVERED' && d.order.status === 'DELIVERED') {
+    return res.json({ ok: true, idempotent: true, proofPhotoUrl: d.proofPhotoUrl });
+  }
+  if (d.status !== 'PICKED_UP' || d.order.status !== 'DELIVERING') {
+    return res.status(409).json({ error: 'Leveransen är inte i läget på väg till kunden' });
+  }
 
   // Foto är OBLIGATORISKT när maten lämnas vid dörren (bevis), valfritt i hand.
   const hasPhoto = typeof photoDataUrl === 'string' && photoDataUrl.startsWith('data:image');
@@ -377,7 +412,7 @@ router.post('/deliveries/:id/complete', requireCourier, async (req: CourierReque
       const b64 = photoDataUrl.split(',')[1] || '';
       const buf = Buffer.from(b64, 'base64');
       if (buf.length > 0 && buf.length <= 6_000_000) {
-        const key = `delivery-proof/${d.id}.jpg`;
+        const key = `delivery-proof/${d.id}-${randomBytes(6).toString('hex')}.jpg`;
         const up = await uploadToR2(key, buf, 'image/jpeg');
         proofPhotoUrl = up.url;
         proofPhotoKey = key;
@@ -390,19 +425,36 @@ router.post('/deliveries/:id/complete', requireCourier, async (req: CourierReque
     }
   }
 
-  await prisma.delivery.update({
-    where: { id: d.id },
-    data: {
-      status: 'DELIVERED',
-      deliveredAt: new Date(),
-      proofMethod,
-      proofMessage: note || null,
-      proofPhotoUrl,
-      proofPhotoKey,
-      proofExpiresAt,
-    },
+  const deliveredAt = new Date();
+  const order = await prisma.$transaction(async (tx) => {
+    const deliveryChanged = await tx.delivery.updateMany({
+      where: { id: d.id, courierId: req.courier.id, status: 'PICKED_UP' },
+      data: {
+        status: 'DELIVERED',
+        deliveredAt,
+        proofMethod,
+        proofMessage: note || null,
+        proofPhotoUrl,
+        proofPhotoKey,
+        proofExpiresAt,
+      },
+    });
+    const orderChanged = await tx.order.updateMany({
+      where: { id: d.orderId, status: 'DELIVERING' },
+      data: { status: 'DELIVERED' },
+    });
+    if (deliveryChanged.count !== 1 || orderChanged.count !== 1) {
+      throw new Error('DELIVERY_STATUS_CONFLICT');
+    }
+    return tx.order.findUniqueOrThrow({ where: { id: d.orderId } });
+  }).catch((error) => {
+    if ((error as Error)?.message === 'DELIVERY_STATUS_CONFLICT') return null;
+    throw error;
   });
-  const order = await prisma.order.update({ where: { id: d.orderId }, data: { status: 'DELIVERED' } });
+  if (!order) {
+    if (proofPhotoKey) await deleteFromR2(proofPhotoKey).catch(() => null);
+    return res.status(409).json({ error: 'Leveransen uppdaterades på en annan enhet. Försök igen.' });
+  }
   void import('./referrals').then(({ maybeTriggerReferralReward }) =>
     maybeTriggerReferralReward(order.id),
   );

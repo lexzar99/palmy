@@ -88,7 +88,6 @@ export function OrderTrackingCard({
   const tone = isCancelled ? "red" : isDone || isOnWay ? "green" : ["PREPARING", "READY"].includes(status) ? "yellow" : "orange";
   const accent = tone === "red" ? "#C0392B" : tone === "green" ? "#2E7D4F" : tone === "yellow" ? "#E1A70D" : "#F0531C";
   const accentInk = tone === "red" ? "#9A2A1F" : tone === "green" ? "#1F6B41" : tone === "yellow" ? "#8A5B00" : "#B23C12";
-  const border = tone === "red" ? "rgba(192,57,43,0.28)" : tone === "green" ? "rgba(46,125,79,0.22)" : tone === "yellow" ? "rgba(217,154,11,0.25)" : "rgba(240,83,28,0.18)";
   const soft = tone === "red" ? "#FCEBE9" : tone === "green" ? "#EAF7EF" : tone === "yellow" ? "#FFF7DB" : "#FFF0EA";
   const step = stepFor(status, isPickup);
   const labels = isPickup ? ["Mottagen", "Tillagas", "Redo"] : ["Mottagen", "Tillagas", isDone ? "Levererad" : "På väg"];
@@ -118,33 +117,35 @@ export function OrderTrackingCard({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`relative isolate overflow-hidden rounded-[22px] bg-white p-3 ${className}`}
-      style={{ border: `1px solid ${border}`, boxShadow: full ? "0 18px 40px rgba(17,17,19,0.10)" : "0 10px 24px rgba(17,17,19,0.08)" }}
+      className={`relative isolate overflow-hidden rounded-[20px] bg-white p-4 ${className}`}
+      style={{ border: "1px solid rgba(17,17,19,0.08)", boxShadow: full ? "0 18px 40px rgba(17,17,19,0.10)" : "0 8px 22px rgba(17,17,19,0.07)" }}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <Icon size={21} style={{ color: accent }} />
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ backgroundColor: soft }}>
+            <Icon size={18} style={{ color: accent }} />
+          </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[9px] font-black uppercase tracking-[0.075em]" style={{ color: accent }}>
+            <p className="text-[9px] font-black uppercase tracking-[0.09em]" style={{ color: "var(--text-secondary)" }}>
               ORDER {orderNumber ? `#${orderNumber}` : ""}
             </p>
-            <h3 className="truncate text-[15.5px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>
+            <h3 className="mt-0.5 truncate text-[16px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>
               {statusText(status, isPickup)}
             </h3>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-[15.5px] font-black tabular-nums" style={{ color: accent }}>{isCancelled ? "Stängd" : etaLabel(order, now)}</p>
+        <div className="rounded-full px-3 py-1.5 text-right" style={{ backgroundColor: soft }}>
+          <p className="text-[15px] font-black tabular-nums" style={{ color: accent }}>{isCancelled ? "Stängd" : etaLabel(order, now)}</p>
           {full ? <p className="text-[10.5px] font-bold" style={{ color: "var(--text-secondary)" }}>{modeLabel}</p> : null}
         </div>
       </div>
 
       <div
-        className="mt-2.5 overflow-hidden rounded-2xl border"
+        className="mt-3 overflow-hidden rounded-[18px] border"
         style={{
-          height: canMap ? (full ? 220 : 132) : isDone ? 112 : 84,
-          backgroundColor: tone === "green" ? "#EAF7EF" : tone === "yellow" ? "#FFF8E6" : "#FFF7F1",
-          borderColor: tone === "green" ? "rgba(46,125,79,0.16)" : tone === "yellow" ? "rgba(217,154,11,0.16)" : "rgba(17,17,19,0.06)",
+          height: canMap ? (full ? 220 : 132) : isDone ? 104 : 76,
+          backgroundColor: "#F7F7F5",
+          borderColor: "rgba(17,17,19,0.07)",
         }}
       >
         {canMap && pickup && dropoff ? (
@@ -181,17 +182,17 @@ export function OrderTrackingCard({
 
       {!isDone && !isCancelled ? (
         <div className="mt-2.5 min-h-[38px]">
-          <div className="relative h-2 overflow-hidden rounded-full" style={{ backgroundColor: soft }}>
+          <div className="relative h-1.5 overflow-hidden rounded-full" style={{ backgroundColor: "#ECECE8" }}>
             <div className="h-full rounded-full" style={{ width: progress, backgroundColor: accent }} />
             <div className="tracking-sweep absolute inset-y-0 w-12 rounded-full bg-white/50" />
           </div>
-          <div className="mt-1.5 flex justify-between gap-1">
+          <div className="mt-2 flex justify-between gap-1">
             {labels.map((label, i) => {
               const active = Math.max(0, Math.min(labels.length - 1, step - 1)) === i;
               return (
                 <span
                   key={label}
-                  className="flex-1 truncate text-[11.5px] font-bold"
+                  className="flex-1 truncate text-[11px] font-bold"
                   style={{ textAlign: i === 0 ? "left" : i === labels.length - 1 ? "right" : "center", color: active ? accentInk : i < step - 1 ? "var(--text-primary)" : "var(--text-secondary)" }}
                 >
                   {label}
@@ -202,9 +203,9 @@ export function OrderTrackingCard({
         </div>
       ) : null}
 
-      <div className="mt-2 flex items-center justify-between gap-3">
-        <p className="min-w-0 flex-1 truncate text-[12.5px] font-bold" style={{ color: "var(--text-secondary)" }}>{restaurantLabel}</p>
-        <span className="inline-flex items-center gap-1 text-[12.5px] font-black" style={{ color: accent }}>
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-[rgba(17,17,19,0.07)] pt-3">
+        <p className="min-w-0 flex-1 truncate text-[12px] font-bold" style={{ color: "var(--text-secondary)" }}>{restaurantLabel}</p>
+        <span className="inline-flex items-center gap-1 text-[12px] font-black" style={{ color: "var(--text-primary)" }}>
           {full ? "Orderdetaljer" : "Visa order"} <ChevronRight size={15} />
         </span>
       </div>

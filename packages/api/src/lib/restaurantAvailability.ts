@@ -7,6 +7,7 @@ export type RestaurantAvailabilityReason =
   | 'PLATFORM_PAUSED'
   | 'CITY_PAUSED'
   | 'RESTAURANT_PAUSED'
+  | 'ARCHIVED'
   | 'DRAFT'
   | 'COMING_SOON'
   | 'MANUAL_FORCE_CLOSED'
@@ -21,6 +22,7 @@ export interface AvailabilityRestaurant {
   acceptingOrdersOverrideUntil?: Date | string | null;
   acceptingOrdersOverrideReason?: string | null;
   pausedUntil?: Date | string | null;
+  archivedAt?: Date | string | null;
   draft?: boolean | null;
   comingSoon?: boolean | null;
 }
@@ -72,7 +74,7 @@ export const normalizeAcceptingOrdersMode = (value: unknown): AcceptingOrdersMod
 /**
  * Single source of truth for every customer/order/admin surface.
  * Precedence is deliberately explicit:
- * platform crisis > city crisis > restaurant pause > unpublished state >
+ * platform crisis > city crisis > restaurant pause > archived/unpublished state >
  * active manual override > opening-hours schedule.
  */
 export function resolveRestaurantAvailability(
@@ -111,6 +113,9 @@ export function resolveRestaurantAvailability(
   } else if (restaurantPaused) {
     isOpen = false;
     reason = 'RESTAURANT_PAUSED';
+  } else if (restaurant.archivedAt != null) {
+    isOpen = false;
+    reason = 'ARCHIVED';
   } else if (restaurant.draft === true) {
     isOpen = false;
     reason = 'DRAFT';

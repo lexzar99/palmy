@@ -28,8 +28,6 @@ const AASA = {
       {
         appID: '3KDGPYZXHH.se.delivera.app',
         paths: [
-          '/verify-email*',
-          '/reset-password*',
           '/r/*',
           // Referral/invite-länk: delivera.se/i/<kod>. Med appen installerad
           // öppnar iOS appen direkt → App.tsx fångar koden, attribuerar efter

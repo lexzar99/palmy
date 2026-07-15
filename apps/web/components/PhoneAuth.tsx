@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Loader2, Phone, ArrowLeft } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { persistPlatformSession, clearLoggedOutMark } from "@/lib/platformSessionClient";
+import { persistPlatformSession, markExplicitLoginStarted } from "@/lib/platformSessionClient";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { API_URL } from "@/lib/api";
 import PhoneCountrySelect from "@/components/PhoneCountrySelect";
@@ -71,7 +71,10 @@ export default function PhoneAuth() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    clearLoggedOutMark(); // explicit inloggning → häv utloggnings-spärren
+    // Keep the deny-only logout sentinel until OTP has been verified and the
+    // replacement platform session is installed. The intent lets profile
+    // bootstrap distinguish this flow from an accidental stale session.
+    markExplicitLoginStarted();
     try {
       const supabase = createSupabaseBrowserClient();
       const { error: err } = await supabase.auth.signInWithOtp({ phone: fullPhone() });

@@ -6,7 +6,7 @@ import axios from "axios";
 import { ChevronRight, History } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
-import { readOrderHistory, type StoredOrderRef } from "@/lib/orderHistory";
+import { forgetRawOrderAccessToken, readOrderHistory, type StoredOrderRef } from "@/lib/orderHistory";
 
 // Ordrar som inte ska visas i historiken — samma filter som profilens
 // order-flik (avbrutna/avvisade/obetalda göms).
@@ -16,6 +16,7 @@ const HIDDEN_PAYMENT_STATUSES = new Set(["PENDING", "FAILED", "EXPIRED"]);
 type OrderRow = {
   id: string;
   phone: string | null;
+  accessToken?: string | null;
   createdAt?: string | null;
   restaurantName?: string | null;
   total?: number | null; // kr — API:t levererar redan kronor, dividera ALDRIG igen
@@ -66,9 +67,8 @@ export default function OrdersPage() {
     let active = true;
 
     const loadLoggedIn = async () => {
-      // Samma endpoint + statusfilter som profilens order-flik. Telefonen
-      // används som ägarbevis i order-länken (order.customerPhone, med
-      // profilens nummer som fallback).
+      // Samma endpoint + statusfilter som profilens order-flik. Inloggade
+      // orderlänkar behöver ingen PII i URL:en; proxyn skickar sessionen.
       const [ordersRes, profileRes] = await Promise.all([
         axios.get(`/api/platform/profile/orders`).catch(() => ({ data: [] })),
         axios.get(`/api/platform/profile`).catch(() => ({ data: null })),
@@ -83,6 +83,7 @@ export default function OrdersPage() {
         .map((order: any): OrderRow => ({
           id: String(order.id),
           phone: order.customerPhone || profilePhone,
+          accessToken: null,
           createdAt: order.createdAt ?? null,
           restaurantName: order.restaurantName || order.restaurant?.name || null,
           total: Number(order.total ?? order.totalAmount ?? 0),
@@ -93,13 +94,14 @@ export default function OrdersPage() {
     };
 
     const loadGuest = async () => {
-      // Gäst: lokalt sparade order-referenser. Live-status hämtas i EN batch
-      // per telefonnummer via /api/orders/status-batch (genom platform-proxyn);
-      // telefonen är ägarbeviset, precis som på ordersidan.
+      // Gäst: lokalt sparade, icke-hemliga orderreferenser. Varje rad hämtas
+      // med sin orderspecifika HttpOnly-session. Äldre raw-token migreras en
+      // gång via POST-body och raderas sedan från localStorage.
       const refs = readOrderHistory();
       const base: OrderRow[] = refs.map((ref: StoredOrderRef) => ({
         id: ref.id,
         phone: ref.phone,
+        accessToken: ref.accessToken ?? null,
         createdAt: ref.createdAt,
         restaurantName: ref.restaurantName ?? null,
         total: typeof ref.total === "number" ? ref.total : null,
@@ -108,21 +110,24 @@ export default function OrdersPage() {
       if (active) setOrders(base);
       if (base.length === 0) return;
 
-      const byPhone = new Map<string, string[]>();
-      refs.forEach((ref) => {
-        if (!ref.phone) return;
-        byPhone.set(ref.phone, [...(byPhone.get(ref.phone) ?? []), ref.id]);
-      });
-      const batches = await Promise.all(
-        Array.from(byPhone.entries()).map(([phone, ids]) =>
-          axios
-            .get(`/api/platform/orders/status-batch`, { params: { ids: ids.join(","), phone } })
-            .then((res) => (Array.isArray(res.data) ? res.data : []))
-            .catch(() => []),
-        ),
-      );
+      const summaries = await Promise.all(refs.slice(0, 20).map(async (ref) => {
+        if (typeof ref.accessToken === "string" && ref.accessToken.length >= 20) {
+          try {
+            await axios.post(`/api/platform/orders/${ref.id}/session`, {
+              accessToken: ref.accessToken,
+            });
+            forgetRawOrderAccessToken(ref.id);
+          } catch {
+            // The existing HttpOnly cookie may still authorize the summary.
+          }
+        }
+        return axios
+          .get(`/api/platform/orders/${ref.id}/summary`)
+          .then((res) => res.data)
+          .catch(() => null);
+      }));
       const liveById = new Map<string, any>();
-      batches.flat().forEach((row: any) => { if (row?.id) liveById.set(String(row.id), row); });
+      summaries.forEach((row: any) => { if (row?.id) liveById.set(String(row.id), row); });
       if (!active || liveById.size === 0) return;
       setOrders((current) =>
         current
@@ -184,9 +189,7 @@ export default function OrdersPage() {
         ) : (
           <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
             {orders.map((order, index) => {
-              const href = order.phone
-                ? `/order/${order.id}?phone=${encodeURIComponent(order.phone)}`
-                : `/order/${order.id}`;
+              const href = `/order/${order.id}`;
               const status = statusLabel(order.status);
               const date = dateLabel(order.createdAt);
               const items =

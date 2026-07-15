@@ -114,7 +114,6 @@ function metadataFor(order: OrderForPayment): Stripe.MetadataParam {
     orderId: order.id,
     orderNumber: order.orderNumber,
     viaeatsUserId: order.userId || '',
-    customerPhone: order.customerPhone || '',
     restaurantName: order.restaurantName || '',
   };
 }
@@ -191,19 +190,25 @@ async function resolveRefundPaymentIntent(paymentRef: string): Promise<string> {
  * 'never'` så bara icke-redirect-metoder (kort, Apple Pay) dyker upp i
  * sheeten — appen har ingen webView att fånga en redirect-retur i.
  */
-async function createNativePaymentIntent(order: OrderForPayment): Promise<CreatePaymentResult> {
+async function createNativePaymentIntent(
+  order: OrderForPayment,
+  idempotencyKey: string,
+): Promise<CreatePaymentResult> {
   const publishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
   if (!publishableKey) throw new Error('STRIPE_PUBLISHABLE_KEY saknas');
 
   const metadata = metadataFor(order);
-  const intent = await stripe().paymentIntents.create({
-    amount: order.total,
-    currency: CURRENCY,
-    metadata,
-    description: `${order.orderNumber}${order.restaurantName ? ` - ${order.restaurantName}` : ''}`,
-    receipt_email: order.customerEmail || undefined,
-    automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-  });
+  const intent = await stripe().paymentIntents.create(
+    {
+      amount: order.total,
+      currency: CURRENCY,
+      metadata,
+      description: `${order.orderNumber}${order.restaurantName ? ` - ${order.restaurantName}` : ''}`,
+      receipt_email: order.customerEmail || undefined,
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+    },
+    { idempotencyKey },
+  );
 
   if (!intent.client_secret) throw new Error('Stripe PaymentIntent saknade client_secret');
   return {
@@ -216,9 +221,9 @@ async function createNativePaymentIntent(order: OrderForPayment): Promise<Create
 export const stripeProvider: PaymentProvider = {
   name: 'stripe',
 
-  async createPayment({ order, returnUrl, channel }: CreatePaymentArgs): Promise<CreatePaymentResult> {
+  async createPayment({ order, returnUrl, channel, idempotencyKey }: CreatePaymentArgs): Promise<CreatePaymentResult> {
     if (channel === 'iOS' || channel === 'Android') {
-      return createNativePaymentIntent(order);
+      return createNativePaymentIntent(order, idempotencyKey);
     }
 
     const methodTypes = configuredPaymentMethodTypes();
@@ -243,12 +248,15 @@ export const stripeProvider: PaymentProvider = {
 
     let session: Stripe.Checkout.Session;
     try {
-      session = await stripe().checkout.sessions.create({
-        ...baseParams,
-        ...(methodTypes
-          ? { payment_method_types: methodTypes }
-          : {}),
-      } as Stripe.Checkout.SessionCreateParams);
+      session = await stripe().checkout.sessions.create(
+        {
+          ...baseParams,
+          ...(methodTypes
+            ? { payment_method_types: methodTypes }
+            : {}),
+        } as Stripe.Checkout.SessionCreateParams,
+        { idempotencyKey },
+      );
     } catch (err: any) {
       const strictMethods = process.env.STRIPE_STRICT_PAYMENT_METHODS === 'true';
       if (!methodTypes || strictMethods || !isPaymentMethodConfigurationError(err)) throw err;
@@ -256,9 +264,12 @@ export const stripeProvider: PaymentProvider = {
         configured: methodTypes,
         error: err?.message,
       });
-      session = await stripe().checkout.sessions.create({
-        ...baseParams,
-      } as Stripe.Checkout.SessionCreateParams);
+      session = await stripe().checkout.sessions.create(
+        {
+          ...baseParams,
+        } as Stripe.Checkout.SessionCreateParams,
+        { idempotencyKey: `${idempotencyKey}-dynamic` },
+      );
     }
 
     if (!session.url) throw new Error('Stripe Checkout saknade redirect-URL');
@@ -269,12 +280,15 @@ export const stripeProvider: PaymentProvider = {
     return retrieveStripeCheckoutStatus(paymentRef);
   },
 
-  async refund(paymentRef: string, amountOre?: number): Promise<{ refundRef: string }> {
+  async refund(paymentRef: string, amountOre?: number, idempotencyKey?: string): Promise<{ refundRef: string }> {
     const paymentIntent = await resolveRefundPaymentIntent(paymentRef);
-    const refund = await stripe().refunds.create({
-      payment_intent: paymentIntent,
-      ...(amountOre != null ? { amount: amountOre } : {}),
-    });
+    const refund = await stripe().refunds.create(
+      {
+        payment_intent: paymentIntent,
+        ...(amountOre != null ? { amount: amountOre } : {}),
+      },
+      idempotencyKey ? { idempotencyKey } : undefined,
+    );
     return { refundRef: refund.id };
   },
 };

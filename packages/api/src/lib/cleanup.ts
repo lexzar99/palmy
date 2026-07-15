@@ -1,5 +1,8 @@
 import prisma from './prisma';
 import { deleteFromR2 } from './r2';
+import { getPaymentProviderByName } from './payments';
+import { finalizePaymentFailed, finalizePaymentSuccess } from './payments/finalize';
+import type { PaymentProviderName } from './payments/finalize';
 
 /**
  * Radera leveransbevis-bilder vars TTL gått ut (≈ 2 dygn). Bilden tas bort
@@ -79,59 +82,73 @@ export async function runDailyCleanup(): Promise<void> {
 }
 
 /**
- * Expire abandoned AWAITING_PAYMENT orders (payment never completed). Runs every
- * few minutes (much more often than the daily cleanup). After ~5 min an unpaid
- * order is a dead checkout — the Stripe reconcile loop (60s) would already have
- * flipped any real success to PENDING. We revert any reserved UserDeal, then
- * delete the order (OrderItems cascade) so abandoned orders don't pile up in the
- * DB AND so the customer's live-order banner stops being stuck forever (its poll
- * then 404s and self-clears).
- *
- * Safe against races: the deleteMany re-asserts status=AWAITING_PAYMENT and
- * paymentStatus != PAID, so an order that just got paid is never deleted.
- *
- * TTL var tidigare 30 min — nu 5 min. Cart-sidan abandonar normalt direkt
- * (POST /orders/:id/abandon vid Stripe-cancel + sendBeacon vid pagehide), så
- * cronen är bara en backup för edge-cases (kund stänger taben innan
- * pagehide-handlern hinner registreras, eller sendBeacon failade). Inom 5 min
- * är ordern garanterat borta, så "Pågående beställning" på hemskärmen
- * försvinner snabbt även när den primära cancel-vägen missar.
+ * Stäm av gamla AWAITING_PAYMENT-ordrar utan att radera betalningsunderlaget.
+ * En hard-delete var farlig för Swish/Klarna/3DS: PSP:n kan hinna debitera
+ * efter att vår order försvunnit. Bara PSP-verifierad success/failure ändrar
+ * nu tillstånd; en öppen eller otillgänglig betalning bevaras till nästa körning.
  */
 export async function expireAbandonedAwaitingPayment(): Promise<void> {
-  const cutoff = new Date(Date.now() - 5 * 60 * 1000);
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000);
   try {
     const abandoned = await prisma.order.findMany({
       where: {
         status: 'AWAITING_PAYMENT',
-        paymentStatus: { not: 'PAID' },
+        paymentStatus: 'PENDING',
         createdAt: { lt: cutoff },
       },
-      select: { id: true, orderNumber: true, userDealId: true },
+      select: {
+        id: true,
+        orderNumber: true,
+        paymentProvider: true,
+        molliePaymentId: true,
+        stripePaymentIntentId: true,
+        adyenSessionId: true,
+      },
+      orderBy: { createdAt: 'desc' },
       take: 200,
     });
     if (abandoned.length === 0) return;
 
-    // Revert any reserved deal so it isn't left stuck on a deleted order.
-    for (const o of abandoned) {
-      if (o.userDealId) {
-        await prisma.userDeal
-          .updateMany({
-            where: { id: o.userDealId, status: 'RESERVED', usedOnOrderId: o.id },
-            data: { status: 'ACTIVE', usedOnOrderId: null },
-          })
-          .catch(() => {});
+    for (const order of abandoned) {
+      if (!['mollie', 'stripe', 'adyen'].includes(order.paymentProvider)) {
+        await finalizePaymentFailed(order.id, { provider: 'stripe', reason: 'unknown-provider' });
+        continue;
       }
-    }
-
-    const deleted = await prisma.order.deleteMany({
-      where: {
-        id: { in: abandoned.map((o) => o.id) },
-        status: 'AWAITING_PAYMENT',
-        paymentStatus: { not: 'PAID' },
-      },
-    });
-    if (deleted.count > 0) {
-      console.log(`🧹 Raderade ${deleted.count} övergivna AWAITING_PAYMENT-order(s) äldre än 5 min.`);
+      const provider = getPaymentProviderByName(order.paymentProvider as PaymentProviderName);
+      const ref =
+        provider.name === 'mollie'
+          ? order.molliePaymentId
+          : provider.name === 'stripe'
+            ? order.stripePaymentIntentId
+            : order.adyenSessionId;
+      if (!ref) {
+        await finalizePaymentFailed(order.id, {
+          provider: provider.name,
+          reason: 'no-payment-reference-timeout',
+        });
+        continue;
+      }
+      try {
+        const remote = await provider.getRemoteStatus(ref);
+        if (remote.state === 'paid') {
+          await finalizePaymentSuccess(order.id, {
+            provider: provider.name,
+            ref: remote.paymentIntentId || ref,
+            amountReceivedOre: remote.amountReceivedOre ?? 0,
+          });
+        } else if (['failed', 'canceled', 'expired'].includes(remote.state)) {
+          await finalizePaymentFailed(order.id, {
+            provider: provider.name,
+            ref,
+            reason: remote.state,
+          });
+        }
+      } catch (error) {
+        console.error(
+          `[cleanup] PSP-status misslyckades för ${order.orderNumber}:`,
+          (error as Error)?.message,
+        );
+      }
     }
   } catch (error) {
     console.error('❌ expireAbandonedAwaitingPayment failed:', error);

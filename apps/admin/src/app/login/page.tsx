@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, KeyRound, LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
 import { apiPost } from "@/shared/api/client";
-import { getStoredToken, setStoredAdminSession } from "@/shared/auth/storage";
+import { setStoredAdminSession } from "@/shared/auth/storage";
 import { Button, Field, Input, Surface } from "@/shared/components/ui";
 import viaeatsSymbol from "../../../../../Logotyp/sym-navy.png";
 
@@ -13,7 +13,6 @@ type LoginResponse =
       totpRequired: true;
     }
   | {
-      token: string;
       admin: {
         id: string;
         email: string;
@@ -47,12 +46,6 @@ export default function LoginPage() {
     return "/dashboard";
   };
 
-  useEffect(() => {
-    if (getStoredToken()) {
-      router.replace(getRedirectTarget());
-    }
-  }, [router]);
-
   const submitLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
@@ -81,8 +74,8 @@ export default function LoginPage() {
         return;
       }
 
-      if ("token" in response) {
-        setStoredAdminSession(response.token, response.admin);
+      if ("admin" in response) {
+        setStoredAdminSession(response.admin);
         router.replace(getRedirectTarget());
         return;
       }

@@ -7,6 +7,8 @@ type HermesAlert = {
   type: string;
   text: string;
   severity?: 'info' | 'warning' | 'critical' | string;
+  /** Stable business-event key. A claimed key is delivered at most once. */
+  dedupeKey?: string;
   [key: string]: unknown;
 };
 
@@ -30,63 +32,115 @@ export function isHermesAlertConfigured(): boolean {
   return Boolean(webhookUrl || (directSendUrl && directChatId) || process.env.HERMES_API_TOKEN);
 }
 
-async function persistHermesAlert(payload: Record<string, unknown>) {
-  try {
-    const resourceId = [
-      typeof payload.type === 'string' ? payload.type : 'alert',
-      Date.now(),
-      crypto.randomBytes(4).toString('hex'),
-    ].join(':');
+export function hermesAlertDedupeKey(alert: Pick<HermesAlert, 'source' | 'type' | 'dedupeKey'> & {
+  orderId?: unknown;
+}): string | null {
+  const explicit = String(alert.dedupeKey || '').trim();
+  if (explicit) return explicit;
+  const orderId = String(alert.orderId || '').trim();
+  if (!orderId || !alert.type) return null;
+  // Source is deliberately excluded: the event-driven courier path and the
+  // periodic Falken recovery scan may detect the same business event.
+  return `viaeats:${alert.type}:${orderId}`;
+}
 
-    await prisma.auditLog.create({
+export function hermesAlertAuditId(dedupeKey: string): string {
+  const digest = crypto.createHash('sha256').update(dedupeKey, 'utf8').digest('hex');
+  return `hermes_${digest.slice(0, 48)}`;
+}
+
+type AlertClaim = { id: string | null; claimed: boolean };
+
+async function claimHermesAlert(
+  payload: Record<string, unknown>,
+  dedupeKey: string | null,
+): Promise<AlertClaim> {
+  try {
+    const row = await prisma.auditLog.create({
       data: {
-        action: 'HERMES_ALERT',
+        ...(dedupeKey ? { id: hermesAlertAuditId(dedupeKey) } : {}),
+        action: 'HERMES_ALERT_PROCESSING',
         resourceType: 'HermesAlert',
-        resourceId,
+        resourceId: dedupeKey || `${String(payload.type || 'alert')}:${Date.now()}:${crypto.randomBytes(4).toString('hex')}`,
         changes: JSON.stringify(payload),
       },
+      select: { id: true },
     });
+    return { id: row.id, claimed: true };
   } catch (err: any) {
+    if (dedupeKey && err?.code === 'P2002') {
+      return { id: hermesAlertAuditId(dedupeKey), claimed: false };
+    }
+    // Ops-alerts are best effort. If the DB itself is unavailable, still try
+    // the direct channel; there is simply no durable polling fallback.
     console.warn('[hermesAlerts] persist failed:', err?.message ?? err);
+    return { id: null, claimed: true };
   }
+}
+
+async function setHermesAlertState(
+  id: string | null,
+  action: 'HERMES_ALERT_DELIVERED' | 'HERMES_ALERT_QUEUED',
+  payload: Record<string, unknown>,
+  delivery?: string,
+) {
+  if (!id) return;
+  await prisma.auditLog.updateMany({
+    where: { id, action: 'HERMES_ALERT_PROCESSING' },
+    data: {
+      action,
+      changes: JSON.stringify({ ...payload, ...(delivery ? { delivery } : {}) }),
+    },
+  }).catch((err: any) => console.warn('[hermesAlerts] state update failed:', err?.message ?? err));
 }
 
 export async function sendHermesAlert(alert: HermesAlert): Promise<{ delivered: boolean; channel: string | null; reason?: string }> {
   const { webhookUrl, webhookSecret, directSendUrl, directChatId } = cfg();
+  const { dedupeKey: _dedupeKey, ...publicAlert } = alert;
   const payload = {
     source: alert.source || 'viaeats-api',
     at: new Date().toISOString(),
-    ...alert,
+    ...publicAlert,
   };
-
-  await persistHermesAlert(payload);
+  const dedupeKey = hermesAlertDedupeKey(alert);
+  const claim = await claimHermesAlert(payload, dedupeKey);
+  if (!claim.claimed) {
+    return { delivered: false, channel: null, reason: 'duplicate' };
+  }
+  const deliveryPayload = { ...payload, ...(claim.id ? { alertId: claim.id } : {}) };
 
   if (directSendUrl && directChatId) {
     try {
       await axios.post(directSendUrl, {
         chatId: directChatId,
         message: alert.text,
-        payload,
+        payload: deliveryPayload,
       }, { timeout: 10_000 });
+      await setHermesAlertState(claim.id, 'HERMES_ALERT_DELIVERED', deliveryPayload, 'whatsapp_direct');
       return { delivered: true, channel: 'whatsapp_direct' };
     } catch (err: any) {
       console.warn('[hermesAlerts] direct WhatsApp failed:', err?.response?.status ?? err?.message);
     }
   }
 
-  if (!webhookUrl) return { delivered: false, channel: null, reason: 'no_webhook' };
+  if (!webhookUrl) {
+    await setHermesAlertState(claim.id, 'HERMES_ALERT_QUEUED', deliveryPayload);
+    return { delivered: false, channel: null, reason: 'no_webhook' };
+  }
 
   try {
-    const body = JSON.stringify(payload);
+    const body = JSON.stringify(deliveryPayload);
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (webhookSecret) {
       headers['x-hermes-signature'] = crypto.createHmac('sha256', webhookSecret).update(body).digest('hex');
       headers['x-falken-signature'] = headers['x-hermes-signature'];
     }
     await axios.post(webhookUrl, body, { headers, timeout: 10_000 });
+    await setHermesAlertState(claim.id, 'HERMES_ALERT_DELIVERED', deliveryPayload, 'webhook');
     return { delivered: true, channel: 'webhook' };
   } catch (err: any) {
     console.warn('[hermesAlerts] webhook failed:', err?.response?.status ?? err?.message);
+    await setHermesAlertState(claim.id, 'HERMES_ALERT_QUEUED', deliveryPayload);
     return { delivered: false, channel: 'webhook', reason: 'send_failed' };
   }
 }

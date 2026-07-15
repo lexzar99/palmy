@@ -1,11 +1,31 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { sendToAllUsers, sendToUser, sendToCity } from '../lib/notifications';
 import { authenticate, isSuperAdmin } from '../middleware/auth';
-import { authenticateUser } from './auth';
+import { authenticateUser, authenticateUserOptional } from './auth';
+import { resolveCustomerNotificationTarget } from '../lib/customerNotificationAccess';
+import {
+  CUSTOMER_PUSH_PROVIDERS,
+  type CustomerPushProvider,
+  opaqueInstallationId,
+  registerDeviceInstallation,
+  registerOrderDeviceInstallation,
+  revokeDeviceInstallation,
+} from '../lib/deviceInstallations';
+import { getCustomerNotificationMetrics } from '../lib/notificationOutbox';
 
 const router = Router();
+
+function adminPushQueueOptions(req: any, target: string) {
+  const supplied = String(req.get?.('Idempotency-Key') || '').trim();
+  const requestId = supplied && /^[A-Za-z0-9._:-]{8,128}$/.test(supplied)
+    ? supplied
+    : crypto.randomUUID();
+  const digest = crypto.createHash('sha256').update(`${req.user?.id || 'admin'}\0${target}\0${requestId}`).digest('hex');
+  return { dedupeKeyPrefix: `admin:${digest}`, kind: 'ADMIN_PUSH' };
+}
 
 /**
  * POST /api/notifications/register
@@ -17,57 +37,141 @@ const router = Router();
  */
 router.post('/register', authenticateUser, async (req: any, res) => {
   try {
-    const { token } = z.object({ token: z.string() }).parse(req.body);
+    const { token, installationId } = z.object({
+      token: z.string(),
+      installationId: z.string().trim().min(8).max(256).refine((value) => !/\s/.test(value)).optional(),
+    }).parse(req.body);
 
     if (!token.startsWith('ExponentPushToken[')) {
       return res.status(400).json({ error: 'Ogiltig Expo push token' });
     }
 
-    // Steg 1: rensa token från alla andra users så vi inte dubbelräknar
-    // samma fysiska enhet. updateMany är säker — träffar inga rader om
-    // ingen annan har samma token.
-    await prisma.user.updateMany({
-      where: { pushToken: token, id: { not: req.user.id } },
-      data: { pushToken: null },
-    }).catch(() => null);
-
-    // Steg 2: sätt token på inloggade kontot.
-    await prisma.user.update({
-      where: { id: req.user.id },
-      data: { pushToken: token }
+    const device = await registerDeviceInstallation({
+      userId: req.user.id,
+      provider: 'EXPO',
+      rawToken: token,
+      installationId,
     });
-
-    res.json({ success: true });
+    res.json({ success: true, installationId: device.installationId });
   } catch (error) {
     res.status(400).json({ error: 'Kunde inte registrera token' });
   }
 });
 
 /**
+ * POST /api/notifications/register-fcm
+ *
+ * Android customers can register either account-wide with their account JWT,
+ * or orderspecifically with the raw secret from a newly-created order. The
+ * raw proof expires here after 30 minutes. It creates a nullable-user device
+ * subscription, so one order secret can never unlock another order/account.
+ */
+router.post('/register-fcm', authenticateUserOptional, async (req: any, res) => {
+  try {
+    const { installationId, token: legacyToken, deviceId, platform, orderId, accessToken } = z.object({
+      installationId: z.string().trim().min(10).max(256).refine((value) => !/\s/.test(value)).optional(),
+      token: z.string().trim().min(10).max(4096).refine((value) => !/\s/.test(value)).optional(),
+      deviceId: z.string().trim().min(8).max(256).refine((value) => !/\s/.test(value)).optional(),
+      platform: z.enum(['android', 'ios']).optional(),
+      orderId: z.string().trim().min(1).optional(),
+      accessToken: z.string().trim().min(20).max(512).optional(),
+    }).refine((value) => Boolean(value.installationId || value.token)).parse(req.body);
+    const providerToken = installationId || legacyToken!;
+
+    const authenticatedUserId = req.user?.id ? String(req.user.id) : null;
+    let target = resolveCustomerNotificationTarget({ authenticatedUserId });
+    if (orderId) {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { userId: true, accessToken: true, createdAt: true },
+      });
+      target = resolveCustomerNotificationTarget({ authenticatedUserId, order, accessToken });
+      if (!target) return res.status(404).json({ error: 'Ordern hittades inte' });
+    }
+
+    if (!target) return res.status(401).json({ error: 'Logga in eller ange ett giltigt orderbevis' });
+
+    if (target.userId) {
+      const activeTarget = await prisma.user.count({
+        where: { id: target.userId, deletedAt: null, isActive: true },
+      });
+      if (activeTarget !== 1) throw new Error('target_user_unavailable');
+    }
+    const registration = {
+      userId: target.userId,
+      provider: 'FCM_FID' as const,
+      rawToken: providerToken,
+      installationId: deviceId || opaqueInstallationId('FCM_FID', providerToken),
+      platform: platform || 'android',
+    };
+    const device = target.scope === 'order' && orderId
+      ? await registerOrderDeviceInstallation({ ...registration, orderId })
+      : await registerDeviceInstallation(registration);
+
+    res.json({ success: true, installationId: device.installationId, scope: target.scope });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Ogiltig FCM-token eller orderdata' });
+    }
+    if (error?.message === 'target_user_unavailable') {
+      return res.status(404).json({ error: 'Kundkontot är inte tillgängligt' });
+    }
+    console.error('[notifications/register-fcm] failed:', error);
+    res.status(500).json({ error: 'Kunde inte registrera Android-notiser' });
+  }
+});
+
+/**
  * POST /api/notifications/register-device
  *
- * Samma deduplicering som /register men för iOS APNs device tokens.
+ * Samma account-vs-order-scope och deduplicering som FCM, men för APNs.
  */
-router.post('/register-device', authenticateUser, async (req: any, res) => {
+router.post('/register-device', authenticateUserOptional, async (req: any, res) => {
   try {
-    const { token } = z.object({ token: z.string() }).parse(req.body);
+    const { token, installationId, orderId, accessToken } = z.object({
+      token: z.string(),
+      installationId: z.string().trim().min(8).max(256).refine((value) => !/\s/.test(value)).optional(),
+      orderId: z.string().trim().min(1).optional(),
+      accessToken: z.string().trim().min(20).max(512).optional(),
+    }).parse(req.body);
     if (!/^[a-f0-9]{32,256}$/i.test(token)) {
       return res.status(400).json({ error: 'Ogiltig APNs-token' });
     }
     const normalized = token.toLowerCase();
 
-    // Rensa samma APNs-token från alla andra users (logout-glitch fix).
-    await (prisma as any).user.updateMany({
-      where: { apnsDeviceToken: normalized, id: { not: req.user.id } },
-      data: { apnsDeviceToken: null },
-    }).catch(() => null);
+    const authenticatedUserId = req.user?.id ? String(req.user.id) : null;
+    let target = resolveCustomerNotificationTarget({ authenticatedUserId });
+    if (orderId) {
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { userId: true, accessToken: true, createdAt: true },
+      });
+      target = resolveCustomerNotificationTarget({ authenticatedUserId, order, accessToken });
+      if (!target) return res.status(404).json({ error: 'Ordern hittades inte' });
+    }
+    if (!target) return res.status(401).json({ error: 'Logga in eller ange ett giltigt orderbevis' });
 
-    await (prisma as any).user.update({
-      where: { id: req.user.id },
-      data: { apnsDeviceToken: normalized }
-    });
-    res.json({ success: true });
-  } catch {
+    if (target.userId) {
+      const activeTarget = await prisma.user.count({
+        where: { id: target.userId, deletedAt: null, isActive: true },
+      });
+      if (activeTarget !== 1) return res.status(404).json({ error: 'Kundkontot är inte tillgängligt' });
+    }
+    const registration = {
+      userId: target.userId,
+      provider: 'APNS' as const,
+      rawToken: normalized,
+      installationId: installationId || opaqueInstallationId('APNS', normalized),
+      platform: 'ios',
+    };
+    const device = target.scope === 'order' && orderId
+      ? await registerOrderDeviceInstallation({ ...registration, orderId })
+      : await registerDeviceInstallation(registration);
+    res.json({ success: true, installationId: device.installationId, scope: target.scope });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Ogiltig APNs-token eller orderdata' });
+    }
     res.status(400).json({ error: 'Kunde inte registrera APNs-token' });
   }
 });
@@ -81,11 +185,40 @@ router.post('/register-device', authenticateUser, async (req: any, res) => {
  */
 router.post('/unregister', authenticateUser, async (req: any, res) => {
   try {
-    await (prisma as any).user.update({
+    const { installationId, provider, allDevices } = z.object({
+      installationId: z.string().trim().min(8).max(256).optional(),
+      provider: z.enum(CUSTOMER_PUSH_PROVIDERS).optional(),
+      allDevices: z.boolean().optional().default(false),
+    }).parse(req.body || {});
+
+    if (installationId) {
+      const revoked = await revokeDeviceInstallation({
+        userId: req.user.id,
+        installationId,
+        provider: provider as CustomerPushProvider | undefined,
+        reason: 'logout',
+      });
+      return res.json({ success: true, mode: 'installation', revoked });
+    }
+
+    if (allDevices) {
+      const [revoked] = await Promise.all([
+        revokeDeviceInstallation({ userId: req.user.id, allDevices: true, reason: 'logout_all_devices' }),
+        prisma.user.update({
+          where: { id: req.user.id },
+          data: { pushToken: null, apnsDeviceToken: null },
+        }),
+      ]);
+      return res.json({ success: true, mode: 'all_devices', revoked });
+    }
+
+    // Äldre appar skickar ingen installation. Rensa bara legacy-kolumnerna;
+    // nya multi-device-rader får aldrig oavsiktligt loggas ut allihop.
+    await prisma.user.update({
       where: { id: req.user.id },
       data: { pushToken: null, apnsDeviceToken: null },
     });
-    res.json({ success: true });
+    res.json({ success: true, mode: 'legacy_only', revoked: 0 });
   } catch {
     res.status(400).json({ error: 'Kunde inte avregistrera token' });
   }
@@ -102,7 +235,7 @@ router.post('/admin/send-all', authenticate, isSuperAdmin, async (req: any, res)
       data: z.record(z.any()).optional()
     }).parse(req.body);
 
-    const result = await sendToAllUsers(title, body, data);
+    const result = await sendToAllUsers(title, body, data, adminPushQueueOptions(req, 'all'));
 
     await (prisma as any).pushLog.create({
       data: {
@@ -139,7 +272,7 @@ router.post('/admin/send-user', authenticate, isSuperAdmin, async (req: any, res
       data: z.record(z.any()).optional(),
     }).parse(req.body);
 
-    const result = await sendToUser(identifier, title, body, data);
+    const result = await sendToUser(identifier, title, body, data, adminPushQueueOptions(req, `user:${identifier}`));
 
     await (prisma as any).pushLog.create({
       data: {
@@ -181,7 +314,7 @@ router.post('/admin/send-city', authenticate, isSuperAdmin, async (req: any, res
       data: z.record(z.any()).optional(),
     }).parse(req.body);
 
-    const result = await sendToCity(city, title, body, data);
+    const result = await sendToCity(city, title, body, data, adminPushQueueOptions(req, `city:${city}`));
 
     await (prisma as any).pushLog.create({
       data: {
@@ -212,11 +345,27 @@ router.post('/admin/send-city', authenticate, isSuperAdmin, async (req: any, res
  */
 router.get('/admin/history', authenticate, isSuperAdmin, async (_req, res) => {
   try {
-    const logs = await (prisma as any).pushLog.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-    res.json({ logs });
+    const [logs, deliveryMetrics, recentOutbox] = await Promise.all([
+      (prisma as any).pushLog.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
+      getCustomerNotificationMetrics(),
+      prisma.notificationOutbox.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          kind: true,
+          status: true,
+          attemptCount: true,
+          acceptedCount: true,
+          invalidCount: true,
+          failureCount: true,
+          lastError: true,
+          createdAt: true,
+          completedAt: true,
+        },
+      }),
+    ]);
+    res.json({ logs, deliveryMetrics, recentOutbox });
   } catch (error) {
     console.error('Push history error:', error);
     res.status(500).json({ error: 'Kunde inte hämta historik' });
@@ -243,7 +392,16 @@ async function resolveCohortUserIds(cohort: string): Promise<string[]> {
     });
     const recentSet = new Set(recentByUser.map((r) => r.userId!));
     const users = await (prisma as any).user.findMany({
-      where: { deletedAt: null, createdAt: { lte: since7 }, OR: [{ pushToken: { not: null } }, { apnsDeviceToken: { not: null } }] },
+      where: {
+        deletedAt: null,
+        isActive: true,
+        createdAt: { lte: since7 },
+        OR: [
+          { deviceInstallations: { some: { active: true, provider: { not: 'WEB_PUSH' } } } },
+          { pushToken: { not: null } },
+          { apnsDeviceToken: { not: null } },
+        ],
+      },
       select: { id: true },
     });
     return (users as any[]).map((u) => u.id).filter((id) => !recentSet.has(id));
@@ -251,7 +409,16 @@ async function resolveCohortUserIds(cohort: string): Promise<string[]> {
   if (cohort === 'new_users_7d') {
     const since7 = new Date(now - 7 * 24 * 60 * 60 * 1000);
     const users = await (prisma as any).user.findMany({
-      where: { deletedAt: null, createdAt: { gte: since7 }, OR: [{ pushToken: { not: null } }, { apnsDeviceToken: { not: null } }] },
+      where: {
+        deletedAt: null,
+        isActive: true,
+        createdAt: { gte: since7 },
+        OR: [
+          { deviceInstallations: { some: { active: true, provider: { not: 'WEB_PUSH' } } } },
+          { pushToken: { not: null } },
+          { apnsDeviceToken: { not: null } },
+        ],
+      },
       select: { id: true, _count: { select: { orders: true } } },
     });
     return (users as any[]).filter((u) => (u._count?.orders ?? 0) === 0).map((u) => u.id);
@@ -283,12 +450,13 @@ router.post('/admin/send-cohort', authenticate, isSuperAdmin, async (req: any, r
     }).parse(req.body);
 
     const userIds = await resolveCohortUserIds(cohort);
+    const queueOptions = adminPushQueueOptions(req, `cohort:${cohort}`);
     let totalCount = 0;
     let errorsAccumulated = 0;
     let firstError: string | null = null;
     for (const userId of userIds) {
       try {
-        const r = await sendToUser(userId, title, body, data);
+        const r = await sendToUser(userId, title, body, data, queueOptions);
         totalCount += r.count || 0;
         if (!r.success && !firstError) firstError = r.error || null;
         if (r.errors) errorsAccumulated += r.errors;

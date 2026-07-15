@@ -325,10 +325,6 @@ export function ReceiptsPage({ embedded = false }: { embedded?: boolean } = {}) 
         />
       )}
 
-      <p className="-mt-2 text-[13px] text-[var(--text-secondary)]">
-        Gäller kvitton som skrivs ut på restaurangernas kvittoskrivare. Ändringar syns direkt i förhandsvisningen.
-      </p>
-
       <Surface className="px-4 py-5 sm:px-6 sm:py-6">
         <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
           {/* Left: element controls */}

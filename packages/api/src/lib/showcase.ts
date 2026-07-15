@@ -233,7 +233,7 @@ async function computeDiscountCandidates(now: Date): Promise<{ cards: DiscountCa
 
   // Aktiva restauranger (för global-scope-expansion + metadata).
   const restaurants = await prisma.restaurant.findMany({
-    where: { comingSoon: false, draft: false },
+    where: { archivedAt: null, comingSoon: false, draft: false },
     select: { id: true, name: true, slug: true, imageUrl: true, heroImageUrl: true, featuredClass: true },
   });
   const restById = new Map(restaurants.map((r) => [r.id, r]));
@@ -348,7 +348,7 @@ export async function getShowcaseCarousel(now = new Date()): Promise<ShowcaseCar
   const restById = new Map<string, any>();
   if (pickIds.length) {
     const rows = await prisma.restaurant.findMany({
-      where: { id: { in: pickIds } },
+      where: { id: { in: pickIds }, archivedAt: null },
       select: { id: true, name: true, slug: true, imageUrl: true, heroImageUrl: true, featuredClass: true },
     });
     for (const r of rows) restById.set(r.id, r);
@@ -391,7 +391,7 @@ async function trendingCandidateIds(now: Date): Promise<string[]> {
   });
   const counts = (grouped as any[]).filter((g) => g.restaurantId).sort((a, b) => b._count._all - a._count._all);
   const ids = counts.map((g) => g.restaurantId as string);
-  const active = await prisma.restaurant.findMany({ where: { id: { in: ids }, comingSoon: false, draft: false }, select: { id: true } });
+  const active = await prisma.restaurant.findMany({ where: { id: { in: ids }, archivedAt: null, comingSoon: false, draft: false }, select: { id: true } });
   const activeSet = new Set(active.map((r) => r.id));
   return ids.filter((id) => activeSet.has(id));
 }
@@ -400,7 +400,7 @@ async function trendingCandidateIds(now: Date): Promise<string[]> {
 async function newCandidateIds(now: Date): Promise<string[]> {
   const since = new Date(now.getTime() - NEW_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const rows = await prisma.restaurant.findMany({
-    where: { comingSoon: false, draft: false, createdAt: { gte: since } },
+    where: { archivedAt: null, comingSoon: false, draft: false, createdAt: { gte: since } },
     select: { id: true },
     orderBy: { createdAt: 'desc' },
   });
@@ -430,7 +430,7 @@ async function championCandidateIds(now: Date): Promise<string[]> {
     take: 12,
   });
   const ids = (grouped as any[]).filter((g) => g.restaurantId).map((g) => g.restaurantId as string);
-  const active = await prisma.restaurant.findMany({ where: { id: { in: ids }, comingSoon: false, draft: false }, select: { id: true } });
+  const active = await prisma.restaurant.findMany({ where: { id: { in: ids }, archivedAt: null, comingSoon: false, draft: false }, select: { id: true } });
   const activeSet = new Set(active.map((r) => r.id));
   return ids.filter((id) => activeSet.has(id));
 }
@@ -478,7 +478,7 @@ export async function getShowcaseAdmin(now = new Date()): Promise<ShowcaseAdminS
     ...newIds, ...newResolve.shownIds, ...newResolve.state.pinned,
   ]);
   const rests = await prisma.restaurant.findMany({
-    where: { id: { in: Array.from(involved) } },
+    where: { id: { in: Array.from(involved) }, archivedAt: null },
     select: { id: true, name: true, slug: true, featuredClass: true },
   });
   const restById = new Map(rests.map((r) => [r.id, r]));

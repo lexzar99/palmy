@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { X, Gift } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { LAST_CUSTOMER_ID_KEY, PLATFORM_SESSION_CHANGED_EVENT } from "@/lib/platformSessionClient";
 
 // WelcomeDealBanner — sticky banner ovanför restaurang-listan på home. Visar
 // kundens aktiva WELCOME/REFERRAL-deal om den finns. Stängs med X-knapp och
@@ -63,8 +64,28 @@ function formatExpiry(iso?: string | null): string | null {
 export default function WelcomeDealBanner({ enabled = true }: { enabled?: boolean }) {
   const [deal, setDeal] = useState<UserDeal | null>(null);
   const [show, setShow] = useState(false);
+  const [sessionRevision, setSessionRevision] = useState(0);
 
   useEffect(() => {
+    const onSessionChanged = () => {
+      setDeal(null);
+      setShow(false);
+      setSessionRevision((current) => current + 1);
+    };
+    const onCustomerStorage = (event: StorageEvent) => {
+      if (event.key === LAST_CUSTOMER_ID_KEY || event.key === "dlv_logged_out") onSessionChanged();
+    };
+    window.addEventListener(PLATFORM_SESSION_CHANGED_EVENT, onSessionChanged);
+    window.addEventListener("storage", onCustomerStorage);
+    return () => {
+      window.removeEventListener(PLATFORM_SESSION_CHANGED_EVENT, onSessionChanged);
+      window.removeEventListener("storage", onCustomerStorage);
+    };
+  }, []);
+
+  useEffect(() => {
+    setDeal(null);
+    setShow(false);
     if (!enabled || isDismissed()) return;
     let cancelled = false;
     axios
@@ -94,7 +115,7 @@ export default function WelcomeDealBanner({ enabled = true }: { enabled?: boolea
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [enabled, sessionRevision]);
 
   const handleClose = () => {
     setShow(false);

@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { deleteSupabaseAuthUser } from '../lib/supabaseUserDelete';
+import { invalidateCachedCustomerIdentity } from '../lib/customerIdentityCache';
 
 const router = Router();
 
@@ -248,42 +249,63 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
 router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const id = req.params.id;
-    // Cascade: radera Supabase-auth-användaren först (frigör nummer/e-post) så
-    // ingen orphan blockerar framtida signup. Hämta identifierare innan vi nullar.
+    // Hämta identifierare innan vi nullar. Den lokala anonymiseringen görs
+    // atomiskt först; därefter frigörs Supabase-identiteten.
     const before = await (prisma as any).user.findUnique({
       where: { id },
       select: { id: true, email: true, phone: true, oauthId: true },
     });
-    if (before) await deleteSupabaseAuthUser(before);
-    // Cast to any because Railway's Docker build can sometimes serve a stale
-    // Prisma client where the freshly-added `deletedAt` field hasn't been
-    // re-generated into the typings yet — the SQL `prisma db push` on start
-    // applies the column regardless, so the runtime write is fine.
-    await (prisma as any).user.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-        // Free up unique slots så framtida signup med samma email/phone
-        // inte blockas av soft-deleted-raden.
-        email: null,
-        phone: null,
-        pushToken: null,
-        apnsDeviceToken: null,
-        // VIKTIGT: nulla också OAuth-koppling + referralCode. Annars
-        // matchar nästa Google/Apple-login fortfarande denna rad via
-        // (oauthProvider, oauthId) och "reactiverar" usern → samma
-        // userId, samma referralCode, samma order-historik. Det var
-        // exakt buggen som dök upp efter att admin raderat customers
-        // och loggat in igen med samma Google-konto.
-        oauthProvider: null,
-        oauthId: null,
-        referralCode: null,
-        referredByCode: null,
-        // NOTE: isActive stays true. Admin-"delete" är en RESET — rensar
-        // datan och låter usern registrera sig fräsch nästa gång de
-        // signar in. Använd isActive=false separat för permanent ban.
-      },
+    if (!before) return res.status(404).json({ error: 'Kunden hittades inte' });
+
+    const deletedAt = new Date();
+    await prisma.$transaction(async (tx) => {
+      // Order- och betalningshistorik bevaras som anonymiserade affärsposter.
+      await tx.order.updateMany({ where: { userId: id }, data: { userId: null } });
+      await tx.savedAddress.deleteMany({ where: { userId: id } });
+      await tx.deviceInstallation.updateMany({
+        where: { userId: id },
+        data: {
+          active: false,
+          revokedAt: deletedAt,
+          tokenHash: null,
+          tokenCiphertext: null,
+          revokedReason: 'account_deleted_by_admin',
+        },
+      });
+
+      await tx.user.update({
+        where: { id },
+        data: {
+          deletedAt,
+          email: null,
+          phone: null,
+          name: '',
+          firstName: null,
+          lastName: null,
+          address: null,
+          city: null,
+          zip: null,
+          image: null,
+          pushToken: null,
+          apnsDeviceToken: null,
+          oauthProvider: null,
+          oauthId: null,
+          referralCode: null,
+          referredByCode: null,
+          isVerified: false,
+          claimedDealIds: '[]',
+          deviceFingerprint: null,
+          lastSeenIp: null,
+          internalInfo: null,
+          allergens: '[]',
+          convertedFromGuestAt: null,
+          conversionSource: null,
+        },
+      });
     });
+
+    invalidateCachedCustomerIdentity(id);
+    await deleteSupabaseAuthUser(before);
     res.json({ success: true });
   } catch (error) {
     console.error('Soft-delete customer failed:', error);

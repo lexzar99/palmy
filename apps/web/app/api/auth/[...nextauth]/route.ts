@@ -134,28 +134,32 @@ function createAuthHandler() {
     debug: process.env.NODE_ENV === "development",
     callbacks: {
       async jwt({ token, account, user }) {
-        if (account && user?.email) {
+        if (account) {
           try {
             // idToken forwardas så backend kan göra server-side verifiering
-            // mot Google/Apple. Utan den faller backend tillbaka på
-            // {email, providerId} rakt från body — vilket är en account-
-            // takeover-vektor (se packages/api/src/routes/auth.ts:1774).
+            // mot Google/Apple. Backend accepterar aldrig email/providerId
+            // från body som identitetsbevis.
             // NextAuth ger oss id_token direkt på account-objektet för
             // OIDC-providers (både Google och Apple); skicka det med.
             const idToken =
               (account as { id_token?: string }).id_token ?? undefined;
             const res = await axios.post(`${API_URL}/api/auth/oauth-token`, {
-              email: user.email,
-              name: user.name,
+              email: user?.email,
+              name: user?.name,
               provider: account.provider,
               providerId: account.providerAccountId,
-              image: user.image,
+              image: user?.image,
               idToken,
             });
             token.platformToken = res.data.token;
             token.platformUser = res.data.user;
           } catch (err) {
-            console.error("OAuth token exchange failed:", err);
+            // AxiosError carries config.data, which includes the provider
+            // id_token. Never serialize the error/config into production logs.
+            const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+            console.error("OAuth token exchange failed", {
+              status: typeof status === "number" ? status : "unknown",
+            });
           }
         }
         return token;

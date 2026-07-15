@@ -4,6 +4,7 @@ import HomeClient, { type HomeInitialData } from "@/components/HomeClient";
 import LaunchGate from "@/components/LaunchGate";
 import { API_URL } from "@/lib/api";
 import { isValidLaunchCookie, LAUNCH_ACCESS_COOKIE } from "@/lib/launchAccess";
+import { prelaunchModeEnabled } from "@/lib/prelaunchMode";
 
 // Hemsidan är nu en SERVER component: restauranglistan + publika listor
 // hämtas på servern (cachat 120s) och streamas till klienten via Suspense.
@@ -83,9 +84,11 @@ function HomeSkeleton() {
 }
 
 export default async function HomePage() {
-  const cookieStore = await cookies();
-  if (!isValidLaunchCookie(cookieStore.get(LAUNCH_ACCESS_COOKIE)?.value)) {
-    return <LaunchGate />;
+  if (prelaunchModeEnabled()) {
+    const cookieStore = await cookies();
+    if (!isValidLaunchCookie(cookieStore.get(LAUNCH_ACCESS_COOKIE)?.value)) {
+      return <LaunchGate />;
+    }
   }
 
   return (

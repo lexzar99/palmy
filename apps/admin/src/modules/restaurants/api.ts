@@ -171,6 +171,7 @@ export const createRestaurant = (payload: RestaurantFormPayload) => apiPost<Rest
 export const patchRestaurant = (restaurantId: string, payload: Partial<RestaurantFormPayload>) =>
   apiPatch<RestaurantDetail>(`/restaurants/${restaurantId}`, payload);
 
-export const deleteRestaurant = (restaurantId: string) => apiDelete<{ success: boolean }>(`/restaurants/${restaurantId}`);
+export const archiveRestaurant = (restaurantId: string) =>
+  apiDelete<{ success: boolean; archived: boolean }>(`/restaurants/${restaurantId}`);
 
 export type { ControlCenterRestaurantSnapshot };

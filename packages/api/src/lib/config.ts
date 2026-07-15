@@ -46,14 +46,12 @@ if (isProduction) {
 export const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || 'admin';
 export const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD || (isProduction ? '' : 'admin123');
 
-// Säkerhetsflaggor som styr riskabla admin-funktioner. Läggs här så de syns
-// centralt och inte gömda i routes-filer.
-export const ALLOW_WIPE_ORDERS = process.env.ALLOW_WIPE_ORDERS === 'true';
+// Testordrar är dev-only. Order-rensning har ingen flagga längre: den är
+// permanent blockerad i både API och databas.
+export const ALLOW_TEST_ORDERS = !isProduction && process.env.ALLOW_TEST_ORDERS === 'true';
 
-if (isProduction && ALLOW_WIPE_ORDERS) {
-  console.warn(
-    '⚠️  ALLOW_WIPE_ORDERS=true i produktion — wipe-endpoint är tillgänglig. Detta är ett test-only-feature.',
-  );
+if (isProduction && process.env.ALLOW_TEST_ORDERS === 'true') {
+  console.warn('⚠️  ALLOW_TEST_ORDERS ignoreras i produktion. Gratis testordrar är hårt avstängda.');
 }
 
 // Strikt allow-list. Stödjer både ALLOWED_ORIGINS (legacy) och
@@ -67,11 +65,13 @@ export const ALLOWED_ORIGINS = [
 
 // Default origins for dev + production. Primära ViaEats-domäner plus kända
 // deploy-domäner som behövs under drift.
-export const DEFAULT_ORIGINS = [
-  // Dev / lokala
+export const DEV_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002',
+];
+
+export const DEFAULT_ORIGINS = [
   // Prod: primär brand-domän bakom Cloudflare och Vercel.
   // MÅSTE finnas här annars blockar CORS browser-anrop från storefront/admin
   // ("Kan inte nå servern" trots att API:t svarar).
@@ -80,10 +80,17 @@ export const DEFAULT_ORIGINS = [
   'https://office.viaeats.se',
   'https://courier.viaeats.se',
   'https://api.viaeats.se',
+  // Känd äldre storefront-deploy. Övriga previews måste uttryckligen läggas i
+  // CORS_ALLOWED_ORIGINS; vem som helst kan annars skapa en *.vercel.app-domän.
+  'https://viaeats-web-pi.vercel.app',
 ];
 
 export const getAllowedOrigins = (): string[] => {
-  return [...DEFAULT_ORIGINS, ...ALLOWED_ORIGINS];
+  return [
+    ...DEFAULT_ORIGINS,
+    ...(isProduction ? [] : DEV_ORIGINS),
+    ...ALLOWED_ORIGINS,
+  ];
 };
 
 /**
@@ -117,24 +124,6 @@ export function isOriginAllowed(origin: string | undefined): boolean {
 
   const allowed = getAllowedOrigins();
   if (allowed.includes(origin)) return true;
-
-  // Vår egen infra: Vercel-deploys (preview + prod) och Railway-app-domäner.
-  // Tidigare blockerade vi *.vercel.app helt — för restriktivt eftersom vi
-  // använder Vercel-preview-URLer för testning innan custom domain dragits.
-  // Säkerhetsmässigt OK: ingen annan kan deploya till våra Vercel-projekt.
-  try {
-    const host = new URL(origin).hostname;
-    if (
-      host.endsWith('.vercel.app') ||
-      host.endsWith('.up.railway.app') ||
-      host.endsWith('.railway.app')
-    ) {
-      return true;
-    }
-  } catch {
-    // Ogiltigt URL-format → blockera
-    return false;
-  }
 
   if (!isProd) {
     if (/^https?:\/\/(localhost|192\.168\.\d+\.\d+|127\.0\.0\.1)(:\d+)?$/.test(origin)) {

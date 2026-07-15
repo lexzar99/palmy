@@ -111,6 +111,7 @@ export default function VarvaVanTab() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [revertId, setRevertId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [enabled, setEnabled] = useState(false);
@@ -119,7 +120,7 @@ export default function VarvaVanTab() {
 
   const settings = useQuery({ queryKey: welcomeDealQueryKey, queryFn: getWelcomeDealSettings });
   const stats = useQuery({ queryKey: referralStatsQueryKey, queryFn: getReferralStats });
-  const list = useQuery({ queryKey: referralsListQueryKey({ search: query }), queryFn: () => getReferrals({ search: query }) });
+  const list = useQuery({ queryKey: referralsListQueryKey({ search: query, page }), queryFn: () => getReferrals({ search: query, page }) });
   const revert = useMutation({
     mutationFn: () => revertReferral(revertId as string, reason.trim() || "Admin"),
     onSuccess: () => {
@@ -148,8 +149,14 @@ export default function VarvaVanTab() {
     onSuccess: () => qc.invalidateQueries({ queryKey: welcomeDealQueryKey }),
   });
 
-  const f = stats.data?.funnel;
   const rows = list.data?.data ?? [];
+  const pageSize = Math.max(1, list.data?.pageSize ?? 1);
+  const totalPages = Math.max(1, Math.ceil((list.data?.total ?? 0) / pageSize));
+
+  const applySearch = () => {
+    setPage(1);
+    setQuery(search.trim());
+  };
 
   if (settings.isLoading) return <LoadingPanel label="Laddar referral-inställningar..." />;
   if (settings.isError || !settings.data) return <ErrorPanel title="Kunde inte ladda referral-inställningar" action={<Button onClick={() => void settings.refetch()}>Försök igen</Button>} />;
@@ -183,12 +190,22 @@ export default function VarvaVanTab() {
         {save.isError && <span className="text-sm text-[var(--danger)]">Kunde inte spara inställningarna</span>}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Inbjudna" value={(f?.invited ?? 0).toLocaleString("sv-SE")} />
-        <MetricCard label="Registrerade" value={(f?.registered ?? 0).toLocaleString("sv-SE")} />
-        <MetricCard label="Lade order" value={(f?.ordered ?? 0).toLocaleString("sv-SE")} />
-        <MetricCard label="Belönade" value={(f?.rewarded ?? 0).toLocaleString("sv-SE")} />
-      </div>
+      {stats.isLoading ? (
+        <LoadingPanel label="Laddar referral-statistik..." />
+      ) : stats.isError || !stats.data ? (
+        <ErrorPanel
+          title="Kunde inte ladda referral-statistik"
+          description="Statistiken är tillfälligt otillgänglig; nollvärden visas inte som ersättning."
+          action={<Button onClick={() => void stats.refetch()}>Försök igen</Button>}
+        />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard label="Inbjudna" value={stats.data.funnel.invited.toLocaleString("sv-SE")} />
+          <MetricCard label="Registrerade" value={stats.data.funnel.registered.toLocaleString("sv-SE")} />
+          <MetricCard label="Lade order" value={stats.data.funnel.ordered.toLocaleString("sv-SE")} />
+          <MetricCard label="Belönade" value={stats.data.funnel.rewarded.toLocaleString("sv-SE")} />
+        </div>
+      )}
 
       <Surface>
         <div className="flex flex-col gap-4 p-6">
@@ -198,37 +215,55 @@ export default function VarvaVanTab() {
               placeholder="Sök inbjudare eller inbjuden"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && setQuery(search.trim())}
+              onKeyDown={(e) => e.key === "Enter" && applySearch()}
             />
-            <Button onClick={() => setQuery(search.trim())}>Sök</Button>
+            <Button onClick={applySearch}>Sök</Button>
           </div>
 
           {list.isLoading ? (
             <LoadingPanel />
+          ) : list.isError || !list.data ? (
+            <ErrorPanel
+              title="Kunde inte ladda värvningar"
+              description="Listan är tillfälligt otillgänglig. Inga resultat har ersatts med en tom lista."
+              action={<Button onClick={() => void list.refetch()}>Försök igen</Button>}
+            />
           ) : rows.length === 0 ? (
-            <EmptyState title="Inga värvningar än" description="Här syns vem som värvat vem och status." />
+            <EmptyState
+              title={query ? "Inga matchande värvningar" : "Inga värvningar än"}
+              description={query ? "Ändra sökningen och försök igen." : "Här syns vem som värvat vem och status."}
+            />
           ) : (
-            <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)]">
-              {rows.map((r, i) => (
-                <div key={r.id} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t border-[var(--border-subtle)]" : ""}`}>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">
-                      {r.inviterName || r.inviterEmail || r.inviterPhone || "Okänd"}
-                      <span className="px-1.5 text-[var(--text-muted)]">till</span>
-                      {r.inviteeName || r.inviteeEmail || r.inviteePhone || "Väntar"}
-                    </p>
-                    <p className="text-xs text-[var(--text-secondary)]">
-                      {new Date(r.createdAt).toLocaleDateString("sv-SE")}
-                      {r.fraudFlags?.length ? ` · ${r.fraudFlags.length} flaggor` : ""}
-                    </p>
+            <>
+              <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)]">
+                {rows.map((r, i) => (
+                  <div key={r.id} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t border-[var(--border-subtle)]" : ""}`}>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">
+                        {r.inviterName || r.inviterEmail || r.inviterPhone || "Okänd"}
+                        <span className="px-1.5 text-[var(--text-muted)]">till</span>
+                        {r.inviteeName || r.inviteeEmail || r.inviteePhone || "Väntar"}
+                      </p>
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        {new Date(r.createdAt).toLocaleDateString("sv-SE")}
+                        {r.fraudFlags?.length ? ` · ${r.fraudFlags.length} flaggor` : ""}
+                      </p>
+                    </div>
+                    <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{STATUS_LABEL[r.status] ?? r.status}</Badge>
+                    {r.status !== "REVERTED" && (
+                      <Button variant="danger" onClick={() => { setRevertId(r.id); setReason(""); }}>Återta</Button>
+                    )}
                   </div>
-                  <Badge tone={STATUS_TONE[r.status] ?? "neutral"}>{STATUS_LABEL[r.status] ?? r.status}</Badge>
-                  {r.status !== "REVERTED" && (
-                    <Button variant="danger" onClick={() => { setRevertId(r.id); setReason(""); }}>Återta</Button>
-                  )}
+                ))}
+              </div>
+              <div className="flex flex-col gap-3 text-sm text-[var(--text-secondary)] sm:flex-row sm:items-center sm:justify-between">
+                <span>{list.data.total} värvningar · sida {list.data.page} av {totalPages}</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="secondary" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>‹ Föregående</Button>
+                  <Button variant="secondary" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages}>Nästa ›</Button>
                 </div>
-              ))}
-            </div>
+              </div>
+            </>
           )}
         </div>
       </Surface>

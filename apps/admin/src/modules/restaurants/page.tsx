@@ -11,7 +11,7 @@ import {
   type ControlCenterRestaurantSnapshot,
 } from "@/modules/restaurants/api";
 import { Badge, Button, EmptyState, ErrorPanel, Input, LoadingPanel, PageHeader, Select, Surface } from "@/shared/components/ui";
-import { AcceptingOrdersModeSelect, RestaurantAvailabilitySummary } from "@/shared/components/restaurant-availability";
+import { AcceptingOrdersModeToggle, RestaurantAvailabilitySummary } from "@/shared/components/restaurant-availability";
 import type { AcceptingOrdersMode } from "@/shared/contracts/restaurants";
 import { cn } from "@/shared/utils/cn";
 
@@ -149,7 +149,7 @@ export function RestaurantsPage() {
                 isLast={i === filtered.length - 1}
                 onOpen={() => router.push(`/restaurants/${r.id}`)}
                 onChangeMode={(mode) => statusMutation.mutate({ id: r.id, mode })}
-                togglePending={statusMutation.isPending}
+                togglePending={statusMutation.isPending && statusMutation.variables?.id === r.id}
               />
             ))}
             </div>
@@ -160,7 +160,7 @@ export function RestaurantsPage() {
                   restaurant={restaurant}
                   onOpen={() => router.push(`/restaurants/${restaurant.id}`)}
                   onChangeMode={(mode) => statusMutation.mutate({ id: restaurant.id, mode })}
-                  togglePending={statusMutation.isPending}
+                  togglePending={statusMutation.isPending && statusMutation.variables?.id === restaurant.id}
                 />
               ))}
             </div>
@@ -230,12 +230,11 @@ function RestaurantRow({
 
       {/* Status */}
       <span className="grid gap-0.5">
-        <AcceptingOrdersModeSelect
-          className="min-w-0 !rounded-[8px] !px-3 !py-2 text-xs"
+        <AcceptingOrdersModeToggle
+          className="w-full"
           aria-label={`Beställningsläge för ${r.name}`}
           value={r.acceptingOrdersMode}
           disabled={togglePending}
-          compactLabels
           onValueChange={onChangeMode}
         />
         <span className={cn("text-[10px] font-bold", r.isOpen ? "text-[var(--success-text)]" : "text-[var(--warning-text)]")}>
@@ -296,7 +295,7 @@ function RestaurantMobileCard({
         <div className="surface-muted px-3 py-2"><span className="text-[var(--text-muted)]">Ordrar idag</span><strong className="mt-0.5 block">{r.todayOrders}</strong></div>
       </div>
 
-      <AcceptingOrdersModeSelect
+      <AcceptingOrdersModeToggle
         aria-label={`Beställningsläge för ${r.name}`}
         value={r.acceptingOrdersMode}
         disabled={togglePending}

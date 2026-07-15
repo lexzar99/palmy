@@ -15,10 +15,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { API_URL } from "@/lib/api";
 import {
   clearPlatformSession,
+  clearPlatformSessionForRefresh,
   getPlatformSessionStatus,
   persistPlatformSession,
   markLoggedOut,
   isLoggedOutMark,
+  hasExplicitLoginIntent,
+  LAST_CUSTOMER_ID_KEY,
 } from "@/lib/platformSessionClient";
 import ConfirmModal from "@/components/ConfirmModal";
 import SocialAuthButton from "@/components/SocialAuthButton";
@@ -300,6 +303,30 @@ function ProfileContent() {
     }
   }, []);
 
+  useEffect(() => {
+    const onCustomerStorage = (event: StorageEvent) => {
+      if (event.key !== LAST_CUSTOMER_ID_KEY && event.key !== "dlv_logged_out") return;
+      // Cookies/localStorage are shared by every tab. Drop the prior profile PII
+      // immediately, then hydrate only from the newly resolved shared session.
+      setLoading(true);
+      setHasPlatformSession(false);
+      setUser(null);
+      setOrders([]);
+      setDeals([]);
+      setClaimedDeals([]);
+      setAvailableDeals([]);
+      setSavedAddresses([]);
+      setPaymentMethods([]);
+      void getPlatformSessionStatus().then(async (authenticated) => {
+        setHasPlatformSession(authenticated);
+        if (authenticated) await fetchData();
+        else setLoading(false);
+      });
+    };
+    window.addEventListener("storage", onCustomerStorage);
+    return () => window.removeEventListener("storage", onCustomerStorage);
+  }, [fetchData]);
+
   // ─── OAuth Session Exchange ──────────────────────────────────────────────
   const { data: session, status } = useSession();
   const platformToken = session?.platformToken;
@@ -355,7 +382,7 @@ function ProfileContent() {
             } catch {
               // fetchData failed (token kanske stale) → fall through till byte
               console.warn("[OAuth] Stale platform session, forcing exchange");
-              await clearPlatformSession();
+              await clearPlatformSessionForRefresh();
             }
           }
         }
@@ -431,15 +458,23 @@ function ProfileContent() {
         const image = meta.avatar_url || meta.picture || null;
 
         console.log("[OAuth] POST /api/auth/oauth-token", { email, provider });
-        const res = await axios.post(`${API_URL}/api/auth/oauth-token`, {
-          email,
-          // Skicka tomt namn om OAuth inte gav något — backend lägger
-          // INTE in placeholder då, och gates till "complete profile" istället.
-          name: oauthFullName || "",
-          provider,
-          providerId,
-          image,
-        });
+        const res = await axios.post(
+          `${API_URL}/api/auth/oauth-token`,
+          {
+            email,
+            // Skicka tomt namn om OAuth inte gav något — backend lägger
+            // INTE in placeholder då, och gates till "complete profile" istället.
+            name: oauthFullName || "",
+            provider,
+            providerId,
+            image,
+          },
+          {
+            // Backend litar aldrig på body-fälten för identitet. Den verifierar
+            // Supabase-sessionen och hämtar email/provider-id direkt därifrån.
+            headers: { Authorization: `Bearer ${sbSession.access_token}` },
+          },
+        );
 
         const platformToken = res.data?.token;
         if (!platformToken) {
@@ -519,7 +554,7 @@ function ProfileContent() {
         // Medvetet utloggad? En kvarvarande Supabase-session (cookies rensas inte
         // alltid rent) får INTE auto-logga in igen. Riv sessionen, stanna utloggad
         // tills explicit login (då rensas spärren).
-        if (isLoggedOutMark()) {
+        if (isLoggedOutMark() && !hasExplicitLoginIntent()) {
           await supabase.auth.signOut().catch(() => {});
           setLoading(false);
           return;
@@ -527,7 +562,7 @@ function ProfileContent() {
         // Fresh OAuth-flöde — alltid byt till fresh platform JWT, oavsett
         // om gammal cookie finns. Stale cookies orsakade 401-loop tidigare.
         console.log("[OAuth] Supabase session detected — forcing fresh exchange");
-        await clearPlatformSession().catch(() => {});
+        await clearPlatformSessionForRefresh().catch(() => {});
         await exchangeSupabaseForPlatformToken(sbSession, true);
         return;
       }
@@ -550,7 +585,7 @@ function ProfileContent() {
         console.log("[OAuth] auth state change:", event, "hasSession=", !!sbSession?.access_token);
         if (event === "SIGNED_IN" && sbSession?.access_token) {
           // Medvetet utloggad → ignorera (annars auto-återinlogg = flappning).
-          if (isLoggedOutMark()) return;
+          if (isLoggedOutMark() && !hasExplicitLoginIntent()) return;
           // Tvinga nytt token-byte vid SIGNED_IN för att inte använda en
           // stale platform-cookie från en tidigare misslyckad inloggning.
           void exchangeSupabaseForPlatformToken(sbSession, true);
@@ -586,14 +621,19 @@ function ProfileContent() {
   }, []);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("viaeats_preferred_payment_method_v1");
-      if (saved === "APPLE_PAY" || saved === "CARD" || saved === "SWISH") {
-        setPreferredPayment(saved);
+    const syncPreferredPayment = (event?: StorageEvent) => {
+      if (event?.key && event.key !== "viaeats_preferred_payment_method_v1") return;
+      try {
+        const saved = localStorage.getItem("viaeats_preferred_payment_method_v1");
+        setPreferredPayment(saved === "CARD" || saved === "SWISH" ? saved : "APPLE_PAY");
+      } catch {
+        // localStorage kan vara låst i vissa browserlägen; profilen ska ändå rendera.
+        setPreferredPayment("APPLE_PAY");
       }
-    } catch {
-      // localStorage kan vara låst i vissa browserlägen; profilen ska ändå rendera.
-    }
+    };
+    syncPreferredPayment();
+    window.addEventListener("storage", syncPreferredPayment);
+    return () => window.removeEventListener("storage", syncPreferredPayment);
   }, []);
 
   useEffect(() => {
@@ -625,8 +665,11 @@ function ProfileContent() {
 
   const addPhoneFull = () => `${addPhoneCountry}${addPhoneNum.replace(/\D/g, "").replace(/^0/, "")}`;
 
-  const lockPhone = async (fullPhone: string) => {
-    const res = await axios.post(`/api/platform/profile/link-phone`, { phone: fullPhone });
+  const lockPhone = async (fullPhone: string, phoneVerificationToken: string) => {
+    const res = await axios.post(`/api/platform/profile/link-phone`, {
+      phone: fullPhone,
+      token: phoneVerificationToken,
+    });
     setUser((prev: any) => ({ ...(prev || {}), ...res.data.user }));
     await fetchData();
     setShowAddPhone(false);
@@ -687,9 +730,15 @@ function ProfileContent() {
     setAddPhoneError("");
     try {
       const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.verifyOtp({ phone: addPhoneFull(), token: addPhoneCode.trim(), type: "phone_change" });
+      const { data, error } = await supabase.auth.verifyOtp({ phone: addPhoneFull(), token: addPhoneCode.trim(), type: "phone_change" });
       if (error) throw error;
-      await lockPhone(addPhoneFull());
+      const phoneVerificationToken =
+        data.session?.access_token ||
+        (await supabase.auth.getSession()).data.session?.access_token;
+      if (!phoneVerificationToken) {
+        throw new Error("SMS-sessionen kunde inte verifieras. Försök igen.");
+      }
+      await lockPhone(addPhoneFull(), phoneVerificationToken);
       // Verifieringen klar → kontot är komplett och inloggat. Skicka till hem-
       // sidan (i stället för att stanna kvar på /profile efter inloggningen).
       router.push("/");
@@ -1223,10 +1272,7 @@ function ProfileContent() {
                 orders.slice(0, 12).map((order, index) => {
                   const restaurantName = order.restaurantName || order.restaurant?.name || t("profile.orders.fallbackName");
                   const total = Number(order.total ?? order.totalAmount ?? 0);
-                  const phoneProof = order.customerPhone || user.phone;
-                  const orderHref = phoneProof
-                    ? `/order/${order.id}?phone=${encodeURIComponent(phoneProof)}`
-                    : `/order/${order.id}`;
+                  const orderHref = `/order/${order.id}`;
                   return (
                     <Link
                       key={order.id}
@@ -1530,7 +1576,7 @@ function ProfileContent() {
                 </button>
               </div>
 
-              <ReferralProfileCard phone={user.phone} />
+              <ReferralProfileCard authenticated />
 
               <div className="rounded-2xl overflow-hidden shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                 {[

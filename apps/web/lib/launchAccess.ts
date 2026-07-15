@@ -17,10 +17,20 @@ export function isValidLaunchCookie(value: string | undefined) {
 }
 
 export function isValidLaunchCode(code: string) {
-  const expected = process.env.LAUNCH_ACCESS_CODE_SHA256?.trim().toLowerCase();
-  if (!expected || !/^\w{64}$/.test(expected)) return false;
+  const configuredHash = process.env.LAUNCH_ACCESS_CODE_SHA256?.trim().toLowerCase() || "";
+  const configuredPlaintext = process.env.LAUNCH_ACCESS_CODE?.trim() || "";
+  // Preferred: riktig 64-teckens SHA-256 i LAUNCH_ACCESS_CODE_SHA256.
+  // Bakåtkompatibilitet: tidigare instruktion lät Railway få själva koden i
+  // samma variabel. Hasha den vid runtime så befintlig deploy inte låser ute
+  // ägaren; koden skrivs aldrig till source, cookie eller respons.
+  const expected = /^[a-f0-9]{64}$/.test(configuredHash)
+    ? configuredHash
+    : createHash("sha256")
+        .update(configuredPlaintext || configuredHash, "utf8")
+        .digest("hex");
+  if ((!configuredHash && !configuredPlaintext) || !/^[a-f0-9]{64}$/.test(expected)) return false;
   const actual = createHash("sha256").update(code, "utf8").digest("hex");
-  const actualBuffer = Buffer.from(actual);
-  const expectedBuffer = Buffer.from(expected);
+  const actualBuffer = Buffer.from(actual, "hex");
+  const expectedBuffer = Buffer.from(expected, "hex");
   return timingSafeEqual(actualBuffer, expectedBuffer);
 }

@@ -72,7 +72,8 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
               Vilka uppgifter samlar vi in?
             </h2>
             <ul className="space-y-3" style={{ color: "var(--text-secondary)" }}>
-              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Konto:</strong> namn, e-post, telefonnummer, krypterat lösenord.</span></li>
+              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Konto:</strong> namn, e-post från Google/Apple när den delas och verifierat telefonnummer. Kundkonton har inget ViaEats-lösenord.</span></li>
+              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Launchintresse:</strong> namn, e-post, tidpunkt för ditt samtycke samt status för den reserverade kupongen. Vi sparar ingen separat besöksidentifierare, referrer eller klickhistorik för launchsidan.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Beställningar:</strong> orderhistorik, leveransadresser, valda restauranger och rätter.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Betalning:</strong> hanteras av Mollie. Vi lagrar aldrig kortnummer eller CVC.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Teknisk data:</strong> IP-adress, enhetstyp, push-token för orderstatus-notiser.</span></li>
@@ -91,12 +92,12 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
             <ul className="space-y-3" style={{ color: "var(--text-secondary)" }}>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Avtal (GDPR art. 6.1 b):</strong> hantera ditt konto, vidarebefordra beställningar till restauranger, ta betalt och skicka orderstatus.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Rättslig förpliktelse (art. 6.1 c):</strong> bokföring och skattekrav.</span></li>
-              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Samtycke (art. 6.1 a):</strong> valfri analys och felrapportering. Du kan när som helst återkalla via cookie-inställningarna.</span></li>
+              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Samtycke (art. 6.1 a):</strong> manuell kontakt om launchkupongen samt valfri analys och felrapportering. Analyticsamtycke ändras via cookie-inställningarna; launchsamtycke återkallas genom att kontakta oss.</span></li>
             </ul>
             <p className="mt-4 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
               Vi delar uppgifter med restaurangen som tar emot din beställning, med det bud som
               levererar (eget bud från ViaEats eller restaurangens egen leverans), vår
-              betaltjänstleverantör (Mollie B.V.), e-postleverantör (Resend) och push-tjänst (APNs).
+              betaltjänstleverantör (Mollie B.V.), vår konfigurerade e-postleverantör och push-tjänster.
               Dessa är personuppgiftsbiträden som bara behandlar uppgifterna för att fullgöra din
               order. Vi säljer <strong>aldrig</strong> data vidare till tredje part.
             </p>
@@ -110,7 +111,9 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
             <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
               Kontouppgifter sparas så länge ditt konto är aktivt. När du raderar kontot tas dina
               personuppgifter bort inom 30 dagar, med undantag för order- och bokföringsunderlag
-              som enligt Bokföringslagen (1999:1078) ska sparas i sju (7) år.
+              som enligt Bokföringslagen (1999:1078) ska sparas i sju (7) år. Uppgifter om
+              launchintresse sparas tills du återkallar samtycket eller den manuella
+              kampanjuppföljningen är avslutad.
             </p>
           </section>
 

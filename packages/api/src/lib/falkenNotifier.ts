@@ -2,7 +2,7 @@
 // Courier availability alerts live in courierPush.ts, so the same order can
 // never produce two competing courier messages. Restarts seed silently.
 import prisma from './prisma';
-import { isHermesAlertConfigured, sendHermesEvents } from './hermesAlerts';
+import { isHermesAlertConfigured, sendHermesAlert } from './hermesAlerts';
 
 const TERMINAL = new Set(['DELIVERED', 'COMPLETED', 'REJECTED', 'CANCELLED', 'DELIVERY_FAILED']);
 const ACCEPTED = new Set(['ACCEPTED', 'PREPARING']);
@@ -17,21 +17,30 @@ const cfg = () => ({
 const ageMin = (date: Date) => Math.max(0, Math.floor((Date.now() - date.getTime()) / 60_000));
 
 async function tick() {
-  const orders = await prisma.order.findMany({
-    where: { NOT: { status: 'AWAITING_PAYMENT' } },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-    select: {
-      id: true,
-      orderNumber: true,
-      status: true,
-      type: true,
-      total: true,
-      estimatedTime: true,
-      createdAt: true,
-      restaurant: { select: { name: true } },
-    },
-  });
+  const [orders, onlineCouriers] = await Promise.all([
+    prisma.order.findMany({
+      where: { NOT: { status: 'AWAITING_PAYMENT' } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        type: true,
+        total: true,
+        estimatedTime: true,
+        createdAt: true,
+        preparingAt: true,
+        delivery: { select: { courierId: true } },
+        restaurant: { select: { name: true, city: true, selfDelivery: true } },
+      },
+    }),
+    prisma.courier.findMany({
+      where: { online: true, isActive: true },
+      select: { city: true },
+    }),
+  ]);
+  const onlineCourierCities = new Set(onlineCouriers.map((courier) => courier.city.trim().toLowerCase()));
 
   if (!seeded) {
     for (const order of orders) {
@@ -44,12 +53,12 @@ async function tick() {
     return;
   }
 
-  const lines: string[] = [];
-  const events: Array<Record<string, unknown>> = [];
+  const alerts: Array<Record<string, unknown> & { type: string; text: string }> = [];
   const emit = (text: string, type: string, order: (typeof orders)[number]) => {
-    lines.push(text);
-    events.push({
+    alerts.push({
+      source: 'viaeats-falken',
       type,
+      text,
       orderId: order.id,
       orderNumber: order.orderNumber,
       status: order.status,
@@ -63,21 +72,20 @@ async function tick() {
     const number = order.orderNumber || order.id;
     const restaurant = order.restaurant?.name || 'okänd restaurang';
     const totalKr = Math.round(order.total / 100);
-    const previous = seen.get(order.id);
+    let previous = seen.get(order.id);
 
     if (!previous) {
       const flags = new Set<string>();
-      seen.set(order.id, { status: order.status, createdAt: order.createdAt, flags });
-      if (order.status === 'PENDING') {
+      previous = { status: order.status, createdAt: order.createdAt, flags };
+      seen.set(order.id, previous);
+      if (!TERMINAL.has(order.status)) {
         emit(`Ny order ${number} från ${restaurant}, ${totalKr} kr. Väntar på restaurangen.`, 'order:new', order);
-      } else if (ACCEPTED.has(order.status)) {
+      }
+      if (ACCEPTED.has(order.status)) {
         flags.add('accepted');
         emit(`Order ${number} accepterad av ${restaurant}. Klar om ${order.estimatedTime || 20} min.`, 'order:accepted', order);
       }
-      continue;
-    }
-
-    if (previous.status !== order.status) {
+    } else if (previous.status !== order.status) {
       previous.status = order.status;
       if (ACCEPTED.has(order.status) && !previous.flags.has('accepted')) {
         previous.flags.add('accepted');
@@ -100,6 +108,36 @@ async function tick() {
         emit(`Leveransen av order ${number} från ${restaurant} misslyckades.`, 'order:delivery_failed', order);
       }
     }
+
+    // Durable recovery for courier alerts. Event-driven timers give the fast
+    // path, while this DB scan survives API restarts and multi-replica races.
+    const isUnassignedPlatformDelivery =
+      order.type === 'DELIVERY' &&
+      !order.restaurant?.selfDelivery &&
+      !order.delivery?.courierId &&
+      (ACCEPTED.has(order.status) || order.status === 'READY');
+    if (isUnassignedPlatformDelivery) {
+      const city = String(order.restaurant?.city || '').trim();
+      const hasOnlineCourier = city ? onlineCourierCities.has(city.toLowerCase()) : false;
+      if (!hasOnlineCourier && !previous.flags.has('no-couriers-online')) {
+        previous.flags.add('no-couriers-online');
+        emit(
+          `INGA BUD\nOrder ${number} accepterad av ${restaurant}. Klar om ${order.estimatedTime || 20} min.`,
+          'courier:none_online',
+          order,
+        );
+      } else {
+        const acceptedAt = order.preparingAt || order.createdAt;
+        if (hasOnlineCourier && ageMin(acceptedAt) >= 3 && !previous.flags.has('no-courier-accepted-3m')) {
+          previous.flags.add('no-courier-accepted-3m');
+          emit(
+            `Inget bud har accepterat den pågående beställningen ${number} från ${restaurant} efter 3 minuter.`,
+            'courier:not_accepted_3m',
+            order,
+          );
+        }
+      }
+    }
   }
 
   const currentIds = new Set(orders.map((order) => order.id));
@@ -107,7 +145,11 @@ async function tick() {
     if (!currentIds.has(id) && (TERMINAL.has(entry.status) || ageMin(entry.createdAt) > 24 * 60)) seen.delete(id);
   }
 
-  if (events.length > 0) await sendHermesEvents(events, lines.join('\n'));
+  // En alert per affärshändelse ger tydliga WhatsApp-meddelanden. Den
+  // gemensamma Hermes-claimen deduplicerar orderId+typ över alla API-repliker.
+  for (const alert of alerts) {
+    await sendHermesAlert(alert as any);
+  }
 }
 
 export function startFalkenNotifier() {

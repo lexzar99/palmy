@@ -5,6 +5,11 @@ import { usePathname } from "next/navigation";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import {
+  getPlatformSessionStatus,
+  LAST_CUSTOMER_ID_KEY,
+  PLATFORM_SESSION_CHANGED_EVENT,
+} from "@/lib/platformSessionClient";
 
 /**
  * Claim-popup som visas första gången en inloggad användare öppnar
@@ -24,6 +29,7 @@ export default function ClaimDealPopup() {
   const [deal, setDeal] = useState<any | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
+  const [sessionRevision, setSessionRevision] = useState(0);
 
   // Popupen visas bara på hemsidan. Om användaren är inne i kassan/order/
   // restaurang och något triggar pop refetcha — vänta tills hen kommer
@@ -32,6 +38,7 @@ export default function ClaimDealPopup() {
 
   const findCandidate = useCallback(async () => {
     try {
+      if (!(await getPlatformSessionStatus())) return null;
       const dismissedAt = Number(localStorage.getItem("viaeats_claim_dismissed_at") || 0);
       if (dismissedAt && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) return null;
 
@@ -60,6 +67,24 @@ export default function ClaimDealPopup() {
   }, []);
 
   useEffect(() => {
+    const onSessionChanged = () => {
+      setDeal(null);
+      setClaimed(false);
+      setClaiming(false);
+      setSessionRevision((current) => current + 1);
+    };
+    const onCustomerStorage = (event: StorageEvent) => {
+      if (event.key === LAST_CUSTOMER_ID_KEY || event.key === "dlv_logged_out") onSessionChanged();
+    };
+    window.addEventListener(PLATFORM_SESSION_CHANGED_EVENT, onSessionChanged);
+    window.addEventListener("storage", onCustomerStorage);
+    return () => {
+      window.removeEventListener(PLATFORM_SESSION_CHANGED_EVENT, onSessionChanged);
+      window.removeEventListener("storage", onCustomerStorage);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isHome) return; // Bara visa på hemsidan
     let cancelled = false;
     findCandidate().then((c) => {
@@ -68,7 +93,7 @@ export default function ClaimDealPopup() {
     return () => {
       cancelled = true;
     };
-  }, [isHome, findCandidate]);
+  }, [isHome, findCandidate, sessionRevision]);
 
   // Refetch när fönstret återfår fokus (kund öppnar tab eller switchar
   // tillbaka till appen) — så att en popup som admin skickade medan

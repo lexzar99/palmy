@@ -51,6 +51,7 @@ export interface ProductRecord {
   description?: string | null;
   /** Admin menu API display/input contract: SEK, not öre. */
   price: number;
+  vatPercent?: 0 | 6 | 12 | 25 | null;
   categoryId: string;
   imageUrl?: string | null;
   isActive?: boolean;

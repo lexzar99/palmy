@@ -20,8 +20,70 @@ import { cached, bustCache, bustRestaurantCaches } from '../lib/ttlCache';
 import { revalidateWebRestaurant } from '../lib/revalidate';
 import { menuCacheBust } from './menu';
 import { isCustomerVisibleDeal, isDealAvailableNow, parseApplicableRestaurantIds, parseDealProductIds } from '../lib/deals';
+import { audit } from '../lib/auditLog';
+import { normalizeVatPercent } from '../lib/tax';
 
 const router = Router();
+
+const PLATFORM_ADMIN_ROLES = new Set(['SUPER_ADMIN', 'GLOBAL_VIEWER', 'MENU_AGENT', 'GROWTH_AGENT']);
+
+async function upsertRestaurantAdminAccount(input: {
+  restaurantId: string;
+  restaurantName: string;
+  email: string;
+  passwordHash: string;
+}) {
+  const email = input.email.trim().toLowerCase();
+  const existing = await prisma.adminUser.findUnique({ where: { email } });
+  if (existing && PLATFORM_ADMIN_ROLES.has(existing.role)) {
+    throw new Error('Admin-adressen tillhör ett plattformskonto och kan inte användas av en restaurang');
+  }
+
+  if (existing) {
+    const otherOwner = await prisma.restaurant.findFirst({
+      where: {
+        id: { not: input.restaurantId },
+        archivedAt: null,
+        OR: [
+          { adminUserId: existing.id },
+          { adminEmail: { equals: email, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, name: true },
+    });
+    if (otherOwner) {
+      throw new Error(`Admin-adressen används redan av ${otherOwner.name}`);
+    }
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const adminUser = existing
+      ? await tx.adminUser.update({
+          where: { id: existing.id },
+          data: {
+            password: input.passwordHash,
+            isActive: true,
+            name: `${input.restaurantName} Admin`,
+            role: 'RESTAURANT_ADMIN',
+          },
+        })
+      : await tx.adminUser.create({
+          data: {
+            email,
+            password: input.passwordHash,
+            name: `${input.restaurantName} Admin`,
+            role: 'RESTAURANT_ADMIN',
+            isActive: true,
+          },
+        });
+
+    await tx.restaurant.update({
+      where: { id: input.restaurantId },
+      data: { adminUserId: adminUser.id, adminEmail: adminUser.email },
+    });
+    return adminUser;
+  });
+}
 
 const kr = (amount: number) => sekToOre(amount, 'amountSek');
 const fromOre = (amount?: number | null) => oreToSek(amount);
@@ -100,7 +162,7 @@ const restaurantSchema = z.object({
   deliveryRadius: z.number().optional(),
   logoutCode: z.string().nullable().optional(),
   announcementText: z.string().nullable().optional(),
-  vatPercent: z.number().nullable().optional(),
+  vatPercent: z.union([z.literal(0), z.literal(6), z.literal(12), z.literal(25)]).nullable().optional(),
   // Leveransansvar: true = restaurangen levererar själv (10% default), false = plattformen (20%).
   selfDelivery: z.boolean().optional(),
   // Provisions-override i %. null = använd global self/platform-sats.
@@ -187,7 +249,8 @@ const formatRestaurant = (
   openingHours: parseJson<Record<string, any>>(restaurant.openingHours, {}),
   internalInfo: restaurant.internalInfo,
   announcementText: restaurant.announcementText ?? null,
-  vatPercent: restaurant.vatPercent ?? null,
+  // Every app order is takeaway/delivery; current Swedish food default is 6%.
+  vatPercent: normalizeVatPercent(restaurant.vatPercent, 6),
   selfDelivery: restaurant.selfDelivery ?? false,
   commissionPctOverride: restaurant.commissionPctOverride ?? null,
   createdAt: restaurant.createdAt,
@@ -428,9 +491,10 @@ router.get('/', async (req, res) => {
     // formatRestaurant CPU. Collapses the herd to one query+format per window.
     // Draft-synlighet är en egen cache-dimension så admin-svar aldrig läcker
     // till anonyma anrop.
-    const out = await cached('rest:list', `${withMenu === '1' ? 'menu' : 'lite'}|${(city as string) || ''}|d${includeDrafts ? 1 : 0}`, 20_000, async () => {
+    const loadRestaurants = async () => {
     const [restaurants, platformSettings] = await Promise.all([prisma.restaurant.findMany({
       where: {
+        archivedAt: null,
         ...(city ? { city: city as string } : {}),
         ...(includeDrafts ? {} : { draft: false }),
       },
@@ -468,7 +532,15 @@ router.get('/', async (req, res) => {
       city: r.city_relation,
       platform: platformSettings,
     }));
-    });
+    };
+
+    // Admin reads must be authoritative. With more than one Railway replica,
+    // an in-memory cache on replica B cannot be invalidated by a PATCH handled
+    // on replica A. Serving admins uncached prevents a successful publish/draft
+    // change from appearing to jump back for up to 20 seconds.
+    const out = includeDrafts
+      ? await loadRestaurants()
+      : await cached('rest:list', `${withMenu === '1' ? 'menu' : 'lite'}|${(city as string) || ''}|d0`, 20_000, loadRestaurants);
 
     res.json(out);
   } catch (err) {
@@ -579,16 +651,11 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         const hashedPassword = await bcrypt.hash(payload.adminPassword.trim(), 10);
         const adminEmail = (createdRaw.adminEmail || createdRaw.slug).toLowerCase();
 
-        const adminUser = await prisma.adminUser.upsert({
-          where: { email: adminEmail },
-          update: { password: hashedPassword, isActive: true, name: `${createdRaw.name} Admin` },
-          create: {
-            email: adminEmail,
-            password: hashedPassword,
-            name: `${createdRaw.name} Admin`,
-            role: 'ADMIN',
-            isActive: true,
-          },
+        const adminUser = await upsertRestaurantAdminAccount({
+          restaurantId: createdRaw.id,
+          restaurantName: createdRaw.name,
+          email: adminEmail,
+          passwordHash: hashedPassword,
         });
         adminCreated = true;
         console.log(`✅ Admin account created/updated for restaurant "${createdRaw.name}" (login: ${adminEmail}, id: ${adminUser.id})`);
@@ -634,6 +701,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     // Find the ACTUAL restaurant first to support slug OR id in the URL
     const existingRestaurant = await prisma.restaurant.findFirst({
       where: {
+        archivedAt: null,
         OR: [
           { id: paramId },
           { slug: paramId }
@@ -646,16 +714,26 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     }
 
     const id = existingRestaurant.id;
+    const requestedDraftChange = Object.prototype.hasOwnProperty.call(req.body || {}, 'draft')
+      || Object.prototype.hasOwnProperty.call(req.body || {}, 'editing');
 
     if (req.admin?.role === 'MENU_AGENT') {
       // Menyagenten får starta editing-läge, och därefter ändra restaurangen.
       // Publicering/avslut av editing är superadmin-exklusivt.
       const wantsEditing = req.body?.editing === true || req.body?.draft === true;
+      if (requestedDraftChange && !wantsEditing) {
+        res.status(403).json({ error: 'Endast super-admin kan publicera eller avsluta editing.' });
+        return;
+      }
       if (!(existingRestaurant as any).draft && !wantsEditing) {
         res.status(403).json({ error: 'Menyagenten kan bara ändra restauranger i editing. Skicka editing=true först.' });
         return;
       }
     } else if (req.admin?.role !== 'SUPER_ADMIN') {
+      if (requestedDraftChange) {
+        res.status(403).json({ error: 'Endast super-admin kan ändra utkast/publicerad.' });
+        return;
+      }
       const rid = req.admin?.restaurantId;
       if (!rid || rid !== id) {
         res.status(403).json({ error: 'Du kan bara uppdatera din egen restaurang' });
@@ -893,8 +971,10 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       try {
         await prisma.adminUser.updateMany({
           where: {
-            email: previousAdminLogin,
-            role: { not: 'SUPER_ADMIN' },
+            ...(existingRestaurant.adminUserId
+              ? { id: existingRestaurant.adminUserId }
+              : { email: previousAdminLogin }),
+            role: { in: ['ADMIN', 'RESTAURANT_ADMIN', 'STAFF'] },
           },
           data: {
             email: nextAdminLogin,
@@ -911,16 +991,11 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       try {
         const hashedPassword = await bcrypt.hash(payload.adminPassword.trim(), 10);
         const adminEmail = (restaurant.adminEmail || restaurant.slug).toLowerCase();
-        const adminUser = await prisma.adminUser.upsert({
-          where: { email: adminEmail },
-          update: { password: hashedPassword, isActive: true, name: `${restaurant.name} Admin` },
-          create: {
-            email: adminEmail,
-            password: hashedPassword,
-            name: `${restaurant.name} Admin`,
-            role: 'ADMIN',
-            isActive: true,
-          },
+        const adminUser = await upsertRestaurantAdminAccount({
+          restaurantId: restaurant.id,
+          restaurantName: restaurant.name,
+          email: adminEmail,
+          passwordHash: hashedPassword,
         });
         console.log(`✅ Admin password updated for "${restaurant.name}" (login: ${adminEmail}, id: ${adminUser.id})`);
       } catch (adminErr: any) {
@@ -998,56 +1073,89 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
     const restaurantId = req.params.id;
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { id: true },
+      select: { id: true, name: true, slug: true, archivedAt: true, adminUserId: true },
     });
     if (!restaurant) {
       res.status(404).json({ error: 'Restaurang hittades inte' });
       return;
     }
+    if (restaurant.archivedAt) {
+      res.json({ success: true, archived: true });
+      return;
+    }
 
-    // Category/ExtraGroup/Deal.restaurantId är nullable eftersom plattformen
-    // historiskt stödde globala mallar. Prisma sätter därför dessa FK:er till
-    // NULL när restaurangen raderas. Det gör gammal restaurangdata global och
-    // är exakt orsaken till att en borttagen meny senare blandas in hos andra.
-    // Radera restaurangens tenant-data explicit i samma transaktion i stället.
-    await prisma.$transaction(async (tx) => {
-      const categories = await tx.category.findMany({
-        where: { restaurantId },
-        select: { id: true },
-      });
-      const categoryIds = categories.map((category) => category.id);
-
-      if (categoryIds.length) {
-        const products = await tx.product.findMany({
-          where: { categoryId: { in: categoryIds } },
-          select: { id: true },
-        });
-        const productIds = products.map((product) => product.id);
-        if (productIds.length) {
-          await tx.productExtraGroup.deleteMany({ where: { productId: { in: productIds } } });
-          await tx.product.deleteMany({ where: { id: { in: productIds } } });
-        }
-        await tx.category.deleteMany({ where: { id: { in: categoryIds } } });
-      }
-
-      const extraGroups = await tx.extraGroup.findMany({
-        where: { restaurantId },
-        select: { id: true },
-      });
-      const extraGroupIds = extraGroups.map((group) => group.id);
-      if (extraGroupIds.length) {
-        // onDelete: Cascade removes extras and product links.
-        await tx.extraGroup.deleteMany({ where: { id: { in: extraGroupIds } } });
-      }
-
-      // A restaurant deal must not become a global deal after deletion.
-      await tx.deal.deleteMany({ where: { restaurantId } });
-      await tx.restaurant.delete({ where: { id: restaurantId } });
+    // Do not hide a restaurant while a paid or potentially completing order
+    // is live. AWAITING_PAYMENT is included because a delayed PSP webhook can
+    // still promote it to a paid order.
+    const activeOrderStatuses = [
+      'AWAITING_PAYMENT', 'PENDING', 'ACCEPTED', 'PREPARING', 'COOKING',
+      'READY', 'DELIVERING', 'OUT_FOR_DELIVERY',
+    ];
+    const activeOrders = await prisma.order.count({
+      where: { restaurantId, status: { in: activeOrderStatuses } },
     });
-    bustRestaurantCaches(); // restaurant gone → clear list/detail/zone/cities
-    res.json({ success: true });
+    if (activeOrders > 0) {
+      res.status(409).json({
+        error: `Restaurangen har ${activeOrders} pågående order. Avsluta eller avbryt dem innan arkivering.`,
+        activeOrders,
+      });
+      return;
+    }
+
+    const archivedAt = new Date();
+    await prisma.$transaction(async (tx) => {
+      await tx.restaurant.update({
+        where: { id: restaurantId },
+        data: {
+          archivedAt,
+          draft: true,
+          comingSoon: false,
+          acceptingOrdersMode: 'FORCE_CLOSED',
+          acceptingOrdersOverrideUntil: null,
+          acceptingOrdersOverrideReason: 'Restaurangen är arkiverad',
+          scheduledOpenNow: false,
+          isOpen: false,
+          pausedUntil: null,
+        },
+      });
+      await tx.deal.updateMany({ where: { restaurantId }, data: { isActive: false } });
+      await tx.restaurantDevice.updateMany({
+        where: { restaurantId },
+        data: { revoked: true, refreshTokenHash: null, pushToken: null },
+      });
+      await tx.devicePairingCode.deleteMany({ where: { restaurantId } });
+      await tx.groupOrder.updateMany({
+        where: { restaurantId, status: { in: ['OPEN', 'LOCKED'] } },
+        data: { status: 'CANCELLED' },
+      });
+      if (restaurant.adminUserId) {
+        await tx.adminUser.updateMany({
+          where: { id: restaurant.adminUserId, role: { in: ['ADMIN', 'RESTAURANT_ADMIN', 'STAFF'] } },
+          data: { isActive: false, tokenVersion: { increment: 1 } },
+        });
+      }
+    });
+
+    await audit(req, 'RESTAURANT_ARCHIVE', {
+      resourceType: 'Restaurant',
+      resourceId: restaurantId,
+      changes: { name: restaurant.name, slug: restaurant.slug, archivedAt: archivedAt.toISOString() },
+    });
+    bustRestaurantCaches(restaurant.slug);
+    try { menuCacheBust(restaurantId); } catch { /* noop */ }
+    void revalidateWebRestaurant(restaurant.slug);
+    getIO().emit('settings:updated', {
+      restaurantId,
+      slug: restaurant.slug,
+      isOpen: false,
+      draft: true,
+      archived: true,
+      availabilityReason: 'ARCHIVED',
+    });
+    res.json({ success: true, archived: true });
   } catch (err) {
-    res.status(400).json({ error: 'Kunde inte radera restaurang' });
+    console.error('[restaurants DELETE] archive failed:', err);
+    res.status(500).json({ error: 'Kunde inte arkivera restaurang' });
   }
 });
 
@@ -1120,14 +1228,30 @@ router.get('/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
 
+    // Resolve admin auth before choosing the cache path. Invalid arbitrary
+    // Bearer headers must not become a way to bypass the public read cache.
+    const authHeader = req.headers.authorization;
+    const cookieToken = (req as any).cookies?.admin_token as string | undefined;
+    const token = cookieToken
+      || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
+    let adminSession: Awaited<ReturnType<typeof resolveAdminSessionFromToken>> | null = null;
+    if (token) {
+      try {
+        adminSession = await resolveAdminSessionFromToken(token);
+      } catch {
+        adminSession = null;
+      }
+    }
+
     // Cache the expensive part (restaurant + deep category/product/extras include
     // + formatRestaurant) 15s per slug. This is the same heavy query as the menu
     // route and the checkout flow hits it per request — caching collapses the herd.
     // The admin-only fields are kept in the cached object but only EXPOSED below
     // after the per-request auth check, so caching never leaks them.
-    const data = await cached('rest:detail', slug, 15_000, async () => {
+    const loadRestaurantDetail = async () => {
       const [restaurant, platformSettings] = await Promise.all([prisma.restaurant.findFirst({
         where: {
+          archivedAt: null,
           OR: [
             { slug },
             { id: slug }
@@ -1179,31 +1303,23 @@ router.get('/:slug', async (req, res) => {
         adminEmail: restaurant.adminEmail ?? null,
         logoutCode: restaurant.logoutCode ?? null,
       };
-    });
+    };
+
+    // The public detail stays cached for speed; authenticated admin reads are
+    // fresh so a just-saved draft/public state can never be overwritten by a
+    // stale response from another API replica.
+    const data = adminSession
+      ? await loadRestaurantDetail()
+      : await cached('rest:detail', slug, 15_000, loadRestaurantDetail);
 
     if (!data) {
       return res.status(404).json({ error: 'Restaurang hittades inte' });
     }
 
-    // Cookie först (admin-panelens primära auth), Bearer som fallback.
-    const authHeader = req.headers.authorization;
-    const cookieToken = (req as any).cookies?.admin_token as string | undefined;
-    const token = cookieToken
-      || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
-    let canViewSensitiveAdminFields = false;
-    let isAdminSession = false;
-
-    if (token) {
-      try {
-        const session = await resolveAdminSessionFromToken(token);
-        isAdminSession = Boolean(session);
-        canViewSensitiveAdminFields = Boolean(
-          session && (session.role === 'SUPER_ADMIN' || session.restaurantId === data.restaurantId)
-        );
-      } catch {
-        canViewSensitiveAdminFields = false;
-      }
-    }
+    const isAdminSession = Boolean(adminSession);
+    const canViewSensitiveAdminFields = Boolean(
+      adminSession && (adminSession.role === 'SUPER_ADMIN' || adminSession.restaurantId === data.restaurantId)
+    );
 
     // Utkast är osynliga för alla utom inloggade admins (inkl. menyagenten
     // som behöver läsa tillbaka sitt eget bygge).
@@ -1235,7 +1351,7 @@ router.get('/:slug/reviews', async (req, res) => {
     const minRating = Math.max(1, Math.min(5, parseInt(String(req.query.minRating || '1'), 10) || 1));
 
     const restaurant = await prisma.restaurant.findFirst({
-      where: { OR: [{ slug }, { id: slug }] },
+      where: { archivedAt: null, OR: [{ slug }, { id: slug }] },
       select: { id: true },
     });
     if (!restaurant) {

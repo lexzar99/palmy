@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Calendar, Plus, Save, Store, Trash2, X } from "lucide-react";
+import { Archive, Calendar, Plus, Save, Store, X } from "lucide-react";
 import {
   createRestaurant,
-  deleteRestaurant,
+  archiveRestaurant,
   getRestaurantDetail,
   getRestaurantOrders,
   patchRestaurant,
@@ -134,7 +134,7 @@ const emptyForm: FormState = {
   internalInfo: "", latitude: "", longitude: "",
   placeId: "",
   openingHours: buildDefaultHours(), logoutCode: "",
-  announcementText: "", vatPercent: "",
+  announcementText: "", vatPercent: "6",
   selfDelivery: false, commissionPctOverride: "",
 };
 
@@ -162,7 +162,7 @@ const mapDetailToForm = (d: RestaurantDetail): FormState => ({
   openingHours: parseHoursFromDetail(d.openingHours),
   logoutCode: (d as any).logoutCode || "",
   announcementText: (d as any).announcementText || "",
-  vatPercent: (d as any).vatPercent != null ? String((d as any).vatPercent) : "",
+  vatPercent: (d as any).vatPercent != null ? String((d as any).vatPercent) : "6",
   selfDelivery: (d as any).selfDelivery ?? false,
   commissionPctOverride: (d as any).commissionPctOverride != null ? String((d as any).commissionPctOverride) : "",
 });
@@ -291,7 +291,13 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   // menyagenten (Kocken/Studion). draft=false publicerar och låser för agenten.
   // Båda riktningarna är super admin-only, servern avvisar andra.
   const setDraftMutation = useMutation({ meta: { toast: false },
-    mutationFn: async (nextDraft: boolean) => patchRestaurant(restaurantId!, { draft: nextDraft }),
+    mutationFn: async (nextDraft: boolean) => {
+      const saved = await patchRestaurant(restaurantId!, { draft: nextDraft });
+      if (Boolean(saved.draft) !== nextDraft) {
+        throw new Error("Servern bekräftade inte den valda publiceringsstatusen.");
+      }
+      return saved;
+    },
     onSuccess: async (saved, nextDraft) => {
       showToast({ type: "success", message: nextDraft ? "Satt till utkast (agenten kan nu jobba)" : "Restaurangen är publicerad" });
       // Use the mutation response immediately. Waiting for the invalidated
@@ -303,7 +309,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       setInitialized(true);
       queryClient.setQueryData(detailQueryKey(restaurantId!), saved);
       await queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
-      await queryClient.invalidateQueries({ queryKey: detailQueryKey(restaurantId!) });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: any) => {
       showToast({ type: "error", message: e?.response?.data?.error || "Kunde inte ändra status." });
@@ -311,11 +317,18 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   });
 
   const deleteMutation = useMutation({ meta: { toast: false },
-    mutationFn: async () => { if (restaurantId) await deleteRestaurant(restaurantId); },
+    mutationFn: async () => { if (restaurantId) await archiveRestaurant(restaurantId); },
     onSuccess: async () => {
+      showToast({ type: "success", message: "Restaurangen arkiverades. Meny- och orderhistorik är bevarad." });
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       await queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
       router.push("/restaurants");
+    },
+    onError: (error: any) => {
+      showToast({
+        type: "error",
+        message: error?.response?.data?.error || "Kunde inte arkivera restaurangen.",
+      });
     },
   });
 
@@ -370,7 +383,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             ) : null}
             {!isCreate ? (
               <Button variant="danger" onClick={() => setDeleteConfirmOpen(true)} disabled={deleteMutation.isPending}>
-                <Trash2 size={14} /> Radera
+                <Archive size={14} /> Arkivera
               </Button>
             ) : null}
           </div>
@@ -778,9 +791,9 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             </div>
             <Field label="Moms">
               <Select value={form.vatPercent} onChange={(e) => set("vatPercent", e.target.value)}>
-                <option value="">Ingen momsrad</option>
-                <option value="6">6 %</option>
-                <option value="12">12 %</option>
+                <option value="6">6 % — mat för avhämtning/leverans</option>
+                <option value="12">12 % — restaurang-/cateringtjänst</option>
+                <option value="25">25 % — standardmoms</option>
               </Select>
             </Field>
           </Surface>
@@ -816,9 +829,9 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
       <ConfirmDialog
         open={deleteConfirmOpen}
-        title={`Radera ${form.name || "restaurangen"}?`}
-        description="Restaurangen och dess operativa kopplingar tas bort. Åtgärden kan inte ångras."
-        confirmLabel="Radera restaurang"
+        title={`Arkivera ${form.name || "restaurangen"}?`}
+        description="Restaurangen göms och kan inte ta emot beställningar. Meny, ordrar och ekonomihistorik bevaras. Pågående ordrar måste avslutas först."
+        confirmLabel="Arkivera restaurang"
         danger
         loading={deleteMutation.isPending}
         onClose={() => setDeleteConfirmOpen(false)}

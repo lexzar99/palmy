@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect } from "react";
 import { clearLegacyPlatformUserToken } from "@/lib/platformSessionClient";
 import { ToastProvider } from "@/components/Toast";
 import { LocaleProvider } from "@/lib/i18n/LocaleProvider";
+import { useCartStore } from "@/store/cartStore";
 
 // Mörka temat är borttaget — appen är ljus, punkt. useTheme behålls som en
 // no-op-shim så befintliga konsumenter (Navbar, cart, AddressModal m.fl.) inte
@@ -29,6 +30,18 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       localStorage.removeItem("viaeats-theme");
       document.documentElement.removeAttribute("data-theme");
     } catch { /* noop */ }
+
+    // Native `storage` events reach the other tabs only. When one tab logs out
+    // or switches customer, clear the already-hydrated Zustand cart there too;
+    // otherwise its in-memory state could write the previous customer's cart
+    // back after the persisted key was removed.
+    const onCustomerStorageCleared = (event: StorageEvent) => {
+      if (event.key === "viaeats-cart" && event.newValue === null) {
+        useCartStore.getState().clearCart();
+      }
+    };
+    window.addEventListener("storage", onCustomerStorageCleared);
+    return () => window.removeEventListener("storage", onCustomerStorageCleared);
   }, []);
 
   return (

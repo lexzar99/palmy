@@ -16,47 +16,42 @@
 import prisma from './prisma';
 
 export async function incrementDiscountUsageIfNotCounted(orderId: string): Promise<void> {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: {
-      id: true,
-      discountCode: true,
-      appliedDealId: true,
-      discountUsageCounted: true,
-    },
-  });
-  if (!order || order.discountUsageCounted) return;
+  await prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        discountCode: true,
+        appliedDealId: true,
+        discountUsageCounted: true,
+      },
+    });
+    if (!order || order.discountUsageCounted) return;
 
-  // Atomisk race-guard. updateMany returnerar count — om annan path redan
-  // vann racet är count=0 och vi gör inget mer.
-  const result = await prisma.order.updateMany({
-    where: { id: order.id, discountUsageCounted: false },
-    data: { discountUsageCounted: true },
-  });
-  if (result.count === 0) {
-    // Annan path hann före — den incrementar koden/dealet, inte vi.
-    return;
-  }
+    // Claim + counters share one transaction. A process/DB failure can never
+    // persist the guard while silently losing the economic counters.
+    const result = await tx.order.updateMany({
+      where: { id: order.id, discountUsageCounted: false },
+      data: { discountUsageCounted: true },
+    });
+    if (result.count === 0) return;
 
-  if (
-    order.discountCode &&
-    order.discountCode !== 'test' &&
-    order.discountCode !== 'testa'
-  ) {
-    await prisma.discountCode
-      .updateMany({
+    if (
+      order.discountCode &&
+      order.discountCode !== 'test' &&
+      order.discountCode !== 'testa'
+    ) {
+      await tx.discountCode.updateMany({
         where: { code: order.discountCode.toUpperCase() },
         data: { usageCount: { increment: 1 } },
-      })
-      .catch(() => {});
-  }
+      });
+    }
 
-  if (order.appliedDealId) {
-    await prisma.deal
-      .update({
+    if (order.appliedDealId) {
+      await tx.deal.updateMany({
         where: { id: order.appliedDealId },
         data: { usageCount: { increment: 1 } },
-      })
-      .catch(() => {});
-  }
+      });
+    }
+  });
 }

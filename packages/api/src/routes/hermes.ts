@@ -570,7 +570,7 @@ router.get('/alerts', requireHermesToken, async (req, res) => {
 
     const rows = await prisma.auditLog.findMany({
       where: {
-        action: 'HERMES_ALERT',
+        action: 'HERMES_ALERT_QUEUED',
         resourceType: 'HermesAlert',
         createdAt: { gt: since },
       },
@@ -604,8 +604,21 @@ router.get('/alerts', requireHermesToken, async (req, res) => {
   }
 });
 
-router.post('/alerts/:id/ack', requireHermesToken, async (_req, res) => {
-  res.json({ ok: true });
+router.post('/alerts/:id/ack', requireHermesToken, async (req, res) => {
+  try {
+    const updated = await prisma.auditLog.updateMany({
+      where: {
+        id: req.params.id,
+        resourceType: 'HermesAlert',
+        action: 'HERMES_ALERT_QUEUED',
+      },
+      data: { action: 'HERMES_ALERT_DELIVERED' },
+    });
+    res.json({ ok: true, acknowledged: updated.count === 1 });
+  } catch (error) {
+    console.error('[hermes/alerts/ack] error:', error);
+    res.status(500).json({ ok: false, error: 'Kunde inte kvittera Hermes-alert' });
+  }
 });
 
 router.get('/orders/lookup', requireHermesToken, async (req, res) => {

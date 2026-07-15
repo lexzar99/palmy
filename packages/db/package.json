@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "studio": "prisma studio",
-    "migrate": "prisma migrate dev",
+    "migrate": "node -e \"console.error('BLOCKERAD: packages/db är en äldre Prisma-spegel. Använd packages/api/prisma/schema.prisma och följ docs/LAUNCH_DATABASE_RUNBOOK.md.'); process.exit(1)\"",
     "generate": "prisma generate",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

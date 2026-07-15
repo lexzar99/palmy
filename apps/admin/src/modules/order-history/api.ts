@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "@/shared/api/client";
+import { apiGet } from "@/shared/api/client";
 import type { AdminOrder } from "@/modules/orders/api";
 
 export interface OrderHistoryFilters {
@@ -36,9 +36,3 @@ export function buildOrderHistoryQuery(filters: OrderHistoryFilters): string {
 
 export const getOrderHistory = (filters: OrderHistoryFilters) =>
   apiGet<OrderHistoryResponse>(`/admin/orders?${buildOrderHistoryQuery(filters)}`);
-
-export const wipeOrders = (restaurantId?: string) =>
-  apiPost<{ success: boolean; deleted: number; before: number; after: number; scope: string }>(
-    "/admin/orders/wipe",
-    { confirm: "WIPE_ALL_ORDERS", restaurantId },
-  );

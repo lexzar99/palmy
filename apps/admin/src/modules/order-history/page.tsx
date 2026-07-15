@@ -1,12 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Download, FileText, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Download, FileText, RefreshCw } from "lucide-react";
 import {
   getOrderHistory,
   orderHistoryQueryKey,
-  wipeOrders,
   ORDER_HISTORY_PAGE_SIZE,
   type OrderHistoryFilters,
 } from "@/modules/order-history/api";
@@ -90,8 +89,6 @@ function downloadFile(content: string, filename: string, mime: string) {
 }
 
 export function OrderHistoryPage() {
-  const queryClient = useQueryClient();
-
   const [restaurantId, setRestaurantId] = useState<string>("ALL");
   const [fromDate, setFromDate] = useState(aMonthAgo());
   const [fromTime, setFromTime] = useState("00:00");
@@ -104,11 +101,6 @@ export function OrderHistoryPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [exportFields, setExportFields] = useState<ExportField[]>(quickFields);
   const [exportFormat, setExportFormat] = useState<"csv" | "pdf">("csv");
-
-  const [wipeOpen, setWipeOpen] = useState(false);
-  const [wipeConfirm, setWipeConfirm] = useState("");
-  const [wipeRestaurant, setWipeRestaurant] = useState<string>("ALL");
-  const [wipeResult, setWipeResult] = useState<string | null>(null);
 
   const restaurants = useQuery({ queryKey: ["restaurants", "overview"], queryFn: getRestaurantOverview });
 
@@ -123,20 +115,6 @@ export function OrderHistoryPage() {
   const orders = useQuery({
     queryKey: orderHistoryQueryKey(filters),
     queryFn: () => getOrderHistory(filters),
-  });
-
-  const wipeMutation = useMutation({
-    mutationFn: () => wipeOrders(wipeRestaurant === "ALL" ? undefined : wipeRestaurant),
-    onSuccess: async (data) => {
-      setWipeResult(`Rensade ${data.deleted} ordrar (${data.scope}). Före: ${data.before}, efter: ${data.after}.`);
-      setWipeConfirm("");
-      await queryClient.invalidateQueries({ queryKey: ["order-history"] });
-      await queryClient.invalidateQueries({ queryKey: ["orders"] });
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-    },
-    onError: (e: any) => {
-      setWipeResult(`FEL: ${e?.response?.data?.error || e?.message || "Okänt fel"}`);
-    },
   });
 
   // Filtrera bort återbetalda om checkbox är av. Vi gör det klient-side så
@@ -279,9 +257,6 @@ export function OrderHistoryPage() {
             </Button>
             <Button variant="secondary" onClick={() => setExportOpen(true)}>
               <Download size={13} /> Exportera
-            </Button>
-            <Button variant="danger" onClick={() => { setWipeOpen(true); setWipeResult(null); }}>
-              <AlertTriangle size={13} /> Rensa ordrar
             </Button>
           </>
         }
@@ -469,47 +444,6 @@ export function OrderHistoryPage() {
         </div>
       </Modal>
 
-      <Modal
-        open={wipeOpen}
-        onClose={() => { setWipeOpen(false); setWipeResult(null); }}
-        title="Rensa ordrar (TESTNING)"
-        description="Kan inte ångras."
-        footer={
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Button onClick={() => { setWipeOpen(false); setWipeResult(null); }}>Avbryt</Button>
-            <Button
-              variant="danger"
-              disabled={wipeConfirm !== "RENSA" || wipeMutation.isPending}
-              onClick={() => wipeMutation.mutate()}
-            >
-              {wipeMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              Rensa permanent
-            </Button>
-          </div>
-        }
-      >
-        <div className="grid gap-4">
-          <div className="rounded-2xl border border-[rgba(239,107,115,0.2)] bg-[rgba(239,107,115,0.08)] px-4 py-3 text-sm text-[#ffd2d5]">
-            <p><strong>Varning:</strong> Detta tar bort alla ordrar (eller alla för en specifik restaurang) ur databasen. OrderItem och kvittohistorik försvinner också.</p>
-          </div>
-          <Field label="Omfattning">
-            <Select value={wipeRestaurant} onChange={(event) => setWipeRestaurant(event.target.value)}>
-              <option value="ALL">ALLA RESTAURANGER (rensa hela ordertabellen)</option>
-              {(restaurants.data || []).map((r) => (
-                <option key={r.id} value={r.id}>Endast {r.name}</option>
-              ))}
-            </Select>
-          </Field>
-          <Field label='Skriv "RENSA" för att aktivera knappen'>
-            <Input value={wipeConfirm} onChange={(event) => setWipeConfirm(event.target.value)} placeholder="RENSA" />
-          </Field>
-          {wipeResult ? (
-            <div className={`rounded-2xl border px-4 py-3 text-sm ${wipeResult.startsWith("FEL") ? "border-rose-500/30 bg-rose-500/10 text-rose-300" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"}`}>
-              {wipeResult}
-            </div>
-          ) : null}
-        </div>
-      </Modal>
     </div>
   );
 }

@@ -45,9 +45,67 @@ import {
   writeQuickAddresses,
 } from "@/lib/quickAddresses";
 import { PublicDeal, pickBestDeal, formatDealReward } from "@/lib/deals";
-import { readActiveUserDealId, readActiveUserDealSnapshot, writeActiveUserDeal, clearActiveUserDeal } from "@/lib/appDeal";
+import {
+  ACTIVE_USER_DEAL_ID_KEY,
+  ACTIVE_USER_DEAL_SNAPSHOT_KEY,
+  clearActiveUserDeal,
+  readActiveUserDealId,
+  readActiveUserDealSnapshot,
+  writeActiveUserDeal,
+} from "@/lib/appDeal";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import { LAST_CUSTOMER_ID_KEY } from "@/lib/platformSessionClient";
+
+const TEST_ORDERS_ENABLED =
+  process.env.NODE_ENV !== "production" &&
+  process.env.NEXT_PUBLIC_ALLOW_TEST_ORDERS === "true";
+
+const CHECKOUT_ATTEMPT_KEY = "viaeats.checkout.attempt.v1";
+
+type CheckoutAttempt = { key: string; fingerprint: string };
+
+function createCheckoutKey(): string {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function checkoutFingerprint(payload: unknown): string {
+  const input = JSON.stringify(payload);
+  // FNV-1a: this is only a change detector, not a security primitive. We keep
+  // the customer's address/phone out of localStorage while still rotating the
+  // idempotency key whenever the actual checkout payload changes.
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function readCheckoutAttempt(): CheckoutAttempt | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CHECKOUT_ATTEMPT_KEY) || "null") as CheckoutAttempt | null;
+    return parsed?.key && parsed?.fingerprint ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCheckoutAttempt(fingerprint: string): CheckoutAttempt {
+  const current = readCheckoutAttempt();
+  if (current?.fingerprint === fingerprint) return current;
+  const next = { key: createCheckoutKey(), fingerprint };
+  try { localStorage.setItem(CHECKOUT_ATTEMPT_KEY, JSON.stringify(next)); } catch { /* private mode/quota */ }
+  return next;
+}
+
+function clearCheckoutAttempt(): void {
+  if (typeof window === "undefined") return;
+  try { localStorage.removeItem(CHECKOUT_ATTEMPT_KEY); } catch { /* noop */ }
+}
 
 // Account-deal från GET /api/account/deals — vi använder ACTIVE-deals av typ
 // WELCOME/REFERRAL_INVITER/REFERRAL_INVITEE som rabatt-checkbox i kassan.
@@ -66,7 +124,7 @@ type UserAccountDeal = {
 
 // Räknar ut total rabatt-belopp i kr för en deal givet subtotal+deliveryFee.
 // Stacks: subtotal-rabatt (percent/fixed) + fri-leverans (= deliveryFee).
-function computeDealAmountKr(deal: UserAccountDeal, subtotal: number, deliveryFee: number = 0): number {
+function computeDealComponentsKr(deal: UserAccountDeal, subtotal: number, deliveryFee: number = 0) {
   // Backward compat: legacy discountType=FREE_DELIVERY = bara leveransen
   const isLegacyFreeDel = deal.discountType === "FREE_DELIVERY";
   const wantsFreeDel = !!deal.freeDelivery || isLegacyFreeDel;
@@ -74,7 +132,7 @@ function computeDealAmountKr(deal: UserAccountDeal, subtotal: number, deliveryFe
   let subtotalDiscount = 0;
   if (!isLegacyFreeDel) {
     if (deal.discountPercent && deal.discountPercent > 0) {
-      subtotalDiscount = Math.round((subtotal * deal.discountPercent) / 100);
+      subtotalDiscount = Math.round(subtotal * deal.discountPercent) / 100;
     } else if (deal.amountKr && deal.amountKr > 0) {
       subtotalDiscount = deal.amountKr;
     }
@@ -83,7 +141,7 @@ function computeDealAmountKr(deal: UserAccountDeal, subtotal: number, deliveryFe
 
   const deliveryDiscount = wantsFreeDel ? Math.max(0, deliveryFee) : 0;
 
-  return subtotalDiscount + deliveryDiscount;
+  return { food: subtotalDiscount, delivery: deliveryDiscount, total: subtotalDiscount + deliveryDiscount };
 }
 
 // Formatterar rabatt-text för UI. Stackar:
@@ -202,11 +260,7 @@ export default function CartPage() {
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   // True när kunden återvänt från Mollie och vi pollar orderns betalstatus.
   const [verifyingPayment, setVerifyingPayment] = useState(false);
-  const idempotencyKey = useRef<string>(
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : Math.random().toString(36).substring(2)
-  );
+  const idempotencyKey = useRef<string>("");
   const [deals, setDeals] = useState<PublicDeal[]>([]);
   const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [selectedPersonalDeal, setSelectedPersonalDeal] = useState<any>(null);
@@ -254,6 +308,25 @@ export default function CartPage() {
       }
     }
   }, []);
+  useEffect(() => {
+    const syncActiveUserDeal = (event: StorageEvent) => {
+      if (event.key === LAST_CUSTOMER_ID_KEY || event.key === "dlv_logged_out") {
+        setPersonalDeals([]);
+        setSelectedPersonalDeal(null);
+        setAccountDeals([]);
+        setSelectedAccountDealId(null);
+        setAppDealQuote(null);
+        setReferralMessage(null);
+        return;
+      }
+      if (event.key !== ACTIVE_USER_DEAL_ID_KEY && event.key !== ACTIVE_USER_DEAL_SNAPSHOT_KEY) return;
+      const stored = readActiveUserDealId();
+      setSelectedAccountDealId(stored || null);
+      if (!stored) setAppDealQuote(null);
+    };
+    window.addEventListener("storage", syncActiveUserDeal);
+    return () => window.removeEventListener("storage", syncActiveUserDeal);
+  }, []);
   // Kund kan välja att avbryta den automatiskt applicerade dealen (t.ex.
   // "25% första beställning") för att använda en egen rabattkod istället.
   // Default false → auto-deal appliceras som vanligt. Sätts true automatiskt
@@ -290,6 +363,7 @@ export default function CartPage() {
     title: string;
     discountKr: number;
     minOrderKr: number;
+    freeDelivery: boolean;
   } | null>(null);
   const [showBogoPicker, setShowBogoPicker] = useState(false);
   const [deliveryCheck, setDeliveryCheck] = useState<any>(null);
@@ -794,6 +868,10 @@ export default function CartPage() {
 
     return amount;
   }, [selectedPersonalDeal, subtotal, discountableSubtotal, deliveryFee, hasCatalogDiscountedItems]);
+  const personalDeliveryDiscount = personalDiscount > 0 && selectedPersonalDeal && (
+    selectedPersonalDeal.campaign?.discountType === "FREE_DELIVERY" ||
+    selectedPersonalDeal.campaign?.freeDelivery
+  ) ? Math.min(deliveryFee, personalDiscount) : 0;
 
   const bogoDiscount = !hasCatalogDiscountedItems && discountableSubtotal > 0 ? (bogoPreview?.discountKr ?? 0) : 0;
   // Antal gratis-varor kunden redan valt för den aktiva BOGO-dealen.
@@ -813,13 +891,13 @@ export default function CartPage() {
     && (bogoPreview.rewardProducts?.length ?? 0) > 0 && bogoPicksRemaining > 0;
 
   // Account-deal-rabatt: appliceras bara om vald + min-order är uppfyllt.
-  // Stöder både percent (ny) och amountKr (legacy) via computeDealAmountKr.
+  // Stöder både percent (ny) och amountKr (legacy) via komponentberäkningen.
   const selectedAccountDeal = useMemo(
     () => accountDeals.find((d) => d.id === selectedAccountDealId) || null,
     [accountDeals, selectedAccountDealId],
   );
   // Server-quotad rabatt (Swift-paritet): POST /api/deals/app/quote är enda
-  // sanningen för app-dealens belopp. Den lokala computeDealAmountKr används
+  // sanningen för app-dealens belopp. Den lokala komponentberäkningen används
   // bara som direkt-preview tills quoten (för samma id) svarat — aldrig som facit.
   const accountDealDiscount = useMemo(() => {
     if (hasCatalogDiscountedItems) return 0;
@@ -832,8 +910,11 @@ export default function CartPage() {
     if (subtotal < minK) return 0;
     // deliveryFee skickas med för FREE_DELIVERY-deals så rabatten matchar
     // exakt det användaren skulle betalat i frakt.
-    return computeDealAmountKr(selectedAccountDeal, discountableSubtotal, deliveryFee);
+    return computeDealComponentsKr(selectedAccountDeal, discountableSubtotal, deliveryFee).total;
   }, [selectedAccountDealId, appDealQuote, selectedAccountDeal, subtotal, discountableSubtotal, deliveryFee, hasCatalogDiscountedItems]);
+  const accountDeliveryDiscount = accountDealDiscount > 0 && selectedAccountDeal && (
+    selectedAccountDeal.freeDelivery || selectedAccountDeal.discountType === "FREE_DELIVERY"
+  ) ? Math.min(deliveryFee, accountDealDiscount) : 0;
 
   // Quota vald deal mot servern när korgens belopp/läge/restaurang ändras.
   // Debounce 350 ms så stepper-klick inte hammrar API:t. Vid 404 (dealen
@@ -914,7 +995,9 @@ export default function CartPage() {
   // pure-discount-deals. Den DRIVER toggeln: om den finns prioriteras dess
   // titel/belopp. Globala deals appliceras fortfarande (störst vinner), men
   // toggeln visar välkomsterbjudandet när det är aktivt.
-  const welcomeDiscount = welcomeOffer && welcomeOffer.eligible ? Math.min(welcomeOffer.discountKr || 0, discountableSubtotal) : 0;
+  const welcomeFoodDiscount = welcomeOffer && welcomeOffer.eligible ? Math.min(welcomeOffer.discountKr || 0, discountableSubtotal) : 0;
+  const welcomeDeliveryDiscount = welcomeOffer && welcomeOffer.eligible && welcomeOffer.freeDelivery ? deliveryFee : 0;
+  const welcomeDiscount = welcomeFoodDiscount + welcomeDeliveryDiscount;
   // Pure-discount-bogo respekterar dismissal-flaggan; free-item-bogo gör inte det.
   const dismissibleAutoDiscount = automaticDealDismissed
     ? 0
@@ -925,8 +1008,8 @@ export default function CartPage() {
   // matchar beloppet på toggeln. Välkomst vinner toggeln när det är störst.
   const welcomeWinsToggle =
     welcomeDiscount > 0 &&
-    welcomeDiscount >= automaticDeal.discountAmount &&
-    welcomeDiscount >= (bogoIsPureDiscount ? bogoDiscount : 0);
+    welcomeDiscount > automaticDeal.discountAmount &&
+    welcomeDiscount > (bogoIsPureDiscount ? bogoDiscount : 0);
   const autoDealTitle = welcomeWinsToggle
     ? (welcomeOffer?.title ?? null)
     : (automaticDeal.deal?.title ?? (bogoIsPureDiscount ? bogoPreview?.dealTitle : null));
@@ -937,6 +1020,22 @@ export default function CartPage() {
   const finalDiscount = hasUserExplicitChoice
     ? Math.max(personalDiscount, accountDealDiscount, freeItemBogoDiscount)
     : Math.max(dismissibleAutoDiscount, freeItemBogoDiscount);
+  let deliveryDiscountComponent = 0;
+  if (hasUserExplicitChoice) {
+    if (personalDiscount >= accountDealDiscount && personalDiscount >= freeItemBogoDiscount) {
+      deliveryDiscountComponent = personalDeliveryDiscount;
+    } else if (accountDealDiscount >= freeItemBogoDiscount) {
+      deliveryDiscountComponent = accountDeliveryDiscount;
+    }
+  } else if (
+    !automaticDealDismissed &&
+    welcomeWinsToggle &&
+    welcomeDiscount >= freeItemBogoDiscount
+  ) {
+    deliveryDiscountComponent = welcomeDeliveryDiscount;
+  }
+  deliveryDiscountComponent = Math.min(deliveryDiscountComponent, finalDiscount);
+  const foodDiscountComponent = Math.max(0, finalDiscount - deliveryDiscountComponent);
   // Rabatt-tolerans: när en rabatt är aktiv tillåter vi att totalen (efter
   // rabatten) hamnar upp till MIN_ORDER_TOLERANCE_KR under restaurangens
   // min-order. UTAN rabatt gäller den vanliga strikta gränsen — annars
@@ -944,14 +1043,14 @@ export default function CartPage() {
   // Anti-bypass: drycker (~20 kr) klarar fortfarande inte den lägre
   // tröskeln även med 100%-rabatt eftersom basbeloppet är för litet.
   const MIN_ORDER_TOLERANCE_KR = 40;
-  const hasActiveDiscount = finalDiscount > 0;
+  const hasActiveDiscount = foodDiscountComponent > 0;
   const effectiveMinOrder = hasActiveDiscount
     ? Math.max(0, minOrder - MIN_ORDER_TOLERANCE_KR)
     : minOrder;
   // Komplettering till minimum: kund kan välja att betala mellanskillnaden så
   // ordern går igenom. Med rabatt → komplettering räcker till effektiv min
   // (40 kr lägre). Utan rabatt → komplettering till FULL min, oförändrat.
-  const valueForMinCheck = Math.max(0, subtotal - finalDiscount);
+  const valueForMinCheck = Math.max(0, subtotal - foodDiscountComponent);
   const minOrderTopUp = topUpToMinimum && subtotal > 0 && valueForMinCheck < effectiveMinOrder
     ? Math.max(0, effectiveMinOrder - valueForMinCheck)
     : 0;
@@ -961,15 +1060,13 @@ export default function CartPage() {
   // knappens disabled-villkor kan respektera test-bypass:en. Annars
   // räcker det inte att startCheckout släpper igenom — knappen är ändå
   // disable:d när restaurang stängd / under min-order / utan zone.
-  const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
-  // Avrunda UPP till hela kronor. JS-float-precision på rabatt-procent gör
-  // att t.ex. "20% av 199 kr" blir 39.79999... → utan ceil hamnar totalen
-  // som "154.28999999999996 kr" på Stripe-knappen. Ceil betyder kunden
-  // betalar maximalt 1 kr mer än exakt — vi förlorar inte pengar, och
-  // siffror blir rena. Backend matchar via samma Math.ceil i orders.ts.
+  const isTestFlow = TEST_ORDERS_ENABLED &&
+    (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa");
+  // Runda endast till öre. Backend räknar i heltalsöre och tar exakt samma
+  // belopp; kunden överdebiteras aldrig genom avrundning upp till hel krona.
   const total = isTestFlow
     ? 0
-    : Math.ceil(Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount));
+    : Math.round(Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount) * 100) / 100;
 
   // Moms enligt restaurangens EGEN momssats (aldrig hårdkodad). Totalen är
   // momsinklusive → vi extraherar andelen. Raden visas när restaurangen har
@@ -1158,7 +1255,7 @@ export default function CartPage() {
       return;
     }
     const code = promoCodeInput.trim().toLowerCase();
-    if (code === "test" || code === "testa") {
+    if (TEST_ORDERS_ENABLED && (code === "test" || code === "testa")) {
       setSelectedPersonalDeal({
         code: code,
         campaign: {
@@ -1445,6 +1542,7 @@ export default function CartPage() {
             title: d.title || "Välkomsterbjudande",
             discountKr: typeof d.discountKr === "number" ? d.discountKr : 0,
             minOrderKr: d.minOrderKr ?? 0,
+            freeDelivery: !!d.freeDelivery,
           });
         } else {
           setWelcomeOffer(null);
@@ -1464,14 +1562,14 @@ export default function CartPage() {
     return () => clearTimeout(timer);
   }, [bogoLostNotice]);
 
-  // Hosted checkout redirect recovery. Redirect till /cart är INTE bevis på
-  // betalning: Stripe/Mollie kan returnera hit vid cancel, misslyckad betalning
-  // eller när async-verifieringen fortfarande pågår. Bara serverstatus PAID får
-  // tömma carten och gå till tracking.
+  // Hosted checkout recovery. Redirect till /cart är INTE bevis på betalning:
+  // Mollie kan returnera hit innan webhooken hunnit fram. Återuppta även en
+  // persisterad pending-order när kunden öppnar /cart igen efter en stängd flik.
+  // Bara serverstatus PAID får tömma carten och gå till tracking.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const returnOrderId = params.get("payment_return");
+    const returnOrderId = params.get("payment_return") || localStorage.getItem("pending_order_id");
     if (!returnOrderId) return;
 
     const cancelled =
@@ -1492,29 +1590,38 @@ export default function CartPage() {
 
   // Efter att betalningen slutförts (redirect-retur + poll). Redirect är
   // inte bevis på betalning, order-tracking-sidan pollar backend och visar rätt
-  // status när webhooken finaliserat. Token+phone som auth-bevis så gäster
-  // kommer åt ordern. Phone faller tillbaka på localStorage efter redirecten,
-  // ifall formuläret hunnit återställas.
-  const goToOrderTracking = (orderId: string) => {
+  // status när webhooken finaliserat. Gäster använder den slumpade order-token
+  // som ägarbevis; telefonnumret sparas bara som kontaktdata i historiken.
+  const goToOrderTracking = async (orderId: string) => {
     paymentInFlightRef.current = false;
     const storedToken = (typeof window !== "undefined" && localStorage.getItem("pending_order_token")) || "";
     const storedPhone = (typeof window !== "undefined" && localStorage.getItem("pending_order_phone")) || "";
     const phone = ((formData.customerPhone || "").trim() || storedPhone).trim();
-    const qs = new URLSearchParams();
-    if (storedToken) qs.set("token", storedToken);
-    if (phone) qs.set("phone", phone);
-    const url = qs.toString() ? `/order/${orderId}?${qs.toString()}` : `/order/${orderId}`;
+    // Hosted-payment recovery can come from an order created before the
+    // HttpOnly flow was deployed. Exchange the temporary raw token in the
+    // request body; never place it in a tracking URL.
+    let sessionEstablished = !storedToken;
+    if (storedToken) {
+      try {
+        await axios.post(`/api/platform/orders/${orderId}/session`, { accessToken: storedToken });
+        sessionEstablished = true;
+      } catch {
+        // The create-response may already have established the cookie. Keep
+        // the temporary recovery token until the order page confirms access.
+      }
+    }
     // Spara i lokal order-historik + registrera aktiv order så /orders OCH
     // LiveOrderBanner ser ordern. Gäster har inget konto — detta är källan.
     saveOrderToHistory({
       id: orderId,
       phone: phone,
+      accessToken: null,
       createdAt: new Date().toISOString(),
       restaurantName: cartRestaurantSlug ?? null,
       restaurantSlug: cartRestaurantSlug ?? null,
       total: total,
     });
-    rememberActiveOrder(orderId, { token: storedToken || undefined, phone });
+    rememberActiveOrder(orderId, { phone });
     clearCart();
     // Betald order förbrukar aktiva dealen — nolla kontraktets båda nycklar
     // (Swift: HomeView nollar efter betald order).
@@ -1522,13 +1629,16 @@ export default function CartPage() {
     setSelectedAccountDealId(null);
     setAppDealQuote(null);
     try {
-      localStorage.removeItem("pending_order_id");
-      localStorage.removeItem("pending_order_token");
-      localStorage.removeItem("pending_order_phone");
+      if (sessionEstablished) {
+        localStorage.removeItem("pending_order_id");
+        localStorage.removeItem("pending_order_token");
+        localStorage.removeItem("pending_order_phone");
+      }
     } catch {
       /* noop */
     }
-    router.replace(url);
+    clearCheckoutAttempt();
+    router.replace(`/order/${orderId}`);
   };
 
   const clearPendingPaymentStorage = () => {
@@ -1539,6 +1649,7 @@ export default function CartPage() {
     } catch {
       /* noop */
     }
+    clearCheckoutAttempt();
   };
 
   const clearCartReturnParams = () => {
@@ -1555,18 +1666,32 @@ export default function CartPage() {
     setError("Betalningen avbröts. Din varukorg är kvar, så du kan försöka igen direkt.");
   };
 
-  // Pollar orderns betalstatus efter provider-returen. PAID → tracking.
+  // Pollar orderns betalstatus efter provider-returen eller när en persisterad
+  // Mollie-order återupptas vid reopen. Status-endpointen stämmer dessutom av
+  // direkt mot PSP:n, så flödet återhämtar sig även efter en försenad webhook.
+  // PAID → tracking.
   // Terminalt fel/cancel → abandon + behåll varukorg. Timeout/pending → behåll
   // cart och låt kunden försöka igen; skicka ALDRIG obetald order till tracking.
   const finishHostedPayment = async (orderId: string) => {
     setVerifyingPayment(true);
+    const recoveryToken = localStorage.getItem("pending_order_token") || "";
+    if (recoveryToken) {
+      try {
+        await axios.post(`/api/platform/orders/${orderId}/session`, {
+          accessToken: recoveryToken,
+        });
+      } catch {
+        // Polling below will still work if checkout already set the cookie;
+        // otherwise it reports a recoverable timeout without leaking a token.
+      }
+    }
     for (let attempt = 0; attempt < 8; attempt++) {
       try {
-        const res = await axios.get(`${API_URL}/api/payments/status/${orderId}`);
+        const res = await axios.get(`/api/platform/payments/status/${orderId}`);
         const ps = String(res.data?.paymentStatus || "").toUpperCase();
         if (ps === "PAID") {
           clearCartReturnParams();
-          goToOrderTracking(orderId);
+          await goToOrderTracking(orderId);
           return;
         }
         if (["FAILED", "EXPIRED", "CANCELED", "CANCELLED", "REQUIRES_PAYMENT_METHOD"].includes(ps)) {
@@ -1578,7 +1703,16 @@ export default function CartPage() {
           setError("Betalningen genomfördes inte. Din varukorg är kvar, försök igen eller välj ett annat betalsätt.");
           return;
         }
-      } catch {
+      } catch (err: unknown) {
+        const responseStatus = (err as { response?: { status?: unknown } } | null)?.response?.status;
+        if ([404, 410].includes(Number(responseStatus))) {
+          setVerifyingPayment(false);
+          clearCartReturnParams();
+          clearPendingPaymentStorage();
+          setPendingOrderId(null);
+          setError("Den tidigare betalningen kunde inte återställas. Din varukorg är kvar, så du kan försöka igen.");
+          return;
+        }
         /* nätverksfel: fortsätt polla */
       }
       await new Promise((r) => setTimeout(r, 2000));
@@ -1677,12 +1811,13 @@ export default function CartPage() {
         saveOrderToHistory({
           id: orderId,
           phone: formData.customerPhone,
+          accessToken: null,
           createdAt: new Date().toISOString(),
           restaurantName: cartRestaurantSlug ?? null,
           restaurantSlug: cartRestaurantSlug ?? null,
           total: total,
         });
-        rememberActiveOrder(orderId, { token: res.data?.accessToken, phone: formData.customerPhone });
+        rememberActiveOrder(orderId, { phone: formData.customerPhone });
       }
       clearCart();
       // Nolla aktiva deal-kontraktet även i test-flödet (ordern är slutförd).
@@ -1690,12 +1825,7 @@ export default function CartPage() {
       setSelectedAccountDealId(null);
       setAppDealQuote(null);
       if (orderId) {
-        // Test-flödet returnerar accessToken samma route som riktiga ordrar.
-        const testToken = res.data?.accessToken;
-        const qs = new URLSearchParams();
-        if (testToken) qs.set("token", testToken);
-        if (formData.customerPhone) qs.set("phone", formData.customerPhone);
-        router.push(qs.toString() ? `/order/${orderId}?${qs.toString()}` : `/order/${orderId}`);
+        router.push(`/order/${orderId}`);
       }
     } catch (err: any) {
       setError(err.response?.data?.error || t("cart.errors.orderFailed"));
@@ -1707,23 +1837,20 @@ export default function CartPage() {
   // ── Abandon en pre-skapad AWAITING_PAYMENT-order ───────────────────────────
   // Anropas när kunden avbryter (Stripe redirect_status=failed/cancelled) eller
   // navigerar bort från cart-sidan utan att slutföra betalning. Backend gör
-  // owner-check via accessToken (eller phone-fallback), reverterar reserverad
-  // UserDeal och raderar ordern. Idempotent: säker att kalla flera gånger.
+  // owner-check via accessToken eller inloggningscookie och stämmer av PSP:n.
+  // Idempotent: säker att kalla flera gånger.
   const abandonPendingOrder = useCallback(async (orderId: string): Promise<void> => {
     try {
       const token = (typeof window !== "undefined" ? localStorage.getItem("pending_order_token") : "") || "";
-      const phone = (formData.customerPhone || "").trim();
-      const qs = new URLSearchParams();
-      if (token) qs.set("token", token);
-      if (phone) qs.set("phone", phone);
-      const url = `/api/platform/orders/${orderId}/abandon${qs.toString() ? `?${qs.toString()}` : ""}`;
-      await axios.post(url, {});
+      await axios.post(`/api/platform/orders/${orderId}/abandon`, {
+        accessToken: token || undefined,
+      });
     } catch {
       // Backend cleanup-cron (5 min) hanterar misslyckanden — kunden ska inte
       // se fel här. Race med webhook är också säkert eftersom abandon-route
       // re-assertar status=AWAITING_PAYMENT + paymentStatus != PAID.
     }
-  }, [formData.customerPhone]);
+  }, []);
 
   // ── Tracka pågående betalning så pagehide-handlern inte abandonar ─────────
   // Sätts till true precis innan stripe.confirmPayment() körs (Stripe kan
@@ -1731,46 +1858,10 @@ export default function CartPage() {
   // success/error eller när kunden kommer tillbaka via return_url.
   const paymentInFlightRef = useRef(false);
 
-  // ── pagehide → abandon orphaned AWAITING_PAYMENT-order ─────────────────────
-  // Kunden stänger taben / navigerar bort från /cart efter att vi pre-skapade
-  // ordern men innan Stripe-flödet startade → ordern skulle annars sitta som
-  // "Pågående beställning" på hemskärmen tills cleanup-cronen tar den.
-  //
-  // GATE 1: paymentInFlightRef — om Stripe just redirectade, hoppa över
-  //   (webhook bekräftar betalningen async; vi får inte radera mitt i).
-  // GATE 2: pending_order_id måste finnas — annars har success-flödet redan
-  //   rensat localStorage och navigerat till /order/{id}.
-  //
-  // Använder sendBeacon för att survive page-unload. Param via query-string så
-  // backend kan läsa token+phone utan att parsa body.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const onPageHide = () => {
-      if (paymentInFlightRef.current) return;
-      const orderId = localStorage.getItem("pending_order_id");
-      if (!orderId) return;
-      const token = localStorage.getItem("pending_order_token") || "";
-      const phone = (formData.customerPhone || "").trim();
-      const qs = new URLSearchParams();
-      if (token) qs.set("token", token);
-      if (phone) qs.set("phone", phone);
-      const url = `/api/platform/orders/${orderId}/abandon${qs.toString() ? `?${qs.toString()}` : ""}`;
-      try {
-        if (navigator.sendBeacon) {
-          // Tom Blob — alla parametrar går via query-stringen.
-          navigator.sendBeacon(url, new Blob([], { type: "application/json" }));
-        } else {
-          fetch(url, { method: "POST", keepalive: true }).catch(() => {});
-        }
-        localStorage.removeItem("pending_order_id");
-        localStorage.removeItem("pending_order_token");
-      } catch {
-        /* swallow — cleanup-cron fångar upp */
-      }
-    };
-    window.addEventListener("pagehide", onPageHide);
-    return () => window.removeEventListener("pagehide", onPageHide);
-  }, [formData.customerPhone]);
+  // Do not abandon on pagehide/reload. Hosted checkouts legitimately leave
+  // this page, and a beacon racing the payment webhook can delete a real order.
+  // The persisted attempt is resumed on retry; explicit provider cancel/fail
+  // uses handlePaymentCancelled, while backend cleanup handles true orphans.
 
   // (Stripe-eran: handlePaymentSuccess fanns här och anropade /payments/confirm.
   //  Med Mollie finaliserar webhook/reconcile ordern; klienten routar bara till
@@ -1831,7 +1922,7 @@ export default function CartPage() {
     // hindrar "dryck + 100%-rabatt"-bypass eftersom basbeloppet då är för
     // lågt för att klara även den lägre tröskeln.
     if (!isTestFlow) {
-      const afterDiscount = Math.max(0, subtotal - finalDiscount);
+      const afterDiscount = Math.max(0, subtotal - foodDiscountComponent);
       if (afterDiscount < effectiveMinOrder && minOrderTopUp === 0) {
         const shortfall = Math.ceil(effectiveMinOrder - afterDiscount);
         setError(
@@ -1956,21 +2047,34 @@ export default function CartPage() {
         return;
       }
 
-      // Step 1: Create order first (pending payment)
-      const orderRes = await axios.post(`/api/platform/orders`, {
+      // Step 1: Create order first (pending payment). The attempt key is tied
+      // to the complete payload and persisted across refresh/provider return.
+      // Same payload retries the same order; changed cart/address/deal rotates
+      // the key and abandons the obsolete unpaid order first.
+      const pendingPayload = {
         ...buildOrderPayload(),
         pendingPayment: true,
-      }, {
-        headers: { "Idempotency-Key": `order-${idempotencyKey.current}` },
+      };
+      const fingerprint = checkoutFingerprint(pendingPayload);
+      const previousAttempt = readCheckoutAttempt();
+      const previousOrderId = localStorage.getItem("pending_order_id");
+      if (previousOrderId && (!previousAttempt || previousAttempt.fingerprint !== fingerprint)) {
+        await abandonPendingOrder(previousOrderId);
+        clearPendingPaymentStorage();
+        setPendingOrderId(null);
+      }
+      const attempt = writeCheckoutAttempt(fingerprint);
+      idempotencyKey.current = attempt.key;
+      const orderRes = await axios.post(`/api/platform/orders`, pendingPayload, {
+        headers: { "Idempotency-Key": `order-${attempt.key}` },
       });
       const orderId: string = orderRes.data.orderId;
-      const orderToken: string | undefined = orderRes.data.accessToken;
 
-      // Save to localStorage for crash recovery (e.g. Swish/Klarna redirect).
-      // Tokenen krävs för att gäster ska komma åt /order/{id} efter redirect
-      // (5-min grace-loopholen togs bort av säkerhetsskäl).
+      // The proxy has already converted the API-issued order session to an
+      // HttpOnly cookie. Persist only the non-secret order id/phone needed to
+      // resume a hosted checkout after a browser redirect. `pending_order_token`
+      // is read elsewhere solely to migrate checkouts created by old clients.
       localStorage.setItem("pending_order_id", orderId);
-      if (orderToken) localStorage.setItem("pending_order_token", orderToken);
       localStorage.setItem("pending_order_phone", (formData.customerPhone || "").trim());
       setPendingOrderId(orderId);
 
@@ -1981,7 +2085,16 @@ export default function CartPage() {
       // från att abandona ordern under redirect-flödet.
       paymentInFlightRef.current = true;
       const returnUrl = `${window.location.origin}/cart?payment_return=${orderId}`;
-      const payRes = await axios.post(`${API_URL}/api/payments/create`, { orderId, returnUrl, channel: "Web" });
+      const payRes = await axios.post(`/api/platform/payments/create`, {
+        orderId,
+        returnUrl,
+        channel: "Web",
+      });
+      if (payRes.data?.alreadyPaid === true || String(payRes.data?.paymentStatus || "").toUpperCase() === "PAID") {
+        clearCartReturnParams();
+        await goToOrderTracking(orderId);
+        return;
+      }
       const checkoutUrl: string | undefined = payRes.data?.checkoutUrl;
       if (!checkoutUrl) {
         paymentInFlightRef.current = false;
@@ -1990,6 +2103,13 @@ export default function CartPage() {
       window.location.href = checkoutUrl;
       return;
     } catch (err: any) {
+      paymentInFlightRef.current = false;
+      if (err.response?.data?.code === "ORDER_REPLAY_EXPIRED") {
+        // Rotate the stale idempotency key on the next click. The persisted
+        // order id remains for one cycle so startCheckout can best-effort
+        // abandon the obsolete unpaid order before creating a new attempt.
+        clearCheckoutAttempt();
+      }
       setError(err.response?.data?.error || t("cart.errors.paymentUnavailable"));
     } finally {
       setLoading(false);
@@ -2181,7 +2301,7 @@ export default function CartPage() {
               </div>
             </div>
             <span className="text-[12px] font-medium shrink-0" style={{ color: isActive ? "var(--gold-ink)" : "var(--text-secondary)" }}>
-              −{computeDealAmountKr(d, discountableSubtotal, deliveryFee)} {t("common.kr")}
+              −{computeDealComponentsKr(d, discountableSubtotal, deliveryFee).total} {t("common.kr")}
             </span>
           </button>
         );
@@ -2333,7 +2453,7 @@ export default function CartPage() {
   };
 
   const renderMinOrderBanner = (extraClass = "") =>
-    subtotal > 0 && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && addressZoneStatus !== "error" && (
+    subtotal > 0 && Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && addressZoneStatus !== "error" && (
       <div
         className={`rounded-2xl border px-4 py-3 ${extraClass}`}
         style={{
@@ -2342,9 +2462,9 @@ export default function CartPage() {
         }}
       >
         {(() => {
-          const gapToEffective = Math.max(0, Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)));
+          const gapToEffective = Math.max(0, Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent)));
           const progressBase = effectiveMinOrder > 0 ? effectiveMinOrder : minOrder;
-          const progress = Math.min(((Math.max(0, subtotal - finalDiscount)) / progressBase) * 100, 100);
+          const progress = Math.min(((Math.max(0, subtotal - foodDiscountComponent)) / progressBase) * 100, 100);
           return (
             <>
               <div className="flex items-center justify-between gap-2 mb-2">
@@ -2627,7 +2747,7 @@ export default function CartPage() {
                   disabled={
                     loading
                     || bogoMustPick
-                    || (!isTestFlow && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
+                    || (!isTestFlow && Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
                     || (!isTestFlow && !restaurantSettings.isOpen)
                     || (!isTestFlow && addressZoneStatus === "error")
                     || (!isTestFlow && addressZoneStatus === "checking")
@@ -2640,8 +2760,8 @@ export default function CartPage() {
                       ? t("cart.bogo.mustPick")
                       : addressZoneStatus === "checking"
                         ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
-                        : (Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
-                          ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
+                        : (Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
+                          ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent)) })
                           : addressZoneStatus === "error"
                             ? t("cart.submit.zoneError")
                             : <span className="w-full flex items-center justify-between gap-3">
@@ -3006,7 +3126,7 @@ export default function CartPage() {
                           disabled={
                             loading
                             || bogoMustPick
-                            || (!isTestFlow && Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
+                            || (!isTestFlow && Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
                             || (!isTestFlow && !restaurantSettings.isOpen)
                             || (!isTestFlow && addressZoneStatus === "error")
                             || (!isTestFlow && addressZoneStatus === "checking")
@@ -3019,8 +3139,8 @@ export default function CartPage() {
                               ? t("cart.bogo.mustPick")
                               : addressZoneStatus === "checking"
                                 ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
-                                : (Math.max(0, subtotal - finalDiscount) < effectiveMinOrder && !topUpToMinimum)
-                                  ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - finalDiscount)) })
+                                : (Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
+                                  ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent)) })
                                   : addressZoneStatus === "error"
                                     ? t("cart.submit.zoneError")
                                     : <span className="w-full flex items-center justify-between gap-3">

@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
+const { assertDestructiveSeedAllowed } = require('./seed-safety');
+
 const prisma = new PrismaClient();
 
 const kr = (amount: number) => Math.round(amount * 100);
@@ -7,13 +9,25 @@ const kr = (amount: number) => Math.round(amount * 100);
 async function main() {
   console.log('🌱 Starting Multi-Restaurant Seed...');
 
+  // This script clears business data. Never let an implicit environment or a
+  // copied production command reach even the first database query.
+  assertDestructiveSeedAllowed(process.env);
+
+  const [orderCount, payoutCount] = await Promise.all([
+    prisma.order.count(),
+    prisma.restaurantPayout.count(),
+  ]);
+  if (orderCount > 0 || payoutCount > 0) {
+    throw new Error(
+      `Refusing destructive seed: ${orderCount} orders and ${payoutCount} payout records must be preserved. Use a fresh database.`,
+    );
+  }
+
   // 1. Clear existing data in correct order
   console.log('🗑️  Cleaning existing data...');
   await prisma.productExtraGroup.deleteMany({});
   await prisma.extra.deleteMany({});
   await prisma.extraGroup.deleteMany({});
-  await prisma.orderItem.deleteMany({});
-  await prisma.order.deleteMany({});
   await prisma.product.deleteMany({});
   await prisma.category.deleteMany({});
   await prisma.customerDeal.deleteMany({});

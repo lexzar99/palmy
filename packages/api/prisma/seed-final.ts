@@ -1,16 +1,31 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
+const { assertDestructiveSeedAllowed, getRequiredSeedAdminCredentials } = require('./seed-safety');
+
 const prisma = new PrismaClient();
 const kr = (amount: number) => Math.round(amount * 100);
 
 async function main() {
   console.log('🌱 Starting EMERGENCY SEED To Restore Data...');
 
+  // This script clears business data. The production ban and explicit local
+  // confirmation must run before the first database query.
+  assertDestructiveSeedAllowed(process.env);
+  const adminCredentials = getRequiredSeedAdminCredentials(process.env);
+
+  const [orderCount, payoutCount] = await Promise.all([
+    prisma.order.count(),
+    prisma.restaurantPayout.count(),
+  ]);
+  if (orderCount > 0 || payoutCount > 0) {
+    throw new Error(
+      `Refusing destructive seed: ${orderCount} orders and ${payoutCount} payout records must be preserved. Use a fresh database.`,
+    );
+  }
+
   // 1. Clear existing data (Safety first)
   console.log('🗑️  Cleaning existing data...');
-  await prisma.orderItem.deleteMany({});
-  await prisma.order.deleteMany({});
   await prisma.productExtraGroup.deleteMany({});
   await prisma.extra.deleteMany({});
   await prisma.extraGroup.deleteMany({});
@@ -19,17 +34,17 @@ async function main() {
   await prisma.customerDeal.deleteMany({});
   await prisma.campaign.deleteMany({});
   await prisma.user.deleteMany({});
-  await prisma.admin.deleteMany({});
+  await prisma.adminUser.deleteMany({});
   await prisma.city.deleteMany({});
   await prisma.restaurant.deleteMany({});
 
   // 2. Create Admin
   console.log('👤 Creating Admin...');
-  const hashedPassword = await bcrypt.hash('lexzar99', 10);
-  await prisma.admin.create({
+  const hashedPassword = await bcrypt.hash(adminCredentials.password, 12);
+  await prisma.adminUser.create({
     data: {
-      email: 'lexzar',
-      name: 'Super Admin',
+      email: adminCredentials.email,
+      name: adminCredentials.name,
       password: hashedPassword,
       role: 'SUPER_ADMIN',
     }

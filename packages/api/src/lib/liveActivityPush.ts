@@ -302,6 +302,7 @@ function sendApnsToHost(opts: {
 }): Promise<void> {
   return new Promise((resolve, reject) => {
     let client: http2.ClientHttp2Session | null = null;
+    let timeout: NodeJS.Timeout | null = null;
     try {
       client = http2.connect(opts.host);
     } catch (e) {
@@ -309,6 +310,8 @@ function sendApnsToHost(opts: {
     }
 
     const cleanup = () => {
+      if (timeout) clearTimeout(timeout);
+      timeout = null;
       try { client?.close(); } catch {}
     };
 
@@ -336,6 +339,11 @@ function sendApnsToHost(opts: {
       headers['apns-collapse-id'] = opts.collapseId.slice(0, 64);
     }
     const req = client.request(headers);
+    timeout = setTimeout(() => {
+      try { req.close(http2.constants.NGHTTP2_CANCEL); } catch {}
+      try { client?.destroy(); } catch {}
+      reject(new Error('APNs transport timeout'));
+    }, 20_000);
 
     let status = 0;
     let bodyChunks: Buffer[] = [];
@@ -440,7 +448,9 @@ export async function sendApnsAlert(opts: {
   const aps: Record<string, unknown> = {
     alert: { title: opts.title, body: opts.body },
     sound: opts.sound ?? 'default',
-    badge: 1,
+    // Do not set `badge` here. A fixed badge value of 1 made the app icon
+    // appear permanently unread even after the user opened the app. The
+    // native app owns badge clearing, while active counts are shown in-app.
     'content-available': 1,
     'mutable-content': 1,
     // Time-sensitive notifications bypass DND / Focus and get higher

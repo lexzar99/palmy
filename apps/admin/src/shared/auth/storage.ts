@@ -8,16 +8,25 @@ export interface StoredAdminSession {
   restaurantName?: string | null;
 }
 
-export const ADMIN_TOKEN_KEY = "viaeats_token";
+const LEGACY_ADMIN_TOKEN_KEY = "viaeats_token";
 export const ADMIN_SESSION_KEY = "viaeats_admin";
 
-export const getStoredToken = () =>
-  typeof window !== "undefined" ? localStorage.getItem(ADMIN_TOKEN_KEY) || "" : "";
+const removeLegacyBearerToken = () => {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
+  } catch {
+    // Storage may be unavailable in hardened/private browser contexts.
+  }
+};
+
+removeLegacyBearerToken();
 
 export const getStoredAdmin = (): StoredAdminSession | null => {
   if (typeof window === "undefined") return null;
 
   try {
+    removeLegacyBearerToken();
     const raw = localStorage.getItem(ADMIN_SESSION_KEY);
     return raw ? (JSON.parse(raw) as StoredAdminSession) : null;
   } catch {
@@ -25,22 +34,27 @@ export const getStoredAdmin = (): StoredAdminSession | null => {
   }
 };
 
-export const setStoredAdminSession = (token: string, admin: StoredAdminSession) => {
+export const setStoredAdminSession = (admin: StoredAdminSession) => {
   if (typeof window === "undefined") return;
-  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+  removeLegacyBearerToken();
   localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(admin));
 };
 
 export const clearStoredAdminSession = () => {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  removeLegacyBearerToken();
   localStorage.removeItem(ADMIN_SESSION_KEY);
-  // Rensa även HttpOnly cookie via /auth/logout-endpoint. Fire-and-forget —
-  // även om servern inte svarar är localStorage redan rensad och nästa request
-  // 401:ar utan auth.
+};
+
+export const logoutAdminSession = async (everywhere = false) => {
   try {
-    void fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    await fetch(everywhere ? "/api/auth/logout-everywhere" : "/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
   } catch {
-    // ignored — bästa effort
+    // Local session metadata must still be removed if the logout request fails.
+  } finally {
+    clearStoredAdminSession();
   }
 };

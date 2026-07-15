@@ -42,8 +42,8 @@ import adminRoutes from './routes/admin';
 import controlCenterRoutes from './routes/controlCenter';
 import authRoutes from './routes/auth';
 import terminalRoutes from './routes/terminal';
-// STAGED MIGRATION: Stripe (RN-appen) + Mollie (webben) körs SAMTIDIGT tills
-// RN-appen migrerats. Web-kassan → Mollie /create; RN → Stripe /create-intent.
+// Kompatibilitetsrouter för Stripes gamla webhook-URL. Gamla klient-endpoints
+// är pensionerade; alla aktiva klienter använder provider-neutrala API:t.
 import paymentRoutes from './routes/payments';
 import paymentsRoutes from './routes/paymentsMollie';
 import discountRoutes from './routes/discount';
@@ -73,14 +73,32 @@ import hermesRoutes from './routes/hermes';
 import { recordRateLimitHit, recordRequest } from './lib/opsMetrics';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyCleanup } from './lib/cleanup';
-import { startStripeReconciliation } from './lib/stripeReconcile';
+import { startStripeRefundSync } from './lib/stripeReconcile';
 import { startPaymentReconciliation } from './lib/payments/reconcile';
 import { startLiveActivityFinalizer } from './lib/liveActivityFinalize';
 import { logApnsBootStatus } from './lib/liveActivityPush';
 import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
-import { isOriginAllowed, ALLOW_WIPE_ORDERS } from './lib/config';
+import { isOriginAllowed } from './lib/config';
 import { ensureDefaultHomeCategorySections } from './lib/homeCategorySections';
 import { resolveAdminSessionFromToken } from './middleware/auth';
+import prisma from './lib/prisma';
+import {
+  assertRuntimeCriticalConfiguration,
+  getLaunchConfigIssues,
+  getPublicApiBaseUrl,
+} from './lib/launchReadiness';
+import { getLaunchDatabaseSchemaIssues } from './lib/launchDatabaseReadiness';
+import {
+  getCustomerNotificationWorkerIssues,
+  startCustomerNotificationWorkers,
+} from './lib/customerNotificationWorkers';
+import { validOrderId, verifyOrderAccessProof } from './lib/orderAccess';
+import { cookieFromHeader, isPaymentWebhookRequest } from './lib/requestSecurity';
+import { PRELAUNCH_ACCESS_HEADER, prelaunchModeEnabled, validPrelaunchProof } from './lib/prelaunchAccess';
+
+// Checkout får aldrig starta med en okänd eller okonfigurerad aktiv PSP.
+// Övriga launchkrav rapporteras på /ready utan att skapa en restart-loop.
+assertRuntimeCriticalConfiguration();
 
 const app = express();
 app.set('trust proxy', 1); // Trust Railway's proxy
@@ -88,39 +106,17 @@ const httpServer = createServer(app);
 
 import { initSocket, getIO } from './lib/socket';
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const ADMIN_URL = process.env.ADMIN_URL || 'http://localhost:3001';
-
-// Startup-loggning av miljöberoenden så vi ser direkt om något viktigt
-// saknas. Servern kraschar inte (admin kan jobba runt), men varningen
-// visar exakt vad som behöver konfigureras.
-const r2Configured = Boolean(
-  process.env.R2_ACCOUNT_ID &&
-    process.env.R2_ACCESS_KEY_ID &&
-    process.env.R2_SECRET_ACCESS_KEY &&
-    process.env.R2_BUCKET &&
-    process.env.R2_PUBLIC_BASE_URL,
-);
-if (!r2Configured) {
-  console.warn('⚠️  R2 saknas — bilduppladdning returnerar 503 tills R2_ACCOUNT_ID/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET/R2_PUBLIC_BASE_URL är satta.');
+for (const issue of getLaunchConfigIssues()) {
+  const line = `[launch-readiness] ${issue.key}: ${issue.message}`;
+  if (issue.severity === 'error') console.error(`❌ ${line}`);
+  else console.warn(`⚠️ ${line}`);
 }
-const googleMapsConfigured = Boolean(process.env.GOOGLE_MAPS_API_KEY);
-if (!googleMapsConfigured) {
-  console.warn('⚠️  GOOGLE_MAPS_API_KEY saknas — /api/places faller tillbaka till Geoapify (om EXPO_PUBLIC_GEOAPIFY_KEY finns).');
-}
-if (ALLOW_WIPE_ORDERS) {
-  console.warn('⚠️  ALLOW_WIPE_ORDERS=true — destruktiv /admin/orders/wipe-endpoint är aktiv. Stäng av i produktion när du inte testar längre.');
-}
-// In development, we want to allow requests from any local network IP (e.g. 192.168.x.x)
-const allowedOrigins = [FRONTEND_URL, ADMIN_URL, 'http://localhost:3002'];
-
 const corsOptions: cors.CorsOptions = {
   origin: (origin: any, callback: any) => {
     // Strikt allow-list via isOriginAllowed:
-    //  - Prod blockar saknad origin (curl/Postman med cookies kunde annars CSRF:a)
-    //  - Prod blockar `*.vercel.app`-wildcard (preview-URLer måste explicit
-    //    läggas till via CORS_ALLOWED_ORIGINS env-var)
-    //  - Dev tillåter localhost/192.168.* och saknad origin
+    //  - Browser-origin måste finnas exakt i allow-listan.
+    //  - Dev tillåter även localhost/192.168.*.
+    //  - Server/native/webhook utan Origin tillåts; de autentiseras separat.
     if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
@@ -180,15 +176,19 @@ app.use(compression());
 // men före routes så vi får request-ID i alla downstream calls)
 app.use(requestLogger);
 
-// Stripe webhooks need raw body (RN-appens Stripe-flöde). Mollies webhook är
+// Stripes gamla kompatibilitets-webhook behöver rå body. Mollies webhook är
 // form-encoded (id=tr_…) och hanteras av den globala express.urlencoded nedan.
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 // Stripe hosted Checkout-provider använder /webhooks/stripe och behöver också rå body.
 app.use('/api/payments/webhooks/stripe', express.raw({ type: 'application/json' }));
 // Adyen-webhooken kräver rå body för HMAC-verifiering (annars konsumerar express.json den).
 app.use('/api/payments/webhooks/adyen', express.raw({ type: 'application/json' }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Leveransbevis kan innehålla ett base64-foto på högst 6 MB (~8 MB som
+// data-URL). Ge bara den smala kurir-routen det större JSON-taket. Multipart-
+// bilduppladdningar parsas av multer med en separat 15 MB filgräns.
+app.use('/api/courier/deliveries', express.json({ limit: '9mb' }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '256kb' }));
 // Cookie-parser — för admin_token (HttpOnly) som middleware/auth.ts läser
 app.use(cookieParser());
 
@@ -229,7 +229,8 @@ const limiter = rateLimit({
   max: 200,
   message: { error: 'För många förfrågningar, försök igen om en stund.' },
   skip: (req) => {
-    return ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+    return ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ||
+      isPaymentWebhookRequest(req.method, req.originalUrl);
   },
   handler: opsRateLimitHandler('general', clientIp),
 });
@@ -248,6 +249,7 @@ const abuseLimiter = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => isPaymentWebhookRequest(req.method, req.originalUrl),
   message: { error: 'För många förfrågningar. Sakta ner och försök igen om en stund.' },
   keyGenerator: (req) => {
     const cf = req.headers['cf-connecting-ip'];
@@ -319,6 +321,17 @@ app.use('/api/auth/login', adminLoginLimiter);
 app.use('/api/account/verify', sessionVerifyLimiter);
 app.use('/api/auth/verify', sessionVerifyLimiter);
 
+// När smoke-test/launch-gaten är aktiv räcker det inte att gömma webbsidorna:
+// direktanrop mot API:t får inte kunna skapa order eller starta Mollie. Endast
+// webbproxyn kan läsa den signerade HttpOnly-cookien och vidarebefordra proofen.
+const requirePrelaunchCheckoutAccess: express.RequestHandler = (req, res, next) => {
+  if (!prelaunchModeEnabled()) return next();
+  if (validPrelaunchProof(req.header(PRELAUNCH_ACCESS_HEADER))) return next();
+  res.status(423).json({ error: 'PRELAUNCH_LOCKED', message: 'Beställning öppnar snart.' });
+};
+app.post('/api/orders', requirePrelaunchCheckoutAccess);
+app.post('/api/payments/create', requirePrelaunchCheckoutAccess);
+
 // Routes
 app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);
@@ -344,8 +357,8 @@ app.use('/api/account', referralsRoutes);
 app.use('/api/account', inviteRoutes);
 app.use('/api/public', referralsPublic);
 app.use('/api/public', publicInviteRouter);
-app.use('/api/payments', paymentRoutes); // Stripe (RN: /create-intent, /confirm) — kvar tills RN migrerats
-app.use('/api/payments', paymentsRoutes); // Mollie (web: /create, /status, /webhooks/mollie)
+app.use('/api/payments', paymentRoutes); // Endast gammal Stripe-webhook + 410 för gamla klienter
+app.use('/api/payments', paymentsRoutes); // Provider-neutralt create/status/webhooks
 app.use('/api/discount', discountRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/deals', dealsRoutes);
@@ -379,7 +392,72 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')
 
 // Health check
 app.get('/health', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Readiness är striktare än liveness: den testar databasen och alla blockerande
+// launchberoenden. Railway bör använda /health för process-liveness och extern
+// övervakning bör larma på /ready. Inga hemliga värden exponeras.
+app.get('/ready', async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const issues = getLaunchConfigIssues();
+  let database: 'ok' | 'error' = 'ok';
+  let databaseSchema: 'ok' | 'error' = 'ok';
+  let adminMfa: 'ok' | 'error' = 'ok';
+  const notificationWorkerIssues = getCustomerNotificationWorkerIssues();
+  const notificationWorkers: 'ok' | 'error' = notificationWorkerIssues.length ? 'error' : 'ok';
+  for (const issue of notificationWorkerIssues) {
+    issues.push({ ...issue, severity: 'error' });
+  }
+  try {
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('database timeout')), 5_000)),
+    ]);
+
+    const schemaIssues = await getLaunchDatabaseSchemaIssues();
+    if (schemaIssues.length) {
+      databaseSchema = 'error';
+      for (const issue of schemaIssues) {
+        issues.push({ ...issue, severity: 'error' });
+      }
+    }
+
+    const [activeSuperAdmins, protectedSuperAdmins] = await Promise.all([
+      prisma.adminUser.count({ where: { role: 'SUPER_ADMIN', isActive: true } }),
+      prisma.adminUser.count({ where: { role: 'SUPER_ADMIN', isActive: true, totpEnabled: true } }),
+    ]);
+    if (activeSuperAdmins < 1 || protectedSuperAdmins !== activeSuperAdmins) {
+      adminMfa = 'error';
+      issues.push({
+        key: 'super_admin_mfa',
+        severity: 'error',
+        message:
+          activeSuperAdmins < 1
+            ? 'Ingen aktiv superadmin finns'
+            : 'Alla aktiva superadmins måste aktivera 2FA före launch',
+      });
+    }
+  } catch (error: any) {
+    database = 'error';
+    databaseSchema = 'error';
+    issues.push({
+      key: 'database_connection',
+      severity: 'error',
+      message: String(error?.message || 'Databasen svarar inte').slice(0, 120),
+    });
+  }
+
+  const blockers = issues.filter((issue) => issue.severity === 'error');
+  const warnings = issues.filter((issue) => issue.severity === 'warning');
+  res.status(blockers.length ? 503 : 200).json({
+    status: blockers.length ? 'not_ready' : warnings.length ? 'ready_with_warnings' : 'ready',
+    timestamp: new Date().toISOString(),
+    checks: { database, databaseSchema, adminMfa, notificationWorkers },
+    blockers,
+    warnings,
+  });
 });
 
 // Socket.IO events
@@ -387,7 +465,11 @@ getIO().on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
   
   socket.on('join:admin', async (payload?: { restaurantId?: string; token?: string }) => {
-    const token = payload?.token || socket.handshake.auth?.token || null;
+    // Browser-admin använder endast HttpOnly-cookie. Socket-servern läser den
+    // från handshaken; frontend behöver aldrig kunna stjäla/serialisera JWT:n.
+    const token = payload?.token ||
+      socket.handshake.auth?.token ||
+      cookieFromHeader(socket.handshake.headers.cookie, 'admin_token');
 
     if (!token) {
       console.warn(`⚠️ Admin room rejected (missing token): ${socket.id}`);
@@ -441,8 +523,17 @@ getIO().on('connection', (socket) => {
     }
   });
 
-  socket.on('join:order', (orderId: string) => {
+  socket.on('join:order', (payload?: { orderId?: unknown; proof?: unknown }) => {
+    const orderId = payload?.orderId;
+    const allowed = verifyOrderAccessProof(payload?.proof, orderId);
+
+    if (!allowed || !validOrderId(orderId)) {
+      socket.emit('order:join-error', { error: 'Order hittades inte' });
+      return;
+    }
+
     socket.join(`order:${orderId}`);
+    socket.emit('order:joined', { orderId });
   });
   
   socket.on('disconnect', () => {
@@ -470,9 +561,38 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 const PORT = Number(process.env.PORT || 4000);
 
 (async () => {
+  // Säkerhetskritisk bootstrap körs separat från övrig best-effort-bootstrap.
+  // Ett saknat/svagt eller avstängt produktionskonto, och ett ofullständigt
+  // launchschema, får aldrig döljas av catch-blocket som ändå startar servern.
   try {
     await ensureDefaultSuperAdmin();
     console.log('🔐 Super Admin check complete');
+
+    if (process.env.NODE_ENV === 'production') {
+      const schemaIssues = await getLaunchDatabaseSchemaIssues();
+      if (schemaIssues.length) {
+        throw new Error(
+          `Produktionsdatabasen saknar launchpatchar: ${schemaIssues.map((issue) => issue.key).join(', ')}`,
+        );
+      }
+      console.log('🗄️ Launch database schema check complete');
+    }
+  } catch (error) {
+    console.error('FATAL: säkerhetskritisk launch-bootstrap misslyckades:', error);
+    process.exit(1);
+  }
+
+  // This starts outside the unrelated best-effort bootstrap below. A failure
+  // therefore cannot be swallowed by menu prewarm, watchdog or mail setup;
+  // its local heartbeat makes /ready fail until notification delivery recovers.
+  try {
+    startCustomerNotificationWorkers();
+    console.log('🔔 Customer notification workers started');
+  } catch (error) {
+    console.error('[customerNotificationWorkers] startup failed:', error);
+  }
+
+  try {
     await ensureRestaurantAdmins();
     console.log('🏪 Restaurant admin logins ensured');
     await ensureDefaultHomeCategorySections();
@@ -481,10 +601,9 @@ const PORT = Number(process.env.PORT || 4000);
     // Run daily maintenance once on startup
     runDailyCleanup().catch(err => console.error('[Cleanup] Early run error:', err));
 
-    // Betal-reconciliation — båda providers samtidigt under migreringen.
-    // Stripe-reconcile rör bara ordrar med stripePaymentIntentId; Mollie-
-    // reconcile bara paymentProvider='mollie'. De överlappar aldrig.
-    startStripeReconciliation();
+    // En provider-neutral pending-poller för alla PSP:er. Stripe har dessutom
+    // en separat refund-sync för manuella refunds från Dashboard.
+    startStripeRefundSync();
     startPaymentReconciliation();
     
     // Schedule daily jobs
@@ -517,8 +636,8 @@ const PORT = Number(process.env.PORT || 4000);
     void dispatchScheduledPushes();
     setInterval(() => { void dispatchScheduledPushes(); }, 60 * 1000);
 
-    // Expire abandoned AWAITING_PAYMENT orders every 5 min so they don't pile up
-    // in the DB and don't leave the customer's live-order banner stuck forever.
+    // Stäm av äldre AWAITING_PAYMENT var 5:e minut. Jobbet raderar aldrig en
+    // order med möjlig pågående PSP-betalning; det frågar PSP:n först.
     const expireAbandoned = async () => {
       try {
         const { expireAbandonedAwaitingPayment } = await import('./lib/cleanup');
@@ -558,7 +677,7 @@ const PORT = Number(process.env.PORT || 4000);
         });
         const axiosMod = await import('axios');
         const axios = axiosMod.default;
-        const base = process.env.PUBLIC_API_URL || `http://localhost:${PORT}`;
+        const base = getPublicApiBaseUrl() || `http://localhost:${PORT}`;
         for (const r of restaurants) {
           axios
             .get(`${base}/api/menu/categories?restaurantId=${r.id}`, { timeout: 30_000 })

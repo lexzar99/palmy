@@ -11,15 +11,28 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Launch-gate
 
-Hemsidan är låst tills en signerad HttpOnly-cookie finns. Sätt dessa server-only
-variabler i Vercel innan launch:
+Webben använder samma `PRELAUNCH_MODE` som API:t. Variabeln är server-only:
+
+- `PRELAUNCH_MODE=1` låser användarsidor bakom en signerad HttpOnly-cookie.
+- `PRELAUNCH_MODE=0` öppnar hela kundwebben publikt.
+
+Saknad eller ogiltig flagga låser webben i produktion. Lokal utveckling är
+öppen som standard om flaggan saknas. Sätt dessa server-only-variabler i
+Vercel inför det låsta smoke-testet:
 
 ```text
+PRELAUNCH_MODE=1
 LAUNCH_ACCESS_CODE_SHA256=<sha256-hash av intern åtkomstkod>
 LAUNCH_ACCESS_COOKIE_SECRET=<slumpmässig lång hemlighet>
 ```
 
-Klartextkoden ska inte läggas i repo, frontend eller publika miljövariabler.
+Samma `LAUNCH_ACCESS_COOKIE_SECRET` måste finnas på webb och API. Klartextkoden
+ska inte läggas i repo, frontend eller publika miljövariabler. När smoke-testet
+är godkänt ska både webb och API deployas med `PRELAUNCH_MODE=0`.
+
+`/manifest.webmanifest` och `/.well-known/*` är alltid publika så PWA-metadata,
+Apple-associationer och Android App Links förblir maskinläsbara även när gaten
+är låst.
 
 ## Learn More
 

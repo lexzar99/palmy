@@ -2,16 +2,14 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { JWT_SECRET } from '../lib/config';
 import { cached } from '../lib/ttlCache';
 import { getRestaurantAdminLogin, normalizeAdminLoginAlias } from '../lib/adminLogin';
-import supabaseAdmin, { supabasePublic } from '../lib/supabase';
+import supabaseAdmin from '../lib/supabase';
 import { authenticate, resolveAdminSessionFromToken } from '../middleware/auth';
 import type { AuthRequest } from '../middleware/auth';
 import { audit } from '../lib/auditLog';
-import { sendEmail, renderBrandedEmail } from '../lib/email';
 import { sendHermesAlert } from '../lib/hermesAlerts';
 import {
   createTrustedDevice,
@@ -30,8 +28,44 @@ import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
 import { OAuth2Client } from 'google-auth-library';
 import jwksClient from 'jwks-rsa';
+import {
+  adminSessionTokenFromRequest,
+  verifyAdminSessionToken,
+} from '../lib/adminSessionVerification';
+import {
+  customerAuthMethod,
+  hasVerifiedSupabasePhone,
+  localCustomerAuthMethod,
+} from '../lib/customerAuthPolicy';
+import {
+  getCachedCustomerIdentity,
+  setCachedCustomerIdentity,
+} from '../lib/customerIdentityCache';
 
 const router = Router();
+
+// Kundkonton använder endast verifierad telefon-OTP eller Google/Apple OAuth.
+// Adminens separata lösenord + 2FA-flöde (/login) påverkas inte. Guard-en ligger
+// före alla handlers så gamla webb-/appversioner aldrig kan återaktivera de
+// avvecklade lösenords- eller mejllänksflödena via /api/auth eller /api/account.
+export const RETIRED_CUSTOMER_AUTH_PATHS = new Set([
+  '/register-user',
+  '/login-user',
+  '/send-verification-email',
+  '/verify-email',
+  '/check-email-verified',
+  '/forgot-password',
+  '/reset-password',
+]);
+
+router.use((req, res, next) => {
+  if (!RETIRED_CUSTOMER_AUTH_PATHS.has(req.path)) return next();
+  res.set('Cache-Control', 'no-store');
+  return res.status(410).json({
+    error: 'Detta kundflöde är avvecklat. Logga in med telefon, Google eller Apple.',
+    code: 'CUSTOMER_PASSWORD_AUTH_RETIRED',
+  });
+});
 
 const AI_AGENT_LOGIN_IDS = new Set([
   'falken@viaeats.se',
@@ -180,41 +214,46 @@ async function verifyAppleIdToken(
   };
 }
 
-// ── Per-email rate-limit för /forgot-password ───────────────────────────────
-// IP-baserad limit (10/10min) stoppar inte angripare med IP-pool. Extra
-// per-email limit (3/h per email) hindrar Brevo-quota-dränering. In-memory
-// Map räcker — vi kör vanligtvis single-instance, och drift mellan instanser
-// är acceptabel (worst case: 6 mejl/h istället för 3).
-const FORGOT_PASSWORD_EMAIL_WINDOW_MS = 60 * 60 * 1000; // 60 min
-const FORGOT_PASSWORD_EMAIL_MAX = 3;
-const forgotPasswordEmailHits = new Map<string, number[]>();
+type VerifiedSupabaseOAuthPayload = VerifiedOAuthPayload & {
+  provider: 'google' | 'apple';
+};
 
-function recordForgotPasswordEmailHit(emailKey: string): boolean {
-  const now = Date.now();
-  const hits = forgotPasswordEmailHits.get(emailKey) || [];
-  const recent = hits.filter((ts) => now - ts < FORGOT_PASSWORD_EMAIL_WINDOW_MS);
-  if (recent.length >= FORGOT_PASSWORD_EMAIL_MAX) {
-    forgotPasswordEmailHits.set(emailKey, recent);
-    return false; // rejected
+/**
+ * Verifiera Supabase OAuth-sessionen server-side. Webben och native Google
+ * använder Supabase hosted OAuth och får därför en access token, inte alltid
+ * leverantörens råa id_token. E-post/provider-id från request-body är aldrig
+ * en identitetskälla.
+ */
+async function verifySupabaseOAuthToken(
+  accessToken: string,
+): Promise<VerifiedSupabaseOAuthPayload> {
+  if (!supabaseAdmin) {
+    throw new Error('Supabase admin auth är inte konfigurerad');
   }
-  recent.push(now);
-  forgotPasswordEmailHits.set(emailKey, recent);
-  return true; // accepted
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(accessToken);
+  if (error || !user) {
+    throw new Error('Ogiltig Supabase-session');
+  }
+
+  const provider = String(user.app_metadata?.provider || '').toLowerCase();
+  if (provider !== 'google' && provider !== 'apple') {
+    throw new Error('Sessionen kommer inte från en tillåten OAuth-provider');
+  }
+
+  const meta = user.user_metadata || {};
+  const first = String(meta.first_name || meta.given_name || '').trim();
+  const last = String(meta.last_name || meta.family_name || '').trim();
+  const name = String(meta.full_name || meta.name || [first, last].filter(Boolean).join(' ')).trim();
+
+  return {
+    provider,
+    email: user.email || null,
+    providerId: user.id,
+    name: name || null,
+    picture: String(meta.avatar_url || meta.picture || '').trim() || null,
+    emailVerified: Boolean(user.email_confirmed_at),
+  };
 }
-
-// Garbage-collect gamla entries en gång i timmen så Mapen inte växer för
-// evigt på en långkörande process. Lättviktigt — itererar igenom & droppar
-// utgångna keys.
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, hits] of forgotPasswordEmailHits.entries()) {
-    const recent = hits.filter(
-      (ts) => now - ts < FORGOT_PASSWORD_EMAIL_WINDOW_MS,
-    );
-    if (recent.length === 0) forgotPasswordEmailHits.delete(key);
-    else forgotPasswordEmailHits.set(key, recent);
-  }
-}, FORGOT_PASSWORD_EMAIL_WINDOW_MS).unref?.();
 
 async function resolveAdminByIdentifier(loginId: string) {
   const directAdmin = await prisma.adminUser.findFirst({
@@ -231,6 +270,7 @@ async function resolveAdminByIdentifier(loginId: string) {
   }
 
   const restaurants = await prisma.restaurant.findMany({
+    where: { archivedAt: null },
     select: { slug: true, name: true, adminEmail: true },
   });
 
@@ -282,33 +322,13 @@ async function resolveAdminByIdentifier(loginId: string) {
  * Unified auth middleware — verifies Supabase JWTs (primary) with a
  * fallback to the legacy custom JWT for a smooth transition period.
  */
-// Routes som en OAuth-only user (Google/Apple men ingen telefon) får träffa.
-// OTP-flödet är borttaget — telefonnummer samlas vid checkout som kontakt-info
-// men kräver ingen separat verifiering.
+// Routes som en OAuth-only user (Google/Apple men ingen telefon) får träffa
+// innan den godkända SMS-OTP-verifieringen är klar.
 const PHONE_LINKING_ALLOWED_PATHS = new Set<string>([
   '/api/profile',
   '/api/auth/me',
   '/api/auth/lookup-phone',
 ]);
-
-// Cache the RESOLVED local identity per token for 30s so authenticated requests
-// don't re-run the Supabase call + user findUnique/upsert on EVERY request (the
-// profile/auth scaling bottleneck — it was ~3-4 DB queries + an upsert per call).
-// Only successful auths are cached below; banned/invalid tokens are never cached.
-// ≤30s staleness on a ban/role change is acceptable (same window as token validation).
-const identityCache = new Map<string, { value: any; expiresAt: number }>();
-function getCachedIdentity(token: string): any | null {
-  const e = identityCache.get(token);
-  if (e && e.expiresAt > Date.now()) return e.value;
-  if (e) identityCache.delete(token);
-  return null;
-}
-function setCachedIdentity(token: string, value: any): void {
-  identityCache.set(token, { value, expiresAt: Date.now() + 30_000 });
-  if (identityCache.size > 5000) {
-    for (const k of identityCache.keys()) { identityCache.delete(k); if (identityCache.size <= 4000) break; }
-  }
-}
 
 export const authenticateUser = async (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
@@ -317,11 +337,22 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
   }
   const token = authHeader.split(' ')[1];
 
-  // Fast path: a recently-resolved identity for this exact token → skip the
-  // Supabase call AND the per-request user findUnique/upsert entirely. This is
-  // what lets the profile/auth path survive 1000 concurrent.
-  const cachedIdentity = getCachedIdentity(token);
+  // Fast path: skip Supabase validation + the multi-query identity upsert, but
+  // still read the tiny local account-state row. That single indexed lookup is
+  // what makes deletion/ban immediate across every API replica; a process-local
+  // cache alone could otherwise authorize a deleted account for its full TTL.
+  const cachedIdentity = getCachedCustomerIdentity(token);
   if (cachedIdentity) {
+    const accountState = await (prisma as any).user.findUnique({
+      where: { id: cachedIdentity.id },
+      select: { deletedAt: true, isActive: true },
+    }).catch(() => null);
+    if (!accountState || accountState.deletedAt) {
+      return res.status(401).json({ error: 'Konto borttaget' });
+    }
+    if (accountState.isActive === false) {
+      return res.status(401).json({ error: 'Konto avstängt' });
+    }
     req.user = cachedIdentity;
     return next();
   }
@@ -335,42 +366,54 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
       // token caches harmlessly for 30s.
       const { data: { user }, error } = await cached('auth:sb', token, 30_000, () => supabaseAdmin!.auth.getUser(token));
       if (!error && user) {
-        // Soft-delete revival. Admin-deleted accounts have deletedAt set
-        // and identifying fields nulled out; when the same Apple/Google
-        // user signs in again we treat it as a fresh registration —
-        // clear the tombstone and let the rest of the flow upsert and
-        // re-collect the name/phone. (If you want a true permanent ban,
-        // use isActive=false; that block lives below.)
+        const authMethod = customerAuthMethod(user);
+        if (!authMethod) {
+          return res.status(401).json({
+            error: 'Logga in med telefon, Google eller Apple',
+            code: 'CUSTOMER_AUTH_METHOD_NOT_ALLOWED',
+          });
+        }
+        // A Supabase access token can remain locally cached after an account
+        // deletion. The local tombstone is authoritative: request middleware
+        // must never revive it. A future explicit signup goes through the
+        // dedicated auth flow after the Supabase identity has been removed.
         const tombstone = await (prisma as any).user.findUnique({
           where: { id: user.id },
           select: { deletedAt: true, isActive: true, firstName: true, lastName: true },
         }).catch(() => null);
 
-        // ID-mismatch-fix: vår /register-user skapar User med cuid() medan
+        // ID-mismatch-fix för importerade/äldre User-rader med cuid() medan
         // Supabase auth.users har UUID. Om id inte matchar någon User i vår
-        // DB, men email matchar → samma person, bara olika auth-paths
-        // (custom JWT vs Supabase JWT). Då länkar vi: använd den befintliga
-        // cuid-User:n och markera isVerified=true från Supabase-status.
+        // DB, men email matchar → samma person, bara olika historiska id:n.
+        // Då länkar vi till den befintliga raden och använder Supabase-status.
         // Annars skulle vi skapa en SEKUNDÄR User-row och användaren skulle
         // ha två konton i parallell — buggen som gav "isVerified=false trots
         // verifierad email".
+        const verifiedSupabaseEmail = user.email && user.email_confirmed_at
+          ? user.email.toLowerCase()
+          : null;
         let resolvedUserId = user.id;
-        if (!tombstone && user.email) {
+        if (!tombstone && verifiedSupabaseEmail) {
           const existingByEmail = await (prisma as any).user.findFirst({
-            where: { email: user.email.toLowerCase(), deletedAt: null },
-            select: { id: true, isVerified: true },
+            where: { email: verifiedSupabaseEmail, deletedAt: null },
+            select: { id: true, isVerified: true, isActive: true },
           }).catch(() => null);
           if (existingByEmail) {
+            if (existingByEmail.isActive === false) {
+              return res.status(401).json({ error: 'Konto avstängt' });
+            }
             resolvedUserId = existingByEmail.id;
-            // Markera som verifierad om Supabase säger så
-            if (!existingByEmail.isVerified && (user.email_confirmed_at || user.phone_confirmed_at)) {
+            // Den här länken görs enbart via en uttryckligen bekräftad e-post.
+            // Ett bekräftat telefonnummer får aldrig attestera en e-postadress.
+            if (!existingByEmail.isVerified) {
               await (prisma as any).user.update({
                 where: { id: existingByEmail.id },
                 data: { isVerified: true },
               }).catch(() => null);
-              console.log(`[auth] User ${existingByEmail.id} (email=${user.email}) markerad som verifierad via Supabase`);
+              console.log(`[auth] User ${existingByEmail.id} (email=${verifiedSupabaseEmail}) markerad som verifierad via Supabase`);
             }
-            req.user = { id: resolvedUserId, email: user.email, phone: null, role: 'USER' };
+            req.user = { id: resolvedUserId, email: verifiedSupabaseEmail, phone: null, role: 'USER' };
+            setCachedCustomerIdentity(token, req.user);
             return next();
           }
         }
@@ -380,12 +423,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           return res.status(401).json({ error: 'Konto avstängt' });
         }
         if (tombstone?.deletedAt) {
-          await (prisma as any).user
-            .update({
-              where: { id: user.id },
-              data: { deletedAt: null, isActive: true, name: '', firstName: null, lastName: null },
-            })
-            .catch(() => null);
+          return res.status(401).json({ error: 'Konto borttaget' });
         }
         // Track for logging — we explicitly distinguish "found existing"
         // vs "creating fresh" per the strict Apple Sign-In spec, so it's
@@ -408,18 +446,24 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
         }
 
         if (existingByPhone) {
+          if (existingByPhone.isActive === false) {
+            return res.status(401).json({ error: 'Konto avstängt' });
+          }
           // Merge: keep the richer existing record, normalise phone and mark verified.
           await (prisma as any).user.update({
             where: { id: existingByPhone.id },
             data: {
               phone: normalizedPhone,
               isVerified: true,
-              email: user.email || existingByPhone.email || undefined,
+              email: verifiedSupabaseEmail || existingByPhone.email || undefined,
               name: user.user_metadata?.name || user.user_metadata?.full_name || existingByPhone.name || undefined,
               image: user.user_metadata?.avatar_url || user.user_metadata?.picture || existingByPhone.image || undefined,
+              oauthProvider: existingByPhone.oauthProvider || authMethod,
+              oauthId: existingByPhone.oauthId || user.id,
             },
           }).catch(() => null);
           req.user = { id: existingByPhone.id, email: existingByPhone.email, phone: normalizedPhone, role: 'USER' };
+          setCachedCustomerIdentity(token, req.user);
           return next();
         }
 
@@ -483,11 +527,11 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
         const upsertedUser = await (prisma as any).user.upsert({
           where: { id: user.id },
           update: {
-            email: user.email || undefined,
+            email: verifiedSupabaseEmail || undefined,
             image: sbImage || undefined,
             phone: normalizedPhone || undefined,
             isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at || undefined,
-            oauthProvider: user.app_metadata?.provider || undefined,
+            oauthProvider: authMethod,
             // Names: ONLY fill in if the DB row currently has nothing. This
             // satisfies "never overwrite stored name from Apple". Prisma
             // doesn't have a native conditional-update so we backfill via a
@@ -495,7 +539,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           },
           create: {
             id: user.id,
-            email: user.email ?? null,
+            email: verifiedSupabaseEmail,
             // Empty string when nothing came from the OAuth provider — the
             // client detects `needsName: true` from GET /api/profile and
             // prompts the user. NEVER use "Användare" or any other
@@ -505,7 +549,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
             lastName: sbLast,
             image: sbImage,
             phone: normalizedPhone ?? null,
-            oauthProvider: user.app_metadata?.provider ?? null,
+            oauthProvider: authMethod,
             oauthId: user.id,
             isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at,
           },
@@ -519,7 +563,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
             customerName: sbName,
             customerPhone: normalizedPhone,
             customerEmail: user.email || null,
-            method: user.app_metadata?.provider || (user.phone ? 'phone' : 'supabase'),
+            method: authMethod,
             text: `Ny kund registrerad: ${sbName || normalizedPhone || user.email || user.id}.`,
           });
         }
@@ -542,7 +586,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
         }
 
         req.user = { id: user.id, email: user.email, phone: normalizedPhone, role: 'USER' };
-        setCachedIdentity(token, req.user);
+        setCachedCustomerIdentity(token, req.user);
         return next();
       }
     } catch {
@@ -552,18 +596,34 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
 
   // ── 2. Fall back to legacy custom JWT ────────────────────────────────────
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as any;
-    if (payload?.id) {
-      const tombstone = await (prisma as any).user.findUnique({
-        where: { id: payload.id },
-        select: { deletedAt: true },
-      }).catch(() => null);
-      if (tombstone?.deletedAt) {
-        return res.status(401).json({ error: 'Konto borttaget' });
-      }
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as any;
+    if (payload?.role !== 'USER' || typeof payload?.id !== 'string' || !payload.id) {
+      return res.status(401).json({ error: 'Ogiltig kundsession' });
+    }
+    const account = await (prisma as any).user.findUnique({
+      where: { id: payload.id },
+      select: {
+        deletedAt: true,
+        isActive: true,
+        phone: true,
+        isVerified: true,
+        oauthProvider: true,
+      },
+    }).catch(() => null);
+    if (account?.deletedAt) {
+      return res.status(401).json({ error: 'Konto borttaget' });
+    }
+    if (!account || account.isActive === false) {
+      return res.status(401).json({ error: 'Konto avstängt' });
+    }
+    if (!localCustomerAuthMethod(account)) {
+      return res.status(401).json({
+        error: 'Logga in med telefon, Google eller Apple',
+        code: 'CUSTOMER_AUTH_METHOD_NOT_ALLOWED',
+      });
     }
     req.user = payload;
-    setCachedIdentity(token, req.user);
+    setCachedCustomerIdentity(token, req.user);
     return next();
   } catch {
     return res.status(401).json({ error: 'Session utgången' });
@@ -607,10 +667,8 @@ export const requireVerifiedPhone = async (req: any, res: any, next: any) => {
   next();
 };
 
-// OTP-flödet (POST /api/auth/send-otp + POST /api/auth/verify-otp) är
-// borttaget per design. Telefonnummer samlas vid checkout som kontakt-info
-// men kräver ingen SMS-verifiering. Användare loggar in via Supabase OAuth
-// (Google/Apple) eller registreras via /api/auth/register-user (email+lösen).
+// Kundinloggning är lösenordsfri: telefon-OTP sker i Supabase och byts mot
+// plattformstoken via /phone-token. Google/Apple använder /oauth-token.
 
 // POST /api/auth/lookup-phone
 router.post('/lookup-phone', authLimiter, async (req, res) => {
@@ -620,13 +678,13 @@ router.post('/lookup-phone', authLimiter, async (req, res) => {
 
     const user = await (prisma as any).user.findFirst({
       where: { phone: { in: phoneVariants(phone) } },
-      select: { id: true, phone: true, email: true, isVerified: true, oauthProvider: true, password: true },
+      select: { id: true, phone: true, email: true, isVerified: true, oauthProvider: true },
     });
 
     res.json({
       exists: Boolean(user),
       phone,
-      hasFullAccount: Boolean(user && (user.email || user.oauthProvider || user.password)),
+      hasFullAccount: Boolean(user && (user.oauthProvider || user.isVerified)),
       isVerified: Boolean(user?.isVerified),
     });
   } catch (error) {
@@ -762,6 +820,7 @@ router.post('/login', authLimiter, async (req, res) => {
     if (admin.role !== 'SUPER_ADMIN' && admin.role !== 'GLOBAL_VIEWER' && admin.role !== 'MENU_AGENT' && admin.role !== 'GROWTH_AGENT') {
       const restaurant = await prisma.restaurant.findFirst({
         where: {
+          archivedAt: null,
           OR: [
             { slug: admin.email.toLowerCase() },
             { adminEmail: admin.email.toLowerCase() },
@@ -789,15 +848,13 @@ router.post('/login', authLimiter, async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // HttpOnly cookie — primary auth method. Frontend never touches the
-    // raw token. The admin frontend lives on a different site (Vercel) from
-    // the API (Railway), so SameSite=None is required — combined with Secure,
-    // this is the standard cross-site auth-cookie posture. localStorage
-    // Bearer remains as a fallback for browsers that block 3rd-party cookies.
+    // HttpOnly cookie — primary auth method. office.viaeats.se och
+    // api.viaeats.se är cross-origin men SAME-SITE, så Lax fungerar för fetch
+    // och stänger samtidigt ute cross-site CSRF från andra domäner.
     res.cookie('admin_token', token, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
@@ -817,11 +874,7 @@ router.post('/login', authLimiter, async (req, res) => {
       changes: { restaurantId, role: admin.role, newTrustedDevice: needsTrustedDeviceCookie },
     });
 
-    // Returnerar fortfarande token i body för bakåt-kompatibilitet med
-    // klienter som lagrar via localStorage. Migrerings-period — kan tas bort
-    // när alla klienter migrerade till cookie-baserad auth.
     res.json({
-      token,
       admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role, restaurantId, restaurantSlug, restaurantName, logoutCode },
     });
   } catch (error) {
@@ -834,7 +887,11 @@ router.post('/login', authLimiter, async (req, res) => {
 // eventuell localStorage-token efter detta anrop.
 router.post('/logout', async (_req, res) => {
   // Must match the issue-time attributes or the browser refuses to clear it.
-  res.clearCookie('admin_token', { path: '/', sameSite: 'none', secure: true });
+  res.clearCookie('admin_token', {
+    path: '/',
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
   res.json({ success: true });
 });
 
@@ -850,7 +907,11 @@ router.post('/logout-everywhere', authenticate, async (req: any, res) => {
       where: { id: adminId },
       data: { tokenVersion: { increment: 1 } },
     });
-    res.clearCookie('admin_token', { path: '/', sameSite: 'none', secure: true });
+    res.clearCookie('admin_token', {
+      path: '/',
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
     res.json({ success: true });
   } catch (err) {
     console.error('[auth/logout-everywhere] error:', err);
@@ -1059,7 +1120,7 @@ router.get('/check-admin/:slug', async (req, res) => {
     const email = slug.toLowerCase();
 
     const restaurant = await prisma.restaurant.findFirst({
-      where: { slug: email },
+      where: { slug: email, archivedAt: null },
       select: { id: true, slug: true, name: true, adminEmail: true },
     });
 
@@ -1087,749 +1148,16 @@ router.get('/check-admin/:slug', async (req, res) => {
 
 // POST /api/auth/verify - Kontrollera token
 router.post('/verify', async (req, res) => {
-  try {
-    res.set('Cache-Control', 'no-store');
+  res.set('Cache-Control', 'no-store');
 
-    const authHeader = req.headers.authorization;
-    const headerToken = authHeader?.startsWith('Bearer ')
-      ? authHeader.split(' ')[1]
-      : null;
-    const token = req.body?.token || headerToken;
+  const token = adminSessionTokenFromRequest(req, { allowLegacyBodyToken: true });
+  const result = await verifyAdminSessionToken(token, resolveAdminSessionFromToken);
 
-    if (!token) {
-      res.status(401).json({ valid: false });
-      return;
-    }
-
-    const admin = await resolveAdminSessionFromToken(token);
-
-    if (!admin) {
-      res.status(401).json({ valid: false });
-      return;
-    }
-
-    res.json({ valid: true, admin });
-  } catch {
-    res.json({ valid: false });
+  if (result.status === 500) {
+    console.error('[auth/verify] session resolver failed:', result.cause);
   }
-});
 
-// URL:er för verifierings-länken — används av både /register-user och
-// /send-verification-email. Placerade här (innan första route) så att båda
-// handlers kan referera värdena utan att förlita sig på hoisting-quirks.
-//
-// Default = Vercel-preview eftersom viaeats.se-domänen inte är DNS-pekad ännu.
-// När custom domain är klar: sätt WEB_VERIFY_EMAIL_URL=https://viaeats.se/verify-email
-// i Railway env-vars och pusha en restart.
-const WEB_VERIFY_EMAIL_BASE =
-  process.env.WEB_VERIFY_EMAIL_URL || 'https://viaeats-web-pi.vercel.app/verify-email';
-const MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE =
-  process.env.MOBILE_VERIFY_EMAIL_URL || 'viaeats://verify-email';
-
-// POST /api/auth/register-user
-// Registreringen logger in användaren direkt: vi skapar kontot, returnerar
-// JWT på en gång och skickar verifieringsmejlet fire-and-forget. Användaren
-// kan klicka i mejlet senare för att markera emailVerifiedAt — men inloggning
-// blockas inte. Infrastrukturen ligger kvar (token-fält, verify-email endpoint,
-// check-email-verified) så vi kan slå på en hård gate i framtiden utan kod-
-// ändringar i datalagret.
-router.post('/register-user', authLimiter, async (req, res) => {
-  try {
-    const { firstName, lastName, email, password, phone } = req.body;
-    if (!firstName || !lastName || !email || !password || !phone) {
-      return res.status(400).json({ error: 'Förnamn, efternamn, e-post, telefon och lösenord krävs' });
-    }
-    const normalizedEmail = email.trim().toLowerCase();
-
-    // Email unik — VIKTIGT: ingen läckage av om kontot finns. Tidigare
-    // returnerade vi olika felmeddelanden beroende på om mailen var tagen
-    // eller inte, vilket lät en angripare bygga en email-lista genom att
-    // probea adresser. Nu returnerar vi alltid samma generiska 200-svar och
-    // skickar istället ett notice-mejl till den befintliga adressen (med
-    // login-länk) så att den verkliga ägaren får besked.
-    const existingEmail = await (prisma as any).user.findFirst({
-      where: { email: normalizedEmail }
-    });
-    if (existingEmail) {
-      // Vi triggar resend av Supabase verifierings-mejl om kontot är
-      // OAuth-only eller inte verifierat ännu (då finns kontot men user
-      // har inte slutfört flowet). Annars skickar vi inget — generic 200.
-      //
-      // Email-enumeration-skydd: vi returnerar samma 200 oavsett om kontot
-      // fanns eller inte, så angripare kan inte mappa befintliga emails.
-      // Tidigare Brevo notice-mejl togs bort eftersom Brevo kräver domän.
-      if (supabasePublic && !existingEmail.isVerified) {
-        try {
-          await supabasePublic.auth.resend({
-            type: 'signup',
-            email: normalizedEmail,
-            options: { emailRedirectTo: WEB_VERIFY_EMAIL_BASE },
-          });
-        } catch {
-          // ignore — generic 200 returneras ändå
-        }
-      }
-
-      // Generisk 200 — ser identiskt ut för ny vs befintlig email.
-      return res.status(200).json({
-        ok: true,
-        message:
-          'Om kontot finns har vi skickat ett mejl med nästa steg. Kolla din inbox.',
-      });
-    }
-
-    // Telefon unik — kolla alla varianter (+46/46/etc) så vi inte tillåter
-    // dubblett genom format-trick
-    const phoneVariantList = phoneVariants(phone);
-    const existingPhone = await (prisma as any).user.findFirst({
-      where: { phone: { in: phoneVariantList } }
-    });
-    const guestToConvert = existingPhone?.isGuest && !existingPhone.deletedAt ? existingPhone : null;
-    if (existingPhone && !guestToConvert) {
-      return res.status(400).json({ error: 'Telefonnumret används redan. Använd ett annat nummer eller logga in.' });
-    }
-
-    const name = `${firstName} ${lastName}`.trim();
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Generera verifierings-token direkt vid skapandet så vi kan skicka mejlet
-    // i samma request. emailVerifiedAt sätts först när användaren klickar
-    // länken — men inloggning blockas inte i nuläget.
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
-
-    // Konvertera gästprofilen på samma rad så orderhistoriken och första
-    // ordern följer med. Det ger en riktig gäst→kund-signal i admin utan att
-    // skapa dubbletter på telefonnumret.
-    const user = guestToConvert
-      ? await (prisma as any).user.update({
-          where: { id: guestToConvert.id },
-          data: {
-            name,
-            firstName,
-            lastName,
-            email: normalizedEmail,
-            phone: normalizePhone(phone),
-            password: hashedPassword,
-            isGuest: false,
-            convertedFromGuestAt: new Date(),
-            conversionSource: 'GUEST_ORDER',
-            emailVerificationToken: verificationToken,
-            emailVerificationExpiresAt: verificationExpiresAt,
-          },
-        })
-      : await (prisma as any).user.create({
-          data: {
-            name,
-            firstName,
-            lastName,
-            email: normalizedEmail,
-            phone: normalizePhone(phone),
-            password: hashedPassword,
-            emailVerificationToken: verificationToken,
-            emailVerificationExpiresAt: verificationExpiresAt,
-          }
-        });
-
-    // Fire-and-forget: skicka verifieringsmejlet via Supabase i bakgrunden.
-    // Tidigare användes Brevo (kräver verifierad domän, fungerar inte gratis).
-    // Nu använder vi Supabase's inbyggda email-system som:
-    //   - är gratis (4 emails/h på free tier)
-    //   - skickar från noreply@mail.supabase.co (ingen egen domän behövs)
-    //   - skapar en auth.users-entry parallellt med vår User-row
-    //   - skickar verifieringslänk som redirectar tillbaka till appen
-    // Om Supabase signUp failar (t.ex. anon-key saknas eller user redan
-    // finns i Supabase) loggar vi men låter registreringen gå igenom —
-    // användaren är ändå skapad i vår DB och kan logga in lokalt.
-    (async () => {
-      if (!supabasePublic) {
-        console.warn('[register-user] supabasePublic saknas — verifieringsmejl skickas inte. Sätt SUPABASE_ANON_KEY i Railway.');
-        return;
-      }
-      try {
-        // Försök signUp först. Om Supabase-user redan finns → identities[] är
-        // tom i response och INGET mejl skickas (Supabase v2-beteende).
-        // Då måste vi explicit kalla resend() för att trigga mejlet.
-        const { data: signUpData, error: signUpError } = await supabasePublic.auth.signUp({
-          email: user.email!,
-          password,
-          options: {
-            data: {
-              first_name: firstName || null,
-              last_name: lastName || null,
-              full_name: user.name || null,
-              phone: user.phone || null,
-            },
-            emailRedirectTo: WEB_VERIFY_EMAIL_BASE,
-          },
-        });
-
-        // identities tom = user fanns redan → signUp skickar INTE mejl
-        const userExists =
-          signUpData?.user &&
-          Array.isArray(signUpData.user.identities) &&
-          signUpData.user.identities.length === 0;
-
-        if (signUpError) {
-          // Explicit "already registered" error — kalla resend manuellt
-          if (/already|registered/i.test(signUpError.message || '')) {
-            const { error: resendErr } = await supabasePublic.auth.resend({
-              type: 'signup',
-              email: user.email!,
-              options: { emailRedirectTo: WEB_VERIFY_EMAIL_BASE },
-            });
-            if (resendErr) {
-              console.error('[register-user] supabase.resend failed:', resendErr.message);
-            } else {
-              console.log(`[register-user] Verifieringsmejl resendat via Supabase till ${user.email}`);
-            }
-          } else {
-            console.error('[register-user] supabase.signUp failed:', signUpError.message);
-          }
-        } else if (userExists) {
-          // signUp returnerade utan error men identities är tom = ghost user
-          // exists. Kalla resend för att faktiskt skicka mejlet.
-          const { error: resendErr } = await supabasePublic.auth.resend({
-            type: 'signup',
-            email: user.email!,
-            options: { emailRedirectTo: WEB_VERIFY_EMAIL_BASE },
-          });
-          if (resendErr) {
-            console.error('[register-user] supabase.resend failed (existing user):', resendErr.message);
-          } else {
-            console.log(`[register-user] Verifieringsmejl resendat (befintlig user) till ${user.email}`);
-          }
-        } else {
-          console.log(`[register-user] Verifieringsmejl skickat via Supabase till ${user.email}`);
-        }
-      } catch (mailErr: any) {
-        console.error('[register-user] supabase.signUp threw (account created anyway):', mailErr?.message || mailErr);
-      }
-    })();
-
-    await audit(req as AuthRequest, 'USER_REGISTERED', {
-      resourceType: 'User',
-      resourceId: user.id,
-      changes: { email: user.email, emailVerificationDispatched: true },
-    });
-    void sendHermesAlert({
-      source: 'viaeats-auth',
-      type: 'customer:new',
-      severity: 'info',
-      userId: user.id,
-      customerName: user.name,
-      customerPhone: user.phone,
-      customerEmail: user.email,
-      method: 'email',
-      text: `Ny kund registrerad: ${user.name || 'namn saknas'}${user.phone ? `, ${user.phone}` : ''}${user.email ? `, ${user.email}` : ''}.`,
-    });
-
-    // Welcome-deal: skapas automatiskt om admin har aktiverat den i settings.
-    try {
-      const { maybeCreateWelcomeDeal } = await import('./referrals');
-      await maybeCreateWelcomeDeal(user.id);
-    } catch (e: any) {
-      console.error('[register-user] welcome-deal-trigger error:', e?.message);
-    }
-
-    // Auto-login: utfärda JWT direkt och returnera user-payload. Klienten
-    // persistar token och navigerar vidare; verifieringsmejlet kommer som
-    // notifikation och kan användas senare för att markera kontot som
-    // verifierat.
-    const tokenJwt = jwt.sign(
-      { id: user.id, phone: user.phone, role: 'USER' },
-      JWT_SECRET,
-      { expiresIn: '30d' },
-    );
-
-    return res.json({
-      ok: true,
-      token: tokenJwt,
-      email: user.email,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        isVerified: user.isVerified,
-      },
-      message: 'Vi skickade en verifieringslänk — kolla din mejl när du har en stund.',
-    });
-  } catch (error) {
-    console.error('[register-user] error:', error);
-    res.status(500).json({ error: 'Serverfel' });
-  }
-});
-
-// POST /api/auth/login-user
-// Normal inloggning. Vi blockar INTE på emailVerifiedAt — det är medvetet
-// avstängt tills domänen är verifierad i Brevo. Infrastrukturen kring
-// verifiering (token-fält, /verify-email, /check-email-verified) ligger
-// kvar och kan slås på igen genom att återinföra check:en här.
-router.post('/login-user', authLimiter, async (req, res) => {
-  try {
-    const { identifier, password } = req.body;
-    const user = await (prisma as any).user.findFirst({
-      where: { OR: [{ phone: identifier }, { email: identifier }], isActive: true }
-    });
-    if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ error: 'Felaktigt lösenord eller användare' });
-    }
-
-    const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, isVerified: user.isVerified } });
-  } catch (error) {
-    res.status(500).json({ error: 'Serverfel' });
-  }
-});
-
-// ============================================================
-// Email verification — kund-flöde
-// ============================================================
-//
-// Tre endpoints:
-//   1. POST /send-verification-email { email }
-//      Genererar token, mejlar länk (web + viaeats://). Returnerar alltid 200
-//      (läcker inte vilka mejlkonton som finns).
-//   2. POST /verify-email { token }
-//      Validerar tokenen, sätter emailVerifiedAt = now(), nollar token-fält.
-//      Returnerar { ok, email } så klient/webb kan visa bekräftelse.
-//   3. POST /check-email-verified { email } (eller via auth-header)
-//      Mobilklienten pollar denna under verify-steget. Returnerar
-//      { verified: boolean }.
-//
-// WEB_VERIFY_EMAIL_BASE / MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE deklareras ovanför
-// /register-user-handlern eftersom även den behöver bygga verifieringslänkar.
-
-// POST /api/auth/send-verification-email — skicka verifieringslänk
-router.post('/send-verification-email', authLimiter, async (req, res) => {
-  try {
-    const { email } = req.body as { email?: string };
-    const normalizedEmail = (email || '').trim().toLowerCase();
-    if (!normalizedEmail || !normalizedEmail.includes('@')) {
-      // Returnera 200 även här så vi inte läcker att email validering fail.
-      return res.status(200).json({ ok: true });
-    }
-
-    const user = await (prisma as any).user.findFirst({
-      where: { email: normalizedEmail, isActive: true, deletedAt: null },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        name: true,
-        emailVerifiedAt: true,
-      },
-    });
-
-    if (user && !user.emailVerifiedAt) {
-      const token = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
-
-      await (prisma as any).user.update({
-        where: { id: user.id },
-        data: {
-          emailVerificationToken: token,
-          emailVerificationExpiresAt: expiresAt,
-        },
-      });
-
-      const greetingName = user.firstName || user.name || 'där';
-      const webLink = `${WEB_VERIFY_EMAIL_BASE}?token=${token}`;
-      const mobileLink = `${MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE}?token=${token}`;
-
-      const text = [
-        `Hej ${greetingName}!`,
-        '',
-        'Tack för att du skapat ett ViaEats-konto. För att slutföra registreringen,',
-        'klicka på länken nedan och verifiera din e-postadress. Länken gäller 24 timmar.',
-        '',
-        `Webb:   ${webLink}`,
-        `Mobil:  ${mobileLink}`,
-        '',
-        'Om du inte skapat något konto kan du ignorera detta mejl.',
-        '',
-        'Vänliga hälsningar,',
-        'ViaEats',
-      ].join('\n');
-
-      const html = renderBrandedEmail({
-        headline: 'Bekräfta din email',
-        greeting: `Hej ${greetingName}!`,
-        intro: [
-          'Klicka för att aktivera ditt ViaEats-konto.',
-        ],
-        cta: { label: 'Bekräfta email', url: webLink },
-        mobileDeepLink: { label: 'Använder du mobilappen? Öppna istället:', url: mobileLink },
-        footnote:
-          'Länken gäller 24 timmar. Om du inte skapat något konto kan du ignorera detta mejl.',
-      });
-
-      // Skicka via Supabase (gratis, ingen domän krävs). Använder
-      // resendOTP eller signUp för att trigga ny verifierings-email
-      // för en befintlig user.
-      if (supabasePublic) {
-        try {
-          // resend() är specifikt för att skicka om verifieringsmejlet
-          // till en redan-existerande Supabase-user.
-          const { error: resendErr } = await supabasePublic.auth.resend({
-            type: 'signup',
-            email: user.email!,
-            options: { emailRedirectTo: WEB_VERIFY_EMAIL_BASE },
-          });
-          if (resendErr) {
-            // Om user inte finns i Supabase än — skapa via signUp så
-            // får hen sitt verifieringsmejl. password = dummy eftersom
-            // vi använder vår egen DB för auth.
-            await supabasePublic.auth.signUp({
-              email: user.email!,
-              password: crypto.randomBytes(16).toString('hex'),
-              options: { emailRedirectTo: WEB_VERIFY_EMAIL_BASE },
-            });
-          }
-        } catch (mailErr: any) {
-          console.error('[send-verification-email] supabase failed:', mailErr?.message);
-        }
-      } else {
-        console.warn('[send-verification-email] supabasePublic saknas — kan inte skicka resend-mejl');
-      }
-
-      await audit(req as AuthRequest, 'EMAIL_VERIFICATION_REQUESTED', {
-        resourceType: 'User',
-        resourceId: user.id,
-        changes: { email: user.email },
-      });
-    }
-
-    return res.status(200).json({ ok: true });
-  } catch (error) {
-    console.error('[send-verification-email] error:', error);
-    return res.status(200).json({ ok: true });
-  }
-});
-
-// POST /api/auth/verify-email — fullfölj verifieringen
-// Användaren kan klicka mejl-länken oavsett om de redan är inloggade eller
-// inte. Vi sätter emailVerifiedAt och returnerar JWT — om klienten redan har
-// en session ignorerar den värdet, annars kan den logga in användaren direkt.
-// Detta är fortfarande en bra fallback för "klicka i mejlet från en annan
-// enhet"-flödet.
-router.post('/verify-email', authLimiter, async (req, res) => {
-  try {
-    const { token } = req.body as { token?: string };
-    if (!token || typeof token !== 'string' || token.length < 32) {
-      return res.status(400).json({ error: 'Ogiltig verifieringslänk' });
-    }
-
-    const user = await (prisma as any).user.findFirst({
-      where: { emailVerificationToken: token, isActive: true, deletedAt: null },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        image: true,
-        isVerified: true,
-        emailVerificationExpiresAt: true,
-        emailVerifiedAt: true,
-      },
-    });
-
-    if (!user) {
-      return res.status(400).json({ error: 'Länken är ogiltig eller har använts redan.' });
-    }
-
-    // Idempotent — om någon klickar igen på en redan-verifierad länk
-    // returnerar vi fortfarande ok så UX:en inte ser sönder ut. Vi utfärdar
-    // även en fresh JWT så klienten kan auto-logga in även när länken
-    // återbesöks från ett annat fönster/enhet.
-    if (user.emailVerifiedAt) {
-      const tokenJwt = jwt.sign(
-        { id: user.id, phone: user.phone, role: 'USER' },
-        JWT_SECRET,
-        { expiresIn: '30d' },
-      );
-      return res.status(200).json({
-        ok: true,
-        token: tokenJwt,
-        email: user.email,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          image: user.image,
-          isVerified: user.isVerified,
-        },
-      });
-    }
-
-    if (
-      !user.emailVerificationExpiresAt ||
-      new Date(user.emailVerificationExpiresAt).getTime() < Date.now()
-    ) {
-      return res.status(400).json({ error: 'Länken har gått ut. Be om en ny.' });
-    }
-
-    const updatedUser = await (prisma as any).user.update({
-      where: { id: user.id },
-      data: {
-        emailVerifiedAt: new Date(),
-        emailVerificationToken: null,
-        emailVerificationExpiresAt: null,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        image: true,
-        isVerified: true,
-      },
-    });
-
-    await audit(req as AuthRequest, 'EMAIL_VERIFIED', {
-      resourceType: 'User',
-      resourceId: user.id,
-      changes: { email: user.email, autoLoginIssued: true },
-    });
-
-    // Utfärda JWT direkt — det här är den nya inloggningspunkten för email-
-    // registrerade användare. Klienten persistar tokenen och slipper visa
-    // login-formuläret för en användare som nyss klickat på sin egen länk.
-    const tokenJwt = jwt.sign(
-      { id: updatedUser.id, phone: updatedUser.phone, role: 'USER' },
-      JWT_SECRET,
-      { expiresIn: '30d' },
-    );
-
-    return res.status(200).json({
-      ok: true,
-      token: tokenJwt,
-      email: updatedUser.email,
-      user: {
-        id: updatedUser.id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        phone: updatedUser.phone,
-        image: updatedUser.image,
-        isVerified: updatedUser.isVerified,
-      },
-    });
-  } catch (error) {
-    console.error('[verify-email] error:', error);
-    return res.status(500).json({ error: 'Serverfel' });
-  }
-});
-
-// POST /api/auth/check-email-verified — pollas av RN-klienten under
-// register-flödet för att veta när användaren klickat länken i mejlet.
-// Accepterar antingen body.email eller Bearer-token.
-router.post('/check-email-verified', async (req, res) => {
-  try {
-    const bodyEmail = (req.body?.email as string | undefined)?.trim().toLowerCase();
-    let userId: string | null = null;
-
-    // Föredra auth-headern om den finns — säkrare än body.email mot enumeration.
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      try {
-        const decoded = jwt.verify(token, JWT_SECRET) as any;
-        if (decoded?.id) userId = decoded.id;
-      } catch {
-        // Token kanske är en Supabase-JWT — försök med supabaseAdmin
-        if (supabaseAdmin) {
-          try {
-            const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-            if (!error && user?.id) userId = user.id;
-          } catch {
-            // ignore
-          }
-        }
-      }
-    }
-
-    let user: any = null;
-    if (userId) {
-      user = await (prisma as any).user.findUnique({
-        where: { id: userId },
-        select: { id: true, emailVerifiedAt: true },
-      });
-    } else if (bodyEmail && bodyEmail.includes('@')) {
-      user = await (prisma as any).user.findFirst({
-        where: { email: bodyEmail, isActive: true, deletedAt: null },
-        select: { id: true, emailVerifiedAt: true },
-      });
-    }
-
-    return res.status(200).json({ verified: !!user?.emailVerifiedAt });
-  } catch (error) {
-    console.error('[check-email-verified] error:', error);
-    return res.status(200).json({ verified: false });
-  }
-});
-
-// ============================================================
-// Forgot password / Reset password — kund-flöde
-// ============================================================
-//
-// Två steg:
-//   1. POST /forgot-password   { email }
-//      Genererar en kryptografiskt slumpad token, lagrar bcrypt-token-värdet
-//      direkt på User-raden (passwordResetToken) + en utgångstid 1h fram.
-//      Mejlar länk till användaren. Returnerar ALLTID 200 så en angripare
-//      inte kan probea vilka mejlkonton som finns.
-//
-//   2. POST /reset-password    { token, newPassword }
-//      Slår upp användaren på tokenen, validerar utgångstid, sätter nytt
-//      lösenord (bcrypt) och nollar token-fälten.
-
-// URL:er till klienterna. För länken som skickas i mejlet använder vi
-// publika host-namn — fallback till env eller hårdkodade staging-värden.
-const WEB_RESET_BASE =
-  process.env.WEB_RESET_PASSWORD_URL || 'https://viaeats-web-pi.vercel.app/reset-password';
-const MOBILE_RESET_DEEP_LINK_BASE =
-  process.env.MOBILE_RESET_PASSWORD_URL || 'viaeats://reset-password';
-
-// POST /api/auth/forgot-password — begär återställningslänk
-router.post('/forgot-password', authLimiter, async (req, res) => {
-  // Vi loggar generösa serverfel men returnerar alltid 200 mot klienten,
-  // så ingen kan dra slutsatser av svaret. Klienten visar bara en generisk
-  // "om kontot finns har vi skickat en länk"-text.
-  try {
-    const { email } = req.body as { email?: string };
-    const normalizedEmail = (email || '').trim().toLowerCase();
-    if (!normalizedEmail || !normalizedEmail.includes('@')) {
-      return res.status(400).json({ error: 'Ogiltig e-postadress' });
-    }
-
-    // Per-email rate-limit: stoppar angripare med IP-pool från att dränera
-    // Brevo-quotan genom att hamra /forgot-password mot samma email från
-    // olika IP. Silent rate-limit — returnerar samma 200 som vanligt så
-    // angripare inte ser om limiten triggade eller om kontot inte fanns.
-    if (!recordForgotPasswordEmailHit(normalizedEmail)) {
-      console.warn(
-        `[forgot-password] per-email rate-limit triggad för ${normalizedEmail} — droppar request tyst`,
-      );
-      return res.status(200).json({ ok: true });
-    }
-
-    const user = await (prisma as any).user.findFirst({
-      where: { email: normalizedEmail, isActive: true, deletedAt: null },
-      select: { id: true, email: true, firstName: true, name: true, password: true, oauthProvider: true },
-    });
-
-    // Bara skicka länk om kontot har ett lösenord. OAuth-only-konton (Google/
-    // Apple utan password) ska inte få ett reset-mejl — de är inte "låsta ute".
-    // Klienten får ändå 200 så detta är osynligt utåt.
-    if (user && user.password) {
-      // Skicka reset-länk via Supabase istället för Brevo. Supabase
-      // skickar gratis från noreply@mail.supabase.co (ingen domän behövs).
-      // Klick → Supabase verifierar → redirectar till WEB_RESET_BASE med
-      // access_token i URL-hash. Frontend-page läser det och kallar
-      // supabase.auth.updateUser({ password }) för att sätta nytt lösen.
-      //
-      // Behåller vår token-baserade flow som fallback för existerande
-      // konton som inte finns i Supabase än — vi sparar BÅDA. Frontend
-      // kan välja vilken som funkar.
-      const token = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1h
-      await (prisma as any).user.update({
-        where: { id: user.id },
-        data: {
-          passwordResetToken: token,
-          passwordResetExpiresAt: expiresAt,
-        },
-      });
-
-      if (supabasePublic) {
-        try {
-          const { error: resetErr } = await supabasePublic.auth.resetPasswordForEmail(
-            user.email!,
-            { redirectTo: WEB_RESET_BASE },
-          );
-          if (resetErr) {
-            console.error('[forgot-password] supabase.resetPasswordForEmail failed:', resetErr.message);
-          } else {
-            console.log(`[forgot-password] Reset-mejl skickat via Supabase till ${user.email}`);
-          }
-        } catch (mailErr: any) {
-          console.error('[forgot-password] supabase.resetPasswordForEmail threw:', mailErr?.message || mailErr);
-        }
-      } else {
-        console.warn('[forgot-password] supabasePublic saknas — reset-mejl skickas inte. Sätt SUPABASE_ANON_KEY i Railway.');
-      }
-
-      await audit(req as AuthRequest, 'PASSWORD_RESET_REQUESTED', {
-        resourceType: 'User',
-        resourceId: user.id,
-        changes: { email: user.email },
-      });
-    } else if (user && !user.password && user.oauthProvider) {
-      // Kontot finns men är OAuth-only — logga så support kan hjälpa till
-      // (utan att läcka info till klienten).
-      console.log(`[forgot-password] OAuth-only account (${user.oauthProvider}) requested reset for ${normalizedEmail}`);
-    }
-
-    return res.status(200).json({ ok: true });
-  } catch (error) {
-    console.error('[forgot-password] error:', error);
-    // Även här: 200 mot klienten så vi inte avslöjar serverfel som
-    // sidotips om att kontot finns. Audit-loggen och konsolen har spårningen.
-    return res.status(200).json({ ok: true });
-  }
-});
-
-// POST /api/auth/reset-password — fullföljer återställningen
-router.post('/reset-password', authLimiter, async (req, res) => {
-  try {
-    const { token, newPassword } = req.body as { token?: string; newPassword?: string };
-    if (!token || typeof token !== 'string' || token.length < 32) {
-      return res.status(400).json({ error: 'Ogiltig återställningslänk' });
-    }
-    if (!newPassword || typeof newPassword !== 'string') {
-      return res.status(400).json({ error: 'Nytt lösenord krävs' });
-    }
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'Lösenordet måste vara minst 8 tecken' });
-    }
-    if (newPassword.length > 256) {
-      return res.status(400).json({ error: 'Ogiltigt lösenordsformat' });
-    }
-
-    const user = await (prisma as any).user.findFirst({
-      where: { passwordResetToken: token, isActive: true, deletedAt: null },
-      select: { id: true, email: true, passwordResetExpiresAt: true },
-    });
-
-    if (!user || !user.passwordResetExpiresAt || new Date(user.passwordResetExpiresAt).getTime() < Date.now()) {
-      // Generisk text — vi vill inte skilja på "ogiltig" och "utgången"
-      // i klient-meddelandet.
-      return res.status(400).json({ error: 'Länken är ogiltig eller har gått ut. Be om en ny.' });
-    }
-
-    const hashed = await bcrypt.hash(newPassword, 10);
-    await (prisma as any).user.update({
-      where: { id: user.id },
-      data: {
-        password: hashed,
-        passwordResetToken: null,
-        passwordResetExpiresAt: null,
-      },
-    });
-
-    await audit(req as AuthRequest, 'PASSWORD_RESET_COMPLETED', {
-      resourceType: 'User',
-      resourceId: user.id,
-      changes: { email: user.email },
-    });
-
-    return res.status(200).json({ ok: true });
-  } catch (error) {
-    console.error('[reset-password] error:', error);
-    return res.status(500).json({ error: 'Serverfel' });
-  }
+  res.status(result.status).json(result.body);
 });
 
 // POST /api/auth/oauth-token
@@ -1838,22 +1166,45 @@ router.post('/reset-password', authLimiter, async (req, res) => {
 // email+providerId rakt från req.body, vilket lät vem som helst forge:a en
 // session för en godtycklig användare.
 //
-// Bakåtkompatibilitet: om id_token saknas och NODE_ENV !== 'production'
-// faller vi tillbaka till gamla path:en så lokal-dev fortsätter funka. I
-// produktion KRÄVS id_token.
+// Antingen krävs ett provider-verifierat id_token eller en verifierad
+// Supabase OAuth-session. Request-body-identitet accepteras aldrig.
 router.post('/oauth-token', authLimiter, async (req, res) => {
   try {
-    const isProd = process.env.NODE_ENV === 'production';
     const { idToken } = req.body as { idToken?: string };
-    let { email, name, provider, providerId, image } = req.body as {
-      email?: string;
+    let { name, provider, providerId, image } = req.body as {
       name?: string;
       provider?: string;
       providerId?: string;
       image?: string | null;
     };
+    let email: string | undefined;
+    let emailVerified = false;
 
-    if (idToken && provider) {
+    const authHeader = req.headers.authorization;
+    const supabaseAccessToken = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length).trim()
+      : '';
+
+    if (supabaseAccessToken) {
+      try {
+        const verified = await verifySupabaseOAuthToken(supabaseAccessToken);
+        if (provider && provider !== 'supabase' && provider !== verified.provider) {
+          return res.status(401).json({ error: 'OAuth-provider matchar inte sessionen' });
+        }
+        provider = verified.provider;
+        email = verified.email || undefined;
+        emailVerified = verified.emailVerified;
+        providerId = verified.providerId;
+        name = verified.name || name;
+        image = verified.picture || image || null;
+      } catch (verifyErr: any) {
+        console.error(
+          '[oauth-token] Supabase-session kunde inte verifieras:',
+          verifyErr?.message || verifyErr,
+        );
+        return res.status(401).json({ error: 'Ogiltig OAuth-session' });
+      }
+    } else if (idToken && provider) {
       // Server-side verifiering — single source of truth.
       try {
         let verified: VerifiedOAuthPayload;
@@ -1866,7 +1217,11 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
             .status(400)
             .json({ error: 'Okänd OAuth-provider' });
         }
-        email = verified.email || email; // Apple skickar email bara på första login
+        // Request-body email is never an identity source. Apple may omit email
+        // after the first authorization; exact provider+sub lookup below still
+        // lets that returning customer sign in safely.
+        email = verified.email || undefined;
+        emailVerified = verified.emailVerified;
         providerId = verified.providerId;
         name = verified.name || name;
         image = verified.picture || image || null;
@@ -1880,43 +1235,37 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
           .json({ error: 'Ogiltig OAuth-token' });
       }
     } else {
-      // ⚠️  TEMPORÄR BYPASS — frontend (web + RN) skickar ännu inte idToken
-      // efter security-fixen. Att vägra 401 i prod låste ute alla legitima
-      // OAuth-användare → större problem än säkerhetshålet det skyddar mot.
-      //
-      // Account-takeover-vektor: angripare kan POST:a {email, provider,
-      // providerId} med offrets email → får JWT för offrets userId. Risk
-      // är reell men ingen aktiv exploit observerad.
-      //
-      // FÖR ATT STÄNGA HÅLET ORDENTLIGT:
-      // 1. Web (NextAuth Google-provider): forward `account.id_token`
-      //    till /api/auth/oauth-token i body som `idToken`.
-      // 2. RN (Google Sign-In SDK + Apple Authentication): skicka
-      //    `idToken` resp `identityToken` från sign-in-resultatet.
-      // 3. När båda klienter skickar idToken → ändra detta till
-      //    `if (isProd) return 401` igen.
-      if (isProd) {
-        console.error(
-          '[oauth-token] ⚠️  LEGACY OAuth utan idToken i PROD — account-takeover möjlig. ' +
-            'Uppdatera frontend att skicka idToken ASAP. Logged for monitoring.',
-        );
-      } else {
-        console.warn(
-          '[oauth-token] DEV: ingen idToken — accepterar email+providerId rakt från body.',
-        );
-      }
+      // Body-fälten email/providerId är användardata och bevisar ingen
+      // identitet. Fail closed i alla miljöer så en osäker dev-path aldrig
+      // råkar nå produktion igen.
+      return res.status(401).json({
+        error: 'Verifierad OAuth-token eller Supabase-session krävs',
+      });
     }
 
-    if (!email) return res.status(400).json({ error: 'E-post krävs' });
     if (!provider || !providerId) {
       return res.status(400).json({ error: 'Provider/providerId krävs' });
     }
 
+    // First resolve the cryptographically verified provider identity. Email is
+    // only allowed as an account-linking key when the provider attested it.
+    let matchedByVerifiedEmail = false;
     let user = await (prisma as any).user.findFirst({
-      where: { OR: [{ email: email.toLowerCase() }, { oauthProvider: provider, oauthId: String(providerId) }] }
+      where: { oauthProvider: provider, oauthId: String(providerId) },
     });
+    if (!user && email && emailVerified) {
+      user = await (prisma as any).user.findFirst({
+        where: { email: email.toLowerCase() },
+      });
+      matchedByVerifiedEmail = Boolean(user);
+    }
 
     if (!user) {
+      if (!email || !emailVerified) {
+        return res.status(400).json({
+          error: 'Verifierad e-post krävs när ett nytt OAuth-konto skapas',
+        });
+      }
       user = await (prisma as any).user.create({
         data: {
           email: email.toLowerCase(),
@@ -1924,12 +1273,11 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
           // ett slump-relä (slumphash@privaterelay.appleid.com) → prefixet blev
           // ett "random namn". Saknas riktigt namn lämnar vi det tomt så profil-
           // grinden ber användaren fylla i det.
-          name: (name || '').trim() || null,
+          name: (name || '').trim(),
           oauthProvider: provider,
           oauthId: String(providerId),
           image: image || null,
           phone: null,
-          password: null,
         }
       });
       void sendHermesAlert({
@@ -1951,24 +1299,38 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
         console.error('[oauth-token] welcome-deal-trigger error:', e?.message);
       }
     } else {
-      // Återanvänd existerande user-record. VIKTIGT: reset:a tombstone-fält
-      // (deletedAt, isActive) så att en tidigare soft-deleted user kan logga
-      // in igen via samma email/OAuth. Tidigare skapade detta ett 401-loop
-      // efter Apple-login eftersom authenticateUser rejectade soft-deleted
-      // användare även om JWT:n var fresh.
+      if (user.isActive === false) {
+        return res.status(403).json({ error: 'Konto avstängt' });
+      }
+
+      // User has one legacy provider slot. Prefer Apple's sub after a verified
+      // email match because Apple may omit email on later logins; Google keeps
+      // resolving safely by its provider-verified email. This makes switching
+      // between Google and Apple stable without weakening email linking.
+      const providerIdentityDiffers =
+        user.oauthProvider !== provider || user.oauthId !== String(providerId);
+      const shouldReplaceProviderIdentity =
+        providerIdentityDiffers &&
+        (!user.oauthProvider ||
+          (matchedByVerifiedEmail &&
+            (provider === 'apple' || user.oauthProvider !== 'apple')));
+
+      // A user-initiated soft deletion may register again with the same
+      // verified provider. An admin-deactivated account is never reactivated.
       const needsUpdate =
-        !user.oauthProvider ||
+        shouldReplaceProviderIdentity ||
         user.deletedAt !== null ||
-        user.isActive === false;
+        Boolean(emailVerified && email && user.email !== email.toLowerCase());
       if (needsUpdate) {
         user = await (prisma as any).user.update({
           where: { id: user.id },
           data: {
-            oauthProvider: provider,
-            oauthId: String(providerId),
+            ...(shouldReplaceProviderIdentity
+              ? { oauthProvider: provider, oauthId: String(providerId) }
+              : {}),
             image: image || user.image,
+            email: emailVerified && email ? email.toLowerCase() : user.email,
             deletedAt: null,
-            isActive: true,
           },
         });
       }
@@ -1978,7 +1340,10 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
     res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, image: user.image, needsPhone: !user.phone, isVerified: user.isVerified } });
   } catch (error: any) {
     console.error('[oauth-token] FAILED:', error?.message || error);
-    res.status(500).json({ error: 'Serverfel', detail: error?.message });
+    res.status(500).json({
+      error: 'Serverfel',
+      ...(process.env.NODE_ENV !== 'production' ? { detail: error?.message } : {}),
+    });
   }
 });
 
@@ -1989,6 +1354,26 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
 // (web + RN). Telefon-konton saknar e-post, så oauth-token (email-keyad) duger ej.
 router.post('/phone-token', authenticateUser, async (req: any, res) => {
   try {
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: 'Telefoninloggning är inte konfigurerad' });
+    }
+    const authHeader = String(req.headers.authorization || '');
+    const supabaseAccessToken = authHeader.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length).trim()
+      : '';
+    const { data: { user: supabaseUser }, error: supabaseError } = await cached(
+      'auth:sb',
+      supabaseAccessToken,
+      30_000,
+      () => supabaseAdmin!.auth.getUser(supabaseAccessToken),
+    );
+    if (supabaseError || !supabaseUser || !hasVerifiedSupabasePhone(supabaseUser)) {
+      return res.status(401).json({
+        error: 'En verifierad SMS-session krävs',
+        code: 'VERIFIED_PHONE_SESSION_REQUIRED',
+      });
+    }
+
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Ej inloggad' });
     const user = await (prisma as any).user.findUnique({
@@ -1996,6 +1381,13 @@ router.post('/phone-token', authenticateUser, async (req: any, res) => {
       select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, image: true, isVerified: true },
     });
     if (!user) return res.status(404).json({ error: 'Konto saknas' });
+    const verifiedPhone = normalizePhone(supabaseUser.phone!);
+    if (!user.phone || normalizePhone(user.phone) !== verifiedPhone) {
+      return res.status(409).json({
+        error: 'Det verifierade numret matchar inte kundkontot',
+        code: 'VERIFIED_PHONE_MISMATCH',
+      });
+    }
     const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
     res.json({
       token,

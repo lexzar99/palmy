@@ -5,7 +5,6 @@
  *   POST /api/payments/webhooks/:provider async-notis → finalisera (sanningskälla)
  *   GET  /api/payments/return           app/webb-retur efter hosted checkout
  *   GET  /api/payments/status/:orderId  klient-polling efter redirect-retur
- *   POST /api/payments/refund           admin-refund
  *
  * Klienten (web + app) öppnar checkoutUrl, returneras via returnUrl, och
  * POLLAR status tills PAID. Klienten flippar ALDRIG order-status själv —
@@ -13,16 +12,31 @@
  */
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
+import { createHash } from 'crypto';
 import prisma from '../lib/prisma';
-import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { authenticateUserOptional } from './auth';
-import { getPaymentProvider, type OrderForPayment } from '../lib/payments';
+import {
+  getPaymentProvider,
+  getPaymentProviderByName,
+  type OrderForPayment,
+} from '../lib/payments';
 import { finalizePaymentSuccess, finalizePaymentFailed } from '../lib/payments/finalize';
-import { verifyAdyenHmac, getAdyenSessionResult } from '../lib/payments/adyen';
+import type { PaymentProviderName } from '../lib/payments/finalize';
+import { verifyAdyenHmac } from '../lib/payments/adyen';
 import {
   constructStripeWebhookEvent,
   retrieveStripeCheckoutStatus,
 } from '../lib/payments/stripe';
+import { getAllowedOrigins } from '../lib/config';
+import { getPublicApiBaseUrl } from '../lib/launchReadiness';
+import { syncRemoteRefundOutcome } from '../lib/payments/refundPersistence';
+import { recordKnownRemoteRefunds } from '../lib/payments/refundLedger';
+import { announceFullRefund } from '../lib/payments/refundNotifications';
+import {
+  ORDER_HTTP_SESSION_HEADER,
+  ownsOrderWithActiveRawSecret,
+  verifyOrderHttpSession,
+} from '../lib/orderAccess';
 
 const router = Router();
 
@@ -34,9 +48,17 @@ const createLimiter = rateLimit({
   message: { error: 'För många betalningsförsök. Vänta en stund och försök igen.' },
 });
 
+const statusLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'För många statuskontroller. Vänta en stund.' },
+});
+
 /** Publik https-webhook-URL, eller undefined i lokal dev (PSP:n når ej localhost). */
 function publicWebhookUrl(providerName: string): string | undefined {
-  const base = process.env.API_PUBLIC_URL;
+  const base = getPublicApiBaseUrl();
   if (!base || !/^https:\/\//i.test(base) || /localhost|127\.0\.0\.1/.test(base)) return undefined;
   if (providerName === 'stripe') return `${base.replace(/\/$/, '')}/api/payments/webhooks/stripe`;
   if (providerName === 'adyen') return `${base.replace(/\/$/, '')}/api/payments/webhooks/adyen`;
@@ -51,6 +73,11 @@ function toOrderForPayment(order: any): OrderForPayment {
     total: order.total,
     deliveryFee: order.deliveryFee,
     discountAmount: order.discountAmount,
+    foodDiscountAmount: order.foodDiscountAmount,
+    deliveryDiscountAmount: order.deliveryDiscountAmount,
+    smallOrderFee: order.smallOrderFee,
+    foodVatPercent: order.foodVatPercent,
+    deliveryVatPercent: order.deliveryVatPercent,
     tipAmount: order.tipAmount,
     customerName: order.customerName,
     customerEmail: order.customerEmail,
@@ -58,7 +85,12 @@ function toOrderForPayment(order: any): OrderForPayment {
     deliveryStreet: order.deliveryStreet,
     deliveryCity: order.deliveryCity,
     deliveryZip: order.deliveryZip,
-    items: (order.items || []).map((i: any) => ({ productName: i.productName, quantity: i.quantity, subtotal: i.subtotal })),
+    items: (order.items || []).map((i: any) => ({
+      productName: i.productName,
+      quantity: i.quantity,
+      subtotal: i.subtotal,
+      vatPercent: i.vatPercent,
+    })),
     restaurantName: order.restaurant?.name ?? null,
   };
 }
@@ -75,28 +107,120 @@ function paymentRefForOrder(order: {
   return null;
 }
 
+function ownsPaymentOrder(
+  req: any,
+  order: { id: string; userId: string | null; accessToken: string | null; createdAt: Date },
+  accessToken: unknown,
+): boolean {
+  if (req.user?.id && order.userId && req.user.id === order.userId) return true;
+  if (verifyOrderHttpSession(req.headers?.[ORDER_HTTP_SESSION_HEADER], order.id)) return true;
+  return ownsOrderWithActiveRawSecret(order, accessToken);
+}
+
+function parseOrigin(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * PSP:n får bara skicka kunden tillbaka till våra egna origins. En godtycklig
+ * returnUrl skulle annars göra betal-endpointen till en trovärdig open redirect.
+ */
+function safePaymentReturnUrl(
+  raw: unknown,
+  channel: 'Web' | 'iOS' | 'Android',
+): string | null {
+  if (typeof raw !== 'string' || raw.length < 1 || raw.length > 2_048) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (parsed.username || parsed.password || parsed.hash) return null;
+
+  const isLocalDev =
+    process.env.NODE_ENV !== 'production' &&
+    parsed.protocol === 'http:' &&
+    ['localhost', '127.0.0.1'].includes(parsed.hostname);
+  if (parsed.protocol !== 'https:' && !isLocalDev) return null;
+
+  const allowedOrigins = new Set(
+    [
+      ...getAllowedOrigins(),
+      getPublicApiBaseUrl(),
+      process.env.FRONTEND_URL,
+    ]
+      .map(parseOrigin)
+      .filter((origin): origin is string => Boolean(origin)),
+  );
+  if (!isLocalDev && !allowedOrigins.has(parsed.origin)) return null;
+
+  // Native-apparna återvänder alltid via den neutrala API-bryggan, som i sin
+  // tur öppnar viaeats://. Acceptera inte andra sidor bara för att domänen är vår.
+  if (channel !== 'Web') {
+    const nativeApiOrigins = new Set([
+      'https://api.viaeats.se',
+      parseOrigin(getPublicApiBaseUrl()),
+    ].filter((origin): origin is string => Boolean(origin)));
+    if (
+      !nativeApiOrigins.has(parsed.origin) ||
+      parsed.pathname !== '/api/payments/return' ||
+      parsed.searchParams.get('app') !== 'viaeats'
+    ) {
+      return null;
+    }
+  }
+
+  return parsed.toString();
+}
+
+function paymentIdempotencyKey(provider: string, orderId: string): string {
+  const digest = createHash('sha256')
+    .update(`viaeats-payment-v1\0${provider}\0${orderId}`, 'utf8')
+    .digest('hex');
+  return `ve-pay-${digest.slice(0, 48)}`;
+}
+
+function providerForStoredName(name: string | null | undefined) {
+  if (name === 'mollie' || name === 'stripe' || name === 'adyen') {
+    return getPaymentProviderByName(name as PaymentProviderName);
+  }
+  return null;
+}
+
 // POST /api/payments/create
 router.post('/create', createLimiter, authenticateUserOptional, async (req: any, res) => {
   try {
-    const { orderId, returnUrl, channel, storePaymentMethod } = req.body || {};
+    const { orderId, returnUrl, channel, storePaymentMethod, accessToken } = req.body || {};
     if (!orderId || typeof orderId !== 'string') {
       res.status(400).json({ error: 'orderId krävs' });
-      return;
-    }
-    if (!returnUrl || typeof returnUrl !== 'string') {
-      res.status(400).json({ error: 'returnUrl krävs' });
       return;
     }
     // Adyen-kanal från klienten: native appen skickar 'iOS'/'Android', webben
     // utelämnar (→ 'Web'). Måste matcha SDK:n annars failar /sessions/setup.
     const adyenChannel: 'Web' | 'iOS' | 'Android' =
       channel === 'iOS' || channel === 'Android' ? channel : 'Web';
+    const verifiedReturnUrl = safePaymentReturnUrl(returnUrl, adyenChannel);
+    if (!verifiedReturnUrl) {
+      res.status(400).json({ error: 'Ogiltig returadress för betalningen' });
+      return;
+    }
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: { restaurant: { select: { name: true } }, items: true },
     });
     if (!order) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+    if (!ownsPaymentOrder(req, order, accessToken)) {
+      // Samma svar som för ett okänt id — avslöja inte att ordern finns.
       res.status(404).json({ error: 'Order hittades inte' });
       return;
     }
@@ -108,15 +232,38 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
       res.json({ alreadyPaid: true, paymentStatus: 'PAID' });
       return;
     }
+    if (order.status !== 'AWAITING_PAYMENT') {
+      res.status(409).json({ error: 'Ordern väntar inte längre på betalning' });
+      return;
+    }
+    if (['FAILED', 'REFUNDED', 'NEEDS_REVIEW'].includes(order.paymentStatus)) {
+      res.status(409).json({ error: 'Betalningsförsöket är avslutat. Starta en ny beställning.' });
+      return;
+    }
     if (!Number.isFinite(order.total) || order.total < 1) {
       res.status(400).json({ error: 'Ogiltigt belopp på ordern' });
       return;
     }
 
     const provider = getPaymentProvider();
+    const storedRefs = {
+      mollie: order.molliePaymentId,
+      stripe: order.stripePaymentIntentId,
+      adyen: order.adyenSessionId || order.adyenPspReference,
+    } as const;
+    const foreignProviderRef = Object.entries(storedRefs)
+      .some(([name, ref]) => name !== provider.name && Boolean(ref));
+    if (order.paymentProvider !== provider.name || foreignProviderRef) {
+      res.status(409).json({
+        error: 'Ordern är redan bunden till ett annat betalningsförsök. Starta en ny beställning.',
+        code: 'PAYMENT_PROVIDER_CONFLICT',
+      });
+      return;
+    }
     const result = await provider.createPayment({
       order: toOrderForPayment(order),
-      returnUrl,
+      idempotencyKey: paymentIdempotencyKey(provider.name, order.id),
+      returnUrl: verifiedReturnUrl,
       webhookUrl: publicWebhookUrl(provider.name),
       channel: adyenChannel,
       storePaymentMethod: !!storePaymentMethod,
@@ -131,10 +278,28 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
           : provider.name === 'stripe'
             ? { stripePaymentIntentId: result.paymentRef }
           : {};
-    await prisma.order.update({
-      where: { id: order.id },
+    // DB-länkningen är obligatorisk: utan den kan Mollie-webhooken inte hitta
+    // ordern. PSP-anropet är idempotent, så ett DB-fel kan tryggt retry:as.
+    const linked = await prisma.order.updateMany({
+      where: {
+        id: order.id,
+        status: 'AWAITING_PAYMENT',
+        paymentStatus: order.paymentStatus,
+        paymentProvider: provider.name,
+        molliePaymentId: order.molliePaymentId,
+        stripePaymentIntentId: order.stripePaymentIntentId,
+        adyenSessionId: order.adyenSessionId,
+        adyenPspReference: order.adyenPspReference,
+      },
       data: { paymentProvider: provider.name, ...refData },
-    }).catch((e: any) => console.error('[payments/create] kunde inte länka order:', e?.message));
+    });
+    if (linked.count !== 1) {
+      res.status(409).json({
+        error: 'Betalningsbindningen ändrades samtidigt. Ingen ny betalning får startas för ordern.',
+        code: 'PAYMENT_BINDING_CHANGED',
+      });
+      return;
+    }
 
     res.json({
       provider: provider.name,
@@ -151,7 +316,10 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     console.error('[payments/create] error:', msg);
     // Surfacea felmeddelandet under uppsättning (test) så env-/konfig-problem syns
     // direkt i klienten (t.ex. "ADYEN_API_KEY saknas", "Invalid Merchant Account").
-    res.status(500).json({ error: 'Kunde inte initiera betalning', details: msg });
+    res.status(500).json({
+      error: 'Kunde inte initiera betalning',
+      ...(process.env.NODE_ENV !== 'production' ? { details: msg } : {}),
+    });
   }
 });
 
@@ -209,82 +377,69 @@ router.post('/webhooks/stripe', async (req, res) => {
       const charge = event.data.object as any;
       const intentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
       if (intentId) {
-        await prisma.order.updateMany({
+        const refundedOre = Number(charge.amount_refunded ?? 0);
+        const chargedOre = Number(charge.amount ?? 0);
+        const order = await prisma.order.findFirst({
           where: { stripePaymentIntentId: intentId },
-          data: {
-            paymentStatus: 'REFUNDED',
-            refundAmount: charge.amount_refunded ?? undefined,
-            refundedAt: new Date(),
-          },
+          select: { id: true },
         });
+        if (order) {
+          const sync = await syncRemoteRefundOutcome({
+            orderId: order.id,
+            paymentRef: intentId,
+            paidAmountOre: chargedOre,
+            cumulativeRefundOre: refundedOre,
+            provider: 'stripe',
+            source: 'WEBHOOK',
+            refunds: charge.refunds?.data?.map((refund: any) => ({
+              refundRef: String(refund.id),
+              state: refund.status === 'succeeded'
+                ? 'refunded' as const
+                : refund.status === 'pending'
+                  ? 'pending' as const
+                  : refund.status === 'failed'
+                    ? 'failed' as const
+                    : 'unknown' as const,
+              amountOre: Number(refund.amount || 0),
+              createdAt: refund.created ? new Date(refund.created * 1000) : null,
+            })),
+          });
+          if (sync.changed && sync.fullRefund) {
+            await announceFullRefund(
+              order.id,
+              sync.restaurantId,
+              sync.orderStatus === 'REJECTED' ? 'REJECTED' : 'CANCELLED',
+            );
+          }
+        }
       }
     }
   } catch (err: any) {
     console.error('[stripe webhook] handler error:', err?.message || err);
+    // Stripe retry:ar 5xx. Att svara 200 här skulle permanent tappa eventet
+    // vid ett tillfälligt databas- eller nätverksfel.
+    res.status(500).json({ error: 'Webhook kunde inte behandlas' });
+    return;
   }
 
   res.status(200).json({ received: true });
 });
 
-// POST /api/payments/adyen/verify — server-verifiera Drop-in-resultatet direkt
-// vid onComplete (utan att vänta på webhooken). Klienten skickar orderId +
-// sessionId + sessionResult; vi frågar Adyen (server-till-server) och finaliserar
-// ordern om betalningen är klar. Idempotent: redan PAID → { paid: true } direkt.
-router.post('/adyen/verify', authenticateUserOptional, async (req: any, res) => {
-  try {
-    const { orderId, sessionId, sessionResult } = req.body || {};
-    if (!orderId || typeof orderId !== 'string') {
-      res.status(400).json({ error: 'orderId krävs' });
-      return;
-    }
-    if (!sessionId || !sessionResult) {
-      res.status(400).json({ error: 'sessionId + sessionResult krävs' });
-      return;
-    }
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: { id: true, total: true, paymentStatus: true, adyenSessionId: true },
-    });
-    if (!order) {
-      res.status(404).json({ error: 'Order hittades inte' });
-      return;
-    }
-    if (order.paymentStatus === 'PAID') {
-      res.json({ paid: true, status: 'completed' });
-      return;
-    }
-    // Sessionen måste tillhöra ordern (annars kan man verifiera mot en annan session).
-    if (order.adyenSessionId && order.adyenSessionId !== sessionId) {
-      res.status(400).json({ error: 'Sessionen matchar inte ordern' });
-      return;
-    }
-
-    const { status } = await getAdyenSessionResult(String(sessionId), String(sessionResult));
-    if (status === 'completed') {
-      // ref=sessionId här (pspReference kommer via webhooken för refund senare).
-      await finalizePaymentSuccess(order.id, { provider: 'adyen', ref: String(sessionId), amountReceivedOre: order.total });
-      res.json({ paid: true, status });
-      return;
-    }
-    if (['refused', 'canceled', 'cancelled', 'expired', 'error'].includes(status.toLowerCase())) {
-      await finalizePaymentFailed(order.id, { provider: 'adyen', ref: String(sessionId), reason: status.toLowerCase() });
-      res.json({ paid: false, failed: true, status });
-      return;
-    }
-    // paymentPending (Klarna/Swish async) eller okänt → låt klienten polla vidare.
-    res.json({ paid: false, pending: true, status });
-  } catch (err: any) {
-    console.error('[payments/adyen/verify] error:', err?.message || err);
-    res.status(500).json({ error: 'Kunde inte verifiera betalningen', details: err?.message });
-  }
+// Pensionerad klientfinalisering. Adyens webhook finns kvar för att stämma av
+// historiska betalningar, men en klient får aldrig använda ett sessionResult
+// för att göra en ny order betald. Launch-checkout är Mollie-only.
+router.post('/adyen/verify', (_req, res) => {
+  res.status(410).json({
+    error: 'Adyen-klientverifiering är avstängd. Starta en ny Mollie-betalning.',
+    code: 'LEGACY_PAYMENT_VERIFICATION_DISABLED',
+  });
 });
 
 // POST /api/payments/webhooks/mollie — Mollie POSTar { id } form-encoded.
 router.post('/webhooks/mollie', async (req, res) => {
-  // Svara alltid 200 snabbt — Mollie retry:ar annars. Fel loggas, kraschar ej.
   const paymentId = typeof req.body?.id === 'string' ? req.body.id : null;
   if (!paymentId) {
-    res.status(200).json({ received: true });
+    res.status(400).json({ error: 'payment id saknas' });
     return;
   }
   try {
@@ -293,16 +448,37 @@ router.post('/webhooks/mollie', async (req, res) => {
       select: { id: true },
     });
     if (order) {
-      const provider = getPaymentProvider();
+      const provider = getPaymentProviderByName('mollie');
       const status = await provider.getRemoteStatus(paymentId);
       if (status.state === 'paid') {
         await finalizePaymentSuccess(order.id, { provider: provider.name, ref: paymentId, amountReceivedOre: status.amountReceivedOre ?? 0 });
       } else if (status.state === 'failed' || status.state === 'canceled' || status.state === 'expired') {
         await finalizePaymentFailed(order.id, { provider: provider.name, ref: paymentId, reason: status.state });
       }
+      if ((status.amountRefundedOre ?? 0) > 0 || (status.refunds?.length ?? 0) > 0) {
+        const sync = await syncRemoteRefundOutcome({
+          orderId: order.id,
+          paymentRef: paymentId,
+          paidAmountOre: status.amountReceivedOre ?? 0,
+          cumulativeRefundOre: status.amountRefundedOre ?? 0,
+          provider: 'mollie',
+          source: 'WEBHOOK',
+          refunds: status.refunds,
+        });
+        if (sync.changed && sync.fullRefund) {
+          await announceFullRefund(
+            order.id,
+            sync.restaurantId,
+            sync.orderStatus === 'REJECTED' ? 'REJECTED' : 'CANCELLED',
+          );
+        }
+      }
     }
   } catch (err: any) {
     console.error('[payments/webhook mollie] error:', err?.message || err);
+    // Låt Mollie retry:a ett verifierat event när vår DB/PSP tillfälligt är nere.
+    res.status(500).json({ error: 'Webhook kunde inte behandlas' });
+    return;
   }
   res.status(200).json({ received: true });
 });
@@ -311,8 +487,8 @@ router.post('/webhooks/mollie', async (req, res) => {
 // Vi litar fortfarande bara på PSP-status: om Mollie säger paid finaliserar vi
 // direkt här som snabb backup till webhook/reconcile, sedan skickas appen tillbaka
 // via URL scheme. Webben får en enkel stäng-sida.
-router.get('/return', async (req, res) => {
-  const orderId = typeof req.query.orderId === 'string' ? req.query.orderId : '';
+router.get('/return', statusLimiter, async (req, res) => {
+  const orderId = typeof req.query.orderId === 'string' ? req.query.orderId.slice(0, 100) : '';
   const app = typeof req.query.app === 'string' ? req.query.app : '';
   let paymentStatus = 'UNKNOWN';
 
@@ -324,10 +500,10 @@ router.get('/return', async (req, res) => {
       });
       if (order) {
         paymentStatus = order.paymentStatus || paymentStatus;
-        const provider = getPaymentProvider();
+        const provider = providerForStoredName(order.paymentProvider);
         if (
+          provider &&
           order.paymentStatus !== 'PAID' &&
-          order.paymentProvider === provider.name &&
           provider.name === 'mollie' &&
           order.molliePaymentId
         ) {
@@ -385,31 +561,55 @@ router.post('/webhooks/adyen', async (req, res) => {
   try {
     body = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString('utf8')) : req.body;
   } catch {
-    res.status(200).send('[accepted]');
+    res.status(400).send('invalid json');
     return;
   }
   const items = body?.notificationItems;
   if (!Array.isArray(items)) {
-    res.status(200).send('[accepted]');
+    res.status(400).send('invalid notification');
     return;
   }
-  for (const wrap of items) {
-    const item = wrap?.NotificationRequestItem;
-    if (!item) continue;
-    // HMAC: avvisa förfalskade/manipulerade items (men svara ändå [accepted] på slutet).
-    if (!verifyAdyenHmac(item)) {
-      console.warn('[adyen webhook] HMAC-mismatch — hoppar item', item?.pspReference);
-      continue;
-    }
-    try {
+
+  const notifications = items
+    .map((wrap: any) => wrap?.NotificationRequestItem)
+    .filter(Boolean);
+  if (notifications.length !== items.length || notifications.some((item: any) => !verifyAdyenHmac(item))) {
+    console.warn('[adyen webhook] ogiltig payload eller HMAC');
+    res.status(401).send('invalid hmac');
+    return;
+  }
+
+  try {
+    for (const item of notifications) {
+      const isRefundEvent = item.eventCode === 'REFUND' || item.eventCode === 'REFUND_FAILED';
+      const originalReference = typeof item.originalReference === 'string' && item.originalReference
+        ? item.originalReference
+        : null;
+      const merchantReference = typeof item.merchantReference === 'string' && item.merchantReference
+        ? item.merchantReference
+        : null;
+      if (isRefundEvent && !originalReference) {
+        throw new Error(`Adyen-refund ${String(item.pspReference || '')} saknar originalReference`);
+      }
+      if (!isRefundEvent && !merchantReference) continue;
       const order = await prisma.order.findFirst({
-        where: { orderNumber: item.merchantReference },
-        select: { id: true },
+        where: isRefundEvent
+          ? { paymentProvider: 'adyen', adyenPspReference: originalReference! }
+          : { paymentProvider: 'adyen', orderNumber: merchantReference! },
+        select: { id: true, total: true, refundAmount: true, adyenPspReference: true },
       });
-      if (!order) continue;
+      if (!order) {
+        if (isRefundEvent) {
+          throw new Error(`Adyen-refund ${String(item.pspReference || '')} kan inte kopplas till en order`);
+        }
+        continue;
+      }
       const success = item.success === 'true' || item.success === true;
       const psp = item.pspReference as string;
-      const amountOre = item?.amount?.value ?? 0;
+      const amountOre = Number(item?.amount?.value ?? 0);
+      if (!Number.isSafeInteger(amountOre) || amountOre < 0 || !psp) {
+        throw new Error(`Ogiltigt Adyen-event ${String(item.eventCode || '')}`);
+      }
       if (item.eventCode === 'AUTHORISATION') {
         if (success) {
           // ref=psp → finalize skriver adyenPspReference (för framtida refund).
@@ -419,18 +619,76 @@ router.post('/webhooks/adyen', async (req, res) => {
         }
       } else if (item.eventCode === 'CANCELLATION' || item.eventCode === 'EXPIRE') {
         await finalizePaymentFailed(order.id, { provider: 'adyen', ref: psp, reason: String(item.eventCode).toLowerCase() });
+      } else if (isRefundEvent) {
+        const paymentRef = originalReference || order.adyenPspReference;
+        if (!paymentRef) throw new Error(`Adyen-refund ${psp} saknar originalReference`);
+        const refundState = item.eventCode === 'REFUND' && success ? 'refunded' as const : 'failed' as const;
+        const [knownRefund, completedBefore] = await Promise.all([
+          prisma.paymentRefund.findFirst({
+            where: { provider: 'adyen', refundRef: psp },
+            select: { status: true },
+          }),
+          prisma.paymentRefund.aggregate({
+            where: { orderId: order.id, provider: 'adyen', status: 'REFUNDED' },
+            _sum: { amount: true },
+          }),
+        ]);
+        const completedBeforeOre = completedBefore._sum.amount ?? 0;
+        const cumulativeRefundOre = refundState === 'refunded' && knownRefund?.status !== 'REFUNDED'
+          ? completedBeforeOre + amountOre
+          : Math.max(completedBeforeOre, amountOre);
+        const refunds = [{
+          refundRef: psp,
+          state: refundState,
+          amountOre,
+          cumulativeAmountOre: cumulativeRefundOre,
+          createdAt: item.eventDate ? String(item.eventDate) : null,
+        }];
+        await recordKnownRemoteRefunds({
+          orderId: order.id,
+          provider: 'adyen',
+          paymentRef,
+          cumulativeRefundOre,
+          refunds,
+          source: 'ADYEN_WEBHOOK',
+        });
+        if (refundState === 'refunded') {
+          const completed = await prisma.paymentRefund.aggregate({
+            where: { orderId: order.id, provider: 'adyen', status: 'REFUNDED' },
+            _sum: { amount: true },
+          });
+          const sync = await syncRemoteRefundOutcome({
+            orderId: order.id,
+            paymentRef,
+            paidAmountOre: order.total,
+            cumulativeRefundOre: completed._sum.amount ?? 0,
+            provider: 'adyen',
+            source: 'ADYEN_WEBHOOK',
+            refunds,
+          });
+          if (sync.changed && sync.fullRefund) {
+            await announceFullRefund(
+              order.id,
+              sync.restaurantId,
+              sync.orderStatus === 'REJECTED' ? 'REJECTED' : 'CANCELLED',
+            );
+          }
+        }
       }
-      // REFUND / REFUND_FAILED: kan kopplas till refund-statusspårning senare.
-    } catch (e: any) {
-      console.error('[adyen webhook] item-fel:', e?.message);
     }
+  } catch (e: any) {
+    console.error('[adyen webhook] processing error:', e?.message || e);
+    // Utan polling-by-pspReference är Adyen-webhooken kritisk. 5xx gör att
+    // Adyen skickar om eventet i stället för att vi tappar en betald order.
+    res.status(500).send('processing failed');
+    return;
   }
   // Adyen kräver EXAKT detta svar, annars retryas webhooken.
   res.status(200).send('[accepted]');
 });
 
 // GET /api/payments/status/:orderId — klient pollar efter redirect.
-router.get('/status/:orderId', async (req, res) => {
+router.get('/status/:orderId', statusLimiter, authenticateUserOptional, async (req: any, res) => {
   let order = await prisma.order.findUnique({
     where: { id: req.params.orderId },
     select: {
@@ -441,16 +699,26 @@ router.get('/status/:orderId', async (req, res) => {
       molliePaymentId: true,
       stripePaymentIntentId: true,
       adyenSessionId: true,
+      userId: true,
+      accessToken: true,
+      createdAt: true,
     },
   });
   if (!order) {
     res.status(404).json({ error: 'Order hittades inte' });
     return;
   }
+  // URL query strings are routinely retained in browser/CDN history and may
+  // never carry the raw order bearer. Web uses its HttpOnly order session;
+  // active account ownership is supplied by authenticateUserOptional.
+  if (!ownsPaymentOrder(req, order, null)) {
+    res.status(404).json({ error: 'Order hittades inte' });
+    return;
+  }
 
-  const provider = getPaymentProvider();
+  const provider = providerForStoredName(order.paymentProvider);
   const ref = paymentRefForOrder(order);
-  if (order.paymentStatus !== 'PAID' && order.paymentProvider === provider.name && ref) {
+  if (provider && order.paymentStatus !== 'PAID' && ref) {
     try {
       const remote = await provider.getRemoteStatus(ref);
       if (remote.state === 'paid') {
@@ -462,6 +730,24 @@ router.get('/status/:orderId', async (req, res) => {
       } else if (remote.state === 'failed' || remote.state === 'canceled' || remote.state === 'expired') {
         await finalizePaymentFailed(order.id, { provider: provider.name, ref, reason: remote.state });
       }
+      if ((remote.amountRefundedOre ?? 0) > 0 || (remote.refunds?.length ?? 0) > 0) {
+        const sync = await syncRemoteRefundOutcome({
+          orderId: order.id,
+          paymentRef: ref,
+          paidAmountOre: remote.amountReceivedOre ?? 0,
+          cumulativeRefundOre: remote.amountRefundedOre ?? 0,
+          provider: provider.name,
+          source: 'PAYMENT_STATUS',
+          refunds: remote.refunds,
+        });
+        if (sync.changed && sync.fullRefund) {
+          await announceFullRefund(
+            order.id,
+            sync.restaurantId,
+            sync.orderStatus === 'REJECTED' ? 'REJECTED' : 'CANCELLED',
+          );
+        }
+      }
       order = await prisma.order.findUnique({
         where: { id: req.params.orderId },
         select: {
@@ -472,6 +758,9 @@ router.get('/status/:orderId', async (req, res) => {
           molliePaymentId: true,
           stripePaymentIntentId: true,
           adyenSessionId: true,
+          userId: true,
+          accessToken: true,
+          createdAt: true,
         },
       });
     } catch (err: any) {
@@ -484,45 +773,6 @@ router.get('/status/:orderId', async (req, res) => {
     return;
   }
   res.json({ status: order.status, paymentStatus: order.paymentStatus });
-});
-
-// POST /api/payments/refund — admin.
-router.post('/refund', authenticate, requireSuperAdmin, async (req, res) => {
-  try {
-    const { orderId, amountOre } = req.body || {};
-    if (!orderId || typeof orderId !== 'string') {
-      res.status(400).json({ error: 'orderId krävs' });
-      return;
-    }
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: { id: true, molliePaymentId: true, stripePaymentIntentId: true, adyenPspReference: true, total: true },
-    });
-    const provider = getPaymentProvider();
-    const ref =
-      provider.name === 'adyen'
-        ? order?.adyenPspReference
-        : provider.name === 'stripe'
-          ? order?.stripePaymentIntentId
-          : order?.molliePaymentId;
-    if (!order || !ref) {
-      res.status(404).json({ error: 'Order eller betalning hittades inte' });
-      return;
-    }
-    const { refundRef } = await provider.refund(ref, typeof amountOre === 'number' ? amountOre : undefined);
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        paymentStatus: 'REFUNDED',
-        refundAmount: typeof amountOre === 'number' ? amountOre : order.total,
-        refundedAt: new Date(),
-      },
-    });
-    res.json({ success: true, refundRef });
-  } catch (err: any) {
-    console.error('[payments/refund] error:', err?.message || err);
-    res.status(500).json({ error: err?.message || 'Återbetalning misslyckades' });
-  }
 });
 
 export default router;

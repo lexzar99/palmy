@@ -1,19 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, AlertCircle, ShieldCheck, ShoppingBag, MapPin, ArrowRight, Star, X, MessageSquare, ChevronDown, Navigation, Receipt, Download } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
-import { API_URL, SOCKET_URL } from "@/lib/api";
+import { SOCKET_URL } from "@/lib/api";
 import { cacheOrderDetail, getCachedOrderDetail } from "@/lib/offlineOrders";
-import { isPushSupported, getPushPublicKey, subscribeOrderPush, hasOrderPush } from "@/lib/webPushClient";
+import { getOrderAccessProof, isPushSupported, getPushPublicKey, subscribeOrderPush, hasOrderPush } from "@/lib/webPushClient";
 import { addSkippedReviewOrderId, isReviewSkipped } from "@/lib/reviewPrompt";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import dynamic from "next/dynamic";
 import { OrderTrackingCard } from "@/components/OrderTrackingCard";
+import { forgetRawOrderAccessToken, readOrderHistory } from "@/lib/orderHistory";
 
 // Live-karta laddas bara på klienten (Leaflet behöver window).
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
@@ -133,6 +134,43 @@ const paymentMethodLabel = (m?: string | null): string => {
   return m || "-";
 };
 
+const formatSek = (value: unknown): string => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "0";
+  const rounded = Math.round(amount * 100) / 100;
+  return new Intl.NumberFormat("sv-SE", {
+    minimumFractionDigits: Number.isInteger(rounded) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(rounded);
+};
+
+type ReceiptVatRow = { rate: number; vat: number };
+
+const receiptVatRows = (order: any): ReceiptVatRow[] => {
+  if (Array.isArray(order?.vatBreakdown)) {
+    const rows = order.vatBreakdown
+      .map((row: any) => ({ rate: Number(row?.rate), vat: Number(row?.vat) }))
+      .filter((row: ReceiptVatRow) => Number.isFinite(row.rate) && Number.isFinite(row.vat) && row.vat > 0);
+    if (rows.length > 0) return rows;
+  }
+
+  // Bakåtkompatibilitet för äldre orderdata som saknar serverns momssnapshot.
+  const rate = Number(order?.restaurantVatPercent);
+  const total = Math.max(0, Number(order?.total) || 0);
+  const tip = Math.max(0, Number(order?.tipAmount) || 0);
+  if (!Number.isFinite(rate) || rate <= 0 || total <= tip) return [];
+  return [{ rate, vat: ((total - tip) * rate) / (100 + rate) }];
+};
+
+const authoritativeDiscount = (order: any, rawSubtotal: number): number => {
+  const supplied = Number(order?.discountAmount);
+  if (Number.isFinite(supplied) && supplied >= 0) return supplied;
+  const deliveryFee = Number(order?.deliveryFee) || 0;
+  const smallOrderFee = Number(order?.smallOrderFee) || 0;
+  const tip = Number(order?.tipAmount) || 0;
+  return Math.max(0, rawSubtotal + deliveryFee + smallOrderFee + tip - (Number(order?.total) || 0));
+};
+
 const escapeHtml = (s: any): string =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 
@@ -144,8 +182,10 @@ function buildReceiptHtml(order: any): string {
   const rawSubtotal = items.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
   const tip = Number(order.tipAmount) || 0;
   const deliveryFee = Number(order.deliveryFee) || 0;
+  const smallOrderFee = Number(order.smallOrderFee) || 0;
   const total = Number(order.total) || 0;
-  const discount = Math.max(0, Math.round(rawSubtotal + deliveryFee - (total - tip)));
+  const discount = authoritativeDiscount(order, rawSubtotal);
+  const vatRows = receiptVatRows(order);
   const created = order.createdAt ? new Date(order.createdAt) : new Date();
   const dateStr = created.toLocaleString("sv-SE", { dateStyle: "long", timeStyle: "short" });
   const legalName = order.restaurantLegalName || order.restaurantName || "Restaurang";
@@ -168,7 +208,7 @@ function buildReceiptHtml(order: any): string {
         <div><span style="color:#F0531C;font-weight:700;font-size:12px;">${escapeHtml(it.quantity)}×</span> <span style="font-weight:600;font-size:14px;">${escapeHtml(it.productName)}</span></div>
         ${extrasHtml}${noteHtml}
       </div>
-      <div style="font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;">${escapeHtml(Number(it.subtotal).toFixed(0))} kr</div>
+      <div style="font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;">${escapeHtml(formatSek(it.subtotal))} kr</div>
     </div>`;
   }).join("");
 
@@ -191,11 +231,13 @@ function buildReceiptHtml(order: any): string {
     <div style="padding:22px 28px;">
       ${itemsHtml}
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid #e7e3da;">
-        ${row("Delsumma", rawSubtotal.toFixed(0) + " kr", { muted: true })}
-        ${discount > 0 ? row(order.appliedDealTitle || "Rabatt", "−" + discount.toFixed(0) + " kr", { accent: true }) : ""}
-        ${deliveryFee > 0 ? row("Leveransavgift", "+" + deliveryFee.toFixed(0) + " kr", { muted: true }) : ""}
-        ${tip > 0 ? row("Dricks", "+" + tip.toFixed(0) + " kr", { muted: true }) : ""}
-        ${row("Totalt", total.toFixed(0) + " kr", { strong: true })}
+        ${row("Delsumma", formatSek(rawSubtotal) + " kr", { muted: true })}
+        ${discount > 0 ? row(order.appliedDealTitle || "Rabatt", "−" + formatSek(discount) + " kr", { accent: true }) : ""}
+        ${deliveryFee > 0 ? row("Leveransavgift", "+" + formatSek(deliveryFee) + " kr", { muted: true }) : ""}
+        ${smallOrderFee > 0 ? row("Avgift för liten beställning", "+" + formatSek(smallOrderFee) + " kr", { muted: true }) : ""}
+        ${tip > 0 ? row("Dricks", "+" + formatSek(tip) + " kr", { muted: true }) : ""}
+        ${vatRows.map((vat) => row(`Varav moms ${formatSek(vat.rate)} %`, formatSek(vat.vat) + " kr", { muted: true })).join("")}
+        ${row("Totalt", formatSek(total) + " kr", { strong: true })}
       </div>
       <div style="margin-top:14px;font-size:12px;color:#6b6b70;">Betalsätt: ${escapeHtml(paymentMethodLabel(order.paymentMethod))}</div>
     </div>
@@ -210,14 +252,7 @@ const OrderStatusPage = () => {
   const statusDesc = (s: string) => t(`order.status.${s}.desc`);
   const { id } = useParams();
   const orderId = Array.isArray(id) ? id[0] : id;
-  const searchParams = useSearchParams();
-  // Phone som ownership-bevis när användaren kommer från /orders-listan
-  // (där vi sparar phone i localStorage). Backend kollar mot order.customerPhone.
-  const phoneFromUrl = searchParams.get("phone");
-  // Access-token (returnerad av POST /api/orders) — primärt ownership-bevis
-  // för gäster efter Stripe-redirect. Giltig 30 min, byter inte beteendet
-  // för inloggade (JWT vinner alltid).
-  const tokenFromUrl = searchParams.get("token");
+  const [accessBootstrapReady, setAccessBootstrapReady] = useState(false);
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   // fetchError skiljer på "backend säger 404 — order finns verkligen inte"
@@ -259,6 +294,48 @@ const OrderStatusPage = () => {
   const [pushAvailable, setPushAvailable] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    if (!orderId) return;
+    let active = true;
+    let exchangeToken: string | null = null;
+
+    // Migration recovery for installations created before the HttpOnly flow.
+    // URL tokens are never read; same-origin storage is exchanged once,
+    // atomically consumed by the API, and then erased.
+    if (typeof window !== "undefined") {
+      try {
+        if (localStorage.getItem("pending_order_id") === orderId) {
+          exchangeToken = localStorage.getItem("pending_order_token");
+        }
+        if (!exchangeToken && localStorage.getItem("viaeats_active_order_id") === orderId) {
+          exchangeToken = localStorage.getItem("viaeats_active_order_token");
+        }
+        if (!exchangeToken) {
+          exchangeToken = readOrderHistory().find((item) => item.id === orderId)?.accessToken || null;
+        }
+      } catch {
+        exchangeToken = null;
+      }
+    }
+
+    const bootstrap = async () => {
+      if (exchangeToken) {
+        try {
+          await axios.post(`/api/platform/orders/${orderId}/session`, {
+            accessToken: exchangeToken,
+          });
+          forgetRawOrderAccessToken(orderId);
+        } catch {
+          // Continue to the normal GET. It may still succeed through an
+          // account session or a cookie already established at checkout.
+        }
+      }
+      if (active) setAccessBootstrapReady(true);
+    };
+    void bootstrap();
+    return () => { active = false; };
+  }, [orderId]);
   useEffect(() => {
     if (!orderId || !isPushSupported()) return;
     let active = true;
@@ -304,21 +381,12 @@ const OrderStatusPage = () => {
   };
 
   const fetchOrder = useCallback(async (opts?: { silent?: boolean }) => {
-    if (!orderId) return;
+    if (!orderId || !accessBootstrapReady) return;
     try {
-      // Skicka antingen access-token eller phone som ownership-bevis. Token
-      // är primär (set vid order-create, giltig 30 min), phone backup för
-      // returkund som klickat från /orders-listan.
-      const qs = new URLSearchParams();
-      if (tokenFromUrl) qs.set("token", tokenFromUrl);
-      if (phoneFromUrl) qs.set("phone", phoneFromUrl);
       // Använd web-proxyn så inloggade kunder får platform_session-cookien
-      // vidarebefordrad som Authorization-header. Direkt API_URL-anrop saknar
-      // den headern i webben och gav "Order ej hittad" från profilens historik.
-      const url = qs.toString()
-        ? `/api/platform/orders/${orderId}?${qs.toString()}`
-        : `/api/platform/orders/${orderId}`;
-      const res = await axios.get(url, { withCredentials: true });
+      // eller den orderspecifika HttpOnly-cookien vidarebefordrad. Inget
+      // kundbevis hamnar i URL, localStorage eller frontend-state.
+      const res = await axios.get(`/api/platform/orders/${orderId}`, { withCredentials: true });
       // Backend är sanningen för tracking. Admin/testflöden kan flytta en order
       // bakåt mellan statusar, så kundvyn får inte låsa fast sig i DELIVERED.
       setOrder(res.data);
@@ -346,10 +414,10 @@ const OrderStatusPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [orderId, phoneFromUrl, tokenFromUrl]);
+  }, [orderId, accessBootstrapReady]);
 
   useEffect(() => {
-    if (!orderId) return;
+    if (!orderId || !accessBootstrapReady) return;
     fetchOrder();
     const socket = socketIO(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
     socketRef.current = socket;
@@ -357,7 +425,11 @@ const OrderStatusPage = () => {
     // state om vi redan har order laddad — bara visa stale data tyst tills
     // backend svarar igen. Annars börjar UI:n blinka "nätverksfel" varje 15s
     // på ostabilt nät, trots att vi har en cachad order.
-    socket.on("connect", () => { socket.emit("join:order", orderId); fetchOrder({ silent: true }); });
+    socket.on("connect", async () => {
+      fetchOrder({ silent: true });
+      const proof = await getOrderAccessProof(orderId);
+      if (socket.connected && proof) socket.emit("join:order", { orderId, proof });
+    });
     socket.on("order:status", (data: any) => {
       if (data.orderId === orderId) {
         setOrder((prev: any) => {
@@ -390,22 +462,7 @@ const OrderStatusPage = () => {
 
     const interval = setInterval(() => fetchOrder({ silent: true }), 15000);
     return () => { clearInterval(interval); socket.disconnect(); };
-  }, [orderId, fetchOrder]);
-
-  // Snabb-bekräftelse (catch-all): landar vi på en AWAITING_PAYMENT-order —
-  // t.ex. efter en Klarna/Swish/3DS-redirect, eller om cart-confirm missade —
-  // ber vi backend hämta Stripe-intent:en och finalisera DIREKT (flippa till
-  // PENDING + notifiera restaurangen) istället för att vänta upp till en minut
-  // på reconcile-loopen. Körs en gång per order; idempotent server-side.
-  const confirmTriedRef = useRef(false);
-  useEffect(() => {
-    if (!orderId || order?.status !== "AWAITING_PAYMENT" || confirmTriedRef.current) return;
-    confirmTriedRef.current = true;
-    axios
-      .post(`${API_URL}/api/payments/confirm`, { orderId }, { timeout: 6000 })
-      .then(() => fetchOrder({ silent: true }))
-      .catch((e) => console.warn("[order] snabb betalnings-bekräftelse misslyckades", e));
-  }, [orderId, order?.status, fetchOrder]);
+  }, [orderId, accessBootstrapReady, fetchOrder]);
 
   // ETA Countdown — in seconds for real-time display
   useEffect(() => {
@@ -451,13 +508,8 @@ const OrderStatusPage = () => {
     if (!reviewRating || !orderId) return;
     setReviewSubmitting(true);
     try {
-      // Backend kräver ägar-bevis (JWT från cookie, eller phone/accessToken
-      // från URL för gäster). Platform-proxyn lägger till Authorization
-      // automatiskt om kunden är inloggad; gäster måste skicka samma token/
-      // phone som vi använde för att hämta ordern (rad 117-126).
+      // Backend kräver konto- eller ordersession via webbproxyn.
       const body: any = { rating: reviewRating, review: reviewText, likedItemIds };
-      if (tokenFromUrl) body.accessToken = tokenFromUrl;
-      if (phoneFromUrl) body.phone = phoneFromUrl;
       await axios.post(`/api/platform/orders/${orderId}/review`, body);
       setReviewRewardText("Tack för din recension.");
       setReviewDone(true);
@@ -785,8 +837,10 @@ const OrderStatusPage = () => {
 
   const rawSubtotal = (order.items ?? []).reduce((s: number, it: any) => s + (Number(it.subtotal) || 0), 0);
   const deliveryFee = Number(order.deliveryFee || 0);
-  const discount = Math.max(0, Math.round(rawSubtotal + deliveryFee - Number(order.total || 0)));
-  const vatKr = Math.max(0, Math.round((Math.max(0, Number(order.total || 0) - Number(order.tipAmount || 0)) * 12) / 112));
+  const smallOrderFee = Number(order.smallOrderFee || 0);
+  const tipAmount = Number(order.tipAmount || 0);
+  const discount = authoritativeDiscount(order, rawSubtotal);
+  const vatRows = receiptVatRows(order);
   const paymentLabel = order.paymentMethod === "ONLINE" ? "Betalt med Apple Pay" : order.paymentMethod ? `Betalt med ${order.paymentMethod}` : "Betalning registrerad";
   const sheetDragOffsetFromDelta = (delta: number, expanded: boolean) => {
     return expanded
@@ -889,20 +943,22 @@ const OrderStatusPage = () => {
                 <div key={`${item.id || item.productId || item.productName}-${index}`} className="flex items-baseline gap-2.5 py-3.5" style={{ borderTop: index > 0 ? "1px solid rgba(17,17,19,0.07)" : "0" }}>
                   <span className="text-[13.5px] font-black" style={{ color: "#F0531C" }}>{item.quantity || 1}x</span>
                   <span className="min-w-0 flex-1 text-[14.5px] font-bold leading-5" style={{ color: "var(--text-primary)" }}>{item.productName || item.name}</span>
-                  <span className="text-[14px] font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{Math.round(Number(item.subtotal || 0))} kr</span>
+                  <span className="text-[14px] font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{formatSek(item.subtotal)} kr</span>
                 </div>
               ))}
             </div>
 
             <p className="px-0.5 pb-2 pt-5 text-[11px] font-black uppercase tracking-[0.1em]" style={{ color: "var(--text-secondary)" }}>Kvitto</p>
             <div className="space-y-1.5 px-0.5">
-              <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Delsumma</span><span className="tabular-nums">{Math.round(rawSubtotal)} kr</span></div>
-              {order.type === "DELIVERY" ? <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Leverans</span><span className="tabular-nums">{deliveryFee > 0 ? `${Math.round(deliveryFee)} kr` : "Fri"}</span></div> : null}
-              {discount > 0 ? <div className="flex justify-between py-1 text-[13.5px] font-semibold text-emerald-600"><span>Rabatt</span><span className="tabular-nums">-{discount} kr</span></div> : null}
-              <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Varav moms (12%)</span><span className="tabular-nums">{vatKr} kr</span></div>
+              <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Delsumma</span><span className="tabular-nums">{formatSek(rawSubtotal)} kr</span></div>
+              {order.type === "DELIVERY" ? <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Leverans</span><span className="tabular-nums">{deliveryFee > 0 ? `${formatSek(deliveryFee)} kr` : "Fri"}</span></div> : null}
+              {smallOrderFee > 0 ? <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Avgift för liten beställning</span><span className="tabular-nums">+{formatSek(smallOrderFee)} kr</span></div> : null}
+              {tipAmount > 0 ? <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Dricks</span><span className="tabular-nums">+{formatSek(tipAmount)} kr</span></div> : null}
+              {discount > 0 ? <div className="flex justify-between py-1 text-[13.5px] font-semibold text-emerald-600"><span>Rabatt</span><span className="tabular-nums">-{formatSek(discount)} kr</span></div> : null}
+              {vatRows.map((vat) => <div key={vat.rate} className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Varav moms ({formatSek(vat.rate)} %)</span><span className="tabular-nums">{formatSek(vat.vat)} kr</span></div>)}
               <div className="mt-2 flex items-baseline justify-between border-t pt-3" style={{ borderColor: "rgba(17,17,19,0.12)" }}>
                 <span className="text-[16px] font-black" style={{ color: "var(--text-primary)" }}>Totalt</span>
-                <span className="text-[21px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>{Math.round(Number(order.total || 0))} kr</span>
+                <span className="text-[21px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>{formatSek(order.total)} kr</span>
               </div>
               <div className="mt-2 flex items-center gap-1.5 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
                 <ShoppingBag size={14} /> {paymentLabel}
@@ -1263,7 +1319,7 @@ const OrderStatusPage = () => {
         {/* Web push — "Få avisering när maten är på väg". Visas bara när
             servern har VAPID-nycklar + webbläsaren stödjer push, och döljs
             för avslutade ordrar. */}
-        {false && pushAvailable && !isTerminal(currentStatus) && (
+        {pushAvailable && !isTerminal(currentStatus) && (
           <div className="mt-4 flex items-center justify-between gap-4 rounded-xl px-4 py-3.5" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
             <div className="min-w-0">
               <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>Få avisering när maten är på väg</p>
@@ -1360,7 +1416,7 @@ const OrderStatusPage = () => {
               <button type="button" onClick={() => setDetailsOpen((v) => !v)} className="w-full flex items-center justify-between gap-3" aria-expanded={detailsOpen}>
                 <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.detailsTitle")}</h2>
                 <span className="flex items-center gap-3">
-                  <span className="text-xl font-bold tracking-tight text-gold-600 tabular-nums">{order.total.toFixed(0)} kr</span>
+                  <span className="text-xl font-bold tracking-tight text-gold-600 tabular-nums">{formatSek(order.total)} kr</span>
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: "var(--text-secondary)" }}>
                     {detailsOpen ? t("order.details.showLess") : t("order.details.showMore")}
                     <ChevronDown size={15} style={{ transform: detailsOpen ? "rotate(180deg)" : "none" }} />
@@ -1393,37 +1449,32 @@ const OrderStatusPage = () => {
 
               <div className="pt-4 space-y-2" style={{ borderTop: "1px solid var(--border-muted)" }}>
                  {(() => {
-                   // Rå delsumma = summan av produktrader (matchar vad raderna visar).
-                   // Rabatten (deal/BOGO/kupong) räknas ut ur datan vi redan har:
-                   // total = delsumma − rabatt + leverans → rabatt = delsumma + leverans − total.
-                   // Visas som egen rad så kvittot stämmer med raderna (gratis-varan
-                   // står med fullt pris + en tydlig "Erbjudande −X kr"-rad).
                    const rawSubtotal = (order.items ?? []).reduce((s: number, it: any) => s + (Number(it.subtotal) || 0), 0);
-                   const discount = Math.round(rawSubtotal + order.deliveryFee - order.total);
+                   const discount = authoritativeDiscount(order, rawSubtotal);
                    return (
                      <>
-                       <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.subtotal")}</span><span className="tabular-nums">{rawSubtotal.toFixed(0)} kr</span></div>
+                       <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.subtotal")}</span><span className="tabular-nums">{formatSek(rawSubtotal)} kr</span></div>
                        {discount > 0 && (
                          <div className="flex justify-between text-[13px] text-emerald-600">
                            <span>{order.appliedDealTitle || t("order.summary.discount")}</span>
-                           <span className="tabular-nums">−{discount.toFixed(0)} kr</span>
+                           <span className="tabular-nums">−{formatSek(discount)} kr</span>
                          </div>
                        )}
                      </>
                    );
                  })()}
-                 {order.deliveryFee > 0 && <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.deliveryFee")}</span><span className="tabular-nums">+{order.deliveryFee.toFixed(0)} kr</span></div>}
-                 {/* Momsrad — bara om restaurangen visar moms (vatPercent satt).
-                     Priset är inkl. moms, så vi visar "varav moms". */}
-                 {typeof order.restaurantVatPercent === "number" && order.restaurantVatPercent > 0 && (
-                   <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                     <span>{t("order.summary.vat", { pct: order.restaurantVatPercent })}</span>
-                     <span className="tabular-nums">{(order.total - order.total / (1 + order.restaurantVatPercent / 100)).toFixed(0)} kr</span>
+                 {order.deliveryFee > 0 && <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.deliveryFee")}</span><span className="tabular-nums">+{formatSek(order.deliveryFee)} kr</span></div>}
+                 {Number(order.smallOrderFee || 0) > 0 && <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>Avgift för liten beställning</span><span className="tabular-nums">+{formatSek(order.smallOrderFee)} kr</span></div>}
+                 {Number(order.tipAmount || 0) > 0 && <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>Dricks</span><span className="tabular-nums">+{formatSek(order.tipAmount)} kr</span></div>}
+                 {receiptVatRows(order).map((vat) => (
+                   <div key={vat.rate} className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                     <span>Varav moms ({formatSek(vat.rate)} %)</span>
+                     <span className="tabular-nums">{formatSek(vat.vat)} kr</span>
                    </div>
-                 )}
+                 ))}
                   <div className="flex justify-between items-baseline pt-3 mt-1" style={{ borderTop: "1px solid var(--border-muted)" }}>
                      <span className="text-base font-bold" style={{ color: "var(--text-primary)" }}>{t("order.summary.total")}</span>
-                     <span className="text-2xl font-bold tracking-tight text-gold-600 tabular-nums">{order.total.toFixed(0)} kr</span>
+                     <span className="text-2xl font-bold tracking-tight text-gold-600 tabular-nums">{formatSek(order.total)} kr</span>
                   </div>
               </div>
 
@@ -1660,7 +1711,7 @@ const OrderStatusPage = () => {
                             <div className="pl-6 text-xs" style={{ color: "var(--text-secondary)" }}>{it.selectedExtras.map((e: any) => e.extraName || e.name).join(", ")}</div>
                           )}
                         </div>
-                        <span className="font-semibold tabular-nums whitespace-nowrap">{Number(it.subtotal).toFixed(0)} kr</span>
+                        <span className="font-semibold tabular-nums whitespace-nowrap">{formatSek(it.subtotal)} kr</span>
                       </div>
                     ))}
                   </div>
@@ -1669,16 +1720,19 @@ const OrderStatusPage = () => {
                     const rawSubtotal = (order.items ?? []).reduce((s: number, it: any) => s + (Number(it.subtotal) || 0), 0);
                     const tip = Number(order.tipAmount) || 0;
                     const deliveryFee = Number(order.deliveryFee) || 0;
-                    const discount = Math.max(0, Math.round(rawSubtotal + deliveryFee - (order.total - tip)));
+                    const smallOrderFee = Number(order.smallOrderFee) || 0;
+                    const discount = authoritativeDiscount(order, rawSubtotal);
                     return (
                       <div className="mt-4 pt-3 space-y-1.5" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                        <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Delsumma</span><span className="tabular-nums">{rawSubtotal.toFixed(0)} kr</span></div>
-                        {discount > 0 && <div className="flex justify-between text-[13px] text-emerald-600"><span>{order.appliedDealTitle || "Rabatt"}</span><span className="tabular-nums">−{discount.toFixed(0)} kr</span></div>}
-                        {deliveryFee > 0 && <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Leveransavgift</span><span className="tabular-nums">+{deliveryFee.toFixed(0)} kr</span></div>}
-                        {tip > 0 && <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Dricks</span><span className="tabular-nums">+{tip.toFixed(0)} kr</span></div>}
+                        <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Delsumma</span><span className="tabular-nums">{formatSek(rawSubtotal)} kr</span></div>
+                        {discount > 0 && <div className="flex justify-between text-[13px] text-emerald-600"><span>{order.appliedDealTitle || "Rabatt"}</span><span className="tabular-nums">−{formatSek(discount)} kr</span></div>}
+                        {deliveryFee > 0 && <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Leveransavgift</span><span className="tabular-nums">+{formatSek(deliveryFee)} kr</span></div>}
+                        {smallOrderFee > 0 && <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Avgift för liten beställning</span><span className="tabular-nums">+{formatSek(smallOrderFee)} kr</span></div>}
+                        {tip > 0 && <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Dricks</span><span className="tabular-nums">+{formatSek(tip)} kr</span></div>}
+                        {receiptVatRows(order).map((vat) => <div key={vat.rate} className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Varav moms ({formatSek(vat.rate)} %)</span><span className="tabular-nums">{formatSek(vat.vat)} kr</span></div>)}
                         <div className="flex justify-between items-baseline pt-2 mt-1" style={{ borderTop: "1px solid var(--border-muted)" }}>
                           <span className="font-bold">Totalt</span>
-                          <span className="text-xl font-bold text-gold-600 tabular-nums">{order.total.toFixed(0)} kr</span>
+                          <span className="text-xl font-bold text-gold-600 tabular-nums">{formatSek(order.total)} kr</span>
                         </div>
                       </div>
                     );

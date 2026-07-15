@@ -907,11 +907,30 @@ router.post('/app/my-deals', authenticateUser, async (req: any, res) => {
 //   - restaurantId satt → bara den
 router.get('/:id/restaurants', async (req, res) => {
   try {
+    const now = new Date();
     const deal = await prisma.deal.findUnique({
       where: { id: req.params.id },
       include: { restaurant: { select: { id: true, name: true, slug: true } } },
     });
-    if (!deal) return res.status(404).json({ error: 'Deal hittades inte' });
+    const isCustomerFacing = Boolean(
+      deal &&
+      (deal.showOnSite ||
+        deal.popupEnabled ||
+        deal.appEnabled ||
+        deal.showAsBanner ||
+        deal.isGlobal),
+    );
+    // Detail links are public. Never expose inactive/expired/future deals or
+    // internal templates merely because somebody knows their database id.
+    if (
+      !deal ||
+      deal.isPersonalTemplate ||
+      deal.isTemplate ||
+      !isCustomerFacing ||
+      !isDealAvailableNow(deal, now)
+    ) {
+      return res.status(404).json({ error: 'Deal hittades inte' });
+    }
 
     let applicable: string[] = [];
     try {
@@ -928,7 +947,7 @@ router.get('/:id/restaurants', async (req, res) => {
           : { id: '__none__' };
 
     const restaurants = await prisma.restaurant.findMany({
-      where: restaurantWhere,
+      where: { ...restaurantWhere, archivedAt: null, draft: false },
       select: {
         id: true, slug: true, name: true, cuisine: true, address: true, city: true,
         imageUrl: true, heroImageUrl: true, rating: true, ratingCount: true,
@@ -962,13 +981,31 @@ router.get('/:id/restaurants', async (req, res) => {
       where: {
         id: { not: deal.id },
         isActive: true,
-        OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+        isPersonalTemplate: false,
+        isTemplate: false,
+        OR: [{ validFrom: null }, { validFrom: { lte: now } }],
+        AND: [
+          { OR: [{ validUntil: null }, { validUntil: { gte: now } }] },
+        ],
       },
-      select: { id: true, restaurantId: true, isGlobal: true, applicableRestaurantIds: true, discountType: true, discountValue: true },
+      select: {
+        id: true,
+        restaurantId: true,
+        isGlobal: true,
+        applicableRestaurantIds: true,
+        discountType: true,
+        discountValue: true,
+        isActive: true,
+        validFrom: true,
+        validUntil: true,
+        maxUsages: true,
+        usageCount: true,
+      },
     });
+    const activeOtherDeals = otherDeals.filter((other) => isDealAvailableNow(other, now));
 
     const restaurantHasBetterDeal = (restaurantId: string): boolean => {
-      for (const other of otherDeals) {
+      for (const other of activeOtherDeals) {
         if (dealMagnitude(other) <= currentMagnitude) continue;
         if (other.restaurantId === restaurantId) return true;
         if (other.isGlobal) return true;
@@ -1025,14 +1062,19 @@ router.get('/banners', async (req, res) => {
     let targetRestaurantId = typeof req.query.restaurantId === 'string' ? req.query.restaurantId : null;
 
     if (!targetRestaurantId && typeof req.query.slug === 'string' && req.query.slug.trim()) {
-      const restaurant = await prisma.restaurant.findUnique({
-        where: { slug: req.query.slug.trim() },
+      const restaurant = await prisma.restaurant.findFirst({
+        where: { slug: req.query.slug.trim(), archivedAt: null, draft: false },
         select: { id: true },
       });
       targetRestaurantId = restaurant?.id || null;
     }
 
     if (!targetRestaurantId) return res.json([]);
+    const visibleRestaurant = await prisma.restaurant.findFirst({
+      where: { id: targetRestaurantId, archivedAt: null, draft: false },
+      select: { id: true },
+    });
+    if (!visibleRestaurant) return res.json([]);
 
     const deals = await prisma.deal.findMany({
       where: {
@@ -1068,11 +1110,19 @@ router.get('/', async (req, res) => {
     let targetRestaurantId = typeof req.query.restaurantId === 'string' ? req.query.restaurantId : null;
 
     if (!targetRestaurantId && typeof req.query.slug === 'string' && req.query.slug.trim()) {
-      const restaurant = await prisma.restaurant.findUnique({
-        where: { slug: req.query.slug.trim() },
+      const restaurant = await prisma.restaurant.findFirst({
+        where: { slug: req.query.slug.trim(), archivedAt: null, draft: false },
         select: { id: true },
       });
       targetRestaurantId = restaurant?.id || null;
+    }
+
+    if (targetRestaurantId) {
+      const visibleRestaurant = await prisma.restaurant.findFirst({
+        where: { id: targetRestaurantId, archivedAt: null, draft: false },
+        select: { id: true },
+      });
+      if (!visibleRestaurant) return [];
     }
 
     const deals = await prisma.deal.findMany({

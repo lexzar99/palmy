@@ -20,11 +20,19 @@ export async function deleteSupabaseAuthUser(u: {
     if (UUID_RE.test(u.id)) ids.add(u.id);
     if (u.oauthId && UUID_RE.test(u.oauthId)) ids.add(u.oauthId);
     if (u.email || u.phone) {
-      const { data } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-      for (const su of ((data?.users as any[]) || [])) {
-        const emailMatch = u.email && su.email?.toLowerCase() === u.email.toLowerCase();
-        const phoneMatch = u.phone && su.phone && normPhone(su.phone) === normPhone(u.phone);
-        if (emailMatch || phoneMatch) ids.add(su.id);
+      // listUsers is paginated. Looking only at page one leaves older
+      // identities alive once the project has more than 200 auth users.
+      const perPage = 200;
+      for (let page = 1; page <= 10_000; page += 1) {
+        const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+        if (error) throw error;
+        const users = (data?.users as any[]) || [];
+        for (const su of users) {
+          const emailMatch = u.email && su.email?.toLowerCase() === u.email.toLowerCase();
+          const phoneMatch = u.phone && su.phone && normPhone(su.phone) === normPhone(u.phone);
+          if (emailMatch || phoneMatch) ids.add(su.id);
+        }
+        if (users.length < perPage) break;
       }
     }
     for (const sid of ids) {

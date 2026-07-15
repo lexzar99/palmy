@@ -32,6 +32,8 @@ export function isReferralRewardCompletion(order: {
 }): boolean {
   if (String(order.paymentStatus || '').toUpperCase() !== 'PAID') return false;
   const status = String(order.status || '').toUpperCase();
-  if (status === 'DELIVERED' || status === 'COMPLETED') return true;
-  return String(order.type || '').toUpperCase() === 'PICKUP' && status === 'READY';
+  // READY betyder bara att maten är klar. För PICKUP sätts DELIVERED först
+  // när kunden har hämtat (automatiskt efter den separata 10-minutersregeln).
+  // En värvarbelöning får därför aldrig skapas redan vid READY.
+  return status === 'DELIVERED' || status === 'COMPLETED';
 }

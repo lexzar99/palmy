@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { hasOpeningHours } from '../lib/openingHours';
 import { computePayout, economyFromSettings } from '../lib/financeCalc';
+import { payoutOrders } from '../lib/payoutPolicy';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto } from '../utils/money';
 
@@ -64,7 +65,9 @@ router.get('/control-center', async (req, res) => {
     }
 
     const scopedRestaurantId = req.query.restaurantId ? String(req.query.restaurantId) : null;
-    const restaurantWhere = scopedRestaurantId ? { id: scopedRestaurantId } : {};
+    const restaurantWhere = scopedRestaurantId
+      ? { id: scopedRestaurantId, archivedAt: null }
+      : { archivedAt: null };
 
     const restaurants = await prisma.restaurant.findMany({
       where: restaurantWhere,
@@ -163,6 +166,7 @@ router.get('/control-center', async (req, res) => {
           deliveryFee: true,
           tipAmount: true,
           status: true,
+          paymentStatus: true,
           type: true,
           createdAt: true,
           restaurantId: true,
@@ -336,8 +340,9 @@ router.get('/control-center', async (req, res) => {
       const effectiveIsOpen = availability.isOpen;
       const todayRestaurantOrders = orders.filter((order) => new Date(order.createdAt) >= today);
       const reviewOrders = orders.filter((order) => typeof order.rating === 'number' && order.rating > 0);
+      const currentMonthPayoutOrders = payoutOrders(currentMonthOrders);
       const econ = computePayout(
-        currentMonthOrders.map((o) => ({ total: o.total, deliveryFee: o.deliveryFee, tipAmount: o.tipAmount })),
+        currentMonthPayoutOrders,
         restaurant,
         economy,
       );
@@ -391,6 +396,7 @@ router.get('/control-center', async (req, res) => {
         todayRevenue: todayRestaurantOrders.reduce((sum, order) => sum + order.total, 0) / 100,
         todayOrders: todayRestaurantOrders.length,
         monthRevenue: monthSales,
+        payoutOrderCount: currentMonthPayoutOrders.length,
         liveOrders: currentLiveOrders.length,
         pendingOrders,
         avgOrderValue: orders.length > 0 ? orders.reduce((sum, order) => sum + order.total, 0) / 100 / orders.length : 0,
@@ -416,7 +422,7 @@ router.get('/control-center', async (req, res) => {
         featuredClass: snapshot.featuredClass,
         featuredLabel: snapshot.featuredLabel,
         grossSales: snapshot.monthRevenue,
-        orderCount: monthByRestaurant.get(snapshot.id)?.length || 0,
+        orderCount: snapshot.payoutOrderCount,
         commission: snapshot.commissionEstimate,
         subscription: snapshot.subscriptionEstimate,
         payout: snapshot.payoutEstimate,

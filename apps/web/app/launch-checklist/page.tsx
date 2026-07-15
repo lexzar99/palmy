@@ -162,7 +162,7 @@ const PHASES: ChecklistPhase[] = [
         id: "anteckna-orgnr",
         title: "Anteckna org-nr + adress för senare",
         description:
-          "Kommer användas i: Stripe-onboarding, Terms-sidan, Privacy-sidan, fakturor, alla legal-dokument.",
+          "Kommer användas i: Mollie-onboarding, Terms-sidan, Privacy-sidan, fakturor, alla legal-dokument.",
         who: "Du",
         effort: "1 min",
       },
@@ -171,70 +171,70 @@ const PHASES: ChecklistPhase[] = [
   {
     id: "fas-3",
     emoji: "💳",
-    title: "Fas 3 — Stripe + Betalningar",
-    description: "Nytt Stripe-konto i företagsnamn, KYC, webhook, refunds.",
+    title: "Fas 3 — Mollie + Betalningar",
+    description: "Mollie-konto i företagsnamn, KYC, live-nyckel, webhook och refunds.",
     estimatedDays: "2-4 dagar",
     items: [
       {
-        id: "stripe-konto",
-        title: "Skapa Stripe-konto i företagsnamn",
+        id: "mollie-konto",
+        title: "Skapa Mollie-konto i företagsnamn",
         description:
-          "stripe.com → registrera. Använd org-nr från Fas 2. Verifiering tar 1-3 dagar (KYC: behöver ID + ev. företagsdokument).",
+          "mollie.com → registrera organisationen med org-nr från Fas 2. Slutför företags- och ägaruppgifter samt identitetskontroll i onboarding-flödet.",
         who: "Du",
         effort: "30 min + KYC-väntan",
       },
       {
-        id: "stripe-bank",
+        id: "mollie-bank",
         title: "Koppla bank-konto för utbetalningar",
         description:
-          "Stripe Dashboard → Settings → Bank accounts. Lägg in företagskontot från Fas 2. Stripe verifierar med 1-2 micro-deposits.",
+          "Mollie Dashboard → Organization settings/Bank accounts. Lägg in och verifiera företagskontot från Fas 2; kontrollera även utbetalningsfrekvens och kontouppgifter.",
         who: "Du",
         effort: "15 min + 1-2 dagar verifiering",
       },
       {
-        id: "stripe-live-mode",
-        title: "Aktivera Live mode",
+        id: "mollie-payment-methods",
+        title: "Aktivera betalmetoder",
         description:
-          "När KYC är godkänd → toggla från Test mode till Live mode i Stripe Dashboard. Test en transaction i test mode först.",
+          "Mollie Dashboard → Settings → Payment methods. Aktivera de metoder ViaEats ska erbjuda och invänta eventuell extra granskning innan live-test.",
         who: "Du",
         effort: "5 min",
       },
       {
-        id: "stripe-keys-railway",
-        title: "Sätt Stripe live keys i Railway env (API-tjänsten)",
+        id: "mollie-live-key-railway",
+        title: "Sätt Mollie live key i Railway env (API-tjänsten)",
         description:
-          "STRIPE_SECRET_KEY=sk_live_... och STRIPE_WEBHOOK_SECRET=whsec_... (kommer från nästa steg).",
+          "Sätt MOLLIE_API_KEY=live_... och säkerställ att PAYMENT_PROVIDER=mollie. Behåll testnyckeln utanför produktion och exponera aldrig API-nyckeln i Vercel/webbklienten.",
         who: "Du",
         effort: "5 min",
       },
       {
-        id: "stripe-key-vercel",
-        title: "Sätt publishable key i Vercel env (web)",
-        description: "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...",
+        id: "mollie-live-readiness",
+        title: "Verifiera live-readiness i produktion",
+        description: "Kontrollera API:ts launch-readiness/health med PAYMENT_PROVIDER=mollie och en live_ MOLLIE_API_KEY innan riktig trafik släpps på.",
         who: "Du",
         effort: "5 min",
       },
       {
-        id: "stripe-webhook",
-        title: "Skapa webhook i Stripe Dashboard",
+        id: "mollie-webhook",
+        title: "Verifiera Mollie-webhooken end-to-end",
         description:
-          "Dashboard → Developers → Webhooks → Add endpoint. URL: https://api.viaeats.se/api/payments/webhook. Events: payment_intent.succeeded, payment_intent.payment_failed, charge.refunded. Kopiera signing secret → STRIPE_WEBHOOK_SECRET.",
+          "Integrationen skickar webhookUrl per betalning: https://api.viaeats.se/api/payments/webhooks/mollie. Bekräfta att endpointen tar emot Mollies form-POST med payment-id, hämtar status från Mollie och svarar 200.",
         who: "Du",
         effort: "10 min",
       },
       {
-        id: "stripe-webhook-fail-fast",
-        title: "Force-fail boot om webhook-secret saknas (kod)",
+        id: "mollie-live-key-fail-fast",
+        title: "Force-fail boot om Mollie live key saknas (kod)",
         description:
-          "Idag varnar bara → tyst betalnings-tracking missar. I prod ska API:t crasha direkt om STRIPE_WEBHOOK_SECRET saknas så vi inte missar i tysthet.",
+          "I produktion ska API:t vägra starta om PAYMENT_PROVIDER=mollie men MOLLIE_API_KEY saknas eller inte börjar med live_. Verifiera detta före deploy.",
         who: "Jag",
         effort: "5 min",
       },
       {
-        id: "stripe-test-purchase",
+        id: "mollie-test-purchase",
         title: "Gör en test-purchase live",
         description:
-          "Riktigt kort, riktig summa (typ 10 kr). Verifiera i Stripe Dashboard att payment_intent.succeeded triggas + order flips till PAID.",
+          "Gör ett riktigt köp med låg summa. Verifiera i Mollie Dashboard att betalningen blir paid, webhooken når API:t och ordern går från AWAITING_PAYMENT till PAID utan manuell åtgärd.",
         who: "Du",
         effort: "15 min",
       },
@@ -242,17 +242,17 @@ const PHASES: ChecklistPhase[] = [
         id: "refund-test",
         title: "Test refund end-to-end",
         description:
-          "Admin → öppna ordern → klicka refund. Verifiera: Stripe-event triggas, charge.refunded webhook fires, kund får mejl, order-status uppdateras.",
+          "Admin → öppna ordern → klicka refund. Verifiera i Mollie Dashboard att refunden registreras, att webhook/reconcile synkar utfallet, att kunden får notifiering och att orderns refund-status uppdateras.",
         who: "Båda",
         effort: "30 min",
       },
       {
         id: "audit-logs-payments",
-        title: "Audit-logs på payments + admin order-mutations",
+        title: "Verifiera audit-logg på refunds + admin order-mutations",
         description:
-          "Bokföringslagen-krav: alla refunds, order-flips, payment-statusar ska lämna spår. Idag bara auth-events loggas.",
-        who: "Jag",
-        effort: "1/2 dag",
+          "Gör en manuell refund och statusändring och kontrollera att aktör, order, belopp och tid syns i auditloggen. Massrefund och permanent orderradering ska inte finnas.",
+        who: "Båda",
+        effort: "20 min",
       },
     ],
   },
@@ -298,10 +298,10 @@ const PHASES: ChecklistPhase[] = [
       },
       {
         id: "disable-dangerous-envs",
-        title: "Force-disable farliga env-vars i prod",
+        title: "Verifiera att orderradering är permanent avstängd",
         description:
-          "ALLOW_WIPE_ORDERS=true (wipe-endpoint) ska hård-disablas i production.",
-        who: "Jag",
+          "Gamla delete/wipe- och massrefund-endpoints ska svara 410. Seed/clear-skript ska vägra om order- eller payoutspår finns.",
+        who: "Båda",
         effort: "5 min",
       },
       {
@@ -346,11 +346,11 @@ const PHASES: ChecklistPhase[] = [
       },
       {
         id: "twilio-cleanup",
-        title: "Tillbaka-lägg Twilio-kod (efter launch)",
+        title: "Verifiera lösenordsfri telefon-OTP",
         description:
-          "Du sa du vill lägga tillbaka SMS/OTP-flödet senare. Just nu är twilio-paketet kvar men import inte använt. Behåll så länge.",
-        who: "Jag",
-        effort: "1 dag (när du vill aktivera)",
+          "Kundauth ska bara erbjuda Supabase SMS-OTP, Google och Apple. Testa ny och befintlig telefon, fel kod, utgången kod och rate-limit. Ingen e-post-/lösenordsinloggning får synas.",
+        who: "Båda",
+        effort: "30 min",
       },
       {
         id: "bug-fixar",
@@ -365,8 +365,8 @@ const PHASES: ChecklistPhase[] = [
   {
     id: "fas-5",
     emoji: "📧",
-    title: "Fas 5 — Email-domän (parallellt)",
-    description: "DNS-records för DKIM/SPF i Brevo.",
+    title: "Fas 5 — Driftmail och manuell launchkontakt",
+    description: "DNS-records för interna larm och manuella, samtyckta launchutskick. Inte kundauth.",
     estimatedDays: "1 dag arbete + 24-48h väntan",
     items: [
       {
@@ -404,7 +404,7 @@ const PHASES: ChecklistPhase[] = [
         id: "email-test-multiple",
         title: "Testa till flera olika mottagare",
         description:
-          "Registrera test-konton med Gmail, iCloud, Outlook, Hotmail. Verifiera att alla får mejlet i Inbox (inte spam).",
+          "Skicka ett internt driftlarm och ett manuellt launchkupongmejl till Gmail, iCloud, Outlook och Hotmail. Ingen registrerings- eller lösenordsmejlning ska ske.",
         who: "Du",
         effort: "30 min",
       },
@@ -575,7 +575,7 @@ const PHASES: ChecklistPhase[] = [
         id: "support-redo",
         title: "Support redo att svara",
         description:
-          "Email + telefon. Förvänta dig första 24h: 'jag får inget mejl', 'kortet funkar inte', 'min adress hittas inte'. Ha runbook redo.",
+          "E-post + telefon. Förvänta dig första 24h: 'SMS-koden kommer inte', 'Mollie-betalningen fastnar', 'min adress hittas inte'. Ha runbook redo.",
         who: "Du",
         effort: "Löpande",
       },

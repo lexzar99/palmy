@@ -10,11 +10,17 @@ const esc = (s: unknown) =>
  * Öppnar en självständig, utskriftsvänlig utbetalningsspec i ett nytt fönster
  * och triggar print() → användaren sparar som PDF. Ingen server-PDF behövs.
  */
-export function printPayoutSpec(spec: PayoutSpec, adjustment = 0) {
+export function printPayoutSpec(spec: PayoutSpec, manualAdjustment = 0, lateRefundRecovery = 0) {
   const b = spec.breakdown;
+  const persisted = spec.persisted;
+  const frozen = persisted?.status === "APPROVED" || persisted?.status === "PAID";
   const owed = (b as { owed?: number }).owed || 0;
-  const isOwed = owed > 0;
-  const net = isOwed ? owed : Math.max(0, b.payout - (Number(adjustment) || 0));
+  const isOwed = !frozen && owed > 0;
+  const net = frozen && persisted
+    ? persisted.payoutAmount
+    : isOwed
+      ? owed
+      : Math.max(0, b.payout - (Number(manualAdjustment) || 0) - (Number(lateRefundRecovery) || 0));
   const totalLabel = isOwed ? "Att fakturera restaurangen" : "Netto att betala ut";
   const win = window.open("", "_blank", "width=820,height=1040");
   if (!win) {
@@ -85,22 +91,34 @@ export function printPayoutSpec(spec: PayoutSpec, adjustment = 0) {
   }</div>
     <div class="right">
       <div class="label">Modell</div>
-      <div>${spec.restaurant.selfDelivery ? "Levererar själv" : "Vi levererar"} · ${esc(b.tierLabel)}</div>
+      <div>${(frozen ? persisted?.selfDeliverySnapshot : spec.restaurant.selfDelivery) ? "Levererar själv" : "Vi levererar"} · ${esc(b.tierLabel)}</div>
       <div class="label" style="margin-top:8px">Provision</div>
-      <div>${b.commissionPct}%</div>
+      <div>${frozen ? persisted?.commissionPctSnapshot ?? "—" : b.commissionPct}%</div>
     </div>
   </div>
 
   <table class="calc">
-    ${line(`Bruttoförsäljning (${b.orderCount} ordrar)`, kr(b.grossTotal))}
-    ${line("varav matvärde (provisionsbas)", kr(b.foodBase), { sub: true })}
-    ${line("varav leveransavgift", kr(b.deliveryFee), { sub: true })}
-    ${line("varav dricks", kr(b.tip), { sub: true })}
-    ${line("Restaurangens intäkt", kr(b.restaurantGross), { strong: true })}
-    ${line(`Provision (${b.commissionPct}%)`, kr(b.commission), { minus: true })}
-    ${line(`Abonnemang (${b.tierLabel})`, kr(b.subscription), { minus: true })}
-    ${line(`Moms på avgifter (${b.feeVatPct}%)`, kr(b.feeVat), { minus: true })}
-    ${Math.abs(Number(adjustment) || 0) > 0 ? line("Justering", kr(-(Number(adjustment) || 0)), { minus: false }) : ""}
+    ${frozen && persisted
+      ? [
+          line(`Fryst restaurangintäkt (${persisted.orderCount} ordrar)`, kr(persisted.grossSales), { strong: true }),
+          line(`Provision (${persisted.commissionPctSnapshot ?? "—"}%)`, kr(persisted.commissionAmount), { minus: true }),
+          line("Abonnemang", kr(persisted.subscriptionAmount), { minus: true }),
+          line(`Moms på avgifter (${persisted.feeVatPctSnapshot ?? "—"}%)`, kr(((persisted.commissionAmount + persisted.subscriptionAmount) * Number(persisted.feeVatPctSnapshot || 0)) / 100), { minus: true }),
+          Math.abs(persisted.manualAdjustmentAmount) > 0 ? line("Manuell justering", kr(persisted.manualAdjustmentAmount), { minus: true }) : "",
+          persisted.lateRefundAdjustmentAmount > 0 ? line("Automatisk recovery för sena refunds", kr(persisted.lateRefundAdjustmentAmount), { minus: true }) : "",
+        ].join("")
+      : [
+          line(`Bruttoförsäljning (${b.orderCount} ordrar)`, kr(b.grossTotal)),
+          line("varav matvärde (provisionsbas)", kr(b.foodBase), { sub: true }),
+          line("varav leveransavgift", kr(b.deliveryFee), { sub: true }),
+          line("varav dricks", kr(b.tip), { sub: true }),
+          line("Restaurangens intäkt", kr(b.restaurantGross), { strong: true }),
+          line(`Provision (${b.commissionPct}%)`, kr(b.commission), { minus: true }),
+          line(`Abonnemang (${b.tierLabel})`, kr(b.subscription), { minus: true }),
+          line(`Moms på avgifter (${b.feeVatPct}%)`, kr(b.feeVat), { minus: true }),
+          Math.abs(Number(manualAdjustment) || 0) > 0 ? line("Manuell justering", kr(Number(manualAdjustment) || 0), { minus: true }) : "",
+          (Number(lateRefundRecovery) || 0) > 0 ? line("Automatisk recovery för sena refunds", kr(Number(lateRefundRecovery) || 0), { minus: true }) : "",
+        ].join("")}
   </table>
 
   <div class="total"><span>${esc(totalLabel)}</span><span class="v">${kr(net)}</span></div>
@@ -114,8 +132,10 @@ export function printPayoutSpec(spec: PayoutSpec, adjustment = 0) {
   </div>
 
   <div class="note">
-    Matmoms (${b.foodVatPct}%) i restaurangens försäljning: ${kr(b.foodVat)} (informativ — restaurangens egen redovisning).
-    Plattformens avgifter faktureras som tjänst med ${b.feeVatPct}% moms. Belopp i SEK.
+    ${frozen
+      ? "Beloppet ovan är den frysta snapshot som godkändes och får inte räknas om med dagens inställningar."
+      : `Matmoms (${b.foodVatPct}%) i restaurangens försäljning: ${kr(b.foodVat)} (informativ — restaurangens egen redovisning). Plattformens avgifter faktureras som tjänst med ${b.feeVatPct}% moms.`}
+    Belopp i SEK.
   </div>
 </body></html>`;
 

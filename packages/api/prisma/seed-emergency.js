@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { assertDestructiveSeedAllowed, getRequiredSeedAdminCredentials } = require('./seed-safety');
 
 const prisma = new PrismaClient();
 
@@ -7,17 +8,22 @@ async function main() {
   console.log('🌱 Starting EMERGENCY JS SEED...');
 
   try {
+    // Although this variant upserts instead of clearing every table, it can
+    // replace the super-admin credential and must be treated as a dangerous seed.
+    assertDestructiveSeedAllowed(process.env);
+    const adminCredentials = getRequiredSeedAdminCredentials(process.env);
+
     // 1. Create Super Admin
     console.log('👤 Creating Admin...');
-    const hashedPassword = await bcrypt.hash('lexzar99', 10);
+    const hashedPassword = await bcrypt.hash(adminCredentials.password, 12);
     
     // Check if Admin table exists and create
     await prisma.adminUser.upsert({
-      where: { email: 'lexzar' },
+      where: { email: adminCredentials.email },
       update: { password: hashedPassword },
       create: {
-        email: 'lexzar',
-        name: 'Super Admin',
+        email: adminCredentials.email,
+        name: adminCredentials.name,
         password: hashedPassword,
         role: 'SUPER_ADMIN',
       }
@@ -83,11 +89,12 @@ async function main() {
     await prisma.restaurant.upsert({ where: { slug: 'burger-mansion' }, update: {}, create: burgerData });
 
     console.log('✅ EMERGENCY JS SEED Completed!');
-  } catch (err) {
-    console.error('❌ Error during seed:', err);
   } finally {
     await prisma.$disconnect();
   }
 }
 
-main();
+main().catch((err) => {
+  console.error('❌ Error during seed:', err);
+  process.exitCode = 1;
+});

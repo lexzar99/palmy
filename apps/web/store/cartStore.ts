@@ -110,7 +110,15 @@ export const useCartStore = create<CartStore>()(
           i.cartItemId === id ? { ...i, ...patch, cartItemId: i.cartItemId } : i
         ),
       })),
-      clearCart: () => set({ items: [], restaurantId: null, restaurantSlug: null, lastAddedItemName: null, lastAddedAt: 0, bogoChoice: null }),
+      clearCart: () => set({
+        items: [],
+        restaurantId: null,
+        restaurantSlug: null,
+        lastAddedItemName: null,
+        lastAddedAt: 0,
+        deliveryOverrides: {},
+        bogoChoice: null,
+      }),
       setBogoChoice: (choice) => set({ bogoChoice: choice }),
       getTotal: () => {
         const items = get().items;

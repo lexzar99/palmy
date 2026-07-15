@@ -24,6 +24,7 @@ export interface PushResult {
   success: boolean;
   count: number;
   errors?: number;
+  queued?: boolean;
   chunks?: number;
   error?: string;
 }
@@ -42,6 +43,39 @@ export interface PushLogRecord {
   success: boolean;
   error?: string | null;
   sentBy?: string | null;
+}
+
+export interface PushDeliveryMetric {
+  provider: "FCM_FID" | "APNS" | "EXPO" | "WEB_PUSH" | string;
+  status: "ACCEPTED" | "RETRY" | "INVALID" | "FAILED" | string;
+  count: number;
+}
+
+export interface PushOutboxMetric {
+  status: "PENDING" | "PROCESSING" | "RETRY" | "COMPLETED" | "DEAD" | string;
+  count: number;
+}
+
+export interface PushHistoryResponse {
+  logs: PushLogRecord[];
+  deliveryMetrics: {
+    since: string;
+    acceptedMeans: "provider_accepted_not_device_displayed";
+    deliveries: PushDeliveryMetric[];
+    outbox: PushOutboxMetric[];
+  };
+  recentOutbox: Array<{
+    id: string;
+    kind: string;
+    status: string;
+    attemptCount: number;
+    acceptedCount: number;
+    invalidCount: number;
+    failureCount: number;
+    lastError?: string | null;
+    createdAt: string;
+    completedAt?: string | null;
+  }>;
 }
 
 // A13 — cohort + scheduler types
@@ -92,17 +126,25 @@ export interface ScheduledPushRecord {
 export const pushHistoryQueryKey = ["push", "history"] as const;
 export const scheduledPushesQueryKey = ["push", "scheduled"] as const;
 
+const pushIdempotencyConfig = () => ({
+  headers: { "Idempotency-Key": crypto.randomUUID() },
+});
+
 export const sendPushBroadcast = (payload: PushBroadcastPayload) =>
-  apiPost<PushResult>("/notifications/admin/send-all", payload);
+  apiPost<PushResult>("/notifications/admin/send-all", payload, pushIdempotencyConfig());
 
 export const sendPushToUser = (payload: PushUserPayload) =>
-  apiPost<PushResult>("/notifications/admin/send-user", payload);
+  apiPost<PushResult>("/notifications/admin/send-user", payload, pushIdempotencyConfig());
 
 export const sendPushToCity = (payload: PushCityPayload) =>
-  apiPost<PushResult>("/notifications/admin/send-city", payload);
+  apiPost<PushResult>("/notifications/admin/send-city", payload, pushIdempotencyConfig());
 
 export const sendPushToCohort = (payload: SendCohortPayload) =>
-  apiPost<{ cohort: CohortKey; recipients: number; count: number; errors: number }>("/notifications/admin/send-cohort", payload);
+  apiPost<{ cohort: CohortKey; recipients: number; count: number; errors: number }>(
+    "/notifications/admin/send-cohort",
+    payload,
+    pushIdempotencyConfig(),
+  );
 
 export const schedulePush = (payload: SchedulePushPayload) =>
   apiPost<ScheduledPushRecord>("/notifications/admin/schedule", payload);
@@ -114,7 +156,7 @@ export const cancelScheduledPush = (id: string) =>
   apiPost<{ success: boolean }>(`/notifications/admin/scheduled/${id}/cancel`, {});
 
 export const getPushHistory = () =>
-  apiGet<{ logs: PushLogRecord[] }>("/notifications/admin/history");
+  apiGet<PushHistoryResponse>("/notifications/admin/history");
 
 export const getPushHistoryForCustomer = (customerId: string) =>
   apiGet<{ logs: PushLogRecord[] }>(`/customers/${customerId}/push-history`);

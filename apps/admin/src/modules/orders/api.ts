@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
+import { apiGet, apiPatch, apiPost } from "@/shared/api/client";
 import type { SekMoney } from "@/shared/contracts/restaurants";
 
 export interface OrderItem {
@@ -17,6 +17,32 @@ export interface CustomerStats {
   refundCount: number;
   firstOrderAt: string | null;
   refundRate: number;
+}
+
+export interface PaymentRefundLedgerEntry {
+  id: string;
+  provider: string;
+  paymentRef: string;
+  refundRef?: string | null;
+  idempotencyKey: string;
+  /** Display values in SEK; canonical minor units are retained alongside. */
+  amount: number;
+  amountOre: number;
+  amountMoney: SekMoney;
+  cumulativeAmount: number;
+  cumulativeAmountOre: number;
+  cumulativeAmountMoney: SekMoney;
+  status: string;
+  source: string;
+  actorAdminId?: string | null;
+  reason?: string | null;
+  providerCreatedAt?: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  completedAt?: string | null;
+  failedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AdminOrder {
@@ -65,6 +91,7 @@ export interface AdminOrder {
   refundReason?: string | null;
   scheduledFor?: string | null;
   paymentStatus?: string | null;
+  paymentRefunds?: PaymentRefundLedgerEntry[];
   customerStats?: CustomerStats | null;
   // Tilldelad kurir + statusövergångs-tider (null = avhämtning/self/ej tilldelad)
   courier?: {
@@ -87,15 +114,6 @@ export interface AdminOrder {
     proofMessage?: string | null;
     proofPhotoUrl?: string | null;
   } | null;
-}
-
-export interface BulkRefundResult {
-  total: number;
-  refunded: number;
-  skipped: number;
-  failed: number;
-  totalRefundedKr: number;
-  results: Array<{ orderId: string; status: 'refunded' | 'skipped' | 'failed'; reason?: string; refundStatus?: string }>;
 }
 
 export const ordersQueryKey = (status: string, page: number = 1, pageSize: number = 50) =>
@@ -126,16 +144,12 @@ export const refundOrder = (orderId: string, amount?: number | null, reason?: st
     success: boolean;
     refundedAmount: number;
     refundId?: string;
+    ledgerId?: string;
     refundStatus?: string;
   }>(`/admin/orders/${orderId}/refund`, {
     amount: amount ?? undefined,
     reason: reason || undefined,
   });
-
-export const deleteOrder = (orderId: string) => apiDelete<{ success: boolean }>(`/admin/orders/${orderId}`);
-
-export const bulkRefundOrders = (orderIds: string[], reason?: string) =>
-  apiPost<BulkRefundResult>(`/admin/orders/bulk-refund`, { orderIds, reason });
 
 // Canned reasons for the refund modal — saves typing on common cases and
 // makes refund-reason analytics possible later.

@@ -18,7 +18,7 @@
 //   - Om referral.status === REGISTERED → skapa UserDeals för båda + flip till ORDERED.
 //
 // Welcome-deal-trigger:
-//   - Anropas FRÅN auth.ts när nytt user-konto skapas (register-user + oauth-token).
+//   - Anropas FRÅN auth.ts när nytt kundkonto skapas (phone-token + oauth-token).
 
 import { Router } from 'express';
 import { z } from 'zod';
@@ -34,6 +34,16 @@ import {
   normalizeReferralPhone,
   referralPhoneVariants,
 } from '../lib/referralRules';
+import {
+  guestReferralProfileUserId,
+  parseGuestReferralProfileProof,
+  REFERRAL_PROFILE_DENIED,
+} from '../lib/referralProfileAccess';
+import {
+  ORDER_HTTP_SESSION_HEADER,
+  ownsOrderWithActiveRawSecret,
+  verifyOrderHttpSession,
+} from '../lib/orderAccess';
 
 export { normalizeReferralPhone } from '../lib/referralRules';
 
@@ -381,21 +391,40 @@ function referralDealPayload(snapshot: DealSnapshot | null) {
   };
 }
 
-async function buildPhoneReferralProfile(userId: string, phone: string) {
+async function buildReferralProfile(userId: string) {
   const [settings, inviterSnapshot, inviteeSnapshot] = await Promise.all([
     getSettings(),
     snapshotReferralDeal('INVITER'),
     snapshotReferralDeal('INVITEE'),
   ]);
-  const variants = referralPhoneVariants(phone);
-  const paidOrderCount = await (prisma as any).order.count({
+  if (REFERRALS_DISABLED) {
+    return {
+      locked: true,
+      code: null,
+      shareUrl: null,
+      enabled: false,
+      deal: null,
+      inviterDeal: null,
+      inviteeDeal: null,
+      rewardLabel: null,
+      inviterRewardLabel: null,
+      inviteeRewardLabel: null,
+      discountType: null,
+      rewardPercent: null,
+      rewardKr: null,
+      couponsPerSide: settings.referralCouponsPerSide ?? 1,
+      stats: { invited: 0, registered: 0, ordered: 0, totalEarnedKr: 0 },
+      deals: [],
+    };
+  }
+  const completedOrderCount = await (prisma as any).order.count({
     where: {
+      userId,
       paymentStatus: 'PAID',
-      status: { notIn: ['CANCELLED', 'REJECTED', 'DELIVERY_FAILED'] },
-      OR: [{ userId }, { customerPhone: { in: variants } }],
+      status: { in: ['DELIVERED', 'COMPLETED'] },
     },
   });
-  const locked = paidOrderCount < 1;
+  const locked = completedOrderCount < 1;
   const code = locked ? null : await ensureReferralCode(userId);
   const referrals = locked
     ? []
@@ -403,15 +432,17 @@ async function buildPhoneReferralProfile(userId: string, phone: string) {
         where: { inviterUserId: userId },
         select: { status: true, rewardedAt: true },
       });
-  const activeDeals = await (prisma as any).userDeal.findMany({
-    where: {
-      userId,
-      status: 'ACTIVE',
-      type: { in: ['REFERRAL_INVITER', 'REFERRAL_INVITEE'] },
-      OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const activeDeals = locked
+    ? []
+    : await (prisma as any).userDeal.findMany({
+        where: {
+          userId,
+          status: 'ACTIVE',
+          type: { in: ['REFERRAL_INVITER', 'REFERRAL_INVITEE'] },
+          OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+        },
+        orderBy: { createdAt: 'desc' },
+      });
   const ordered = referrals.filter((row: any) => row.status === 'ORDERED').length;
   return {
     locked,
@@ -424,12 +455,15 @@ async function buildPhoneReferralProfile(userId: string, phone: string) {
     deal: referralDealPayload(inviterSnapshot),
     inviterDeal: referralDealPayload(inviterSnapshot),
     inviteeDeal: referralDealPayload(inviteeSnapshot),
-    couponsPerSide: 1,
+    discountType: inviterSnapshot?.discountType ?? null,
+    rewardPercent: inviterSnapshot?.discountPercent ?? null,
+    rewardKr: inviterSnapshot?.amountKr ?? null,
+    couponsPerSide: settings.referralCouponsPerSide ?? 1,
     stats: {
       invited: referrals.length,
       registered: referrals.filter((row: any) => ['REGISTERED', 'ORDERED'].includes(row.status)).length,
       ordered,
-      totalEarnedKr: 0,
+      totalEarnedKr: ordered * (settings.referralRewardKr ?? 50),
     },
     deals: activeDeals.map((deal: any) => ({
       id: deal.id,
@@ -461,133 +495,7 @@ router.get('/referral', authenticateUser, async (req: any, res: any) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-    if (REFERRALS_DISABLED) {
-      // Returnera en "tom" payload som matchar shape klienterna förväntar,
-      // men med enabled: false så all UI gömmer sig.
-      return res.json({
-        locked: true,
-        code: null,
-        shareUrl: null,
-        enabled: false,
-        deal: null,
-        rewardLabel: null,
-        couponsPerSide: 1,
-        stats: { invited: 0, registered: 0, ordered: 0, totalEarnedKr: 0 },
-      });
-    }
-
-    const settings = await getSettings();
-    const inviterSnapshot = await snapshotReferralDeal('INVITER');
-    const inviteeSnapshot = await snapshotReferralDeal('INVITEE');
-    const snapshot = inviterSnapshot;
-
-    // Lock-state: kräver att user har minst 1 betald order innan de kan
-    // bjuda in andra. Förhindrar att fake-konton sprider länkar utan att
-    // själva ha betalat något. Genererar referralCode lazy först när
-    // detta villkor är uppfyllt.
-    const paidOrderCount = await (prisma as any).order.count({
-      where: { userId, paymentStatus: 'PAID' },
-    });
-    const locked = paidOrderCount < 1;
-
-    const dealPayload = snapshot
-      ? {
-          title: snapshot.title,
-          discountType: snapshot.discountType,
-          discountPercent: snapshot.discountPercent,
-          amountKr: snapshot.amountKr,
-          freeDelivery: snapshot.freeDelivery,
-          minOrderKr: snapshot.minOrderKr,
-          validUntil: snapshot.validUntil ? snapshot.validUntil.toISOString() : null,
-        }
-      : null;
-
-    if (locked) {
-      // Skicka deal-info som teaser så lock-screen kan visa vad som väntar.
-      // Inga stats eller code — användaren har inte unlockat än.
-      return res.json({
-        locked: true,
-        code: null,
-        shareUrl: null,
-        enabled: !!settings.referralEnabled && !!snapshot,
-        deal: dealPayload,
-        rewardLabel: formatRewardLabel(snapshot),
-        couponsPerSide: settings.referralCouponsPerSide ?? 1,
-        stats: { invited: 0, registered: 0, ordered: 0, totalEarnedKr: 0 },
-      });
-    }
-
-    const code = await ensureReferralCode(userId);
-
-    // Stats: hämta inviter:s referrals (endast om unlocked)
-    const referrals = await (prisma as any).referral.findMany({
-      where: { inviterUserId: userId },
-      select: { status: true, rewardedAt: true },
-    });
-    const stats = {
-      invited: referrals.length,
-      registered: referrals.filter((r: any) => ['REGISTERED', 'ORDERED'].includes(r.status)).length,
-      ordered: referrals.filter((r: any) => r.status === 'ORDERED').length,
-      totalEarnedKr:
-        referrals.filter((r: any) => r.status === 'ORDERED').length *
-        (settings.referralRewardKr ?? 50),
-    };
-
-    const rewardPercent = snapshot?.discountPercent ?? null;
-    const rewardKr = snapshot?.amountKr ?? null;
-    const discountType = snapshot?.discountType ?? null;
-    const couponsPerSide = settings.referralCouponsPerSide ?? 1;
-    const rewardLabel = formatRewardLabel(snapshot);
-
-    res.json({
-      locked: false,
-      code,
-      shareUrl: `${publicShareBase()}/r/${code}`,
-      enabled: !!settings.referralEnabled && !!snapshot,
-      // Full deal-info för visuell display i frontend. null om ingen Deal vald.
-      deal: snapshot
-        ? {
-            title: snapshot.title,
-            discountType: snapshot.discountType,
-            discountPercent: snapshot.discountPercent,
-            amountKr: snapshot.amountKr,
-            freeDelivery: snapshot.freeDelivery,
-            minOrderKr: snapshot.minOrderKr,
-            // validUntil = null betyder "tills vidare" på frontend.
-            // expiresAt (intern UserDeal-expiry) skickas inte hit eftersom
-            // den alltid har ett värde och skulle förvirra display-logiken.
-            validUntil: snapshot.validUntil ? snapshot.validUntil.toISOString() : null,
-          }
-        : null,
-      // Legacy/convenience-fält — backend-formaterad text för splice-display.
-      discountType,
-      rewardPercent,
-      rewardKr,
-      rewardLabel,
-      inviterRewardLabel: formatRewardLabel(inviterSnapshot),
-      inviteeRewardLabel: formatRewardLabel(inviteeSnapshot),
-      inviterDeal: inviterSnapshot ? {
-        title: inviterSnapshot.title,
-        discountType: inviterSnapshot.discountType,
-        discountPercent: inviterSnapshot.discountPercent,
-        amountKr: inviterSnapshot.amountKr,
-        freeDelivery: inviterSnapshot.freeDelivery,
-        minOrderKr: inviterSnapshot.minOrderKr,
-        validUntil: inviterSnapshot.validUntil ? inviterSnapshot.validUntil.toISOString() : null,
-      } : null,
-      inviteeDeal: inviteeSnapshot ? {
-        title: inviteeSnapshot.title,
-        discountType: inviteeSnapshot.discountType,
-        discountPercent: inviteeSnapshot.discountPercent,
-        amountKr: inviteeSnapshot.amountKr,
-        freeDelivery: inviteeSnapshot.freeDelivery,
-        minOrderKr: inviteeSnapshot.minOrderKr,
-        validUntil: inviteeSnapshot.validUntil ? inviteeSnapshot.validUntil.toISOString() : null,
-      } : null,
-      couponsPerSide,
-      stats,
-    });
+    return res.json(await buildReferralProfile(userId));
   } catch (err: any) {
     console.error('[referral GET] error:', err?.message);
     res.status(500).json({ error: 'Serverfel' });
@@ -913,41 +821,51 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
 
 export const publicRouter = Router();
 
-// Konto-fri referralprofil. Telefonen används endast för att hitta samma
-// gäst-/kontorad som ordern skapade; inga personuppgifter eller orderrader
-// lämnas ut här.
-publicRouter.get('/referral-profile', async (req: any, res: any) => {
+function denyPublicReferralProfile(res: any) {
+  res.set('Cache-Control', 'no-store');
+  return res.status(404).json(REFERRAL_PROFILE_DENIED);
+}
+
+// Legacy GET (inklusive det gamla ?phone=-kontraktet) ger alltid exakt samma
+// svar. Ett telefonnummer är kontaktdata, aldrig ett ägarbevis.
+publicRouter.get('/referral-profile', (_req: any, res: any) => {
+  return denyPublicReferralProfile(res);
+});
+
+// Konto-fri referralprofil efter den första slutförda ordern. Gästens
+// högentropiska per-order-token skickas i body så den inte hamnar i URL/loggar.
+publicRouter.post('/referral-profile', async (req: any, res: any) => {
   try {
-    const phone = normalizeReferralPhone(req.query?.phone);
-    const user = phone
-      ? await (prisma as any).user.findFirst({
-          where: { phone: { in: referralPhoneVariants(phone) }, deletedAt: null },
-          select: { id: true },
-        })
-      : null;
-    if (!user) {
-      const [settings, inviterSnapshot, inviteeSnapshot] = await Promise.all([
-        getSettings(),
-        snapshotReferralDeal('INVITER'),
-        snapshotReferralDeal('INVITEE'),
-      ]);
-      return res.json({
-        locked: true,
-        code: null,
-        shareUrl: null,
-        enabled: !REFERRALS_DISABLED && !!settings.referralEnabled && !!inviterSnapshot && !!inviteeSnapshot,
-        rewardLabel: formatRewardLabel(inviterSnapshot),
-        inviterRewardLabel: formatRewardLabel(inviterSnapshot),
-        inviteeRewardLabel: formatRewardLabel(inviteeSnapshot),
-        deal: referralDealPayload(inviterSnapshot),
-        inviterDeal: referralDealPayload(inviterSnapshot),
-        inviteeDeal: referralDealPayload(inviteeSnapshot),
-        couponsPerSide: 1,
-        stats: { invited: 0, registered: 0, ordered: 0, totalEarnedKr: 0 },
-        deals: [],
-      });
-    }
-    return res.json(await buildPhoneReferralProfile(user.id, phone as string));
+    const proof = parseGuestReferralProfileProof(req.body);
+    const orderId = proof?.orderId || (typeof req.body?.orderId === 'string' ? req.body.orderId : '');
+    const ownsBySession = verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], orderId);
+    if (!proof && !ownsBySession) return denyPublicReferralProfile(res);
+
+    const order = await (prisma as any).order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        userId: true,
+        accessToken: true,
+        createdAt: true,
+        paymentStatus: true,
+        status: true,
+        type: true,
+        user: { select: { deletedAt: true } },
+      },
+    });
+    const ownsByFreshRawProof = proof && order
+      ? ownsOrderWithActiveRawSecret(order, proof.accessToken)
+      : false;
+    const userId = ownsBySession && isReferralRewardCompletion(order)
+      ? order?.userId
+      : ownsByFreshRawProof
+        ? guestReferralProfileUserId(proof, order)
+        : null;
+    if (!userId || order?.user?.deletedAt) return denyPublicReferralProfile(res);
+
+    res.set('Cache-Control', 'private, no-store');
+    return res.json(await buildReferralProfile(userId));
   } catch (err: any) {
     console.error('[public referral-profile] error:', err?.message);
     return res.status(500).json({ error: 'Serverfel' });
@@ -1507,7 +1425,10 @@ adminRouter.get('/stats/referrals', authenticate, requireSuperAdmin, async (_req
  * låser upp kundens egen värvningskod. Värvarens engångsbelöning skapas först
  * när den hänvisade ordern både är betald och faktiskt slutförd.
  */
-export async function maybeTriggerReferralReward(orderId: string): Promise<void> {
+export async function maybeTriggerReferralReward(
+  orderId: string,
+  options: { throwOnError?: boolean } = {},
+): Promise<void> {
   try {
     const order = await (prisma as any).order.findUnique({
       where: { id: orderId },
@@ -1609,8 +1530,8 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
 
     // TODO: push-notis till inviter när APNs-helper är tillgänglig härifrån
   } catch (err: any) {
-    // Aldrig kasta — referral-flödet får inte krascha order-flödet.
     console.error('[maybeTriggerReferralReward] error:', err?.message);
+    if (options.throwOnError) throw err;
   }
 }
 

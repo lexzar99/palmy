@@ -30,9 +30,11 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Database
-- sqlite.db
-- *.db
-- *-journal
+sqlite.db
+*.db
+*-journal
+*.db-shm
+*.db-wal
 
 # OS
 .DS_Store
@@ -58,7 +60,6 @@ logs.zip
 /brand-identity/
 /docker-compose.yml
 /start-dev.sh
-/docs/
 /DEALS_ENGINE_PLAN.md
 /DELIVERA_WOW_PLAN.md
 /DEPLOYMENT.md

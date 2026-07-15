@@ -2,9 +2,9 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldAlert } from "lucide-react";
-import { useAdminSession } from "@/shared/hooks/use-admin-session";
-import { clearStoredAdminSession } from "@/shared/auth/storage";
+import { RefreshCw, ShieldAlert, WifiOff } from "lucide-react";
+import { isAuthoritativeAuthError, useAdminSession } from "@/shared/hooks/use-admin-session";
+import { logoutAdminSession } from "@/shared/auth/storage";
 import { Button, Surface } from "@/shared/components/ui";
 import { Sidebar } from "@/shared/layout/sidebar";
 import { RealtimeSync } from "@/shared/layout/realtime-sync";
@@ -40,25 +40,46 @@ function BlockedScreen({ onLogout }: { onLogout: () => void }) {
   );
 }
 
+function VerificationOutageScreen({ retrying, onRetry }: { retrying: boolean; onRetry: () => void }) {
+  return (
+    <div className="auth-shell">
+      <Surface className="max-w-md px-8 py-10 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--warning-soft)] text-[var(--warning-text)]">
+          <WifiOff size={22} />
+        </div>
+        <h1 className="section-title mt-5">Kunde inte verifiera sessionen</h1>
+        <p className="section-subtitle">Admin-API:t går inte att nå just nu. Du är inte utloggad och kan försöka igen.</p>
+        <div className="mt-6 flex justify-center">
+          <Button onClick={onRetry} disabled={retrying}>
+            <RefreshCw size={16} className={retrying ? "animate-spin" : ""} /> Försök igen
+          </Button>
+        </div>
+      </Surface>
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const session = useAdminSession();
   const palette = useCommandPalette();
+  const authRejected = session.isError && isAuthoritativeAuthError(session.error);
 
   useEffect(() => {
-    if (session.isError) {
-      clearStoredAdminSession();
-      router.replace("/login");
-    }
-  }, [router, session.isError]);
+    if (!authRejected) return;
+    void logoutAdminSession().finally(() => router.replace("/login"));
+  }, [authRejected, router]);
 
   const handleLogout = () => {
-    clearStoredAdminSession();
-    router.replace("/login");
+    void logoutAdminSession().finally(() => router.replace("/login"));
   };
 
-  if (session.isLoading || session.isError || !session.data) {
+  if (session.isLoading || authRejected) {
     return <LoadingScreen />;
+  }
+
+  if (session.isError || !session.data) {
+    return <VerificationOutageScreen retrying={session.isFetching} onRetry={() => void session.refetch()} />;
   }
 
   if (session.data.role !== "SUPER_ADMIN") {

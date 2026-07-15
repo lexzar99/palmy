@@ -4,14 +4,14 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { JWT_SECRET } from '../lib/config';
+import { authenticate, AuthRequest } from '../middleware/auth';
 
 // ── Terminal-sessioner för restaurang-appen (Flutter) ───────────────────────
 //
-// Modell: en platta paras EN gång med en pairing-kod (genererad av super-admin
-// i admin-panelen) och binds till restaurangen via sitt stabila device-id
-// (ANDROID_ID). Bindningen lever på servern (RestaurantDevice) — alltså
-// överlever den app-ominstallation: vid ny installation skickar appen samma
-// device-id och får tillbaka nya tokens UTAN att para om.
+// Modell: en platta paras med en pairing-kod (genererad av super-admin i
+// admin-panelen) och binds till restaurangen via sitt stabila device-id
+// (ANDROID_ID). Sessionen kräver dessutom en refresh-token i Androids säkra
+// lagring. En ominstallation som raderar den måste därför paras om.
 //
 // Tokens: kort access-token (~1h, samma form som vanlig admin-JWT så alla
 // /api/admin-endpoints fungerar oförändrat) + en roterande refresh-token vars
@@ -25,13 +25,20 @@ const router = Router();
 const ACCESS_TTL = '24h';
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
+const refreshTokenMatches = (plain: string | undefined, expectedHash: string | null | undefined) => {
+  if (!plain || !expectedHash) return false;
+  const actual = Buffer.from(sha256(plain), 'hex');
+  const expected = Buffer.from(expectedHash, 'hex');
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+};
+
 // Säkerställ att restaurangen har ett AdminUser-konto som terminalen agerar
 // som (för att återanvända befintlig RBAC + restaurang-scoping). Skapar ett
 // minimalt konto med slumpat internt lösen om inget finns — lösenordet visas
 // aldrig och behövs aldrig (parning sker med kod, inte lösen).
 async function ensureRestaurantAdminUser(restaurantId: string) {
-  const restaurant = await prisma.restaurant.findUnique({
-    where: { id: restaurantId },
+  const restaurant = await prisma.restaurant.findFirst({
+    where: { id: restaurantId, archivedAt: null },
     select: { id: true, slug: true, name: true, adminEmail: true, adminUserId: true },
   });
   if (!restaurant) return null;
@@ -75,7 +82,7 @@ async function ensureRestaurantAdminUser(restaurantId: string) {
   return { restaurant, admin };
 }
 
-function issueAccessToken(admin: any, restaurant: { id: string; slug: string }) {
+function issueAccessToken(admin: any, restaurant: { id: string; slug: string }, deviceId: string) {
   return jwt.sign(
     {
       id: admin.id,
@@ -84,10 +91,62 @@ function issueAccessToken(admin: any, restaurant: { id: string; slug: string }) 
       restaurantId: restaurant.id,
       restaurantSlug: restaurant.slug,
       tokenVersion: admin.tokenVersion ?? 0,
+      deviceId,
     },
     JWT_SECRET,
     { expiresIn: ACCESS_TTL },
   );
+}
+
+function terminalSessionPayload(
+  ensured: Awaited<ReturnType<typeof ensureRestaurantAdminUser>>,
+  deviceId: string,
+  refreshToken: string,
+) {
+  if (!ensured) throw new Error('restaurant_admin_missing');
+  return {
+    accessToken: issueAccessToken(ensured.admin, ensured.restaurant, deviceId),
+    refreshToken,
+    restaurant: {
+      id: ensured.restaurant.id,
+      name: ensured.restaurant.name,
+      slug: ensured.restaurant.slug,
+    },
+    admin: {
+      id: ensured.admin.id,
+      email: ensured.admin.email,
+      role: ensured.admin.role,
+      name: ensured.restaurant.name,
+      restaurantId: ensured.restaurant.id,
+      restaurantSlug: ensured.restaurant.slug,
+    },
+    serverTime: new Date(),
+  };
+}
+
+async function rotateTerminalSession(input: {
+  deviceId: string;
+  restaurantId: string;
+  pushToken?: string;
+}) {
+  const device = await (prisma as any).restaurantDevice.findUnique({
+    where: { deviceId: input.deviceId },
+  });
+  if (!device || device.revoked || device.restaurantId !== input.restaurantId) {
+    return null;
+  }
+  const ensured = await ensureRestaurantAdminUser(input.restaurantId);
+  if (!ensured) return null;
+  const refreshToken = crypto.randomBytes(48).toString('hex');
+  await (prisma as any).restaurantDevice.update({
+    where: { deviceId: input.deviceId },
+    data: {
+      refreshTokenHash: sha256(refreshToken),
+      lastSeenAt: new Date(),
+      pushToken: input.pushToken ?? undefined,
+    },
+  });
+  return terminalSessionPayload(ensured, input.deviceId, refreshToken);
 }
 
 // POST /api/terminal/pair  { code, deviceId, pushToken?, label? }
@@ -118,6 +177,29 @@ router.post('/pair', async (req, res) => {
       });
     }
     if (pairing.usedAt) {
+      // Idempotent recovery: om första /pair faktiskt hann binda SAMMA enhet
+      // men svaret försvann på vägen, får just den enheten nya tokens genom att
+      // skicka samma kod igen. En annan enhet får aldrig återanvända koden.
+      const alreadyPaired = await (prisma as any).restaurantDevice.findUnique({
+        where: { deviceId: String(deviceId) },
+      });
+      if (
+        alreadyPaired &&
+        !alreadyPaired.revoked &&
+        alreadyPaired.restaurantId === pairing.restaurantId
+      ) {
+        const recovered = await rotateTerminalSession({
+          deviceId: String(deviceId),
+          restaurantId: pairing.restaurantId,
+          pushToken,
+        });
+        if (!recovered) return res.status(404).json({ error: 'Restaurang hittades inte' });
+        console.info('[terminal/pair] recovered same device after ambiguous response', {
+          pairingId: pairing.id,
+          device: String(deviceId).slice(0, 8),
+        });
+        return res.json(recovered);
+      }
       console.warn('[terminal/pair] rejected', {
         reason: 'already_used',
         pairingId: pairing.id,
@@ -149,46 +231,55 @@ router.post('/pair', async (req, res) => {
     if (!ensured) return res.status(404).json({ error: 'Restaurang hittades inte' });
 
     const refreshToken = crypto.randomBytes(48).toString('hex');
-    await (prisma as any).restaurantDevice.upsert({
-      where: { deviceId: String(deviceId) },
-      update: {
-        restaurantId: pairing.restaurantId,
-        revoked: false,
-        refreshTokenHash: sha256(refreshToken),
-        pushToken: pushToken ?? undefined,
-        label: label ?? undefined,
-        lastSeenAt: new Date(),
-      },
-      create: {
-        deviceId: String(deviceId),
-        restaurantId: pairing.restaurantId,
-        revoked: false,
-        refreshTokenHash: sha256(refreshToken),
-        pushToken: pushToken ?? null,
-        label: label ?? null,
-        lastSeenAt: new Date(),
-      },
-    });
-    await (prisma as any).devicePairingCode.update({
-      where: { id: pairing.id },
-      data: { usedAt: new Date() },
+    const claimed = await prisma.$transaction(async (tx: any) => {
+      // Atomisk single-use-claim: två samtidiga enheter kan inte båda vinna
+      // samma kod mellan findUnique och update.
+      const claim = await tx.devicePairingCode.updateMany({
+        where: { id: pairing.id, usedAt: null, expiresAt: { gt: new Date() } },
+        data: { usedAt: new Date() },
+      });
+      if (claim.count !== 1) return false;
+
+      await tx.restaurantDevice.upsert({
+        where: { deviceId: String(deviceId) },
+        update: {
+          restaurantId: pairing.restaurantId,
+          revoked: false,
+          refreshTokenHash: sha256(refreshToken),
+          pushToken: pushToken ?? undefined,
+          label: label ?? undefined,
+          lastSeenAt: new Date(),
+        },
+        create: {
+          deviceId: String(deviceId),
+          restaurantId: pairing.restaurantId,
+          revoked: false,
+          refreshTokenHash: sha256(refreshToken),
+          pushToken: pushToken ?? null,
+          label: label ?? null,
+          lastSeenAt: new Date(),
+        },
+      });
+      return true;
     });
 
-    const accessToken = issueAccessToken(ensured.admin, ensured.restaurant);
-    res.json({
-      accessToken,
-      refreshToken,
-      restaurant: { id: ensured.restaurant.id, name: ensured.restaurant.name, slug: ensured.restaurant.slug },
-      admin: {
-        id: ensured.admin.id,
-        email: ensured.admin.email,
-        role: ensured.admin.role,
-        name: ensured.restaurant.name,
-        restaurantId: ensured.restaurant.id,
-        restaurantSlug: ensured.restaurant.slug,
-      },
-      serverTime: new Date(),
-    });
+    if (!claimed) {
+      // Någon hann claima koden. Tillåt endast idempotent retry från samma
+      // device; övriga får ett tydligt single-use-svar.
+      const recovered = await rotateTerminalSession({
+        deviceId: String(deviceId),
+        restaurantId: pairing.restaurantId,
+        pushToken,
+      }).catch(() => null);
+      if (recovered) return res.json(recovered);
+      return res.status(409).json({
+        error: 'Parningskoden har redan använts.',
+        code: 'PAIRING_CODE_USED',
+        serverTime: new Date(),
+      });
+    }
+
+    res.json(terminalSessionPayload(ensured, String(deviceId), refreshToken));
   } catch (error) {
     console.error('[terminal/pair] error:', error);
     res.status(500).json({ error: 'Serverfel' });
@@ -202,7 +293,7 @@ router.post('/pair', async (req, res) => {
 //  - annars       → roterar refresh-token + returnerar ny access-token
 router.post('/session', async (req, res) => {
   try {
-    const { deviceId, pushToken } = (req.body || {}) as {
+    const { deviceId, refreshToken, pushToken } = (req.body || {}) as {
       deviceId?: string; refreshToken?: string; pushToken?: string;
     };
     if (!deviceId) return res.status(400).json({ error: 'deviceId krävs' });
@@ -213,42 +304,66 @@ router.post('/session', async (req, res) => {
     if (!device) return res.status(404).json({ error: 'needs_pairing' });
     if (device.revoked) return res.status(403).json({ error: 'device_revoked' });
 
-    // Den varaktiga identiteten är device-id-bindningen (överlever
-    // ominstallation då Keystore/refresh-token rensats). Refresh-token roteras
-    // som färskhets-mekanism men är inte en hård grind — annars skulle en
-    // 401 härifrån trigga klientens refresh-interceptor som anropar /session
-    // igen (loop).
-    const ensured = await ensureRestaurantAdminUser(device.restaurantId);
-    if (!ensured) return res.status(404).json({ error: 'needs_pairing' });
+    if (!refreshTokenMatches(refreshToken, device.refreshTokenHash)) {
+      console.warn('[terminal/session] rejected invalid refresh token', {
+        device: String(deviceId).slice(0, 8),
+        hasToken: Boolean(refreshToken),
+      });
+      return res.status(401).json({
+        error: 'needs_pairing',
+        code: 'TERMINAL_SESSION_INVALID',
+      });
+    }
 
-    const newRefresh = crypto.randomBytes(48).toString('hex');
-    await (prisma as any).restaurantDevice.update({
-      where: { id: device.id },
-      data: {
-        refreshTokenHash: sha256(newRefresh),
-        lastSeenAt: new Date(),
-        pushToken: pushToken ?? device.pushToken,
-      },
+    // Device-id väljer raden, men refresh-token är den kryptografiska grinden.
+    // En ominstallation rensar Keystore och måste därför paras om — säkrare än
+    // att ge en ny admin-session till vem som helst som känner till ANDROID_ID.
+    const rotated = await rotateTerminalSession({
+      deviceId: String(deviceId),
+      restaurantId: device.restaurantId,
+      pushToken: pushToken ?? device.pushToken ?? undefined,
     });
-
-    const accessToken = issueAccessToken(ensured.admin, ensured.restaurant);
-    res.json({
-      accessToken,
-      refreshToken: newRefresh,
-      restaurant: { id: ensured.restaurant.id, name: ensured.restaurant.name, slug: ensured.restaurant.slug },
-      admin: {
-        id: ensured.admin.id,
-        email: ensured.admin.email,
-        role: ensured.admin.role,
-        name: ensured.restaurant.name,
-        restaurantId: ensured.restaurant.id,
-        restaurantSlug: ensured.restaurant.slug,
-      },
-      serverTime: new Date(),
-    });
+    if (!rotated) return res.status(404).json({ error: 'needs_pairing' });
+    res.json(rotated);
   } catch (error) {
     console.error('[terminal/session] error:', error);
     res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/terminal/push-token
+// Registrerar FCM-token på EXAKT den autentiserade terminalen. Access-token,
+// device-id och roterande refresh-token måste alla stämma, så en annan terminal
+// i samma restaurang kan inte skriva över dess pushadress.
+router.post('/push-token', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { deviceId, refreshToken, pushToken } = (req.body || {}) as {
+      deviceId?: string;
+      refreshToken?: string;
+      pushToken?: string;
+    };
+    if (!deviceId || !pushToken) {
+      return res.status(400).json({ error: 'deviceId och pushToken krävs' });
+    }
+    const device = await (prisma as any).restaurantDevice.findUnique({
+      where: { deviceId: String(deviceId) },
+    });
+    if (
+      !device ||
+      device.revoked ||
+      device.restaurantId !== req.admin?.restaurantId ||
+      !refreshTokenMatches(refreshToken, device.refreshTokenHash)
+    ) {
+      return res.status(403).json({ error: 'Ogiltig terminalsession' });
+    }
+    await (prisma as any).restaurantDevice.update({
+      where: { id: device.id },
+      data: { pushToken: String(pushToken), lastSeenAt: new Date() },
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[terminal/push-token] error:', error);
+    res.status(500).json({ error: 'Kunde inte registrera push-token' });
   }
 });
 

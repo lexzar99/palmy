@@ -17,7 +17,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { getSystemHealth, healthQueryKey } from "@/modules/dashboard/api";
 import { cn } from "@/shared/utils/cn";
-import { clearStoredAdminSession } from "@/shared/auth/storage";
+import { logoutAdminSession } from "@/shared/auth/storage";
 import { getStoredTheme, setStoredTheme, type Theme } from "@/shared/store/theme";
 import { ADMIN_SECTIONS, isActiveAdminHref } from "@/shared/navigation/admin-routes";
 import viaeatsSymbol from "../../../../../Logotyp/sym-navy.png";
@@ -146,27 +146,13 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   };
 
   const handleLogout = async () => {
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/auth/logout`, {
-        method: "POST",
-        credentials: "include",
-      });
-    } catch {}
-    clearStoredAdminSession();
+    await logoutAdminSession();
     router.replace("/login");
   };
 
   const handleLogoutEverywhere = async () => {
     if (!window.confirm("Logga ut alla enheter och sessioner för detta konto?")) return;
-    try {
-      const token = (typeof localStorage !== "undefined" && localStorage.getItem("viaeats_token")) || "";
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/auth/logout-everywhere`, {
-        method: "POST",
-        credentials: "include",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-    } catch {}
-    clearStoredAdminSession();
+    await logoutAdminSession(true);
     router.replace("/login");
   };
 

@@ -15,6 +15,7 @@ export async function checkAllRestaurantsStatus() {
   // console.log('[Watchdog] Checking all restaurants status...');
   try {
     const [restaurants, platformSettings] = await Promise.all([prisma.restaurant.findMany({
+      where: { archivedAt: null },
       select: {
         id: true,
         name: true,

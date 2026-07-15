@@ -8,7 +8,10 @@
     "build:web": "pnpm --filter web build",
     "build:admin": "pnpm --filter admin build",
     "build:api": "pnpm --filter @viaeats/api build",
-    "db:migrate": "pnpm --filter db migrate",
+    "launch:verify-live": "node tools/verify-launch-live.mjs",
+    "db:migrate": "node -e \"console.error('BLOCKERAD: migreringshistoriken är inte baselined mot produktion. Följ docs/LAUNCH_DATABASE_RUNBOOK.md.'); process.exit(1)\"",
+    "db:validate": "pnpm --filter @viaeats/api exec prisma validate --schema prisma/schema.prisma",
+    "db:status": "pnpm --filter @viaeats/api exec prisma migrate status --schema prisma/schema.prisma",
     "db:seed": "pnpm --filter db seed",
     "db:studio": "pnpm --filter db studio"
   },

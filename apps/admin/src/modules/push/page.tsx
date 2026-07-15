@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, CheckCircle2, Loader2, Send, Smartphone, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Send, XCircle } from "lucide-react";
 import { getCities, zonesCitiesQueryKey } from "@/modules/zones/api";
 import { getCustomers, customersQueryKey } from "@/modules/customers/api";
 import { getRestaurantOverview, restaurantsQueryKey } from "@/modules/restaurants/api";
@@ -86,8 +86,7 @@ function linkPreviewLabel(form: ComposerForm): string {
 function PhonePreview({ title, body, linkLabel }: { title: string; body: string; linkLabel: string }) {
   return (
     <div className="rounded-[14px] bg-[#111113] p-4">
-      <p className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-[#9CA3AF]">Förhandsvisning</p>
-      <div className="mt-2.5 flex gap-2.5 rounded-[11px] bg-white/10 p-3">
+      <div className="flex gap-2.5 rounded-[11px] bg-white/10 p-3">
         <span className="mt-0.5 h-[30px] w-[30px] shrink-0 rounded-[7px] bg-[var(--accent)]" />
         <div className="min-w-0">
           <p className="text-[12.5px] font-bold text-white">{title || "Push-rubrik"}</p>
@@ -166,7 +165,7 @@ export function PushPage() {
     mutationFn: sendPushToCohort,
     onSuccess: async (r) => {
       // Adapt cohort response to PushResult shape so the existing result panel works.
-      setResult({ success: r.errors === 0, count: r.count, errors: r.errors });
+      setResult({ success: r.errors === 0, count: r.count, errors: r.errors, queued: true });
       setSendError(null);
       await queryClient.invalidateQueries({ queryKey: pushHistoryQueryKey });
     },
@@ -228,11 +227,12 @@ export function PushPage() {
     <div className="page-stack">
       <PageHeader
         breadcrumb="Tillväxt"
-        title="Push"
+        title="Push-notiser"
         actions={
           <>
-            <Badge tone="info"><Smartphone size={12} /> APNs</Badge>
-            <Badge tone="success">{audience} användare</Badge>
+            <span className="hidden items-center gap-2 text-[12px] font-semibold text-[var(--text-secondary)] sm:flex">
+              <span className="h-2 w-2 rounded-full bg-[var(--success)]" /> Push-tjänst ansluten
+            </span>
             <Button variant="primary" onClick={handleSend} disabled={isPending || !canSend}>
               {isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               {isPending ? "Skickar…" : form.scheduledFor ? "Schemalägg" : "Skicka"}
@@ -241,12 +241,15 @@ export function PushPage() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.85fr)]">
         {/* Compose card */}
-        <Surface className="px-6 py-6">
-          <p className="text-[15px] font-extrabold tracking-[-0.3px]">Nytt utskick</p>
+        <Surface className="overflow-hidden p-0">
+          <div className="px-6 pb-5 pt-6">
+            <p className="text-[17px] font-extrabold tracking-[-0.4px]">Skapa utskick</p>
+            <p className="mt-1 text-[13px] text-[var(--text-secondary)]">Skriv ett kort meddelande och välj vilka som ska få det.</p>
+          </div>
 
-          <div className="mt-5">
+          <div className="border-y border-[var(--row-divider)] bg-[var(--bg-panel-soft)] px-6 py-3.5">
             <Tabs
               value={mode}
               onChange={handleModeChange}
@@ -259,7 +262,7 @@ export function PushPage() {
             />
           </div>
 
-          <div className="mt-5 space-y-5">
+          <div className="space-y-6 px-6 py-6">
             {/* Target selector */}
             {mode === "user" && (
               <div className="space-y-3">
@@ -330,12 +333,15 @@ export function PushPage() {
             )}
 
             {/* Templates */}
-            <div className="flex flex-wrap gap-2">
-              {TEMPLATES.map((t) => (
-                <Button key={t.label} variant="secondary" onClick={() => setForm((s) => ({ ...s, title: t.title, body: t.body }))}>
-                  {t.label}
-                </Button>
-              ))}
+            <div>
+              <p className="eyebrow mb-2">Snabbstarter</p>
+              <div className="flex flex-wrap gap-2">
+                {TEMPLATES.map((t) => (
+                  <Button key={t.label} variant="secondary" className="h-9 min-h-9 px-3 text-[12px]" onClick={() => setForm((s) => ({ ...s, title: t.title, body: t.body }))}>
+                    {t.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             {/* Message */}
@@ -347,7 +353,11 @@ export function PushPage() {
             </Field>
 
             {/* Deep link */}
-            <div className="space-y-3 rounded-xl border border-[var(--border-subtle)] px-4 py-4">
+            <div className="space-y-4 border-t border-[var(--row-divider)] pt-5">
+              <div>
+                <p className="eyebrow mb-1">Åtgärd efter tryck</p>
+                <p className="text-[12px] text-[var(--text-secondary)]">Länka till en relevant sida i appen (valfritt).</p>
+              </div>
               <Field label="Länka till (valfri)">
                 <Select value={form.linkType} onChange={(e) => setForm((s) => ({ ...s, linkType: e.target.value as LinkType, restaurantSlug: "", manualLink: "" }))}>
                   <option value="none">Ingen länk</option>
@@ -378,7 +388,7 @@ export function PushPage() {
               <div className="rounded-xl border border-[color-mix(in_srgb,var(--success)_24%,transparent)] bg-[var(--success-soft)] px-4 py-3.5">
                 <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--success-text)]">
                   <CheckCircle2 size={16} />
-                  Skickat till {result.count} enhet{result.count !== 1 ? "er" : ""}
+                  {result.queued ? "Köat för" : "Skickat till"} {result.count} mottagare
                   {result.errors && result.errors > 0 ? ` (${result.errors} fel)` : ""}
                 </div>
               </div>
@@ -392,7 +402,7 @@ export function PushPage() {
             )}
 
             {/* A13 — optional schedule. Off = send now. */}
-            <div className="rounded-xl border border-[var(--border-subtle)] px-4 py-4">
+            <div className="border-t border-[var(--row-divider)] pt-5">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-[13px] font-semibold text-[var(--text-primary)]">Schemalägg</p>
@@ -416,24 +426,30 @@ export function PushPage() {
               )}
             </div>
 
-            <Button variant="primary" className="w-full justify-center" onClick={handleSend} disabled={isPending || !canSend}>
-              {isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              {isPending ? "Skickar…" : form.scheduledFor ? "Schemalägg push" : "Skicka push"}
-            </Button>
           </div>
         </Surface>
 
         {/* Preview + recent */}
-        <div className="flex flex-col gap-4">
-          <Surface className="px-5 py-5">
-            <PhonePreview title={form.title} body={form.body} linkLabel={linkPreviewLabel(form)} />
-            <p className="mt-3 text-[12px] font-semibold text-[var(--text-secondary)]">
-              Når ca <strong className="text-[var(--text-primary)]">{audience}</strong> enheter.
-            </p>
+        <div className="flex flex-col gap-5 lg:sticky lg:top-5">
+          <Surface className="overflow-hidden p-0">
+            <div className="border-b border-[var(--row-divider)] px-5 py-4">
+              <p className="text-[14px] font-extrabold">Förhandsvisning</p>
+              <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Så här ser notisen ut på mottagarens enhet.</p>
+            </div>
+            <div className="p-5">
+              <PhonePreview title={form.title} body={form.body} linkLabel={linkPreviewLabel(form)} />
+              <div className="mt-4 flex items-center justify-between border-t border-[var(--row-divider)] pt-4 text-[12px]">
+                <span className="text-[var(--text-secondary)]">Beräknad räckvidd</span>
+                <strong className="text-[var(--text-primary)]">{audience} enheter</strong>
+              </div>
+            </div>
           </Surface>
 
           <Surface className="px-5 py-5">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Senaste</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[14px] font-extrabold">Senaste utskick</p>
+              <span className="text-[11px] font-semibold text-[var(--text-muted)]">Senaste 4</span>
+            </div>
             {history.isLoading ? (
               <p className="mt-3 text-[12.5px] text-[var(--text-secondary)]">Laddar…</p>
             ) : !history.data?.logs.length ? (
@@ -459,9 +475,11 @@ export function PushPage() {
 
       <ScheduledPushList />
 
+      <PushDeliveryHealth history={history.data} />
+
       {/* History */}
       <Surface className="px-6 py-6">
-        <p className="text-[15px] font-extrabold tracking-[-0.3px]">Skickade notiser</p>
+        <p className="text-[15px] font-extrabold tracking-[-0.3px]">Pushutskick</p>
         {history.isLoading ? (
           <p className="mt-4 text-sm text-[var(--text-secondary)]">Laddar historik…</p>
         ) : !history.data?.logs.length ? (
@@ -488,7 +506,7 @@ export function PushPage() {
                     <td className="font-bold">{log.count}</td>
                     <td>
                       {log.success
-                        ? <Badge tone="success"><CheckCircle2 size={11} /> OK</Badge>
+                        ? <Badge tone="success"><CheckCircle2 size={11} /> Köad</Badge>
                         : <Badge tone="danger"><AlertCircle size={11} /> Fel</Badge>}
                     </td>
                   </tr>
@@ -506,6 +524,42 @@ export function PushPage() {
         )}
       </Surface>
     </div>
+  );
+}
+
+function PushDeliveryHealth({ history }: { history: Awaited<ReturnType<typeof getPushHistory>> | undefined }) {
+  if (!history?.deliveryMetrics) return null;
+  const deliveryCount = (status: string) => history.deliveryMetrics.deliveries
+    .filter((row) => row.status === status)
+    .reduce((sum, row) => sum + row.count, 0);
+  const outboxCount = (statuses: string[]) => history.deliveryMetrics.outbox
+    .filter((row) => statuses.includes(row.status))
+    .reduce((sum, row) => sum + row.count, 0);
+  const cards = [
+    { label: "Provider-godkända", value: deliveryCount("ACCEPTED"), tone: "text-[var(--success-text)]" },
+    { label: "Köade / retry", value: outboxCount(["PENDING", "PROCESSING", "RETRY"]), tone: "text-[var(--warning-text)]" },
+    { label: "Ogiltiga enheter", value: deliveryCount("INVALID"), tone: "text-[var(--danger,#dc2626)]" },
+    { label: "Döda jobb", value: outboxCount(["DEAD"]), tone: "text-[var(--danger,#dc2626)]" },
+  ];
+  return (
+    <Surface className="px-6 py-5">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="text-[15px] font-extrabold tracking-[-0.3px]">Leveranshälsa · senaste 24 h</p>
+          <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+            Godkänd betyder att Apple, Google, Expo eller browser-gatewayn tog emot notisen — inte att kunden har sett den.
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map((card) => (
+          <div key={card.label} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">{card.label}</p>
+            <p className={`mt-1 text-2xl font-extrabold ${card.tone}`}>{card.value}</p>
+          </div>
+        ))}
+      </div>
+    </Surface>
   );
 }
 

@@ -1,8 +1,8 @@
-name: CI — typecheck + build
+name: CI — launch gate
 
-# Körs på varje push till main + alla PR:s. Förhindrar att kod som inte ens
-# kompilerar går live. Railway/Vercel deployar fortfarande automatiskt vid
-# push till main, men CI ger oss en grön/röd-indikator först.
+# Körs på varje push till main + alla PR:s. Produktionsmiljöerna ska kräva
+# denna workflow som grön statuscheck före promotion; en parallell auto-deploy
+# direkt från main är inte en säker launchprocess.
 
 on:
   push:
@@ -27,13 +27,45 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma client
-        working-directory: packages/api
-        run: pnpm exec prisma generate --schema prisma/schema.prisma
+      - name: Install PostgreSQL migration-test runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql
+          echo "$(pg_config --bindir)" >> "$GITHUB_PATH"
 
-      - name: Typecheck
-        working-directory: packages/api
-        run: pnpm exec tsc --noEmit
+      - name: Build API
+        run: pnpm --filter @viaeats/api build
+
+      - name: API launch contracts
+        run: |
+          pnpm --filter @viaeats/api test:contracts
+          pnpm --filter @viaeats/api test:order-status
+          pnpm --filter @viaeats/api test:referrals
+          pnpm --filter @viaeats/api test:refunds
+          pnpm --filter @viaeats/api test:finance-payouts
+          pnpm --filter @viaeats/api test:hermes
+          pnpm --filter @viaeats/api test:customer-notifier
+          pnpm --filter @viaeats/api test:notification-access
+          pnpm --filter @viaeats/api test:order-access
+          pnpm --filter @viaeats/api test:order-extra-pricing
+          pnpm --filter @viaeats/api test:mollie-lines
+          pnpm --filter @viaeats/api test:readiness
+          pnpm --filter @viaeats/api test:admin-auth-p0
+          pnpm --filter @viaeats/api test:database-readiness
+          pnpm --filter @viaeats/api test:prelaunch-access
+          pnpm --filter @viaeats/api test:request-security
+          pnpm --filter @viaeats/api test:notification-outbox
+          pnpm --filter @viaeats/api test:notification-reconciler
+
+      - name: Database launch contracts
+        run: |
+          pnpm --filter @viaeats/api test:schema-baseline
+          pnpm --filter @viaeats/api test:migration-isolation
+          pnpm --filter @viaeats/api test:migration-payment-tax
+          pnpm --filter @viaeats/api test:migration-notifications
+          pnpm --filter @viaeats/api test:migration-customer-auth
+          pnpm --filter @viaeats/api test:migration-payout-recovery
+          pnpm --filter @viaeats/api test:migration-refund-ledger
 
   web-typecheck:
     name: Web — typecheck
@@ -51,9 +83,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck web
-        working-directory: apps/web
-        run: pnpm exec tsc --noEmit
+      - name: Web contracts
+        run: pnpm --filter web test:contracts
+
+      - name: Build web
+        run: pnpm --filter web build
 
   admin-typecheck:
     name: Admin — typecheck
@@ -71,6 +105,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck admin
-        working-directory: apps/admin
-        run: pnpm exec tsc --noEmit
+      - name: Lint admin
+        run: pnpm --filter admin lint
+
+      - name: Build admin
+        run: pnpm --filter admin build

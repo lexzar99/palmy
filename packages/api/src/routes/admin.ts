@@ -10,23 +10,31 @@ import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify, uniqueMenuSlug } from '../lib/slug';
 import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds, PARTNER_DEAL_MARKER } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
-import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
-import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { notifyCouriersOfNewJob, notifyCouriersOrderReady } from '../lib/courierPush';
 import { isTestOrder } from '../lib/testOrderDetection';
-import { sendOrderStatusPush } from '../lib/customerPush';
+import { dispatchCustomerOrderStatus } from '../lib/customerOrderNotifier';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
 import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
 import { etaResponseFields, refreshOrderEta } from '../lib/orderEta';
-import { ALLOW_WIPE_ORDERS } from '../lib/config';
 import { sanitizeError } from '../lib/errors';
 import { menuCacheBust } from './menu';
 import { bustCache } from '../lib/ttlCache';
 import { parseMenuImport, runMenuImport } from '../lib/menuImport';
 import { runMenuSyncSafe } from '../lib/menuSync';
-import { getPaymentProvider } from '../lib/payments';
+import {
+  isRefundRequiredTerminalStatus,
+  refundRestaurantScope,
+} from '../lib/payments/refunds';
+import {
+  RefundPersistenceConflict,
+} from '../lib/payments/refundPersistence';
+import {
+  refundOrderForAdmin,
+  RefundWorkflowError,
+} from '../lib/payments/refundWorkflow';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto, nullableMoneyDto } from '../utils/money';
+import { isRestaurantOrderTransitionAllowed } from '../lib/orderStatusMachine';
 
 const router = Router();
 router.use(authenticate);
@@ -120,7 +128,7 @@ async function revalidateWebMenu(restaurantId: string | null) {
 }
 // RBAC: VIEWER kan bara läsa, STAFF kan läsa+skriva men inte radera,
 // ADMIN/RESTAURANT_ADMIN/SUPER_ADMIN kan allt. Per-route `requireSuperAdmin`
-// gäller fortfarande för känsliga ops (wipe, refund, staff-management).
+// gäller fortfarande för känsliga ops (refund och staff-management).
 router.use(autoRoleGate);
 
 const hasHermesApproval = (req: AuthRequest) => {
@@ -191,9 +199,9 @@ router.use(async (req: AuthRequest, res, next) => {
     }
     const restaurants = await prisma.restaurant.findMany({
       where: { id: { in: Array.from(ids) } },
-      select: { id: true, draft: true },
+      select: { id: true, draft: true, archivedAt: true },
     });
-    if (restaurants.length !== ids.size || restaurants.some((r) => !(r as any).draft)) {
+    if (restaurants.length !== ids.size || restaurants.some((r) => !(r as any).draft || r.archivedAt != null)) {
       res.status(403).json({ error: 'Kocken kan bara ändra restauranger i editing. Publicerade restauranger är låsta.' });
       return;
     }
@@ -627,123 +635,15 @@ router.get('/orders', async (req, res) => {
   }
 });
 
-// POST /api/admin/orders/bulk-refund — refund multiple orders in a single
-// click (typical use: restaurant outage, customer service crisis).
-// Body: { orderIds: string[], reason?: string }. Each order is fully refunded
-// for its total. Failures are reported per-order so the caller can show
-// granular results. Idempotent: already-refunded orders are skipped.
-router.post('/orders/bulk-refund', async (req, res) => {
-  try {
-    const authReq = req as AuthRequest;
-    if (!isSuperAdmin(authReq) && authReq.admin?.role !== 'ADMIN') {
-      res.status(403).json({ error: 'Endast admin får använda massåterbetalning' });
-      return;
-    }
-    const { orderIds, reason } = req.body || {};
-    if (!Array.isArray(orderIds) || orderIds.length === 0) {
-      res.status(400).json({ error: 'orderIds krävs (icke-tom array)' });
-      return;
-    }
-    if (orderIds.length > 100) {
-      res.status(400).json({ error: 'Max 100 ordrar per anrop' });
-      return;
-    }
-
-    const provider = getPaymentProvider();
-    const reasonText = typeof reason === 'string' && reason.trim() ? reason.trim() : 'Massåterbetalning';
-
-    const results: Array<{ orderId: string; status: 'refunded' | 'skipped' | 'failed'; reason?: string; refundStatus?: string; refundedAmount?: number }> = [];
-    let totalRefundedOre = 0;
-
-    for (const orderId of orderIds) {
-      try {
-        const order = await prisma.order.findUnique({ where: { id: orderId } });
-        if (!order) {
-          results.push({ orderId, status: 'failed', reason: 'not_found' });
-          continue;
-        }
-        if (order.refundedAt) {
-          results.push({ orderId, status: 'skipped', reason: 'already_refunded' });
-          continue;
-        }
-        const paymentRef =
-          provider.name === 'mollie'
-            ? order.molliePaymentId
-            : provider.name === 'adyen'
-              ? order.adyenPspReference
-              : order.stripePaymentIntentId;
-        if (!paymentRef || paymentRef === 'TEST_PAYMENT' || paymentRef === 'FREE_PROMO' || paymentRef === 'BYPASS') {
-          results.push({ orderId, status: 'failed', reason: `no_${provider.name}_payment` });
-          continue;
-        }
-
-        // Verify PSP state before refunding (same guard as single-order path).
-        let remoteStatus: Awaited<ReturnType<typeof provider.getRemoteStatus>>;
-        try {
-          remoteStatus = await provider.getRemoteStatus(paymentRef);
-        } catch (err: any) {
-          results.push({ orderId, status: 'failed', reason: `${provider.name}_retrieve: ${err?.message?.slice(0, 100)}` });
-          continue;
-        }
-        if (remoteStatus.state !== 'paid') {
-          results.push({ orderId, status: 'failed', reason: `payment_status_${remoteStatus.state}` });
-          continue;
-        }
-
-        const refund = await provider.refund(paymentRef, order.total);
-
-        await prisma.order.update({
-          where: { id: orderId },
-          data: {
-            paymentStatus: 'REFUNDED',
-            refundAmount: order.total,
-            refundReason: reasonText,
-            refundedAt: new Date(),
-            status: 'CANCELLED',
-          },
-        });
-        if (order.appliedDealId) {
-          await prisma.deal.updateMany({
-            where: { id: order.appliedDealId, usageCount: { gt: 0 } },
-            data: { usageCount: { decrement: 1 } },
-          });
-        }
-        if ((order as any).userDealId) {
-          await prisma.userDeal.updateMany({
-            where: { id: (order as any).userDealId, usedOnOrderId: order.id, status: { in: ['USED', 'RESERVED'] } },
-            data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
-          });
-        }
-        try {
-          getIO().to('admin-room').emit('order:updated', { orderId });
-          if (order.restaurantId) getIO().to(`admin-room:${order.restaurantId}`).emit('order:updated', { orderId });
-        } catch {}
-
-        results.push({ orderId, status: 'refunded', refundStatus: refund.refundRef ? 'sent' : 'sent', refundedAmount: order.total / 100 });
-        totalRefundedOre += order.total;
-      } catch (err: any) {
-        results.push({ orderId, status: 'failed', reason: err?.message?.slice(0, 200) || 'unknown' });
-      }
-    }
-
-    await audit(req as AuthRequest, 'ORDER_BULK_REFUND', {
-      resourceType: 'Order',
-      resourceId: orderIds.join(','),
-      changes: { count: orderIds.length, totalRefundedOre, reason: reasonText },
-    });
-
-    res.json({
-      total: orderIds.length,
-      refunded: results.filter((r) => r.status === 'refunded').length,
-      skipped: results.filter((r) => r.status === 'skipped').length,
-      failed: results.filter((r) => r.status === 'failed').length,
-      totalRefundedKr: totalRefundedOre / 100,
-      results,
-    });
-  } catch (error) {
-    console.error('bulk-refund failed', error);
-    res.status(500).json({ error: 'Serverfel' });
-  }
+// Bulk refunds are deliberately unavailable. Refunds must be reviewed and
+// initiated one order at a time so an outage cannot create an irreversible
+// high-value batch by mistake. Keep the tombstone route fail-closed for old UI
+// versions and integrations.
+router.post('/orders/bulk-refund', (_req, res) => {
+  res.status(410).json({
+    error: 'Massåterbetalning är permanent avstängd. Återbetala en order i taget efter manuell kontroll.',
+    code: 'BULK_REFUND_DISABLED',
+  });
 });
 
 router.get('/orders/:id', async (req, res) => {
@@ -756,6 +656,7 @@ router.get('/orders/:id', async (req, res) => {
           include: { product: { select: { name: true } } },
         },
         delivery: { include: { courier: { select: { id: true, name: true, phone: true, vehicle: true, city: true, currentLat: true, currentLng: true, lastSeenAt: true } } } },
+        paymentRefunds: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -821,6 +722,15 @@ router.get('/orders/:id', async (req, res) => {
       refundAmountOre: order.refundAmount ?? null,
       refundAmountMoney: nullableMoneyDto(order.refundAmount),
       refundAmount: order.refundAmount != null ? order.refundAmount / 100 : null,
+      paymentRefunds: order.paymentRefunds.map((refund) => ({
+        ...refund,
+        amountOre: refund.amount,
+        amountMoney: moneyDto(refund.amount),
+        amount: refund.amount / 100,
+        cumulativeAmountOre: refund.cumulativeAmount,
+        cumulativeAmountMoney: moneyDto(refund.cumulativeAmount),
+        cumulativeAmount: refund.cumulativeAmount / 100,
+      })),
       items: order.items.map((i) => ({
         ...i,
         basePriceOre: i.basePrice,
@@ -857,6 +767,18 @@ router.patch('/orders/:id/status', async (req, res) => {
       return;
     }
 
+    const normalizedEstimatedTime =
+      estimatedTime === undefined || estimatedTime === null || estimatedTime === ''
+        ? undefined
+        : Number(estimatedTime);
+    if (
+      normalizedEstimatedTime !== undefined &&
+      (!Number.isInteger(normalizedEstimatedTime) || normalizedEstimatedTime < 1 || normalizedEstimatedTime > 180)
+    ) {
+      res.status(400).json({ error: 'Beräknad tid måste vara ett heltal mellan 1 och 180 minuter.' });
+      return;
+    }
+
     let adminRestaurantId: string | null = null;
     if (isSuperAdmin(req as AuthRequest)) {
       adminRestaurantId = '__super__';
@@ -867,7 +789,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     const existing = await prisma.order.findUnique({
       where: { id: req.params.id },
-      select: { id: true, status: true, restaurantId: true, userId: true, customerPhone: true, customerName: true, type: true, liveActivityToken: true, discountCode: true, stripePaymentIntentId: true, restaurant: { select: { selfDelivery: true } } },
+      select: { id: true, status: true, paymentStatus: true, estimatedTime: true, restaurantId: true, userId: true, customerPhone: true, customerName: true, type: true, liveActivityToken: true, discountCode: true, stripePaymentIntentId: true, restaurant: { select: { selfDelivery: true } } },
     });
 
     if (!existing) {
@@ -877,8 +799,8 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     const allowedStatusByType =
       existing.type === 'PICKUP'
-        ? new Set(['PREPARING', 'READY', 'DELIVERED', 'REJECTED', 'CANCELLED'])
-        : new Set(['PREPARING', 'READY', 'DELIVERING', 'DELIVERED', 'DELIVERY_FAILED', 'REJECTED', 'CANCELLED']);
+        ? new Set(['ACCEPTED', 'PREPARING', 'READY', 'DELIVERED', 'REJECTED', 'CANCELLED'])
+        : new Set(['ACCEPTED', 'PREPARING', 'READY', 'DELIVERING', 'DELIVERED', 'DELIVERY_FAILED', 'REJECTED', 'CANCELLED']);
 
     if (!allowedStatusByType.has(status)) {
       res.status(400).json({
@@ -910,27 +832,174 @@ router.patch('/orders/:id/status', async (req, res) => {
     const dbStatus = isTestDeliveryReady ? 'DELIVERED' : status;
     const customerStatus = isTestDeliveryReady ? 'DELIVERED' : status; // Always send the requested status to the customer
 
-    let order = await prisma.order.update({
-      where: { id: req.params.id },
-      data: {
-        status: dbStatus,
-        estimatedTime: estimatedTime || undefined,
-        ...(isPreparingTransition ? { preparingAt: new Date() } : {}),
-        ...(isDeliveringTransition ? { deliveringAt: new Date() } : {}),
-        // When admin explicitly clicks DELIVERED (not the auto DELIVERING→DELIVERED
-        // path), clear deliveringAt. Otherwise orders.ts keeps returning
-        // status:'DELIVERING' for 15 min, the banner stays visible and the LA
-        // never flips to "Levererad".
-        ...(status === 'DELIVERED' && !isDeliveringTransition ? { deliveringAt: null } : {}),
-      },
-    });
+    if (
+      existing.status !== dbStatus &&
+      !isSuperAdmin(req as AuthRequest) &&
+      !isRestaurantOrderTransitionAllowed({
+        from: existing.status,
+        to: status,
+        type: existing.type,
+        selfDelivery: Boolean(existing.restaurant?.selfDelivery),
+      })
+    ) {
+      res.status(409).json({
+        error: `Ordern kan inte ändras från ${existing.status} till ${status}. Uppdatera orderlistan och försök igen.`,
+        currentStatus: existing.status,
+      });
+      return;
+    }
+
+    let refundClaimedTerminalStatus = false;
+    let requiredRefundStatus: string | undefined;
+    if (isRefundRequiredTerminalStatus(dbStatus)) {
+      if (existing.paymentStatus === 'REFUNDING' && existing.status !== dbStatus) {
+        res.status(409).json({
+          error: 'En återbetalning behandlas redan. Vänta tills den har stämts av innan ordern avslutas.',
+          refundRequired: true,
+          paymentStatus: 'REFUNDING',
+        });
+        return;
+      }
+      if (existing.paymentStatus === 'PAID' || existing.paymentStatus === 'PARTIALLY_REFUNDED') {
+        try {
+          const refundOutcome = await refundOrderForAdmin(
+            existing.id,
+            dbStatus === 'REJECTED'
+              ? 'Automatisk full återbetalning när restaurangen nekade ordern'
+              : 'Automatisk full återbetalning när restaurangen avbröt ordern',
+            {
+              actorAdminId: (req as AuthRequest).admin?.id ?? null,
+              restaurantIdScope: existing.restaurantId ?? undefined,
+              terminalStatus: dbStatus,
+              expectedOrderStatus: existing.status,
+              // Statusflödet nedan äger kundnotifieringen. Async completion
+              // annonseras av webhook/reconcile när pengarna är bekräftade.
+              announce: false,
+            },
+          );
+          refundClaimedTerminalStatus = refundOutcome.status !== 'already_refunded';
+          requiredRefundStatus = refundOutcome.refundStatus;
+        } catch (error: any) {
+          const code = error instanceof RefundWorkflowError ? error.code : 'refund_initiation_failed';
+          res.status(code === 'refund_in_progress' ? 409 : 502).json({
+            error: error?.message || 'Återbetalningen kunde inte initieras; orderstatusen ändrades inte.',
+            code,
+            refundRequired: true,
+          });
+          return;
+        }
+      }
+    }
+
+    // En nätverksretry från terminalen får inte skicka dubbla notifieringar,
+    // skriva ut två gånger eller backa en redan färdig order. ETA får däremot
+    // korrigeras inom samma status utan att statusens side effects körs igen.
+    if (existing.status === dbStatus) {
+      if (
+        normalizedEstimatedTime !== undefined &&
+        normalizedEstimatedTime !== existing.estimatedTime
+      ) {
+        let etaOrder = await prisma.order.update({
+          where: { id: existing.id },
+          data: { estimatedTime: normalizedEstimatedTime },
+        });
+        const refreshedEta = await refreshOrderEta(etaOrder.id).catch(() => null);
+        if (refreshedEta) etaOrder = { ...etaOrder, ...refreshedEta };
+        bustCache('order:byid', etaOrder.id);
+        getIO().to(`order:${etaOrder.id}`).emit('order:status', {
+          orderId: etaOrder.id,
+          status: customerStatus,
+          estimatedTime: etaOrder.estimatedTime,
+          ...etaResponseFields(etaOrder),
+        });
+        void dispatchCustomerOrderStatus(etaOrder.id, customerStatus);
+        await audit(req as AuthRequest, 'ORDER_ETA_UPDATE', {
+          resourceType: 'Order',
+          resourceId: etaOrder.id,
+          changes: { estimatedTime: normalizedEstimatedTime },
+        });
+        res.json({ success: true, status: etaOrder.status, idempotent: true, etaUpdated: true });
+        return;
+      }
+      res.json({
+        success: true,
+        status: existing.status,
+        idempotent: true,
+        ...(requiredRefundStatus
+          ? {
+              refundRequired: true,
+              refundProcessing: requiredRefundStatus !== 'refunded',
+              refundStatus: requiredRefundStatus,
+            }
+          : existing.paymentStatus === 'REFUNDING'
+            ? { refundRequired: true, refundProcessing: true, refundStatus: 'pending' }
+            : {}),
+      });
+      return;
+    }
+
+    if (
+      !isSuperAdmin(req as AuthRequest) &&
+      !isRestaurantOrderTransitionAllowed({
+        from: existing.status,
+        to: status,
+        type: existing.type,
+        selfDelivery: Boolean(existing.restaurant?.selfDelivery),
+      })
+    ) {
+      res.status(409).json({
+        error: `Ordern kan inte ändras från ${existing.status} till ${status}. Uppdatera orderlistan och försök igen.`,
+        currentStatus: existing.status,
+      });
+      return;
+    }
+
+    // Compare-and-swap gör statusbytet atomiskt. Två tryck eller en timeout-
+    // retry kan därför inte båda vinna och utlösa samma notifieringar.
+    const changed = refundClaimedTerminalStatus
+      ? { count: 1 }
+      : await prisma.order.updateMany({
+          where: { id: req.params.id, status: existing.status },
+          data: {
+            status: dbStatus,
+            estimatedTime: normalizedEstimatedTime,
+            ...(isPreparingTransition ? { preparingAt: new Date() } : {}),
+            ...(isDeliveringTransition ? { deliveringAt: new Date() } : {}),
+            // When admin explicitly clicks DELIVERED (not the auto DELIVERING→DELIVERED
+            // path), clear deliveringAt. Otherwise orders.ts keeps returning
+            // status:'DELIVERING' for 15 min, the banner stays visible and the LA
+            // never flips to "Levererad".
+            ...(status === 'DELIVERED' && !isDeliveringTransition ? { deliveringAt: null } : {}),
+          },
+        });
+    if (changed.count !== 1) {
+      const latest = await prisma.order.findUnique({
+        where: { id: req.params.id },
+        select: { status: true },
+      });
+      if (latest?.status === dbStatus) {
+        res.json({ success: true, status: latest.status, idempotent: true });
+        return;
+      }
+      res.status(409).json({
+        error: 'Ordern uppdaterades på en annan enhet. Uppdatera orderlistan och försök igen.',
+        currentStatus: latest?.status,
+      });
+      return;
+    }
+
+    let order = await prisma.order.findUnique({ where: { id: req.params.id } });
+    if (!order) {
+      res.status(404).json({ error: 'Order hittades inte efter uppdateringen' });
+      return;
+    }
     const refreshedEta = await refreshOrderEta(order.id).catch((e: any) => {
       console.warn('[admin] order ETA refresh failed:', e?.message);
       return null;
     });
     if (refreshedEta) order = { ...order, ...refreshedEta };
     bustCache('order:byid', order.id);
-    if (dbStatus === 'DELIVERED' || (existing.type === 'PICKUP' && dbStatus === 'READY')) {
+    if (dbStatus === 'DELIVERED' || dbStatus === 'COMPLETED') {
       void import('./referrals').then(({ maybeTriggerReferralReward }) =>
         maybeTriggerReferralReward(order.id),
       );
@@ -965,9 +1034,9 @@ router.patch('/orders/:id/status', async (req, res) => {
       ...etaResponseFields(order),
       deliveringAt: isDeliveringTransition ? new Date().toISOString() : undefined,
     });
-    // Web push till kundens enhet (om den prenumererat) — "Din mat är på väg"
-    // även med stängd flik. Best effort, blockar aldrig.
-    void sendOrderStatusPush(order.id, customerStatus);
+    // Samma notifieringspolicy för webb, APNs/Expo och iOS Live Activity,
+    // oavsett om statusen kommer från admin, kurir eller timer.
+    void dispatchCustomerOrderStatus(order.id, customerStatus);
 
     // Ny tillgänglig order → push till online-kurirer i restaurangens stad så de
     // notifieras (med ny-order-ljudet) ÄVEN med appen helt stängd. Triggas vid
@@ -998,169 +1067,6 @@ router.patch('/orders/:id/status', async (req, res) => {
       });
     }
 
-    // Push the new state into the customer's iOS Live Activity. Routed
-    // through the centralised dispatcher so every status-mutating path
-    // (this route, the general PATCH, the token-register catch-up, and the
-    // dedicated debug route) takes the exact same code path. Fire-and-
-    // forget: APNs failures shouldn't block the admin response.
-    void pushLiveActivityForOrder(order.id, { serverStatus: customerStatus })
-      .then((result) => {
-        // Clear the token a couple minutes after a direct DELIVERED so the
-        // DB stays clean — the token is useless once the LA dismisses.
-        if (
-          result.ok &&
-          customerStatus === 'DELIVERED' &&
-          existing.liveActivityToken
-        ) {
-          setTimeout(() => {
-            (prisma as any).order
-              .update({ where: { id: order.id }, data: { liveActivityToken: null } })
-              .catch(() => null);
-          }, 130_000);
-        }
-      })
-      .catch((e) => console.warn('[admin] LA dispatch threw:', e?.message));
-
-    // Hämta push-token bara för inloggade beställningar (userId satt).
-    // Gästbeställningar via webben har inget userId och ska inte trigga
-    // app-notiser — kunden trackar via webbannern istället.
-    const userToNotify = existing.userId
-      ? await (prisma as any).user.findFirst({
-          where: { id: existing.userId },
-          select: { pushToken: true, apnsDeviceToken: true }
-        })
-      : null;
-
-    if (userToNotify && (userToNotify.pushToken || userToNotify.apnsDeviceToken)) {
-      const isDelivery = existing.type === "DELIVERY";
-      const { sendPushNotification } = require('../lib/notifications');
-
-      // Send a real alert push for *every* status — including DELIVERED.
-      // Earlier we skipped DELIVERED so the user wouldn't get spammed before
-      // the 20-min review prompt, but skipping meant the LA stayed stuck on
-      // "På väg" because the silent-wake fallback (priority 5) was getting
-      // throttled by iOS while the alert path (priority 10) goes through
-      // reliably — that's why CANCEL dismisses the LA but DELIVERED didn't.
-      // The review prompt still fires 20 min later as a separate notification.
-      {
-        let title = "Order uppdaterad";
-        let body = "Din order har fått en ny status.";
-
-        if (status === 'ACCEPTED') {
-          title = "✅ Order mottagen!";
-          body = estimatedTime ? `Restaurangen har accepterat din order. Beräknad tid ca ${estimatedTime} min.` : "Restaurangen har accepterat din order och börjat förbereda den.";
-        } else if (status === 'PREPARING') {
-          title = "🍳 Maten tillagas";
-          body = estimatedTime ? `Din mat tillagas just nu. Klar om ca ${estimatedTime} min.` : "Din mat tillagas just nu av restaurangen.";
-        } else if (status === 'READY') {
-          if (isDelivery) {
-            title = "🥡 Redo för utkörning!";
-            body = "Din mat är färdiglagad och väntar på att plockas upp av budet inför leverans.";
-          } else {
-            title = "🛍️ Maten är redo!";
-            body = "Din order är färdiglagad och kan hämtas i restaurangen!";
-          }
-        } else if (status === 'DELIVERING') {
-          title = "🚗 Maten är på väg!";
-          body = order.etaCustomerMin
-            ? `Föraren är på väg - förväntas framme om ca ${order.etaCustomerMin} minuter.`
-            : "Föraren är på väg.";
-        } else if (status === 'DELIVERED') {
-          title = "✅ Levererad!";
-          body = "Hoppas det smakade!";
-        }
-
-        // Notification policy:
-        //   - If a Live Activity is active for this order (liveActivityToken
-        //     present): send ONLY a silent content-available wake. The LA
-        //     itself is the user-visible surface — duplicating it as a
-        //     banner on the Lock Screen is the spam the user complained
-        //     about. Silent wake still drives the JS-side background sync
-        //     as a belt-and-braces fallback for the dedicated LA push.
-        //   - If no Live Activity (older iOS, LA dismissed, Android):
-        //     send one regular alert with apns-collapse-id so each new
-        //     status REPLACES the previous notification instead of
-        //     stacking a fresh one per step.
-        const hasLiveActivity = !!existing.liveActivityToken;
-
-        if (userToNotify.apnsDeviceToken) {
-          if (hasLiveActivity) {
-            console.log(`[push] Order ${order.id} -> silent wake only (LA active) status=${status}`);
-            sendApnsSilentWake({
-              token: userToNotify.apnsDeviceToken,
-              data: { orderId: order.id, status, kind: 'la-wake' },
-              collapseId: `order-${order.id}-wake`,
-            }).catch((e) => {
-              console.warn('[admin] silent wake failed:', e?.message);
-            });
-          } else {
-            console.log(`[push] Order ${order.id} -> APNs alert (no LA, collapse) status=${status}`);
-            await sendApnsAlert({
-              token: userToNotify.apnsDeviceToken,
-              title,
-              body,
-              collapseId: `order-${order.id}`,
-              threadId: `order-${order.id}`,
-              data: { orderId: order.id, status },
-            }).catch(async (e) => {
-              console.warn('[admin] APNs alert failed:', e?.message);
-              if (e instanceof ApnsError && e.invalidToken && existing.userId) {
-                await (prisma as any).user
-                  .update({ where: { id: existing.userId }, data: { apnsDeviceToken: null } })
-                  .catch(() => null);
-              }
-            });
-          }
-        } else if (userToNotify.pushToken) {
-          // Expo path (Android, or iOS without raw APNs token). Expo doesn't
-          // support apns-collapse-id, but we still avoid the alert when an
-          // LA is active so iOS users don't get a banner alongside the LA.
-          if (hasLiveActivity) {
-            console.log(`[push] Order ${order.id} -> Expo skipped (LA active) status=${status}`);
-          } else {
-            console.log(`[push] Order ${order.id} -> Expo (no apnsDeviceToken on user) status=${status}`);
-            await sendPushNotification([userToNotify.pushToken], title, body, { orderId: order.id, status });
-          }
-        } else {
-          console.warn(`[push] Order ${order.id} -> NO push tokens on user, skipping notification`);
-        }
-      }
-
-      // --- AUTOMATISK RECENSIONSNOTIS (ersätter "Levererad"-notisen) ---
-      const sendReviewPrompt = async (title: string, body: string) => {
-        if (userToNotify.apnsDeviceToken) {
-          await sendApnsAlert({
-            token: userToNotify.apnsDeviceToken,
-            title,
-            body,
-            collapseId: `order-${order.id}`,
-            threadId: `order-${order.id}`,
-            data: { orderId: order.id, status: 'REVIEW_PROMPT' },
-          });
-        } else if (userToNotify.pushToken) {
-          await sendPushNotification([userToNotify.pushToken], title, body, { orderId: order.id, status: 'REVIEW_PROMPT' });
-        }
-      };
-
-      if (status === 'DELIVERED') {
-        // 10 s after DELIVERED, fire the review prompt as the *only*
-        // remaining notification for this order. Same collapseId as the
-        // status pushes (`order-${id}`) so it replaces anything still in
-        // Notification Center, and the LA has already dismissed by then
-        // (backend sent event:end ~8 s earlier). Same timing for delivery
-        // and pickup — the customer has the LA's "Levererad" cue, this
-        // push just nudges them to leave a review.
-        const body = isDelivery
-          ? "Din beställning bör vara framme! Hur var leveransen och maten? Lämna ett omdöme."
-          : "Hoppas det smakade! Klicka här för att lämna en snabb recension.";
-        setTimeout(() => {
-          sendReviewPrompt("⭐ Vad tyckte du om maten?", body).catch((e) =>
-            console.error('Delayed review push failed', e),
-          );
-        }, 10 * 1000);
-      }
-    }
-
     // Notifiera admin-rummet — admin always sees the real DB status
     getIO().to('admin-room').emit('order:updated', {
       orderId: order.id,
@@ -1182,8 +1088,17 @@ router.patch('/orders/:id/status', async (req, res) => {
       resourceId: order.id,
       changes: { orderNumber: order.orderNumber, newStatus: order.status, estimatedTime },
     });
-    res.json({ success: true, status: order.status });
-  } catch {
+    res.json({
+      success: true,
+      status: order.status,
+      ...(requiredRefundStatus ? {
+        refundRequired: true,
+        refundProcessing: requiredRefundStatus !== 'refunded',
+        refundStatus: requiredRefundStatus,
+      } : {}),
+    });
+  } catch (error) {
+    console.error('[admin] order status update failed:', error);
     res.status(500).json({ error: 'Kunde inte uppdatera status' });
   }
 });
@@ -1213,11 +1128,15 @@ router.patch('/orders/:id', async (req, res) => {
     }
     
     const { customerName, customerPhone, customerEmail, deliveryStreet, deliveryCity, deliveryZip, note, status, paymentMethod } = req.body;
+    if (status !== undefined) {
+      res.status(400).json({ error: 'Ändra orderstatus via den dedikerade statusåtgärden' });
+      return;
+    }
     
     const order = await prisma.order.update({
       where: { id },
       data: {
-        customerName, customerPhone, customerEmail, deliveryStreet, deliveryCity, deliveryZip, note, status, paymentMethod
+        customerName, customerPhone, customerEmail, deliveryStreet, deliveryCity, deliveryZip, note, paymentMethod
       },
     });
 
@@ -1225,14 +1144,6 @@ router.patch('/orders/:id', async (req, res) => {
     getIO().emit('order:updated', { id: order.id, status: order.status });
     if (order.restaurantId) {
       getIO().to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: order.id });
-    }
-
-    // If the general edit changed status, drive the LA through the same
-    // central dispatcher so the Dynamic Island doesn't lag behind admin UI.
-    if (status) {
-      void pushLiveActivityForOrder(order.id).catch((e) =>
-        console.warn('[admin] LA dispatch (PATCH /orders/:id) threw:', e?.message),
-      );
     }
 
     await audit(req as AuthRequest, 'ORDER_UPDATE', {
@@ -1427,7 +1338,7 @@ router.get('/categories', async (req, res) => {
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
     if (!scopedRestaurantId) {
-      return res.json([]);
+      return res.status(400).json({ error: 'restaurantId krävs' });
     }
 
     const includeProducts = req.query.includeProducts === 'true';
@@ -1481,12 +1392,13 @@ router.post('/categories', async (req, res) => {
       ? (restaurantId ? String(restaurantId) : null)
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+    if (!scopedRestaurantId) {
+      return res.status(400).json({ error: 'restaurantId krävs' });
+    }
 
-    // Restaurang-slug för scopad slug. Globala kategorier (scopedRestaurantId
-    // = null, super-admin utan vald restaurang) faller tillbaka på "global".
-    const restSlug = scopedRestaurantId
-      ? (await prisma.restaurant.findUnique({ where: { id: scopedRestaurantId }, select: { slug: true } }))?.slug ?? scopedRestaurantId
-      : 'global';
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: scopedRestaurantId }, select: { slug: true } });
+    if (!restaurant) return res.status(404).json({ error: 'Restaurang hittades inte' });
+    const restSlug = restaurant.slug;
     const slug = await uniqueMenuSlug(
       name,
       restSlug,
@@ -1516,37 +1428,14 @@ router.post('/categories', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/orders/:id - Ta bort en order permanent (Endast Super Admin)
-router.delete('/orders/:id', async (req, res) => {
-  try {
-    if (!isSuperAdmin(req as AuthRequest)) {
-      res.status(403).json({ error: 'Kräver super admin-behörighet' });
-      return;
-    }
-
-    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
-    if (!order) {
-      res.status(404).json({ error: 'Order hittades inte' });
-      return;
-    }
-
-    // Delete order items first (foreign key constraint)
-    await prisma.orderItem.deleteMany({ where: { orderId: req.params.id } });
-    await prisma.order.delete({ where: { id: req.params.id } });
-
-    // Notifiera alla om att ordern är borta
-    getIO().to('admin-room').emit('order:updated', { orderId: req.params.id });
-
-    await audit(req as AuthRequest, 'ORDER_DELETE', {
-      resourceType: 'Order',
-      resourceId: req.params.id,
-      changes: { orderNumber: order.orderNumber },
-    });
-    res.json({ success: true, message: 'Order raderad' });
-  } catch (err) {
-    console.error('Delete order error:', err);
-    res.status(500).json({ error: 'Kunde inte radera order' });
-  }
+// Orders and their financial trail are immutable records. Keep this route as a
+// fail-closed tombstone for old admin clients; cancellation/refund is the only
+// supported correction workflow.
+router.delete('/orders/:id', (_req, res) => {
+  res.status(410).json({
+    error: 'Permanent radering av order är avstängd. Avbryt eller återbetala ordern i stället.',
+    code: 'ORDER_HARD_DELETE_DISABLED',
+  });
 });
 
 // PATCH /api/admin/categories/:id
@@ -1687,6 +1576,7 @@ const ProductSchema = z.object({
   // Tidigare krav `.positive()` blockerade både skapande och uppdatering om
   // formuläret någonsin innehöll 0 — utan att frontend visade vettigt fel.
   price: z.number().min(0),
+  vatPercent: z.union([z.literal(0), z.literal(6), z.literal(12), z.literal(25)]).nullable().optional(),
   categoryId: z.string(),
   imageUrl: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
@@ -1741,6 +1631,7 @@ router.get('/products', async (req, res) => {
       ? (restaurantId ? (restaurantId as string) : null)
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+    if (!scopedRestaurantId) return res.status(400).json({ error: 'restaurantId krävs' });
     const categoryWhere = {
       isActive: true,
       name: { not: ARCHIVE_CATEGORY_NAME },
@@ -2129,6 +2020,7 @@ router.post('/products', async (req, res) => {
         slug,
         description: data.description ?? null,
         price: Math.round(data.price * 100),
+        vatPercent: data.vatPercent ?? null,
         categoryId: data.categoryId,
         imageUrl: data.imageUrl ?? null,
         // GROWTH_AGENT-backstop: nya produkter på LIVE-restauranger föds dolda
@@ -2434,6 +2326,7 @@ router.post('/products/:id/duplicate', async (req, res) => {
         slug,
         description: source.description,
         price: source.price,
+        vatPercent: source.vatPercent,
         categoryId: source.categoryId,
         imageUrl: source.imageUrl,
         isActive: source.isActive,
@@ -2586,6 +2479,7 @@ router.get('/extra-groups', async (req, res) => {
       ? (restaurantId ? (restaurantId as string) : null)
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+    if (!scopedRestaurantId) return res.status(400).json({ error: 'restaurantId krävs' });
 
     // Admin ska aldrig blanda tillvalsgrupper mellan restauranger. Palmyra ser
     // bara Palmyras grupper, Aiko bara Aikos. Globala/plattformsgrupper visas
@@ -2635,6 +2529,7 @@ router.post('/extra-groups', async (req, res) => {
       ? (restaurantId ? String(restaurantId) : null)
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+    if (!scopedRestaurantId) return res.status(400).json({ error: 'restaurantId krävs' });
 
     const group = await prisma.extraGroup.create({
       data: {
@@ -2977,6 +2872,7 @@ router.post('/products/:id/copy', async (req, res) => {
         slug: await uniqueMenuSlug(source.name, targetCategory.restaurant?.slug ?? String(targetRestaurantId), async (s) => !(await prisma.product.findUnique({ where: { slug: s }, select: { id: true } }))),
         description: source.description,
         price: source.price,
+        vatPercent: source.vatPercent,
         categoryId: String(targetCategoryId),
         imageUrl: source.imageUrl,
         isActive: source.isActive,
@@ -3029,8 +2925,7 @@ router.patch('/extras/:id', async (req, res) => {
     if (!isSuperAdmin(req as AuthRequest)) {
       const rid = requireRestaurantScope(req as AuthRequest, res);
       if (!rid) return;
-      // Allow if the group belongs to this restaurant OR is a global group (restaurantId=null)
-      if (existing.extraGroup.restaurantId !== null && existing.extraGroup.restaurantId !== rid) {
+      if (existing.extraGroup.restaurantId !== rid) {
         res.status(403).json({ error: 'Du kan bara uppdatera tillbehör för din restaurang' });
         return;
       }
@@ -4433,35 +4328,11 @@ router.post('/deals/wipe', authenticate, requireSuperAdmin, async (req, res) => 
   }
 });
 
-// FARLIG: rensar alla ordrar (eller ordrar för en specifik restaurang) ur
-// databasen. Används bara under testning för att starta från noll. Skyddad
-// med superadmin-koll + explicit confirm + ALLOW_WIPE_ORDERS env-flagga
-// så funktionen är inaktiv i produktion om man inte sätter den medvetet.
-router.post('/orders/wipe', authenticate, requireSuperAdmin, async (req, res) => {
-  try {
-    if (!ALLOW_WIPE_ORDERS) {
-      return res.status(403).json({ error: 'Order-rensning är inaktiverad. Sätt ALLOW_WIPE_ORDERS=true i miljön för att aktivera.' });
-    }
-    const { confirm, restaurantId } = req.body as { confirm?: string; restaurantId?: string };
-    if (confirm !== 'WIPE_ALL_ORDERS') {
-      return res.status(400).json({ error: 'Bekräftelse saknas (skicka { confirm: "WIPE_ALL_ORDERS" })' });
-    }
-
-    const where = restaurantId ? { restaurantId } : {};
-    // OrderItem är cascade-kopplat på Order så DELETE Order tar items också.
-    const before = await prisma.order.count({ where });
-    await prisma.order.deleteMany({ where });
-    const after = await prisma.order.count({ where });
-
-    await audit(req as AuthRequest, 'ORDER_WIPE', {
-      resourceType: 'Order',
-      changes: { deleted: before - after, scope: restaurantId ?? 'ALL' },
-    });
-    res.json({ success: true, deleted: before - after, before, after, scope: restaurantId ?? 'ALL' });
-  } catch (error: any) {
-    console.error('Wipe orders error:', error);
-    res.status(500).json({ error: sanitizeError(error, 'Kunde inte rensa ordrar') });
-  }
+router.post('/orders/wipe', authenticate, requireSuperAdmin, (_req, res) => {
+  res.status(410).json({
+    error: 'Order-rensning är permanent avstängd för att bevara order- och bokföringsspåret.',
+    code: 'ORDER_WIPE_DISABLED',
+  });
 });
 
 router.post('/staff/:id/reset-password', authenticate, requireSuperAdmin, async (req, res) => {
@@ -4724,78 +4595,6 @@ router.post('/menu/import-eatsmart', async (req, res) => {
   }
 });
 
-router.post('/menu/bulk-import', async (req, res) => {
-  try {
-    const { text } = req.body;
-    if (!text) {
-      res.status(400).json({ error: 'Ingen text tillhandahållen' });
-      return;
-    }
-
-    const lines = text.split('\n').filter((l: string) => l.trim().length > 0);
-    const results = {
-      created: 0,
-      errors: 0,
-    };
-
-    for (const line of lines) {
-      const parts = line.split(':').map((p) => p.trim());
-      if (parts.length < 3) {
-        results.errors += 1;
-        continue;
-      }
-
-      const [categoryName, productName, priceStr, description = ''] = parts;
-      const price = parseFloat(priceStr.replace(',', '.'));
-
-      if (isNaN(price)) {
-        results.errors += 1;
-        continue;
-      }
-
-      const categorySlug = categoryName.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
-      const productSlugBase = productName.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
-
-      try {
-        const category = await prisma.category.upsert({
-          where: { slug: categorySlug },
-          update: {},
-          create: {
-            name: categoryName,
-            slug: categorySlug,
-            position: 0,
-          },
-        });
-
-        await prisma.product.create({
-          data: {
-            name: productName,
-            slug: `${categorySlug}-${productSlugBase}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-            description,
-            price: Math.round(price * 100),
-            categoryId: category.id,
-            isActive: true,
-          },
-        });
-
-        results.created += 1;
-      } catch (err) {
-        console.error('Bulk import error for line:', line, err);
-        results.errors += 1;
-      }
-    }
-
-    await audit(req as AuthRequest, 'MENU_BULK_IMPORT', {
-      resourceType: 'Menu',
-      changes: { created: results.created, errors: results.errors },
-    });
-    res.json({ success: true, ...results });
-  } catch (error) {
-    console.error('Bulk import fatal error:', error);
-    res.status(500).json({ error: 'Internt serverfel vid import' });
-  }
-});
-
 // =====================
 // RABATTKODER
 // =====================
@@ -4944,135 +4743,85 @@ router.delete('/discounts/:id', async (req, res) => {
   }
 });
 
-// ─── Refunds (Super Admin) ──────────────────────────────────────────────────
+// ─── Refunds (global or restaurant-scoped admin) ───────────────────────────
 
 router.post('/orders/:id/refund', async (req: any, res: any) => {
   try {
     const authReq = req as AuthRequest;
-    if (!isSuperAdmin(authReq)) {
-      return res.status(403).json({ error: 'Kräver super admin-behörighet' });
+    const refundScope = refundRestaurantScope(authReq.admin);
+    if (!refundScope.allowed) {
+      return res.status(403).json({ error: 'Du saknar behörighet att återbetala ordern' });
     }
 
     const { amount, reason } = req.body; // amount in kr
-    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
-    if (!order) return res.status(404).json({ error: 'Order hittades inte' });
-    if (order.refundedAt) {
-      return res.status(400).json({ error: 'Denna order har redan återbetalats' });
-    }
-
-    const provider = getPaymentProvider();
-    const paymentRef =
-      provider.name === 'mollie'
-        ? order.molliePaymentId
-        : provider.name === 'adyen'
-          ? order.adyenPspReference
-          : order.stripePaymentIntentId;
-    if (!paymentRef || paymentRef === 'TEST_PAYMENT' || paymentRef === 'FREE_PROMO' || paymentRef === 'BYPASS') {
-      return res.status(400).json({ error: `Denna order har ingen ${provider.name}-betalning att återbetala` });
-    }
-
-    const refundAmountOre = amount ? Math.round(amount * 100) : order.total;
-    if (!Number.isFinite(refundAmountOre) || refundAmountOre <= 0) {
+    const requestedAmountOre =
+      amount === undefined || amount === null || amount === ''
+        ? null
+        : Math.round(Number(amount) * 100);
+    if (requestedAmountOre !== null && (!Number.isFinite(requestedAmountOre) || requestedAmountOre <= 0)) {
       return res.status(400).json({ error: 'Ogiltigt återbetalningsbelopp' });
     }
 
-    // PRE-CHECK: fråga aktiv PSP innan refund. Admin ska inte kunna markera en
-    // öppen/pending betalning som återbetald bara för att PSP:n accepterar anropet.
-    let remoteStatus: Awaited<ReturnType<typeof provider.getRemoteStatus>>;
-    try {
-      remoteStatus = await provider.getRemoteStatus(paymentRef);
-    } catch (retrieveErr: any) {
-      console.error('[admin/refund] could not retrieve payment:', {
-        orderId: order.id,
-        provider: provider.name,
-        paymentRef,
-        error: retrieveErr?.message,
-      });
-      return res.status(400).json({
-        error: `Kunde inte hitta betalningen hos ${provider.name}. Kontrollera betalpanelen manuellt.`,
-      });
+    const outcome = await refundOrderForAdmin(
+      req.params.id,
+      reason || 'Återbetalning via admin',
+      {
+        requestedAmountOre,
+        restaurantIdScope: refundScope.restaurantId,
+        actorAdminId: (authReq as any).admin?.id ?? (authReq as any).user?.id ?? null,
+      },
+    );
+    if (outcome.status === 'already_refunded') {
+      return res.status(400).json({ error: 'Denna order är redan fullt återbetald' });
     }
-
-    if (remoteStatus.state !== 'paid') {
-      console.warn('[admin/refund] payment not paid — refund blocked:', {
-        orderId: order.id,
-        provider: provider.name,
-        paymentRef,
-        status: remoteStatus.state,
-      });
-      return res.status(400).json({
-        error: `Betalningen är inte slutförd hos ${provider.name} (status: ${remoteStatus.state}). Vänta eller avbryt ordern manuellt.`,
-        paymentStatus: remoteStatus.state,
-      });
-    }
-
-    const paidAmountOre = remoteStatus.amountReceivedOre ?? order.total;
-    if (refundAmountOre > paidAmountOre) {
-      return res.status(400).json({
-        error: `Återbetalningsbelopp (${refundAmountOre / 100} kr) överskrider betalt belopp (${paidAmountOre / 100} kr).`,
-      });
-    }
-
-    const refund = await provider.refund(paymentRef, refundAmountOre);
-
-    console.log(`💸 [admin/refund] ${provider.name} refund response:`, {
-      orderId: order.id,
-      refundId: refund.refundRef,
-      amount: refundAmountOre,
-    });
-
-    await prisma.order.update({
-      where: { id: req.params.id },
-      data: {
-        paymentStatus: 'REFUNDED',
-        refundAmount: refundAmountOre,
-        refundReason: reason || 'Återbetalning via admin',
-        refundedAt: new Date(),
-        status: 'CANCELLED',
-      }
-    });
-
-    // Dekrementera deal-användning om order hade en deal applicerad — annars
-    // räknas refunderad order felaktigt mot maxUsages och blockerar nya kunder.
-    // Använder updateMany för att inte krascha om dealen tagits bort i mellantiden.
-    if (order.appliedDealId) {
-      await prisma.deal.updateMany({
-        where: { id: order.appliedDealId, usageCount: { gt: 0 } },
-        data: { usageCount: { decrement: 1 } },
-      });
-    }
-
-    // Refund:a UserDeal-kupong: kunden betalade och får pengarna tillbaka,
-    // alltså ska welcome/referral-coupon också reverteras till ACTIVE så de
-    // kan använda den igen. Race-guard på USED+orderId så vi inte trampar
-    // på en deal som råkar dela samma id (shouldn't happen, defensive).
-    if ((order as any).userDealId) {
-      await prisma.userDeal.updateMany({
-        where: { id: (order as any).userDealId, usedOnOrderId: order.id, status: { in: ['USED', 'RESERVED'] } },
-        data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
-      });
-    }
+    const completedOutcome = outcome.status === 'refunded' ? outcome : null;
 
     await audit(authReq, 'ORDER_REFUND', {
       resourceType: 'Order',
-      resourceId: order.id,
+      resourceId: req.params.id,
       changes: {
-        orderNumber: order.orderNumber,
-        amount: refundAmountOre / 100,
+        amount: outcome.refundedAmountOre / 100,
+        cumulativeRefundAmount: outcome.cumulativeRefundOre / 100,
+        fullRefund: completedOutcome?.fullRefund ?? false,
         reason: reason || 'Återbetalning via admin',
-        provider: provider.name,
-        refundId: refund.refundRef,
-        refundStatus: 'sent',
+        provider: outcome.provider,
+        refundId: outcome.refundRef,
+        ledgerId: outcome.ledgerId,
+        refundStatus: outcome.refundStatus,
+        lifecycle: outcome.status,
+        revertedReferrals: completedOutcome?.revertedReferrals ?? 0,
+        expiredInviterRewards: completedOutcome?.expiredInviterRewards ?? 0,
+        alreadyUsedInviterRewards: completedOutcome?.alreadyUsedInviterRewards ?? 0,
       },
     });
-    res.json({
+    res.status(outcome.status === 'refund_pending' ? 202 : 200).json({
       success: true,
-      refundedAmount: refundAmountOre / 100,
-      refundId: refund.refundRef,
-      refundStatus: 'sent',
+      processing: outcome.status === 'refund_pending',
+      refundedAmount: outcome.refundedAmountOre / 100,
+      cumulativeRefundedAmount: outcome.cumulativeRefundOre / 100,
+      fullRefund: completedOutcome?.fullRefund ?? false,
+      refundId: outcome.refundRef,
+      ledgerId: outcome.ledgerId,
+      refundStatus: outcome.refundStatus,
     });
   } catch (error: any) {
     console.error('Refund error:', error);
+    if (error instanceof RefundPersistenceConflict) {
+      return res.status(409).json({
+        error: 'Återbetalningen skickades till betalningsleverantören men den lokala orderstatusen kunde inte slutföras. Försök inte igen med ett annat belopp; stäm av ordern mot Mollie.',
+        requiresReconciliation: true,
+      });
+    }
+    if (error instanceof RefundWorkflowError) {
+      const status = error.code === 'not_found'
+        ? 404
+        : error.code === 'refund_in_progress'
+          ? 409
+          : error.code === 'refund_ledger_unavailable'
+            ? 503
+          : 400;
+      return res.status(status).json({ error: error.message, code: error.code });
+    }
     res.status(500).json({ error: sanitizeError(error, 'Kunde inte genomföra återbetalning') });
   }
 });
@@ -5348,7 +5097,7 @@ router.get('/customers/overview', authenticate, async (req: AuthRequest, res) =>
     const week = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const month = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const u = (prisma as any).user;
-    const [total, guests, registered, newToday, newWeek, activeMonth, recent, convertedFromGuest, allCustomers, orderGroups, launchVisits, launchDiscountClicks, launchSessions] = await Promise.all([
+    const [total, guests, registered, newToday, newWeek, activeMonth, recent, convertedFromGuest, allCustomers, orderGroups] = await Promise.all([
       u.count({ where: { deletedAt: null } }),
       u.count({ where: { deletedAt: null, isGuest: true } }),
       u.count({ where: { deletedAt: null, isGuest: false } }),
@@ -5367,13 +5116,6 @@ router.get('/customers/overview', authenticate, async (req: AuthRequest, res) =>
         where: { userId: { not: null }, status: { notIn: ['CANCELLED', 'REJECTED'] } },
         _count: { _all: true },
       }),
-      (prisma as any).launchEvent.count({ where: { eventType: 'PAGE_VIEW' } }),
-      (prisma as any).launchEvent.count({ where: { eventType: 'DISCOUNT_CTA_CLICK' } }),
-      (prisma as any).launchEvent.findMany({
-        where: { eventType: 'PAGE_VIEW', sessionId: { not: null } },
-        select: { sessionId: true },
-        distinct: ['sessionId'],
-      }),
     ]);
     const guestIds = new Set(allCustomers.filter((customer: any) => customer.isGuest).map((customer: any) => customer.id));
     const registeredIds = new Set(allCustomers.filter((customer: any) => !customer.isGuest).map((customer: any) => customer.id));
@@ -5388,9 +5130,6 @@ router.get('/customers/overview', authenticate, async (req: AuthRequest, res) =>
       guestConversionRate: guests + convertedFromGuest > 0 ? Number((convertedFromGuest / (guests + convertedFromGuest)).toFixed(4)) : 0,
       repeatGuests,
       repeatRegistered,
-      launchVisits,
-      launchDiscountClicks,
-      launchUniqueVisitors: launchSessions.length,
       newToday,
       newThisWeek: newWeek,
       activeLast30Days: activeMonth.length,
@@ -5405,6 +5144,163 @@ router.get('/customers/overview', authenticate, async (req: AuthRequest, res) =>
   } catch (err) {
     console.error('[customer-overview] error:', err);
     res.status(500).json({ error: 'Kunde inte hämta kundöverblick' });
+  }
+});
+
+type LaunchLeadCursor = {
+  createdAt: Date;
+  id: string;
+};
+
+const encodeLaunchLeadCursor = (lead: { createdAt: Date | string; id: string }) => Buffer.from(JSON.stringify({
+  createdAt: new Date(lead.createdAt).toISOString(),
+  id: lead.id,
+}), 'utf8').toString('base64url');
+
+const decodeLaunchLeadCursor = (rawCursor: unknown): LaunchLeadCursor | null => {
+  if (typeof rawCursor !== 'string' || rawCursor.length === 0 || rawCursor.length > 512) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(rawCursor, 'base64url').toString('utf8')) as {
+      createdAt?: unknown;
+      id?: unknown;
+    };
+    if (typeof parsed.createdAt !== 'string' || typeof parsed.id !== 'string') return null;
+    if (!parsed.id.trim() || parsed.id.length > 200) return null;
+    const createdAt = new Date(parsed.createdAt);
+    if (!Number.isFinite(createdAt.getTime())) return null;
+    return { createdAt, id: parsed.id };
+  } catch {
+    return null;
+  }
+};
+
+// GET /api/admin/launch-campaign
+// Launchöversikt baserad enbart på personer som uttryckligen skickat in namn,
+// e-post och marknadsföringssamtycke. Ingen besöks- eller klickmätning används.
+router.get('/launch-campaign', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const requestedDays = Number(req.query.days || 30);
+    const days = [7, 30, 90].includes(requestedDays) ? requestedDays : 30;
+    const requestedLimit = Number(req.query.limit ?? 50);
+    if (!Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 100) {
+      return res.status(400).json({ error: 'limit måste vara ett heltal mellan 1 och 100' });
+    }
+    const rawCursor = req.query.cursor;
+    const cursor = rawCursor === undefined ? null : decodeLaunchLeadCursor(rawCursor);
+    if (rawCursor !== undefined && !cursor) {
+      return res.status(400).json({ error: 'Ogiltig cursor' });
+    }
+    const now = new Date();
+    const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    const launchLead = (prisma as any).launchLead;
+    const leadPageWhere = cursor
+      ? {
+          OR: [
+            { createdAt: { lt: cursor.createdAt } },
+            { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+          ],
+        }
+      : {};
+    const [leadPage, leadDates, totalLeads, periodLeads, sentCoupons] = await Promise.all([
+      launchLead.findMany({
+        where: leadPageWhere,
+        select: { id: true, name: true, email: true, couponCode: true, status: true, createdAt: true, couponSentAt: true },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: requestedLimit + 1,
+      }),
+      launchLead.findMany({
+        where: { createdAt: { gte: from } },
+        select: { createdAt: true },
+      }),
+      launchLead.count(),
+      launchLead.count({ where: { createdAt: { gte: from } } }),
+      launchLead.count({ where: { couponSentAt: { not: null } } }),
+    ]);
+    const hasNextPage = leadPage.length > requestedLimit;
+    const leads = hasNextPage ? leadPage.slice(0, requestedLimit) : leadPage;
+    const lastLead = leads[leads.length - 1];
+
+    const dayKey = (date: Date) => new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(date);
+    const daily = new Map<string, any>();
+    for (let offset = days - 1; offset >= 0; offset -= 1) {
+      const date = new Date(now.getTime() - offset * 24 * 60 * 60 * 1000);
+      const key = dayKey(date);
+      daily.set(key, { date: key, leads: 0 });
+    }
+    for (const lead of leadDates) {
+      const row = daily.get(dayKey(new Date(lead.createdAt)));
+      if (row) row.leads += 1;
+    }
+
+    res.json({
+      days,
+      from,
+      to: now,
+      totals: {
+        leads: totalLeads,
+        leadsInPeriod: periodLeads,
+        couponsSent: sentCoupons,
+        couponsPending: Math.max(0, totalLeads - sentCoupons),
+        averageDailyLeads: Number((periodLeads / days).toFixed(2)),
+      },
+      daily: Array.from(daily.values()).map((row: any) => ({
+        date: row.date,
+        leads: row.leads,
+      })),
+      pageInfo: {
+        limit: requestedLimit,
+        hasNextPage,
+        nextCursor: hasNextPage && lastLead ? encodeLaunchLeadCursor(lastLead) : null,
+      },
+      leads: leads.map((lead: any) => ({
+        id: lead.id,
+        name: lead.name,
+        email: lead.email,
+        couponCode: lead.couponCode,
+        status: lead.status,
+        createdAt: lead.createdAt,
+        couponSentAt: lead.couponSentAt,
+      })),
+    });
+  } catch (error) {
+    console.error('[admin/launch-campaign] error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta launch-kampanjens statistik' });
+  }
+});
+
+// Manual status only: the platform never sends the email. This records that a
+// superadmin has completed (or undone) the follow-up outside ViaEats.
+router.patch('/launch-campaign/:id/coupon-status', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    if (typeof req.body?.sent !== 'boolean') {
+      return res.status(400).json({ error: 'sent måste vara true eller false' });
+    }
+    const launchLead = (prisma as any).launchLead;
+    const existing = await launchLead.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, couponSentAt: true },
+    });
+    if (!existing) return res.status(404).json({ error: 'Launch-lead hittades inte' });
+
+    const updated = await launchLead.update({
+      where: { id: existing.id },
+      data: {
+        couponSentAt: req.body.sent ? (existing.couponSentAt || new Date()) : null,
+        status: req.body.sent ? 'COUPON_SENT' : 'INTERESTED',
+      },
+      select: { id: true, status: true, couponSentAt: true },
+    });
+    await audit(req, 'LAUNCH_COUPON_MANUAL_STATUS', {
+      resourceType: 'LaunchLead',
+      resourceId: existing.id,
+      changes: { sent: req.body.sent, automaticEmail: false },
+    });
+    return res.json(updated);
+  } catch (error) {
+    console.error('[admin/launch-campaign/coupon-status] error:', error);
+    return res.status(500).json({ error: 'Kunde inte uppdatera den manuella statusen' });
   }
 });
 
@@ -5517,104 +5413,11 @@ router.get('/customers/:id/gdpr-export', authenticate, requireSuperAdmin, async 
   }
 });
 
-// POST /api/admin/restaurants/:id/bulk-refund
-// Refunderar alla orders för en restaurang inom date-range. Kris-verktyg
-// (matförgiftning, kvalitetsproblem).
-router.post('/restaurants/:id/bulk-refund', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
-  try {
-    const { fromDate, toDate, reason } = req.body as { fromDate?: string; toDate?: string; reason?: string };
-    if (!fromDate || !toDate || !reason) {
-      return res.status(400).json({ error: 'fromDate, toDate och reason krävs' });
-    }
-
-    const from = new Date(fromDate);
-    const to = new Date(toDate);
-    if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || from > to) {
-      return res.status(400).json({ error: 'Ogiltigt datumintervall' });
-    }
-
-    const provider = getPaymentProvider();
-    const orders = await prisma.order.findMany({
-      where: {
-        restaurantId: req.params.id,
-        createdAt: { gte: from, lte: to },
-        refundedAt: null,
-        paymentStatus: 'PAID',
-      },
-      select: {
-        id: true,
-        total: true,
-        paymentProvider: true,
-        molliePaymentId: true,
-        adyenPspReference: true,
-        stripePaymentIntentId: true,
-        appliedDealId: true,
-        userDealId: true,
-      },
-    });
-
-    const results = await Promise.allSettled(
-      orders.map(async (o) => {
-        const paymentRef =
-          provider.name === 'mollie'
-            ? o.molliePaymentId
-            : provider.name === 'adyen'
-              ? o.adyenPspReference
-              : o.stripePaymentIntentId;
-        if (!paymentRef || paymentRef === 'TEST_PAYMENT' || paymentRef === 'FREE_PROMO' || paymentRef === 'BYPASS') {
-          return { id: o.id, status: 'skipped', reason: `no-${provider.name}-payment` };
-        }
-        const remoteStatus = await provider.getRemoteStatus(paymentRef);
-        if (remoteStatus.state !== 'paid') {
-          return { id: o.id, status: 'skipped', reason: `payment-${remoteStatus.state}` };
-        }
-        await provider.refund(paymentRef, o.total);
-        await prisma.order.update({
-          where: { id: o.id },
-          data: {
-            paymentStatus: 'REFUNDED',
-            refundAmount: o.total,
-            refundReason: reason,
-            refundedAt: new Date(),
-            status: 'CANCELLED',
-          },
-        });
-        if (o.appliedDealId) {
-          await prisma.deal.updateMany({
-            where: { id: o.appliedDealId, usageCount: { gt: 0 } },
-            data: { usageCount: { decrement: 1 } },
-          });
-        }
-        // Refund:a UserDeal-kupong (bulk-refund path) — samma logik som
-        // single-refund ovan. Revert RESERVED+USED → ACTIVE.
-        if ((o as any).userDealId) {
-          await prisma.userDeal.updateMany({
-            where: { id: (o as any).userDealId, usedOnOrderId: o.id, status: { in: ['USED', 'RESERVED'] } },
-            data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
-          });
-        }
-        return { id: o.id, status: 'refunded', amount: o.total / 100 };
-      }),
-    );
-
-    const summary = {
-      total: orders.length,
-      refunded: results.filter((r) => r.status === 'fulfilled' && (r.value as any).status === 'refunded').length,
-      skipped: results.filter((r) => r.status === 'fulfilled' && (r.value as any).status === 'skipped').length,
-      failed: results.filter((r) => r.status === 'rejected').length,
-    };
-
-    await audit(req, 'BULK_REFUND', {
-      resourceType: 'Restaurant',
-      resourceId: req.params.id,
-      changes: { ...summary, reason, fromDate, toDate },
-    });
-
-    res.json({ summary });
-  } catch (err) {
-    console.error('[bulk-refund] error:', err);
-    res.status(500).json({ error: 'Bulk-refund misslyckades' });
-  }
+router.post('/restaurants/:id/bulk-refund', authenticate, requireSuperAdmin, (_req, res) => {
+  res.status(410).json({
+    error: 'Kris-/massåterbetalning är permanent avstängd. Återbetala en order i taget efter manuell kontroll.',
+    code: 'BULK_REFUND_DISABLED',
+  });
 });
 
 // POST /api/admin/restaurants/:id/deactivate
@@ -6145,7 +5948,10 @@ router.post('/devices/:id/revoke', authenticate, requireSuperAdmin, async (req, 
   try {
     const device = await (prisma as any).restaurantDevice.update({
       where: { id: req.params.id },
-      data: { revoked: true, refreshTokenHash: null },
+      // Behåll refresh-hashen medan enheten är låst. Då kan samma fysiska
+      // terminal återaktiveras säkert; appen behåller refresh-token men får
+      // varken REST- eller socketaccess så länge revoked=true.
+      data: { revoked: true },
       select: { restaurantId: true, deviceId: true },
     });
     // Gör utloggningen omedelbar: bumpa restaurangkontots tokenVersion så att
@@ -6167,6 +5973,20 @@ router.post('/devices/:id/revoke', authenticate, requireSuperAdmin, async (req, 
       getIO()
           .to(`admin-room:${device.restaurantId}`)
           .emit('device:session-changed', { deviceId: device.deviceId, action: 'revoked' });
+      // Koppla även ned den exakta socketen efter att revoke-eventet hunnit
+      // levereras. Ett modifierat klientbygge kan då inte ignorera UI-eventet
+      // och fortsätta läsa orderrummet med en gammal 24h-token.
+      setTimeout(() => {
+        void getIO().in(`admin-room:${device.restaurantId}`).fetchSockets()
+          .then((sockets) => {
+            for (const socket of sockets) {
+              if (socket.data?.admin?.deviceId === device.deviceId) {
+                socket.disconnect(true);
+              }
+            }
+          })
+          .catch(() => null);
+      }, 250);
     } catch (_) {}
     await audit(req as AuthRequest, 'DEVICE_REVOKE', { resourceType: 'RestaurantDevice', resourceId: req.params.id });
     res.json({ success: true });
@@ -6225,6 +6045,17 @@ router.delete('/devices/:id', authenticate, requireSuperAdmin, async (req, res) 
         getIO()
             .to(`admin-room:${device.restaurantId}`)
             .emit('device:session-changed', { deviceId: device.deviceId, action: 'deleted' });
+        setTimeout(() => {
+          void getIO().in(`admin-room:${device.restaurantId}`).fetchSockets()
+            .then((sockets) => {
+              for (const socket of sockets) {
+                if (socket.data?.admin?.deviceId === device.deviceId) {
+                  socket.disconnect(true);
+                }
+              }
+            })
+            .catch(() => null);
+        }, 250);
       } catch (_) {}
     }
     await audit(req as AuthRequest, 'DEVICE_DELETE', { resourceType: 'RestaurantDevice', resourceId: req.params.id });

@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Copy, Gift, Share2 } from "lucide-react";
 import { writeActiveUserDeal } from "@/lib/appDeal";
+import { readOrderHistory } from "@/lib/orderHistory";
 
 type ReferralDeal = {
   id: string;
@@ -27,25 +28,53 @@ type ReferralProfile = {
   deals?: ReferralDeal[];
 };
 
-function readGuestPhone() {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem("guest_phone") || localStorage.getItem("viaeats.cart.guestPhone") || "";
-}
-
-export default function ReferralProfileCard({ phone }: { phone?: string | null }) {
+export default function ReferralProfileCard({ authenticated = false }: { authenticated?: boolean }) {
   const [data, setData] = useState<ReferralProfile | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const resolvedPhone = useMemo(() => phone?.trim() || readGuestPhone(), [phone]);
 
   useEffect(() => {
     const controller = new AbortController();
-    const query = resolvedPhone ? `?phone=${encodeURIComponent(resolvedPhone)}` : "";
-    fetch(`/api/platform/public/referral-profile${query}`, { signal: controller.signal })
-      .then((response) => response.ok ? response.json() : null)
-      .then((payload) => setData(payload))
-      .catch(() => null);
+    const load = async () => {
+      setData(null);
+      if (authenticated) {
+        const response = await fetch("/api/platform/account/referral", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        setData(response.ok ? await response.json() : null);
+        return;
+      }
+
+      // Prova lokalt sparade orderreferenser i turordning. HttpOnly-sessionen
+      // följer med via proxyn; accessToken skickas endast för engångsmigrering
+      // av äldre installationer och tas bort när ordersidan har växlat den.
+      // En pågående ny order får
+      // inte skymma en äldre slutförd order som redan låst upp referralprofilen.
+      const proofs = readOrderHistory()
+        .map((order) => ({
+          orderId: order.id,
+          ...(typeof order.accessToken === "string" && order.accessToken.length >= 20
+            ? { accessToken: order.accessToken }
+            : {}),
+        }));
+      for (const proof of proofs) {
+        const response = await fetch("/api/platform/public/referral-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(proof),
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (response.ok) {
+          setData(await response.json());
+          return;
+        }
+      }
+      setData(null);
+    };
+    void load().catch(() => null);
     return () => controller.abort();
-  }, [resolvedPhone]);
+  }, [authenticated]);
 
   if (!data?.enabled) return null;
 
@@ -78,7 +107,7 @@ export default function ReferralProfileCard({ phone }: { phone?: string | null }
 
       {data.locked ? (
         <div className="mt-3 rounded-2xl bg-white/80 px-3.5 py-3 text-[12.5px] font-semibold text-[#0b2748]">
-          Beställ en gång så skapas din personliga kod automatiskt på telefonnumret.
+          Slutför din första beställning så skapas din personliga kod automatiskt.
         </div>
       ) : (
         <div className="mt-3 flex items-center gap-2 rounded-2xl bg-white p-2.5">

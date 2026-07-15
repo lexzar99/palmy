@@ -1,6 +1,7 @@
 import Link from "next/link";
 import RefCookie from "./RefCookie";
 import ViaEatsWordmark from "@/components/ViaEatsWordmark";
+import { API_URL } from "@/lib/api";
 
 // Invite-landning — /i/<token>. Riktig välkomstsida (inte längre en tyst
 // redirect): visar vem som bjöd in, belöningen, och en tydlig "Skapa konto"-CTA.
@@ -8,15 +9,15 @@ import ViaEatsWordmark from "@/components/ViaEatsWordmark";
 export const dynamic = "force-dynamic";
 
 interface InviteInfo {
-  valid: boolean;
+  exists: boolean;
+  enabled?: boolean;
   inviterName?: string | null;
-  rewardKr?: number;
+  rewardLabel?: string | null;
 }
 
 async function fetchInfo(token: string): Promise<InviteInfo | null> {
   try {
-    const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-    const r = await fetch(`${base}/api/public/invite/info?token=${encodeURIComponent(token)}`, { cache: "no-store" });
+    const r = await fetch(`${API_URL}/api/public/referral-preview?code=${encodeURIComponent(token)}`, { cache: "no-store" });
     if (!r.ok) return null;
     return (await r.json()) as InviteInfo;
   } catch {
@@ -28,8 +29,8 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
   const { token } = await params;
   const clean = (token || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 32);
   const info = clean ? await fetchInfo(clean) : null;
-  const valid = !!info?.valid;
-  const rewardKr = info?.rewardKr ?? 0;
+  const valid = !!info?.exists;
+  const rewardLabel = info?.enabled === false ? null : info?.rewardLabel?.trim() || null;
   const inviter = info?.inviterName?.trim() || null;
 
   return (
@@ -41,7 +42,6 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
       <div className="mx-auto max-w-md space-y-8">
         {/* Brand-logga */}
         <div className="flex justify-center pt-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <ViaEatsWordmark size="md" />
         </div>
 
@@ -57,7 +57,7 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
             </div>
 
             {/* Belöning — enda starka guld-accenten */}
-            {rewardKr > 0 && (
+            {rewardLabel && (
               <div
                 className="flex flex-col items-center gap-1.5 rounded-2xl py-6"
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
@@ -66,7 +66,7 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
                   className="rounded-full px-4 py-1.5 text-[15px] font-bold"
                   style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#141416", fontVariantNumeric: "tabular-nums" }}
                 >
-                  +{rewardKr} kr
+                  {rewardLabel}
                 </span>
                 <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
                   till dig

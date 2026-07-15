@@ -429,8 +429,8 @@ button {
 
 .sidebar-brand-mark {
   position: relative;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   flex: none;
   border-radius: 10px;
   background: transparent;
@@ -443,13 +443,13 @@ button {
 
 .sidebar-brand-mark img {
   display: block;
-  width: 29px;
-  height: 31px;
+  width: 36px;
+  height: 38px;
   object-fit: contain;
 }
 
 .sidebar-brand-text {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 800;
   letter-spacing: -0.3px;
   line-height: 1;
@@ -462,12 +462,14 @@ button {
 }
 
 .sidebar-brand-sub {
+  display: inline-block;
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.12em;
   color: var(--text-muted);
   text-transform: uppercase;
-  margin-top: 2px;
+  margin-top: 0;
+  margin-left: 3px;
 }
 
 .sidebar-section-header {
