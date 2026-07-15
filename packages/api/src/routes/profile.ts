@@ -555,6 +555,19 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
       };
     });
 
+    const referralIds = appUserDeals
+      .map((deal: any) => (deal.metadata as any)?.referralId)
+      .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0);
+    const referralRows = referralIds.length
+      ? await (prisma as any).referral.findMany({
+          where: { id: { in: [...new Set(referralIds)] } },
+          select: { id: true, shareCode: true },
+        })
+      : [];
+    const referralShareCodeById = new Map<string, string>(
+      referralRows.map((row: any) => [row.id, row.shareCode]),
+    );
+
     const retiredFavoriteIds: string[] = [];
     const formattedAppDeals = appUserDeals.filter((deal: any) => {
       if (isRetiredFavoriteUserDeal(deal)) {
@@ -565,21 +578,36 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
     }).map((deal: any) => {
       const metadata = (deal.metadata || {}) as any;
       const minOrderKr = Math.max(0, Number(metadata.minOrderKr || 0));
-      const title = metadata.title || 'Personlig deal';
-      const discountType = deal.freeDelivery
-        ? 'FREE_DELIVERY'
-        : deal.discountPercent
-          ? 'PERCENTAGE'
-          : 'FIXED';
-      const discountValue = deal.freeDelivery
-        ? 0
-        : deal.discountPercent
-          ? Number(deal.discountPercent || 0)
-          : Number(deal.amountKr || 0);
+      const title = metadata.title || (
+        deal.type === 'WELCOME'
+          ? 'Välkomsterbjudande'
+          : deal.type === 'REFERRAL_INVITEE'
+            ? 'Värvningsrabatt'
+            : deal.type === 'REFERRAL_INVITER'
+              ? 'Värvningsbelöning'
+              : 'Personlig deal'
+      );
+      // Percentage/fixed value and free delivery are orthogonal. A 20% deal
+      // with freeDelivery must never be serialized as FREE_DELIVERY + 0 kr.
+      const discountType = deal.discountPercent
+        ? 'PERCENTAGE'
+        : deal.amountKr
+          ? 'FIXED'
+          : 'FREE_DELIVERY';
+      const discountValue = deal.discountPercent
+        ? Number(deal.discountPercent || 0)
+        : Number(deal.amountKr || 0);
+      const referralShareCode = deal.type === 'REFERRAL_INVITEE'
+        ? referralShareCodeById.get(metadata.referralId) || null
+        : null;
       return {
         id: deal.id,
         userDealId: deal.id,
-        code: deal.code ?? null,
+        // The invited customer entered the friend's referral code. Show that
+        // same recognizable code instead of the internal generated UserDeal
+        // redemption code. Other personal rewards keep their own code.
+        code: referralShareCode || deal.code || null,
+        type: deal.type,
         source: 'APP_DEAL',
         status: deal.status,
         expiresAt: deal.expiresAt,

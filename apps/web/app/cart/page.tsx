@@ -837,7 +837,6 @@ export default function CartPage() {
   }, [deals, discountableSubtotal, hasCatalogDiscountedItems]);
 
   const personalDiscount = useMemo(() => {
-    if (hasCatalogDiscountedItems) return 0;
     if (!selectedPersonalDeal) return 0;
     const { campaign } = selectedPersonalDeal;
     if (subtotal < (campaign.minOrder || 0)) return 0;
@@ -845,12 +844,12 @@ export default function CartPage() {
     // Bas-rabatt: procent eller fast belopp.
     let amount = 0;
     if (campaign.discountType === "PERCENTAGE") {
-      amount = (discountableSubtotal * campaign.discountValue) / 100;
+      amount = (subtotal * campaign.discountValue) / 100;
     } else if (campaign.discountType === "FREE_DELIVERY") {
       // Standalone fri-leverans-kupong: rabatten = deliveryFee.
       amount = deliveryFee;
     } else {
-      amount = Math.min(campaign.discountValue, discountableSubtotal);
+      amount = Math.min(campaign.discountValue, subtotal);
     }
 
     // Stackbar fri leverans-flagga (Eriks bugg-fix): backend lagrar
@@ -867,7 +866,7 @@ export default function CartPage() {
     }
 
     return amount;
-  }, [selectedPersonalDeal, subtotal, discountableSubtotal, deliveryFee, hasCatalogDiscountedItems]);
+  }, [selectedPersonalDeal, subtotal, deliveryFee]);
   const personalDeliveryDiscount = personalDiscount > 0 && selectedPersonalDeal && (
     selectedPersonalDeal.campaign?.discountType === "FREE_DELIVERY" ||
     selectedPersonalDeal.campaign?.freeDelivery
@@ -900,7 +899,6 @@ export default function CartPage() {
   // sanningen för app-dealens belopp. Den lokala komponentberäkningen används
   // bara som direkt-preview tills quoten (för samma id) svarat — aldrig som facit.
   const accountDealDiscount = useMemo(() => {
-    if (hasCatalogDiscountedItems) return 0;
     if (!selectedAccountDealId) return 0;
     if (appDealQuote && appDealQuote.userDealId === selectedAccountDealId) {
       return appDealQuote.applicable ? appDealQuote.discountAmountKr : 0;
@@ -910,8 +908,8 @@ export default function CartPage() {
     if (subtotal < minK) return 0;
     // deliveryFee skickas med för FREE_DELIVERY-deals så rabatten matchar
     // exakt det användaren skulle betalat i frakt.
-    return computeDealComponentsKr(selectedAccountDeal, discountableSubtotal, deliveryFee).total;
-  }, [selectedAccountDealId, appDealQuote, selectedAccountDeal, subtotal, discountableSubtotal, deliveryFee, hasCatalogDiscountedItems]);
+    return computeDealComponentsKr(selectedAccountDeal, subtotal, deliveryFee).total;
+  }, [selectedAccountDealId, appDealQuote, selectedAccountDeal, subtotal, deliveryFee]);
   const accountDeliveryDiscount = accountDealDiscount > 0 && selectedAccountDeal && (
     selectedAccountDeal.freeDelivery || selectedAccountDeal.discountType === "FREE_DELIVERY"
   ) ? Math.min(deliveryFee, accountDealDiscount) : 0;
@@ -930,21 +928,7 @@ export default function CartPage() {
   // använd/utgången) släpps valet och kontraktet nollas; vid nätverksfel
   // behålls senaste quoten — servern validerar ändå vid order.
   useEffect(() => {
-    if (hasCatalogDiscountedItems) {
-      setSelectedAccountDealId(null);
-      setSelectedPersonalDeal(null);
-      setPromoCodeInput("");
-      setAppDealQuote(null);
-      clearActiveUserDeal();
-    }
-  }, [hasCatalogDiscountedItems]);
-
-  useEffect(() => {
     if (!user || !selectedAccountDealId || subtotal <= 0) {
-      setAppDealQuote(null);
-      return;
-    }
-    if (hasCatalogDiscountedItems) {
       setAppDealQuote(null);
       return;
     }
@@ -953,7 +937,7 @@ export default function CartPage() {
       try {
         const res = await axios.post(`/api/platform/deals/app/quote`, {
           userDealId: dealIdAtRequest,
-          subtotalKr: discountableSubtotal,
+          subtotalKr: subtotal,
           deliveryFeeKr: orderType === "DELIVERY" ? deliveryFee : 0,
           orderMode: orderType,
           restaurantId: currentRestaurantId || undefined,
@@ -983,7 +967,7 @@ export default function CartPage() {
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [user, selectedAccountDealId, subtotal, discountableSubtotal, deliveryFee, orderType, currentRestaurantId, items, hasCatalogDiscountedItems]);
+  }, [user, selectedAccountDealId, subtotal, deliveryFee, orderType, currentRestaurantId, items]);
 
   // Prioritet:
   //   1. Användarens EXPLICITA VAL (selectedPersonalDeal ELLER selectedAccountDealId)
@@ -2265,7 +2249,7 @@ export default function CartPage() {
             </div>
           </div>
           <span className="text-[12px] font-medium shrink-0" style={{ color: "var(--gold-ink)" }}>
-            −{accountDealDiscount.toFixed(0)} {t("common.kr")}
+            {t("cart.discount.promoRemove")}
           </span>
         </button>
       )}
@@ -2277,7 +2261,7 @@ export default function CartPage() {
         // Keep the active deal clickable even below its minimum so the
         // customer can remove it and enter another code. Only inactive deals
         // are disabled while their minimum is unmet.
-        const disabled = hasCatalogDiscountedItems || (!meetsMin && !isActive) || blockedByPromo;
+        const disabled = (!meetsMin && !isActive) || blockedByPromo;
         return (
           <button
             key={d.id}
@@ -2320,7 +2304,7 @@ export default function CartPage() {
               </div>
             </div>
             <span className="text-[12px] font-medium shrink-0" style={{ color: isActive ? "var(--gold-ink)" : "var(--text-secondary)" }}>
-              −{computeDealComponentsKr(d, discountableSubtotal, deliveryFee).total} {t("common.kr")}
+              {isActive ? t("cart.discount.promoRemove") : `−${computeDealComponentsKr(d, subtotal, deliveryFee).total} ${t("common.kr")}`}
             </span>
           </button>
         );

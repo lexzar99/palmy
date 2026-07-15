@@ -121,6 +121,10 @@ export default function PhoneAuth() {
       const platformToken = ex.data?.token;
       if (!platformToken) throw new Error("Ingen platform-session");
       await persistPlatformSession(platformToken);
+      // Platform-sessionen är nu den enda kundsessionen vi behöver. Lämna
+      // inte SMS-sessionen kvar till /profile, annars kan profilens Supabase-
+      // bootstrap starta ett andra tokenbyte/telefonsteg.
+      await supabase.auth.signOut().catch(() => {});
       await attributeInvite();
       // Återkommande (har namn) → logga in direkt. Ny → samla namn/efternamn/mail.
       try {

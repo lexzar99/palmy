@@ -810,12 +810,9 @@ router.post('/', async (req: Request, res: Response) => {
     let validatedCode: string | undefined;
     const hasRequestedBogoFreeItem = data.items.some((item) => !!item.bogoFreeFromDealId);
 
-    if (hasCatalogDiscountedItems && data.discountCode && data.discountCode.toLowerCase() !== 'test' && data.discountCode.toLowerCase() !== 'testa') {
-      throw new OrderValidationError('Rabattkod kan inte kombineras med redan rabatterade produkter');
-    }
-    if (hasCatalogDiscountedItems && data.userDealId) {
-      throw new OrderValidationError('Kassarabatt kan inte kombineras med redan rabatterade produkter');
-    }
+    // Manuella kuponger och personliga UserDeals får väljas även när en vara
+    // har nedsatt menypris. Endast ett kassaerbjudande används, och backend
+    // räknar det på den redan reducerade, auktoritativa subtotalen.
     if (hasCatalogDiscountedItems && hasRequestedBogoFreeItem) {
       throw new OrderValidationError('BOGO kan inte kombineras med redan rabatterade produkter');
     }

@@ -1525,13 +1525,20 @@ function ProfileContent() {
                          <div className="flex-1 pr-4">
                             <div className="text-[12px] font-medium text-gold-600 mb-1">{deal.campaign.title}</div>
                             <h3 className="text-[22px] font-bold tracking-tight leading-tight" style={{ color: "var(--text-primary)" }}>
-                                {deal.campaign.discountType === "PERCENTAGE" ? t("profile.deals.discountPctTitle", { value: deal.campaign.discountValue }) : t("profile.deals.discountKrTitle", { value: deal.campaign.discountValue })}
+                                {deal.campaign.discountType === "PERCENTAGE"
+                                  ? t("profile.deals.discountPctTitle", { value: deal.campaign.discountValue })
+                                  : deal.campaign.discountType === "FREE_DELIVERY"
+                                    ? "Fri leverans"
+                                    : t("profile.deals.discountKrTitle", { value: deal.campaign.discountValue })}
                             </h3>
+                            {deal.campaign.freeDelivery && deal.campaign.discountType !== "FREE_DELIVERY" ? (
+                              <p className="mt-1 text-[12px] font-semibold text-gold-600">+ Fri leverans</p>
+                            ) : null}
                          </div>
                          <div className="w-12 h-12 bg-gold-500 text-zinc-950 rounded-2xl flex items-center justify-center shadow-xl shrink-0"><Ticket size={24} /></div>
                       </div>
 
-                      <div className="p-4 rounded-2xl flex items-center justify-between mb-6" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                      {deal.code ? <div className="p-4 rounded-2xl flex items-center justify-between mb-6" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          <div className="text-[12px] font-medium text-[color:var(--text-secondary)]">{t("profile.deals.codeLabel")}: <span className="select-all" style={{ color: "var(--text-primary)" }}>{deal.code}</span></div>
                          <button
                             onClick={() => { navigator.clipboard.writeText(deal.code); }}
@@ -1539,7 +1546,7 @@ function ProfileContent() {
                           >
                             {t("profile.deals.copy")}
                           </button>
-                      </div>
+                      </div> : null}
 
                       <div className="flex items-center justify-between text-[12px] font-medium text-[color:var(--text-secondary)]">
                          <div>{t("profile.deals.minOrderRow", { amount: deal.campaign.minOrder })}</div>
