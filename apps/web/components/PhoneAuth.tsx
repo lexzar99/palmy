@@ -8,6 +8,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { persistPlatformSession, markExplicitLoginStarted } from "@/lib/platformSessionClient";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { API_URL } from "@/lib/api";
+import { toE164Phone } from "@/lib/phone";
 import PhoneCountrySelect from "@/components/PhoneCountrySelect";
 
 // Egen input-stil så komponenten funkar var som helst (login/register/profil)
@@ -50,7 +51,7 @@ export default function PhoneAuth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const fullPhone = () => `${country}${num.replace(/\D/g, "").replace(/^0/, "")}`;
+  const fullPhone = () => toE164Phone(country, num);
 
   const attributeInvite = async () => {
     const cookieRef = document.cookie.match(/(?:^|; )dlv_ref=([^;]+)/)?.[1];
@@ -84,7 +85,7 @@ export default function PhoneAuth() {
       const m = (err?.message || "").toLowerCase();
       if (m.includes("rate") || m.includes("limit") || m.includes("too many")) {
         setError("För många SMS-försök just nu. Vänta en stund och försök igen.");
-      } else if (m.includes("provider") || m.includes("disabled") || m.includes("unsupported") || m.includes("not enabled") || m.includes("not configured")) {
+      } else if (m.includes("phone provider") || m.includes("sms provider") || m.includes("not enabled") || m.includes("not configured")) {
         setError("SMS-inloggning är inte aktiverad än. Prova Google eller Apple så länge.");
       } else {
         setError(err?.message || "Kunde inte skicka koden. Kontrollera numret.");

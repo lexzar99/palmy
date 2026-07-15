@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { API_URL } from "@/lib/api";
+import { toE164Phone } from "@/lib/phone";
 import {
   clearPlatformSession,
   clearPlatformSessionForRefresh,
@@ -663,7 +664,7 @@ function ProfileContent() {
   }, [activeTab, hasPlatformSession]);
 
 
-  const addPhoneFull = () => `${addPhoneCountry}${addPhoneNum.replace(/\D/g, "").replace(/^0/, "")}`;
+  const addPhoneFull = () => toE164Phone(addPhoneCountry, addPhoneNum);
 
   const lockPhone = async (fullPhone: string, phoneVerificationToken: string) => {
     const res = await axios.post(`/api/platform/profile/link-phone`, {
@@ -690,15 +691,16 @@ function ProfileContent() {
     setAddPhoneError("");
     try {
       const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.updateUser({ phone: fullPhone });
+      // Standalone SMS OTP also works when the number already belongs to the
+      // canonical phone account. updateUser({ phone }) rejected that case
+      // before sending any code.
+      const { error } = await supabase.auth.signInWithOtp({ phone: fullPhone });
       if (error) {
         const m = (error.message || "").toLowerCase();
         // INGA tysta genvägar — verifiering med kod krävs alltid. Visa felet.
-        if (m.includes("already") || m.includes("exist") || m.includes("registered")) {
-          setAddPhoneError("Numret är redan kopplat till ett konto. Logga ut och logga in med telefonnumret i stället.");
-        } else if (m.includes("rate") || m.includes("limit") || m.includes("too many")) {
+        if (m.includes("rate") || m.includes("limit") || m.includes("too many")) {
           setAddPhoneError("För många SMS-försök just nu. Vänta en stund och försök igen.");
-        } else if (m.includes("sms") || m.includes("provider") || m.includes("disabled") || m.includes("unsupported")) {
+        } else if (m.includes("phone provider") || m.includes("sms provider") || m.includes("not enabled") || m.includes("not configured")) {
           setAddPhoneError("SMS-verifiering är inte aktiverad än. Försök igen senare.");
         } else {
           setAddPhoneError(error.message || "Kunde inte skicka koden. Kontrollera numret.");
@@ -730,7 +732,7 @@ function ProfileContent() {
     setAddPhoneError("");
     try {
       const supabase = createSupabaseBrowserClient();
-      const { data, error } = await supabase.auth.verifyOtp({ phone: addPhoneFull(), token: addPhoneCode.trim(), type: "phone_change" });
+      const { data, error } = await supabase.auth.verifyOtp({ phone: addPhoneFull(), token: addPhoneCode.trim(), type: "sms" });
       if (error) throw error;
       const phoneVerificationToken =
         data.session?.access_token ||

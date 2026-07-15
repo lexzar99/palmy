@@ -97,9 +97,12 @@ const authLimiter = rateLimit({
 
 // Always store/compare phone in E.164 format (+46...). Handles legacy records without +.
 function normalizePhone(phone: string): string {
-  const t = phone.trim();
-  if (t.startsWith('+')) return t;
-  return `+${t.replace(/\D/g, '')}`;
+  const raw = phone.trim();
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  if (raw.startsWith('+')) return `+${digits}`;
+  if (raw.startsWith('00')) return `+${digits.slice(2)}`;
+  return digits.startsWith('0') ? `+46${digits.slice(1)}` : `+${digits}`;
 }
 
 // Returns all variants of a phone to search across legacy and normalized formats.

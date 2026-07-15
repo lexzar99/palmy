@@ -165,9 +165,8 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
     const phoneVariants = (p: string) => referralPhoneVariants(p);
 
     // Slå ihop ett befintligt konto med samma telefon in i det inloggade kontot
-    // (permanent koppling). Sker om det andra kontot är gäst-likt ELLER ett rent
-    // telefon-konto. Ett annat konto med en Google-/Apple-identitet vägrar vi
-    // att kapa. E-post i sig är kontaktdata och inget inloggningsbevis.
+    // (permanent koppling). Telefonen är den gemensamma kundidentiteten, även
+    // om källkontot har Google/Apple-identitet.
     // Soft-deletar det gamla (undviker FK-krångel)
     // + flyttar ordrar + frigör Supabase-telefon-användaren.
     const existingWithPhone = await (prisma as any).user.findFirst({
@@ -175,15 +174,6 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
     });
     let updated: any;
     if (existingWithPhone && existingWithPhone.id !== req.user.id) {
-      const hasSocialIdentity =
-        existingWithPhone.oauthProvider === 'google' ||
-        existingWithPhone.oauthProvider === 'apple' ||
-        (Boolean(existingWithPhone.oauthId) && existingWithPhone.oauthProvider !== 'phone');
-      if (hasSocialIdentity) {
-        return res.status(409).json({
-          error: 'Detta telefonnummer är redan kopplat till ett annat konto',
-        });
-      }
       updated = await (prisma as any).$transaction(async (tx: any) => {
         const [source, target] = await Promise.all([
           tx.user.findUnique({ where: { id: existingWithPhone.id } }),
