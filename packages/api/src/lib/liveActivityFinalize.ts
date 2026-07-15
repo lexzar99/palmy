@@ -1,26 +1,11 @@
 /**
- * Auto-finalisation for Live Activities.
+ * Order lifecycle and Live Activity finalisation.
  *
- * After the admin marks an order as DELIVERING, the customer-facing UI
- * (Live Activity + order screen) should:
- *   1. Show "På väg" for 15 minutes.
- *   2. Auto-flip to "Levererad" at the 15-min mark.
- *   3. Stay on "Levererad" for ~3 minutes, then dismiss the LA banner.
- *
- * Previously the LA stuck on "På väg" until the user dismissed it manually,
- * because nothing pushed a final state once the human admin had moved on.
- *
- * Strategy: a setInterval (1-minute tick) scans the DB for orders that are
- *   - status = 'DELIVERED'   (DB stores DELIVERED immediately on DELIVERING; see admin.ts)
- *   - deliveringAt is set    (so we know when the 15-min window started)
- *   - liveActivityToken set  (so we have somewhere to push)
- *
- * For each, depending on elapsed time since deliveringAt:
- *   - 15..18 min  → push 'update' with status='delivered' (idempotent in-memory)
- *   - 18+ min     → push 'end' with dismissalDate ~3 min out, then clear token
- *
- * Once the token is cleared the order falls out of the query, so this is
- * naturally self-terminating.
+ * Every minute it atomically completes only two timer-owned flows:
+ *   - self-delivery: DELIVERING -> DELIVERED after 15 minutes
+ *   - pickup: READY -> DELIVERED (shown as "Hämtad") after 10 minutes
+ * Platform delivery is never timer-completed; the courier owns that status.
+ * Terminal Live Activities are then ended and their tokens cleared.
  */
 
 import prisma from './prisma';
@@ -31,6 +16,69 @@ import {
   sendApnsSilentWake,
 } from './liveActivityPush';
 import { computeDeliveryWindowMs } from './deliveryWindow';
+import { getIO } from './socket';
+import { sendOrderStatusPush } from './customerPush';
+import { bustCache } from './ttlCache';
+
+const PICKUP_READY_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Persist terminal statuses instead of only simulating them in a client.
+ * updateMany's old-status guard makes this safe with multiple API instances.
+ */
+export async function finalizeDueOrders(): Promise<void> {
+  const now = Date.now();
+  const selfDeliveryCutoff = new Date(now - 15 * 60 * 1000);
+  const pickupCutoff = new Date(now - PICKUP_READY_WINDOW_MS);
+  const due = await prisma.order.findMany({
+    where: {
+      OR: [
+        {
+          type: 'DELIVERY',
+          status: 'DELIVERING',
+          deliveringAt: { lte: selfDeliveryCutoff },
+          restaurant: { selfDelivery: true },
+        },
+        {
+          type: 'PICKUP',
+          status: 'READY',
+          updatedAt: { lte: pickupCutoff },
+        },
+      ],
+    },
+    select: { id: true, type: true, restaurantId: true },
+  });
+
+  for (const order of due) {
+    const where = order.type === 'PICKUP'
+      ? { id: order.id, type: 'PICKUP', status: 'READY', updatedAt: { lte: pickupCutoff } }
+      : {
+          id: order.id,
+          type: 'DELIVERY',
+          status: 'DELIVERING',
+          deliveringAt: { lte: selfDeliveryCutoff },
+          restaurant: { selfDelivery: true },
+        };
+    const changed = await prisma.order.updateMany({ where, data: { status: 'DELIVERED' } });
+    if (changed.count !== 1) continue;
+
+    bustCache('order:byid', order.id);
+    try {
+      const payload = { id: order.id, orderId: order.id, status: 'DELIVERED' };
+      const io = getIO();
+      io.to(`order:${order.id}`).emit('order:status', payload);
+      io.to('admin-room').emit('order:updated', payload);
+      if (order.restaurantId) io.to(`admin-room:${order.restaurantId}`).emit('order:updated', payload);
+    } catch {
+      // Socket may not be ready during the first startup tick. DB remains truth.
+    }
+    void sendOrderStatusPush(order.id, 'DELIVERED');
+    void import('../routes/referrals').then(({ maybeTriggerReferralReward }) =>
+      maybeTriggerReferralReward(order.id),
+    );
+    console.log(`[orderLifecycle] ${order.type === 'PICKUP' ? 'pickup collected' : 'self-delivery completed'} order=${order.id}`);
+  }
+}
 
 const STATUS_TEXT: Record<string, { text: string; step: number }> = {
   accepted:        { text: 'Restaurangen har accepterat din order', step: 0 },
@@ -60,8 +108,11 @@ export async function finalizeStaleLiveActivities(): Promise<void> {
   const orders = await prisma.order.findMany({
     where: {
       status: 'DELIVERED',
-      deliveringAt: { not: null },
       liveActivityToken: { not: null },
+      OR: [
+        { deliveringAt: { not: null } },
+        { type: 'PICKUP' },
+      ],
     },
     select: {
       id: true,
@@ -69,15 +120,16 @@ export async function finalizeStaleLiveActivities(): Promise<void> {
       userId: true,
       customerPhone: true,
       deliveringAt: true,
+      updatedAt: true,
       liveActivityToken: true,
     },
   });
 
   const now = Date.now();
   for (const order of orders) {
-    const deliveringAtDate = new Date(order.deliveringAt!);
+    const deliveringAtDate = order.deliveringAt ? new Date(order.deliveringAt) : new Date(order.updatedAt);
     const elapsed = now - deliveringAtDate.getTime();
-    const windowMs = computeDeliveryWindowMs(deliveringAtDate, order.id);
+    const windowMs = order.type === 'PICKUP' ? 0 : computeDeliveryWindowMs(deliveringAtDate, order.id);
     const token = order.liveActivityToken!;
     const orderType = order.type;
 
@@ -225,17 +277,18 @@ export function startLiveActivityFinalizer(): void {
   if (intervalHandle) return;
   // Run immediately on startup so a server restart that landed mid-window
   // catches up without waiting a minute.
-  finalizeStaleLiveActivities().catch((e) =>
+  const runLifecycle = async () => {
+    await finalizeDueOrders();
+    await finalizeStaleLiveActivities();
+  };
+  runLifecycle().catch((e) =>
     console.error('[liveActivityFinalize] initial run error:', e),
   );
-  // ⚠️ TEMP TESTING — 5 s tick (was 60 s) so the auto-DELIVERED finaliser
-  // catches the new 20 s deliveryWindow promptly. Revert to 60 * 1000 when
-  // the temp window in deliveryWindow.ts is restored.
   intervalHandle = setInterval(() => {
-    finalizeStaleLiveActivities().catch((e) =>
+    runLifecycle().catch((e) =>
       console.error('[liveActivityFinalize] tick error:', e),
     );
-  }, 5 * 1000);
+  }, 60 * 1000);
 
   // Heartbeat tick — keeps active LAs fresh across iOS push throttling and
   // host-app kills. 60 s cadence stays well under Apple's per-app LA push

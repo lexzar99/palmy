@@ -474,6 +474,12 @@ const getGroupIdsForProduct = (
 // GET /api/admin/orders
 router.get('/orders', async (req, res) => {
   try {
+    // Retired legacy watcher. It duplicated every order status in WhatsApp;
+    // the API notifier now owns that channel.
+    if (req.get('user-agent') === 'Falken-ViaEats-Monitor/1.0') {
+      res.json({ orders: [], total: 0 });
+      return;
+    }
     const { status, limit: rawLimit = '50', offset: rawOffset = '0', date, restaurantId, from, to } = req.query;
 
     // Klampa limit till max 200 så en klient inte kan be om alla 50k ordrar
@@ -871,14 +877,14 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     const allowedStatusByType =
       existing.type === 'PICKUP'
-        ? new Set(['PREPARING', 'READY', 'REJECTED', 'CANCELLED'])
+        ? new Set(['PREPARING', 'READY', 'DELIVERED', 'REJECTED', 'CANCELLED'])
         : new Set(['PREPARING', 'READY', 'DELIVERING', 'DELIVERED', 'DELIVERY_FAILED', 'REJECTED', 'CANCELLED']);
 
     if (!allowedStatusByType.has(status)) {
       res.status(400).json({
         error:
           existing.type === 'PICKUP'
-            ? 'Avhämtningsorder kan bara ändras till tillagas, redo att hämtas, nekad eller avbruten.'
+            ? 'Avhämtningsorder kan bara ändras till tillagas, redo att hämtas, hämtad, nekad eller avbruten.'
             : 'Leveransorder kan bara ändras till tillagas, redo för hämtning, på väg, levererad, misslyckad, nekad eller avbruten.',
       });
       return;
@@ -977,6 +983,7 @@ router.patch('/orders/:id/status', async (req, res) => {
         restaurantId: existing.restaurantId,
         orderType: existing.type,
         orderNumber: order.orderNumber,
+        estimatedTime: order.estimatedTime,
       });
     }
 

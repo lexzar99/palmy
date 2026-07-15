@@ -1,41 +1,20 @@
-// Falken-notifiern: server-side ordervakt som kör i API-processen (Railway),
-// dygnet runt, oberoende av Jalles dator. Skickar korta händelser till Hermes/
-// WhatsApp via API-outbox, webhook eller direct bridge.
-//
-// Aktiveras ENDAST om env-vars finns (sätts i Railway UI, aldrig i repo):
-//   HERMES_API_TOKEN            - aktiverar API-outbox/polling via /api/hermes/alerts
-//   HERMES_WHATSAPP_WEBHOOK_URL eller HERMES_ALERT_WEBHOOK_URL
-//   HERMES_WHATSAPP_WEBHOOK_SECRET eller HERMES_ALERT_WEBHOOK_SECRET
-//   FALKEN_WEBHOOK_URL / FALKEN_WEBHOOK_SECRET fungerar som legacy-alias.
-//   FALKEN_POLL_SECONDS        - (valfri) pollintervall, default 120
-//
-// State är in-memory: efter deploy/omstart seedas tyst (inga notiser för
-// gammalt), övergångar som sker under själva omstarten kan missas — medvetet
-// enkelt istället för en state-tabell.
+// Server-side order notifier for the private Hermes/WhatsApp channel.
+// Courier availability alerts live in courierPush.ts, so the same order can
+// never produce two competing courier messages. Restarts seed silently.
 import prisma from './prisma';
 import { isHermesAlertConfigured, sendHermesEvents } from './hermesAlerts';
 
-const STUCK_PENDING_MIN = 10;
-const STUCK_READY_MIN = 20;
-const COURIER_NOT_ACCEPTED_MIN = 4;
-const TERMINAL = new Set(['DELIVERED', 'REJECTED', 'CANCELLED']);
+const TERMINAL = new Set(['DELIVERED', 'COMPLETED', 'REJECTED', 'CANCELLED', 'DELIVERY_FAILED']);
+const ACCEPTED = new Set(['ACCEPTED', 'PREPARING']);
 
 type Seen = { status: string; createdAt: Date; flags: Set<string> };
 const seen = new Map<string, Seen>();
 let seeded = false;
 
 const cfg = () => ({
-  pollSeconds: Math.max(30, parseInt(process.env.FALKEN_POLL_SECONDS || '120', 10) || 120),
+  pollSeconds: Math.max(10, parseInt(process.env.FALKEN_POLL_SECONDS || '15', 10) || 15),
 });
-
-const ageMin = (d: Date) => Math.floor((Date.now() - d.getTime()) / 60_000);
-
-const carMode = () => ['car', 'brief'].includes((process.env.FALKEN_TELEGRAM_MODE || '').toLowerCase());
-
-function line(kind: 'decision' | 'fix' | 'info', text: string) {
-  const prefix = kind === 'decision' ? 'Beslut' : kind === 'fix' ? 'Fixat' : 'Info';
-  return carMode() ? `${prefix}: ${text}` : `${prefix}: ${text}`;
-}
+const ageMin = (date: Date) => Math.max(0, Math.floor((Date.now() - date.getTime()) / 60_000));
 
 async function tick() {
   const orders = await prisma.order.findMany({
@@ -43,30 +22,22 @@ async function tick() {
     orderBy: { createdAt: 'desc' },
     take: 50,
     select: {
-      id: true, orderNumber: true, status: true, type: true, total: true,
-      createdAt: true, updatedAt: true,
-      restaurant: { select: { name: true, city: true, selfDelivery: true } },
-      delivery: { select: { courierId: true } },
+      id: true,
+      orderNumber: true,
+      status: true,
+      type: true,
+      total: true,
+      estimatedTime: true,
+      createdAt: true,
+      restaurant: { select: { name: true } },
     },
   });
 
   if (!seeded) {
-    for (const o of orders) {
-      // Redan gamla "fastnade" ordrar flaggas vid seed så en deploy inte
-      // re-larmar samma sak om och om igen.
+    for (const order of orders) {
       const flags = new Set<string>();
-      if (o.status === 'PENDING' && ageMin(o.createdAt) >= STUCK_PENDING_MIN) flags.add('stuck_pending');
-      if (o.status === 'READY' && ageMin(o.updatedAt) >= STUCK_READY_MIN) flags.add('stuck_ready');
-      if (
-        o.type === 'DELIVERY' &&
-        !o.restaurant?.selfDelivery &&
-        !o.delivery?.courierId &&
-        ['ACCEPTED', 'PREPARING', 'READY'].includes(o.status) &&
-        ageMin(o.updatedAt) >= COURIER_NOT_ACCEPTED_MIN
-      ) {
-        flags.add('courier_not_accepted');
-      }
-      seen.set(o.id, { status: o.status, createdAt: o.createdAt, flags });
+      if (ACCEPTED.has(order.status)) flags.add('accepted');
+      seen.set(order.id, { status: order.status, createdAt: order.createdAt, flags });
     }
     seeded = true;
     console.log(`[falken] notifier seedad med ${orders.length} ordrar`);
@@ -75,84 +46,77 @@ async function tick() {
 
   const lines: string[] = [];
   const events: Array<Record<string, unknown>> = [];
-  const emit = (line: string, type: string, o: (typeof orders)[number]) => {
-    lines.push(line);
+  const emit = (text: string, type: string, order: (typeof orders)[number]) => {
+    lines.push(text);
     events.push({
       type,
-      orderId: o.id,
-      orderNumber: o.orderNumber,
-      status: o.status,
-      totalKr: o.total / 100,
-      restaurant: o.restaurant?.name ?? null,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      totalKr: order.total / 100,
+      restaurant: order.restaurant?.name ?? null,
       at: new Date().toISOString(),
     });
   };
 
-  for (const o of orders) {
-    const num = o.orderNumber ?? o.id;
-    const rest = o.restaurant?.name ?? 'okänd restaurang';
-    const kr = Math.round(o.total / 100);
-    const prev = seen.get(o.id);
+  for (const order of orders) {
+    const number = order.orderNumber || order.id;
+    const restaurant = order.restaurant?.name || 'okänd restaurang';
+    const totalKr = Math.round(order.total / 100);
+    const previous = seen.get(order.id);
 
-    if (!prev) {
-      seen.set(o.id, { status: o.status, createdAt: o.createdAt, flags: new Set() });
-      if (o.status === 'PENDING') emit(line('decision', `Ny order ${num} hos ${rest}, ${kr} kr. Väntar på accept.`), 'order:new', o);
-      else if (!TERMINAL.has(o.status)) emit(line('info', `Order ${num} hos ${rest}, ${kr} kr. Status ${o.status}.`), 'order:new', o);
-    } else if (prev.status !== o.status) {
-      prev.status = o.status;
-      if (o.status === 'ACCEPTED') emit(line('fix', `${rest} accepterade ${num}.`), 'order:accepted', o);
-      else if (o.status === 'DELIVERING') emit(line('info', `Kuriren är på väg med ${num} från ${rest}.`), 'order:delivering', o);
-      else if (o.status === 'DELIVERED') emit(line('fix', `${num} levererad från ${rest}. Total tid ${ageMin(o.createdAt)} min.`), 'order:delivered', o);
-      else if (o.status === 'REJECTED') emit(line('decision', `${rest} avvisade ${num}, ${kr} kr. Kolla om kund behöver hjälp.`), 'order:rejected', o);
-      else if (o.status === 'CANCELLED') emit(line('decision', `${num} hos ${rest} avbröts, ${kr} kr. Kolla om kund behöver hjälp.`), 'order:cancelled', o);
+    if (!previous) {
+      const flags = new Set<string>();
+      seen.set(order.id, { status: order.status, createdAt: order.createdAt, flags });
+      if (order.status === 'PENDING') {
+        emit(`Ny order ${number} från ${restaurant}, ${totalKr} kr. Väntar på restaurangen.`, 'order:new', order);
+      } else if (ACCEPTED.has(order.status)) {
+        flags.add('accepted');
+        emit(`Order ${number} accepterad av ${restaurant}. Klar om ${order.estimatedTime || 20} min.`, 'order:accepted', order);
+      }
+      continue;
     }
 
-    const entry = seen.get(o.id)!;
-    if (o.status === 'PENDING' && ageMin(o.createdAt) >= STUCK_PENDING_MIN && !entry.flags.has('stuck_pending')) {
-      entry.flags.add('stuck_pending');
-      emit(line('decision', `Ingen har accepterat ${num} hos ${rest}, ${ageMin(o.createdAt)} min nu.`), 'order:stuck_pending', o);
-    }
-    if (o.status === 'READY' && ageMin(o.updatedAt) >= STUCK_READY_MIN && !entry.flags.has('stuck_ready')) {
-      entry.flags.add('stuck_ready');
-      emit(line('decision', `${num} hos ${rest} har stått klar i ${ageMin(o.updatedAt)} min utan att hämtas.`), 'order:stuck_ready', o);
-    }
-    if (
-      o.type === 'DELIVERY' &&
-      !o.restaurant?.selfDelivery &&
-      !o.delivery?.courierId &&
-      ['ACCEPTED', 'PREPARING', 'READY'].includes(o.status) &&
-      ageMin(o.updatedAt) >= COURIER_NOT_ACCEPTED_MIN &&
-      !entry.flags.has('courier_not_accepted')
-    ) {
-      entry.flags.add('courier_not_accepted');
-      emit(
-        line('decision', `Ingen kurir har tagit ${num} hos ${rest} efter ${ageMin(o.updatedAt)} min. Kolla bud direkt.`),
-        'courier:not_accepted_4m',
-        o,
-      );
+    if (previous.status !== order.status) {
+      previous.status = order.status;
+      if (ACCEPTED.has(order.status) && !previous.flags.has('accepted')) {
+        previous.flags.add('accepted');
+        emit(`Order ${number} accepterad av ${restaurant}. Klar om ${order.estimatedTime || 20} min.`, 'order:accepted', order);
+      } else if (order.status === 'DELIVERING') {
+        emit(`Order ${number} är på väg från ${restaurant}.`, 'order:delivering', order);
+      } else if (order.status === 'DELIVERED' || order.status === 'COMPLETED') {
+        emit(
+          order.type === 'PICKUP'
+            ? `Order ${number} är hämtad hos ${restaurant}.`
+            : `Order ${number} är levererad från ${restaurant}.`,
+          'order:delivered',
+          order,
+        );
+      } else if (order.status === 'REJECTED') {
+        emit(`Order ${number} avvisades av ${restaurant}.`, 'order:rejected', order);
+      } else if (order.status === 'CANCELLED') {
+        emit(`Order ${number} hos ${restaurant} avbröts.`, 'order:cancelled', order);
+      } else if (order.status === 'DELIVERY_FAILED') {
+        emit(`Leveransen av order ${number} från ${restaurant} misslyckades.`, 'order:delivery_failed', order);
+      }
     }
   }
 
-  // Rensa avslutade/gamla ordrar som lämnat 50-fönstret.
-  const currentIds = new Set(orders.map((o) => o.id));
-  for (const [id, e] of seen) {
-    if (!currentIds.has(id) && (TERMINAL.has(e.status) || ageMin(e.createdAt) > 24 * 60)) seen.delete(id);
+  const currentIds = new Set(orders.map((order) => order.id));
+  for (const [id, entry] of seen) {
+    if (!currentIds.has(id) && (TERMINAL.has(entry.status) || ageMin(entry.createdAt) > 24 * 60)) seen.delete(id);
   }
 
-  if (lines.length > 0) {
-    await sendHermesEvents(events, lines.join('\n'));
-  }
+  if (events.length > 0) await sendHermesEvents(events, lines.join('\n'));
 }
 
 export function startFalkenNotifier() {
   const { pollSeconds } = cfg();
   if (!isHermesAlertConfigured()) {
-    console.log('[falken] notifier inaktiv (Hermes/WhatsApp webhook saknas)');
+    console.log('[falken] notifier inaktiv (Hermes/WhatsApp saknas)');
     return;
   }
-  console.log(`[falken] notifier aktiv (poll ${pollSeconds}s, whatsapp=true)`);
-  setInterval(() => {
-    tick().catch((err) => console.warn('[falken] tick failed:', (err as Error).message));
-  }, pollSeconds * 1000);
-  void tick().catch((err) => console.warn('[falken] seed failed:', (err as Error).message));
+  console.log(`[falken] notifier aktiv (poll ${pollSeconds}s)`);
+  setInterval(() => void tick().catch((error) => console.warn('[falken] tick failed:', (error as Error).message)), pollSeconds * 1000);
+  void tick().catch((error) => console.warn('[falken] seed failed:', (error as Error).message));
 }

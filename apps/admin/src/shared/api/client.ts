@@ -24,6 +24,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Safari reports transient network drops as "Load failed". Retry safe reads
+// once so a brief radio/Wi-Fi handover does not break an admin screen.
+api.interceptors.response.use(undefined, async (error) => {
+  const config = error?.config as (AxiosRequestConfig & { __networkRetry?: boolean }) | undefined;
+  const isNetworkFailure = !error?.response && Boolean(error?.request);
+  const method = String(config?.method || "get").toLowerCase();
+  if (config && isNetworkFailure && method === "get" && !config.__networkRetry) {
+    config.__networkRetry = true;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    return api.request(config);
+  }
+  return Promise.reject(error);
+});
+
 export const getApiUrl = <T,>(url: string) => `/api${url.startsWith("/") ? url : `/${url}`}` as T extends string ? T : string;
 
 export async function apiGet<T>(url: string, config?: AxiosRequestConfig) {

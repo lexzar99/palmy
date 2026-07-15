@@ -6,7 +6,7 @@ import { JWT_SECRET } from '../lib/config';
 import { getIO } from '../lib/socket';
 import { haversineKm } from '../utils/geo';
 import { authenticate, requireSuperAdmin, type AuthRequest } from '../middleware/auth';
-import { saveSubscription, removeSubscription, getVapidPublicKey, notifyCouriersOrderReady } from '../lib/courierPush';
+import { saveSubscription, removeSubscription, getVapidPublicKey, notifyCourierAccepted, notifyCouriersOrderReady } from '../lib/courierPush';
 import { sendOrderStatusPush } from '../lib/customerPush';
 import { registerCourierFcmToken, clearCourierFcmToken, sendCourierFcm, sendTestFcm, isFcmConfigured } from '../lib/courierFcm';
 import { clearCourierApnsToken, registerCourierApnsToken, sendTestCourierApns } from '../lib/courierApns';
@@ -309,6 +309,12 @@ router.post('/jobs/:orderId/accept', requireCourier, async (req: CourierRequest,
       },
       include: { order: { include: { restaurant: true, items: true } } },
     });
+    void notifyCourierAccepted({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      restaurantName: order.restaurant.name,
+      city: order.restaurant.city,
+    }).catch((error) => console.warn('[courier] Hermes accept alert failed:', error?.message));
     // Om ordern redan var "klar för hämtning" när budet accepterade → notifiera
     // budet direkt (helpern hittar nu den tilldelade leveransen och träffar bara
     // detta bud). Annars hade de missat klar-signalen som gick ut före accept.

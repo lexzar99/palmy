@@ -32,18 +32,18 @@ export function PageHeader({
 }) {
   return (
     <div className="page-header">
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         {onBack ? (
           <button type="button" className="page-back" onClick={onBack} aria-label="Tillbaka">
             <ChevronLeft size={18} />
           </button>
         ) : null}
-        <div>
-          {breadcrumb ? <div className="page-breadcrumb">{breadcrumb}</div> : null}
-          <h1 className="page-title">{title}</h1>
+        <div className="min-w-0">
+          {breadcrumb ? <div className="page-breadcrumb max-w-full break-words">{breadcrumb}</div> : null}
+          <h1 className="page-title break-words">{title}</h1>
         </div>
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
   );
 }

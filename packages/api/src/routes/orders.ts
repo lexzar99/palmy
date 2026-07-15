@@ -1777,32 +1777,9 @@ router.get('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    // For customer-facing view: while the order is still inside its
-    // DELIVERING window (computed by computeDeliveryWindowMs — 10–20 min
-    // based on time/order load), show DELIVERING; after that the row
-    // already reads DELIVERED and we serve that. Single source of truth so
-    // the customer banner, the LA finaliser, and the LA dispatcher all
-    // agree on the same window.
-    let customerStatus = order.status;
-    // Det artificiella DELIVERING-fönstret är en MOCK och gäller ENDAST
-    // self-leverans (ingen kurir finns som markerar klart — vi simulerar
-    // transit-tiden). För vi-levererar har budet redan markerat DELIVERED
-    // PÅ RIKTIGT (courier `complete`); då måste vi respektera det direkt.
-    // Annars drog denna override tillbaka status till DELIVERING på nästa
-    // poll efter att budet levererat → kund-trackingen hoppade bakåt och
-    // live-kartan kom tillbaka. Samma selfDelivery-gate som PATCH /status.
-    if (
-      order.status === 'DELIVERED' &&
-      order.deliveringAt &&
-      (order.restaurant as any)?.selfDelivery
-    ) {
-      const deliveringAtDate = new Date(order.deliveringAt);
-      const windowMs = computeDeliveryWindowMs(deliveringAtDate, order.id);
-      const elapsed = Date.now() - deliveringAtDate.getTime();
-      if (elapsed < windowMs) {
-        customerStatus = 'DELIVERING';
-      }
-    }
+    // Database status is the sole source of truth. The lifecycle worker keeps
+    // self-delivery in DELIVERING for exactly 15 minutes before completing it.
+    const customerStatus = order.status;
 
     // Absolute timestamp when the active LiveActivity step's countdown should
     // hit zero. Computed from anchor timestamps + the originally agreed-on
@@ -2233,7 +2210,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, userId: true, status: true, restaurantId: true, customerPhone: true, accessToken: true, restaurant: { select: { selfDelivery: true } } },
+      select: { id: true, userId: true, status: true, restaurantId: true, customerPhone: true, accessToken: true, deliveringAt: true, restaurant: { select: { selfDelivery: true } } },
     });
     if (!order) return res.status(404).json({ error: 'Ordern hittades inte' });
     const normalizePhone = (p: string | null | undefined) => (p || '').replace(/[^\d+]/g, '');
@@ -2293,6 +2270,12 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     }
     if (order.status !== 'DELIVERING') {
       return res.status(409).json({ error: `Kan inte gå från ${order.status} till DELIVERED` });
+    }
+    const elapsed = order.deliveringAt
+      ? Date.now() - new Date(order.deliveringAt).getTime()
+      : 0;
+    if (elapsed < computeDeliveryWindowMs(order.deliveringAt || new Date(), orderId)) {
+      return res.json({ changed: false, status: order.status });
     }
 
     let updated = await prisma.order.update({

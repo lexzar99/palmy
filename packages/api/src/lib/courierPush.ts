@@ -134,13 +134,14 @@ async function sendToCourierIds(courierIds: string[], payload: PushPayload): Pro
 const newJobNotified = new Map<string, number>();
 const NEW_JOB_DEDUP_MS = 90_000;
 const noCourierAcceptedTimers = new Map<string, NodeJS.Timeout>();
-const NO_COURIER_ACCEPTED_MS = 4 * 60_000;
+const NO_COURIER_ACCEPTED_MS = 3 * 60_000;
 
 async function alertNoCouriersOnline(opts: {
   orderId?: string | null;
   orderNumber?: string | null;
   restaurantName: string;
   city: string;
+  estimatedTime?: number | null;
 }) {
   await sendHermesAlert({
     source: 'viaeats-courier',
@@ -150,7 +151,7 @@ async function alertNoCouriersOnline(opts: {
     orderNumber: opts.orderNumber || null,
     restaurant: opts.restaurantName,
     city: opts.city,
-    text: `Inga bud online i ${opts.city}. Ny order från ${opts.restaurantName}${opts.orderNumber ? ` (${opts.orderNumber})` : ''}.`,
+    text: `INGA BUD\nOrder ${opts.orderNumber || ''} accepterad av ${opts.restaurantName}. Klar om ${opts.estimatedTime || 20} min.`.replace('Order  accepterad', 'Order accepterad'),
   });
 }
 
@@ -180,14 +181,14 @@ function scheduleNoCourierAcceptedCheck(opts: {
       if (!['ACCEPTED', 'PREPARING', 'READY'].includes(String(order.status || '').toUpperCase())) return;
       await sendHermesAlert({
         source: 'viaeats-courier',
-        type: 'courier:not_accepted_4m',
+        type: 'courier:not_accepted_3m',
         severity: 'critical',
         orderId: order.id,
         orderNumber: order.orderNumber,
         restaurant: order.restaurant?.name || opts.restaurantName,
         city: order.restaurant?.city || opts.city,
         status: order.status,
-        text: `Ingen kurir har tagit ordern efter 4 minuter. ${order.restaurant?.name || opts.restaurantName}${order.orderNumber ? ` (${order.orderNumber})` : ''}. Status: ${order.status}.`,
+        text: `Inget bud har accepterat den pågående beställningen ${order.orderNumber || ''} från ${order.restaurant?.name || opts.restaurantName} efter 3 minuter.`.replace('beställningen  från', 'beställningen från'),
       });
     } catch (e: any) {
       console.warn('[courierPush] no-courier accepted check failed:', e?.message);
@@ -201,6 +202,7 @@ export async function notifyCouriersOfNewJob(opts: {
   restaurantId: string | null | undefined;
   orderType: string | null | undefined;
   orderNumber?: string | null;
+  estimatedTime?: number | null;
 }): Promise<void> {
   try {
     if (!opts.restaurantId || opts.orderType !== 'DELIVERY') return;
@@ -235,6 +237,7 @@ export async function notifyCouriersOfNewJob(opts: {
         orderNumber: opts.orderNumber,
         restaurantName: restaurant.name,
         city: restaurant.city,
+        estimatedTime: opts.estimatedTime,
       });
       return;
     }
@@ -270,6 +273,30 @@ export async function notifyCouriersOfNewJob(opts: {
   } catch (e) {
     console.warn('[courierPush] notifyCouriersOfNewJob fel:', (e as Error)?.message);
   }
+}
+
+/** Called exactly when a courier wins the unique order assignment race. */
+export async function notifyCourierAccepted(opts: {
+  orderId: string;
+  orderNumber?: string | null;
+  restaurantName: string;
+  city?: string | null;
+}): Promise<void> {
+  const timer = noCourierAcceptedTimers.get(opts.orderId);
+  if (timer) {
+    clearTimeout(timer);
+    noCourierAcceptedTimers.delete(opts.orderId);
+  }
+  await sendHermesAlert({
+    source: 'viaeats-courier',
+    type: 'courier:accepted',
+    severity: 'info',
+    orderId: opts.orderId,
+    orderNumber: opts.orderNumber || null,
+    restaurant: opts.restaurantName,
+    city: opts.city || null,
+    text: `Bud har accepterat order ${opts.orderNumber || ''} från ${opts.restaurantName}.`.replace('order  från', 'ordern från'),
+  });
 }
 
 /**

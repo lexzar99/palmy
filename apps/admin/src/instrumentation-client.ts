@@ -15,6 +15,13 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
     // 10% av sessioner, 100% av sessioner som har errors.
     replaysSessionSampleRate: 0.0,
     replaysOnErrorSampleRate: 1.0,
+    beforeSend(event) {
+      const value = event.exception?.values?.[0]?.value || "";
+      // A momentary browser network loss is handled by the API retry/UI error
+      // state and is not an application exception worth paging for.
+      if (/^(Load failed|Failed to fetch|Network Error)$/i.test(value.trim())) return null;
+      return event;
+    },
     integrations: [
       Sentry.replayIntegration({
         maskAllText: true,

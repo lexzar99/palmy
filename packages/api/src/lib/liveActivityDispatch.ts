@@ -75,20 +75,9 @@ export async function pushLiveActivityForOrder(
     return { ok: false, reason: 'no-token' };
   }
 
-  // Mirror GET /api/orders/:id: while deliveringAt is fresh (<20 min), the
-  // customer-facing status is DELIVERING even though the DB row has already
-  // flipped to DELIVERED. Use the same view here so the LA matches the
-  // in-app banner step exactly.
-  let customerStatus = options.serverStatus ?? order.status;
-  if (
-    !options.serverStatus &&
-    order.status === 'DELIVERED' &&
-    order.deliveringAt
-  ) {
-    const minutesSinceDelivering =
-      (Date.now() - new Date(order.deliveringAt).getTime()) / 60000;
-    if (minutesSinceDelivering < 20) customerStatus = 'DELIVERING';
-  }
+  // DB status is the source of truth. The lifecycle worker keeps self-delivery
+  // in DELIVERING for 15 minutes and only then writes DELIVERED.
+  const customerStatus = options.serverStatus ?? order.status;
 
   let etaEndsAt: Date | null = null;
   if (
