@@ -78,6 +78,11 @@ export default function PhoneAuth() {
     markExplicitLoginStarted();
     try {
       const supabase = createSupabaseBrowserClient();
+      // An old Apple/Google Supabase session must not win a new explicit
+      // phone-login attempt. Leaving it around caused profile bootstrap to
+      // exchange the social session after the SMS succeeded, showing a second
+      // phone-verification gate.
+      await supabase.auth.signOut().catch(() => {});
       const { error: err } = await supabase.auth.signInWithOtp({ phone: fullPhone() });
       if (err) throw err;
       setStep("code");

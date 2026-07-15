@@ -671,6 +671,10 @@ function ProfileContent() {
       phone: fullPhone,
       token: phoneVerificationToken,
     });
+    // The SMS session was only a proof for linking. Do not leave it active so
+    // profile bootstrap can mistake the linking session for a fresh login and
+    // render the phone gate a second time.
+    await createSupabaseBrowserClient().auth.signOut().catch(() => {});
     setUser((prev: any) => ({ ...(prev || {}), ...res.data.user }));
     await fetchData();
     setShowAddPhone(false);
