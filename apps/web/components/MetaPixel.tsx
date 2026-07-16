@@ -42,6 +42,10 @@ function ensurePixel() {
 
 export default function MetaPixel() {
   useEffect(() => {
+    // Initialise on mount so Meta's Test Events can see the page immediately
+    // and so the Lead listener is ready before the form can be submitted.
+    ensurePixel();
+
     // Lead-eventet skickas först efter att personen uttryckligen godkänt
     // manuell kontakt i launchformuläret. Det gör att vi inte spårar besökare
     // som bara avvisat cookies eller aldrig skickat formuläret.
@@ -56,4 +60,3 @@ export default function MetaPixel() {
 
   return null;
 }
-
