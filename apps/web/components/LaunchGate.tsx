@@ -61,6 +61,9 @@ export default function LaunchGate() {
       } catch {}
       setInterestRegistered(true);
       setShowInterestForm(false);
+      // Meta får endast Lead efter lyckad registrering och uttryckligt
+      // samtycke för manuell kontakt — inte vid sidvisning eller knappklick.
+      window.dispatchEvent(new Event("viaeats:meta-lead"));
     } catch {
       setInterestError("Servern svarade inte. Kontrollera anslutningen och försök igen.");
     } finally {

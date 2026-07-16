@@ -10,6 +10,7 @@ import CookieConsent from "@/components/CookieConsent";
 import PlatformBanner from "@/components/PlatformBanner";
 import OfflineBanner from "@/components/OfflineBanner";
 import DeferredGlobalClients from "@/components/DeferredGlobalClients";
+import MetaPixel from "@/components/MetaPixel";
 
 // Inter — lugnare och mer neutral än Outfit; bär "tyst & direkt"-designen.
 const inter = Inter({ subsets: ["latin"] });
@@ -97,6 +98,7 @@ export default function RootLayout({
               "Information"-knappen i profilen → ingen global footer-länk. */}
           <BottomNav />
           <CookieConsent />
+          <MetaPixel />
           <DeferredGlobalClients />
         </Providers>
       </body>
