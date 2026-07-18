@@ -31,12 +31,7 @@ import {
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
-import {
-  ACTIVE_ORDER_KEY,
-  ACTIVE_ORDERS_KEY,
-  isActiveOrderStatus,
-  rememberActiveOrder,
-} from "@/lib/activeOrder";
+import { rememberActiveOrder } from "@/lib/activeOrder";
 // Betalning sker via provider-neutralt hosted checkout-flöde.
 import ProductModal from "@/components/ProductModal";
 import { saveOrderToHistory } from "@/lib/orderHistory";
@@ -261,48 +256,9 @@ export default function CartPage() {
   // tomt-läge istället för en falsk "full varukorg"-skeleton.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  // Kundvagnen är inte rätt destination när en order redan pågår. Kontrollera
-  // både den lokala orderkontinuiteten (gäst) och kontots orderhistorik (inloggad)
-  // så ett klick på Kundvagn alltid återgår till samma tracking-kort.
-  useEffect(() => {
-    if (!mounted || typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    // Betalningsretur och återupptagen pending-order måste få slutföra först.
-    if (params.has("payment_return") || localStorage.getItem("pending_order_id")) return;
-    let cancelled = false;
-
-    const redirectIfActive = async () => {
-      const ids: string[] = [];
-      const addId = (value: unknown) => {
-        const id = String(value || "").trim();
-        if (id && !ids.includes(id)) ids.push(id);
-      };
-      addId(localStorage.getItem(ACTIVE_ORDER_KEY));
-      try {
-        const stored = JSON.parse(localStorage.getItem(ACTIVE_ORDERS_KEY) || "[]");
-        (Array.isArray(stored) ? stored : []).forEach((order: any) => addId(order?.id));
-      } catch { /* ignore malformed continuity state */ }
-
-      // Ett konto kan ha en pågående order från en annan enhet även utan lokal
-      // ordernyckel. En 401 här är normalt för gäster och ska vara helt tyst.
-      const profileOrders = await axios.get("/api/platform/profile/orders").catch(() => ({ data: [] }));
-      (Array.isArray(profileOrders.data) ? profileOrders.data : []).forEach((order: any) => {
-        if (isActiveOrderStatus(order?.status)) addId(order.id);
-      });
-
-      for (const id of ids.slice(0, 5)) {
-        const order = await axios.get(`/api/platform/orders/${id}`).then((res) => res.data).catch(() => null);
-        const paymentStatus = String(order?.paymentStatus || "").toUpperCase();
-        if (order && isActiveOrderStatus(order.status) && !["FAILED", "EXPIRED", "CANCELLED"].includes(paymentStatus)) {
-          if (!cancelled) router.replace(`/order/${id}`);
-          return;
-        }
-      }
-    };
-
-    void redirectIfActive();
-    return () => { cancelled = true; };
-  }, [mounted, router]);
+  // En pågående order får INTE kapa kundvagnen: kunden ska kunna lägga en ny
+  // beställning medan den gamla levereras. Tracking nås via LiveOrderBanner
+  // och Mina beställningar istället för en tvingad redirect härifrån.
   const [error, setError] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   // True när kunden återvänt från Mollie och vi pollar orderns betalstatus.
@@ -1612,7 +1568,8 @@ export default function CartPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const returnOrderId = params.get("payment_return") || localStorage.getItem("pending_order_id");
+    const returnParam = params.get("payment_return");
+    const returnOrderId = returnParam || localStorage.getItem("pending_order_id");
     if (!returnOrderId) return;
 
     const cancelled =
@@ -1627,7 +1584,10 @@ export default function CartPage() {
       void handlePaymentCancelled(returnOrderId);
       return;
     }
-    void finishHostedPayment(returnOrderId);
+    // Passivt återupptagen order (ingen payment_return-param) får inte låsa
+    // kassan med en lång poll-loop på varje besök — den gör en snabb koll och
+    // släpper sedan varukorgen fri.
+    void finishHostedPayment(returnOrderId, { passive: !returnParam });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1715,7 +1675,12 @@ export default function CartPage() {
   // PAID → tracking.
   // Terminalt fel/cancel → abandon + behåll varukorg. Timeout/pending → behåll
   // cart och låt kunden försöka igen; skicka ALDRIG obetald order till tracking.
-  const finishHostedPayment = async (orderId: string) => {
+  const finishHostedPayment = async (orderId: string, opts: { passive?: boolean } = {}) => {
+    // Passiv = ingen payment_return-param, bara en kvarlämnad pending_order_id
+    // (stängd Mollie-flik el. dyl.). Då görs en snabb engångskoll: PAID går
+    // till tracking som vanligt, allt annat städas bort tyst så kassan aldrig
+    // låses av en gammal order.
+    const passive = opts.passive === true;
     setVerifyingPayment(true);
     const recoveryToken = localStorage.getItem("pending_order_token") || "";
     if (recoveryToken) {
@@ -1728,7 +1693,8 @@ export default function CartPage() {
         // otherwise it reports a recoverable timeout without leaking a token.
       }
     }
-    for (let attempt = 0; attempt < 8; attempt++) {
+    const maxAttempts = passive ? 1 : 8;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const res = await axios.get(`/api/platform/payments/status/${orderId}`);
         const ps = String(res.data?.paymentStatus || "").toUpperCase();
@@ -1743,7 +1709,9 @@ export default function CartPage() {
           await abandonPendingOrder(orderId);
           clearPendingPaymentStorage();
           setPendingOrderId(null);
-          setError("Betalningen genomfördes inte. Din varukorg är kvar, försök igen eller välj ett annat betalsätt.");
+          // En gammal order som städas bort passivt ska inte skrämmas upp som
+          // ett färskt betalfel.
+          if (!passive) setError("Betalningen genomfördes inte. Din varukorg är kvar, försök igen eller välj ett annat betalsätt.");
           return;
         }
       } catch (err: unknown) {
@@ -1753,15 +1721,24 @@ export default function CartPage() {
           clearCartReturnParams();
           clearPendingPaymentStorage();
           setPendingOrderId(null);
-          setError("Den tidigare betalningen kunde inte återställas. Din varukorg är kvar, så du kan försöka igen.");
+          if (!passive) setError("Den tidigare betalningen kunde inte återställas. Din varukorg är kvar, så du kan försöka igen.");
           return;
         }
         /* nätverksfel: fortsätt polla */
       }
-      await new Promise((r) => setTimeout(r, 2000));
+      if (attempt < maxAttempts - 1) await new Promise((r) => setTimeout(r, 2000));
     }
     setVerifyingPayment(false);
     clearCartReturnParams();
+    if (passive) {
+      // Ordern är varken betald eller terminal — kunden lämnade kassan. Släpp
+      // den gamla ordern (abandon är no-op server-side om den hunnit betalas,
+      // webhooken finaliserar den ändå) så en ny beställning kan läggas direkt.
+      await abandonPendingOrder(orderId);
+      clearPendingPaymentStorage();
+      setPendingOrderId(null);
+      return;
+    }
     setError("Vi väntar fortfarande på betalningsbekräftelsen. Din varukorg är kvar. Om betalningen gick igenom uppdateras ordern automatiskt, annars kan du försöka igen om en stund.");
   };
 
