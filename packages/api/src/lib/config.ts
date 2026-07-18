@@ -83,6 +83,10 @@ export const DEFAULT_ORIGINS = [
   // Känd äldre storefront-deploy. Övriga previews måste uttryckligen läggas i
   // CORS_ALLOWED_ORIGINS; vem som helst kan annars skapa en *.vercel.app-domän.
   'https://viaeats-web-pi.vercel.app',
+  // Partner-sajter (powered by ViaEats): restaurangernas egna domäner som
+  // läser publik data (meny/öppetstatus) direkt från API:t i browsern.
+  'https://palmyrapizzeria.se',
+  'https://www.palmyrapizzeria.se',
 ];
 
 export const getAllowedOrigins = (): string[] => {
