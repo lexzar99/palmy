@@ -37,6 +37,7 @@ import contentPlacementsRoutes from './routes/contentPlacements';
 import pushRoutes from './routes/push';
 import homeCategoriesRoutes from './routes/homeCategories';
 import launchRoutes from './routes/launch';
+import metaLeadsRoutes from './routes/metaLeads';
 import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
 import controlCenterRoutes from './routes/controlCenter';
@@ -95,6 +96,7 @@ import {
 import { validOrderId, verifyOrderAccessProof } from './lib/orderAccess';
 import { cookieFromHeader, isPaymentWebhookRequest } from './lib/requestSecurity';
 import { PRELAUNCH_ACCESS_HEADER, prelaunchModeEnabled, validPrelaunchProof } from './lib/prelaunchAccess';
+import { isAppClient } from './lib/clientPlatform';
 
 // Checkout får aldrig starta med en okänd eller okonfigurerad aktiv PSP.
 // Övriga launchkrav rapporteras på /ready utan att skapa en restart-loop.
@@ -183,6 +185,8 @@ app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/payments/webhooks/stripe', express.raw({ type: 'application/json' }));
 // Adyen-webhooken kräver rå body för HMAC-verifiering (annars konsumerar express.json den).
 app.use('/api/payments/webhooks/adyen', express.raw({ type: 'application/json' }));
+// Meta leadgen-signature verification needs the exact request bytes.
+app.use('/api/meta/webhook', express.raw({ type: 'application/json' }));
 // Leveransbevis kan innehålla ett base64-foto på högst 6 MB (~8 MB som
 // data-URL). Ge bara den smala kurir-routen det större JSON-taket. Multipart-
 // bilduppladdningar parsas av multer med en separat 15 MB filgräns.
@@ -326,6 +330,11 @@ app.use('/api/auth/verify', sessionVerifyLimiter);
 // webbproxyn kan läsa den signerade HttpOnly-cookien och vidarebefordra proofen.
 const requirePrelaunchCheckoutAccess: express.RequestHandler = (req, res, next) => {
   if (!prelaunchModeEnabled()) return next();
+  // Apparna är inte publikt distribuerade under prelaunch, så app-klienter
+  // (X-Client-Type: ios/android) släpps igenom utan proof. Medveten avvägning:
+  // headern kan spoofas via curl, men grinden är temporär smoke-test-skydd,
+  // inte en säkerhetsgräns. Tas bort tillsammans med prelaunch-läget.
+  if (isAppClient(req)) return next();
   if (validPrelaunchProof(req.header(PRELAUNCH_ACCESS_HEADER))) return next();
   res.status(423).json({ error: 'PRELAUNCH_LOCKED', message: 'Beställning öppnar snart.' });
 };
@@ -370,6 +379,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/hermes', hermesRoutes);
+app.use('/api/meta/webhook', metaLeadsRoutes);
 app.use('/api/admin/reports', reportRoutes);
 // uploadRoutes monteras direkt på /api/admin så routern's egna paths
 // (/upload, /upload-r2, /images/list, /images/exists, /images/auto-match,
