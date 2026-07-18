@@ -705,6 +705,22 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
     }
   }, [restaurant?.isOpen, zoneAvailable, address, orderType]);
 
+  // Partner-deeplink: ?product=<id> (från t.ex. partner-embedden på
+  // restaurangens egen sajt) öppnar produkten direkt via samma gating som ett
+  // vanligt klick (stängt/zon/adress). Väntar på hydrated så adress-grinden
+  // läser kundens riktiga läge, konsumeras exakt en gång.
+  const deepLinkDoneRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkDoneRef.current || !hydrated || !restaurant || categories.length === 0) return;
+    const productId = new URLSearchParams(window.location.search).get("product");
+    deepLinkDoneRef.current = true;
+    if (!productId) return;
+    const product = categories
+      .flatMap((c: any) => c.products ?? [])
+      .find((p: any) => p.id === productId);
+    if (product) handleOpenProduct(product);
+  }, [hydrated, restaurant, categories, handleOpenProduct]);
+
   // Platt meny: hela restaurangens kategorier visas direkt. Produkter filtreras
   // på sökterm. Inga huvudkategorier längre.
   const scopedCategories = categories;
