@@ -21,7 +21,7 @@ const RECEIPT_FONT_PATH = path.join(__dirname, '../../assets/Outfit.ttf');
 // Must change whenever the bitmap layout changes. Otherwise a real order can
 // keep an older in-memory artifact while test printing already shows the new
 // Admin layout, which makes the two physical receipts look unrelated.
-const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v12';
+const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v13';
 
 function parseExtras(raw: unknown): any[] {
   try {
@@ -397,7 +397,13 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     maxWidth: number,
   ): Promise<RenderedText[]> => {
     if (!value) return [];
-    let maxChars = Math.max(4, Math.floor(maxWidth / (sizePx * 0.55)));
+    // Mät hela texten först: får den plats på en rad används varje punkt av
+    // horisontalen. Först när den är för bred uppskattas brytpunkten utifrån
+    // den uppmätta bredden (inte en pessimistisk teckenschablon).
+    const whole = await renderTextLine(value, sizePx, weight, color);
+    if (!whole) return [];
+    if (whole.width <= maxWidth) return [whole];
+    let maxChars = Math.max(4, Math.floor((value.length * maxWidth) / whole.width));
     let rendered: RenderedText[] = [];
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const lines = wrapText(value, maxChars);
@@ -617,9 +623,9 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
           const lineTotal = Math.round(price * qty * 100) / 100;
           const requiredChoice = Boolean(extra.required);
           // Ingen indragning: tillvalen börjar exakt under artikelradens
-          // siffra, med kompakt punktmarkör i stället för "**".
+          // siffra, med kompakt bindestreck i stället för "**".
           await rowPair(
-            `· ${qty > 1 ? `${qty} x ` : ''}${extra.name}`,
+            `- ${qty > 1 ? `${qty} x ` : ''}${extra.name}`,
             lineTotal > 0 ? `+${kr(lineTotal)} kr` : '',
             requiredChoice
               ? Math.max(11, configuredSize('extras', 8) + 1)
@@ -640,12 +646,15 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
   if (visible('divider5')) divider();
 
   // ── Totaler ──
+  if (items.length > 0) {
+    await rowPair('Subtotal', `${kr(totals.subtotal)} kr`, 9, 400);
+  }
   if (visible('deliveryFee') && Number(totals.deliveryFee || 0) > 0) {
     await rowPair('Leveransavgift', `${kr(totals.deliveryFee)} kr`, configuredSize('deliveryFee', 9), configuredWeight('deliveryFee', 600));
   }
   if (visible('discount') && Number(totals.discount || 0) > 0) {
     await rowPair(
-      totals.discountCode ? `Rabatt (${totals.discountCode})` : 'Rabatt',
+      'Rabatt',
       `-${kr(totals.discount)} kr`,
       configuredSize('discount', 9),
       configuredWeight('discount', 600),

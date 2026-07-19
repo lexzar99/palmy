@@ -192,7 +192,7 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
               </div>
               {vis("extras") && (item.extras as Array<unknown> ?? []).map((extra, ei) => (
                 <p key={ei} style={elStyle("extras")} className="text-[#555] pl-3">
-                  ** {typeof extra === "string" ? extra : s((extra as Record<string, unknown>).name)}
+                  - {typeof extra === "string" ? extra : s((extra as Record<string, unknown>).name)}
                 </p>
               ))}
               {s(item.note) && <p className="text-[10px] font-black pl-3">! {s(item.note)}</p>}
@@ -205,6 +205,11 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
 
       {/* ── Totaler ── */}
       <div className="mb-2">
+        {items.length > 0 && (
+          <div className="flex justify-between text-[9px]">
+            <span>Subtotal</span><span>{s(t.subtotal)} kr</span>
+          </div>
+        )}
         {vis("deliveryFee") && n(t.deliveryFee) > 0 && (
           <div className="flex justify-between" style={elStyle("deliveryFee")}>
             <span>Leveransavgift</span><span>{s(t.deliveryFee)} kr</span>
@@ -212,7 +217,7 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
         )}
         {vis("discount") && n(t.discount) > 0 && (
           <div className="flex justify-between" style={elStyle("discount")}>
-            <span>Rabatt{s(t.discountCode) ? ` (${s(t.discountCode)})` : ""}</span>
+            <span>Rabatt</span>
             <span>-{s(t.discount)} kr</span>
           </div>
         )}
