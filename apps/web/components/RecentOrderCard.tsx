@@ -18,8 +18,8 @@ type RecentOrder = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING: "Granskas",
-  ACCEPTED: "Bekräftad",
+  PENDING: "Väntar på bekräftelse",
+  ACCEPTED: "Bekräftad av restaurangen",
   PREPARING: "Tillagas",
   READY: "Klar",
   DELIVERING: "På väg",

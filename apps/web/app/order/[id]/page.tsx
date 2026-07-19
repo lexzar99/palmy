@@ -22,6 +22,7 @@ import {
   readEmbedParentOrigin,
   trustedPartnerOrigin,
 } from "@/lib/embedPartner";
+import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
 
 // Live-karta laddas bara på klienten (Leaflet behöver window).
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
@@ -100,24 +101,6 @@ const STATUS_CONFIG: Record<string, { icon: any; colorClass: string; textClass: 
     textClass: "text-[var(--text-secondary)]",
   },
 };
-
-// Stegen i kund-trackingen. Vi-levererar OCH levererar-själva visar samma
-// fyra steg; skillnaden är att vi-levererar går via budet (på väg = hämtad)
-// medan self auto-markeras levererad efter mock-tiden.
-type StepDef = { label: string; reached: (s: string) => boolean };
-const DELIVERY_STEP_DEFS: StepDef[] = [
-  { label: "Granskas", reached: () => true },
-  { label: "Lagar maten", reached: (s) => ["PREPARING", "READY", "DELIVERING", "DELIVERED", "COMPLETED"].includes(s) },
-  { label: "På väg", reached: (s) => ["DELIVERING", "DELIVERED", "COMPLETED"].includes(s) },
-  { label: "Levererad", reached: (s) => ["DELIVERED", "COMPLETED"].includes(s) },
-];
-// Avhämtning slutar vid "Klar för avhämtning" (sista steget) — speglar RN-appen.
-// Ingen "Hämtad"-status efter, kunden hämtar själv när det står klart.
-const PICKUP_STEP_DEFS: StepDef[] = [
-  { label: "Mottagen", reached: () => true },
-  { label: "Lagar maten", reached: (s) => ["PREPARING", "READY", "DELIVERED", "COMPLETED"].includes(s) },
-  { label: "Klar för avhämtning", reached: (s) => ["READY", "DELIVERED", "COMPLETED"].includes(s) },
-];
 
 // Avslutade lägen är "sticky": en redan levererad/avbruten order får ALDRIG
 // dras tillbaka till ett aktivt läge av en stale poll, en cachad GET (backend
@@ -479,7 +462,11 @@ const OrderStatusPage = () => {
             ...prev,
             status: data.status,
             estimatedTime: data.estimatedTime ?? prev.estimatedTime,
-            etaEndsAt: data.etaEndsAt ?? prev?.etaEndsAt,
+            etaEndsAt: Object.prototype.hasOwnProperty.call(data, "etaEndsAt") ? data.etaEndsAt : prev?.etaEndsAt,
+            etaReadyAt: Object.prototype.hasOwnProperty.call(data, "etaReadyAt") ? data.etaReadyAt : prev?.etaReadyAt,
+            etaPickupAt: Object.prototype.hasOwnProperty.call(data, "etaPickupAt") ? data.etaPickupAt : prev?.etaPickupAt,
+            etaCustomerAt: Object.prototype.hasOwnProperty.call(data, "etaCustomerAt") ? data.etaCustomerAt : prev?.etaCustomerAt,
+            etaCustomerMin: Object.prototype.hasOwnProperty.call(data, "etaCustomerMin") ? data.etaCustomerMin : prev?.etaCustomerMin,
             deliveringAt: data.deliveringAt ?? prev?.deliveringAt,
           };
         });
@@ -631,11 +618,9 @@ const OrderStatusPage = () => {
   const statusInfo = STATUS_CONFIG[currentStatus] ?? STATUS_CONFIG.PENDING;
   const StatusIcon = statusInfo.icon;
   const isRejected = currentStatus === "REJECTED" || currentStatus === "CANCELLED" || currentStatus === "DELIVERY_FAILED";
-  const stepDefs = order.type === "DELIVERY" ? DELIVERY_STEP_DEFS : PICKUP_STEP_DEFS;
-  // Aktuellt steg = sista steget vars villkor uppnåtts av nuvarande status.
-  const currentIdx = isCompleted
-    ? stepDefs.length - 1
-    : stepDefs.reduce((acc, d, i) => (d.reached(currentStatus) ? i : acc), 0);
+  const trackingProgress = orderTrackingProgress(order);
+  const stepDefs = trackingProgress.labels.map((label) => ({ label }));
+  const currentIdx = trackingProgress.activeIndex;
 
   // ── ETA / leveranstid ──────────────────────────────────────────────────
   // Perspektiv:
@@ -703,6 +688,7 @@ const OrderStatusPage = () => {
   const statusAccentInk = statusTone === "red" ? "#9A2A1F" : statusTone === "green" ? "#1F6B41" : statusTone === "yellow" ? "#8A5B00" : "#B23C12";
   const statusSoft = statusTone === "red" ? "#FCEBE9" : statusTone === "green" ? "#EAF7EF" : statusTone === "yellow" ? "#FFF7DB" : "#FFF0EA";
   const restName = order.restaurantName || "Restaurang";
+  const statusCopy = orderTrackingCopy(order);
   const cancelledCopy = (() => {
     switch (currentStatus) {
       case "REJECTED":
@@ -745,37 +731,43 @@ const OrderStatusPage = () => {
       : ['ACCEPTED', 'PREPARING'].includes(currentStatus)
         ? Number(order.estimatedTime || 0) || null
         : null;
-  const awaitingAccept = ['AWAITING_PAYMENT', 'PENDING'].includes(currentStatus);
+  const awaitingPayment = currentStatus === 'AWAITING_PAYMENT';
+  const awaitingAccept = currentStatus === 'PENDING';
+  const deliveryEnRoute = isOnWay && order.type === "DELIVERY";
   const etaSub = isRejected
     ? cancelledCopy.sub
     : isCompleted
       ? "Status"
+      : awaitingPayment
+        ? "Betalning"
       : awaitingAccept
-        ? "Inväntar restaurang"
+        ? "Skickad till restaurangen"
         : order.scheduledFor
           ? "Schemalagd tid"
           : isPickup
-            ? currentStatus === "READY" ? "Redo att hämtas" : "Klar om ca"
+            ? currentStatus === "READY" ? "Redo att hämtas" : "Restaurangens tid"
             : currentStatus === "READY"
               ? t("order.eta.readyPlatformTitle")
-            : courierEnRoute
+            : deliveryEnRoute
               ? "Framme om ca"
-              : "Klar om ca";
+              : "Restaurangens tid";
   const etaMain = isRejected
     ? cancelledCopy.main
     : isCompleted
       ? isPickup ? "hämtad" : "klart"
+      : awaitingPayment
+        ? "slutför betalningen"
       : awaitingAccept
-        ? "tills de accepterar"
+        ? "väntar på svar"
         : order.scheduledFor
           ? new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
           : currentStatus === "READY"
-            ? isPickup ? "nu" : isWeDeliver ? t("order.eta.waitingCourier") : t("order.eta.preparingSelfDelivery")
+            ? isPickup ? "nu" : isWeDeliver ? "bud hämtar snart" : "utkörning förbereds"
           : etaMinutes != null && etaMinutes <= 0
             ? "snart"
             : etaMinutes != null
               ? `${etaMinutes} min`
-              : "tills de accepterar";
+              : "status uppdateras";
   const mapEtaMin = etaMinutes != null && Number.isFinite(etaMinutes) ? etaMinutes : Number.isFinite(deliveryEtaMin) ? deliveryEtaMin : 15;
   const formatLiveEta = (seconds: number | null) => {
     if (seconds == null) return mapEtaMin <= 0 ? "snart" : `${mapEtaMin} min`;
@@ -786,39 +778,12 @@ const OrderStatusPage = () => {
   };
   const fullscreenEtaSub = showMapFullscreen ? "Framme om ca" : etaSub;
   const fullscreenEtaMain = showMapFullscreen ? formatLiveEta(liveEtaSecondsLeft) : etaMain;
-  const statusTitle = isRejected
-    ? cancelledCopy.title
-    : isCompleted
-      ? isPickup ? "Hämtad" : "Levererad"
-      : currentStatus === "READY"
-        ? isPickup ? "Redo att hämtas" : t("order.eta.readyPlatformTitle")
-        : isOnWay
-          ? "På väg"
-          : currentStatus === "PREPARING"
-            ? "Tillagas"
-            : currentStatus === "ACCEPTED"
-              ? "Mottagen"
-              : "Skickad";
-  const statusDescription = isRejected
-    ? cancelledCopy.description
-    : isSelf && currentStatus === "READY"
-      ? t("order.eta.readySelfDeliveryDesc")
-    : isSelf && isOnWay
-      ? `${restName} levererar själva och är på väg med din mat.`
-      : isSelf
-      ? `${restName} levererar själva. Ingen live-karta eller bud att följa för det här stället.`
-      : courierEnRoute
-        ? (deliveryOverdue ? t("order.eta.overdueBusy") : "Tillagad · ditt bud är på väg")
-        : isWeDeliver && currentStatus === "READY"
-          ? t("order.eta.readyPlatformDesc")
-        : isPickup && currentStatus === "READY"
-          ? "Visa ordernumret i restaurangen när du hämtar."
-          : statusDesc(currentStatus);
+  const statusTitle = statusCopy.title;
+  const statusDescription = deliveryOverdue ? t("order.eta.overdueBusy") : statusCopy.description;
+  const showEtaAsEstimate = etaMinutes != null && ["ACCEPTED", "PREPARING", "DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"].includes(currentStatus);
 
   const TrackingLineWeb = ({ pickupReady = false }: { pickupReady?: boolean }) => {
-    const labels = isPickup
-      ? ["Mottagen", "Tillagas", "Redo"]
-      : ["Mottagen", "Tillagas", isCompleted ? "Levererad" : "På väg"];
+    const labels = trackingProgress.labels;
     const selected = pickupReady ? labels.length - 1 : Math.min(labels.length - 1, activeStep);
     const lineProgress = isCompleted || pickupReady ? 1 : Math.max(0.18, Math.min(1, (selected + 1) / labels.length));
     return (
@@ -967,7 +932,10 @@ const OrderStatusPage = () => {
           className="fixed inset-0 z-[1900] overflow-y-auto"
           style={{ backgroundColor: "var(--bg-primary)" }}
         >
-          <div className="mx-auto min-h-[100dvh] max-w-md px-5 pb-8 pt-[calc(env(safe-area-inset-top,0px)+14px)]">
+          <div
+            className="mx-auto min-h-[100dvh] max-w-md px-5 pt-[calc(env(safe-area-inset-top,0px)+14px)]"
+            style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 6rem)" : "2rem" }}
+          >
             <div className="flex items-center gap-3 pb-4">
               <button type="button" onClick={() => setShowReceipt(false)} className="grid h-10 w-10 place-items-center rounded-full" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}>
                 <ArrowRight size={18} className="rotate-180" />
@@ -1108,16 +1076,28 @@ const OrderStatusPage = () => {
   }
 
   const StatusCard = () => (
-    <div className="mt-4 rounded-[24px] border bg-white px-6 py-7 text-center shadow-xl" style={{ borderColor: isGreenStatus ? "rgba(46,125,79,0.22)" : "rgba(17,17,19,0.07)", boxShadow: "0 14px 28px rgba(17,17,19,0.10)" }}>
-      <div className="mx-auto inline-flex items-center gap-2 rounded-full px-3.5 py-2" style={{ backgroundColor: statusSoft }}>
-        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: statusAccent }} />
-        <span className="text-[11px] font-black uppercase tracking-[0.07em]" style={{ color: statusAccentInk }}>{isPickup ? "AVHÄMTNING" : statusTitle.toUpperCase()}</span>
+    <motion.div
+      key={currentStatus}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative mt-4 overflow-hidden rounded-[26px] border bg-white px-6 py-7 text-center shadow-xl"
+      style={{ borderColor: isGreenStatus ? "rgba(46,125,79,0.22)" : "rgba(17,17,19,0.07)", boxShadow: "0 16px 34px rgba(17,17,19,0.11)" }}
+    >
+      <span aria-hidden className="pointer-events-none absolute -right-14 -top-16 h-40 w-40 rounded-full opacity-20" style={{ backgroundColor: statusAccent }} />
+      <span aria-hidden className="pointer-events-none absolute -bottom-20 -left-16 h-44 w-44 rounded-full opacity-[0.08]" style={{ backgroundColor: statusAccent }} />
+      <div className="relative mx-auto grid h-14 w-14 place-items-center rounded-2xl" style={{ backgroundColor: statusSoft, color: statusAccentInk }}>
+        <StatusIcon size={27} className={awaitingAccept ? "animate-pulse" : ""} />
       </div>
-      <p className="mt-4 text-[clamp(30px,12vw,50px)] font-black leading-none tracking-tight" style={{ color: isRejected ? "#C0392B" : isGreenStatus ? "#2E7D4F" : "var(--text-primary)" }}>
-        {isRejected || awaitingAccept || isCompleted || currentStatus === "READY" || order.scheduledFor ? etaMain : `ca ${etaMain}`}
+      <div className="relative mx-auto mt-3 inline-flex items-center gap-2 rounded-full px-3.5 py-2" style={{ backgroundColor: statusSoft }}>
+        <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40" style={{ backgroundColor: statusAccent }} /><span className="relative inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: statusAccent }} /></span>
+        <span className="text-[10.5px] font-black uppercase tracking-[0.07em]" style={{ color: statusAccentInk }}>{isPickup ? "AVHÄMTNING" : statusTitle}</span>
+      </div>
+      <p className="relative mt-4 text-[clamp(30px,11vw,48px)] font-black leading-[0.98] tracking-[-0.04em]" style={{ color: isRejected ? "#C0392B" : isGreenStatus ? "#2E7D4F" : "var(--text-primary)" }}>
+        {showEtaAsEstimate ? `ca ${etaMain}` : etaMain}
       </p>
-      <p className="mx-auto mt-2 max-w-sm text-[13.5px] font-medium leading-5" style={{ color: "var(--text-secondary)" }}>{statusDescription}</p>
-    </div>
+      <p className="relative mx-auto mt-3 max-w-sm text-[13.5px] font-medium leading-5" style={{ color: "var(--text-secondary)" }}>{statusDescription}</p>
+      {!isRejected ? <div className="relative border-t pt-1" style={{ borderColor: "rgba(17,17,19,0.07)" }}><TrackingLineWeb /></div> : null}
+    </motion.div>
   );
 
   const PickupReadyCard = () => (
@@ -1191,7 +1171,10 @@ const OrderStatusPage = () => {
 
   return (
     <div className="min-h-[100dvh]" style={{ backgroundColor: "var(--bg-primary)" }}>
-      <div className="mx-auto max-w-md px-4 pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-[calc(env(safe-area-inset-top,0px)+8px)]">
+      <div
+        className="mx-auto max-w-md px-4 pt-[calc(env(safe-area-inset-top,0px)+8px)]"
+        style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 6rem)" : "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
+      >
         <div className="flex h-[52px] items-center gap-3 border-b" style={{ borderColor: "var(--border-muted)" }}>
           <Link href={embedMode ? embedMenuHref : "/"} aria-label="Till menyn" className="grid h-9 w-9 place-items-center rounded-full">
             <ArrowRight size={20} className="rotate-180" />

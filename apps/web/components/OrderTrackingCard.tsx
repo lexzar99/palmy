@@ -5,43 +5,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bike, Check, ChevronRight, Navigation, Package, ShoppingBag, X } from "lucide-react";
 import { motion } from "framer-motion";
+import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
 
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
 
 type LL = { lat: number; lng: number };
 
-
-function statusText(status: string, isPickup: boolean) {
-  const s = status.toUpperCase();
-  if (s === "AWAITING_PAYMENT") return "Väntar på betalning";
-  if (s === "REJECTED") return "Avböjd";
-  if (s === "DELIVERY_FAILED") return "Misslyckad";
-  if (s === "CANCELLED") return "Avbruten";
-  if (isPickup) {
-    if (["READY", "DELIVERED", "COMPLETED"].includes(s)) return "Redo";
-    if (s === "PREPARING") return "Tillagas";
-    if (s === "ACCEPTED") return "Mottagen";
-    return "Skickad";
-  }
-  if (["DELIVERED", "COMPLETED"].includes(s)) return "Levererad";
-  if (["DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"].includes(s)) return "På väg";
-  if (s === "READY") return "Redo";
-  if (s === "PREPARING") return "Tillagas";
-  if (s === "ACCEPTED") return "Mottagen";
-  return "Skickad";
-}
-
-function stepFor(status: string, isPickup: boolean) {
-  const s = status.toUpperCase();
-  if (isPickup) {
-    if (["READY", "DELIVERED", "COMPLETED"].includes(s)) return 3;
-    if (s === "PREPARING") return 2;
-    return 1;
-  }
-  if (["DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY", "DELIVERED", "COMPLETED"].includes(s)) return 3;
-  if (["PREPARING", "READY"].includes(s)) return 2;
-  return 1;
-}
 
 function etaLabel(order: any, now = Date.now()) {
   const status = String(order.status || "").toUpperCase();
@@ -85,12 +54,14 @@ export function OrderTrackingCard({
   const isOnWay = ["DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"].includes(status);
   const isDone = isPickup ? ["READY", "DELIVERED", "COMPLETED"].includes(status) : ["DELIVERED", "COMPLETED"].includes(status);
   const isCancelled = ["CANCELLED", "REJECTED", "DELIVERY_FAILED"].includes(status);
+  const copy = orderTrackingCopy(order);
+  const tracking = orderTrackingProgress(order);
   const tone = isCancelled ? "red" : isDone || isOnWay ? "green" : ["PREPARING", "READY"].includes(status) ? "yellow" : "orange";
   const accent = tone === "red" ? "#C0392B" : tone === "green" ? "#2E7D4F" : tone === "yellow" ? "#E1A70D" : "#F0531C";
   const accentInk = tone === "red" ? "#9A2A1F" : tone === "green" ? "#1F6B41" : tone === "yellow" ? "#8A5B00" : "#B23C12";
   const soft = tone === "red" ? "#FCEBE9" : tone === "green" ? "#EAF7EF" : tone === "yellow" ? "#FFF7DB" : "#FFF0EA";
-  const step = stepFor(status, isPickup);
-  const labels = isPickup ? ["Mottagen", "Tillagas", "Redo"] : ["Mottagen", "Tillagas", isDone ? "Levererad" : "På väg"];
+  const labels = tracking.labels;
+  const step = tracking.activeIndex + 1;
   const progress = `${Math.max(18, Math.min(100, Math.round((step / labels.length) * 100)))}%`;
   const restaurantLabel = order.restaurantName || order.restaurant?.name || "Din restaurang";
   const orderNumber = order.orderNumber || String(order.id || "").slice(-6).toUpperCase();
@@ -135,9 +106,9 @@ export function OrderTrackingCard({
               {full ? `ORDER ${orderNumber ? `#${orderNumber}` : ""}` : "Pågående order"}
             </p>
             <h3 className="mt-0.5 truncate text-[16px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>
-              {full ? statusText(status, isPickup) : restaurantLabel}
+              {full ? copy.title : restaurantLabel}
             </h3>
-            {!full && <p className="mt-0.5 truncate text-[11px] font-bold" style={{ color: accentInk }}>{statusText(status, isPickup)} · {modeLabel}</p>}
+            {!full && <p className="mt-0.5 truncate text-[11px] font-bold" style={{ color: accentInk }}>{copy.short} · {modeLabel}</p>}
           </div>
         </div>
         <div className={`${full ? "rounded-full px-3 py-1.5" : "rounded-2xl px-3 py-2"} text-right`} style={{ backgroundColor: soft }}>
@@ -178,9 +149,9 @@ export function OrderTrackingCard({
           <div className="flex h-full items-center px-4">
             <div>
               <p className="text-[13px] font-black" style={{ color: "var(--text-primary)" }}>
-                {status === "AWAITING_PAYMENT" ? "Betalning krävs" : statusText(status, isPickup)}
+                {copy.short}
               </p>
-              {!full && <p className="mt-1 text-[11px] font-bold" style={{ color: accentInk }}>Vi håller dig uppdaterad</p>}
+              <p className="mt-1 line-clamp-2 text-[11px] font-bold" style={{ color: full ? "var(--text-secondary)" : accentInk }}>{copy.description}</p>
             </div>
           </div>
         )}
@@ -194,7 +165,7 @@ export function OrderTrackingCard({
           </div>
           <div className="mt-2 flex justify-between gap-1">
             {labels.map((label, i) => {
-              const active = Math.max(0, Math.min(labels.length - 1, step - 1)) === i;
+              const active = tracking.activeIndex === i;
               return (
                 <span
                   key={label}

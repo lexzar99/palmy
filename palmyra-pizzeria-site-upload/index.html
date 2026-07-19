@@ -121,6 +121,22 @@ h1 em { font-style: normal; color: var(--red); }
 .hero-ctas { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 30px; }
 .hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 28px; font-size: 12px; font-weight: 700; letter-spacing: 0.4px; color: var(--muted); }
 .hero-meta b { color: var(--ink); }
+.viaeats-hero-teaser {
+  display: flex; align-items: center; gap: 12px; max-width: 570px; margin-top: 20px; padding: 10px 11px 10px 14px;
+  background: #102b4e; color: #f8f0e6; border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: 3px 3px 0 var(--ink);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.viaeats-hero-teaser:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); }
+.viaeats-hero-teaser-brand { flex: none; font-family: "Baloo 2", var(--display); font-size: 12px; font-weight: 800; line-height: 1.05; }
+.viaeats-hero-teaser-copy { min-width: 0; flex: 1; font-size: 11px; font-weight: 750; line-height: 1.25; color: rgba(248,240,230,.78); }
+.viaeats-hero-teaser-copy strong { color: #fff; }
+.viaeats-hero-teaser-cta { flex: none; padding: 8px 11px; border-radius: 999px; background: #f0531c; color: #fff; font-family: "Baloo 2", var(--display); font-size: 11px; font-weight: 800; line-height: 1; }
+@media (max-width: 520px) {
+  .viaeats-hero-teaser { display: grid; grid-template-columns: 1fr auto; gap: 3px 9px; margin-top: 16px; padding: 10px 10px 10px 12px; }
+  .viaeats-hero-teaser-brand { font-size: 12px; }
+  .viaeats-hero-teaser-copy { grid-column: 1; font-size: 10.5px; }
+  .viaeats-hero-teaser-cta { grid-column: 2; grid-row: 1 / span 2; align-self: center; padding: 10px 12px; }
+}
 .status-pill {
   display: inline-flex; align-items: center; gap: 7px;
   font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
@@ -462,6 +478,11 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
     <div>
       <span class="kicker reveal">Kiliansgatan 14 · Lund</span>
       <h1 class="reveal d1">Pizza, kebab<br>och <em>stora</em><br>tallrikar.</h1>
+      <a class="viaeats-hero-teaser reveal d2" id="viaeats-hero-interest" href="#viaeats-launch">
+        <span class="viaeats-hero-teaser-brand">Powered by ViaEats</span>
+        <span class="viaeats-hero-teaser-copy">Lanserar snart i Lund · <strong>30 % första veckan</strong></span>
+        <span class="viaeats-hero-teaser-cta" id="viaeats-hero-interest-text">Anmäl intresse</span>
+      </a>
       <p class="lede reveal d2">Mitt i Lund sedan länge. Allt görs när du beställer, hem till dörren eller varmt över disk.</p>
       <div class="hero-ctas reveal d3">
         <a class="btn" href="meny.html">Meny &amp; beställ</a>
@@ -495,7 +516,7 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
   </div>
 </header>
 
-<section class="viaeats-launch" aria-labelledby="viaeats-launch-title">
+<section class="viaeats-launch" id="viaeats-launch" aria-labelledby="viaeats-launch-title">
   <div class="wrap">
     <div class="viaeats-launch-card reveal">
       <div class="viaeats-launch-copy">
@@ -677,6 +698,8 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
   const interestForm = document.getElementById('viaeats-interest-form');
   const interestNote = document.getElementById('viaeats-interest-note');
   const interestStatus = document.getElementById('viaeats-interest-status');
+  const heroInterest = document.getElementById('viaeats-hero-interest');
+  const heroInterestText = document.getElementById('viaeats-hero-interest-text');
   const interestStorageKey = 'viaeats_launch_interest';
 
   function markInterestRegistered() {
@@ -686,18 +709,31 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
     interestToggle.setAttribute('aria-expanded', 'false');
     interestForm.hidden = true;
     interestNote.textContent = 'Vi kontaktar dig via e-post inför lanseringen i Lund.';
+    heroInterestText.textContent = 'Anmäld ✓';
   }
 
   try {
     if (localStorage.getItem(interestStorageKey) === '1') markInterestRegistered();
   } catch {}
 
-  interestToggle.addEventListener('click', () => {
+  function openInterestForm() {
+    if (interestToggle.disabled) return;
     interestForm.hidden = false;
     interestToggle.hidden = true;
     interestToggle.setAttribute('aria-expanded', 'true');
     interestNote.textContent = 'Fyll i uppgifterna så registrerar vi din 30 %-kupong.';
-    interestForm.querySelector('input')?.focus();
+    document.getElementById('viaeats-launch').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => interestForm.querySelector('input')?.focus(), 450);
+  }
+
+  interestToggle.addEventListener('click', openInterestForm);
+  heroInterest.addEventListener('click', (event) => {
+    event.preventDefault();
+    if (interestToggle.disabled) {
+      document.getElementById('viaeats-launch').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    openInterestForm();
   });
 
   interestForm.addEventListener('submit', async (event) => {

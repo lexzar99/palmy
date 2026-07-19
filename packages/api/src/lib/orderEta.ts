@@ -39,9 +39,10 @@ function addMinutes(date: Date, minutes: number): Date {
  * ETA for the customer's current tracking step.
  *
  * A restaurant-entered `estimatedTime` is "time until food is ready" for
- * pickup and platform delivery. It must not be replaced by etaCustomerAt
- * until a platform courier is actually on the way. Self-delivery keeps the
- * existing door-to-door interpretation.
+ * pickup and every delivery mode. It must not be replaced by etaCustomerAt
+ * until the delivery has actually started. Otherwise a restaurant entering
+ * 35 minutes can incorrectly become 45 minutes for the customer because the
+ * route estimate is added before anyone has left the restaurant.
  */
 export function customerStepEtaEndsAt(
   order: any,
@@ -58,7 +59,14 @@ export function customerStepEtaEndsAt(
   const selfDelivery = Boolean(order?.selfDelivery ?? order?.restaurant?.selfDelivery);
   const courierEnRoute = ['DELIVERING', 'OUT_FOR_DELIVERY', 'ON_THE_WAY'].includes(status);
 
-  if ((courierEnRoute || (order?.type === 'DELIVERY' && selfDelivery)) && order?.etaCustomerAt) {
+  // Self-delivery has a separate 15-minute transit clock which starts at the
+  // actual DELIVERING transition. Reusing etaCustomerAt here can carry the
+  // kitchen countdown forward and show e.g. 38 minutes after "På väg".
+  if (courierEnRoute && selfDelivery && order?.deliveringAt) {
+    const deliveringAt = new Date(order.deliveringAt);
+    return new Date(deliveringAt.getTime() + computeDeliveryWindowMs(deliveringAt, String(order?.id || '')));
+  }
+  if (courierEnRoute && order?.etaCustomerAt) {
     return new Date(order.etaCustomerAt);
   }
   if (courierEnRoute && order?.deliveringAt) {
@@ -122,7 +130,12 @@ function readyAtFor(order: any, now: Date): Date | null {
     const anchor = order?.preparingAt ? new Date(order.preparingAt) : new Date(order?.createdAt ?? now);
     return status === 'READY' ? now : addMinutes(anchor, restaurantPrepMinutes(order));
   }
-  if (status === 'READY' || status === 'DELIVERING' || status === 'OUT_FOR_DELIVERY') {
+  if (status === 'DELIVERING' || status === 'OUT_FOR_DELIVERY' || status === 'ON_THE_WAY') {
+    // Once the food has left the restaurant, the delivery estimate starts
+    // from the real pickup/departure time — never from the old kitchen ETA.
+    return order?.deliveringAt ? new Date(order.deliveringAt) : now;
+  }
+  if (status === 'READY') {
     return order?.etaReadyAt ? new Date(order.etaReadyAt) : now;
   }
   const anchor = order?.preparingAt ? new Date(order.preparingAt) : new Date(order?.createdAt ?? now);

@@ -12,7 +12,7 @@ import { dispatchCustomerOrderStatus } from '../lib/customerOrderNotifier';
 import { registerCourierFcmToken, clearCourierFcmToken, sendCourierFcm, sendTestFcm, isFcmConfigured } from '../lib/courierFcm';
 import { clearCourierApnsToken, registerCourierApnsToken, sendTestCourierApns } from '../lib/courierApns';
 import { uploadToR2, deleteFromR2, r2Enabled } from '../lib/r2';
-import { estimateOrderEta, etaResponseFields, getCourierActiveDeliveries, refreshCourierActiveEtas, refreshOrderEta } from '../lib/orderEta';
+import { customerStepEtaEndsAt, estimateOrderEta, etaResponseFields, getCourierActiveDeliveries, refreshCourierActiveEtas, refreshOrderEta } from '../lib/orderEta';
 
 // Leveransbild sparas i 2 dygn och raderas sedan permanent (cleanup-jobbet).
 const PROOF_PHOTO_TTL_MS = 2 * 24 * 60 * 60 * 1000;
@@ -115,6 +115,7 @@ function emitOrderStatus(order: any) {
       orderId: order.id,
       status: order.status,
       deliveringAt: order.deliveringAt ?? null,
+      etaEndsAt: customerStepEtaEndsAt(order, order.status)?.toISOString() ?? null,
       etaReadyAt: order.etaReadyAt ?? null,
       etaPickupAt: order.etaPickupAt ?? null,
       etaCustomerAt: order.etaCustomerAt ?? null,

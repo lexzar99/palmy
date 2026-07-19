@@ -1028,7 +1028,7 @@ router.patch('/orders/:id/status', async (req, res) => {
         selfDelivery: existing.restaurant?.selfDelivery,
       },
       customerStatus,
-    )?.toISOString();
+    )?.toISOString() ?? null;
     getIO().to(`order:${order.id}`).emit('order:status', {
       orderId: order.id,
       status: customerStatus,
