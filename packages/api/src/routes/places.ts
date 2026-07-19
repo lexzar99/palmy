@@ -55,6 +55,84 @@ async function googleAutocomplete(
   }
 }
 
+// ── Places API (New) ─────────────────────────────────────────────────────────
+// Nya Google Cloud-projekt kan ofta bara aktivera "Places API (New)"
+// (places.googleapis.com), inte legacy-API:t ovan. Servern provar legacy
+// först och faller sedan tillbaka hit, så det räcker att ETT av dem är
+// aktiverat på nyckeln.
+
+async function googleAutocompleteNew(
+  input: string,
+  sessiontoken: string | undefined
+): Promise<Prediction[] | null> {
+  if (!MAPS_KEY) return null;
+  try {
+    const response = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': MAPS_KEY,
+      },
+      body: JSON.stringify({
+        input,
+        includedRegionCodes: ['se'],
+        languageCode: 'sv',
+        ...(sessiontoken ? { sessionToken: sessiontoken } : {}),
+      }),
+    });
+    trackApiCall('google_maps').catch(() => {});
+    const data = (await response.json()) as any;
+    if (!response.ok) {
+      console.error('[places] Google autocomplete (new) error:', response.status, data?.error?.message || '');
+      return null;
+    }
+    const predictions: Prediction[] = [];
+    for (const suggestion of data.suggestions || []) {
+      const p = suggestion?.placePrediction;
+      if (!p?.placeId || !p?.text?.text) continue;
+      predictions.push({ description: p.text.text, place_id: p.placeId });
+    }
+    return predictions;
+  } catch {
+    return null;
+  }
+}
+
+async function googleGeocodeNew(
+  place_id: string,
+  sessiontoken: string | undefined
+): Promise<GeocodeResult | null> {
+  if (!MAPS_KEY) return null;
+  try {
+    const url = new URL(`https://places.googleapis.com/v1/places/${encodeURIComponent(place_id)}`);
+    if (sessiontoken) url.searchParams.set('sessionToken', sessiontoken);
+    const response = await fetch(url.toString(), {
+      headers: {
+        'X-Goog-Api-Key': MAPS_KEY,
+        'X-Goog-FieldMask': 'location,addressComponents',
+      },
+    });
+    trackApiCall('google_maps').catch(() => {});
+    const data = (await response.json()) as any;
+    if (!response.ok) {
+      console.error('[places] Google place details (new) error:', response.status, data?.error?.message || '');
+      return null;
+    }
+    const loc = data.location;
+    if (!loc || typeof loc.latitude !== 'number' || typeof loc.longitude !== 'number') return null;
+    const components: any[] = data.addressComponents || [];
+    const get = (type: string) => components.find((c: any) => (c.types || []).includes(type))?.longText;
+    return {
+      lat: loc.latitude,
+      lng: loc.longitude,
+      postalCode: get('postal_code'),
+      city: get('locality') || get('postal_town'),
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── Nyckelfri fallback: Photon (OpenStreetMap) ──────────────────────────────
 // Google är primär källa. När nyckeln saknas, nekas (billing) eller tjänsten
 // är nere får kunderna ändå adressförslag via Photon. Koordinaterna följer
@@ -227,10 +305,16 @@ async function handleAutocomplete(input: string, sessiontoken: string | undefine
     return res.json({ predictions: [] });
   }
 
-  const google = MAPS_KEY ? await googleAutocomplete(input, sessiontoken) : null;
-  if (google && google.length > 0) {
-    return res.json({ predictions: google });
+  const legacy = MAPS_KEY ? await googleAutocomplete(input, sessiontoken) : null;
+  if (legacy && legacy.length > 0) {
+    return res.json({ predictions: legacy });
   }
+  // Legacy nekad (vanligt i nya Google-projekt) → Places API (New).
+  const modern = MAPS_KEY && legacy === null ? await googleAutocompleteNew(input, sessiontoken) : null;
+  if (modern && modern.length > 0) {
+    return res.json({ predictions: modern });
+  }
+  const google = legacy ?? modern;
 
   // Google nere/nekad/utan träff → Photon. En tom men lyckad Google-lista
   // (ZERO_RESULTS) provas också — OSM hittar ibland adresser Google missar.
@@ -268,7 +352,10 @@ async function handleGeocode(place_id: string, sessiontoken: string | undefined,
     return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY saknas på servern' });
   }
 
-  const result = await googleGeocode(place_id, sessiontoken);
+  // Place-ID:n är samma i båda API-generationerna, så detaljerna hämtas från
+  // den variant som är aktiverad på nyckeln.
+  const result = (await googleGeocode(place_id, sessiontoken))
+    || (await googleGeocodeNew(place_id, sessiontoken));
   if (!result) {
     return res.status(404).json({ error: 'No location found for place_id' });
   }
