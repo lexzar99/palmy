@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600..800&amp;family=Bricolage+Grotesque:opsz,wght@12..96,400..800&amp;display=swap" rel="stylesheet">
 <style>
 /* Palmyra Pizzeria — delat designsystem för alla sidor.
    Tryckt papper-känsla: ink-borders, solida offset-skuggor, filmkorn.
@@ -305,6 +305,82 @@ section { padding: 78px 0 0; }
 .logo-stack { display: grid; place-items: center; }
 .logo-stack img { max-height: 380px; width: auto; filter: drop-shadow(6px 6px 0 rgba(33, 23, 9, 0.18)); }
 
+/* ---------- ViaEats lanseringsannons ---------- */
+.viaeats-launch { padding: 34px 0 0; }
+.viaeats-launch-card {
+  position: relative; isolation: isolate; overflow: hidden;
+  display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 26px; align-items: center;
+  padding: 28px 30px;
+  background: #102b4e; color: #f8f0e6;
+  border: 1.5px solid var(--ink); border-radius: 18px;
+  box-shadow: 6px 6px 0 var(--ink);
+}
+.viaeats-launch-card::before {
+  content: ""; position: absolute; z-index: -1; right: -95px; top: -120px;
+  width: 270px; height: 270px; border-radius: 50%; background: #f0531c;
+}
+.viaeats-launch-card::after {
+  content: "30%"; position: absolute; z-index: -1; right: 34px; top: -18px;
+  font-family: "Baloo 2", var(--display); font-size: 88px; font-weight: 800; line-height: 1;
+  color: rgba(255, 255, 255, .1); transform: rotate(4deg);
+}
+.viaeats-powered {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: "Baloo 2", var(--display); font-size: 18px; font-weight: 800; line-height: 1;
+  color: #f8f0e6;
+}
+.viaeats-powered .mark { width: 9px; height: 9px; border-radius: 50%; background: #f0531c; box-shadow: 0 0 0 4px rgba(240, 83, 28, .18); }
+.viaeats-launch h2 {
+  margin-top: 10px; max-width: 620px;
+  font-family: "Baloo 2", var(--display); font-size: clamp(30px, 4vw, 43px); font-weight: 800;
+  line-height: .98; letter-spacing: -1.1px;
+}
+.viaeats-launch-copy > p { margin-top: 10px; max-width: 620px; color: rgba(248, 240, 230, .78); font-size: 14px; font-weight: 650; line-height: 1.5; }
+.viaeats-launch-copy strong { color: #fff; }
+.viaeats-launch-action {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 10px;
+  padding: 18px; border-radius: 15px; background: rgba(248, 240, 230, .96); color: #102b4e;
+  border: 1.5px solid var(--ink);
+}
+.viaeats-interest-button {
+  width: 100%; min-height: 50px; padding: 13px 17px; border: 1.5px solid var(--ink); border-radius: 999px;
+  background: #f0531c; color: #fff; box-shadow: 3px 3px 0 var(--ink);
+  font-family: "Baloo 2", var(--display); font-size: 16px; font-weight: 800; line-height: 1.05;
+  cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, background .2s;
+}
+.viaeats-interest-button:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); background: #d94312; }
+.viaeats-interest-button:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+.viaeats-interest-button:disabled { cursor: default; opacity: .78; transform: none; box-shadow: 2px 2px 0 var(--ink); }
+.viaeats-interest-note { font-size: 10.5px; font-weight: 700; line-height: 1.35; text-align: center; color: rgba(16, 43, 78, .65); }
+.viaeats-interest-form { display: grid; gap: 9px; }
+.viaeats-interest-form[hidden] { display: none; }
+.viaeats-interest-form input[type="text"], .viaeats-interest-form input[type="email"] {
+  width: 100%; min-width: 0; padding: 11px 12px; border: 1.5px solid rgba(16, 43, 78, .28); border-radius: 10px;
+  background: #fff; color: #102b4e; font: 650 14px var(--sans); outline: none;
+}
+.viaeats-interest-form input:focus { border-color: #f0531c; box-shadow: 0 0 0 3px rgba(240, 83, 28, .14); }
+.viaeats-consent { display: flex; align-items: flex-start; gap: 8px; font-size: 10.5px; font-weight: 650; line-height: 1.35; color: rgba(16, 43, 78, .72); }
+.viaeats-consent input { flex: none; margin-top: 2px; accent-color: #f0531c; }
+.viaeats-consent a { text-decoration: underline; text-underline-offset: 2px; }
+.viaeats-interest-status { min-height: 15px; color: #a2250f; font-size: 11px; font-weight: 800; line-height: 1.35; }
+.viaeats-interest-status.success { color: #286338; }
+@media (max-width: 760px) {
+  .viaeats-launch { padding-top: 24px; }
+  .viaeats-launch-card { grid-template-columns: 1fr; gap: 18px; padding: 22px 20px; border-radius: 16px; box-shadow: 5px 5px 0 var(--ink); }
+  .viaeats-launch-card::before { width: 210px; height: 210px; right: -115px; top: -115px; }
+  .viaeats-launch-card::after { right: 15px; top: -7px; font-size: 65px; }
+  .viaeats-powered { font-size: 16px; }
+  .viaeats-launch h2 { max-width: 85%; font-size: clamp(28px, 9vw, 37px); }
+  .viaeats-launch-copy > p { font-size: 13px; }
+  .viaeats-launch-action { padding: 14px; }
+}
+@media (max-width: 380px) {
+  .viaeats-launch-card { padding: 20px 16px; }
+  .viaeats-launch h2 { max-width: 100%; }
+  .viaeats-launch-card::after { display: none; }
+}
+
 /* ---------- Footer ---------- */
 footer { margin-top: 90px; background: var(--ink); color: var(--paper); border-top: 1.5px solid var(--ink); }
 .foot-inner { padding: 50px 22px 120px; }
@@ -418,6 +494,32 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
     </div>
   </div>
 </header>
+
+<section class="viaeats-launch" aria-labelledby="viaeats-launch-title">
+  <div class="wrap">
+    <div class="viaeats-launch-card reveal">
+      <div class="viaeats-launch-copy">
+        <a class="viaeats-powered" href="https://www.viaeats.se" target="_blank" rel="noopener"><span class="mark" aria-hidden="true"></span>Powered by ViaEats</a>
+        <h2 id="viaeats-launch-title">ViaEats lanserar i Lund snart.</h2>
+        <p>Anmäl ditt intresse och få <strong>30 % rabatt första lanseringsveckan</strong> på valfri restaurang.</p>
+      </div>
+      <div class="viaeats-launch-action">
+        <button class="viaeats-interest-button" id="viaeats-interest-toggle" type="button" aria-expanded="false" aria-controls="viaeats-interest-form">Anmäl intresse</button>
+        <p class="viaeats-interest-note" id="viaeats-interest-note">Ett kort formulär öppnas här. Kupongen skickas inför lanseringen.</p>
+        <form class="viaeats-interest-form" id="viaeats-interest-form" hidden>
+          <input type="text" name="name" autocomplete="name" minlength="2" maxlength="100" placeholder="Ditt namn" aria-label="Ditt namn" required>
+          <input type="email" name="email" autocomplete="email" maxlength="254" placeholder="Din e-post" aria-label="Din e-post" required>
+          <label class="viaeats-consent">
+            <input type="checkbox" name="marketingConsent" required>
+            <span>Jag godkänner att ViaEats kontaktar mig via e-post om lanseringen och kupongen. Läs <a href="https://www.viaeats.se/privacy" target="_blank" rel="noopener">integritetspolicyn</a>.</span>
+          </label>
+          <button class="viaeats-interest-button" type="submit">Registrera mig</button>
+          <p class="viaeats-interest-status" id="viaeats-interest-status" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- Deals: renderas automatiskt när restaurangen har aktiva deals
      (kampanjprodukter i menyn och/eller deals från plattformen). Helt dold annars. -->
@@ -569,6 +671,65 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
   if (IS_LOCAL) window.VIAEATS_API = 'http://localhost:4000';
   const API = window.VIAEATS_API || 'https://api.viaeats.se';
   const SLUG = 'palmyra-pizzeria-lund';
+
+  // ViaEats-annonsens formulär använder samma launch-flöde som viaeats.se.
+  const interestToggle = document.getElementById('viaeats-interest-toggle');
+  const interestForm = document.getElementById('viaeats-interest-form');
+  const interestNote = document.getElementById('viaeats-interest-note');
+  const interestStatus = document.getElementById('viaeats-interest-status');
+  const interestStorageKey = 'viaeats_launch_interest';
+
+  function markInterestRegistered() {
+    interestToggle.hidden = false;
+    interestToggle.textContent = 'Tack – du är anmäld';
+    interestToggle.disabled = true;
+    interestToggle.setAttribute('aria-expanded', 'false');
+    interestForm.hidden = true;
+    interestNote.textContent = 'Vi kontaktar dig via e-post inför lanseringen i Lund.';
+  }
+
+  try {
+    if (localStorage.getItem(interestStorageKey) === '1') markInterestRegistered();
+  } catch {}
+
+  interestToggle.addEventListener('click', () => {
+    interestForm.hidden = false;
+    interestToggle.hidden = true;
+    interestToggle.setAttribute('aria-expanded', 'true');
+    interestNote.textContent = 'Fyll i uppgifterna så registrerar vi din 30 %-kupong.';
+    interestForm.querySelector('input')?.focus();
+  });
+
+  interestForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const submitButton = interestForm.querySelector('button[type="submit"]');
+    const data = new FormData(interestForm);
+    submitButton.disabled = true;
+    submitButton.textContent = 'Sparar…';
+    interestStatus.classList.remove('success');
+    interestStatus.textContent = '';
+    try {
+      const response = await fetch(`${API}/api/launch/interest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: String(data.get('name') || ''),
+          email: String(data.get('email') || ''),
+          marketingConsent: data.get('marketingConsent') === 'on',
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Kunde inte registrera ditt intresse.');
+      try { localStorage.setItem(interestStorageKey, '1'); } catch {}
+      interestStatus.classList.add('success');
+      interestStatus.textContent = 'Klart! Vi kontaktar dig inför lanseringen.';
+      window.setTimeout(markInterestRegistered, 900);
+    } catch (error) {
+      interestStatus.textContent = error?.message || 'Servern svarade inte. Försök igen.';
+      submitButton.disabled = false;
+      submitButton.textContent = 'Försök igen';
+    }
+  });
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const kr = (v) => (Number.isInteger(v) ? v : v.toFixed(2).replace('.', ',')) + ' kr';
