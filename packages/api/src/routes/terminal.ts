@@ -7,6 +7,7 @@ import { JWT_SECRET } from '../lib/config';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { getIO } from '../lib/socket';
 import { notifyPartnerDevicesOfNewOrder } from '../lib/partnerFcm';
+import { deleteServerTerminalTestOrder } from '../lib/terminalTestOrder';
 
 // ── Terminal-sessioner för restaurang-appen (Flutter) ───────────────────────
 //
@@ -425,6 +426,36 @@ router.post('/test-order', authenticate, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('[terminal/test-order] error:', error);
     res.status(500).json({ error: 'Kunde inte skapa testbeställningen på servern' });
+  }
+});
+
+// DELETE /api/terminal/test-order/:id
+// Used by the print-settings test: the receipt is generated from the real
+// server order/template, then the synthetic order is removed immediately.
+router.delete('/test-order/:id', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const restaurantId = req.admin?.restaurantId;
+    if (!restaurantId) return res.status(403).json({ error: 'Terminalen saknar restaurangkoppling' });
+    const order = await prisma.order.findFirst({
+      where: {
+        id: req.params.id,
+        restaurantId,
+        orderNumber: { startsWith: 'TEST-' },
+        customerName: 'SERVERTEST',
+        stripePaymentIntentId: 'TEST_PAYMENT',
+        paymentMethod: 'TEST',
+      },
+      select: { id: true },
+    });
+    if (!order) return res.status(404).json({ error: 'Testbeställningen hittades inte' });
+    const deleted = await deleteServerTerminalTestOrder(order.id);
+    if (!deleted) return res.status(409).json({ error: 'Testbeställningen kunde inte raderas' });
+    getIO().to('admin-room').emit('order:deleted', { orderId: order.id, testOrder: true });
+    getIO().to(`admin-room:${restaurantId}`).emit('order:deleted', { orderId: order.id, testOrder: true });
+    return res.json({ success: true, id: order.id });
+  } catch (error) {
+    console.error('[terminal/test-order/delete] error:', error);
+    return res.status(500).json({ error: 'Kunde inte radera testbeställningen' });
   }
 });
 

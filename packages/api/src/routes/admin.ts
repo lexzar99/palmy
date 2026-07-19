@@ -35,7 +35,7 @@ import {
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto, nullableMoneyDto } from '../utils/money';
 import { isRestaurantOrderTransitionAllowed } from '../lib/orderStatusMachine';
-import { getServerPrintArtifact, warmServerPrintArtifacts } from '../lib/serverPrintArtifact';
+import { buildAdminReceiptData, getServerPrintArtifact, warmServerPrintArtifacts } from '../lib/serverPrintArtifact';
 import { deleteServerTerminalTestOrder } from '../lib/terminalTestOrder';
 
 const router = Router();
@@ -4934,70 +4934,9 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
       templateElements = [];
     }
 
-    // Utlovad tid (klar-klockslag): accept-tid + utlovad tid. Accept-tid =
-    // preparingAt (sätts när admin godkänner ordern); fallback createdAt om
-    // ordern inte hunnit godkännas. Förbeställningar visar scheduledFor i stället
-    // → ingen ETA-nedräkning. Ex: godkänd 01:02 + 45 min → "01:47".
-    const etaAnchor = order.preparingAt ? new Date(order.preparingAt) : new Date(order.createdAt);
-    const readyAt = (!order.scheduledFor && order.estimatedTime)
-      ? new Date(etaAnchor.getTime() + order.estimatedTime * 60_000)
-      : null;
-    const readyTime = readyAt
-      ? readyAt.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })
-      : null;
-
+    const previewData = buildAdminReceiptData(order);
     res.json({
-      header: {
-        restaurantName: order.restaurant?.name || 'ViaEats',
-        address: order.restaurant?.address || '',
-        city: order.restaurant?.city || '',
-        zip: order.restaurant?.zip || '',
-        phone: order.restaurant?.phone || '',
-      },
-      orderInfo: {
-        number: order.orderNumber,
-        type: order.type,
-        status: order.status,
-        time: new Date(order.createdAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }),
-        date: new Date(order.createdAt).toLocaleDateString('sv-SE'),
-        estimatedTime: order.estimatedTime,
-        // Klar-klockslag (HH:MM) = accept-tid + utlovad tid. Visas på kvittot.
-        readyTime,
-        isPreorder: Boolean(order.scheduledFor),
-        scheduledFor: order.scheduledFor,
-        scheduledDate: order.scheduledFor ? new Date(order.scheduledFor).toLocaleDateString('sv-SE') : null,
-        scheduledTime: order.scheduledFor ? new Date(order.scheduledFor).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }) : null,
-        paymentMethod: order.paymentMethod,
-        paymentStatus: order.paymentStatus,
-      },
-      customer: {
-        name: order.customerName,
-        phone: order.customerPhone,
-        email: order.customerEmail,
-        street: order.deliveryStreet,
-        city: order.deliveryCity,
-        zip: order.deliveryZip,
-        instructions: order.deliveryInstructions,
-        note: order.note,
-        allergens: order.allergens,
-      },
-      items: order.items.map((item: any) => ({
-        name: item.productName,
-        qty: item.quantity,
-        unitPrice: item.basePrice / 100,
-        subtotal: item.subtotal / 100,
-        extras: (typeof item.selectedExtras === 'string' ? JSON.parse(item.selectedExtras) : item.selectedExtras || [])
-          .map((ex: any) => ({ name: ex.extraName || ex.name, price: ex.priceAddon || 0 })),
-        note: item.note,
-      })),
-      totals: {
-        subtotal: (order.total + order.discountAmount - order.deliveryFee) / 100,
-        deliveryFee: order.deliveryFee / 100,
-        discount: order.discountAmount / 100,
-        discountCode: order.discountCode,
-        dealTitle: order.appliedDealTitle,
-        total: order.total / 100,
-      },
+      ...previewData,
       footer: 'Tack för din beställning! — ViaEats',
       template: {
         paperWidth: templateRow?.paperWidth || '80mm',

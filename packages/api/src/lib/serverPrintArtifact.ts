@@ -199,6 +199,75 @@ function allergens(value: unknown): string {
   return text === '[]' ? '' : text;
 }
 
+/**
+ * This is the same payload shape as GET /admin/orders/:id/receipt-data. The
+ * server bitmap must consume this preview payload, not a second set of order
+ * fields, otherwise payment text, extras, money formatting and ETA can drift
+ * from the admin test receipt.
+ */
+export function buildAdminReceiptData(order: any) {
+  const etaAnchor = order.preparingAt ? new Date(order.preparingAt) : new Date(order.createdAt);
+  const readyAt = (!order.scheduledFor && order.estimatedTime)
+    ? new Date(etaAnchor.getTime() + Number(order.estimatedTime) * 60_000)
+    : null;
+  const readyTime = readyAt ? formatTime(readyAt) : null;
+
+  return {
+    header: {
+      restaurantName: order.restaurant?.name || 'ViaEats',
+      address: order.restaurant?.address || '',
+      city: order.restaurant?.city || '',
+      zip: order.restaurant?.zip || '',
+      phone: order.restaurant?.phone || '',
+    },
+    orderInfo: {
+      number: order.orderNumber,
+      type: order.type,
+      status: order.status,
+      time: formatTime(new Date(order.createdAt)),
+      date: formatDate(new Date(order.createdAt)),
+      estimatedTime: order.estimatedTime,
+      readyTime,
+      isPreorder: Boolean(order.scheduledFor),
+      scheduledFor: order.scheduledFor,
+      scheduledDate: order.scheduledFor ? formatDate(new Date(order.scheduledFor)) : null,
+      scheduledTime: order.scheduledFor ? formatTime(new Date(order.scheduledFor)) : null,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
+    },
+    customer: {
+      name: order.customerName,
+      phone: order.customerPhone,
+      email: order.customerEmail,
+      street: order.deliveryStreet,
+      city: order.deliveryCity,
+      zip: order.deliveryZip,
+      instructions: order.deliveryInstructions,
+      note: order.note,
+      allergens: order.allergens,
+    },
+    items: (Array.isArray(order.items) ? order.items : []).map((item: any) => ({
+      name: item.productName,
+      qty: item.quantity,
+      unitPrice: Number(item.basePrice || 0) / 100,
+      subtotal: Number(item.subtotal || 0) / 100,
+      extras: parseExtras(item.selectedExtras).map((extra: any) => ({
+        name: extra?.extraName || extra?.name || '',
+        price: extra?.priceAddon || 0,
+      })),
+      note: item.note,
+    })),
+    totals: {
+      subtotal: (Number(order.total || 0) + Number(order.discountAmount || 0) - Number(order.deliveryFee || 0)) / 100,
+      deliveryFee: Number(order.deliveryFee || 0) / 100,
+      discount: Number(order.discountAmount || 0) / 100,
+      discountCode: order.discountCode,
+      dealTitle: order.appliedDealTitle,
+      total: Number(order.total || 0) / 100,
+    },
+  };
+}
+
 type ReceiptTextLayer = {
   text: string;
   left: number;
@@ -269,6 +338,12 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
   const width = paperWidth === '58mm' ? 384 : paperWidth === '72mm' ? 512 : 576;
   const margin = paperWidth === '58mm' ? 14 : 18;
   const elements = templateElements(template);
+  const preview = buildAdminReceiptData(order);
+  const h = preview.header;
+  const o = preview.orderInfo;
+  const c = preview.customer;
+  const items = preview.items;
+  const totals = preview.totals;
   const svg: string[] = [];
   const textLayers: ReceiptTextLayer[] = [];
   let y = 18;
@@ -301,11 +376,12 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
     align: 'left' | 'center' | 'right' = 'left',
     color = '#000000',
     maxWidth = width - margin * 2,
+    indent = 0,
   ) => {
     const lines = wrapPixels(value, size, maxWidth);
     if (lines.length === 0) return;
     const layerLeft = align === 'left'
-      ? margin
+      ? margin + indent
       : align === 'right'
         ? width - margin - maxWidth
         : Math.round((width - maxWidth) / 2);
@@ -384,49 +460,56 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
   };
 
   const restaurantAddress = [
-    order.restaurant?.address,
-    [order.restaurant?.zip, order.restaurant?.city].filter(Boolean).join(' '),
+    h.address,
+    [h.zip, h.city].filter(Boolean).join(' '),
   ].filter(Boolean).join(', ');
   const customerAddress = [
-    order.deliveryStreet,
-    [order.deliveryZip, order.deliveryCity].filter(Boolean).join(' '),
+    c.street,
+    [c.zip, c.city].filter(Boolean).join(' '),
   ].filter(Boolean).join(', ');
-  const isDelivery = order.type === 'DELIVERY';
-  const allergenText = allergens(order.allergens);
-  const paymentText = order.paymentStatus === 'PAID'
-    ? 'Betald online'
-    : plain(order.paymentMethod || order.paymentStatus);
+  const isDelivery = plain(o.type) === 'DELIVERY';
+  const allergenText = Array.isArray(c.allergens)
+    ? c.allergens.map(plain).filter(Boolean).join(', ')
+    : plain(c.allergens);
+  const paymentText = plain(o.paymentMethod);
   const hasVisible = (key: string) => elements.get(key)?.visible !== false;
   const drawTextElement = (key: string, value: unknown, fallbackSize: number, fallbackWeight = 500, fallbackAlign: 'left' | 'center' | 'right' = 'left', color = '#000000') => {
     const valueText = maybeUpper(key, plain(value));
     if (!valueText) return;
     text(valueText, configuredSize(key, fallbackSize), configuredWeight(key, fallbackWeight), configuredAlign(key, fallbackAlign), color);
   };
+  const drawItemCount = () => {
+    text(`${items.length} ${items.length === 1 ? 'artikel' : 'artiklar'}`, 33, 700, 'center');
+  };
   const drawItems = () => {
-    const items = Array.isArray(order.items) ? order.items : [];
-    text(`${items.length} ${items.length === 1 ? 'artikel' : 'artiklar'}`, 21, 500, 'center', '#555555');
     for (const item of items) {
       rowText(
-        `${item.quantity} x ${item.productName}`,
-        `${money(item.subtotal)} kr`,
+        `${item.qty} x ${item.name}`,
+        `${plain(item.subtotal)} kr`,
         configuredSize('items', 9),
         configuredWeight('items', 800),
         configuredSize('itemPrice', 8),
         configuredWeight('itemPrice', 700),
       );
       if (hasVisible('extras')) {
-        for (const extra of parseExtras(item.selectedExtras)) {
-          const name = extra.extraName || extra.name;
+        for (const extra of item.extras || []) {
+          const name = extra.name;
           if (!name) continue;
-          const addonKr = Number(extra.priceAddon || extra.price || 0);
-          if (addonKr > 0) {
-            rowText(`++ ${name}`, `+${Number.isInteger(addonKr) ? addonKr : addonKr.toFixed(2)} kr`, configuredSize('extras', 7), configuredWeight('extras'));
-          } else {
-            drawTextElement('extras', `-- ${name}`, 7, configuredWeight('extras'));
-          }
+          // Admin preview intentionally displays the configured extra name
+          // only, prefixed with **. Price additions are already included in
+          // the item subtotal there.
+          text(
+            `** ${name}`,
+            configuredSize('extras', 8),
+            configuredWeight('extras'),
+            'left',
+            '#555555',
+            width - margin * 2 - 36,
+            36,
+          );
         }
       }
-      if (item.note) drawTextElement('items', `! ${item.note}`, 7, 800);
+      if (item.note) text(`! ${item.note}`, 30, 900, 'left', '#000000', width - margin * 2 - 36, 36);
       space(8);
     }
   };
@@ -437,59 +520,60 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
   const visible = (key: string) => elements.get(key)?.visible !== false;
 
   if (visible('platformName')) {
-    const numberSuffix = visible('orderNumber') ? ` #${plain(order.orderNumber) || '—'}` : '';
+    const numberSuffix = visible('orderNumber') ? ` #${plain(o.number) || '—'}` : '';
     drawTextElement('platformName', `${template?.platformName || 'ViaEats'}${numberSuffix}`, 8, 500, 'center');
-    text('Ej kvitto', configuredSize('platformName', 8), 500, 'center', '#555555');
+    text('Ej kvitto', 30, 500, 'center', '#555555');
   }
   if (visible('divider1')) divider();
 
-  if (visible('restaurantName')) drawTextElement('restaurantName', order.restaurant?.name || 'ViaEats', 15, 900, 'center');
-  if (visible('timestamp')) drawTextElement('timestamp', `${formatDate(new Date(order.createdAt))} ${formatTime(new Date(order.createdAt))}`, 9, 500, 'center');
+  if (visible('restaurantName')) drawTextElement('restaurantName', h.restaurantName || 'ViaEats', 15, 900, 'center');
+  if (visible('timestamp')) drawTextElement('timestamp', `${o.date} ${o.time}`, 9, 500, 'center');
   if (visible('address')) drawTextElement('address', restaurantAddress, 8, 500, 'center');
-  if (visible('phone')) drawTextElement('phone', order.restaurant?.phone ? `Tel: ${order.restaurant.phone}` : '', 8, 500, 'center');
+  if (visible('phone')) drawTextElement('phone', h.phone ? `Tel: ${h.phone}` : '', 8, 500, 'center');
 
   if (visible('headerMsg')) drawTextElement('headerMsg', elements.get('headerMsg')?.content, 9, 700, 'center');
   if (visible('divider2')) divider();
 
-  if (visible('customerName') && plain(order.customerName)) {
-    text('Kund:', 10, 700, 'left', '#555555');
-    drawTextElement('customerName', order.customerName, 12, 900);
+  if (visible('customerName') && plain(c.name)) {
+    text('Kund:', 30, 700, 'left', '#555555');
+    drawTextElement('customerName', c.name, 12, 900);
   }
-  if (visible('customerPhone')) drawTextElement('customerPhone', order.customerPhone, 9, 500);
+  if (visible('customerPhone')) drawTextElement('customerPhone', c.phone, 9, 500);
   if (visible('customerAddress') && customerAddress) {
     space(7);
-    text('Adress:', 10, 700, 'left', '#555555');
+    text('Adress:', 30, 700, 'left', '#555555');
     drawTextElement('customerAddress', customerAddress, 9, 500);
   }
-  if (visible('deliveryInstructions')) drawTextElement('deliveryInstructions', translateInstruction(order.deliveryInstructions), 9, 700);
-  if (visible('note')) drawTextElement('note', order.note, 9, 700);
+  if (visible('deliveryInstructions')) drawTextElement('deliveryInstructions', translateInstruction(c.instructions), 9, 700);
+  if (visible('note')) drawTextElement('note', c.note, 9, 700);
   if (visible('allergens')) drawTextElement('allergens', allergenText ? `! ${allergenText}` : '', 9, 700, 'left', '#b00020');
 
   if (visible('orderType')) badge('orderType', isDelivery ? 'Utkörning' : 'Avhämtning');
-  if (visible('scheduledFor') && order.scheduledFor) {
-    const scheduled = new Date(order.scheduledFor);
-    badge('scheduledFor', `Förbeställd ${formatDate(scheduled)} ${formatTime(scheduled)}`);
+  if (visible('scheduledFor') && o.isPreorder) {
+    badge('scheduledFor', `Förbeställd ${o.scheduledDate} ${o.scheduledTime}`);
   }
   if (visible('paymentMethod') && paymentText) badge('paymentMethod', paymentText);
 
-  if (visible('estimatedTime') && !order.scheduledFor && order.estimatedTime) {
-    const anchor = order.preparingAt ? new Date(order.preparingAt) : new Date(order.createdAt);
+  if (visible('estimatedTime') && !o.isPreorder && o.readyTime) {
     space(6);
-    text('Utlovad tid', 12, 700, 'center');
-    drawTextElement('estimatedTime', `Klar ${formatTime(new Date(anchor.getTime() + Number(order.estimatedTime) * 60_000))}`, 14, 900, 'center');
+    text('Utlovad tid', 36, 700, 'center');
+    drawTextElement('estimatedTime', `Klar ${o.readyTime}`, 14, 900, 'center');
   }
 
   if (visible('divider3')) divider();
+  // The admin preview always shows the item count, even when item rows are
+  // hidden by the operator.
+  drawItemCount();
   if (visible('items')) drawItems();
   // Admin preview uses divider5 before the totals (divider4 is retained as a
   // legacy setting but is not rendered by the admin preview component).
   if (visible('divider5')) divider();
-  if (visible('deliveryFee') && Number(order.deliveryFee || 0) > 0) rowText('Leveransavgift', `${money(order.deliveryFee)} kr`, configuredSize('deliveryFee', 8), configuredWeight('deliveryFee'));
-  if (visible('discount') && Number(order.discountAmount || 0) > 0) rowText(order.discountCode ? `Rabatt (${order.discountCode})` : 'Rabatt', `-${money(order.discountAmount)} kr`, configuredSize('discount', 8), configuredWeight('discount'));
+  if (visible('deliveryFee') && Number(totals.deliveryFee || 0) > 0) rowText('Leveransavgift', `${plain(totals.deliveryFee)} kr`, configuredSize('deliveryFee', 8), configuredWeight('deliveryFee'));
+  if (visible('discount') && Number(totals.discount || 0) > 0) rowText(totals.discountCode ? `Rabatt (${totals.discountCode})` : 'Rabatt', `-${plain(totals.discount)} kr`, configuredSize('discount', 8), configuredWeight('discount'));
   if (visible('total')) {
     svg.push(`<line x1="${margin}" y1="${y + 8}" x2="${width - margin}" y2="${y + 8}" stroke="#000" stroke-width="3"/>`);
     y += 12;
-    rowText('Totalt', `${money(order.total)} kr`, configuredSize('total', 14), configuredWeight('total', 900));
+    rowText('Totalt', `${plain(totals.total)} kr`, configuredSize('total', 14), configuredWeight('total', 900));
   }
   if (visible('divider6')) divider();
   if (visible('thankYou')) drawTextElement('thankYou', elements.get('thankYou')?.content || 'Tack för din beställning!', 9, 700, 'center');
