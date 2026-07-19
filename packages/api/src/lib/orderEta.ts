@@ -50,6 +50,10 @@ export function customerStepEtaEndsAt(
   const status = String(statusInput || '').toUpperCase();
   if (TERMINAL_ORDER_STATUSES.includes(status) || CANCELLED_ORDER_STATUSES.includes(status)) return null;
   if (status === 'PENDING' || status === 'AWAITING_PAYMENT') return null;
+  // READY means the preparation promise has already been fulfilled. Platform
+  // delivery waits for a courier next, so an old future readyAt must not keep
+  // counting down as if the kitchen were still cooking.
+  if (status === 'READY') return null;
 
   const selfDelivery = Boolean(order?.selfDelivery ?? order?.restaurant?.selfDelivery);
   const courierEnRoute = ['DELIVERING', 'OUT_FOR_DELIVERY', 'ON_THE_WAY'].includes(status);

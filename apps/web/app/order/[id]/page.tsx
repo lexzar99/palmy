@@ -507,7 +507,7 @@ const OrderStatusPage = () => {
 
   // ETA Countdown — in seconds for real-time display
   useEffect(() => {
-    if (!order?.status || ['AWAITING_PAYMENT', 'PENDING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(order.status)) { setEtaLeft(null); return; }
+    if (!order?.status || ['AWAITING_PAYMENT', 'PENDING', 'READY', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(order.status)) { setEtaLeft(null); return; }
     if (!order?.etaEndsAt && !order?.estimatedTime) { setEtaLeft(null); return; }
     const calc = () => {
       if (order?.etaEndsAt) {
@@ -742,10 +742,10 @@ const OrderStatusPage = () => {
       : deliveryEtaMin
     : etaLeft != null
       ? Math.ceil(etaLeft / 60)
-      : ['ACCEPTED', 'PREPARING', 'READY'].includes(currentStatus)
+      : ['ACCEPTED', 'PREPARING'].includes(currentStatus)
         ? Number(order.estimatedTime || 0) || null
         : null;
-  const awaitingAccept = !isCompleted && !isRejected && !order.scheduledFor && !etaMinutes;
+  const awaitingAccept = ['AWAITING_PAYMENT', 'PENDING'].includes(currentStatus);
   const etaSub = isRejected
     ? cancelledCopy.sub
     : isCompleted
@@ -756,6 +756,8 @@ const OrderStatusPage = () => {
           ? "Schemalagd tid"
           : isPickup
             ? currentStatus === "READY" ? "Redo att hämtas" : "Klar om ca"
+            : currentStatus === "READY"
+              ? t("order.eta.readyPlatformTitle")
             : courierEnRoute
               ? "Framme om ca"
               : "Klar om ca";
@@ -767,6 +769,8 @@ const OrderStatusPage = () => {
         ? "tills de accepterar"
         : order.scheduledFor
           ? new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
+          : currentStatus === "READY"
+            ? isPickup ? "nu" : isWeDeliver ? t("order.eta.waitingCourier") : "levereras snart"
           : etaMinutes != null && etaMinutes <= 0
             ? "snart"
             : etaMinutes != null
@@ -786,8 +790,8 @@ const OrderStatusPage = () => {
     ? cancelledCopy.title
     : isCompleted
       ? isPickup ? "Hämtad" : "Levererad"
-      : isPickup && currentStatus === "READY"
-        ? "Redo att hämtas"
+      : currentStatus === "READY"
+        ? isPickup ? "Redo att hämtas" : t("order.eta.readyPlatformTitle")
         : isOnWay
           ? "På väg"
           : currentStatus === "PREPARING"
@@ -803,6 +807,8 @@ const OrderStatusPage = () => {
       ? `${restName} levererar själva. Ingen live-karta eller bud att följa för det här stället.`
       : courierEnRoute
         ? (deliveryOverdue ? t("order.eta.overdueBusy") : "Tillagad · ditt bud är på väg")
+        : isWeDeliver && currentStatus === "READY"
+          ? t("order.eta.readyPlatformDesc")
         : isPickup && currentStatus === "READY"
           ? "Visa ordernumret i restaurangen när du hämtar."
           : statusDesc(currentStatus);

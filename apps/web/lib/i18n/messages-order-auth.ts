@@ -53,6 +53,9 @@ export const orderAuthPending = {
     "order.eta.prepWeDeliver": "Restaurangen uppskattar ca {m} min tills maten hämtas av budet.",
     "order.eta.prepSelfDeliver": "Restaurangen uppskattar ca {m} min tills maten är klar och levererad till dig.",
     "order.eta.courierOnWay": "Budet är på väg med din mat. Ankomsttiden uppdateras utifrån avstånd och antal stopp.",
+    "order.eta.readyPlatformTitle": "Maten är klar",
+    "order.eta.waitingCourier": "väntar på bud",
+    "order.eta.readyPlatformDesc": "Maten är klar. Vi väntar på att ett ViaEats-bud ska hämta den och leverera till dig.",
     "order.eta.busyNote": "Uppskattat utifrån tid på dygnet och avstånd. Du kan få din mat tidigare.",
     "order.eta.overdueBusy": "Hög belastning just nu. Leveransen kan ta 10-15 minuter längre än beräknat, vi jobbar så snabbt vi kan.",
 
@@ -333,6 +336,9 @@ export const orderAuthPending = {
     "order.eta.prepWeDeliver": "The restaurant estimates about {m} min until the courier picks up your food.",
     "order.eta.prepSelfDeliver": "The restaurant estimates about {m} min until your food is ready and delivered.",
     "order.eta.courierOnWay": "The courier is on the way with your food. The arrival time updates based on distance and number of stops.",
+    "order.eta.readyPlatformTitle": "Food is ready",
+    "order.eta.waitingCourier": "waiting for courier",
+    "order.eta.readyPlatformDesc": "Your food is ready. We are waiting for a ViaEats courier to pick it up and deliver it to you.",
     "order.eta.busyNote": "Estimated from time of day and distance. Your food may arrive sooner.",
     "order.eta.overdueBusy": "High demand right now. Delivery may take 10-15 minutes longer than estimated, we're working as fast as we can.",
 
