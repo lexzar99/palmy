@@ -11,14 +11,11 @@ import {
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const kioskCheckoutRoute =
-    request.nextUrl.searchParams.get("embed") === "1" &&
-    (pathname === "/cart" || pathname.startsWith("/order/"));
 
   // PRELAUNCH_MODE=0 makes the complete storefront public. API, Next assets,
-  // PWA metadata and platform association files remain reachable even while
-  // PRELAUNCH_MODE=1 locks user-facing pages for smoke testing.
-  if (!prelaunchModeEnabled() || isLaunchGateBypassPath(pathname) || kioskCheckoutRoute) {
+  // PWA metadata, order tracking and payment return pages remain reachable
+  // while PRELAUNCH_MODE=1 locks discovery/profile pages for smoke testing.
+  if (!prelaunchModeEnabled() || isLaunchGateBypassPath(pathname)) {
     return updateSupabaseSession(request);
   }
 

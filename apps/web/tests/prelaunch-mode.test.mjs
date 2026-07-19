@@ -31,6 +31,11 @@ test("PWA and platform association metadata bypass the locked gate", () => {
   assert.equal(isLaunchGateBypassPath("/privacy"), true);
   assert.equal(isLaunchGateBypassPath("/terms"), true);
   assert.equal(isLaunchGateBypassPath("/contact"), true);
+  assert.equal(isLaunchGateBypassPath("/cart"), true);
+  assert.equal(isLaunchGateBypassPath("/orders"), true);
+  assert.equal(isLaunchGateBypassPath("/order/cj123456789"), true);
+  assert.equal(isLaunchGateBypassPath("/pay/return"), true);
+  assert.equal(isLaunchGateBypassPath("/stripe-redirect"), true);
   assert.equal(isLaunchGateBypassPath("/restaurants/example"), false);
 });
 

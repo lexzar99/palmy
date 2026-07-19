@@ -29,15 +29,26 @@ export function prelaunchModeEnabled(
   return resolvePrelaunchMode(env.PRELAUNCH_MODE, env.NODE_ENV);
 }
 
-/** Routes that must remain machine-readable while the storefront is locked. */
+/**
+ * Routes that may remain reachable while the storefront is locked.
+ *
+ * The order shell and payment return pages contain no public restaurant
+ * discovery data. Their actual order/payment data is still protected by the
+ * API's user session or order-specific HttpOnly session/access proof.
+ */
 export function isLaunchGateBypassPath(pathname: string): boolean {
   return pathname.startsWith("/api/")
     || pathname.startsWith("/embed/")
+    || pathname.startsWith("/order/")
     || pathname.startsWith("/_next/")
     || pathname.startsWith("/.well-known/")
     || pathname === "/privacy"
     || pathname === "/terms"
     || pathname === "/contact"
+    || pathname === "/cart"
+    || pathname === "/orders"
+    || pathname === "/pay/return"
+    || pathname === "/stripe-redirect"
     || pathname === "/favicon.ico"
     || pathname === "/manifest.webmanifest"
     || pathname === "/robots.txt"
