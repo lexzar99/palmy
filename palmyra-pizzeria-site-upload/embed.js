@@ -18,6 +18,8 @@
     "https://www.viaeats.se";
   var API = (typeof window !== "undefined" && window.VIAEATS_API) || "https://api.viaeats.se";
   var STYLE_ID = "viaeats-embed-v2-style";
+  var HOST_ORDER_HISTORY_PREFIX = "viaeats_partner_orders_v1:";
+  var volatileHostOrders = {};
 
   function esc(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
@@ -60,6 +62,30 @@
     return typeof value === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(value);
   }
 
+  function hostOrderIds(slug) {
+    var fallback = volatileHostOrders[slug] || [];
+    try {
+      var parsed = JSON.parse(window.localStorage.getItem(HOST_ORDER_HISTORY_PREFIX + slug) || "[]");
+      if (!Array.isArray(parsed)) return fallback;
+      var ids = parsed.filter(validOrderId).slice(0, 20);
+      volatileHostOrders[slug] = ids;
+      return ids;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function rememberHostOrder(slug, orderId) {
+    if (!validOrderId(orderId)) return;
+    var next = [orderId].concat(hostOrderIds(slug).filter(function (id) { return id !== orderId; })).slice(0, 20);
+    volatileHostOrders[slug] = next;
+    try {
+      window.localStorage.setItem(HOST_ORDER_HISTORY_PREFIX + slug, JSON.stringify(next));
+    } catch (_) {
+      // Privat läge kan blockera lagring; minneskopian räcker för fliken.
+    }
+  }
+
   function renderStatus(host, restaurant) {
     host.dispatchEvent(new CustomEvent("viaeats:loaded", { detail: { restaurant: restaurant } }));
   }
@@ -88,6 +114,7 @@
     var requestedProduct = pageParams.get("product");
     var paymentReturn = pageParams.get("payment_return");
     var trackedOrder = pageParams.get("order");
+    if (validOrderId(trackedOrder)) rememberHostOrder(slug, trackedOrder);
 
     var frame = document.createElement("iframe");
     frame.className = "ve-embed-frame";
@@ -120,9 +147,18 @@
     }
     frame.src = frameUrl.toString();
 
+    function sendHostOrderHistory() {
+      frame.contentWindow?.postMessage({
+        type: "viaeats:host-order-history",
+        restaurantSlug: slug,
+        orderIds: hostOrderIds(slug),
+      }, SITE);
+    }
+
     frame.addEventListener("load", function () {
       shell.classList.add("is-loaded");
       host.dispatchEvent(new CustomEvent("viaeats:ready", { detail: { slug: slug, iframe: frame } }));
+      window.setTimeout(sendHostOrderHistory, 80);
       if (requestedProduct) {
         window.setTimeout(function () {
           frame.contentWindow?.postMessage({ type: "viaeats:open-product", productId: requestedProduct }, "*");
@@ -142,11 +178,25 @@
       if (event.data.type === "viaeats:payment-complete") {
         var completedOrder = event.data.orderId;
         if (!validOrderId(completedOrder)) return;
+        rememberHostOrder(slug, completedOrder);
         var trackingLocation = new URL(window.location.href);
         trackingLocation.search = "";
         trackingLocation.searchParams.set("order", completedOrder);
         trackingLocation.searchParams.set("restaurant", slug);
         window.history.replaceState({}, "", trackingLocation.toString());
+        return;
+      }
+
+      if (event.data.type === "viaeats:remember-order") {
+        if (event.data.restaurantSlug !== slug || !validOrderId(event.data.orderId)) return;
+        rememberHostOrder(slug, event.data.orderId);
+        sendHostOrderHistory();
+        return;
+      }
+
+      if (event.data.type === "viaeats:request-order-history") {
+        if (event.data.restaurantSlug !== slug) return;
+        sendHostOrderHistory();
         return;
       }
 

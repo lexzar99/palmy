@@ -8,6 +8,8 @@ import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { forgetRawOrderAccessToken, readOrderHistory, type StoredOrderRef } from "@/lib/orderHistory";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
+import { readActiveOrderRefs } from "@/lib/activeOrder";
+import { partnerOriginForRestaurant, readEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
 
 // Ordrar som inte ska visas i historiken — samma filter som profilens
 // order-flik (avbrutna/avvisade/obetalda göms).
@@ -47,11 +49,30 @@ export default function OrdersPage() {
   const { t, locale } = useTranslation();
   const [embedMode, setEmbedMode] = useState(false);
   const [embedRestaurant, setEmbedRestaurant] = useState("");
+  const [hostOrderIds, setHostOrderIds] = useState<string[]>([]);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setEmbedMode(params.get("embed") === "1");
     setEmbedRestaurant(params.get("restaurant") || "");
   }, []);
+
+  useEffect(() => {
+    if (!embedMode || !embedRestaurant || typeof window === "undefined") return;
+    const receiveHostHistory = (event: MessageEvent) => {
+      if (event.source !== window.parent || !trustedPartnerOrigin(event.origin)) return;
+      if (event.data?.type !== "viaeats:host-order-history" || !Array.isArray(event.data.orderIds)) return;
+      const ids = event.data.orderIds
+        .filter((id: unknown): id is string => typeof id === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(id))
+        .slice(0, 20);
+      setHostOrderIds(Array.from(new Set(ids)));
+    };
+    window.addEventListener("message", receiveHostHistory);
+    const parentOrigin = readEmbedParentOrigin() || partnerOriginForRestaurant(embedRestaurant);
+    if (parentOrigin && window.parent !== window) {
+      window.parent.postMessage({ type: "viaeats:request-order-history", restaurantSlug: embedRestaurant }, parentOrigin);
+    }
+    return () => window.removeEventListener("message", receiveHostHistory);
+  }, [embedMode, embedRestaurant]);
   const embedMenuHref = embedRestaurant ? `/embed/${encodeURIComponent(embedRestaurant)}` : "/";
   const [loading, setLoading] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -114,11 +135,41 @@ export default function OrdersPage() {
     const loadGuest = async () => {
       // Gäst: lokalt sparade, icke-hemliga orderreferenser. Varje rad hämtas
       // med sin orderspecifika HttpOnly-session. Äldre raw-token migreras en
-      // gång via POST-body och raderas sedan från localStorage.
-      const refs = readOrderHistory().filter((ref) =>
+      // gång via POST-body och raderas sedan från localStorage. Embedden slår
+      // även ihop ViaEats historik, aktiva refs och Palmyras egen host-historik
+      // så en partitionerad iframe-lagring inte kan gömma en betald order.
+      const refsById = new Map<string, StoredOrderRef>();
+      for (const ref of readOrderHistory()) {
+        if (!embedMode || !embedRestaurant || !ref.restaurantSlug || ref.restaurantSlug === embedRestaurant) {
+          refsById.set(ref.id, ref);
+        }
+      }
+      for (const ref of readActiveOrderRefs()) {
+        if (!refsById.has(ref.id)) {
+          refsById.set(ref.id, {
+            id: ref.id,
+            phone: ref.phone || "",
+            createdAt: "",
+            restaurantSlug: null,
+          });
+        }
+      }
+      for (const id of hostOrderIds) {
+        const previous = refsById.get(id);
+        refsById.set(id, {
+          id,
+          phone: previous?.phone || "",
+          createdAt: previous?.createdAt || "",
+          restaurantName: previous?.restaurantName || "Palmyra Pizzeria",
+          restaurantSlug: embedRestaurant,
+          total: previous?.total,
+        });
+      }
+      const refs = Array.from(refsById.values()).slice(0, 20);
+      const baseRefs = refs.filter((ref) =>
         !embedMode || !embedRestaurant || ref.restaurantSlug === embedRestaurant,
       );
-      const base: OrderRow[] = refs.map((ref: StoredOrderRef) => ({
+      const base: OrderRow[] = baseRefs.map((ref: StoredOrderRef) => ({
         id: ref.id,
         phone: ref.phone,
         accessToken: ref.accessToken ?? null,
@@ -148,23 +199,34 @@ export default function OrdersPage() {
       }));
       const liveById = new Map<string, any>();
       summaries.forEach((row: any) => { if (row?.id) liveById.set(String(row.id), row); });
-      if (!active || liveById.size === 0) return;
-      setOrders((current) =>
-        current
-          .map((row) => {
-            const live = liveById.get(row.id);
-            if (!live) return row;
-            return {
-              ...row,
-              status: live.status ?? row.status,
-              total: typeof live.total === "number" ? live.total : row.total,
-              restaurantName: live.restaurantName || row.restaurantName,
-              type: live.type ?? row.type,
-              selfDelivery: typeof live.selfDelivery === "boolean" ? live.selfDelivery : row.selfDelivery,
-            };
-          })
-          .filter((row) => !HIDDEN_ORDER_STATUSES.has(String(row.status || "").toUpperCase())),
-      );
+      if (!active) return;
+      const baseById = new Map(base.map((row) => [row.id, row]));
+      const merged = refs.flatMap((ref): OrderRow[] => {
+        const live = liveById.get(ref.id);
+        const existing = baseById.get(ref.id);
+        // Referenser utan restaurangslug visas först efter att Palmyras
+        // restaurangbundna kioskbevis har verifierat summary-anropet.
+        if (!live && !existing) return [];
+        const row = existing || {
+          id: ref.id,
+          phone: ref.phone,
+          createdAt: ref.createdAt,
+          restaurantName: ref.restaurantName ?? null,
+          total: typeof ref.total === "number" ? ref.total : null,
+          status: null,
+        };
+        return [{
+          ...row,
+          createdAt: live?.createdAt ?? row.createdAt,
+          status: live?.status ?? row.status,
+          total: typeof live?.total === "number" ? live.total : row.total,
+          restaurantName: live?.restaurantName || row.restaurantName,
+          itemCount: typeof live?.itemCount === "number" ? live.itemCount : row.itemCount,
+          type: live?.type ?? row.type,
+          selfDelivery: typeof live?.selfDelivery === "boolean" ? live.selfDelivery : row.selfDelivery,
+        }];
+      });
+      setOrders(merged.filter((row) => !HIDDEN_ORDER_STATUSES.has(String(row.status || "").toUpperCase())));
     };
 
     const accessReady = embedMode && embedRestaurant
@@ -183,7 +245,7 @@ export default function OrdersPage() {
       });
 
     return () => { active = false; };
-  }, [embedMode, embedRestaurant]);
+  }, [embedMode, embedRestaurant, hostOrderIds]);
 
   return (
     <div className="min-h-screen md:pt-20 pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>

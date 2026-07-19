@@ -14,7 +14,8 @@ import { addSkippedReviewOrderId, isReviewSkipped } from "@/lib/reviewPrompt";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import dynamic from "next/dynamic";
 import { OrderTrackingCard } from "@/components/OrderTrackingCard";
-import { forgetRawOrderAccessToken, readOrderHistory } from "@/lib/orderHistory";
+import { forgetRawOrderAccessToken, readOrderHistory, saveOrderToHistory } from "@/lib/orderHistory";
+import { rememberActiveOrder } from "@/lib/activeOrder";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 import {
   EMBED_PARENT_ORIGIN_PARAM,
@@ -525,6 +526,32 @@ const OrderStatusPage = () => {
     // Swift-appen och hemskärmens prompt, så en skippad order inte frågar igen.
     if (isReviewSkipped(order.id)) setReviewDismissed(true);
   }, [order?.id]);
+
+  // Självläk embed-historiken varje gång en åtkomlig Palmyra-order öppnas.
+  // Safari kan partitionera iframe-lagringen; därför sparas referensen både i
+  // ViaEats localStorage och, via ett strikt origin-kontrollerat meddelande,
+  // hos Palmyras föräldrasida.
+  useEffect(() => {
+    if (!embedMode || !embedRestaurant || !order?.id || typeof window === "undefined") return;
+    saveOrderToHistory({
+      id: String(order.id),
+      phone: typeof order.customerPhone === "string" ? order.customerPhone : "",
+      createdAt: order.createdAt || new Date().toISOString(),
+      restaurantName: order.restaurantName || "Palmyra Pizzeria",
+      restaurantSlug: embedRestaurant,
+      total: typeof order.total === "number" ? order.total : undefined,
+    });
+    rememberActiveOrder(String(order.id), {
+      phone: typeof order.customerPhone === "string" ? order.customerPhone : null,
+    });
+    const parentOrigin = readEmbedParentOrigin() || partnerOriginForRestaurant(embedRestaurant);
+    if (parentOrigin && window.parent !== window) {
+      window.parent.postMessage(
+        { type: "viaeats:remember-order", orderId: String(order.id), restaurantSlug: embedRestaurant },
+        parentOrigin,
+      );
+    }
+  }, [embedMode, embedRestaurant, order?.id, order?.createdAt, order?.customerPhone, order?.restaurantName, order?.total]);
 
   // Skippa recensionen och kom ihåg valet för denna order.
   const dismissReview = useCallback(() => {
