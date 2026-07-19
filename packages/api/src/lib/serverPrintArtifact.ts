@@ -21,7 +21,7 @@ const RECEIPT_FONT_PATH = path.join(__dirname, '../../assets/Outfit.ttf');
 // Must change whenever the bitmap layout changes. Otherwise a real order can
 // keep an older in-memory artifact while test printing already shows the new
 // Admin layout, which makes the two physical receipts look unrelated.
-const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v8';
+const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v9';
 
 function parseExtras(raw: unknown): any[] {
   try {
@@ -273,9 +273,12 @@ type RenderedText = { data: Buffer; width: number; height: number };
 // alltså 240 px innehållsbredd. Bitmapen är exakt samma layout uppskalad, så
 // alla admin-mått (px) multipliceras med scale nedan.
 const ADMIN_CONTENT_WIDTH = 240;
-// Termopapper läses på armlängds avstånd i ett kök — texten trycks 20 %
-// större än admin-previewens proportioner utan att ändra layout/bredder.
-const TEXT_BOOST = 1.2;
+// Termopapper läses på armlängds avstånd i ett kök — texten trycks större än
+// admin-previewens proportioner utan att ändra layout/bredder. 58 mm-rullen
+// är smal, där boostas texten hårdare så bokstäverna blir ungefär lika stora
+// fysiskt som på 78 mm; kvittot blir längre i stället (fler radbrytningar).
+const TEXT_BOOST_WIDE = 1.2;
+const TEXT_BOOST_58 = 1.55;
 
 async function renderTextLine(
   value: string,
@@ -337,8 +340,11 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
   // 576 punkter (~78 mm på kvittoskrivarna) — verifierat tydligast på papper.
   // Marginalerna skalas med bredden (≈4,5 mm) så inget hamnar utanför, och
   // ESC a 1 centrerar rastret på skrivare med smalare huvud.
+  // 58 mm: nästan kantlös (10 punkter ≈ 1,2 mm marginal) — rullen är så smal
+  // att varje millimeter behövs för texten.
   const width = paperWidth === '58mm' ? 384 : 576;
-  const scale = (paperWidth === '58mm' ? 338 : 508) / ADMIN_CONTENT_WIDTH;
+  const scale = (paperWidth === '58mm' ? 364 : 508) / ADMIN_CONTENT_WIDTH;
+  const TEXT_BOOST = paperWidth === '58mm' ? TEXT_BOOST_58 : TEXT_BOOST_WIDE;
   const margin = Math.round((width - ADMIN_CONTENT_WIDTH * scale) / 2);
   const contentWidth = width - margin * 2;
   const px = (value: number) => Math.round(value * scale);
