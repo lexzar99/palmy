@@ -21,7 +21,7 @@ const RECEIPT_FONT_PATH = path.join(__dirname, '../../assets/Outfit.ttf');
 // Must change whenever the bitmap layout changes. Otherwise a real order can
 // keep an older in-memory artifact while test printing already shows the new
 // Admin layout, which makes the two physical receipts look unrelated.
-const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v11';
+const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v12';
 
 function parseExtras(raw: unknown): any[] {
   try {
@@ -366,9 +366,13 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     const value = Number(elements.get(key)?.size);
     return Math.min(40, Math.max(6, Number.isFinite(value) ? value : fallback));
   };
-  // Termohuvuden smetar ihop feta små bokstäver till svarta klumpar. Smal,
-  // normal vikt är tydligast på papper — endast totalsumman trycks fet.
-  const configuredWeight = (key: string, _fallback = 400) => (key === 'total' ? 800 : 400);
+  // Vikten styrs av admin-mallen (normal/fet/svart). Smal normalvikt är
+  // tydligast på termopapper, så mallens standard är 'normal' överallt utom
+  // totalen — men operatören kan själv göra fält feta i Kvitto & utskrift.
+  const configuredWeight = (key: string, fallback = 400) => {
+    const weight = String(elements.get(key)?.weight || '');
+    return weight === 'black' ? 800 : weight === 'bold' ? 700 : weight === 'normal' ? 400 : fallback;
+  };
   const configuredAlign = (key: string, fallback: Align = 'left'): Align => {
     const value = String(elements.get(key)?.align || fallback);
     return value === 'center' || value === 'right' ? value : 'left';
@@ -595,9 +599,9 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
         `${item.qty} x ${item.name}`,
         `${kr(item.subtotal)} kr`,
         Math.max(12, configuredSize('items', 10)),
-        400,
+        configuredWeight('items'),
         Math.max(11, configuredSize('itemPrice', 8)),
-        400,
+        configuredWeight('itemPrice'),
       );
       if (visible('extras')) {
         // Tillvalen skrivs i exakt den ordning de sparades på ordern (per
@@ -620,9 +624,9 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
             requiredChoice
               ? Math.max(11, configuredSize('extras', 8) + 1)
               : Math.max(10, configuredSize('extras', 8)),
-            400,
+            configuredWeight('extras'),
             Math.max(10, configuredSize('extras', 8)),
-            400,
+            configuredWeight('itemPrice'),
           );
         }
       }
