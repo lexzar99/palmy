@@ -1,5 +1,6 @@
 import prisma from './prisma';
 import sharp from 'sharp';
+import path from 'path';
 
 export type ThermalPaperWidth = '58mm' | '72mm' | '80mm';
 
@@ -14,7 +15,9 @@ type PrintArtifact = {
 
 const artifactCache = new Map<string, PrintArtifact>();
 const latestArtifactByOrder = new Map<string, PrintArtifact>();
+const artifactInFlight = new Map<string, Promise<PrintArtifact | null>>();
 const MAX_ARTIFACTS = 240;
+const RECEIPT_FONT_PATH = path.join(__dirname, '../../assets/Outfit.ttf');
 
 function ascii(value: unknown): string {
   return String(value ?? '')
@@ -45,13 +48,13 @@ function parseExtras(raw: unknown): any[] {
 
 function translateInstruction(value: unknown): string {
   switch (String(value || '').toUpperCase()) {
-    case 'RING_DOORBELL': return 'Ring pa dorren';
-    case 'LEAVE_AT_DOOR': return 'Lamna vid dorren';
-    case 'MEET_OUTSIDE': return 'Mot mig utanfor';
-    case 'MEET_AT_DOOR': return 'Mot vid dorren';
+    case 'RING_DOORBELL': return 'Ring på dörren';
+    case 'LEAVE_AT_DOOR': return 'Lämna vid dörren';
+    case 'MEET_OUTSIDE': return 'Möt mig utanför';
+    case 'MEET_AT_DOOR': return 'Möt vid dörren';
     case 'NO_CONTACT': return 'Kontaktfri leverans';
     case 'CALL_ON_ARRIVAL': return 'Ring vid ankomst';
-    default: return ascii(value);
+    default: return plain(value);
   }
 }
 
@@ -66,7 +69,7 @@ function visibleTemplateKeys(elementsRaw: unknown): Set<string> | null {
 }
 
 function wrapText(value: unknown, width: number): string[] {
-  const text = ascii(value);
+  const text = plain(value);
   if (!text) return [];
   const words = text.split(' ');
   const lines: string[] = [];
@@ -125,17 +128,64 @@ function plain(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
-function templateElements(template: any): Map<string, any> {
+// Same key order as the editable receipt template in apps/admin. Saved values
+// are merged below so a partially populated legacy row still renders exactly
+// like the admin preview while keeping the admin's size/weight/visibility.
+const FALLBACK_TEMPLATE_ELEMENTS = [
+  { key: 'restaurantName', visible: true, size: 15, weight: 'black', align: 'center', uppercase: true },
+  { key: 'platformName', visible: true, size: 8, weight: 'normal', align: 'center', uppercase: true },
+  { key: 'address', visible: true, size: 8, weight: 'normal', align: 'center' },
+  { key: 'phone', visible: true, size: 8, weight: 'normal', align: 'center' },
+  { key: 'divider1', visible: true, size: 8, weight: 'normal', align: 'center' },
+  { key: 'headerMsg', visible: false, size: 9, weight: 'bold', align: 'center', content: '' },
+  { key: 'divider2', visible: false, size: 8, weight: 'normal', align: 'center' },
+  { key: 'orderNumber', visible: true, size: 9, weight: 'normal', align: 'center' },
+  { key: 'timestamp', visible: true, size: 9, weight: 'normal', align: 'center' },
+  { key: 'orderType', visible: true, size: 12, weight: 'black', align: 'center', uppercase: true },
+  { key: 'scheduledFor', visible: true, size: 12, weight: 'black', align: 'center' },
+  { key: 'paymentMethod', visible: true, size: 12, weight: 'black', align: 'center' },
+  { key: 'estimatedTime', visible: true, size: 14, weight: 'black', align: 'center' },
+  { key: 'divider3', visible: true, size: 8, weight: 'normal', align: 'center' },
+  { key: 'customerName', visible: true, size: 12, weight: 'black', align: 'left' },
+  { key: 'customerPhone', visible: true, size: 9, weight: 'normal', align: 'left' },
+  { key: 'customerAddress', visible: true, size: 9, weight: 'normal', align: 'left' },
+  { key: 'deliveryInstructions', visible: true, size: 9, weight: 'bold', align: 'left' },
+  { key: 'note', visible: true, size: 9, weight: 'bold', align: 'left' },
+  { key: 'allergens', visible: true, size: 9, weight: 'bold', align: 'left' },
+  { key: 'divider4', visible: true, size: 8, weight: 'normal', align: 'center' },
+  { key: 'items', visible: true, size: 10, weight: 'bold', align: 'left' },
+  { key: 'itemPrice', visible: true, size: 8, weight: 'bold', align: 'right' },
+  { key: 'extras', visible: true, size: 8, weight: 'normal', align: 'left' },
+  { key: 'divider5', visible: true, size: 8, weight: 'normal', align: 'center' },
+  { key: 'deliveryFee', visible: true, size: 9, weight: 'normal', align: 'left' },
+  { key: 'discount', visible: true, size: 9, weight: 'normal', align: 'left' },
+  { key: 'total', visible: true, size: 14, weight: 'black', align: 'left' },
+  { key: 'divider6', visible: true, size: 8, weight: 'normal', align: 'center' },
+  { key: 'thankYou', visible: true, size: 9, weight: 'bold', align: 'center', content: 'Tack för din beställning!' },
+  { key: 'footerMsg', visible: true, size: 8, weight: 'normal', align: 'center', content: 'Välkommen åter!' },
+];
+
+function templateElementList(template: any): any[] {
   try {
     const elements = typeof template?.elements === 'string'
       ? JSON.parse(template.elements)
       : template?.elements;
-    return new Map(
-      (Array.isArray(elements) ? elements : []).map((element: any) => [String(element.key), element]),
-    );
+    if (Array.isArray(elements) && elements.length > 0) {
+      const savedByKey = new Map(elements.map((element: any) => [String(element?.key), element]));
+      return FALLBACK_TEMPLATE_ELEMENTS.map((element) => ({
+        ...element,
+        ...(savedByKey.get(element.key) || {}),
+      }));
+    }
   } catch {
-    return new Map();
+    // Use the same safe defaults as the printing config endpoint when a
+    // legacy row contains malformed JSON.
   }
+  return FALLBACK_TEMPLATE_ELEMENTS;
+}
+
+function templateElements(template: any): Map<string, any> {
+  return new Map(templateElementList(template).map((element: any) => [String(element.key), element]));
 }
 
 function allergens(value: unknown): string {
@@ -149,14 +199,80 @@ function allergens(value: unknown): string {
   return text === '[]' ? '' : text;
 }
 
-async function buildEscPosBitmap(order: any, template: any, paperWidth: ThermalPaperWidth): Promise<Buffer> {
+type ReceiptTextLayer = {
+  text: string;
+  left: number;
+  top: number;
+  width: number;
+  size: number;
+  weight: number;
+  align: 'left' | 'center' | 'right';
+  color: string;
+};
+
+function escPosFeedDots(dots: number): Buffer[] {
+  const chunks: Buffer[] = [];
+  let remaining = Math.max(0, Math.round(dots));
+  while (remaining > 0) {
+    const step = Math.min(255, remaining);
+    chunks.push(Buffer.from([0x1b, 0x4a, step])); // ESC J n
+    remaining -= step;
+  }
+  return chunks;
+}
+
+/**
+ * Packar bara rader som faktiskt innehåller svärta. Vita mellanrum blir korta
+ * ESC/POS-feedkommandon i stället för tusentals nollbytes över Bluetooth.
+ * Layoutens fysiska höjd behålls men överföringen blir normalt 40–70 % mindre.
+ */
+function compactEscPosRaster(bitmap: Buffer, widthBytes: number, height: number): Buffer[] {
+  const hasInk = (rowIndex: number) => {
+    const start = rowIndex * widthBytes;
+    for (let index = start; index < start + widthBytes; index += 1) {
+      if (bitmap[index] !== 0) return true;
+    }
+    return false;
+  };
+
+  const chunks: Buffer[] = [];
+  let rowIndex = 0;
+  while (rowIndex < height) {
+    const blankStart = rowIndex;
+    while (rowIndex < height && !hasInk(rowIndex)) rowIndex += 1;
+    if (rowIndex > blankStart) chunks.push(...escPosFeedDots(rowIndex - blankStart));
+    if (rowIndex >= height) break;
+
+    const bandStart = rowIndex;
+    let lastInk = rowIndex;
+    rowIndex += 1;
+    while (rowIndex < height) {
+      if (hasInk(rowIndex)) lastInk = rowIndex;
+      // Små hål hör till samma textrad. Större vita ytor skickas som feed.
+      if (rowIndex - lastInk > 3) break;
+      rowIndex += 1;
+    }
+    const bandEnd = lastInk + 1;
+    const bandHeight = bandEnd - bandStart;
+    chunks.push(Buffer.from([
+      0x1d, 0x76, 0x30, 0x00,
+      widthBytes & 0xff, (widthBytes >> 8) & 0xff,
+      bandHeight & 0xff, (bandHeight >> 8) & 0xff,
+    ]));
+    chunks.push(bitmap.subarray(bandStart * widthBytes, bandEnd * widthBytes));
+    rowIndex = bandEnd;
+  }
+  return chunks;
+}
+
+export async function buildEscPosBitmap(order: any, template: any, paperWidth: ThermalPaperWidth): Promise<Buffer> {
   const width = paperWidth === '58mm' ? 384 : paperWidth === '72mm' ? 512 : 576;
   const margin = paperWidth === '58mm' ? 14 : 18;
-  const visible = visibleTemplateKeys(template?.elements);
-  const shows = (key: string) => !visible || visible.has(key);
+  const configuredElements = templateElementList(template);
   const elements = templateElements(template);
   const svg: string[] = [];
-  let y = 22;
+  const textLayers: ReceiptTextLayer[] = [];
+  let y = 18;
 
   const configuredSize = (key: string, fallback: number) => {
     const value = Number(elements.get(key)?.size);
@@ -189,12 +305,23 @@ async function buildEscPosBitmap(order: any, template: any, paperWidth: ThermalP
   ) => {
     const lines = wrapPixels(value, size, maxWidth);
     if (lines.length === 0) return;
-    const x = align === 'center' ? width / 2 : align === 'right' ? width - margin : margin;
-    const anchor = align === 'center' ? 'middle' : align === 'right' ? 'end' : 'start';
+    const layerLeft = align === 'left'
+      ? margin
+      : align === 'right'
+        ? width - margin - maxWidth
+        : Math.round((width - maxWidth) / 2);
     for (const line of lines) {
-      y += size * 0.92;
-      svg.push(`<text x="${x}" y="${y.toFixed(1)}" text-anchor="${anchor}" font-family="DejaVu Sans,Arial,sans-serif" font-size="${size}" font-weight="${weight}" fill="${color}">${xml(line)}</text>`);
-      y += Math.max(3, size * 0.12);
+      textLayers.push({
+        text: line,
+        left: Math.max(0, Math.round(layerLeft)),
+        top: Math.max(0, Math.round(y)),
+        width: Math.max(8, Math.round(maxWidth)),
+        size: Math.round(size),
+        weight,
+        align,
+        color,
+      });
+      y += Math.max(size + 4, size * 1.13);
     }
   };
   const space = (height: number) => { y += height; };
@@ -203,106 +330,236 @@ async function buildEscPosBitmap(order: any, template: any, paperWidth: ThermalP
     svg.push(`<line x1="${margin}" y1="${y}" x2="${width - margin}" y2="${y}" stroke="#000" stroke-width="${thickness}"/>`);
     y += 12;
   };
-  const badge = (value: string) => {
-    const size = configuredSize('orderType', 9);
+  const badge = (key: string, value: string) => {
+    const size = configuredSize(key, 9);
     const badgeWidth = Math.min(width - margin * 2, Math.max(170, value.length * size * 0.62 + 36));
     const badgeHeight = size + 24;
     y += 8;
-    svg.push(`<rect x="${(width - badgeWidth) / 2}" y="${y}" width="${badgeWidth}" height="${badgeHeight}" rx="${badgeHeight / 2}" fill="#000"/>`);
-    svg.push(`<text x="${width / 2}" y="${y + badgeHeight * 0.70}" text-anchor="middle" font-family="DejaVu Sans,Arial,sans-serif" font-size="${size}" font-weight="800" fill="#fff">${xml(value.toLocaleUpperCase('sv-SE'))}</text>`);
+    const badgeLeft = Math.round((width - badgeWidth) / 2);
+    svg.push(`<rect x="${badgeLeft}" y="${y}" width="${badgeWidth}" height="${badgeHeight}" rx="${badgeHeight / 2}" fill="#000"/>`);
+    textLayers.push({
+      text: maybeUpper(key, value),
+      left: badgeLeft + 12,
+      top: Math.round(y + (badgeHeight - size * 1.15) / 2),
+      width: Math.round(badgeWidth - 24),
+      size: Math.round(size),
+      weight: configuredWeight(key, 800),
+      align: 'center',
+      color: '#ffffff',
+    });
     y += badgeHeight + 8;
   };
-  const rowText = (left: unknown, right: unknown, size: number, weight = 700) => {
+  const rowText = (left: unknown, right: unknown, size: number, weight = 700, rightSize = size, rightWeight = weight) => {
     const rightText = plain(right);
-    const rightWidth = Math.max(90, rightText.length * size * 0.58);
+    const rightWidth = Math.max(90, rightText.length * rightSize * 0.58);
     const leftLines = wrapPixels(left, size, width - margin * 2 - rightWidth - 10);
     const lines = leftLines.length ? leftLines : [''];
     lines.forEach((line, index) => {
-      y += size * 0.95;
-      svg.push(`<text x="${margin}" y="${y}" font-family="DejaVu Sans,Arial,sans-serif" font-size="${size}" font-weight="${weight}" fill="#000">${xml(line)}</text>`);
-      if (index === 0) svg.push(`<text x="${width - margin}" y="${y}" text-anchor="end" font-family="DejaVu Sans,Arial,sans-serif" font-size="${size}" font-weight="${weight}" fill="#000">${xml(rightText)}</text>`);
-      y += Math.max(3, size * 0.12);
+      const top = Math.round(y);
+      textLayers.push({
+        text: line,
+        left: margin,
+        top,
+        width: Math.max(8, Math.round(width - margin * 2 - rightWidth - 10)),
+        size: Math.round(size),
+        weight,
+        align: 'left',
+        color: '#000000',
+      });
+      if (index === 0) {
+        textLayers.push({
+          text: rightText,
+          left: Math.round(width - margin - rightWidth),
+          top,
+          width: Math.round(rightWidth),
+          size: Math.round(rightSize),
+          weight: rightWeight,
+          align: 'right',
+          color: '#000000',
+        });
+      }
+      y += Math.max(size + 4, size * 1.13);
     });
   };
 
-  text(`${template?.platformName || 'ViaEats'} #${order.orderNumber}`, 22, 800, 'center');
-  text('Ej kvitto', 19, 500, 'center', '#555555');
-  divider();
-
-  if (shows('restaurantName')) {
-    const key = 'restaurantName';
-    text(maybeUpper(key, plain(order.restaurant?.name || 'ViaEats')), configuredSize(key, 15), configuredWeight(key, 900), configuredAlign(key, 'center'));
-  }
-  if (shows('timestamp')) {
-    const key = 'timestamp';
-    text(`${formatDate(new Date(order.createdAt))} ${formatTime(new Date(order.createdAt))}`, configuredSize(key, 8), configuredWeight(key, 700), configuredAlign(key, 'center'));
-  }
-  if (shows('address')) {
-    const address = [order.restaurant?.address, [order.restaurant?.zip, order.restaurant?.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
-    text(address, configuredSize('address', 7), configuredWeight('address'), configuredAlign('address', 'center'));
-  }
-  if (shows('phone') && order.restaurant?.phone) {
-    text(`Tel: ${order.restaurant.phone}`, configuredSize('phone', 7), configuredWeight('phone'), configuredAlign('phone', 'center'));
-  }
-  divider();
-
-  if (shows('customerName')) text(order.customerName, configuredSize('customerName', 11), configuredWeight('customerName', 900), configuredAlign('customerName'));
-  if (shows('customerPhone')) text(order.customerPhone, configuredSize('customerPhone', 8), configuredWeight('customerPhone', 700), configuredAlign('customerPhone'));
-  if (order.type === 'DELIVERY' && shows('customerAddress')) {
-    space(7);
-    text([order.deliveryStreet, [order.deliveryZip, order.deliveryCity].filter(Boolean).join(' ')].filter(Boolean).join(', '), configuredSize('customerAddress', 8), configuredWeight('customerAddress', 900), configuredAlign('customerAddress'));
-  }
-  if (shows('deliveryInstructions') && order.deliveryInstructions) text(translateInstruction(order.deliveryInstructions), configuredSize('deliveryInstructions', 7), configuredWeight('deliveryInstructions', 700), configuredAlign('deliveryInstructions'));
-  if (shows('note') && order.note) text(`OBS: ${order.note}`, configuredSize('note', 7), configuredWeight('note', 800), configuredAlign('note'));
+  const restaurantAddress = [
+    order.restaurant?.address,
+    [order.restaurant?.zip, order.restaurant?.city].filter(Boolean).join(' '),
+  ].filter(Boolean).join(', ');
+  const customerAddress = [
+    order.deliveryStreet,
+    [order.deliveryZip, order.deliveryCity].filter(Boolean).join(' '),
+  ].filter(Boolean).join(', ');
+  const isDelivery = order.type === 'DELIVERY';
   const allergenText = allergens(order.allergens);
-  if (shows('allergens') && allergenText) text(`! ALLERGENER: ${allergenText}`, configuredSize('allergens', 7), configuredWeight('allergens', 900), configuredAlign('allergens'));
-  space(10);
-
-  if (shows('orderType')) badge(order.type === 'DELIVERY' ? 'Utkörning' : 'Avhämtning');
-  if (order.scheduledFor) {
-    const scheduled = new Date(order.scheduledFor);
-    if (shows('scheduledFor')) badge(`Förbeställd ${formatDate(scheduled)} ${formatTime(scheduled)}`);
-  } else if (shows('estimatedTime') && order.estimatedTime) {
-    const anchor = order.preparingAt ? new Date(order.preparingAt) : new Date(order.createdAt);
-    space(6);
-    text('Utlovad tid', configuredSize('estimatedTime', 8), configuredWeight('estimatedTime'), configuredAlign('estimatedTime', 'center'));
-    text(`Klar ${formatTime(new Date(anchor.getTime() + Number(order.estimatedTime) * 60_000))}`, configuredSize('estimatedTime', 21), 900, configuredAlign('estimatedTime', 'center'));
-  }
-  if (shows('paymentMethod')) badge(order.paymentStatus === 'PAID' ? 'Betald online' : plain(order.paymentMethod || order.paymentStatus));
-  text(`${(order.items || []).length} ${(order.items || []).length === 1 ? 'artikel' : 'artiklar'}`, 21, 500, 'center', '#555555');
-  divider();
-
-  if (shows('items')) {
-    for (const item of order.items || []) {
-      rowText(`${item.quantity} x ${item.productName}`, `${money(item.subtotal)} kr`, configuredSize('items', 9), configuredWeight('items', 800));
-      if (shows('extras')) {
+  const paymentText = order.paymentStatus === 'PAID'
+    ? 'Betald online'
+    : plain(order.paymentMethod || order.paymentStatus);
+  const hasVisible = (key: string) => elements.get(key)?.visible !== false;
+  const drawTextElement = (key: string, value: unknown, fallbackSize: number, fallbackWeight = 500, fallbackAlign: 'left' | 'center' | 'right' = 'left', color = '#000000') => {
+    const valueText = maybeUpper(key, plain(value));
+    if (!valueText) return;
+    text(valueText, configuredSize(key, fallbackSize), configuredWeight(key, fallbackWeight), configuredAlign(key, fallbackAlign), color);
+  };
+  const drawItems = () => {
+    const items = Array.isArray(order.items) ? order.items : [];
+    text(`${items.length} ${items.length === 1 ? 'artikel' : 'artiklar'}`, 21, 500, 'center', '#555555');
+    for (const item of items) {
+      rowText(
+        `${item.quantity} x ${item.productName}`,
+        `${money(item.subtotal)} kr`,
+        configuredSize('items', 9),
+        configuredWeight('items', 800),
+        configuredSize('itemPrice', 8),
+        configuredWeight('itemPrice', 700),
+      );
+      if (hasVisible('extras')) {
         for (const extra of parseExtras(item.selectedExtras)) {
           const name = extra.extraName || extra.name;
           if (!name) continue;
           const addonKr = Number(extra.priceAddon || extra.price || 0);
-          if (addonKr > 0) rowText(`++ ${name}`, `+${Number.isInteger(addonKr) ? addonKr : addonKr.toFixed(2)} kr`, configuredSize('extras', 7), configuredWeight('extras'));
-          else text(`-- ${name}`, configuredSize('extras', 7), configuredWeight('extras'));
+          if (addonKr > 0) {
+            rowText(`++ ${name}`, `+${Number.isInteger(addonKr) ? addonKr : addonKr.toFixed(2)} kr`, configuredSize('extras', 7), configuredWeight('extras'));
+          } else {
+            drawTextElement('extras', `-- ${name}`, 7, configuredWeight('extras'));
+          }
         }
       }
-      if (item.note) text(`! ${item.note}`, configuredSize('items', 7), 800);
+      if (item.note) drawTextElement('items', `! ${item.note}`, 7, 800);
       space(8);
     }
+  };
+
+  // The saved admin template is the source of truth. Do not impose a second
+  // server-only order: every visible element is rendered in its saved order.
+  let platformIncludesOrderNumber = false;
+  for (const element of configuredElements) {
+    const key = String(element?.key || '');
+    if (!key || element?.visible === false) continue;
+
+    if (key === 'orderNumber' && platformIncludesOrderNumber) continue;
+    if (key.startsWith('divider')) {
+      divider();
+      continue;
+    }
+
+    switch (key) {
+      case 'restaurantName':
+        drawTextElement(key, order.restaurant?.name || 'ViaEats', 15, 900, 'center');
+        break;
+      case 'platformName': {
+        const orderNumberElement = elements.get('orderNumber');
+        platformIncludesOrderNumber = orderNumberElement?.visible !== false;
+        const numberSuffix = platformIncludesOrderNumber ? ` #${plain(order.orderNumber) || '—'}` : '';
+        drawTextElement(key, `${template?.platformName || 'ViaEats'}${numberSuffix}`, 8, 500, 'center');
+        text('Ej kvitto', configuredSize(key, 8), 500, 'center', '#555555');
+        break;
+      }
+      case 'address':
+        drawTextElement(key, restaurantAddress, 8, 500, 'center');
+        break;
+      case 'phone':
+        drawTextElement(key, order.restaurant?.phone ? `Tel: ${order.restaurant.phone}` : '', 8, 500, 'center');
+        break;
+      case 'headerMsg':
+        drawTextElement(key, element.content, 9, 700, 'center');
+        break;
+      case 'orderNumber':
+        drawTextElement(key, `Ordernummer: ${order.orderNumber}`, 10, 700);
+        break;
+      case 'timestamp':
+        drawTextElement(key, `${formatDate(new Date(order.createdAt))} ${formatTime(new Date(order.createdAt))}`, 8, 500);
+        break;
+      case 'orderType':
+        badge(key, isDelivery ? 'Utkörning' : 'Avhämtning');
+        break;
+      case 'scheduledFor':
+        if (order.scheduledFor) {
+          const scheduled = new Date(order.scheduledFor);
+          badge(key, `Förbeställd ${formatDate(scheduled)} ${formatTime(scheduled)}`);
+        }
+        break;
+      case 'estimatedTime':
+        if (!order.scheduledFor && order.estimatedTime) {
+          const anchor = order.preparingAt ? new Date(order.preparingAt) : new Date(order.createdAt);
+          space(6);
+          drawTextElement(key, 'Utlovad tid', 8, 700, 'center');
+          drawTextElement(key, `Klar ${formatTime(new Date(anchor.getTime() + Number(order.estimatedTime) * 60_000))}`, 14, 900, 'center');
+        }
+        break;
+      case 'customerName':
+        if (plain(order.customerName)) {
+          text('Kund:', 10, 700, 'left', '#555555');
+          drawTextElement(key, order.customerName, 9, 700);
+        }
+        break;
+      case 'customerPhone':
+        drawTextElement(key, order.customerPhone, 8, 500);
+        break;
+      case 'customerAddress':
+        if (isDelivery && customerAddress) {
+          space(7);
+          text('Adress:', 10, 700, 'left', '#555555');
+          drawTextElement(key, customerAddress, 8, 500);
+        }
+        break;
+      case 'deliveryInstructions':
+        drawTextElement(key, translateInstruction(order.deliveryInstructions), 8, 700);
+        break;
+      case 'note':
+        drawTextElement(key, order.note, 8, 700);
+        break;
+      case 'allergens':
+        drawTextElement(key, allergenText ? `! ${allergenText}` : '', 8, 700, 'left', '#cc0000');
+        break;
+      case 'items':
+        drawItems();
+        break;
+      case 'deliveryFee':
+        if (Number(order.deliveryFee || 0) > 0) rowText('Leveransavgift', `${money(order.deliveryFee)} kr`, configuredSize(key, 8), configuredWeight(key));
+        break;
+      case 'discount':
+        if (Number(order.discountAmount || 0) > 0) rowText(order.discountCode ? `Rabatt (${order.discountCode})` : 'Rabatt', `-${money(order.discountAmount)} kr`, configuredSize(key, 8), configuredWeight(key));
+        break;
+      case 'total':
+        svg.push(`<line x1="${margin}" y1="${y + 8}" x2="${width - margin}" y2="${y + 8}" stroke="#000" stroke-width="3"/>`);
+        y += 12;
+        rowText('Totalt', `${money(order.total)} kr`, configuredSize(key, 15), configuredWeight(key, 900));
+        break;
+      case 'paymentMethod':
+        if (paymentText) badge(key, paymentText);
+        break;
+      case 'thankYou':
+        drawTextElement(key, element.content || 'Tack för din beställning!', 9, 700, 'center');
+        break;
+      case 'footerMsg':
+        drawTextElement(key, element.content || 'Välkommen åter!', 8, 500, 'center', '#555555');
+        break;
+      default:
+        break;
+    }
   }
-  divider();
-  if (shows('deliveryFee') && order.deliveryFee > 0) rowText('Leveransavgift', `${money(order.deliveryFee)} kr`, configuredSize('deliveryFee', 8), configuredWeight('deliveryFee'));
-  if (shows('discount') && order.discountAmount > 0) rowText(order.discountCode ? `Rabatt (${order.discountCode})` : 'Rabatt', `-${money(order.discountAmount)} kr`, configuredSize('discount', 8), configuredWeight('discount'));
-  divider(4);
-  if (shows('total')) rowText('Totalt', `${money(order.total)} kr`, configuredSize('total', 15), configuredWeight('total', 900));
-  divider();
-  const thanks = plain(elements.get('thankYou')?.content) || 'Tack för din beställning!';
-  const footer = plain(elements.get('footerMsg')?.content) || 'Välkommen åter!';
-  if (shows('thankYou')) text(thanks, configuredSize('thankYou', 7), configuredWeight('thankYou', 700), configuredAlign('thankYou', 'center'));
-  if (shows('footerMsg')) text(footer, configuredSize('footerMsg', 7), configuredWeight('footerMsg'), configuredAlign('footerMsg', 'center'), '#555555');
   space(30);
 
-  const height = Math.max(160, Math.ceil(y + 20));
+  const height = Math.max(160, Math.ceil(y + 56));
   const image = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#fff"/>${svg.join('')}</svg>`;
+  const overlays = textLayers.map((layer) => ({
+    input: {
+      text: {
+        text: `<span foreground="${layer.color}" weight="${layer.weight}" size="${layer.size * 1024}">${xml(layer.text)}</span>`,
+        font: 'Outfit',
+        fontfile: RECEIPT_FONT_PATH,
+        width: layer.width,
+        align: layer.align,
+        rgba: true,
+        dpi: 72,
+      },
+    },
+    left: layer.left,
+    top: layer.top,
+  }));
   const raster = await sharp(Buffer.from(image))
+    .composite(overlays)
     .flatten({ background: '#ffffff' })
     .greyscale()
     .threshold(176)
@@ -319,15 +576,9 @@ async function buildEscPosBitmap(order: any, template: any, paperWidth: ThermalP
     }
   }
 
-  const rasterHeader = Buffer.from([
-    0x1d, 0x76, 0x30, 0x00,
-    widthBytes & 0xff, (widthBytes >> 8) & 0xff,
-    raster.info.height & 0xff, (raster.info.height >> 8) & 0xff,
-  ]);
   return Buffer.concat([
     Buffer.from([0x1b, 0x40, 0x1b, 0x61, 0x01]),
-    rasterHeader,
-    bitmap,
+    ...compactEscPosRaster(bitmap, widthBytes, raster.info.height),
     Buffer.from([0x1b, 0x64, 0x05, 0x1d, 0x56, 0x01]),
   ]);
 }
@@ -360,28 +611,43 @@ export async function getServerPrintArtifact(orderId: string, requestedWidth: un
   ].join(':');
   const cached = artifactCache.get(fingerprint);
   if (cached) return cached;
+  const alreadyRendering = artifactInFlight.get(fingerprint);
+  if (alreadyRendering) return alreadyRendering;
 
-  const artifact: PrintArtifact = {
-    bytes: await buildEscPosBitmap(order, template, paperWidth),
-    fingerprint,
-    orderId: order.id,
-    orderNumber: order.orderNumber,
-    restaurantId: order.restaurantId,
-    paperWidth,
-  };
-  artifactCache.set(fingerprint, artifact);
-  latestArtifactByOrder.delete(latestKey);
-  latestArtifactByOrder.set(latestKey, artifact);
-  while (artifactCache.size > MAX_ARTIFACTS) artifactCache.delete(artifactCache.keys().next().value!);
-  while (latestArtifactByOrder.size > MAX_ARTIFACTS * 2) latestArtifactByOrder.delete(latestArtifactByOrder.keys().next().value!);
-  return artifact;
+  const rendering = (async (): Promise<PrintArtifact> => {
+    const artifact: PrintArtifact = {
+      bytes: await buildEscPosBitmap(order, template, paperWidth),
+      fingerprint,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      restaurantId: order.restaurantId,
+      paperWidth,
+    };
+    artifactCache.set(fingerprint, artifact);
+    latestArtifactByOrder.delete(latestKey);
+    latestArtifactByOrder.set(latestKey, artifact);
+    while (artifactCache.size > MAX_ARTIFACTS) artifactCache.delete(artifactCache.keys().next().value!);
+    while (latestArtifactByOrder.size > MAX_ARTIFACTS * 2) latestArtifactByOrder.delete(latestArtifactByOrder.keys().next().value!);
+    return artifact;
+  })();
+  artifactInFlight.set(fingerprint, rendering);
+  try {
+    return await rendering;
+  } finally {
+    artifactInFlight.delete(fingerprint);
+  }
 }
 
 /** Generate final accepted-order artifacts before the status response reaches the tablet. */
-export async function warmServerPrintArtifacts(orderId: string): Promise<void> {
+export async function warmServerPrintArtifacts(orderId: string, requestedWidth?: unknown): Promise<void> {
+  if (requestedWidth === '58mm' || requestedWidth === '72mm' || requestedWidth === '80mm') {
+    await getServerPrintArtifact(orderId, requestedWidth);
+    return;
+  }
+  // Äldre terminaler skickar ingen bredd. Värm de två vanligaste utan att
+  // blockera CPU med en tredje layout som nästan aldrig används.
   await Promise.all([
     getServerPrintArtifact(orderId, '58mm'),
-    getServerPrintArtifact(orderId, '72mm'),
     getServerPrintArtifact(orderId, '80mm'),
   ]);
 }

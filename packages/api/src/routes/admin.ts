@@ -761,7 +761,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     // SUPER_ADMIN can monitor all restaurants, but cannot accept/handle orders.
     // Super Admin can monitor and handle all orders.
 
-    const { status, estimatedTime } = req.body;
+    const { status, estimatedTime, printPaperWidth } = req.body;
     const validStatuses = ['ACCEPTED', 'PREPARING', 'READY', 'DELIVERING', 'DELIVERED', 'DELIVERY_FAILED', 'REJECTED', 'CANCELLED'];
 
     if (!validStatuses.includes(status)) {
@@ -780,6 +780,9 @@ router.patch('/orders/:id/status', async (req, res) => {
       res.status(400).json({ error: 'Beräknad tid måste vara ett heltal mellan 1 och 180 minuter.' });
       return;
     }
+    const normalizedPrintPaperWidth = ['58mm', '72mm', '80mm'].includes(String(printPaperWidth || ''))
+      ? String(printPaperWidth)
+      : undefined;
 
     let adminRestaurantId: string | null = null;
     if (isSuperAdmin(req as AuthRequest)) {
@@ -913,7 +916,7 @@ router.patch('/orders/:id/status', async (req, res) => {
         const refreshedEta = await refreshOrderEta(etaOrder.id).catch(() => null);
         if (refreshedEta) etaOrder = { ...etaOrder, ...refreshedEta };
         if (dbStatus === 'ACCEPTED' || dbStatus === 'PREPARING') {
-          await warmServerPrintArtifacts(etaOrder.id);
+          await warmServerPrintArtifacts(etaOrder.id, normalizedPrintPaperWidth);
         }
         bustCache('order:byid', etaOrder.id);
         getIO().to(`order:${etaOrder.id}`).emit('order:status', {
@@ -1012,7 +1015,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     // restaurangplattan. Plattan behöver därefter bara hämta bytes och skicka
     // dem till Bluetooth/Wi-Fi/inbyggd skrivare — ingen bitmap/PDF-rendering.
     if (dbStatus === 'ACCEPTED' || dbStatus === 'PREPARING') {
-      await warmServerPrintArtifacts(order.id);
+      await warmServerPrintArtifacts(order.id, normalizedPrintPaperWidth);
     }
     bustCache('order:byid', order.id);
     if (dbStatus === 'DELIVERED' || dbStatus === 'COMPLETED') {
