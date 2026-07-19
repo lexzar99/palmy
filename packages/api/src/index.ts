@@ -37,7 +37,6 @@ import contentPlacementsRoutes from './routes/contentPlacements';
 import pushRoutes from './routes/push';
 import homeCategoriesRoutes from './routes/homeCategories';
 import launchRoutes from './routes/launch';
-import metaLeadsRoutes from './routes/metaLeads';
 import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
 import controlCenterRoutes from './routes/controlCenter';
@@ -186,8 +185,6 @@ app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/payments/webhooks/stripe', express.raw({ type: 'application/json' }));
 // Adyen-webhooken kräver rå body för HMAC-verifiering (annars konsumerar express.json den).
 app.use('/api/payments/webhooks/adyen', express.raw({ type: 'application/json' }));
-// Meta leadgen-signature verification needs the exact request bytes.
-app.use('/api/meta/webhook', express.raw({ type: 'application/json' }));
 // Leveransbevis kan innehålla ett base64-foto på högst 6 MB (~8 MB som
 // data-URL). Ge bara den smala kurir-routen det större JSON-taket. Multipart-
 // bilduppladdningar parsas av multer med en separat 15 MB filgräns.
@@ -404,7 +401,6 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/hermes', hermesRoutes);
-app.use('/api/meta/webhook', metaLeadsRoutes);
 app.use('/api/admin/reports', reportRoutes);
 // uploadRoutes monteras direkt på /api/admin så routern's egna paths
 // (/upload, /upload-r2, /images/list, /images/exists, /images/auto-match,
