@@ -435,8 +435,10 @@ router.post('/test-order', authenticate, async (req: AuthRequest, res) => {
       })),
       restaurantName: order.restaurant?.name || 'Okänd restaurang',
     };
-    getIO().to('admin-room').emit('order:new', orderForTerminal);
-    getIO().to(`admin-room:${restaurantId}`).emit('order:new', orderForTerminal);
+    // Tyst leverans: bara restaurangens eget rum (terminalen) + FCM till
+    // enheten. Globala admin-rummet får ALDRIG testordrar — de ska inte synas
+    // i admin-webben eller trigga ordernotiser.
+    getIO().to(`admin-room:${restaurantId}`).emit('order:new', { ...orderForTerminal, isTestOrder: true });
     void notifyPartnerDevicesOfNewOrder({
       restaurantId,
       orderId: order.id,
@@ -470,7 +472,6 @@ router.delete('/test-order/:id', authenticate, async (req: AuthRequest, res) => 
     if (!order) return res.status(404).json({ error: 'Testbeställningen hittades inte' });
     const deleted = await deleteServerTerminalTestOrder(order.id);
     if (!deleted) return res.status(409).json({ error: 'Testbeställningen kunde inte raderas' });
-    getIO().to('admin-room').emit('order:deleted', { orderId: order.id, testOrder: true });
     getIO().to(`admin-room:${restaurantId}`).emit('order:deleted', { orderId: order.id, testOrder: true });
     return res.json({ success: true, id: order.id });
   } catch (error) {

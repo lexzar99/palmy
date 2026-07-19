@@ -19,7 +19,14 @@ const ageMin = (date: Date) => Math.max(0, Math.floor((Date.now() - date.getTime
 async function tick() {
   const [orders, onlineCouriers] = await Promise.all([
     prisma.order.findMany({
-      where: { NOT: { status: 'AWAITING_PAYMENT' } },
+      // Serverns terminal-testordrar (TEST-…) är enhets-interna och ska
+      // aldrig ge WhatsApp-notiser som riktiga beställningar.
+      where: {
+        NOT: [
+          { status: 'AWAITING_PAYMENT' },
+          { orderNumber: { startsWith: 'TEST-' } },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
       take: 50,
       select: {

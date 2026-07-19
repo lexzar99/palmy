@@ -508,12 +508,19 @@ router.get('/orders', async (req, res) => {
       if (!rid) return;
       where.restaurantId = rid;
     }
+    const notConditions: Record<string, unknown>[] = [];
     if (status && status !== 'ALL') {
       where.status = status;
     } else {
       // Hide orders awaiting payment confirmation (not yet visible to restaurant)
-      (where as any).NOT = { status: 'AWAITING_PAYMENT' };
+      notConditions.push({ status: 'AWAITING_PAYMENT' });
     }
+    // Serverns terminal-testordrar är enhets-interna: bara terminalen
+    // (deviceId-JWT) ser dem. Admin-webben ska aldrig lista dem.
+    if (!(req as AuthRequest).admin?.deviceId) {
+      notConditions.push({ orderNumber: { startsWith: 'TEST-' } });
+    }
+    if (notConditions.length > 0) (where as any).NOT = notConditions;
     // Stöd för (a) date=YYYY-MM-DD som tidigare, (b) from/to som ISO-datetime
     // (inkl. klockslag) för order-historik-sidan i admin. from och to vinner
     // över date om de är satta.
@@ -1100,13 +1107,17 @@ router.patch('/orders/:id/status', async (req, res) => {
       });
     }
 
-    // Notifiera admin-rummet — admin always sees the real DB status
-    getIO().to('admin-room').emit('order:updated', {
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      status: order.status,
-      restaurantId: order.restaurantId,
-    });
+    // Notifiera admin-rummet — admin always sees the real DB status.
+    // Testordrar (TEST-…) är enhets-interna och hålls utanför globala rummet.
+    const isServerTestOrder = String(order.orderNumber || '').startsWith('TEST-');
+    if (!isServerTestOrder) {
+      getIO().to('admin-room').emit('order:updated', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        restaurantId: order.restaurantId,
+      });
+    }
     if (order.restaurantId) {
       getIO().to(`admin-room:${order.restaurantId}`).emit('order:updated', {
         orderId: order.id,
@@ -1127,7 +1138,6 @@ router.patch('/orders/:id/status', async (req, res) => {
       // testorderns OrderItem-rader; produkt/restaurang påverkas inte.
       const deleted = await deleteServerTerminalTestOrder(order.id);
       if (!deleted) throw new Error('Serverns testorder matchade inte raderingsskyddet');
-      getIO().to('admin-room').emit('order:deleted', { orderId: order.id, testOrder: true });
       if (order.restaurantId) {
         getIO().to(`admin-room:${order.restaurantId}`).emit('order:deleted', {
           orderId: order.id,
