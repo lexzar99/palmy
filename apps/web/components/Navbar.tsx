@@ -25,6 +25,7 @@ type SessionUser = {
 const Navbar = () => {
   const { t } = useTranslation();
   const pathname = usePathname();
+  const [embedCartMode, setEmbedCartMode] = useState(false);
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const mounted = useSyncExternalStore(
@@ -63,7 +64,17 @@ const Navbar = () => {
     };
   }, []);
 
-  if (pathname?.startsWith("/order/")) return null;
+  useEffect(() => {
+    const syncEmbedCartMode = () => {
+      setEmbedCartMode(pathname === "/cart" && new URLSearchParams(window.location.search).get("embed") === "1");
+    };
+    syncEmbedCartMode();
+    window.addEventListener("popstate", syncEmbedCartMode);
+    return () => window.removeEventListener("popstate", syncEmbedCartMode);
+  }, [pathname]);
+
+  const embedMode = pathname?.startsWith("/embed/") || embedCartMode;
+  if (pathname?.startsWith("/order/") || embedMode) return null;
 
   // Visningsnamn: först + efternamn om finns, annars name-fältet, annars null
   const displayName = user

@@ -14,6 +14,7 @@ import {
   ORDER_SESSION_ID_HEADER,
   orderSessionCookieName,
 } from "@/lib/orderSession";
+import { KIOSK_ACCESS_COOKIE } from "@/lib/kioskAccess";
 
 type PlatformRouteContext = {
   params: Promise<{ path: string[] }>;
@@ -120,6 +121,8 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     if (isValidLaunchCookie(launchProof)) {
       headers.set("x-viaeats-launch-access", launchProof!);
     }
+    const kioskProof = request.cookies.get(KIOSK_ACCESS_COOKIE)?.value;
+    if (kioskProof) headers.set("x-viaeats-kiosk-access", kioskProof);
     // Denna proxy används bara av webb-kunden, så markera klienttypen. Backend
     // använder den för plattforms-låsta rabattkoder (t.ex. app-only-koder som
     // inte får lösas in via webben).

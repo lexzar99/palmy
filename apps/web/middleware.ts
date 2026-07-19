@@ -5,11 +5,14 @@ import { isLaunchGateBypassPath, prelaunchModeEnabled } from "@/lib/prelaunchMod
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const kioskCheckoutRoute =
+    request.nextUrl.searchParams.get("embed") === "1" &&
+    (pathname === "/cart" || pathname.startsWith("/order/"));
 
   // PRELAUNCH_MODE=0 makes the complete storefront public. API, Next assets,
   // PWA metadata and platform association files remain reachable even while
   // PRELAUNCH_MODE=1 locks user-facing pages for smoke testing.
-  if (!prelaunchModeEnabled() || isLaunchGateBypassPath(pathname)) {
+  if (!prelaunchModeEnabled() || isLaunchGateBypassPath(pathname) || kioskCheckoutRoute) {
     return updateSupabaseSession(request);
   }
 

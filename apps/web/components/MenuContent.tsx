@@ -37,6 +37,9 @@ interface MenuContentProps {
   restaurantSlug?: string;
   restaurantId?: string;
   isStandalone?: boolean;
+  /** Fristående partner/kiosk-läge. Håller kunden i embed-flödet och
+   *  döljer discovery-/profilfunktioner utan att ändra vanlig restaurangvy. */
+  embedMode?: boolean;
   /** Server-rendered first-paint data (from app/restaurants/[slug]/page.tsx).
    *  When present, the menu renders immediately with no client fetch waterfall. */
   initialData?: MenuContentInitialData | null;
@@ -270,7 +273,7 @@ function renderCategoryProducts(
   return rows;
 }
 
-const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initialData = null }: MenuContentProps) => {
+const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embedMode = false, initialData = null }: MenuContentProps) => {
   const { t } = useTranslation();
   const [categories, setCategories] = useState<any[]>(initialData?.categories ?? []);
   const [deals, setDeals] = useState<PublicDeal[]>(initialData?.deals ?? []);
@@ -310,6 +313,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
   const router = useRouter();
 
   const items = useCartStore((state) => state.items);
+  const clearCart = useCartStore((state) => state.clearCart);
   const updateDeliveryOverride = useCartStore((state) => state.updateDeliveryOverride);
   const subtotal = useCartStore((state) => state.getTotal());
   const productIds = items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
@@ -317,6 +321,57 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
   const { isFavorite, toggle: toggleFavorite } = useFavorites();
   const bogoChoice = useCartStore((state) => state.bogoChoice);
   const setBogoChoice = useCartStore((state) => state.setBogoChoice);
+
+  // Ett partnerfönster får aldrig visa eller skicka vidare en annan
+  // restaurangs gamla lokala varukorg. Vanliga ViaEats-sidor behåller exakt
+  // samma beteende som tidigare.
+  useEffect(() => {
+    if (!embedMode || !restaurant?.slug) return;
+    const current = useCartStore.getState();
+    if (current.items.length > 0 && current.restaurantSlug !== restaurant.slug) {
+      clearCart();
+    }
+  }, [clearCart, embedMode, restaurant?.slug]);
+
+  useEffect(() => {
+    if (!embedMode || !restaurant?.slug) return;
+    void fetch(`/api/kiosk/session?slug=${encodeURIComponent(restaurant.slug)}`, { credentials: "same-origin" }).catch(() => undefined);
+  }, [embedMode, restaurant?.slug]);
+
+  // Embed-API mellan partnersidan och ViaEats iframe:en. Bara produktöppning
+  // och höjd skickas över — ingen kund- eller betalningsdata exponeras.
+  useEffect(() => {
+    if (!embedMode || typeof window === "undefined") return;
+    const allowedOrigins = new Set([
+      window.location.origin,
+      "https://palmyrapizzeria.se",
+      "https://www.palmyrapizzeria.se",
+      "http://localhost:3000",
+      "http://localhost:4000",
+    ]);
+    const sendHeight = () => {
+      if (window.parent === window) return;
+      window.parent.postMessage({
+        type: "viaeats:embed-height",
+        height: document.documentElement.scrollHeight,
+      }, "*");
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (!allowedOrigins.has(event.origin) || !event.data || event.data.type !== "viaeats:open-product") return;
+      const productId = typeof event.data.productId === "string" ? event.data.productId : "";
+      if (!productId) return;
+      const product = categories.flatMap((category: any) => category.products || []).find((item: any) => item.id === productId);
+      if (product) setSelectedProduct(product);
+    };
+    window.addEventListener("message", onMessage);
+    sendHeight();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(sendHeight) : null;
+    observer?.observe(document.documentElement);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      observer?.disconnect();
+    };
+  }, [categories, embedMode]);
 
   // BOGO picker state
   const [bogoPicker, setBogoPicker] = useState<{
@@ -757,7 +812,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         </div>
         <h2 className="text-[20px] font-bold tracking-tight mb-1.5" style={{ color: "var(--text-primary)" }}>{t("menu.errorTitle")}</h2>
         <p className="text-[13.5px] mb-8 max-w-sm" style={{ color: "var(--text-secondary)" }}>{error || t("menu.restaurantNotFound")}</p>
-        <Link href="/" className="px-6 h-12 bg-gold-500 rounded-xl text-[15px] font-semibold active:scale-95 transition-all flex items-center" style={{ color: "#141416" }}>{t("menu.goHome")}</Link>
+        {!embedMode && <Link href="/" className="px-6 h-12 bg-gold-500 rounded-xl text-[15px] font-semibold active:scale-95 transition-all flex items-center" style={{ color: "#141416" }}>{t("menu.goHome")}</Link>}
       </div>
     );
   }
@@ -788,7 +843,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
             Back går ETT steg tillbaka i historiken (tillbaka till hemsidan med
             den kategori man stod på) istället för en hård redirect till "/".
             Fallback till "/" om sidan öppnades direkt (ingen historik). */}
-        <button
+        {!embedMode && <button
           type="button"
           onClick={() => {
             if (typeof window !== "undefined" && window.history.length > 1) router.back();
@@ -799,7 +854,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
           style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
         >
           <ChevronLeft size={20} className="text-zinc-900" />
-        </button>
+        </button>}
         {/* Top-höger kluster: Info + Kontakt (telefon) + Favorit — kompakta
             ikon-knappar uppe i hero:n istället för stora pill-knappar nedanför.
             Gör headern smalare och simplare. */}
@@ -824,7 +879,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
               <Phone size={17} className="text-zinc-950" />
             </a>
           )}
-          {restaurant?.id && (
+          {restaurant?.id && !embedMode && (
             <button
               type="button"
               aria-label="Spara favorit"
@@ -861,14 +916,20 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         </div>
         {/* Metarad: ★ rating (antal) · cuisine */}
         <div className="mt-2 flex items-center gap-2 text-sm">
-          <Link
+          {embedMode ? (
+            <span className="flex items-center gap-1.5">
+              <Star size={14} className="text-gold-500 fill-gold-500" />
+              <span className="font-bold" style={{ color: "var(--text-primary)" }}>{(restaurant?.rating || 5.0).toFixed(1)}</span>
+              <span className="font-medium text-xs" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>({restaurant?.ratingCount || 1})</span>
+            </span>
+          ) : <Link
             href={`/r/${restaurantSlug || restaurant.slug}/reviews`}
             className="flex items-center gap-1.5 hover:opacity-75 transition-opacity"
           >
             <Star size={14} className="text-gold-500 fill-gold-500" />
             <span className="font-bold" style={{ color: "var(--text-primary)" }}>{(restaurant?.rating || 5.0).toFixed(1)}</span>
             <span className="font-medium text-xs" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>({restaurant?.ratingCount || 1})</span>
-          </Link>
+          </Link>}
           {restaurant?.cuisine && (
             <>
               <span style={{ color: "var(--text-secondary)", opacity: 0.5 }}>·</span>
@@ -931,13 +992,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
                 >
                   {t("menu.outOfZone.newAddress")}
                 </button>
-                <Link
+                {!embedMode && <Link
                   href="/"
                   className="px-4 h-10 rounded-xl text-[13.5px] font-semibold transition-all flex items-center"
                   style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
                 >
                   {t("common.back")}
-                </Link>
+                </Link>}
               </div>
             </div>
           )}
@@ -957,7 +1018,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
 
 
         {/* Previously ordered bar (inloggade kunder) */}
-        {restaurant?.id && (
+        {restaurant?.id && !embedMode && (
           <PreviouslyOrderedBar restaurantId={restaurant.id} restaurantSlug={restaurantSlug || restaurant.slug} />
         )}
 
@@ -1021,7 +1082,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
         >
           {/* Rad 1: tillbaka-knapp + sökruta (visar restaurangens namn) */}
           <div className="flex items-center gap-2.5">
-            <button
+              {!embedMode && <button
               type="button"
               onClick={() => {
                 if (typeof window !== "undefined" && window.history.length > 1) router.back();
@@ -1032,7 +1093,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, initi
               style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
             >
               <ChevronLeft size={20} />
-            </button>
+              </button>}
             <div className="flex-1 min-w-0 h-12 rounded-xl flex items-center gap-2.5 px-4" style={{ backgroundColor: "var(--bg-deep)" }}>
               <Search size={16} strokeWidth={2} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
               <input

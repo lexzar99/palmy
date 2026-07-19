@@ -1,0 +1,11 @@
+{
+  "name": "Palmyra Pizzeria",
+  "short_name": "Palmyra",
+  "description": "Pizza, kebab och mer på Kiliansgatan i Lund. Beställ hem eller hämta själv.",
+  "lang": "sv",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fdf6ee",
+  "theme_color": "#fdf6ee"
+}

@@ -97,6 +97,7 @@ import { validOrderId, verifyOrderAccessProof } from './lib/orderAccess';
 import { cookieFromHeader, isPaymentWebhookRequest } from './lib/requestSecurity';
 import { PRELAUNCH_ACCESS_HEADER, prelaunchModeEnabled, validPrelaunchProof } from './lib/prelaunchAccess';
 import { isAppClient } from './lib/clientPlatform';
+import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from './lib/kioskAccess';
 
 // Checkout får aldrig starta med en okänd eller okonfigurerad aktiv PSP.
 // Övriga launchkrav rapporteras på /ready utan att skapa en restart-loop.
@@ -336,6 +337,30 @@ const requirePrelaunchCheckoutAccess: express.RequestHandler = (req, res, next) 
   // inte en säkerhetsgräns. Tas bort tillsammans med prelaunch-läget.
   if (isAppClient(req)) return next();
   if (validPrelaunchProof(req.header(PRELAUNCH_ACCESS_HEADER))) return next();
+  const kioskRestaurantSlug = validKioskAccessProof(req.header(KIOSK_ACCESS_HEADER));
+  if (kioskRestaurantSlug) {
+    const kioskAllowedRestaurants = new Set(
+      String(process.env.KIOSK_RESTAURANT_SLUGS || 'palmyra-pizzeria-lund')
+        .split(',')
+        .map((slug) => slug.trim())
+        .filter(Boolean),
+    );
+    if (!kioskAllowedRestaurants.has(kioskRestaurantSlug)) {
+      res.status(403).json({ error: 'KIOSK_RESTAURANT_NOT_ALLOWED' });
+      return;
+    }
+    const requestedRestaurantSlug = typeof req.body?.restaurantSlug === 'string'
+      ? req.body.restaurantSlug.trim()
+      : null;
+    // Order creation must be bound to the restaurant in the signed kiosk proof.
+    // Payment creation is already bound to an existing order id and is checked
+    // by the payment route's order-access rules.
+    if (req.originalUrl.startsWith('/api/orders') && requestedRestaurantSlug !== kioskRestaurantSlug) {
+      res.status(403).json({ error: 'KIOSK_RESTAURANT_MISMATCH' });
+      return;
+    }
+    return next();
+  }
   res.status(423).json({ error: 'PRELAUNCH_LOCKED', message: 'Beställning öppnar snart.' });
 };
 app.post('/api/orders', requirePrelaunchCheckoutAccess);

@@ -218,6 +218,15 @@ export default function CartPage() {
   // Namnet på restaurangen man beställer från — visas högst upp i kassan.
   const [cartRestaurantName, setCartRestaurantName] = useState<string | null>(null);
   const router = useRouter();
+  const [embedMode, setEmbedMode] = useState(false);
+  const [embedRestaurantFromUrl, setEmbedRestaurantFromUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setEmbedMode(params.get("embed") === "1");
+    setEmbedRestaurantFromUrl(params.get("restaurant"));
+  }, []);
+  const embedRestaurantSlug = embedRestaurantFromUrl || cartRestaurantSlug;
+  const embedMenuHref = embedRestaurantSlug ? `/embed/${encodeURIComponent(embedRestaurantSlug)}` : "/";
   const [editingCartItem, setEditingCartItem] = useState<any>(null);
   const cartDiscountHydrationRef = useRef<Set<string>>(new Set());
 
@@ -1641,7 +1650,7 @@ export default function CartPage() {
       /* noop */
     }
     clearCheckoutAttempt();
-    router.replace(`/order/${orderId}`);
+    router.replace(embedMode ? `/order/${orderId}?embed=1` : `/order/${orderId}`);
   };
 
   const clearPendingPaymentStorage = () => {
@@ -1656,7 +1665,13 @@ export default function CartPage() {
   };
 
   const clearCartReturnParams = () => {
-    try { window.history.replaceState({}, "", "/cart"); } catch { /* noop */ }
+    try {
+      const next = new URL(window.location.href);
+      next.searchParams.delete("payment_return");
+      next.searchParams.delete("payment_cancelled");
+      next.searchParams.delete("redirect_status");
+      window.history.replaceState({}, "", `${next.pathname}${next.search}`);
+    } catch { /* noop */ }
   };
 
   const handlePaymentCancelled = async (orderId: string) => {
@@ -2108,7 +2123,12 @@ export default function CartPage() {
       // klienten flippar aldrig status själv. paymentInFlight hindrar pagehide
       // från att abandona ordern under redirect-flödet.
       paymentInFlightRef.current = true;
-      const returnUrl = `${window.location.origin}/cart?payment_return=${orderId}`;
+      const returnParams = new URLSearchParams({ payment_return: orderId });
+      if (embedMode) {
+        returnParams.set("embed", "1");
+        if (embedRestaurantSlug) returnParams.set("restaurant", embedRestaurantSlug);
+      }
+      const returnUrl = `${window.location.origin}/cart?${returnParams.toString()}`;
       const payRes = await axios.post(`/api/platform/payments/create`, {
         orderId,
         returnUrl,
@@ -2225,7 +2245,7 @@ export default function CartPage() {
             {t("cart.empty.subtitle")}
           </p>
           <Link
-            href="/"
+            href={embedMode ? embedMenuHref : "/"}
             className="mt-6 h-11 px-5 rounded-xl flex items-center text-[14.5px] font-semibold transition-all active:scale-95"
             style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
           >
@@ -2569,7 +2589,7 @@ export default function CartPage() {
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight mb-1" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")}</h1>
               <p className="text-[13.5px]" style={{ color: "var(--text-secondary)" }}>
                 {cartRestaurantName ? (
-                  <Link href={cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/"} className="font-semibold hover:underline" style={{ color: "var(--text-primary)" }}>
+                  <Link href={embedMode ? embedMenuHref : (cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/")} className="font-semibold hover:underline" style={{ color: "var(--text-primary)" }}>
                     {cartRestaurantName}
                   </Link>
                 ) : null}
@@ -2579,7 +2599,7 @@ export default function CartPage() {
                   : t("cart.deliveryType.pickup")}
               </p>
            </div>
-           <Link href={cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/menu"} className="text-[13.5px] font-semibold transition-colors flex items-center gap-1.5 mb-1 group shrink-0 ml-3 hover:opacity-70" style={{ color: "var(--text-primary)" }}>
+           <Link href={embedMode ? embedMenuHref : (cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/menu")} className="text-[13.5px] font-semibold transition-colors flex items-center gap-1.5 mb-1 group shrink-0 ml-3 hover:opacity-70" style={{ color: "var(--text-primary)" }}>
               {t("cart.addMore")} <Plus size={14} className="group-hover:rotate-90 transition-transform" />
            </Link>
         </div>
@@ -2759,9 +2779,9 @@ export default function CartPage() {
                   <div className="p-4 rounded-2xl border flex items-center gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                     <UserIcon size={16} className="text-zinc-400 shrink-0" />
                     <p className="text-[10px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
-                      {t("cart.guest.banner")}{" "}
-                      <Link href="/profile" className="underline hover:opacity-70" style={{ color: "var(--text-primary)" }}>{t("cart.guest.loginLink")}</Link>{" "}
-                      {t("cart.guest.bannerSuffix")}
+                      {embedMode ? "Du beställer som gäst – inget konto behövs." : <>{t("cart.guest.banner")}{" "}
+                        <Link href="/profile" className="underline hover:opacity-70" style={{ color: "var(--text-primary)" }}>{t("cart.guest.loginLink")}</Link>{" "}
+                        {t("cart.guest.bannerSuffix")}</>}
                     </p>
                   </div>
                 )}
@@ -3129,9 +3149,9 @@ export default function CartPage() {
                         <div className="mt-8 p-4 rounded-2xl border flex items-center gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                           <UserIcon size={16} className="text-zinc-400 shrink-0" />
                           <p className="text-[10px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
-                            {t("cart.guest.banner")}{" "}
-                            <Link href="/profile" className="underline hover:opacity-70" style={{ color: "var(--text-primary)" }}>{t("cart.guest.loginLink")}</Link>{" "}
-                            {t("cart.guest.bannerSuffix")}
+                            {embedMode ? "Du beställer som gäst – inget konto behövs." : <>{t("cart.guest.banner")}{" "}
+                              <Link href="/profile" className="underline hover:opacity-70" style={{ color: "var(--text-primary)" }}>{t("cart.guest.loginLink")}</Link>{" "}
+                              {t("cart.guest.bannerSuffix")}</>}
                           </p>
                         </div>
                      )}

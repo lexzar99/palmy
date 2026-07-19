@@ -32,6 +32,7 @@ export function prelaunchModeEnabled(
 /** Routes that must remain machine-readable while the storefront is locked. */
 export function isLaunchGateBypassPath(pathname: string): boolean {
   return pathname.startsWith("/api/")
+    || pathname.startsWith("/embed/")
     || pathname.startsWith("/_next/")
     || pathname.startsWith("/.well-known/")
     || pathname === "/privacy"
