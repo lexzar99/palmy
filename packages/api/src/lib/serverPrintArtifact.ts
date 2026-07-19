@@ -21,7 +21,7 @@ const RECEIPT_FONT_PATH = path.join(__dirname, '../../assets/Outfit.ttf');
 // Must change whenever the bitmap layout changes. Otherwise a real order can
 // keep an older in-memory artifact while test printing already shows the new
 // Admin layout, which makes the two physical receipts look unrelated.
-const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v9';
+const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v10';
 
 function parseExtras(raw: unknown): any[] {
   try {
@@ -340,10 +340,10 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
   // 576 punkter (~78 mm på kvittoskrivarna) — verifierat tydligast på papper.
   // Marginalerna skalas med bredden (≈4,5 mm) så inget hamnar utanför, och
   // ESC a 1 centrerar rastret på skrivare med smalare huvud.
-  // 58 mm: nästan kantlös (10 punkter ≈ 1,2 mm marginal) — rullen är så smal
-  // att varje millimeter behövs för texten.
+  // Nästan kantlöst: ~1-2 mm marginal per sida. Varje millimeter horisontellt
+  // ger färre radbrytningar och därmed kortare kvitto.
   const width = paperWidth === '58mm' ? 384 : 576;
-  const scale = (paperWidth === '58mm' ? 364 : 508) / ADMIN_CONTENT_WIDTH;
+  const scale = (paperWidth === '58mm' ? 368 : 544) / ADMIN_CONTENT_WIDTH;
   const TEXT_BOOST = paperWidth === '58mm' ? TEXT_BOOST_58 : TEXT_BOOST_WIDE;
   const margin = Math.round((width - ADMIN_CONTENT_WIDTH * scale) / 2);
   const contentWidth = width - margin * 2;
@@ -421,7 +421,9 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     const textValue = plain(value);
     if (!textValue) return;
     const indent = opts.indent ?? 0;
-    const lineHeight = opts.lineHeight ?? 1.6;
+    // 1.35 i stället för adminens 1.6: kvittopapper är dyrt på höjden, och
+    // med de uppboostade textstorlekarna räcker det för luftig läsbarhet.
+    const lineHeight = opts.lineHeight ?? 1.35;
     const sizePx = Math.max(8, adminSize * scale * TEXT_BOOST);
     const maxWidth = contentWidth - indent;
     const rendered = await layoutLines(textValue, sizePx, weight, color, maxWidth);
@@ -472,7 +474,7 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     const rightLayer = await renderTextLine(plain(right), rightSize * scale * TEXT_BOOST, rightWeight, '#000000');
     const rightWidth = rightLayer ? rightLayer.width + px(8) : 0;
     const sizePx = Math.max(8, leftSize * scale * TEXT_BOOST);
-    const lineBox = sizePx * 1.6;
+    const lineBox = sizePx * 1.35;
     // Priset äger alltid högerkanten. Långa namn radbryts i vänsterkolumnen
     // i stället för att pressa in sig i prisets utrymme.
     const leftLines = await layoutLines(plain(left), sizePx, leftWeight, '#000000', Math.max(px(40), contentWidth - indent - rightWidth));
@@ -496,9 +498,9 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     y += thickness;
   };
   const divider = () => {
-    y += px(8);
+    y += px(6);
     rule(Math.max(2, px(2)));
-    y += px(8);
+    y += px(6);
   };
 
   const badge = async (key: string, value: string) => {
@@ -517,7 +519,7 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     const left = Math.round((width - boxWidth) / 2);
     svg.push(`<rect x="${left + border / 2}" y="${Math.round(y) + border / 2}" width="${boxWidth - border}" height="${boxHeight - border}" fill="#fff" stroke="#000" stroke-width="${border}"/>`);
     place(layer, left + (boxWidth - layer.width) / 2, y + border + padY);
-    y += boxHeight + px(8);
+    y += boxHeight + px(6);
   };
 
   const restaurantAddress = [
@@ -546,33 +548,27 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
   await element('timestamp', `${o.date} ${o.time}`, 9, 600, 'center');
   await element('address', restaurantAddress, 8, 600, 'center', '#000000', { minSize: 10 });
   await element('phone', h.phone ? `Tel: ${h.phone}` : '', 8, 600, 'center', '#000000', { minSize: 10 });
-  y += px(8);
+  y += px(6);
 
   if (visible('headerMsg') && plain(elements.get('headerMsg')?.content)) {
     await element('headerMsg', elements.get('headerMsg')?.content, 9, 700, 'center');
-    y += px(8);
+    y += px(6);
   }
   if (visible('divider2')) divider();
 
-  // ── Kund ──
-  if (visible('customerName') && plain(c.name)) {
-    await paragraph('Kund:', 10, 800, 'left', '#000000');
-    await element('customerName', c.name, 12, 900);
-  }
-  await element('customerPhone', c.phone, 9, 600);
+  // ── Kund ── (tät: namn/nummer/adress/meddelande direkt på varandra)
+  await element('customerName', c.name, 12, 900, 'left', '#000000', { lineHeight: 1.2 });
+  await element('customerPhone', c.phone, 9, 600, 'left', '#000000', { lineHeight: 1.2 });
   if (visible('customerAddress') && customerAddress) {
-    y += px(4);
-    await element('customerAddress', customerAddress, 9, 600);
+    await element('customerAddress', customerAddress, 9, 600, 'left', '#000000', { lineHeight: 1.2 });
   }
   if (visible('deliveryInstructions') && plain(c.instructions)) {
-    y += px(2);
-    await element('deliveryInstructions', translateInstruction(c.instructions), 9, 700);
+    await element('deliveryInstructions', translateInstruction(c.instructions), 9, 700, 'left', '#000000', { lineHeight: 1.2 });
   }
   if (visible('note') && plain(c.note)) {
-    y += px(2);
-    await element('note', c.note, 9, 700);
+    await element('note', c.note, 9, 700, 'left', '#000000', { lineHeight: 1.2 });
   }
-  y += px(8);
+  y += px(6);
 
   // ── Status-badges ──
   if (visible('orderType')) await badge('orderType', isDelivery ? 'Utkörning' : 'Avhämtning');
@@ -620,8 +616,10 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
           const price = Number(extra.price || 0);
           const lineTotal = Math.round(price * qty * 100) / 100;
           const requiredChoice = Boolean(extra.required);
+          // Ingen indragning: tillvalen börjar exakt under artikelradens
+          // siffra, med kompakt punktmarkör i stället för "**".
           await rowPair(
-            `** ${qty > 1 ? `${qty} x ` : ''}${extra.name}`,
+            `· ${qty > 1 ? `${qty} x ` : ''}${extra.name}`,
             lineTotal > 0 ? `+${kr(lineTotal)} kr` : '',
             requiredChoice
               ? Math.max(11, configuredSize('extras', 8) + 1)
@@ -629,12 +627,11 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
             requiredChoice ? 900 : 700,
             Math.max(10, configuredSize('extras', 8)),
             800,
-            { indent: px(12) },
           );
         }
       }
-      if (plain(item.note)) await paragraph(`! ${item.note}`, 11, 900, 'left', '#000000', { indent: px(12) });
-      y += px(8);
+      if (plain(item.note)) await paragraph(`! ${item.note}`, 11, 900, 'left', '#000000');
+      y += px(6);
     }
   }
 
@@ -660,7 +657,7 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     y += px(4);
     await rowPair('Totalt', `${kr(totals.total)} kr`, configuredSize('total', 14), configuredWeight('total', 900));
   }
-  y += px(8);
+  y += px(6);
   if (visible('divider6')) divider();
 
   // ── Sidfot ──
