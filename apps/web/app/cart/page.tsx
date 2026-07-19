@@ -2161,7 +2161,12 @@ export default function CartPage() {
         paymentInFlightRef.current = false;
         throw new Error(payRes.data?.details || payRes.data?.error || t("cart.errors.paymentUnavailable"));
       }
-      window.location.href = checkoutUrl;
+      // Mollie blocks being rendered inside the Palmyra iframe (the browser
+      // otherwise shows "www.mollie.com refused the connection"). Leave the
+      // iframe only for the hosted payment step, then return to the ViaEats
+      // kiosk cart/tracking URL with the embed query preserved.
+      const paymentWindow = window.parent !== window && window.top ? window.top : window;
+      paymentWindow.location.assign(checkoutUrl);
       return;
     } catch (err: any) {
       paymentInFlightRef.current = false;
