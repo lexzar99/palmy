@@ -1,6 +1,7 @@
 import prisma from './prisma';
 import { getEffectiveEtaMinutes } from './restaurantEta';
 import { haversineKm } from '../utils/geo';
+import { computeDeliveryWindowMs } from './deliveryWindow';
 
 const ACTIVE_DELIVERY_STATUSES = ['EN_ROUTE_PICKUP', 'PICKED_UP'];
 const TERMINAL_ORDER_STATUSES = ['DELIVERED', 'COMPLETED'];
@@ -32,6 +33,42 @@ function clamp(n: number, min: number, max: number): number {
 
 function addMinutes(date: Date, minutes: number): Date {
   return new Date(date.getTime() + Math.round(minutes * 60_000));
+}
+
+/**
+ * ETA for the customer's current tracking step.
+ *
+ * A restaurant-entered `estimatedTime` is "time until food is ready" for
+ * pickup and platform delivery. It must not be replaced by etaCustomerAt
+ * until a platform courier is actually on the way. Self-delivery keeps the
+ * existing door-to-door interpretation.
+ */
+export function customerStepEtaEndsAt(
+  order: any,
+  statusInput: string = String(order?.status || ''),
+): Date | null {
+  const status = String(statusInput || '').toUpperCase();
+  if (TERMINAL_ORDER_STATUSES.includes(status) || CANCELLED_ORDER_STATUSES.includes(status)) return null;
+  if (status === 'PENDING' || status === 'AWAITING_PAYMENT') return null;
+
+  const selfDelivery = Boolean(order?.selfDelivery ?? order?.restaurant?.selfDelivery);
+  const courierEnRoute = ['DELIVERING', 'OUT_FOR_DELIVERY', 'ON_THE_WAY'].includes(status);
+
+  if ((courierEnRoute || (order?.type === 'DELIVERY' && selfDelivery)) && order?.etaCustomerAt) {
+    return new Date(order.etaCustomerAt);
+  }
+  if (courierEnRoute && order?.deliveringAt) {
+    const deliveringAt = new Date(order.deliveringAt);
+    return new Date(deliveringAt.getTime() + computeDeliveryWindowMs(deliveringAt, String(order?.id || '')));
+  }
+  if (order?.etaReadyAt) return new Date(order.etaReadyAt);
+  if (order?.preparingAt && order?.estimatedTime) {
+    return addMinutes(new Date(order.preparingAt), Number(order.estimatedTime));
+  }
+  if (order?.estimatedTime && ['ACCEPTED', 'PREPARING', 'READY'].includes(status)) {
+    return addMinutes(new Date(), Number(order.estimatedTime));
+  }
+  return null;
 }
 
 function minutesBetween(a: Date, b: Date): number {

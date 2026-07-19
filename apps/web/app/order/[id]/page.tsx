@@ -16,6 +16,12 @@ import dynamic from "next/dynamic";
 import { OrderTrackingCard } from "@/components/OrderTrackingCard";
 import { forgetRawOrderAccessToken, readOrderHistory } from "@/lib/orderHistory";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
+import {
+  EMBED_PARENT_ORIGIN_PARAM,
+  partnerOriginForRestaurant,
+  readEmbedParentOrigin,
+  trustedPartnerOrigin,
+} from "@/lib/embedPartner";
 
 // Live-karta laddas bara på klienten (Leaflet behöver window).
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
@@ -252,18 +258,36 @@ const OrderStatusPage = () => {
   const statusLabel = (s: string) => t(`order.status.${s}.label`);
   const statusDesc = (s: string) => t(`order.status.${s}.desc`);
   const { id } = useParams();
+  const orderId = Array.isArray(id) ? id[0] : id;
   const [embedMode, setEmbedMode] = useState(false);
   const [embedRestaurant, setEmbedRestaurant] = useState("");
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setEmbedMode(params.get("embed") === "1");
-    setEmbedRestaurant(params.get("restaurant") || "");
-  }, []);
+    const embedded = params.get("embed") === "1";
+    const restaurantSlug = params.get("restaurant") || "";
+    setEmbedMode(embedded);
+    setEmbedRestaurant(restaurantSlug);
+
+    // Mollie eller en gammal cachad klient kan landa på embed-trackingen som
+    // en top-level ViaEats-sida. För en registrerad partner återställs då
+    // restaurangens skal, som i sin tur laddar ordern i iframe:n.
+    if (embedded && window.parent === window && orderId) {
+      const partnerOrigin =
+        trustedPartnerOrigin(params.get(EMBED_PARENT_ORIGIN_PARAM)) ||
+        readEmbedParentOrigin() ||
+        partnerOriginForRestaurant(restaurantSlug);
+      if (partnerOrigin) {
+        const partnerReturn = new URL("/meny.html", partnerOrigin);
+        partnerReturn.searchParams.set("order", orderId);
+        partnerReturn.searchParams.set("restaurant", restaurantSlug);
+        window.location.replace(partnerReturn.toString());
+      }
+    }
+  }, [orderId]);
   const embedMenuHref = embedRestaurant ? `/embed/${encodeURIComponent(embedRestaurant)}` : "/";
   const embedOrdersHref = embedRestaurant
     ? `/orders?embed=1&restaurant=${encodeURIComponent(embedRestaurant)}`
     : "/orders";
-  const orderId = Array.isArray(id) ? id[0] : id;
   const [accessBootstrapReady, setAccessBootstrapReady] = useState(false);
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -483,7 +507,7 @@ const OrderStatusPage = () => {
 
   // ETA Countdown — in seconds for real-time display
   useEffect(() => {
-    if (!order?.status || ['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(order.status)) { setEtaLeft(null); return; }
+    if (!order?.status || ['AWAITING_PAYMENT', 'PENDING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(order.status)) { setEtaLeft(null); return; }
     if (!order?.etaEndsAt && !order?.estimatedTime) { setEtaLeft(null); return; }
     const calc = () => {
       if (order?.etaEndsAt) {
@@ -718,7 +742,9 @@ const OrderStatusPage = () => {
       : deliveryEtaMin
     : etaLeft != null
       ? Math.ceil(etaLeft / 60)
-      : Number(order.estimatedTime || 0) || null;
+      : ['ACCEPTED', 'PREPARING', 'READY'].includes(currentStatus)
+        ? Number(order.estimatedTime || 0) || null
+        : null;
   const awaitingAccept = !isCompleted && !isRejected && !order.scheduledFor && !etaMinutes;
   const etaSub = isRejected
     ? cancelledCopy.sub

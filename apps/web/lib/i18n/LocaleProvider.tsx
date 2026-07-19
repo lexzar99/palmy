@@ -58,6 +58,16 @@ export const LocaleProvider = ({ children }: { children: React.ReactNode }) => {
   const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const embedded = params.get("embed") === "1" || window.location.pathname.startsWith("/embed/");
+    // Partnerembedden är en del av restaurangens svenska webbplats. Den ska
+    // därför alltid vara svensk, men får inte skriva över kundens sparade
+    // språkval för ett senare fristående besök på ViaEats.
+    if (embedded) {
+      setLocaleState("sv");
+      document.documentElement.lang = "sv";
+      return;
+    }
     const persisted = readPersistedLocale();
     const initial = persisted ?? detectBrowserLocale();
     if (initial !== locale) setLocaleState(initial);

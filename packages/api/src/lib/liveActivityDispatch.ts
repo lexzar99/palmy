@@ -21,7 +21,7 @@ import {
   ApnsError,
   isApnsConfigured,
 } from './liveActivityPush';
-import { computeDeliveryWindowMs } from './deliveryWindow';
+import { customerStepEtaEndsAt } from './orderEta';
 
 export interface DispatchOptions {
   /**
@@ -61,9 +61,11 @@ export async function pushLiveActivityForOrder(
       estimatedTime: true,
       preparingAt: true,
       deliveringAt: true,
+      etaReadyAt: true,
       etaCustomerAt: true,
       etaCustomerMin: true,
       liveActivityToken: true,
+      restaurant: { select: { selfDelivery: true } },
     },
   });
   if (!order) {
@@ -79,21 +81,7 @@ export async function pushLiveActivityForOrder(
   // in DELIVERING for 15 minutes and only then writes DELIVERED.
   const customerStatus = options.serverStatus ?? order.status;
 
-  let etaEndsAt: Date | null = null;
-  if (
-    order.etaCustomerAt &&
-    !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(customerStatus)
-  ) {
-    etaEndsAt = new Date(order.etaCustomerAt);
-  } else if (customerStatus === 'PREPARING' && order.preparingAt && order.estimatedTime) {
-    etaEndsAt = new Date(
-      new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000,
-    );
-  } else if (customerStatus === 'DELIVERING' && order.deliveringAt) {
-    const deliveringAtDate = new Date(order.deliveringAt);
-    const windowMs = computeDeliveryWindowMs(deliveringAtDate, order.id);
-    etaEndsAt = new Date(deliveringAtDate.getTime() + windowMs);
-  }
+  const etaEndsAt = customerStepEtaEndsAt(order, customerStatus);
 
   console.log(
     `[la-dispatch] order=${orderId} customerStatus=${customerStatus} etaEndsAt=${etaEndsAt?.toISOString() ?? 'null'} token=${order.liveActivityToken.slice(0, 12)}…`,
@@ -104,7 +92,9 @@ export async function pushLiveActivityForOrder(
       token: order.liveActivityToken,
       serverStatus: customerStatus,
       orderType: order.type,
-      etaMinutes: order.etaCustomerMin ?? order.estimatedTime ?? null,
+      etaMinutes: customerStatus === 'DELIVERING'
+        ? order.etaCustomerMin ?? order.estimatedTime ?? null
+        : order.estimatedTime ?? null,
       etaEndsAt,
       alertBody: options.alertBody,
     });

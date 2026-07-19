@@ -15,7 +15,7 @@ import { isTestOrder } from '../lib/testOrderDetection';
 import { dispatchCustomerOrderStatus } from '../lib/customerOrderNotifier';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
 import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
-import { etaResponseFields, refreshOrderEta } from '../lib/orderEta';
+import { customerStepEtaEndsAt, etaResponseFields, refreshOrderEta } from '../lib/orderEta';
 import { sanitizeError } from '../lib/errors';
 import { menuCacheBust } from './menu';
 import { bustCache } from '../lib/ttlCache';
@@ -1021,11 +1021,14 @@ router.patch('/orders/:id/status', async (req, res) => {
     // For DELIVERING transition, send DELIVERING status to customer (they'll see "PÅ VÄG")
     // The client will auto-switch to DELIVERED after 10-15 min based on deliveringAt
     const preparingAtTs = isPreparingTransition ? new Date() : (order.preparingAt ? new Date(order.preparingAt) : null);
-    const emitEtaEndsAt = order.etaCustomerAt
-      ? new Date(order.etaCustomerAt).toISOString()
-      : (customerStatus === 'PREPARING' && preparingAtTs && order.estimatedTime)
-      ? new Date(preparingAtTs.getTime() + order.estimatedTime * 60_000).toISOString()
-      : undefined;
+    const emitEtaEndsAt = customerStepEtaEndsAt(
+      {
+        ...order,
+        preparingAt: preparingAtTs,
+        selfDelivery: existing.restaurant?.selfDelivery,
+      },
+      customerStatus,
+    )?.toISOString();
     getIO().to(`order:${order.id}`).emit('order:status', {
       orderId: order.id,
       status: customerStatus,

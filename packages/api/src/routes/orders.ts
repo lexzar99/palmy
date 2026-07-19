@@ -21,7 +21,7 @@ import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
 import { discountPlatformAllowed } from '../lib/clientPlatform';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { dispatchCustomerOrderStatus } from '../lib/customerOrderNotifier';
-import { etaResponseFields, refreshOrderEta } from '../lib/orderEta';
+import { customerStepEtaEndsAt, etaResponseFields, refreshOrderEta } from '../lib/orderEta';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto, nullableMoneyDto } from '../utils/money';
 import { referralPhoneVariants } from '../lib/referralRules';
@@ -2008,19 +2008,8 @@ router.get('/:id', async (req: Request, res: Response) => {
     // Absolute timestamp when the active LiveActivity step's countdown should
     // hit zero. Computed from anchor timestamps + the originally agreed-on
     // duration so it stays stable across re-fetches and reboots.
-    let etaEndsAt: string | null = null;
-    if (
-      order.etaCustomerAt &&
-      !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(customerStatus)
-    ) {
-      etaEndsAt = new Date(order.etaCustomerAt).toISOString();
-    } else if (customerStatus === 'PREPARING' && order.preparingAt && order.estimatedTime) {
-      etaEndsAt = new Date(new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000).toISOString();
-    } else if (customerStatus === 'DELIVERING' && order.deliveringAt) {
-      const deliveringAtDate = new Date(order.deliveringAt);
-      const windowMs = computeDeliveryWindowMs(deliveringAtDate, order.id);
-      etaEndsAt = new Date(deliveringAtDate.getTime() + windowMs).toISOString();
-    }
+    const customerEtaEndsAt = customerStepEtaEndsAt(order, customerStatus);
+    const etaEndsAt = customerEtaEndsAt?.toISOString() ?? null;
 
     // Bud-belastning: hur många aktiva leveranser budet har just nu. Kund-
     // trackingen använder detta för att uppskatta ankomsttid (fler stopp =
@@ -2252,23 +2241,7 @@ router.post('/:id/debug-la-push', authenticate, requireSuperAdmin, blockInProduc
         hint: 'Place a fresh order so the iOS Live Activity registers a token, then retry.',
       });
     }
-    let etaEndsAt: Date | null = null;
-    if (
-      order.etaCustomerAt &&
-      !['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERY_FAILED'].includes(status)
-    ) {
-      etaEndsAt = new Date(order.etaCustomerAt);
-    } else if (status === 'PREPARING' && order.preparingAt && order.estimatedTime) {
-      etaEndsAt = new Date(new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000);
-    } else if (status === 'PREPARING' && order.estimatedTime) {
-      etaEndsAt = new Date(Date.now() + order.estimatedTime * 60_000);
-    } else if (status === 'DELIVERING' && order.deliveringAt) {
-      const deliveringAtDate = new Date(order.deliveringAt);
-      etaEndsAt = new Date(deliveringAtDate.getTime() + computeDeliveryWindowMs(deliveringAtDate, order.id));
-    } else if (status === 'DELIVERING') {
-      const now = new Date();
-      etaEndsAt = new Date(now.getTime() + computeDeliveryWindowMs(now, order.id));
-    }
+    const etaEndsAt = customerStepEtaEndsAt(order, status);
     console.log(`[debug-la-push] order=${orderId} status=${status} token=${order.liveActivityToken.slice(0, 16)}…`);
     try {
       await pushOrderStatusUpdate({

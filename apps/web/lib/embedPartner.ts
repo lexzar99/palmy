@@ -8,6 +8,10 @@ const TRUSTED_PARTNER_ORIGINS = new Set([
   "http://localhost:4000",
 ]);
 
+const PARTNER_ORIGIN_BY_RESTAURANT = new Map([
+  ["palmyra-pizzeria-lund", "https://www.palmyrapizzeria.se"],
+]);
+
 export function trustedPartnerOrigin(candidate: unknown): string | null {
   if (typeof candidate !== "string" || !candidate || candidate.length > 256) return null;
   try {
@@ -36,4 +40,9 @@ export function readEmbedParentOrigin(): string | null {
   } catch {
     return null;
   }
+}
+
+export function partnerOriginForRestaurant(restaurantSlug: unknown): string | null {
+  if (typeof restaurantSlug !== "string") return null;
+  return PARTNER_ORIGIN_BY_RESTAURANT.get(restaurantSlug.trim().toLowerCase()) || null;
 }
