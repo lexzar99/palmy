@@ -1112,7 +1112,7 @@ const OrderStatusPage = () => {
         <span className="text-[11px] font-black uppercase tracking-[0.07em]" style={{ color: statusAccentInk }}>{isPickup ? "AVHÄMTNING" : statusTitle.toUpperCase()}</span>
       </div>
       <p className="mt-4 text-[clamp(30px,12vw,50px)] font-black leading-none tracking-tight" style={{ color: isRejected ? "#C0392B" : isGreenStatus ? "#2E7D4F" : "var(--text-primary)" }}>
-        {isRejected || awaitingAccept || isCompleted || order.scheduledFor ? etaMain : `ca ${etaMain}`}
+        {isRejected || awaitingAccept || isCompleted || currentStatus === "READY" || order.scheduledFor ? etaMain : `ca ${etaMain}`}
       </p>
       <p className="mx-auto mt-2 max-w-sm text-[13.5px] font-medium leading-5" style={{ color: "var(--text-secondary)" }}>{statusDescription}</p>
     </div>
