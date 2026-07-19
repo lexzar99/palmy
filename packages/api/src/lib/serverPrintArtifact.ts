@@ -18,6 +18,10 @@ const latestArtifactByOrder = new Map<string, PrintArtifact>();
 const artifactInFlight = new Map<string, Promise<PrintArtifact | null>>();
 const MAX_ARTIFACTS = 240;
 const RECEIPT_FONT_PATH = path.join(__dirname, '../../assets/Outfit.ttf');
+// Must change whenever the bitmap layout changes. Otherwise a real order can
+// keep an older in-memory artifact while test printing already shows the new
+// Admin layout, which makes the two physical receipts look unrelated.
+const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v3';
 
 function ascii(value: unknown): string {
   return String(value ?? '')
@@ -692,6 +696,7 @@ export async function getServerPrintArtifact(orderId: string, requestedWidth: un
   // senare, så den senaste artefakten får leva kvar i det begränsade minnet.
   if (!order) return latestArtifactByOrder.get(latestKey) || null;
   const fingerprint = [
+    RECEIPT_RENDERER_VERSION,
     order.id,
     order.updatedAt.toISOString(),
     order.status,
