@@ -200,17 +200,15 @@ function allergens(value: unknown): string {
 }
 
 /**
- * This is the same payload shape as GET /admin/orders/:id/receipt-data. The
- * server bitmap must consume this preview payload, not a second set of order
- * fields, otherwise payment text, extras, money formatting and ETA can drift
- * from the admin test receipt.
+ * Shared payload for the Admin preview and every server-side print artifact.
+ * Keeping this in one place prevents the preview, test print and real orders
+ * from formatting the same order differently.
  */
 export function buildAdminReceiptData(order: any) {
   const etaAnchor = order.preparingAt ? new Date(order.preparingAt) : new Date(order.createdAt);
   const readyAt = (!order.scheduledFor && order.estimatedTime)
     ? new Date(etaAnchor.getTime() + Number(order.estimatedTime) * 60_000)
     : null;
-  const readyTime = readyAt ? formatTime(readyAt) : null;
 
   return {
     header: {
@@ -227,7 +225,7 @@ export function buildAdminReceiptData(order: any) {
       time: formatTime(new Date(order.createdAt)),
       date: formatDate(new Date(order.createdAt)),
       estimatedTime: order.estimatedTime,
-      readyTime,
+      readyTime: readyAt ? formatTime(readyAt) : null,
       isPreorder: Boolean(order.scheduledFor),
       scheduledFor: order.scheduledFor,
       scheduledDate: order.scheduledFor ? formatDate(new Date(order.scheduledFor)) : null,
@@ -253,7 +251,7 @@ export function buildAdminReceiptData(order: any) {
       subtotal: Number(item.subtotal || 0) / 100,
       extras: parseExtras(item.selectedExtras).map((extra: any) => ({
         name: extra?.extraName || extra?.name || '',
-        price: extra?.priceAddon || 0,
+        price: extra?.priceAddon || extra?.price || 0,
       })),
       note: item.note,
     })),
@@ -411,8 +409,6 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
     const badgeHeight = size + 24;
     y += 8;
     const badgeLeft = Math.round((width - badgeWidth) / 2);
-    // Adminens BoxBadge är en vit rektangel med svart ram — inte den gamla
-    // svarta pillen. Detta är medvetet samma visuella komponent som previewn.
     svg.push(`<rect x="${badgeLeft}" y="${y}" width="${badgeWidth}" height="${badgeHeight}" rx="0" fill="#fff" stroke="#000" stroke-width="3"/>`);
     textLayers.push({
       text: maybeUpper(key, value),
@@ -459,19 +455,6 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
     });
   };
 
-  const restaurantAddress = [
-    h.address,
-    [h.zip, h.city].filter(Boolean).join(' '),
-  ].filter(Boolean).join(', ');
-  const customerAddress = [
-    c.street,
-    [c.zip, c.city].filter(Boolean).join(' '),
-  ].filter(Boolean).join(', ');
-  const isDelivery = plain(o.type) === 'DELIVERY';
-  const allergenText = Array.isArray(c.allergens)
-    ? c.allergens.map(plain).filter(Boolean).join(', ')
-    : plain(c.allergens);
-  const paymentText = plain(o.paymentMethod);
   const hasVisible = (key: string) => elements.get(key)?.visible !== false;
   const drawTextElement = (key: string, value: unknown, fallbackSize: number, fallbackWeight = 500, fallbackAlign: 'left' | 'center' | 'right' = 'left', color = '#000000') => {
     const valueText = maybeUpper(key, plain(value));
@@ -495,18 +478,7 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
         for (const extra of item.extras || []) {
           const name = extra.name;
           if (!name) continue;
-          // Admin preview intentionally displays the configured extra name
-          // only, prefixed with **. Price additions are already included in
-          // the item subtotal there.
-          text(
-            `** ${name}`,
-            configuredSize('extras', 8),
-            configuredWeight('extras'),
-            'left',
-            '#555555',
-            width - margin * 2 - 36,
-            36,
-          );
+          text(`** ${name}`, configuredSize('extras', 8), configuredWeight('extras'), configuredAlign('extras'), '#555555', width - margin * 2 - 36, 36);
         }
       }
       if (item.note) text(`! ${item.note}`, 30, 900, 'left', '#000000', width - margin * 2 - 36, 36);
@@ -525,6 +497,20 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
     text('Ej kvitto', 30, 500, 'center', '#555555');
   }
   if (visible('divider1')) divider();
+
+  const restaurantAddress = [
+    h.address,
+    [h.zip, h.city].filter(Boolean).join(' '),
+  ].filter(Boolean).join(', ');
+  const customerAddress = [
+    c.street,
+    [c.zip, c.city].filter(Boolean).join(' '),
+  ].filter(Boolean).join(', ');
+  const isDelivery = plain(o.type) === 'DELIVERY';
+  const allergenText = Array.isArray(c.allergens)
+    ? c.allergens.map(plain).filter(Boolean).join(', ')
+    : plain(c.allergens);
+  const paymentText = plain(o.paymentMethod);
 
   if (visible('restaurantName')) drawTextElement('restaurantName', h.restaurantName || 'ViaEats', 15, 900, 'center');
   if (visible('timestamp')) drawTextElement('timestamp', `${o.date} ${o.time}`, 9, 500, 'center');
@@ -561,8 +547,6 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
   }
 
   if (visible('divider3')) divider();
-  // The admin preview always shows the item count, even when item rows are
-  // hidden by the operator.
   drawItemCount();
   if (visible('items')) drawItems();
   // Admin preview uses divider5 before the totals (divider4 is retained as a
@@ -624,6 +608,73 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
 
 function normalizePaperWidth(value: unknown): ThermalPaperWidth {
   return value === '58mm' || value === '72mm' ? value : '80mm';
+}
+
+/**
+ * Standalone testutskrift från skrivarinställningarna. Den skapar ingen Order
+ * och skickar inga order-events, men använder exakt samma sparade Admin-mall
+ * och samma bitmaprenderare som riktiga orders och serverns testbeställningar.
+ */
+export async function getStandaloneTestPrintArtifact(
+  restaurantId: string,
+  requestedWidth: unknown,
+): Promise<Buffer | null> {
+  const [restaurant, template] = await Promise.all([
+    prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        zip: true,
+        phone: true,
+      },
+    }),
+    prisma.receiptTemplate.findUnique({ where: { id: 'global' } }),
+  ]);
+  if (!restaurant) return null;
+
+  const now = new Date();
+  const sampleOrder = {
+    id: `standalone-test:${restaurant.id}`,
+    restaurantId: restaurant.id,
+    orderNumber: 'TESTUTSKRIFT',
+    status: 'PENDING',
+    type: 'PICKUP',
+    customerName: 'TESTKVITTO',
+    customerPhone: '0700000000',
+    customerEmail: null,
+    deliveryStreet: null,
+    deliveryCity: null,
+    deliveryZip: null,
+    deliveryInstructions: 'ADMINMALL',
+    note: 'FRISTÅENDE TESTUTSKRIFT',
+    allergens: '[]',
+    total: 11500,
+    deliveryFee: 0,
+    discountAmount: 0,
+    discountCode: null,
+    appliedDealTitle: null,
+    paymentMethod: 'TEST',
+    paymentStatus: 'PAID',
+    estimatedTime: 20,
+    scheduledFor: null,
+    preparingAt: now,
+    createdAt: now,
+    updatedAt: now,
+    restaurant,
+    items: [{
+      productName: 'Margherita',
+      quantity: 1,
+      basePrice: 11500,
+      subtotal: 11500,
+      selectedExtras: '[]',
+      note: null,
+    }],
+  };
+
+  return buildEscPosBitmap(sampleOrder, template, normalizePaperWidth(requestedWidth));
 }
 
 export async function getServerPrintArtifact(orderId: string, requestedWidth: unknown): Promise<PrintArtifact | null> {

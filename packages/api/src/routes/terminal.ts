@@ -8,6 +8,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { getIO } from '../lib/socket';
 import { notifyPartnerDevicesOfNewOrder } from '../lib/partnerFcm';
 import { deleteServerTerminalTestOrder } from '../lib/terminalTestOrder';
+import { getStandaloneTestPrintArtifact } from '../lib/serverPrintArtifact';
 
 // ── Terminal-sessioner för restaurang-appen (Flutter) ───────────────────────
 //
@@ -344,12 +345,31 @@ router.post('/session', async (req, res) => {
   }
 });
 
+// GET /api/terminal/print-test-artifact
+// Fristående testutskrift från skrivarinställningarna. Skapar ingen Order och
+// skickar inga sockets/pushar; den använder bara samma Admin-mall/renderare.
+router.get('/print-test-artifact', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const restaurantId = req.admin?.restaurantId;
+    if (!restaurantId) return res.status(403).json({ error: 'Terminalen saknar restaurangkoppling' });
+    const bytes = await getStandaloneTestPrintArtifact(restaurantId, req.query.paperWidth);
+    if (!bytes) return res.status(404).json({ error: 'Restaurangen hittades inte' });
+    res.setHeader('Content-Type', 'application/vnd.viaeats.escpos');
+    res.setHeader('Content-Length', String(bytes.length));
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-ViaEats-Print-Source', 'admin-template-test');
+    return res.send(bytes);
+  } catch (error) {
+    console.error('[terminal/print-test-artifact] error:', error);
+    return res.status(500).json({ error: 'Kunde inte skapa testutskriften' });
+  }
+});
+
 // POST /api/terminal/test-order
 // Skapar en riktig serverorder och skickar den genom samma Socket.IO-rum som
 // produktion. Den markeras tydligt som test så rapporter/utbetalningar kan
 // exkludera den, men kan accepteras och server-renderas till skrivaren precis
-// som en vanlig beställning. Därmed testar knappen server, auth, socket och
-// utskriftsflöde i stället för att bara lägga ett mockobjekt i Flutter-minnet.
+// som en vanlig beställning. Detta är separat från fristående testutskrift.
 router.post('/test-order', authenticate, async (req: AuthRequest, res) => {
   try {
     const restaurantId = req.admin?.restaurantId;
@@ -430,8 +450,8 @@ router.post('/test-order', authenticate, async (req: AuthRequest, res) => {
 });
 
 // DELETE /api/terminal/test-order/:id
-// Used by the print-settings test: the receipt is generated from the real
-// server order/template, then the synthetic order is removed immediately.
+// Explicit cleanup for a server test order. The standalone print-settings test
+// never creates an Order and therefore never calls this route.
 router.delete('/test-order/:id', authenticate, async (req: AuthRequest, res) => {
   try {
     const restaurantId = req.admin?.restaurantId;
