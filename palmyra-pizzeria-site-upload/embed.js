@@ -120,7 +120,9 @@
     frame.className = "ve-embed-frame";
     frame.title = "Beställ från " + slug;
     frame.loading = "eager";
-    frame.allow = "payment *";
+    // geolocation måste delegeras explicit till cross-origin-iframen, annars
+    // blockerar webbläsaren "Använd min plats" i adressmodalen tyst.
+    frame.allow = "payment *; geolocation *";
     frame.referrerPolicy = "strict-origin-when-cross-origin";
     if (fullViewport) {
       // The partner shell owns the viewport (and may have a small header), so
