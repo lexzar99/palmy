@@ -2,6 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSupabaseSession } from "@/lib/supabase/middleware";
 import { isValidLaunchCookieEdge, LAUNCH_ACCESS_COOKIE_EDGE } from "@/lib/launchAccessEdge";
 import { isLaunchGateBypassPath, prelaunchModeEnabled } from "@/lib/prelaunchMode";
+import {
+  PARTNER_ACCESS_COOKIE,
+  partnerEntrySlug,
+  signPartnerCookie,
+  verifyPartnerCookie,
+} from "@/lib/partnerAccessEdge";
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -17,6 +23,31 @@ export async function middleware(request: NextRequest) {
     request.cookies.get(LAUNCH_ACCESS_COOKIE_EDGE)?.value,
   );
   if (unlocked) return updateSupabaseSession(request);
+
+  // Partner-entré (t.ex. palmyrapizzeria.se): en länk till partnerns
+  // restaurangsida med ?utm_source=partner släpper in besökaren förbi
+  // grinden och sätter en signerad partner-cookie så hela beställnings-
+  // flödet (cart, betalning, tracking, konto) fungerar. Hemsidan visar då
+  // bara partnerns restaurang (se app/page.tsx). Tillfälligt tills launch.
+  const entrySlug = partnerEntrySlug(request.nextUrl);
+  if (entrySlug) {
+    const response = await updateSupabaseSession(request);
+    const cookieValue = await signPartnerCookie(entrySlug);
+    if (cookieValue) {
+      response.cookies.set(PARTNER_ACCESS_COOKIE, cookieValue, {
+        path: "/",
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 7,
+      });
+    }
+    return response;
+  }
+
+  const partnerSlug = await verifyPartnerCookie(
+    request.cookies.get(PARTNER_ACCESS_COOKIE)?.value,
+  );
+  if (partnerSlug) return updateSupabaseSession(request);
 
   const launchUrl = request.nextUrl.clone();
   launchUrl.pathname = "/";
