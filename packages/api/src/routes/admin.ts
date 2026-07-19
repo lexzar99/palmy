@@ -916,7 +916,13 @@ router.patch('/orders/:id/status', async (req, res) => {
         const refreshedEta = await refreshOrderEta(etaOrder.id).catch(() => null);
         if (refreshedEta) etaOrder = { ...etaOrder, ...refreshedEta };
         if (dbStatus === 'ACCEPTED' || dbStatus === 'PREPARING') {
-          await warmServerPrintArtifacts(etaOrder.id, normalizedPrintPaperWidth);
+          // Warm in the background. The tablet starts fetching the ready
+          // artifact immediately after the status response; the artifact
+          // endpoint shares the same in-flight promise, so accept never waits
+          // for Sharp/font rendering and the UI does not look frozen.
+          void warmServerPrintArtifacts(etaOrder.id, normalizedPrintPaperWidth).catch((error) =>
+            console.warn('[admin] receipt warm failed:', error),
+          );
         }
         bustCache('order:byid', etaOrder.id);
         getIO().to(`order:${etaOrder.id}`).emit('order:status', {
@@ -1011,11 +1017,16 @@ router.patch('/orders/:id/status', async (req, res) => {
       return null;
     });
     if (refreshedEta) order = { ...order, ...refreshedEta };
-    // Servern bygger färdiga ESC/POS-jobb innan accept-svaret når den svaga
-    // restaurangplattan. Plattan behöver därefter bara hämta bytes och skicka
-    // dem till Bluetooth/Wi-Fi/inbyggd skrivare — ingen bitmap/PDF-rendering.
+    // Starta serverrenderingen direkt men blockera inte status-svaret på en
+    // svag terminal. För riktiga order hämtar plattan artefakten parallellt;
+    // testordrar måste däremot hinna renderas innan de raderas nedan.
     if (dbStatus === 'ACCEPTED' || dbStatus === 'PREPARING') {
-      await warmServerPrintArtifacts(order.id, normalizedPrintPaperWidth);
+      const warm = warmServerPrintArtifacts(order.id, normalizedPrintPaperWidth);
+      if (deleteAfterTestAccept) {
+        await warm;
+      } else {
+        void warm.catch((error) => console.warn('[admin] receipt warm failed:', error));
+      }
     }
     bustCache('order:byid', order.id);
     if (dbStatus === 'DELIVERED' || dbStatus === 'COMPLETED') {

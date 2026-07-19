@@ -268,7 +268,6 @@ function compactEscPosRaster(bitmap: Buffer, widthBytes: number, height: number)
 export async function buildEscPosBitmap(order: any, template: any, paperWidth: ThermalPaperWidth): Promise<Buffer> {
   const width = paperWidth === '58mm' ? 384 : paperWidth === '72mm' ? 512 : 576;
   const margin = paperWidth === '58mm' ? 14 : 18;
-  const configuredElements = templateElementList(template);
   const elements = templateElements(template);
   const svg: string[] = [];
   const textLayers: ReceiptTextLayer[] = [];
@@ -336,7 +335,9 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
     const badgeHeight = size + 24;
     y += 8;
     const badgeLeft = Math.round((width - badgeWidth) / 2);
-    svg.push(`<rect x="${badgeLeft}" y="${y}" width="${badgeWidth}" height="${badgeHeight}" rx="${badgeHeight / 2}" fill="#000"/>`);
+    // Adminens BoxBadge är en vit rektangel med svart ram — inte den gamla
+    // svarta pillen. Detta är medvetet samma visuella komponent som previewn.
+    svg.push(`<rect x="${badgeLeft}" y="${y}" width="${badgeWidth}" height="${badgeHeight}" rx="0" fill="#fff" stroke="#000" stroke-width="3"/>`);
     textLayers.push({
       text: maybeUpper(key, value),
       left: badgeLeft + 12,
@@ -345,7 +346,7 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
       size: Math.round(size),
       weight: configuredWeight(key, 800),
       align: 'center',
-      color: '#ffffff',
+      color: '#000000',
     });
     y += badgeHeight + 8;
   };
@@ -430,115 +431,69 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
     }
   };
 
-  // The saved admin template is the source of truth. Do not impose a second
-  // server-only order: every visible element is rendered in its saved order.
-  let platformIncludesOrderNumber = false;
-  for (const element of configuredElements) {
-    const key = String(element?.key || '');
-    if (!key || element?.visible === false) continue;
+  // Match ReceiptPreviewContent in apps/admin exactly. The admin editor
+  // controls every field's visibility/size/weight/alignment; this ordering is
+  // the layout the operator sees in the admin preview and expects on paper.
+  const visible = (key: string) => elements.get(key)?.visible !== false;
 
-    if (key === 'orderNumber' && platformIncludesOrderNumber) continue;
-    if (key.startsWith('divider')) {
-      divider();
-      continue;
-    }
-
-    switch (key) {
-      case 'restaurantName':
-        drawTextElement(key, order.restaurant?.name || 'ViaEats', 15, 900, 'center');
-        break;
-      case 'platformName': {
-        const orderNumberElement = elements.get('orderNumber');
-        platformIncludesOrderNumber = orderNumberElement?.visible !== false;
-        const numberSuffix = platformIncludesOrderNumber ? ` #${plain(order.orderNumber) || '—'}` : '';
-        drawTextElement(key, `${template?.platformName || 'ViaEats'}${numberSuffix}`, 8, 500, 'center');
-        text('Ej kvitto', configuredSize(key, 8), 500, 'center', '#555555');
-        break;
-      }
-      case 'address':
-        drawTextElement(key, restaurantAddress, 8, 500, 'center');
-        break;
-      case 'phone':
-        drawTextElement(key, order.restaurant?.phone ? `Tel: ${order.restaurant.phone}` : '', 8, 500, 'center');
-        break;
-      case 'headerMsg':
-        drawTextElement(key, element.content, 9, 700, 'center');
-        break;
-      case 'orderNumber':
-        drawTextElement(key, `Ordernummer: ${order.orderNumber}`, 10, 700);
-        break;
-      case 'timestamp':
-        drawTextElement(key, `${formatDate(new Date(order.createdAt))} ${formatTime(new Date(order.createdAt))}`, 8, 500);
-        break;
-      case 'orderType':
-        badge(key, isDelivery ? 'Utkörning' : 'Avhämtning');
-        break;
-      case 'scheduledFor':
-        if (order.scheduledFor) {
-          const scheduled = new Date(order.scheduledFor);
-          badge(key, `Förbeställd ${formatDate(scheduled)} ${formatTime(scheduled)}`);
-        }
-        break;
-      case 'estimatedTime':
-        if (!order.scheduledFor && order.estimatedTime) {
-          const anchor = order.preparingAt ? new Date(order.preparingAt) : new Date(order.createdAt);
-          space(6);
-          drawTextElement(key, 'Utlovad tid', 8, 700, 'center');
-          drawTextElement(key, `Klar ${formatTime(new Date(anchor.getTime() + Number(order.estimatedTime) * 60_000))}`, 14, 900, 'center');
-        }
-        break;
-      case 'customerName':
-        if (plain(order.customerName)) {
-          text('Kund:', 10, 700, 'left', '#555555');
-          drawTextElement(key, order.customerName, 9, 700);
-        }
-        break;
-      case 'customerPhone':
-        drawTextElement(key, order.customerPhone, 8, 500);
-        break;
-      case 'customerAddress':
-        if (isDelivery && customerAddress) {
-          space(7);
-          text('Adress:', 10, 700, 'left', '#555555');
-          drawTextElement(key, customerAddress, 8, 500);
-        }
-        break;
-      case 'deliveryInstructions':
-        drawTextElement(key, translateInstruction(order.deliveryInstructions), 8, 700);
-        break;
-      case 'note':
-        drawTextElement(key, order.note, 8, 700);
-        break;
-      case 'allergens':
-        drawTextElement(key, allergenText ? `! ${allergenText}` : '', 8, 700, 'left', '#cc0000');
-        break;
-      case 'items':
-        drawItems();
-        break;
-      case 'deliveryFee':
-        if (Number(order.deliveryFee || 0) > 0) rowText('Leveransavgift', `${money(order.deliveryFee)} kr`, configuredSize(key, 8), configuredWeight(key));
-        break;
-      case 'discount':
-        if (Number(order.discountAmount || 0) > 0) rowText(order.discountCode ? `Rabatt (${order.discountCode})` : 'Rabatt', `-${money(order.discountAmount)} kr`, configuredSize(key, 8), configuredWeight(key));
-        break;
-      case 'total':
-        svg.push(`<line x1="${margin}" y1="${y + 8}" x2="${width - margin}" y2="${y + 8}" stroke="#000" stroke-width="3"/>`);
-        y += 12;
-        rowText('Totalt', `${money(order.total)} kr`, configuredSize(key, 15), configuredWeight(key, 900));
-        break;
-      case 'paymentMethod':
-        if (paymentText) badge(key, paymentText);
-        break;
-      case 'thankYou':
-        drawTextElement(key, element.content || 'Tack för din beställning!', 9, 700, 'center');
-        break;
-      case 'footerMsg':
-        drawTextElement(key, element.content || 'Välkommen åter!', 8, 500, 'center', '#555555');
-        break;
-      default:
-        break;
-    }
+  if (visible('platformName')) {
+    const numberSuffix = visible('orderNumber') ? ` #${plain(order.orderNumber) || '—'}` : '';
+    drawTextElement('platformName', `${template?.platformName || 'ViaEats'}${numberSuffix}`, 8, 500, 'center');
+    text('Ej kvitto', configuredSize('platformName', 8), 500, 'center', '#555555');
   }
+  if (visible('divider1')) divider();
+
+  if (visible('restaurantName')) drawTextElement('restaurantName', order.restaurant?.name || 'ViaEats', 15, 900, 'center');
+  if (visible('timestamp')) drawTextElement('timestamp', `${formatDate(new Date(order.createdAt))} ${formatTime(new Date(order.createdAt))}`, 9, 500, 'center');
+  if (visible('address')) drawTextElement('address', restaurantAddress, 8, 500, 'center');
+  if (visible('phone')) drawTextElement('phone', order.restaurant?.phone ? `Tel: ${order.restaurant.phone}` : '', 8, 500, 'center');
+
+  if (visible('headerMsg')) drawTextElement('headerMsg', elements.get('headerMsg')?.content, 9, 700, 'center');
+  if (visible('divider2')) divider();
+
+  if (visible('customerName') && plain(order.customerName)) {
+    text('Kund:', 10, 700, 'left', '#555555');
+    drawTextElement('customerName', order.customerName, 12, 900);
+  }
+  if (visible('customerPhone')) drawTextElement('customerPhone', order.customerPhone, 9, 500);
+  if (visible('customerAddress') && customerAddress) {
+    space(7);
+    text('Adress:', 10, 700, 'left', '#555555');
+    drawTextElement('customerAddress', customerAddress, 9, 500);
+  }
+  if (visible('deliveryInstructions')) drawTextElement('deliveryInstructions', translateInstruction(order.deliveryInstructions), 9, 700);
+  if (visible('note')) drawTextElement('note', order.note, 9, 700);
+  if (visible('allergens')) drawTextElement('allergens', allergenText ? `! ${allergenText}` : '', 9, 700, 'left', '#b00020');
+
+  if (visible('orderType')) badge('orderType', isDelivery ? 'Utkörning' : 'Avhämtning');
+  if (visible('scheduledFor') && order.scheduledFor) {
+    const scheduled = new Date(order.scheduledFor);
+    badge('scheduledFor', `Förbeställd ${formatDate(scheduled)} ${formatTime(scheduled)}`);
+  }
+  if (visible('paymentMethod') && paymentText) badge('paymentMethod', paymentText);
+
+  if (visible('estimatedTime') && !order.scheduledFor && order.estimatedTime) {
+    const anchor = order.preparingAt ? new Date(order.preparingAt) : new Date(order.createdAt);
+    space(6);
+    text('Utlovad tid', 12, 700, 'center');
+    drawTextElement('estimatedTime', `Klar ${formatTime(new Date(anchor.getTime() + Number(order.estimatedTime) * 60_000))}`, 14, 900, 'center');
+  }
+
+  if (visible('divider3')) divider();
+  if (visible('items')) drawItems();
+  // Admin preview uses divider5 before the totals (divider4 is retained as a
+  // legacy setting but is not rendered by the admin preview component).
+  if (visible('divider5')) divider();
+  if (visible('deliveryFee') && Number(order.deliveryFee || 0) > 0) rowText('Leveransavgift', `${money(order.deliveryFee)} kr`, configuredSize('deliveryFee', 8), configuredWeight('deliveryFee'));
+  if (visible('discount') && Number(order.discountAmount || 0) > 0) rowText(order.discountCode ? `Rabatt (${order.discountCode})` : 'Rabatt', `-${money(order.discountAmount)} kr`, configuredSize('discount', 8), configuredWeight('discount'));
+  if (visible('total')) {
+    svg.push(`<line x1="${margin}" y1="${y + 8}" x2="${width - margin}" y2="${y + 8}" stroke="#000" stroke-width="3"/>`);
+    y += 12;
+    rowText('Totalt', `${money(order.total)} kr`, configuredSize('total', 14), configuredWeight('total', 900));
+  }
+  if (visible('divider6')) divider();
+  if (visible('thankYou')) drawTextElement('thankYou', elements.get('thankYou')?.content || 'Tack för din beställning!', 9, 700, 'center');
+  if (visible('footerMsg')) drawTextElement('footerMsg', elements.get('footerMsg')?.content || 'Välkommen åter!', 8, 500, 'center', '#555555');
   space(30);
 
   const height = Math.max(160, Math.ceil(y + 56));
