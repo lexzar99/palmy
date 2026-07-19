@@ -23,6 +23,8 @@ type OrderRow = {
   total?: number | null; // kr — API:t levererar redan kronor, dividera ALDRIG igen
   status?: string | null;
   itemCount?: number | null;
+  type?: string | null;
+  selfDelivery?: boolean | null;
 };
 
 function OrdersSkeleton() {
@@ -64,9 +66,14 @@ export default function OrdersPage() {
     };
   }, [locale]);
 
-  const statusLabel = (status?: string | null) => {
-    const key = String(status || "").toUpperCase();
+  const statusLabel = (order: OrderRow) => {
+    const key = String(order.status || "").toUpperCase();
     if (!key) return null;
+    if (key === "READY" && String(order.type || "").toUpperCase() === "DELIVERY") {
+      return order.selfDelivery
+        ? t("orders.status.READY_SELF_DELIVERY")
+        : t("orders.status.READY_PLATFORM_DELIVERY");
+    }
     const label = t(`orders.status.${key}`);
     // t() returnerar nyckeln vid miss — visa då rå status hellre än nyckeln.
     return label.startsWith("orders.status.") ? key : label;
@@ -98,6 +105,8 @@ export default function OrdersPage() {
           total: Number(order.total ?? order.totalAmount ?? 0),
           status: order.status ?? null,
           itemCount: Array.isArray(order.items) ? order.items.length : null,
+          type: order.type ?? null,
+          selfDelivery: order.restaurant?.selfDelivery ?? null,
         }));
       if (active) setOrders(rows);
     };
@@ -150,6 +159,8 @@ export default function OrdersPage() {
               status: live.status ?? row.status,
               total: typeof live.total === "number" ? live.total : row.total,
               restaurantName: live.restaurantName || row.restaurantName,
+              type: live.type ?? row.type,
+              selfDelivery: typeof live.selfDelivery === "boolean" ? live.selfDelivery : row.selfDelivery,
             };
           })
           .filter((row) => !HIDDEN_ORDER_STATUSES.has(String(row.status || "").toUpperCase())),
@@ -207,7 +218,7 @@ export default function OrdersPage() {
               const href = embedMode
                 ? `/order/${order.id}?embed=1&restaurant=${encodeURIComponent(embedRestaurant)}`
                 : `/order/${order.id}`;
-              const status = statusLabel(order.status);
+              const status = statusLabel(order);
               const date = dateLabel(order.createdAt);
               const items =
                 order.itemCount == null

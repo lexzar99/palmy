@@ -381,6 +381,7 @@ router.get('/orders', authenticateUser, async (req: any, res: any) => {
             legalName: true,
             organizationNumber: true,
             vatPercent: true,
+            selfDelivery: true,
           },
         },
         items: true,

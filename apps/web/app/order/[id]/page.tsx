@@ -770,7 +770,7 @@ const OrderStatusPage = () => {
         : order.scheduledFor
           ? new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
           : currentStatus === "READY"
-            ? isPickup ? "nu" : isWeDeliver ? t("order.eta.waitingCourier") : "levereras snart"
+            ? isPickup ? "nu" : isWeDeliver ? t("order.eta.waitingCourier") : t("order.eta.preparingSelfDelivery")
           : etaMinutes != null && etaMinutes <= 0
             ? "snart"
             : etaMinutes != null
@@ -801,6 +801,8 @@ const OrderStatusPage = () => {
               : "Skickad";
   const statusDescription = isRejected
     ? cancelledCopy.description
+    : isSelf && currentStatus === "READY"
+      ? t("order.eta.readySelfDeliveryDesc")
     : isSelf && isOnWay
       ? `${restName} levererar själva och är på väg med din mat.`
       : isSelf
