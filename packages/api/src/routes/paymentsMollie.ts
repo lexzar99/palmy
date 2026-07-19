@@ -37,6 +37,7 @@ import {
   ownsOrderWithActiveRawSecret,
   verifyOrderHttpSession,
 } from '../lib/orderAccess';
+import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
 
 const router = Router();
 
@@ -109,11 +110,27 @@ function paymentRefForOrder(order: {
 
 function ownsPaymentOrder(
   req: any,
-  order: { id: string; userId: string | null; accessToken: string | null; createdAt: Date },
+  order: { id: string; userId: string | null; accessToken: string | null; createdAt: Date; restaurant?: { slug?: string | null } | null },
   accessToken: unknown,
 ): boolean {
   if (req.user?.id && order.userId && req.user.id === order.userId) return true;
   if (verifyOrderHttpSession(req.headers?.[ORDER_HTTP_SESSION_HEADER], order.id)) return true;
+  const kioskSlug = validKioskAccessProof(req.headers?.[KIOSK_ACCESS_HEADER]);
+  const kioskAllowedRestaurants = new Set(
+    String(process.env.KIOSK_RESTAURANT_SLUGS || 'palmyra-pizzeria-lund')
+      .split(',')
+      .map((slug) => slug.trim())
+      .filter(Boolean),
+  );
+  // Embedded browsers may block the per-order HttpOnly cookie. The kiosk
+  // proof is accepted only when it is valid, configured, and bound to the
+  // restaurant that owns this order.
+  if (
+    req.headers?.['x-client-type'] === 'web' &&
+    kioskSlug &&
+    kioskAllowedRestaurants.has(kioskSlug) &&
+    order.restaurant?.slug === kioskSlug
+  ) return true;
   return ownsOrderWithActiveRawSecret(order, accessToken);
 }
 
@@ -213,7 +230,7 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { restaurant: { select: { name: true } }, items: true },
+      include: { restaurant: { select: { name: true, slug: true } }, items: true },
     });
     if (!order) {
       res.status(404).json({ error: 'Order hittades inte' });
@@ -702,6 +719,7 @@ router.get('/status/:orderId', statusLimiter, authenticateUserOptional, async (r
       userId: true,
       accessToken: true,
       createdAt: true,
+      restaurant: { select: { slug: true } },
     },
   });
   if (!order) {
@@ -761,6 +779,7 @@ router.get('/status/:orderId', statusLimiter, authenticateUserOptional, async (r
           userId: true,
           accessToken: true,
           createdAt: true,
+          restaurant: { select: { slug: true } },
         },
       });
     } catch (err: any) {
