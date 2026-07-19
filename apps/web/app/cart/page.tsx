@@ -1596,7 +1596,11 @@ export default function CartPage() {
     if (!returnOrderId) return;
     const returnEmbedded = params.get("embed") === "1";
     const returnRestaurantSlug = params.get("restaurant") || cartRestaurantSlug || "";
-    const returnParentOrigin = trustedPartnerOrigin(params.get(EMBED_PARENT_ORIGIN_PARAM)) || readEmbedParentOrigin();
+    // A partner return belongs only to an explicit embedded checkout. Never
+    // reuse a previously remembered partner origin for a normal ViaEats cart.
+    const returnParentOrigin = returnEmbedded
+      ? trustedPartnerOrigin(params.get(EMBED_PARENT_ORIGIN_PARAM)) || readEmbedParentOrigin()
+      : null;
 
     const cancelled =
       params.get("payment_cancelled") === "1" ||
@@ -1637,7 +1641,9 @@ export default function CartPage() {
     paymentInFlightRef.current = false;
     const trackingEmbedded = context.embedded ?? embedMode;
     const trackingRestaurantSlug = context.restaurantSlug || embedRestaurantSlug || cartRestaurantSlug || "";
-    const trackingParentOrigin = context.parentOrigin || readEmbedParentOrigin();
+    const trackingParentOrigin = trackingEmbedded
+      ? trustedPartnerOrigin(context.parentOrigin) || readEmbedParentOrigin()
+      : null;
     const storedToken = (typeof window !== "undefined" && localStorage.getItem("pending_order_token")) || "";
     const storedPhone = (typeof window !== "undefined" && localStorage.getItem("pending_order_phone")) || "";
     const phone = ((formData.customerPhone || "").trim() || storedPhone).trim();
@@ -2186,12 +2192,19 @@ export default function CartPage() {
       // klienten flippar aldrig status själv. paymentInFlight hindrar pagehide
       // från att abandona ordern under redirect-flödet.
       paymentInFlightRef.current = true;
+      const currentParams = new URLSearchParams(window.location.search);
+      const checkoutEmbedded = currentParams.get("embed") === "1";
       const returnParams = new URLSearchParams({ payment_return: orderId });
-      if (embedMode) {
+      if (checkoutEmbedded) {
         returnParams.set("embed", "1");
         if (embedRestaurantSlug) returnParams.set("restaurant", embedRestaurantSlug);
       }
-      const embedParentOrigin = embedMode ? readEmbedParentOrigin() : null;
+      // Palmyra is a return shell only for a checkout that is currently
+      // running as an embed. A normal ViaEats checkout always returns to the
+      // ViaEats cart, even if this tab previously visited an embedded menu.
+      const embedParentOrigin = checkoutEmbedded
+        ? trustedPartnerOrigin(currentParams.get(EMBED_PARENT_ORIGIN_PARAM)) || readEmbedParentOrigin()
+        : null;
       if (embedParentOrigin) returnParams.set(EMBED_PARENT_ORIGIN_PARAM, embedParentOrigin);
       // Mollie ska tillbaka till restaurangens sida, inte lämna kunden på en
       // fristående ViaEats-cart. Palmyras embed.js läser payment_return och
