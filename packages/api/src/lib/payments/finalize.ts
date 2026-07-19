@@ -29,6 +29,9 @@ export type FinalizeSuccessInput = {
   ref: string;
   /** Vad PSP:n faktiskt drog, i öre. Verifieras mot order.total. */
   amountReceivedOre: number;
+  /** PSP:ns faktiska betalmetod (swish/creditcard/klarna…). Skrivs till
+   * order.paymentMethod så kvitton visar metoden i stället för "ONLINE". */
+  method?: string | null;
 };
 
 /**
@@ -97,6 +100,11 @@ export async function finalizePaymentSuccess(
   if (!order) return { ok: false };
 
   const isAwaitingPayment = order.status === 'AWAITING_PAYMENT';
+  // 'creditcard' → 'CREDITCARD' osv. Lagras som token; kvittorenderaren
+  // översätter till svensk etikett (Swish, Klarna, Kortbetalning…).
+  const methodToken = input.method
+    ? String(input.method).toUpperCase().replace(/[^A-Z0-9]/g, '') || null
+    : null;
 
   // A PSP success is valid only for the provider already frozen on the order.
   // Never let a late legacy webhook overwrite a Mollie binding (or vice versa):
@@ -173,7 +181,10 @@ export async function finalizePaymentSuccess(
       paymentStatus: 'PAID',
       paymentProvider: input.provider,
       ...refColumn(input.provider, input.ref),
-      ...(isAwaitingPayment ? { status: 'PENDING', paymentMethod: 'ONLINE' } : {}),
+      ...(methodToken ? { paymentMethod: methodToken } : {}),
+      ...(isAwaitingPayment
+        ? { status: 'PENDING', ...(methodToken ? {} : { paymentMethod: 'ONLINE' }) }
+        : {}),
     },
   });
   if (claimed.count !== 1) {

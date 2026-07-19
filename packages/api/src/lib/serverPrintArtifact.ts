@@ -21,7 +21,7 @@ const RECEIPT_FONT_PATH = path.join(__dirname, '../../assets/Outfit.ttf');
 // Must change whenever the bitmap layout changes. Otherwise a real order can
 // keep an older in-memory artifact while test printing already shows the new
 // Admin layout, which makes the two physical receipts look unrelated.
-const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v5';
+const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v6';
 
 function parseExtras(raw: unknown): any[] {
   try {
@@ -29,6 +29,33 @@ function parseExtras(raw: unknown): any[] {
     return Array.isArray(value) ? value : [];
   } catch {
     return [];
+  }
+}
+
+/**
+ * Betalmetods-token → kundvänlig etikett. Mollie-metoden sparas versaliserad
+ * på ordern vid finalisering (SWISH/CREDITCARD/KLARNA…); äldre ordrar har
+ * bara ONLINE kvar.
+ */
+function paymentMethodLabel(value: unknown): string {
+  const token = String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  switch (token) {
+    case 'SWISH': return 'Swish';
+    case 'KLARNA':
+    case 'KLARNAPAYNOW':
+    case 'KLARNAPAYLATER':
+    case 'KLARNASLICEIT': return 'Klarna';
+    case 'CREDITCARD':
+    case 'CARD':
+    case 'KORT': return 'Kortbetalning';
+    case 'APPLEPAY': return 'Apple Pay';
+    case 'GOOGLEPAY': return 'Google Pay';
+    case 'IDEAL': return 'iDEAL';
+    case 'PAYPAL': return 'PayPal';
+    case 'BANKTRANSFER': return 'Banköverföring';
+    case 'CASH': return 'Kontant';
+    case 'ONLINE': return 'Betald online';
+    default: return plain(value);
   }
 }
 
@@ -102,6 +129,11 @@ function xml(value: unknown): string {
 
 function plain(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/** Kronbelopp med svenskt decimalkomma (112.5 → "112,5"). */
+function kr(value: unknown): string {
+  return plain(value).replace('.', ',');
 }
 
 // Same key order as the editable receipt template in apps/admin. Saved values
@@ -216,7 +248,9 @@ export function buildAdminReceiptData(order: any) {
       subtotal: Number(item.subtotal || 0) / 100,
       extras: parseExtras(item.selectedExtras).map((extra: any) => ({
         name: extra?.extraName || extra?.name || '',
-        price: extra?.priceAddon || extra?.price || 0,
+        price: Number(extra?.priceAddon ?? extra?.price ?? 0),
+        quantity: Number(extra?.quantity ?? 1),
+        required: Boolean(extra?.groupRequired),
       })),
       note: item.note,
     })),
@@ -325,9 +359,12 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     const value = Number(elements.get(key)?.size);
     return Math.min(40, Math.max(6, Number.isFinite(value) ? value : fallback));
   };
-  const configuredWeight = (key: string, fallback = 400) => {
+  // Termohuvuden trycker tunna 400-streck otydligt — golvet är 600 så all
+  // text blir svart och läsbar, med bibehållen hierarki (600/800/900).
+  const configuredWeight = (key: string, fallback = 600) => {
     const weight = String(elements.get(key)?.weight || '');
-    return weight === 'black' ? 900 : weight === 'bold' ? 700 : weight === 'normal' ? 400 : fallback;
+    const resolved = weight === 'black' ? 900 : weight === 'bold' ? 800 : weight === 'normal' ? 600 : fallback;
+    return Math.max(600, resolved);
   };
   const configuredAlign = (key: string, fallback: Align = 'left'): Align => {
     const value = String(elements.get(key)?.align || fallback);
@@ -397,18 +434,18 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     key: string,
     value: unknown,
     fallbackSize: number,
-    fallbackWeight = 400,
+    fallbackWeight = 600,
     fallbackAlign: Align = 'left',
     color = '#000000',
-    opts: { indent?: number; lineHeight?: number } = {},
+    opts: { indent?: number; lineHeight?: number; minSize?: number; minWeight?: number } = {},
   ) => {
     if (!visible(key)) return;
     const textValue = maybeUpper(key, plain(value));
     if (!textValue) return;
     await paragraph(
       textValue,
-      configuredSize(key, fallbackSize),
-      configuredWeight(key, fallbackWeight),
+      Math.max(opts.minSize ?? 6, configuredSize(key, fallbackSize)),
+      Math.max(opts.minWeight ?? 0, configuredWeight(key, fallbackWeight)),
       configuredAlign(key, fallbackAlign),
       color,
       opts,
@@ -487,17 +524,17 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
   if (visible('platformName')) {
     const align = configuredAlign('platformName', 'center');
     const numberSuffix = visible('orderNumber') ? ` #${plain(o.number) || '—'}` : '';
-    await element('platformName', `${template?.platformName || 'ViaEats'}${numberSuffix}`, 8, 400, 'center');
-    await paragraph('Ej kvitto', 10, 500, align, '#555555');
+    await element('platformName', `${template?.platformName || 'ViaEats'}${numberSuffix}`, 8, 800, 'center', '#000000', { minWeight: 800 });
+    await paragraph('Ej kvitto', 10, 600, align, '#000000');
     y += px(4);
   }
   if (visible('divider1')) divider();
 
   // ── Restaurang ──
   await element('restaurantName', h.restaurantName || 'ViaEats', 15, 900, 'center');
-  await element('timestamp', `${o.date} ${o.time}`, 9, 400, 'center');
-  await element('address', restaurantAddress, 8, 400, 'center');
-  await element('phone', h.phone ? `Tel: ${h.phone}` : '', 8, 400, 'center');
+  await element('timestamp', `${o.date} ${o.time}`, 9, 600, 'center');
+  await element('address', restaurantAddress, 8, 600, 'center', '#000000', { minSize: 10 });
+  await element('phone', h.phone ? `Tel: ${h.phone}` : '', 8, 600, 'center', '#000000', { minSize: 10 });
   y += px(8);
 
   if (visible('headerMsg') && plain(elements.get('headerMsg')?.content)) {
@@ -508,14 +545,13 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
 
   // ── Kund ──
   if (visible('customerName') && plain(c.name)) {
-    await paragraph('Kund:', 10, 700, 'left', '#555555');
+    await paragraph('Kund:', 10, 800, 'left', '#000000');
     await element('customerName', c.name, 12, 900);
   }
-  await element('customerPhone', c.phone, 9, 400);
+  await element('customerPhone', c.phone, 9, 600);
   if (visible('customerAddress') && customerAddress) {
     y += px(4);
-    await paragraph('Adress:', 10, 700, 'left', '#555555');
-    await element('customerAddress', customerAddress, 9, 400);
+    await element('customerAddress', customerAddress, 9, 600);
   }
   if (visible('deliveryInstructions') && plain(c.instructions)) {
     y += px(2);
@@ -532,18 +568,18 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
   if (visible('scheduledFor') && o.isPreorder) {
     await badge('scheduledFor', `Förbeställd ${o.scheduledDate} ${o.scheduledTime}`);
   }
-  if (visible('paymentMethod') && paymentText) await badge('paymentMethod', paymentText);
+  if (visible('paymentMethod') && paymentText) await badge('paymentMethod', paymentMethodLabel(o.paymentMethod));
 
   // ── Utlovad tid ──
   if (visible('estimatedTime') && !o.isPreorder && o.readyTime) {
     const align = configuredAlign('estimatedTime', 'center');
-    await paragraph('Utlovad tid', 12, 700, align);
+    await paragraph('Utlovad tid', 12, 800, align);
     await element('estimatedTime', `Klar ${o.readyTime}`, 14, 900, 'center', '#000000', { lineHeight: 1.25 });
     y += px(6);
   }
 
   if (visible('divider3')) divider();
-  await paragraph(`${items.length} artikel${items.length === 1 ? '' : 'ar'}`, 11, 700, 'center');
+  await paragraph(`${items.length} artikel${items.length === 1 ? '' : 'ar'}`, 11, 800, 'center');
   y += px(4);
 
   // ── Artiklar ──
@@ -551,21 +587,30 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     for (const item of items) {
       await rowPair(
         `${item.qty} x ${item.name}`,
-        `${plain(item.subtotal)} kr`,
+        `${kr(item.subtotal)} kr`,
         configuredSize('items', 10),
         configuredWeight('items', 700),
         configuredSize('itemPrice', 8),
         configuredWeight('itemPrice', 700),
       );
       if (visible('extras')) {
+        // Tillvalen skrivs i exakt den ordning de sparades på ordern (per
+        // produkt: grupp för grupp), så kombo-produkter läses pizza 1 → sås 1
+        // → pizza 2 → sås 2. Obligatoriska val (storlek/sås) trycks en pixel
+        // större och fetare än frivilliga tillval; pris visas bara när
+        // tillvalet faktiskt kostar något.
         for (const extra of item.extras || []) {
           if (!extra.name) continue;
+          const qty = Number(extra.quantity || 1);
+          const price = Number(extra.price || 0);
+          const label = `** ${qty > 1 ? `${qty} x ` : ''}${extra.name}${price > 0 ? ` +${kr(price)} kr` : ''}`;
+          const requiredChoice = Boolean(extra.required);
           await paragraph(
-            `** ${extra.name}`,
-            configuredSize('extras', 8),
-            configuredWeight('extras', 400),
+            label,
+            configuredSize('extras', 8) + (requiredChoice ? 1 : 0),
+            requiredChoice ? 800 : Math.max(600, configuredWeight('extras', 600)),
             configuredAlign('extras', 'left'),
-            '#555555',
+            '#000000',
             { indent: px(12) },
           );
         }
@@ -581,29 +626,29 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
 
   // ── Totaler ──
   if (visible('deliveryFee') && Number(totals.deliveryFee || 0) > 0) {
-    await rowPair('Leveransavgift', `${plain(totals.deliveryFee)} kr`, configuredSize('deliveryFee', 9), configuredWeight('deliveryFee', 400));
+    await rowPair('Leveransavgift', `${kr(totals.deliveryFee)} kr`, configuredSize('deliveryFee', 9), configuredWeight('deliveryFee', 600));
   }
   if (visible('discount') && Number(totals.discount || 0) > 0) {
     await rowPair(
       totals.discountCode ? `Rabatt (${totals.discountCode})` : 'Rabatt',
-      `-${plain(totals.discount)} kr`,
+      `-${kr(totals.discount)} kr`,
       configuredSize('discount', 9),
-      configuredWeight('discount', 400),
+      configuredWeight('discount', 600),
     );
   }
   if (visible('total')) {
     y += px(4);
     rule(Math.max(2, px(2)));
     y += px(4);
-    await rowPair('Totalt', `${plain(totals.total)} kr`, configuredSize('total', 14), configuredWeight('total', 900));
+    await rowPair('Totalt', `${kr(totals.total)} kr`, configuredSize('total', 14), configuredWeight('total', 900));
   }
   y += px(8);
   if (visible('divider6')) divider();
 
   // ── Sidfot ──
-  await element('thankYou', elements.get('thankYou')?.content || 'Tack för din beställning!', 9, 700, 'center');
+  await element('thankYou', elements.get('thankYou')?.content || 'Tack för din beställning!', 9, 800, 'center');
   y += px(2);
-  await element('footerMsg', elements.get('footerMsg')?.content || 'Välkommen åter!', 8, 400, 'center');
+  await element('footerMsg', elements.get('footerMsg')?.content || 'Välkommen åter!', 8, 600, 'center');
   y += px(20);
 
   const height = Math.max(px(120), Math.ceil(Math.max(y, maxBottom) + px(4)));
@@ -630,7 +675,9 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
     .composite(overlays)
     .flatten({ background: '#ffffff' })
     .greyscale()
-    .threshold(176)
+    // 200 (inte 176): antialiaskanterna räknas som svärta så strecken blir
+    // fylliga och kolsvarta på papperet i stället för tunna och gryniga.
+    .threshold(200)
     .raw()
     .toBuffer({ resolveWithObject: true });
   const widthBytes = Math.ceil(raster.info.width / 8);

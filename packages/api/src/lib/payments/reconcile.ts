@@ -74,6 +74,7 @@ export async function reconcilePendingPayments(): Promise<void> {
           provider: provider.name,
           ref: status.paymentIntentId || ref,
           amountReceivedOre: status.amountReceivedOre ?? 0,
+          method: status.method,
         });
       } else if (status.state === 'failed' || status.state === 'canceled' || status.state === 'expired') {
         await finalizePaymentFailed(order.id, { provider: provider.name, ref, reason: status.state });

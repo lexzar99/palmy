@@ -468,7 +468,7 @@ router.post('/webhooks/mollie', async (req, res) => {
       const provider = getPaymentProviderByName('mollie');
       const status = await provider.getRemoteStatus(paymentId);
       if (status.state === 'paid') {
-        await finalizePaymentSuccess(order.id, { provider: provider.name, ref: paymentId, amountReceivedOre: status.amountReceivedOre ?? 0 });
+        await finalizePaymentSuccess(order.id, { provider: provider.name, ref: paymentId, amountReceivedOre: status.amountReceivedOre ?? 0, method: status.method });
       } else if (status.state === 'failed' || status.state === 'canceled' || status.state === 'expired') {
         await finalizePaymentFailed(order.id, { provider: provider.name, ref: paymentId, reason: status.state });
       }
@@ -530,6 +530,7 @@ router.get('/return', statusLimiter, async (req, res) => {
               provider: provider.name,
               ref: order.molliePaymentId,
               amountReceivedOre: remote.amountReceivedOre ?? 0,
+              method: remote.method,
             });
             paymentStatus = finalized.paymentStatus || 'PAID';
           } else if (remote.state === 'failed' || remote.state === 'canceled' || remote.state === 'expired') {

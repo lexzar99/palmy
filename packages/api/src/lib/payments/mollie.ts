@@ -208,6 +208,7 @@ export const mollieProvider: PaymentProvider = {
       amountReceivedOre: state === 'paid' ? toOre((payment as any).amount) : undefined,
       amountRefundedOre: refundAudit.amountRefundedOre,
       refunds: refundAudit.refunds,
+      method: typeof (payment as any).method === 'string' ? (payment as any).method : null,
     };
   },
 

@@ -94,6 +94,8 @@ export interface RemotePaymentStatus {
   amountRefundedOre?: number;
   /** Enskilda refunds behövs för async recovery (queued/failed/refunded). */
   refunds?: RemoteRefundStatus[];
+  /** PSP:ns faktiska betalmetod (swish/creditcard/klarna…), för kvittot. */
+  method?: string | null;
   /** Stripe Checkout skapas som cs_ men finaliseras/refundas mot pi_. */
   paymentIntentId?: string;
 }
