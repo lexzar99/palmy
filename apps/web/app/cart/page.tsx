@@ -271,6 +271,11 @@ export default function CartPage() {
   // beställning medan den gamla levereras. Tracking nås via LiveOrderBanner
   // och Mina beställningar istället för en tvingad redirect härifrån.
   const [error, setError] = useState<string | null>(null);
+  // Säker fallback för äldre partner-embedder: om föräldrasidan ännu inte
+  // lyssnar på viaeats:open-payment får kunden en riktig target=_top-länk.
+  // Ett användarklick på länken får lämna en cross-origin iframe, till skillnad
+  // från en script-navigation efter asynkrona API-anrop.
+  const [hostedCheckoutUrl, setHostedCheckoutUrl] = useState<string | null>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   // True när kunden återvänt från Mollie och vi pollar orderns betalstatus.
   const [verifyingPayment, setVerifyingPayment] = useState(false);
@@ -1919,6 +1924,7 @@ export default function CartPage() {
   const startCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setHostedCheckoutUrl(null);
 
     // Refresh the Palmyra-scoped kiosk credential immediately before the first
     // order/payment request. This also covers browsers that block iframe
@@ -2161,12 +2167,33 @@ export default function CartPage() {
         paymentInFlightRef.current = false;
         throw new Error(payRes.data?.details || payRes.data?.error || t("cart.errors.paymentUnavailable"));
       }
-      // Mollie blocks being rendered inside the Palmyra iframe (the browser
-      // otherwise shows "www.mollie.com refused the connection"). Leave the
-      // iframe only for the hosted payment step, then return to the ViaEats
-      // kiosk cart/tracking URL with the embed query preserved.
-      const paymentWindow = window.parent !== window && window.top ? window.top : window;
-      paymentWindow.location.assign(checkoutUrl);
+      // Mollie blocks being rendered inside an iframe. A cross-origin iframe
+      // is also not allowed to navigate window.top after these async API calls,
+      // so let the trusted Palmyra parent perform the top-level navigation.
+      // The partner embed validates both this frame's origin and Mollie's host.
+      if (embedMode && window.parent !== window) {
+        let parentOrigin = "*";
+        try {
+          const referrerOrigin = new URL(document.referrer).origin;
+          const trustedParents = new Set([
+            "https://palmyrapizzeria.se",
+            "https://www.palmyrapizzeria.se",
+            "http://localhost:3000",
+            "http://localhost:4000",
+          ]);
+          if (trustedParents.has(referrerOrigin)) parentOrigin = referrerOrigin;
+        } catch {
+          // file:// previews omit the referrer; the parent still verifies the
+          // ViaEats message source and Mollie checkout host before navigating.
+        }
+        setHostedCheckoutUrl(checkoutUrl);
+        window.parent.postMessage(
+          { type: "viaeats:open-payment", checkoutUrl },
+          parentOrigin,
+        );
+        return;
+      }
+      window.location.assign(checkoutUrl);
       return;
     } catch (err: any) {
       paymentInFlightRef.current = false;
@@ -2603,6 +2630,42 @@ export default function CartPage() {
 
   return (
     <div className="min-h-screen pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6 lg:px-10 xl:px-16" style={{ backgroundColor: "var(--bg-primary)" }}>
+      {hostedCheckoutUrl && embedMode && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="hosted-checkout-title"
+          className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/45 p-5"
+        >
+          <div className="w-full max-w-sm rounded-3xl p-6 text-center shadow-2xl" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}>
+            <h2 id="hosted-checkout-title" className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
+              Fortsätt till säker betalning
+            </h2>
+            <p className="mt-2 text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>
+              Betalningen öppnas hos Mollie och du kommer tillbaka till din order efteråt.
+            </p>
+            <a
+              href={hostedCheckoutUrl}
+              target="_top"
+              rel="noopener"
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gold-500 px-4 text-[15px] font-semibold text-white"
+            >
+              Öppna betalningen <ArrowRight size={18} />
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                paymentInFlightRef.current = false;
+                setHostedCheckoutUrl(null);
+              }}
+              className="mt-3 h-10 px-4 text-[13px] font-semibold"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Avbryt
+            </button>
+          </div>
+        </div>
+      )}
       <div className="max-w-[1400px] mx-auto">
         <div className="flex items-end justify-between mb-4 lg:mb-8 px-1 sm:px-4">
            <div className="min-w-0">

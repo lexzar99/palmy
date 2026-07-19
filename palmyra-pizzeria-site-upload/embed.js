@@ -53,6 +53,18 @@
     host.dispatchEvent(new CustomEvent("viaeats:loaded", { detail: { restaurant: restaurant } }));
   }
 
+  function mollieCheckoutUrl(raw) {
+    if (typeof raw !== "string" || raw.length > 2048) return null;
+    try {
+      var parsed = new URL(raw);
+      var mollieHost = parsed.hostname === "mollie.com" || parsed.hostname.endsWith(".mollie.com");
+      if (parsed.protocol !== "https:" || !mollieHost || parsed.username || parsed.password) return null;
+      return parsed.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
   function init(host) {
     var slug = host.getAttribute("data-viaeats-menu");
     if (!slug || host.getAttribute("data-ve-initialized")) return;
@@ -91,12 +103,19 @@
     });
 
     window.addEventListener("message", function (event) {
-      if (!allowedParentOrigin(event.origin)) return;
-      if (!event.data || event.data.type !== "viaeats:embed-height") return;
-      if (event.source !== frame.contentWindow) return;
-      if (fullViewport) return;
-      var height = Number(event.data.height);
-      if (Number.isFinite(height)) frame.style.height = Math.max(720, Math.ceil(height)) + "px";
+      if (!allowedParentOrigin(event.origin) || event.source !== frame.contentWindow || !event.data) return;
+
+      if (event.data.type === "viaeats:open-payment") {
+        var checkoutUrl = mollieCheckoutUrl(event.data.checkoutUrl);
+        if (checkoutUrl) window.location.assign(checkoutUrl);
+        return;
+      }
+
+      if (event.data.type === "viaeats:embed-height") {
+        if (fullViewport) return;
+        var height = Number(event.data.height);
+        if (Number.isFinite(height)) frame.style.height = Math.max(720, Math.ceil(height)) + "px";
+      }
     });
 
     shell.appendChild(frame);
