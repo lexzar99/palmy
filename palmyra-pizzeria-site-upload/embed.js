@@ -31,7 +31,7 @@
     style.id = STYLE_ID;
     style.textContent =
       ".ve-embed-frame{display:block;width:100%;height:100dvh;min-height:100dvh;border:0;background:transparent}" +
-      ".ve-embed-shell{position:relative;height:100dvh;overflow:hidden;background:var(--bg-primary,#fff)}" +
+      ".ve-embed-shell{position:relative;height:100dvh;min-height:0;overflow:hidden;background:var(--bg-primary,#fff)}" +
       ".ve-embed-frame{opacity:0;transition:opacity .16s ease}" +
       ".ve-embed-shell.is-loaded .ve-embed-frame{opacity:1}" +
       ".ve-embed-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;min-height:220px;color:#6b6b70;font:600 14px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;transition:opacity .16s ease}" +
@@ -71,6 +71,13 @@
     frame.loading = "eager";
     frame.allow = "payment *";
     frame.referrerPolicy = "strict-origin-when-cross-origin";
+    if (fullViewport) {
+      // The partner shell owns the viewport (and may have a small header), so
+      // the iframe must fill that shell instead of adding another 100dvh.
+      shell.style.height = "100%";
+      frame.style.height = "100%";
+      frame.style.minHeight = "0";
+    }
     frame.src = SITE + "/embed/" + encodeURIComponent(slug);
 
     frame.addEventListener("load", function () {

@@ -27,6 +27,7 @@ import {
   AlertCircle,
   Check,
   ChevronDown,
+  ChevronLeft,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
@@ -2588,6 +2589,15 @@ export default function CartPage() {
       <div className="max-w-[1400px] mx-auto">
         <div className="flex items-end justify-between mb-4 lg:mb-8 px-1 sm:px-4">
            <div className="min-w-0">
+              {embedMode && (
+                <Link
+                  href={embedMenuHref}
+                  className="mb-3 inline-flex items-center gap-1 text-[13px] font-semibold hover:opacity-70"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  <ChevronLeft size={16} /> Tillbaka till restaurangen
+                </Link>
+              )}
               {/* Titel "Varukorg" + subtitel = restaurang · leverans/avhämtning ~ETA
                   (enligt mockup). Restaurangnamnet är klickbart tillbaka till menyn. */}
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight mb-1" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")}</h1>

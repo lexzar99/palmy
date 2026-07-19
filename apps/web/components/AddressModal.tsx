@@ -49,6 +49,8 @@ interface AddressModalProps {
   setOrderType: (type: "DELIVERY" | "PICKUP") => void;
   /** Embedded partner-lägen kan begränsa avhämtning till en restaurangstad. */
   pickupCityName?: string;
+  /** Ersätter standardtexten när partnerläget använder en tydlig bekräftelse-CTA. */
+  confirmLabel?: string;
 }
 
 export default function AddressModal({
@@ -58,6 +60,7 @@ export default function AddressModal({
   orderType,
   setOrderType,
   pickupCityName,
+  confirmLabel,
 }: AddressModalProps) {
   // Portal-mount-flagga (SSR-säker) — modalen renderas till document.body så
   // dess z-index inte fångas av HomeClients sticky-header-stacking och därför
@@ -397,8 +400,8 @@ export default function AddressModal({
               backgroundColor: "var(--bg-secondary)",
               borderTop: "1px solid var(--border-muted)",
               boxShadow: "0 -8px 40px rgba(20,20,22,0.18)",
-              maxHeight: "92vh",
-              paddingBottom: "env(safe-area-inset-bottom, 0px)",
+              height: "min(92dvh, 760px)",
+              maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px))",
             }}
           >
             {/* Grab handle */}
@@ -406,7 +409,7 @@ export default function AddressModal({
               <div className="w-10 h-1 rounded-full" style={{ backgroundColor: "var(--border-muted)" }} />
             </div>
 
-            <div className="px-6 pt-2 pb-5 overflow-y-auto flex-1 flex flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-2 pb-5">
               {/* Header */}
               <div className="flex items-center justify-between mb-4 shrink-0">
                 <div>
@@ -676,11 +679,23 @@ export default function AddressModal({
                 </motion.div>
               )}
 
+            </div>
+
+            {/* CTA ligger utanför scrollområdet så den alltid syns även när
+                kartan/stadslistan fyller hela mobilens höjd. */}
+            <div
+              className="shrink-0 border-t px-6 pt-3"
+              style={{
+                borderColor: "var(--border-muted)",
+                backgroundColor: "var(--bg-secondary)",
+                paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)",
+              }}
+            >
               <button onClick={handleSubmit}
-                className="mt-4 w-full flex items-center justify-between px-6 h-[52px] rounded-xl transition-all group bg-gold-500 active:scale-[0.99] shrink-0"
+                className="w-full flex items-center justify-between px-6 h-[52px] rounded-xl transition-all group bg-gold-500 active:scale-[0.99]"
                 style={{ color: "#FFFFFF" }}>
                 <span className="text-[15.5px] font-semibold">
-                  {orderType === "DELIVERY" ? "Visa restauranger" : "Hitta avhämtning"}
+                  {confirmLabel ?? (orderType === "DELIVERY" ? "Visa restauranger" : "Hitta avhämtning")}
                 </span>
                 <ArrowRight size={19} className="group-hover:translate-x-1 transition-transform" />
               </button>

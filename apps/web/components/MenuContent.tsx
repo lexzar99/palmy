@@ -1448,12 +1448,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
           orderType={orderType}
           setOrderType={setOrderType}
           pickupCityName={embedMode ? "Lund" : undefined}
+          confirmLabel={embedMode ? "Bekräfta och fortsätt" : undefined}
         />
       )}
 
       {/* DealSpotlight på restaurang-sidan borttagen — användaren ska bara
           se discountade priser direkt i menyn, inte en separat banner. */}
-      <FloatingCartButton />
+      {embedMode && <FloatingCartButton />}
     </div>
   );
 };
