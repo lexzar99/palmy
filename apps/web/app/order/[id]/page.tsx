@@ -251,6 +251,17 @@ const OrderStatusPage = () => {
   const statusLabel = (s: string) => t(`order.status.${s}.label`);
   const statusDesc = (s: string) => t(`order.status.${s}.desc`);
   const { id } = useParams();
+  const [embedMode, setEmbedMode] = useState(false);
+  const [embedRestaurant, setEmbedRestaurant] = useState("");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setEmbedMode(params.get("embed") === "1");
+    setEmbedRestaurant(params.get("restaurant") || "");
+  }, []);
+  const embedMenuHref = embedRestaurant ? `/embed/${encodeURIComponent(embedRestaurant)}` : "/";
+  const embedOrdersHref = embedRestaurant
+    ? `/orders?embed=1&restaurant=${encodeURIComponent(embedRestaurant)}`
+    : "/orders";
   const orderId = Array.isArray(id) ? id[0] : id;
   const [accessBootstrapReady, setAccessBootstrapReady] = useState(false);
   const [order, setOrder] = useState<any>(null);
@@ -559,7 +570,7 @@ const OrderStatusPage = () => {
             {t("order.error.retry")}
           </button>
           <Link
-            href="/orders"
+            href={embedMode ? embedOrdersHref : "/orders"}
             className="px-8 py-4 border rounded-full font-bold text-sm text-center"
             style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
           >
@@ -580,7 +591,7 @@ const OrderStatusPage = () => {
           <p className="text-sm max-w-md mt-3" style={{ color: "var(--text-secondary)" }}>
             {t("order.error.notFoundSub")}
           </p>
-          <Link href="/" className="mt-8 px-8 py-4 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm">{t("order.error.notFoundCta")}</Link>
+          <Link href={embedMode ? embedMenuHref : "/"} className="mt-8 px-8 py-4 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm">{t("order.error.notFoundCta")}</Link>
        </div>
     );
   }
@@ -995,7 +1006,7 @@ const OrderStatusPage = () => {
           />
           <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-white/80 via-white/20 to-transparent" />
         </div>
-        <Link href="/" aria-label="Till startsidan" className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+16px)] z-[1600] grid h-11 w-11 place-items-center rounded-full border bg-white shadow-lg" style={{ borderColor: "rgba(17,17,19,0.10)", color: "var(--text-primary)" }}>
+        <Link href={embedMode ? embedMenuHref : "/"} aria-label="Till menyn" className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+16px)] z-[1600] grid h-11 w-11 place-items-center rounded-full border bg-white shadow-lg" style={{ borderColor: "rgba(17,17,19,0.10)", color: "var(--text-primary)" }}>
           <ArrowRight size={18} className="rotate-180" />
         </Link>
         <section
@@ -1142,7 +1153,7 @@ const OrderStatusPage = () => {
     <div className="min-h-[100dvh]" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="mx-auto max-w-md px-4 pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-[calc(env(safe-area-inset-top,0px)+8px)]">
         <div className="flex h-[52px] items-center gap-3 border-b" style={{ borderColor: "var(--border-muted)" }}>
-          <Link href="/" aria-label="Till startsidan" className="grid h-9 w-9 place-items-center rounded-full">
+          <Link href={embedMode ? embedMenuHref : "/"} aria-label="Till menyn" className="grid h-9 w-9 place-items-center rounded-full">
             <ArrowRight size={20} className="rotate-180" />
           </Link>
           <span className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>Din order</span>
@@ -1195,7 +1206,7 @@ const OrderStatusPage = () => {
 
         {/* Top bar */}
         <div className="flex items-center justify-between gap-3 py-3">
-          <Link href="/" aria-label="Till startsidan" className="inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
+          <Link href={embedMode ? embedMenuHref : "/"} aria-label="Till menyn" className="inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
             <ArrowRight size={16} className="rotate-180" />
           </Link>
           {!isRejected && !isCompleted && (

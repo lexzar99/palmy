@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import axios from "axios";
 import type { Socket } from "socket.io-client";
-import { Search, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, Heart, Plus, Utensils, Store, Truck } from "lucide-react";
+import { Search, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, CheckCircle2, Heart, Plus, Utensils, Store, Truck } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import dynamic from "next/dynamic";
 import FloatingCartButton from "@/components/FloatingCartButton";
@@ -338,41 +338,6 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
     void fetch(`/api/kiosk/session?slug=${encodeURIComponent(restaurant.slug)}`, { credentials: "same-origin" }).catch(() => undefined);
   }, [embedMode, restaurant?.slug]);
 
-  // Embed-API mellan partnersidan och ViaEats iframe:en. Bara produktöppning
-  // och höjd skickas över — ingen kund- eller betalningsdata exponeras.
-  useEffect(() => {
-    if (!embedMode || typeof window === "undefined") return;
-    const allowedOrigins = new Set([
-      window.location.origin,
-      "https://palmyrapizzeria.se",
-      "https://www.palmyrapizzeria.se",
-      "http://localhost:3000",
-      "http://localhost:4000",
-    ]);
-    const sendHeight = () => {
-      if (window.parent === window) return;
-      window.parent.postMessage({
-        type: "viaeats:embed-height",
-        height: document.documentElement.scrollHeight,
-      }, "*");
-    };
-    const onMessage = (event: MessageEvent) => {
-      if (!allowedOrigins.has(event.origin) || !event.data || event.data.type !== "viaeats:open-product") return;
-      const productId = typeof event.data.productId === "string" ? event.data.productId : "";
-      if (!productId) return;
-      const product = categories.flatMap((category: any) => category.products || []).find((item: any) => item.id === productId);
-      if (product) setSelectedProduct(product);
-    };
-    window.addEventListener("message", onMessage);
-    sendHeight();
-    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(sendHeight) : null;
-    observer?.observe(document.documentElement);
-    return () => {
-      window.removeEventListener("message", onMessage);
-      observer?.disconnect();
-    };
-  }, [categories, embedMode]);
-
   // BOGO picker state
   const [bogoPicker, setBogoPicker] = useState<{
     dealId: string;
@@ -420,7 +385,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
       if (!res.data.covered) {
         // Entire address is outside all city zones
         // Only flag as out-of-zone for open restaurants (closed ones show closed state instead)
-        const result = restaurantData?.isOpen ? false : null;
+        const result = embedMode || restaurantData?.isOpen ? false : null;
         setZoneAvailable(result);
         return result;
       }
@@ -430,7 +395,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
 
       if (!thisRest) {
         // Not in results — either closed (filtered out by validate-location) or outside zone
-        if (!restaurantData?.isOpen) {
+        if (!restaurantData?.isOpen && !embedMode) {
           setZoneAvailable(null); // Closed: zone check not applicable
           return null;
         }
@@ -469,7 +434,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
       setCheckingZone(false);
     }
   // ↓ Only stable Zustand action — no deliveryOverrides in deps (prevents infinite loop)
-  }, [updateDeliveryOverride]);
+  }, [embedMode, updateDeliveryOverride]);
 
   const handleOrderTypeChange = useCallback((nextType: "DELIVERY" | "PICKUP") => {
     setOrderType(nextType);
@@ -760,6 +725,42 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
     }
   }, [restaurant?.isOpen, zoneAvailable, address, orderType]);
 
+  // Embed-API mellan partnersidan och ViaEats iframe:en. Produktdeeplinks går
+  // genom samma adress-/zon-grind som ett vanligt produktklick. Annars kunde
+  // en deal på Palmyras startsida öppna produktmodalen utan leveransadress.
+  useEffect(() => {
+    if (!embedMode || typeof window === "undefined") return;
+    const allowedOrigins = new Set([
+      window.location.origin,
+      "https://palmyrapizzeria.se",
+      "https://www.palmyrapizzeria.se",
+      "http://localhost:3000",
+      "http://localhost:4000",
+    ]);
+    const sendHeight = () => {
+      if (window.parent === window) return;
+      window.parent.postMessage({
+        type: "viaeats:embed-height",
+        height: document.documentElement.scrollHeight,
+      }, "*");
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (!allowedOrigins.has(event.origin) || !event.data || event.data.type !== "viaeats:open-product") return;
+      const productId = typeof event.data.productId === "string" ? event.data.productId : "";
+      if (!productId) return;
+      const product = categories.flatMap((category: any) => category.products || []).find((item: any) => item.id === productId);
+      if (product) handleOpenProduct(product);
+    };
+    window.addEventListener("message", onMessage);
+    sendHeight();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(sendHeight) : null;
+    observer?.observe(document.documentElement);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      observer?.disconnect();
+    };
+  }, [categories, embedMode, handleOpenProduct]);
+
   // Partner-deeplink: ?product=<id> (från t.ex. partner-embedden på
   // restaurangens egen sajt) öppnar produkten direkt via samma gating som ett
   // vanligt klick (stängt/zon/adress). Väntar på hydrated så adress-grinden
@@ -834,6 +835,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
   }
 
   const restaurantDisplayTitle = restaurant?.name || t("common.loading");
+  const embedIsPalmyra = embedMode && restaurant?.slug === "palmyra-pizzeria-lund";
+  const restaurantPaused = ["PLATFORM_PAUSED", "CITY_PAUSED", "RESTAURANT_PAUSED"].includes(String(restaurant?.availabilityReason || "")) ||
+    (restaurant?.pausedUntil && new Date(restaurant.pausedUntil).getTime() > Date.now());
+  const availabilityLabel = restaurantPaused ? "Pausad · många beställningar" : restaurant?.isOpen ? t("menu.statusOpen") : t("menu.statusClosed");
 
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
 
@@ -923,10 +928,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
           {/* Öppet/stängt — lugn chip i statuspaletten, ingen puls */}
           <div
             className="px-2.5 py-1 rounded-md flex items-center gap-1.5"
-            style={{ backgroundColor: restaurant?.isOpen ? "var(--success-soft)" : "rgba(225,29,72,0.08)" }}
+            style={{ backgroundColor: restaurantPaused ? "var(--gold-soft)" : restaurant?.isOpen ? "var(--success-soft)" : "rgba(225,29,72,0.08)" }}
           >
-            <span className="text-[12px] font-semibold" style={{ color: restaurant?.isOpen ? "var(--success-ink)" : "#be123c" }}>
-              {restaurant?.isOpen ? t("menu.statusOpen") : t("menu.statusClosed")}
+            <span className="text-[12px] font-semibold" style={{ color: restaurantPaused ? "var(--gold-ink)" : restaurant?.isOpen ? "var(--success-ink)" : "#be123c" }}>
+              {availabilityLabel}
             </span>
           </div>
         </div>
@@ -982,8 +987,51 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
 
       <div className="mx-auto max-w-2xl px-4 sm:px-6 pt-4 relative">
 
+        {/* Embedded partners show the selected address immediately below the
+            delivery/pickup toggle. The same zone result gates product clicks. */}
+        {embedMode && (
+          <button
+            type="button"
+            onClick={() => setShowAddressModal(true)}
+            className="mb-4 w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors active:scale-[0.99]"
+            style={{
+              backgroundColor: zoneAvailable === true ? "rgba(22,163,74,0.07)" : zoneAvailable === false ? "rgba(225,29,72,0.07)" : "var(--bg-secondary)",
+              border: `1px solid ${zoneAvailable === true ? "rgba(22,163,74,0.28)" : zoneAvailable === false ? "rgba(225,29,72,0.25)" : "var(--border-muted)"}`,
+            }}
+          >
+            {orderType === "PICKUP" ? (
+              <Store size={17} className="shrink-0" style={{ color: "var(--gold-ink)" }} />
+            ) : zoneAvailable === true ? (
+              <CheckCircle2 size={18} className="shrink-0" style={{ color: "#15803d" }} />
+            ) : zoneAvailable === false ? (
+              <AlertTriangle size={18} className="shrink-0" style={{ color: "#be123c" }} />
+            ) : (
+              <MapPin size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13.5px] font-semibold" style={{ color: zoneAvailable === true ? "#166534" : zoneAvailable === false ? "#be123c" : "var(--text-primary)" }}>
+                {orderType === "PICKUP"
+                  ? "Avhämtning i Lund"
+                  : address || "Välj leveransadress"}
+              </span>
+              <span className="block text-[12px] mt-0.5" style={{ color: zoneAvailable === true ? "#15803d" : zoneAvailable === false ? "#be123c" : "var(--text-secondary)" }}>
+                {orderType === "PICKUP"
+                  ? "Endast Palmyra Pizzeria, Lund"
+                  : zoneAvailable === true
+                    ? "Vi levererar till din adress"
+                    : zoneAvailable === false
+                      ? "Vi levererar inte dit"
+                      : checkingZone
+                        ? "Kontrollerar leveransområde…"
+                        : "Tryck för att välja adress"}
+              </span>
+            </span>
+            <span className="shrink-0 text-[12px] font-semibold" style={{ color: "var(--text-secondary)" }}>Ändra</span>
+          </button>
+        )}
+
         {/* Out-of-zone banner — only shown for OPEN restaurants; closed ones are handled by the closed state */}
-          {zoneAvailable === false && restaurant?.isOpen && orderType === "DELIVERY" && (
+          {zoneAvailable === false && restaurant?.isOpen && orderType === "DELIVERY" && !embedMode && (
             <div
               className="mb-6 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center gap-3.5"
               style={{ backgroundColor: "rgba(225,29,72,0.06)", border: "1px solid rgba(225,29,72,0.2)" }}
@@ -1065,7 +1113,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Clock size={15} className="shrink-0" strokeWidth={1.8} style={{ color: "var(--text-secondary)" }} />
-              <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{`~${restaurant.etaMinutes} ${t("menu.stats.min")}`}</span>
+                <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{embedIsPalmyra ? "30–45 min" : `~${restaurant.etaMinutes} ${t("menu.stats.min")}`}</span>
             </span>
             <span className="inline-flex items-center gap-1.5">
               <ShoppingBag size={15} className="shrink-0" strokeWidth={1.8} style={{ color: "var(--text-secondary)" }} />
@@ -1081,7 +1129,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
           <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px]">
             <span className="inline-flex items-center gap-1.5">
               <Clock size={15} className="shrink-0" strokeWidth={1.8} style={{ color: "var(--text-secondary)" }} />
-              <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{`~${Math.max(5, Math.min(25, (restaurant.etaMinutes ?? 30) - 5))} ${t("menu.stats.min")}`}</span>
+              <span className="font-semibold whitespace-nowrap" style={{ color: "var(--text-primary)" }}>{embedIsPalmyra ? "~10 min" : `~${Math.max(5, Math.min(25, (restaurant.etaMinutes ?? 30) - 5))} ${t("menu.stats.min")}`}</span>
               <span className="lowercase" style={{ color: "var(--text-secondary)" }}>{t("cart.deliveryType.pickup")}</span>
             </span>
           </div>
@@ -1195,7 +1243,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
                      {renderCategoryProducts(
                        cat.products,
                        handleOpenProduct,
-                       !restaurant?.isOpen || zoneAvailable === false,
+                  !restaurant?.isOpen || zoneAvailable === false,
                      )}
                    </div>
                  </section>
@@ -1399,6 +1447,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
           }}
           orderType={orderType}
           setOrderType={setOrderType}
+          pickupCityName={embedMode ? "Lund" : undefined}
         />
       )}
 

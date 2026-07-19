@@ -47,6 +47,8 @@ interface AddressModalProps {
   onFail?: (reason: string) => void;
   orderType: "DELIVERY" | "PICKUP";
   setOrderType: (type: "DELIVERY" | "PICKUP") => void;
+  /** Embedded partner-lägen kan begränsa avhämtning till en restaurangstad. */
+  pickupCityName?: string;
 }
 
 export default function AddressModal({
@@ -55,6 +57,7 @@ export default function AddressModal({
   onConfirm,
   orderType,
   setOrderType,
+  pickupCityName,
 }: AddressModalProps) {
   // Portal-mount-flagga (SSR-säker) — modalen renderas till document.body så
   // dess z-index inte fångas av HomeClients sticky-header-stacking och därför
@@ -232,6 +235,16 @@ export default function AddressModal({
   // ── Fetch cities for pickup ──────────────────────────────────────────────────
   useEffect(() => {
     if (!isOpen || orderType !== "PICKUP") return;
+    if (pickupCityName) {
+      setCitiesLoading(false);
+      setSelectedCity({
+        id: `embedded-${pickupCityName.toLowerCase()}`,
+        name: pickupCityName,
+        slug: pickupCityName.toLowerCase(),
+        deliveryMode: "PICKUP",
+      });
+      return;
+    }
     if (cityGroups.length > 0) return;
     setCitiesLoading(true);
     fetch("/api/cities")
@@ -266,7 +279,7 @@ export default function AddressModal({
       })
       .catch(() => {})
       .finally(() => setCitiesLoading(false));
-  }, [isOpen, orderType, cityGroups.length]);
+  }, [isOpen, orderType, cityGroups.length, pickupCityName]);
 
   // ── Autocomplete (proxied through Next.js → server-side key) ─────────────────
   const fetchPredictions = useCallback(async (text: string) => {
@@ -340,6 +353,10 @@ export default function AddressModal({
   const handleSubmit = () => {
     if (loading) return;
     if (orderType === "PICKUP") {
+      if (pickupCityName) {
+        onConfirm(pickupCityName, "PICKUP", undefined, undefined, pickupCityName);
+        return;
+      }
       if (!selectedCity) {
         setError("Välj en stad för avhämtning.");
         return;
@@ -368,7 +385,7 @@ export default function AddressModal({
       {isOpen && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[300] flex items-end justify-center"
+          className="fixed inset-0 z-[1400] flex items-end justify-center"
           style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
           onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
@@ -558,7 +575,18 @@ export default function AddressModal({
               {/* ── PICKUP: city selector ── */}
               {orderType === "PICKUP" && (
                 <div className="mb-2">
-                  {citiesLoading ? (
+                  {pickupCityName ? (
+                    <div className="flex items-center gap-3 px-4 py-4 rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
+                        <Store size={17} />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[14.5px] font-semibold block" style={{ color: "var(--text-primary)" }}>{pickupCityName}</span>
+                        <span className="text-[12.5px] block mt-0.5" style={{ color: "var(--text-secondary)" }}>Avhämtning från Palmyra Pizzeria</span>
+                      </div>
+                      <CheckCircle2 size={17} className="ml-auto shrink-0" style={{ color: "var(--success-ink, #15803d)" }} />
+                    </div>
+                  ) : citiesLoading ? (
                     <div className="flex items-center justify-center gap-3 py-8 rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                       <Loader2 size={16} className="animate-spin text-zinc-500" />
                       <span className="text-[14px] font-medium" style={{ color: "var(--text-secondary)" }}>Hämtar städer…</span>

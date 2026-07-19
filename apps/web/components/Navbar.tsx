@@ -25,7 +25,6 @@ type SessionUser = {
 const Navbar = () => {
   const { t } = useTranslation();
   const pathname = usePathname();
-  const [embedCartMode, setEmbedCartMode] = useState(false);
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const mounted = useSyncExternalStore(
@@ -34,8 +33,17 @@ const Navbar = () => {
     () => false,
   );
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [embedQuery, setEmbedQuery] = useState(false);
+  useEffect(() => {
+    setEmbedQuery(new URLSearchParams(window.location.search).get("embed") === "1");
+  }, [pathname]);
+  const embedMode = pathname?.startsWith("/embed/") || (
+    embedQuery &&
+    (pathname === "/cart" || pathname === "/orders" || pathname?.startsWith("/order/"))
+  );
 
   useEffect(() => {
+    if (embedMode || pathname?.startsWith("/order/")) return;
     let cancelled = false;
     const loadUser = async () => {
       try {
@@ -62,18 +70,8 @@ const Navbar = () => {
       window.removeEventListener(PLATFORM_SESSION_CHANGED_EVENT, onChange);
       window.removeEventListener("storage", onChange);
     };
-  }, []);
+  }, [embedMode, pathname]);
 
-  useEffect(() => {
-    const syncEmbedCartMode = () => {
-      setEmbedCartMode(pathname === "/cart" && new URLSearchParams(window.location.search).get("embed") === "1");
-    };
-    syncEmbedCartMode();
-    window.addEventListener("popstate", syncEmbedCartMode);
-    return () => window.removeEventListener("popstate", syncEmbedCartMode);
-  }, [pathname]);
-
-  const embedMode = pathname?.startsWith("/embed/") || embedCartMode;
   if (pathname?.startsWith("/order/") || embedMode) return null;
 
   // Visningsnamn: först + efternamn om finns, annars name-fältet, annars null

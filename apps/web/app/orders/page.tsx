@@ -42,6 +42,14 @@ function OrdersSkeleton() {
 
 export default function OrdersPage() {
   const { t, locale } = useTranslation();
+  const [embedMode, setEmbedMode] = useState(false);
+  const [embedRestaurant, setEmbedRestaurant] = useState("");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setEmbedMode(params.get("embed") === "1");
+    setEmbedRestaurant(params.get("restaurant") || "");
+  }, []);
+  const embedMenuHref = embedRestaurant ? `/embed/${encodeURIComponent(embedRestaurant)}` : "/";
   const [loading, setLoading] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
   const [orders, setOrders] = useState<OrderRow[]>([]);
@@ -97,7 +105,9 @@ export default function OrdersPage() {
       // Gäst: lokalt sparade, icke-hemliga orderreferenser. Varje rad hämtas
       // med sin orderspecifika HttpOnly-session. Äldre raw-token migreras en
       // gång via POST-body och raderas sedan från localStorage.
-      const refs = readOrderHistory();
+      const refs = readOrderHistory().filter((ref) =>
+        !embedMode || !embedRestaurant || ref.restaurantSlug === embedRestaurant,
+      );
       const base: OrderRow[] = refs.map((ref: StoredOrderRef) => ({
         id: ref.id,
         phone: ref.phone,
@@ -145,11 +155,11 @@ export default function OrdersPage() {
       );
     };
 
-    getPlatformSessionStatus()
+    (embedMode ? Promise.resolve(false) : getPlatformSessionStatus())
       .then(async (authed) => {
         if (!active) return;
         setLoggedIn(authed);
-        if (authed) await loadLoggedIn();
+        if (authed && !embedMode) await loadLoggedIn();
         else await loadGuest();
       })
       .finally(() => {
@@ -157,7 +167,7 @@ export default function OrdersPage() {
       });
 
     return () => { active = false; };
-  }, []);
+  }, [embedMode, embedRestaurant]);
 
   return (
     <div className="min-h-screen md:pt-20 pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
@@ -179,7 +189,7 @@ export default function OrdersPage() {
             <p className="mt-3 text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>{t("orders.empty.title")}</p>
             <p className="mt-1 text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>{t("orders.empty.subtitle")}</p>
             <Link
-              href="/"
+              href={embedMode ? embedMenuHref : "/"}
               className="mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-gold-500 px-5 text-[14px] font-semibold"
               style={{ color: "#141416" }}
             >
@@ -189,7 +199,9 @@ export default function OrdersPage() {
         ) : (
           <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
             {orders.map((order, index) => {
-              const href = `/order/${order.id}`;
+              const href = embedMode
+                ? `/order/${order.id}?embed=1&restaurant=${encodeURIComponent(embedRestaurant)}`
+                : `/order/${order.id}`;
               const status = statusLabel(order.status);
               const date = dateLabel(order.createdAt);
               const items =
@@ -224,7 +236,7 @@ export default function OrdersPage() {
           </div>
         )}
 
-        {!loading && !loggedIn && (
+        {!embedMode && !loading && !loggedIn && (
           <div className="rounded-2xl px-4 py-3.5" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
             <p className="text-[12.5px] leading-[18px]" style={{ color: "var(--text-secondary)" }}>
               {t("orders.localNote")}

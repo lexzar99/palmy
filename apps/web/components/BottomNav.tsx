@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Home, ReceiptText, ShoppingBag, User } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import { useEffect, useState } from "react";
 
 /**
  * BottomNav — platt vit bar, kant till kant, med hårfin topplinje.
@@ -17,23 +17,19 @@ import { useTranslation } from "@/lib/i18n/LocaleProvider";
  */
 const BottomNav = () => {
   const pathname = usePathname();
-  const [embedCartMode, setEmbedCartMode] = useState(false);
   const { t } = useTranslation();
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
-  useEffect(() => {
-    const syncEmbedCartMode = () => {
-      setEmbedCartMode(pathname === "/cart" && new URLSearchParams(window.location.search).get("embed") === "1");
-    };
-    syncEmbedCartMode();
-    window.addEventListener("popstate", syncEmbedCartMode);
-    return () => window.removeEventListener("popstate", syncEmbedCartMode);
-  }, [pathname]);
-
   // Restaurangsidor: FloatingCartButton tar över. Order-tracking är en
   // fullskärmsvy som i appen och ska inte ha bottom nav ovanpå.
-  const hidden = pathname?.startsWith("/restaurants/") || pathname?.startsWith("/embed/") || pathname?.startsWith("/order/") || embedCartMode || false;
+  const [embedQuery, setEmbedQuery] = useState(false);
+  useEffect(() => {
+    setEmbedQuery(new URLSearchParams(window.location.search).get("embed") === "1");
+  }, [pathname]);
+  const embedSurface = embedQuery &&
+    (pathname === "/cart" || pathname === "/orders" || pathname?.startsWith("/order/"));
+  const hidden = pathname?.startsWith("/restaurants/") || pathname?.startsWith("/embed/") || pathname?.startsWith("/order/") || embedSurface || false;
 
   const navItems = [
     { href: "/", label: t("nav.home"), icon: Home },

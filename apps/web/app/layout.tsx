@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import Navbar from "@/components/Navbar";
+import EmbeddedNav from "@/components/EmbeddedNav";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import Providers from "./providers";
 
@@ -97,6 +98,7 @@ export default function RootLayout({
           {/* Kontakt nås nu via ikonen uppe till höger (beställningssidan) och
               "Information"-knappen i profilen → ingen global footer-länk. */}
           <BottomNav />
+          <EmbeddedNav />
           <CookieConsent />
           <MetaPixel />
           <DeferredGlobalClients />

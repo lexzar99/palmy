@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import MenuContent from "@/components/MenuContent";
+import { MENU_FORMAT_PARAM, rehydrateMenuCategories } from "@/lib/menu";
 
 type EmbedPageProps = {
   params: Promise<{ slug: string }>;
@@ -18,6 +19,22 @@ async function getRestaurant(slug: string) {
   } catch {
     return null;
   }
+}
+
+async function getEmbedData(slug: string) {
+  const [restaurantResponse, menuResponse, dealsResponse] = await Promise.all([
+    getRestaurant(slug),
+    fetch(`${API_URL}/api/menu/categories?slug=${encodeURIComponent(slug)}&format=${MENU_FORMAT_PARAM}&v=20260719`, { cache: "no-store" }),
+    fetch(`${API_URL}/api/deals?slug=${encodeURIComponent(slug)}`, { cache: "no-store" }),
+  ]);
+  if (!restaurantResponse) return null;
+  const menu = menuResponse.ok ? await menuResponse.json() : null;
+  const deals = dealsResponse.ok ? await dealsResponse.json() : [];
+  return {
+    restaurant: restaurantResponse,
+    categories: rehydrateMenuCategories(menu),
+    deals: Array.isArray(deals) ? deals : [],
+  };
 }
 
 export async function generateMetadata({ params }: EmbedPageProps): Promise<Metadata> {
@@ -39,8 +56,8 @@ export async function generateMetadata({ params }: EmbedPageProps): Promise<Meta
  */
 export default async function PartnerEmbedPage({ params }: EmbedPageProps) {
   const { slug } = await params;
-  const restaurant = await getRestaurant(slug);
-  if (!restaurant || restaurant.comingSoon) notFound();
+  const data = await getEmbedData(slug);
+  if (!data || data.restaurant.comingSoon) notFound();
 
   return (
     <main data-viaeats-embed="1" className="min-h-screen" style={{ backgroundColor: "var(--bg-primary)" }}>
@@ -48,7 +65,7 @@ export default async function PartnerEmbedPage({ params }: EmbedPageProps) {
         restaurantSlug={slug}
         isStandalone
         embedMode
-        initialData={{ restaurant }}
+        initialData={data}
       />
     </main>
   );

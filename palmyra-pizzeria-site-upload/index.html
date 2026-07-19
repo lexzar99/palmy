@@ -128,6 +128,7 @@ h1 em { font-style: normal; color: var(--red); }
   border: 1.5px solid var(--green); color: var(--green);
 }
 .status-pill.closed { border-color: var(--red); color: var(--red); }
+.status-pill.paused { border-color: var(--gold); color: var(--gold); }
 .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1.8s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
@@ -225,35 +226,6 @@ section { padding: 78px 0 0; }
 .deal-banner p { font-size: 13px; font-weight: 500; color: rgba(251, 245, 232, 0.85); width: 100%; }
 #deals .dish, #populart .dish { animation: fadeup .5s ease both; }
 @keyframes fadeup { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-
-/* ---------- Hela menyn (embed, restylad till tryckt meny) ---------- */
-#helameny { display: none; }
-#helameny.loaded { display: block; }
-#helameny .ve-embed { --ve-accent: var(--red); --ve-ink: var(--ink); --ve-muted: var(--muted); font-family: var(--sans); }
-#helameny .ve-chips { top: 62px; background: var(--paper); border-bottom: 1.5px solid var(--ink); gap: 0; padding: 8px 0 0; }
-#helameny .ve-chip {
-  background: transparent; border: none; border-radius: 0;
-  font-size: 11px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
-  color: var(--muted); padding: 10px 1px 12px; margin-right: 22px;
-  border-bottom: 2.5px solid transparent;
-}
-#helameny .ve-chip.ve-active { background: transparent; color: var(--red); border-bottom-color: var(--red); }
-#helameny .ve-cat h3 {
-  font-family: var(--display); font-weight: 800; font-size: 24px; letter-spacing: -0.5px;
-  margin: 10px 0 4px;
-}
-#helameny .ve-items { gap: 0 44px; }
-#helameny .ve-item {
-  background: transparent; border: none; border-radius: 0;
-  border-bottom: 1px dashed rgba(33, 23, 9, 0.32);
-  padding: 14px 2px;
-}
-#helameny .ve-item:hover { transform: none; box-shadow: none; background: var(--card); }
-#helameny .ve-item h4 { font-family: var(--display); font-weight: 700; font-size: 16px; }
-#helameny .ve-item p { font-size: 12.5px; }
-#helameny .ve-price { font-family: var(--display); font-weight: 800; font-size: 14px; }
-#helameny .ve-photo { width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--line); }
-#helameny .ve-tag { color: var(--green); background: rgba(44, 107, 58, 0.1); }
 
 /* ---------- Paneler (beställ, om oss, kontakt) ---------- */
 .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
@@ -393,14 +365,14 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
       <span class="place">Pizzeria · Lund</span>
     </a>
     <div class="nav-links">
-      <a href="#helameny">Meny</a>
-      <a href="#bestall">Beställ</a>
+      <a href="meny.html">Meny</a>
+      <a href="meny.html">Beställ</a>
       <a href="om.html">Om oss</a>
       <a href="kontakt.html">Kontakt</a>
     </div>
     <div style="display:flex; align-items:center; gap:12px">
       <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Powered by <b>ViaEats</b></a>
-      <a class="btn small" href="#helameny" data-viaeats-open-menu>Beställ</a>
+      <a class="btn small" href="meny.html">Beställ</a>
     </div>
   </div>
 </nav>
@@ -412,14 +384,14 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
       <h1 class="reveal d1">Pizza, kebab<br>och <em>stora</em><br>tallrikar.</h1>
       <p class="lede reveal d2">Mitt i Lund sedan länge. Allt görs när du beställer, hem till dörren eller varmt över disk.</p>
       <div class="hero-ctas reveal d3">
-        <a class="btn" href="#helameny" data-viaeats-open-menu>Beställ online</a>
+        <a class="btn" href="meny.html">Beställ online</a>
         <a class="btn ghost" href="tel:046120612">046-12 06 12</a>
       </div>
       <div class="hero-meta reveal d4">
         <span id="live-status" class="status-pill" hidden><span class="dot"></span><span id="live-status-text"></span></span>
         <span id="live-rating"><b>4.3</b> i betyg</span>
-        <span id="live-delivery">Leverans <b>ca 25 min</b></span>
-        <span id="live-pickup">Hämta <b>ca 20 min</b></span>
+        <span id="live-delivery">Leverans <b>ca 30–45 min</b></span>
+        <span id="live-pickup">Hämta <b>ca 10 min</b></span>
       </div>
     </div>
     <div class="hero-media reveal d2">
@@ -467,18 +439,6 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
   </div>
 </section>
 
-<section id="helameny">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="sec-row"><span class="sec-no">03</span><h2>Menyn</h2><span class="sec-rule"></span></div>
-      <p class="sec-sub">Hela utbudet, live från beställningssidan.</p>
-    </div>
-    <!-- ViaEats partner-embed: menyn live från plattformen, varje rätt
-         deeplinkar in i orderflödet på viaeats.se -->
-    <div data-viaeats-menu="palmyra-pizzeria-lund" data-hide-status></div>
-  </div>
-</section>
-
 <section id="bestall">
   <div class="wrap">
     <div class="sec-head">
@@ -489,14 +449,14 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
       <div class="panel red reveal">
         <span class="no">Nr 1</span>
         <h3>Hemleverans</h3>
-        <p>Vi kör hem i Lund på cirka 25 minuter. Du följer ordern hela vägen fram.</p>
-        <a class="btn" href="#helameny" data-viaeats-open-menu>Beställ hem</a>
+        <p>Vi kör hem i Lund på cirka 30–45 minuter. Du följer ordern hela vägen fram.</p>
+        <a class="btn" href="meny.html">Beställ hem</a>
       </div>
       <div class="panel reveal d1">
         <span class="no" style="color: var(--red)">Nr 2</span>
         <h3>Avhämtning</h3>
-        <p>Beställ i förväg och hämta utan kö. Klart på cirka 20 minuter.</p>
-        <a class="btn ghost" href="#helameny" data-viaeats-open-menu>Beställ och hämta</a>
+        <p>Beställ i förväg och hämta utan kö. Klart på cirka 10 minuter.</p>
+        <a class="btn ghost" href="meny.html">Beställ och hämta</a>
       </div>
     </div>
   </div>
@@ -550,7 +510,7 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
   <div class="wrap foot-inner">
     <div class="foot-name">Palmyra Pizzeria</div>
     <div class="foot-links">
-      <a href="#helameny">Meny</a>
+      <a href="meny.html">Meny</a>
       <a href="om.html">Om oss</a>
       <a href="kontakt.html">Kontakt</a>
     </div>
@@ -562,7 +522,7 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
 </footer>
 
 <div class="order-bar">
-  <a class="btn" href="#helameny" data-viaeats-open-menu>Beställ online</a>
+  <a class="btn" href="meny.html">Beställ online</a>
 </div>
 
 <script>
@@ -592,10 +552,10 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
     navigator.serviceWorker.register('sw.js');
   }
 
-  // ---------- ViaEats-integration ----------
-  // Menyn renderas av partner-embedden i den lokala embed.js-klienten,
-  // samma script som alla framtida partnersajter använder. Lokal dev pekar om
-  // API:t till localhost:4000 (prod-API:ts CORS släpper bara in riktiga domäner).
+  // ---------- Live-data från ViaEats ----------
+  // Startsidan visar bara status, deals och husets favoriter. Själva
+  // beställningen öppnas på den separata meny-sidan så ingen iframe behöver
+  // monteras/avmonteras medan kunden scrollar på startsidan.
   const IS_LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
   if (IS_LOCAL) window.VIAEATS_API = 'http://localhost:4000';
   const API = window.VIAEATS_API || 'https://api.viaeats.se';
@@ -603,13 +563,10 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const kr = (v) => (Number.isInteger(v) ? v : v.toFixed(2).replace('.', ',')) + ' kr';
-  const dishLink = (id) => window.ViaEatsEmbed
-    ? window.ViaEatsEmbed.orderUrl(SLUG, id)
-    : 'https://www.viaeats.se/restaurants/' + SLUG;
 
   function dishCard(item, index, flag) {
     return `
-      <a class="dish" href="#helameny" data-viaeats-product="${esc(item.id)}" style="animation-delay:${index * 0.06}s">
+      <a class="dish" href="meny.html?product=${encodeURIComponent(item.id)}" style="animation-delay:${index * 0.06}s">
         ${flag ? `<span class="deal-flag">${esc(flag)}</span>` : ''}
         <div class="photo">${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="${esc(item.name)}" loading="lazy">` : ''}</div>
         <div class="body">
@@ -622,19 +579,18 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
   function renderStatus(r) {
     const pill = document.getElementById('live-status');
     const text = document.getElementById('live-status-text');
-    const open = r.isOpen !== false;
+    const paused = ['PLATFORM_PAUSED', 'CITY_PAUSED', 'RESTAURANT_PAUSED'].includes(r.availabilityReason) ||
+      (r.pausedUntil && new Date(r.pausedUntil).getTime() > Date.now());
+    const open = r.isOpen !== false && !paused;
     pill.hidden = false;
-    pill.classList.toggle('closed', !open);
-    text.textContent = open ? 'Öppet nu' : 'Stängt just nu';
+    pill.classList.toggle('closed', !open && !paused);
+    pill.classList.toggle('paused', paused);
+    text.textContent = paused ? 'Pausad · många beställningar' : open ? 'Öppet nu' : 'Stängt just nu';
     if (typeof r.rating === 'number') {
       document.getElementById('live-rating').innerHTML = `<b>${esc(r.rating.toFixed(1))}</b> i betyg`;
     }
-    if (typeof r.etaMinutes === 'number') {
-      document.getElementById('live-delivery').innerHTML = `Leverans <b>ca ${esc(r.etaMinutes)} min</b>`;
-    }
-    if (typeof r.pickupEtaMinutes === 'number') {
-      document.getElementById('live-pickup').innerHTML = `Hämta <b>ca ${esc(r.pickupEtaMinutes)} min</b>`;
-    }
+    document.getElementById('live-delivery').innerHTML = 'Leverans <b>ca 30–45 min</b>';
+    document.getElementById('live-pickup').innerHTML = 'Hämta <b>ca 10 min</b>';
   }
 
   // "Husets favoriter" byggs ur live-menyn: de dyraste rätterna med bild,
@@ -683,7 +639,7 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
     document.getElementById('deal-banners').innerHTML = platformDeals.map((d) => {
       const reward = d.discountType === 'FIXED' ? `${Math.round(d.discountValue)} kr rabatt` : `${Math.round(d.discountValue)}% rabatt`;
       return `
-        <a class="deal-banner" href="#helameny">
+        <a class="deal-banner" href="meny.html">
           <span class="db-badge">${esc(d.badgeText || reward)}</span>
           <h3>${esc(d.title)}</h3>
           ${d.description ? `<p>${esc(d.description)}</p>` : ''}
@@ -693,56 +649,17 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
     document.getElementById('deals').hidden = false;
   }
 
-  const embedHost = document.querySelector('[data-viaeats-menu]');
-  let embedFrame = null;
-  embedHost.addEventListener('viaeats:ready', (e) => {
-    embedFrame = e.detail.iframe;
-  });
-
-  document.addEventListener('click', (event) => {
-    const link = event.target.closest('[data-viaeats-open-menu]');
-    if (!link) return;
-    event.preventDefault();
-    const menu = document.getElementById('helameny');
-    menu?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    if (window.ViaEatsEmbed?.init) window.ViaEatsEmbed.init();
-    window.setTimeout(() => embedFrame?.focus(), 450);
-    if (window.location.hash !== '#helameny') history.replaceState(null, '', '#helameny');
-  });
-
-  embedHost.addEventListener('viaeats:loaded', (e) => {
-    document.getElementById('helameny').classList.add('loaded');
-    renderStatus(e.detail.restaurant);
-    renderPopular(e.detail.restaurant);
-    renderDeals(e.detail.restaurant);
-  });
-
-  // De nuvarande populära-/deal-korten stannar på Palmyras sida och öppnar
-  // samma produktmodal i ViaEats-embedden. Ingen produktlänk går längre till
-  // den vanliga ViaEats-restaurantsidan.
-  document.addEventListener('click', (event) => {
-    const link = event.target.closest('[data-viaeats-product]');
-    if (!link) return;
-    event.preventDefault();
-    document.getElementById('helameny')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    const productId = link.getAttribute('data-viaeats-product');
-    if (embedFrame?.contentWindow && productId) {
-      embedFrame.contentWindow.postMessage({ type: 'viaeats:open-product', productId }, '*');
-    }
-  });
-
-  // Använd den uppladdade partnerklienten direkt. Den publika
-  // /partner/embed.js-routen på ViaEats är ännu inte en JavaScript-fil i
-  // produktion, så om vi hämtar den härifrån får webbläsaren HTML och hela
-  // klickflödet stannar innan ViaEatsEmbed hinner registreras.
-  function loadEmbed(src, fallback) {
-    const s = document.createElement('script');
-    s.src = src;
-    s.defer = true;
-    if (fallback) s.onerror = () => loadEmbed(fallback, null);
-    document.head.appendChild(s);
-  }
-  loadEmbed('embed.js?v=3', null);
+  fetch(`${API}/api/restaurants/${SLUG}`)
+    .then((res) => res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`)))
+    .then((restaurant) => {
+      renderStatus(restaurant);
+      renderPopular(restaurant);
+      return renderDeals(restaurant);
+    })
+    .catch(() => {
+      // Startsidan behåller sitt innehåll även om live-API:t tillfälligt inte
+      // svarar. Den separata meny-sidan visar då den riktiga felstatusen.
+    });
 </script>
 </body>
 </html>

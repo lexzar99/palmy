@@ -62,7 +62,7 @@ export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewar
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-zinc-900/50 backdrop-blur-sm p-0 sm:p-6"
+      className="fixed inset-0 z-[1400] flex items-end sm:items-center justify-center bg-zinc-900/50 backdrop-blur-sm p-0 sm:p-6"
       onClick={onClose}
     >
       <motion.div

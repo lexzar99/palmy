@@ -1650,7 +1650,9 @@ export default function CartPage() {
       /* noop */
     }
     clearCheckoutAttempt();
-    router.replace(embedMode ? `/order/${orderId}?embed=1` : `/order/${orderId}`);
+    router.replace(embedMode
+      ? `/order/${orderId}?embed=1&restaurant=${encodeURIComponent(embedRestaurantSlug || "")}`
+      : `/order/${orderId}`);
   };
 
   const clearPendingPaymentStorage = () => {
@@ -1860,7 +1862,9 @@ export default function CartPage() {
       setSelectedAccountDealId(null);
       setAppDealQuote(null);
       if (orderId) {
-        router.push(`/order/${orderId}`);
+        router.push(embedMode
+          ? `/order/${orderId}?embed=1&restaurant=${encodeURIComponent(embedRestaurantSlug || "")}`
+          : `/order/${orderId}`);
       }
     } catch (err: any) {
       setError(err.response?.data?.error || t("cart.errors.orderFailed"));
