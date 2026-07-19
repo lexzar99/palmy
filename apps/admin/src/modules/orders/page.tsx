@@ -10,7 +10,7 @@ import { CustomerModal } from "@/modules/customers/page";
 import { NotesPanel } from "@/shared/components/notes-panel";
 import { LiveMap } from "@/shared/components/live-map";
 import { Badge, Button, ConfirmDialog, DurationInput, EmptyState, ErrorPanel, Field, Input, Modal, MoneyInput, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
-import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, orderTypeLabel } from "@/shared/utils/format";
+import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, orderTypeLabel, paymentStatusLabel, refundBadge } from "@/shared/utils/format";
 
 const DELIVERY_STEPS = ["PENDING", "PREPARING", "DELIVERING", "DELIVERED"] as const;
 const PICKUP_STEPS = ["PENDING", "PREPARING", "READY", "DELIVERED"] as const;
@@ -161,7 +161,10 @@ function Avatar({ name, size = 38 }: { name?: string | null; size?: number }) {
 }
 
 // Statusbricka i orderdetaljen. "På väg" (DELIVERING) → accent; övriga via semantisk ton.
-function DetailStatusBadge({ status, isDelivery = true }: { status: string; isDelivery?: boolean }) {
+// Pågående/klar återbetalning vinner över orderstatusen.
+function DetailStatusBadge({ status, isDelivery = true, paymentStatus }: { status: string; isDelivery?: boolean; paymentStatus?: string | null }) {
+  const refund = refundBadge(paymentStatus);
+  if (refund) return <Badge tone={refund.tone}>{refund.label}</Badge>;
   if (status === "DELIVERING") {
     return <span className="badge badge-accent">{orderStatusLabel(status)}</span>;
   }
@@ -441,7 +444,7 @@ function OrderDetailsModalContent({
                           {isLive && order.estimatedTime ? (
                             <span className="text-[12px] font-extrabold text-[var(--accent)]">{order.estimatedTime} min</span>
                           ) : (
-                            <DetailStatusBadge status={order.status} isDelivery={isDelivery} />
+                            <DetailStatusBadge status={order.status} isDelivery={isDelivery} paymentStatus={order.paymentStatus} />
                           )}
                         </div>
                         <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#F0F0EC]">
@@ -636,7 +639,7 @@ function OrderDetailsModalContent({
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-[var(--text-muted)]">
                     <span>Betalt med {order.paymentMethod || "—"}</span>
-                    {order.paymentStatus ? <Badge tone={order.paymentStatus === "PAID" ? "success" : order.paymentStatus === "REFUNDED" ? "warning" : "neutral"}>{order.paymentStatus}</Badge> : null}
+                    {order.paymentStatus ? <Badge tone={order.paymentStatus === "PAID" ? "success" : order.paymentStatus === "REFUNDED" ? "danger" : order.paymentStatus === "REFUNDING" || order.paymentStatus === "PARTIALLY_REFUNDED" ? "warning" : "neutral"}>{paymentStatusLabel(order.paymentStatus)}</Badge> : null}
                     <span>· {formatDateTime(order.createdAt)}</span>
                   </div>
                 </div>
@@ -938,7 +941,9 @@ const ORDERS_GRID = "80px 1.3fr 1.1fr 1fr 0.8fr 130px";
 
 // Statusbricka för listan. "På väg" (DELIVERING) använder den orange accent-tonen
 // (badge-accent) per designen; övriga går via den semantiska tabellen i orderStatusTone.
-function StatusBadge({ status, isPickup = false }: { status: string; isPickup?: boolean }) {
+function StatusBadge({ status, isPickup = false, paymentStatus }: { status: string; isPickup?: boolean; paymentStatus?: string | null }) {
+  const refund = refundBadge(paymentStatus);
+  if (refund) return <Badge tone={refund.tone}>{refund.label}</Badge>;
   if (status === "DELIVERING") {
     return <span className="badge badge-accent">{orderStatusLabel(status)}</span>;
   }
@@ -1028,7 +1033,7 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
           <span className="truncate text-[var(--text-secondary)]">{order.customerName}</span>
         )}
 
-        <span className="min-w-0"><StatusBadge status={order.status} isPickup={!isDelivery} /></span>
+        <span className="min-w-0"><StatusBadge status={order.status} isPickup={!isDelivery} paymentStatus={order.paymentStatus} /></span>
 
         <div className="min-w-0">
           {order.scheduledFor ? (
@@ -1088,7 +1093,7 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
             </div>
           </div>
           <div className="flex min-w-[92px] flex-col items-end gap-2">
-            <StatusBadge status={order.status} isPickup={!isDelivery} />
+            <StatusBadge status={order.status} isPickup={!isDelivery} paymentStatus={order.paymentStatus} />
             {renderAction()}
           </div>
         </div>

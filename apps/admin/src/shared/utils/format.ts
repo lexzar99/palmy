@@ -57,6 +57,32 @@ export const orderStatusLabel = (status: string | null | undefined) => {
   }
 };
 
+export const paymentStatusLabel = (status: string | null | undefined) => {
+  switch (String(status || "").toUpperCase()) {
+    case "PAID": return "Betald";
+    case "PENDING": return "Väntar på betalning";
+    case "REFUNDING": return "Återbetalas";
+    case "REFUNDED": return "Återbetald";
+    case "PARTIALLY_REFUNDED": return "Delvis återbetald";
+    case "FAILED": return "Misslyckad";
+    case "NEEDS_REVIEW": return "Behöver granskas";
+    default: return status || "—";
+  }
+};
+
+// Återbetalningsläge ersätter orderstatus-brickan i listor och historik så
+// personalen direkt ser "Återbetalas" (pågår) respektive "Återbetald" (klar).
+export const refundBadge = (
+  paymentStatus: string | null | undefined,
+): { label: string; tone: "warning" | "danger" } | null => {
+  switch (String(paymentStatus || "").toUpperCase()) {
+    case "REFUNDING": return { label: "Återbetalas", tone: "warning" };
+    case "PARTIALLY_REFUNDED": return { label: "Delvis återbetald", tone: "warning" };
+    case "REFUNDED": return { label: "Återbetald", tone: "danger" };
+    default: return null;
+  }
+};
+
 export const orderTypeLabel = (type: string | null | undefined) => {
   switch (type) {
     case "DELIVERY":

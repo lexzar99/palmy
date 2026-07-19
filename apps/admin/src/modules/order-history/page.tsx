@@ -22,7 +22,7 @@ import {
   Select,
   Surface,
 } from "@/shared/components/ui";
-import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone } from "@/shared/utils/format";
+import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, refundBadge } from "@/shared/utils/format";
 import { cn } from "@/shared/utils/cn";
 
 const statusOptions = ["ALL", "PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING", "DELIVERED", "CANCELLED", "REJECTED"] as const;
@@ -384,9 +384,15 @@ export function OrderHistoryPage() {
                     </td>
                     <td className="text-[var(--text-secondary)]">{formatDateTime(order.createdAt)}</td>
                     <td>
-                      <Badge tone={orderStatusTone(order.status) as "success" | "danger" | "warning" | "info" | "neutral"}>
-                        {orderStatusLabel(order.status)}
-                      </Badge>
+                      {(() => {
+                        const refund = refundBadge(order.paymentStatus);
+                        if (refund) return <Badge tone={refund.tone}>{refund.label}</Badge>;
+                        return (
+                          <Badge tone={orderStatusTone(order.status) as "success" | "danger" | "warning" | "info" | "neutral"}>
+                            {orderStatusLabel(order.status)}
+                          </Badge>
+                        );
+                      })()}
                     </td>
                     <td style={{ textAlign: "right" }}>
                       <div className="font-bold">{formatCurrency(order.total)}</div>
