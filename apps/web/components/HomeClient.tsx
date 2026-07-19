@@ -664,7 +664,7 @@ const isRetiredFavoriteDeal = (deal: any) => {
  * målningen sker utan klient-fetch-vattenfall; en tyst bakgrunds-refetch
  * hämtar färsk data direkt efter mount (samma mönster som MenuContent).
  */
-export default function HomeClient({ initialData = null }: { initialData?: HomeInitialData | null }) {
+export default function HomeClient({ initialData = null, partnerSlug = null }: { initialData?: HomeInitialData | null; partnerSlug?: string | null }) {
   const router = useRouter();
   const { t, locale } = useTranslation();
   const promoRailRef = useRef<HTMLDivElement | null>(null);
@@ -1031,7 +1031,9 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
   // strax med färsk data; detta tar bara bort skeleton-flashen vid återbesök.
   const seededFromCacheRef = useRef(false);
   useEffect(() => {
-    if (initialData) return;
+    // Partner-läge: localStorage-cachen innehåller ALLA restauranger → seed:a
+    // aldrig därifrån (initialData är redan partner-filtrerad av servern).
+    if (initialData || partnerSlug) return;
     const cached = readHomeCache();
     if (!cached) return;
     seededFromCacheRef.current = true;
@@ -1062,15 +1064,23 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
         axios.get(isLoggedIn ? `/api/platform/deals/app` : `${API_URL}/api/deals/app`, { params: { placement: "HOME_TOP", limit: 8, loggedIn: isLoggedIn ? "1" : "0", _t: Date.now() } }).catch(() => ({ data: { deals: initialData?.appDeals ?? [] } })),
         axios.get(isLoggedIn ? `/api/platform/home/pulse` : `${API_URL}/api/home/pulse`, { params: { _t: Date.now() } }).catch(() => ({ data: initialData?.pulse ?? { modules: [] } })),
       ]).then(([resRest, resCities, resDeals, resSponsors, resHomeCategories, resPersonal, resAppDeals, resPulse]) => {
-        const restaurantsData = Array.isArray(resRest.data) ? resRest.data : [];
+        // Partner-läge under prelaunch: bara partnerns restaurang får synas.
+        // Sponsorer/kategorier/puls/app-deals lyfter andra restauranger → töms.
+        const allRestaurants = Array.isArray(resRest.data) ? resRest.data : [];
+        const restaurantsData = partnerSlug
+          ? allRestaurants.filter((r: any) => r?.slug === partnerSlug)
+          : allRestaurants;
         const citiesData = Array.isArray(resCities.data) ? resCities.data : [];
-        const dealsData = Array.isArray(resDeals.data) ? resDeals.data : [];
-        const sponsorsData = Array.isArray(resSponsors.data) ? resSponsors.data : [];
-        const homeCategoryData = Array.isArray(resHomeCategories.data) ? resHomeCategories.data : [];
+        const allDeals = Array.isArray(resDeals.data) ? resDeals.data : [];
+        const dealsData = partnerSlug
+          ? allDeals.filter((d: any) => (d?.restaurant?.slug ?? d?.restaurantSlug) === partnerSlug)
+          : allDeals;
+        const sponsorsData = partnerSlug ? [] : Array.isArray(resSponsors.data) ? resSponsors.data : [];
+        const homeCategoryData = partnerSlug ? [] : Array.isArray(resHomeCategories.data) ? resHomeCategories.data : [];
         const personalDealsData = Array.isArray(resPersonal.data) ? resPersonal.data.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
-        const appDealsData = Array.isArray(resAppDeals.data?.deals) ? resAppDeals.data.deals.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
+        const appDealsData = partnerSlug ? [] : Array.isArray(resAppDeals.data?.deals) ? resAppDeals.data.deals.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
         const pulseData = resPulse.data && typeof resPulse.data === "object" ? resPulse.data as HomePulseResponse : { modules: [] };
-        const pulseModulesData = Array.isArray(pulseData.modules) ? pulseData.modules.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
+        const pulseModulesData = partnerSlug ? [] : Array.isArray(pulseData.modules) ? pulseData.modules.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
 
         setRestaurants(restaurantsData);
         setCities(citiesData);
@@ -1084,13 +1094,17 @@ export default function HomeClient({ initialData = null }: { initialData?: HomeI
 
         // Persistera för nästa besök → instant paint utan skeleton (personalDeals
         // utelämnas medvetet: kontospecifikt, hämtas alltid färskt).
-        writeHomeCache({
-          restaurants: restaurantsData,
-          cities: citiesData,
-          deals: dealsData,
-          sponsors: sponsorsData,
-          homeCategories: homeCategoryData,
-        });
+        // Partner-läget cachas INTE: den filtrerade listan får inte förgifta
+        // det vanliga hemmet efter launch.
+        if (!partnerSlug) {
+          writeHomeCache({
+            restaurants: restaurantsData,
+            cities: citiesData,
+            deals: dealsData,
+            sponsors: sponsorsData,
+            homeCategories: homeCategoryData,
+          });
+        }
 
         const initialAddress = localStorage.getItem("platform_address") || "";
         if (initialAddress && citiesData.length > 0) {

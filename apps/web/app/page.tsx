@@ -5,6 +5,7 @@ import LaunchGate from "@/components/LaunchGate";
 import { API_URL } from "@/lib/api";
 import { isValidLaunchCookie, LAUNCH_ACCESS_COOKIE } from "@/lib/launchAccess";
 import { prelaunchModeEnabled } from "@/lib/prelaunchMode";
+import { PARTNER_ACCESS_COOKIE, verifyPartnerCookie } from "@/lib/partnerAccessEdge";
 
 // Hemsidan är nu en SERVER component: restauranglistan + publika listor
 // hämtas på servern (cachat 120s) och streamas till klienten via Suspense.
@@ -25,11 +26,13 @@ async function getJson<T>(path: string): Promise<T | null> {
   }
 }
 
-async function HomeData() {
+async function HomeData({ partnerSlug = null }: { partnerSlug?: string | null }) {
   const [restaurants, cities, deals, sponsors, homeCategories, appDealsResponse, pulseResponse] = await Promise.all([
     getJson<HomeInitialData["restaurants"]>("/api/restaurants"),
     getJson<HomeInitialData["cities"]>("/api/cities"),
-    getJson<HomeInitialData["deals"]>("/api/deals"),
+    // Partner-läge: bara partnerns egna deals — plattformsbreda deals pekar
+    // mot restauranger som inte ska synas under prelaunch.
+    getJson<HomeInitialData["deals"]>(partnerSlug ? `/api/deals?slug=${encodeURIComponent(partnerSlug)}` : "/api/deals"),
     getJson<HomeInitialData["sponsors"]>("/api/sponsors"),
     getJson<HomeInitialData["homeCategories"]>("/api/home-categories"),
     getJson<{ deals?: NonNullable<HomeInitialData["appDeals"]> }>("/api/deals/app?placement=HOME_TOP&limit=8&loggedIn=0"),
@@ -38,20 +41,26 @@ async function HomeData() {
 
   const initialData: HomeInitialData | null = Array.isArray(restaurants)
     ? {
-        restaurants,
+        restaurants: partnerSlug
+          ? restaurants.filter((restaurant: any) => restaurant?.slug === partnerSlug)
+          : restaurants,
         cities: Array.isArray(cities) ? cities : [],
         deals: Array.isArray(deals) ? deals : [],
-        sponsors: Array.isArray(sponsors) ? sponsors : [],
-        homeCategories: Array.isArray(homeCategories) ? homeCategories : [],
-        appDeals: Array.isArray(appDealsResponse?.deals) ? appDealsResponse.deals : [],
-        pulse: {
-          greeting: pulseResponse?.greeting ?? null,
-          modules: Array.isArray(pulseResponse?.modules) ? pulseResponse.modules : [],
-        },
+        // Karuseller/pulsen/kategorier lyfter andra restauranger → tomma i
+        // partner-läge så hemsidan bara visar partnerns restaurang.
+        sponsors: partnerSlug ? [] : Array.isArray(sponsors) ? sponsors : [],
+        homeCategories: partnerSlug ? [] : Array.isArray(homeCategories) ? homeCategories : [],
+        appDeals: partnerSlug ? [] : Array.isArray(appDealsResponse?.deals) ? appDealsResponse.deals : [],
+        pulse: partnerSlug
+          ? { greeting: null, modules: [] }
+          : {
+              greeting: pulseResponse?.greeting ?? null,
+              modules: Array.isArray(pulseResponse?.modules) ? pulseResponse.modules : [],
+            },
       }
     : null;
 
-  return <HomeClient initialData={initialData} />;
+  return <HomeClient initialData={initialData} partnerSlug={partnerSlug} />;
 }
 
 // Server-renderad skeleton — flushas direkt medan HomeData väntar på API:t.
@@ -87,6 +96,18 @@ export default async function HomePage() {
   if (prelaunchModeEnabled()) {
     const cookieStore = await cookies();
     if (!isValidLaunchCookie(cookieStore.get(LAUNCH_ACCESS_COOKIE)?.value)) {
+      // Partner-entré: besökare från en partnersajt (signerad partner-cookie,
+      // satt av middlewaren) får ett partner-scopat hem istället för grinden.
+      const partnerSlug = await verifyPartnerCookie(
+        cookieStore.get(PARTNER_ACCESS_COOKIE)?.value,
+      );
+      if (partnerSlug) {
+        return (
+          <Suspense fallback={<HomeSkeleton />}>
+            <HomeData partnerSlug={partnerSlug} />
+          </Suspense>
+        );
+      }
       return <LaunchGate />;
     }
   }
