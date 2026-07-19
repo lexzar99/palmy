@@ -2524,8 +2524,10 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 // Tidigare var endpointen helt publik och en angripare kunde betygsätta vilken
 // levererad order som helst, vilket gav en rating-attack-vektor mot konkurrenter.
 // Ägar-check: JWT (Supabase eller legacy) som matchar order.userId, eller
-// accessToken som matchar order.accessToken. Telefonnummer är inte ett
-// autentiseringsbevis och får aldrig ge rätt att skriva ett betyg.
+// accessToken som matchar order.accessToken. En betald partnerorder får även
+// använda det signerade, restaurangbundna kioskbeviset. Det behövs när Safari
+// blockerar ordersessionens cookie inuti Palmyras iframe. Telefonnummer är
+// inte ett autentiseringsbevis och får aldrig ge rätt att skriva ett betyg.
 router.post('/:id/review', async (req: Request, res: Response) => {
   try {
     const { rating, review, likedItemIds, accessToken: bodyAccessToken } = req.body;
@@ -2534,7 +2536,10 @@ router.post('/:id/review', async (req: Request, res: Response) => {
     }
     const order = await prisma.order.findFirst({
       where: { id: req.params.id },
-      include: { items: { select: { productId: true, productName: true } } },
+      include: {
+        items: { select: { productId: true, productName: true } },
+        restaurant: { select: { slug: true } },
+      },
     });
     if (!order) return res.status(404).json({ error: 'Order hittades inte' });
     if (!['DELIVERED', 'COMPLETED'].includes(order.status)) {
@@ -2552,6 +2557,10 @@ router.post('/:id/review', async (req: Request, res: Response) => {
       req.headers.authorization,
     ).catch(() => null);
     if (reviewerUserId && (order as any).userId === reviewerUserId) isOwner = true;
+    // Partnerembedden är gästläge och kan köras med blockerade third-party
+    // cookies. Kioskbeviset är signerat, tidsbegränsat och låst till exakt den
+    // restaurang som den betalda ordern tillhör.
+    if (!isOwner && kioskCanTrackPaidOrder(req, order)) isOwner = true;
     if (!isOwner) {
       const tokenCandidate =
         typeof bodyAccessToken === 'string' ? bodyAccessToken : null;
