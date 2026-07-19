@@ -36,6 +36,7 @@ import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto, nullableMoneyDto } from '../utils/money';
 import { isRestaurantOrderTransitionAllowed } from '../lib/orderStatusMachine';
 import { getServerPrintArtifact, warmServerPrintArtifacts } from '../lib/serverPrintArtifact';
+import { deleteServerTerminalTestOrder } from '../lib/terminalTestOrder';
 
 const router = Router();
 router.use(authenticate);
@@ -790,7 +791,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     const existing = await prisma.order.findUnique({
       where: { id: req.params.id },
-      select: { id: true, status: true, paymentStatus: true, estimatedTime: true, restaurantId: true, userId: true, customerPhone: true, customerName: true, type: true, liveActivityToken: true, discountCode: true, stripePaymentIntentId: true, restaurant: { select: { selfDelivery: true } } },
+      select: { id: true, orderNumber: true, status: true, paymentStatus: true, estimatedTime: true, restaurantId: true, userId: true, customerPhone: true, customerName: true, type: true, liveActivityToken: true, discountCode: true, stripePaymentIntentId: true, restaurant: { select: { selfDelivery: true } } },
     });
 
     if (!existing) {
@@ -832,6 +833,11 @@ router.patch('/orders/:id/status', async (req, res) => {
       isTestOrder(existing);
     const dbStatus = isTestDeliveryReady ? 'DELIVERED' : status;
     const customerStatus = isTestDeliveryReady ? 'DELIVERED' : status; // Always send the requested status to the customer
+    const deleteAfterTestAccept =
+      existing.status === 'PENDING' &&
+      (dbStatus === 'ACCEPTED' || dbStatus === 'PREPARING') &&
+      existing.orderNumber.startsWith('TEST-') &&
+      isTestOrder(existing);
 
     if (
       existing.status !== dbStatus &&
@@ -1101,9 +1107,24 @@ router.patch('/orders/:id/status', async (req, res) => {
       resourceId: order.id,
       changes: { orderNumber: order.orderNumber, newStatus: order.status, estimatedTime },
     });
+    if (deleteAfterTestAccept) {
+      // Bitmapen är redan genererad ovan och ligger kvar i den begränsade
+      // artefaktcachen tills plattan hämtar den. Prisma cascade tar endast
+      // testorderns OrderItem-rader; produkt/restaurang påverkas inte.
+      const deleted = await deleteServerTerminalTestOrder(order.id);
+      if (!deleted) throw new Error('Serverns testorder matchade inte raderingsskyddet');
+      getIO().to('admin-room').emit('order:deleted', { orderId: order.id, testOrder: true });
+      if (order.restaurantId) {
+        getIO().to(`admin-room:${order.restaurantId}`).emit('order:deleted', {
+          orderId: order.id,
+          testOrder: true,
+        });
+      }
+    }
     res.json({
       success: true,
       status: order.status,
+      ...(deleteAfterTestAccept ? { deletedTestOrder: true } : {}),
       ...(requiredRefundStatus ? {
         refundRequired: true,
         refundProcessing: requiredRefundStatus !== 'refunded',

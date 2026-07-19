@@ -5,13 +5,17 @@ import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { JWT_SECRET } from '../lib/config';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { getIO } from '../lib/socket';
+import { notifyPartnerDevicesOfNewOrder } from '../lib/partnerFcm';
 
 // ── Terminal-sessioner för restaurang-appen (Flutter) ───────────────────────
 //
 // Modell: en platta paras med en pairing-kod (genererad av super-admin i
 // admin-panelen) och binds till restaurangen via sitt stabila device-id
 // (ANDROID_ID). Sessionen kräver dessutom en refresh-token i Androids säkra
-// lagring. En ominstallation som raderar den måste därför paras om.
+// lagring. På Android kan en känd, ej återkallad terminal återställa sessionen
+// efter ominstallation via samma ANDROID_ID; admin kan fortfarande spärra den
+// omedelbart genom revoke/delete.
 //
 // Tokens: kort access-token (~1h, samma form som vanlig admin-JWT så alla
 // /api/admin-endpoints fungerar oförändrat) + en roterande refresh-token vars
@@ -304,7 +308,8 @@ router.post('/session', async (req, res) => {
     if (!device) return res.status(404).json({ error: 'needs_pairing' });
     if (device.revoked) return res.status(403).json({ error: 'device_revoked' });
 
-    if (!refreshTokenMatches(refreshToken, device.refreshTokenHash)) {
+    const reinstallRecovery = !refreshToken;
+    if (!reinstallRecovery && !refreshTokenMatches(refreshToken, device.refreshTokenHash)) {
       console.warn('[terminal/session] rejected invalid refresh token', {
         device: String(deviceId).slice(0, 8),
         hasToken: Boolean(refreshToken),
@@ -315,19 +320,111 @@ router.post('/session', async (req, res) => {
       });
     }
 
-    // Device-id väljer raden, men refresh-token är den kryptografiska grinden.
-    // En ominstallation rensar Keystore och måste därför paras om — säkrare än
-    // att ge en ny admin-session till vem som helst som känner till ANDROID_ID.
+    // Normalfallet använder roterande refresh-token. Om appen har installerats
+    // om saknas token helt, men Androids app-signaturskopade ANDROID_ID består.
+    // Då får endast en redan känd och ej återkallad fysisk terminal en ny
+    // session. Ett felaktigt BEFINTLIGT tokenvärde tillåts aldrig denna väg.
     const rotated = await rotateTerminalSession({
       deviceId: String(deviceId),
       restaurantId: device.restaurantId,
       pushToken: pushToken ?? device.pushToken ?? undefined,
     });
     if (!rotated) return res.status(404).json({ error: 'needs_pairing' });
+    if (reinstallRecovery) {
+      console.info('[terminal/session] restored known device after reinstall', {
+        device: String(deviceId).slice(0, 8),
+        restaurantId: device.restaurantId,
+      });
+    }
     res.json(rotated);
   } catch (error) {
     console.error('[terminal/session] error:', error);
     res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/terminal/test-order
+// Skapar en riktig serverorder och skickar den genom samma Socket.IO-rum som
+// produktion. Den markeras tydligt som test så rapporter/utbetalningar kan
+// exkludera den, men kan accepteras och server-renderas till skrivaren precis
+// som en vanlig beställning. Därmed testar knappen server, auth, socket och
+// utskriftsflöde i stället för att bara lägga ett mockobjekt i Flutter-minnet.
+router.post('/test-order', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const restaurantId = req.admin?.restaurantId;
+    if (!restaurantId) return res.status(403).json({ error: 'Terminalen saknar restaurangkoppling' });
+
+    const product = await prisma.product.findFirst({
+      where: {
+        isActive: true,
+        category: { restaurantId },
+      },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, name: true, price: true, vatPercent: true },
+    });
+    if (!product) return res.status(409).json({ error: 'Restaurangen saknar en aktiv produkt för testbeställningen' });
+
+    const now = new Date();
+    const suffix = crypto.randomBytes(2).toString('hex').toUpperCase();
+    const orderNumber = `TEST-${now.getTime().toString(36).toUpperCase()}-${suffix}`;
+    const order = await prisma.order.create({
+      data: {
+        orderNumber,
+        status: 'PENDING',
+        type: 'PICKUP',
+        customerName: 'SERVERTEST',
+        customerPhone: '0700000000',
+        total: product.price,
+        deliveryFee: 0,
+        discountAmount: 0,
+        foodVatPercent: product.vatPercent ?? 6,
+        restaurantId,
+        paymentProvider: 'stripe',
+        paymentStatus: 'PAID',
+        paymentMethod: 'TEST',
+        stripePaymentIntentId: 'TEST_PAYMENT',
+        discountCode: 'testa',
+        estimatedTime: 10,
+        note: 'SERVERGENERERAD TESTBESTÄLLNING',
+        allergens: '[]',
+        items: {
+          create: [{
+            productId: product.id,
+            productName: product.name,
+            basePrice: product.price,
+            quantity: 1,
+            subtotal: product.price,
+            vatPercent: product.vatPercent ?? 6,
+            selectedExtras: '[]',
+          }],
+        },
+      },
+      include: { items: true, restaurant: true },
+    });
+
+    const orderForTerminal = {
+      ...order,
+      total: order.total / 100,
+      deliveryFee: order.deliveryFee / 100,
+      discountAmount: order.discountAmount / 100,
+      items: order.items.map((item) => ({
+        ...item,
+        basePrice: item.basePrice / 100,
+        subtotal: item.subtotal / 100,
+      })),
+      restaurantName: order.restaurant?.name || 'Okänd restaurang',
+    };
+    getIO().to('admin-room').emit('order:new', orderForTerminal);
+    getIO().to(`admin-room:${restaurantId}`).emit('order:new', orderForTerminal);
+    void notifyPartnerDevicesOfNewOrder({
+      restaurantId,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+    });
+    res.status(201).json({ success: true, order: orderForTerminal, source: 'server' });
+  } catch (error) {
+    console.error('[terminal/test-order] error:', error);
+    res.status(500).json({ error: 'Kunde inte skapa testbeställningen på servern' });
   }
 });
 

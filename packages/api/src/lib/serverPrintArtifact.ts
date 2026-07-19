@@ -1,4 +1,5 @@
 import prisma from './prisma';
+import sharp from 'sharp';
 
 export type ThermalPaperWidth = '58mm' | '72mm' | '80mm';
 
@@ -12,6 +13,7 @@ type PrintArtifact = {
 };
 
 const artifactCache = new Map<string, PrintArtifact>();
+const latestArtifactByOrder = new Map<string, PrintArtifact>();
 const MAX_ARTIFACTS = 240;
 
 function ascii(value: unknown): string {
@@ -110,92 +112,224 @@ function formatDate(value: Date): string {
   return value.toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' });
 }
 
-function buildEscPos(order: any, template: any, paperWidth: ThermalPaperWidth): Buffer {
-  const columns = paperWidth === '58mm' ? 32 : paperWidth === '72mm' ? 42 : 48;
+function xml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function plain(value: unknown): string {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function templateElements(template: any): Map<string, any> {
+  try {
+    const elements = typeof template?.elements === 'string'
+      ? JSON.parse(template.elements)
+      : template?.elements;
+    return new Map(
+      (Array.isArray(elements) ? elements : []).map((element: any) => [String(element.key), element]),
+    );
+  } catch {
+    return new Map();
+  }
+}
+
+function allergens(value: unknown): string {
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    if (Array.isArray(parsed)) return parsed.map(plain).filter(Boolean).join(', ');
+  } catch {
+    // Legacy rows may contain a plain-text allergen note.
+  }
+  const text = plain(value);
+  return text === '[]' ? '' : text;
+}
+
+async function buildEscPosBitmap(order: any, template: any, paperWidth: ThermalPaperWidth): Promise<Buffer> {
+  const width = paperWidth === '58mm' ? 384 : paperWidth === '72mm' ? 512 : 576;
+  const margin = paperWidth === '58mm' ? 14 : 18;
   const visible = visibleTemplateKeys(template?.elements);
   const shows = (key: string) => !visible || visible.has(key);
-  const chunks: Buffer[] = [];
-  const command = (...bytes: number[]) => chunks.push(Buffer.from(bytes));
-  const line = (value = '') => chunks.push(Buffer.from(`${ascii(value)}\n`, 'ascii'));
-  const wrapped = (value: unknown) => wrapText(value, columns).forEach((part) => line(part));
-  const align = (mode: 0 | 1 | 2) => command(0x1b, 0x61, mode);
-  const bold = (enabled: boolean) => command(0x1b, 0x45, enabled ? 1 : 0);
-  const size = (mode: number) => command(0x1d, 0x21, mode);
-  const divider = () => line('-'.repeat(columns));
+  const elements = templateElements(template);
+  const svg: string[] = [];
+  let y = 22;
 
-  command(0x1b, 0x40); // ESC @ — init
-  align(1);
-  bold(true);
-  size(0x11);
-  line(order.restaurant?.name || 'ViaEats');
-  size(0);
-  line(`${template?.platformName || 'ViaEats'} #${order.orderNumber}`);
-  bold(false);
-  line('Ej kvitto');
-  if (shows('address')) wrapped([order.restaurant?.address, order.restaurant?.zip, order.restaurant?.city].filter(Boolean).join(' '));
-  if (shows('phone') && order.restaurant?.phone) line(`Tel: ${order.restaurant.phone}`);
+  const configuredSize = (key: string, fallback: number) => {
+    const value = Number(elements.get(key)?.size);
+    return Math.max(18, (Number.isFinite(value) ? value : fallback) * 3);
+  };
+  const configuredWeight = (key: string, fallback = 500) => {
+    const weight = String(elements.get(key)?.weight || '');
+    return weight === 'black' ? 900 : weight === 'bold' ? 700 : fallback;
+  };
+  const configuredAlign = (key: string, fallback: 'left' | 'center' | 'right' = 'left') => {
+    const value = String(elements.get(key)?.align || fallback);
+    return value === 'center' || value === 'right' ? value : 'left';
+  };
+  const maybeUpper = (key: string, value: string) => elements.get(key)?.uppercase === true
+    ? value.toLocaleUpperCase('sv-SE')
+    : value;
+  const wrapPixels = (value: unknown, size: number, maxWidth: number) => {
+    const text = plain(value);
+    if (!text) return [];
+    const maxChars = Math.max(6, Math.floor(maxWidth / Math.max(7, size * 0.54)));
+    return wrapText(text, maxChars);
+  };
+  const text = (
+    value: unknown,
+    size: number,
+    weight = 500,
+    align: 'left' | 'center' | 'right' = 'left',
+    color = '#000000',
+    maxWidth = width - margin * 2,
+  ) => {
+    const lines = wrapPixels(value, size, maxWidth);
+    if (lines.length === 0) return;
+    const x = align === 'center' ? width / 2 : align === 'right' ? width - margin : margin;
+    const anchor = align === 'center' ? 'middle' : align === 'right' ? 'end' : 'start';
+    for (const line of lines) {
+      y += size * 0.92;
+      svg.push(`<text x="${x}" y="${y.toFixed(1)}" text-anchor="${anchor}" font-family="DejaVu Sans,Arial,sans-serif" font-size="${size}" font-weight="${weight}" fill="${color}">${xml(line)}</text>`);
+      y += Math.max(3, size * 0.12);
+    }
+  };
+  const space = (height: number) => { y += height; };
+  const divider = (thickness = 2) => {
+    y += 14;
+    svg.push(`<line x1="${margin}" y1="${y}" x2="${width - margin}" y2="${y}" stroke="#000" stroke-width="${thickness}"/>`);
+    y += 12;
+  };
+  const badge = (value: string) => {
+    const size = configuredSize('orderType', 9);
+    const badgeWidth = Math.min(width - margin * 2, Math.max(170, value.length * size * 0.62 + 36));
+    const badgeHeight = size + 24;
+    y += 8;
+    svg.push(`<rect x="${(width - badgeWidth) / 2}" y="${y}" width="${badgeWidth}" height="${badgeHeight}" rx="${badgeHeight / 2}" fill="#000"/>`);
+    svg.push(`<text x="${width / 2}" y="${y + badgeHeight * 0.70}" text-anchor="middle" font-family="DejaVu Sans,Arial,sans-serif" font-size="${size}" font-weight="800" fill="#fff">${xml(value.toLocaleUpperCase('sv-SE'))}</text>`);
+    y += badgeHeight + 8;
+  };
+  const rowText = (left: unknown, right: unknown, size: number, weight = 700) => {
+    const rightText = plain(right);
+    const rightWidth = Math.max(90, rightText.length * size * 0.58);
+    const leftLines = wrapPixels(left, size, width - margin * 2 - rightWidth - 10);
+    const lines = leftLines.length ? leftLines : [''];
+    lines.forEach((line, index) => {
+      y += size * 0.95;
+      svg.push(`<text x="${margin}" y="${y}" font-family="DejaVu Sans,Arial,sans-serif" font-size="${size}" font-weight="${weight}" fill="#000">${xml(line)}</text>`);
+      if (index === 0) svg.push(`<text x="${width - margin}" y="${y}" text-anchor="end" font-family="DejaVu Sans,Arial,sans-serif" font-size="${size}" font-weight="${weight}" fill="#000">${xml(rightText)}</text>`);
+      y += Math.max(3, size * 0.12);
+    });
+  };
+
+  text(`${template?.platformName || 'ViaEats'} #${order.orderNumber}`, 22, 800, 'center');
+  text('Ej kvitto', 19, 500, 'center', '#555555');
   divider();
 
-  align(0);
-  if (shows('customerName')) { bold(true); wrapped(order.customerName); bold(false); }
-  if (shows('customerPhone')) wrapped(order.customerPhone);
-  if (order.type === 'DELIVERY' && shows('customerAddress')) {
-    wrapped([order.deliveryStreet, order.deliveryZip, order.deliveryCity].filter(Boolean).join(' '));
+  if (shows('restaurantName')) {
+    const key = 'restaurantName';
+    text(maybeUpper(key, plain(order.restaurant?.name || 'ViaEats')), configuredSize(key, 15), configuredWeight(key, 900), configuredAlign(key, 'center'));
   }
-  if (shows('deliveryInstructions') && order.deliveryInstructions) wrapped(translateInstruction(order.deliveryInstructions));
-  if (shows('note') && order.note) { bold(true); wrapped(`OBS: ${order.note}`); bold(false); }
-  if (shows('allergens') && order.allergens) { bold(true); wrapped(`ALLERGENER: ${order.allergens}`); bold(false); }
+  if (shows('timestamp')) {
+    const key = 'timestamp';
+    text(`${formatDate(new Date(order.createdAt))} ${formatTime(new Date(order.createdAt))}`, configuredSize(key, 8), configuredWeight(key, 700), configuredAlign(key, 'center'));
+  }
+  if (shows('address')) {
+    const address = [order.restaurant?.address, [order.restaurant?.zip, order.restaurant?.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    text(address, configuredSize('address', 7), configuredWeight('address'), configuredAlign('address', 'center'));
+  }
+  if (shows('phone') && order.restaurant?.phone) {
+    text(`Tel: ${order.restaurant.phone}`, configuredSize('phone', 7), configuredWeight('phone'), configuredAlign('phone', 'center'));
+  }
   divider();
 
-  align(1);
-  bold(true);
-  size(0x11);
-  line(order.type === 'DELIVERY' ? 'UTKORNING' : 'AVHAMTNING');
-  size(0);
+  if (shows('customerName')) text(order.customerName, configuredSize('customerName', 11), configuredWeight('customerName', 900), configuredAlign('customerName'));
+  if (shows('customerPhone')) text(order.customerPhone, configuredSize('customerPhone', 8), configuredWeight('customerPhone', 700), configuredAlign('customerPhone'));
+  if (order.type === 'DELIVERY' && shows('customerAddress')) {
+    space(7);
+    text([order.deliveryStreet, [order.deliveryZip, order.deliveryCity].filter(Boolean).join(' ')].filter(Boolean).join(', '), configuredSize('customerAddress', 8), configuredWeight('customerAddress', 900), configuredAlign('customerAddress'));
+  }
+  if (shows('deliveryInstructions') && order.deliveryInstructions) text(translateInstruction(order.deliveryInstructions), configuredSize('deliveryInstructions', 7), configuredWeight('deliveryInstructions', 700), configuredAlign('deliveryInstructions'));
+  if (shows('note') && order.note) text(`OBS: ${order.note}`, configuredSize('note', 7), configuredWeight('note', 800), configuredAlign('note'));
+  const allergenText = allergens(order.allergens);
+  if (shows('allergens') && allergenText) text(`! ALLERGENER: ${allergenText}`, configuredSize('allergens', 7), configuredWeight('allergens', 900), configuredAlign('allergens'));
+  space(10);
+
+  if (shows('orderType')) badge(order.type === 'DELIVERY' ? 'Utkörning' : 'Avhämtning');
   if (order.scheduledFor) {
     const scheduled = new Date(order.scheduledFor);
-    line(`FORBESTALLD ${formatDate(scheduled)} ${formatTime(scheduled)}`);
+    if (shows('scheduledFor')) badge(`Förbeställd ${formatDate(scheduled)} ${formatTime(scheduled)}`);
   } else if (shows('estimatedTime') && order.estimatedTime) {
     const anchor = order.preparingAt ? new Date(order.preparingAt) : new Date(order.createdAt);
-    line(`KLAR ${formatTime(new Date(anchor.getTime() + Number(order.estimatedTime) * 60_000))}`);
+    space(6);
+    text('Utlovad tid', configuredSize('estimatedTime', 8), configuredWeight('estimatedTime'), configuredAlign('estimatedTime', 'center'));
+    text(`Klar ${formatTime(new Date(anchor.getTime() + Number(order.estimatedTime) * 60_000))}`, configuredSize('estimatedTime', 21), 900, configuredAlign('estimatedTime', 'center'));
   }
-  bold(false);
+  if (shows('paymentMethod')) badge(order.paymentStatus === 'PAID' ? 'Betald online' : plain(order.paymentMethod || order.paymentStatus));
+  text(`${(order.items || []).length} ${(order.items || []).length === 1 ? 'artikel' : 'artiklar'}`, 21, 500, 'center', '#555555');
   divider();
 
-  align(0);
   if (shows('items')) {
     for (const item of order.items || []) {
-      bold(true);
-      row(`${item.quantity} x ${item.productName}`, `${money(item.subtotal)} kr`, columns).forEach(line);
-      bold(false);
+      rowText(`${item.quantity} x ${item.productName}`, `${money(item.subtotal)} kr`, configuredSize('items', 9), configuredWeight('items', 800));
       if (shows('extras')) {
         for (const extra of parseExtras(item.selectedExtras)) {
           const name = extra.extraName || extra.name;
           if (!name) continue;
-          const addonOre = Math.round(Number(extra.priceAddon || extra.price || 0) * 100);
-          wrapped(addonOre > 0 ? `  + ${name} (+${money(addonOre)} kr)` : `  - ${name}`);
+          const addonKr = Number(extra.priceAddon || extra.price || 0);
+          if (addonKr > 0) rowText(`++ ${name}`, `+${Number.isInteger(addonKr) ? addonKr : addonKr.toFixed(2)} kr`, configuredSize('extras', 7), configuredWeight('extras'));
+          else text(`-- ${name}`, configuredSize('extras', 7), configuredWeight('extras'));
         }
       }
-      if (item.note) { bold(true); wrapped(`  OBS: ${item.note}`); bold(false); }
-      line();
+      if (item.note) text(`! ${item.note}`, configuredSize('items', 7), 800);
+      space(8);
     }
   }
   divider();
-  if (shows('deliveryFee') && order.deliveryFee > 0) row('Leveransavgift', `${money(order.deliveryFee)} kr`, columns).forEach(line);
-  if (shows('discount') && order.discountAmount > 0) row(order.discountCode ? `Rabatt (${order.discountCode})` : 'Rabatt', `-${money(order.discountAmount)} kr`, columns).forEach(line);
-  bold(true);
-  size(0x11);
-  row('TOTALT', `${money(order.total)} kr`, columns).forEach(line);
-  size(0);
-  bold(false);
-  if (shows('paymentMethod')) line(order.paymentMethod || order.paymentStatus || 'Betalning registrerad');
+  if (shows('deliveryFee') && order.deliveryFee > 0) rowText('Leveransavgift', `${money(order.deliveryFee)} kr`, configuredSize('deliveryFee', 8), configuredWeight('deliveryFee'));
+  if (shows('discount') && order.discountAmount > 0) rowText(order.discountCode ? `Rabatt (${order.discountCode})` : 'Rabatt', `-${money(order.discountAmount)} kr`, configuredSize('discount', 8), configuredWeight('discount'));
+  divider(4);
+  if (shows('total')) rowText('Totalt', `${money(order.total)} kr`, configuredSize('total', 15), configuredWeight('total', 900));
   divider();
-  align(1);
-  line(`${formatDate(new Date(order.createdAt))} ${formatTime(new Date(order.createdAt))}`);
-  line('Tack for din bestallning!');
-  command(0x1b, 0x64, 5); // feed five lines
-  command(0x1d, 0x56, 1); // partial cut; ignored safely by cutter-less units
-  return Buffer.concat(chunks);
+  const thanks = plain(elements.get('thankYou')?.content) || 'Tack för din beställning!';
+  const footer = plain(elements.get('footerMsg')?.content) || 'Välkommen åter!';
+  if (shows('thankYou')) text(thanks, configuredSize('thankYou', 7), configuredWeight('thankYou', 700), configuredAlign('thankYou', 'center'));
+  if (shows('footerMsg')) text(footer, configuredSize('footerMsg', 7), configuredWeight('footerMsg'), configuredAlign('footerMsg', 'center'), '#555555');
+  space(30);
+
+  const height = Math.max(160, Math.ceil(y + 20));
+  const image = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#fff"/>${svg.join('')}</svg>`;
+  const raster = await sharp(Buffer.from(image))
+    .flatten({ background: '#ffffff' })
+    .greyscale()
+    .threshold(176)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const widthBytes = Math.ceil(raster.info.width / 8);
+  const bitmap = Buffer.alloc(widthBytes * raster.info.height);
+  const channels = raster.info.channels || 1;
+  for (let py = 0; py < raster.info.height; py += 1) {
+    for (let px = 0; px < raster.info.width; px += 1) {
+      if (raster.data[(py * raster.info.width + px) * channels] < 128) {
+        bitmap[py * widthBytes + (px >> 3)] |= 0x80 >> (px & 7);
+      }
+    }
+  }
+
+  const rasterHeader = Buffer.from([
+    0x1d, 0x76, 0x30, 0x00,
+    widthBytes & 0xff, (widthBytes >> 8) & 0xff,
+    raster.info.height & 0xff, (raster.info.height >> 8) & 0xff,
+  ]);
+  return Buffer.concat([
+    Buffer.from([0x1b, 0x40, 0x1b, 0x61, 0x01]),
+    rasterHeader,
+    bitmap,
+    Buffer.from([0x1b, 0x64, 0x05, 0x1d, 0x56, 0x01]),
+  ]);
 }
 
 function normalizePaperWidth(value: unknown): ThermalPaperWidth {
@@ -204,6 +338,7 @@ function normalizePaperWidth(value: unknown): ThermalPaperWidth {
 
 export async function getServerPrintArtifact(orderId: string, requestedWidth: unknown): Promise<PrintArtifact | null> {
   const paperWidth = normalizePaperWidth(requestedWidth);
+  const latestKey = `${orderId}:${paperWidth}`;
   const [order, template] = await Promise.all([
     prisma.order.findUnique({
       where: { id: orderId },
@@ -211,7 +346,10 @@ export async function getServerPrintArtifact(orderId: string, requestedWidth: un
     }),
     prisma.receiptTemplate.findUnique({ where: { id: 'global' } }),
   ]);
-  if (!order) return null;
+  // Servergenererade terminal-testordrar raderas direkt efter accept. Deras
+  // redan uppvärmda bitmap måste ändå kunna hämtas av plattan några hundra ms
+  // senare, så den senaste artefakten får leva kvar i det begränsade minnet.
+  if (!order) return latestArtifactByOrder.get(latestKey) || null;
   const fingerprint = [
     order.id,
     order.updatedAt.toISOString(),
@@ -224,7 +362,7 @@ export async function getServerPrintArtifact(orderId: string, requestedWidth: un
   if (cached) return cached;
 
   const artifact: PrintArtifact = {
-    bytes: buildEscPos(order, template, paperWidth),
+    bytes: await buildEscPosBitmap(order, template, paperWidth),
     fingerprint,
     orderId: order.id,
     orderNumber: order.orderNumber,
@@ -232,7 +370,10 @@ export async function getServerPrintArtifact(orderId: string, requestedWidth: un
     paperWidth,
   };
   artifactCache.set(fingerprint, artifact);
+  latestArtifactByOrder.delete(latestKey);
+  latestArtifactByOrder.set(latestKey, artifact);
   while (artifactCache.size > MAX_ARTIFACTS) artifactCache.delete(artifactCache.keys().next().value!);
+  while (latestArtifactByOrder.size > MAX_ARTIFACTS * 2) latestArtifactByOrder.delete(latestArtifactByOrder.keys().next().value!);
   return artifact;
 }
 
@@ -240,6 +381,7 @@ export async function getServerPrintArtifact(orderId: string, requestedWidth: un
 export async function warmServerPrintArtifacts(orderId: string): Promise<void> {
   await Promise.all([
     getServerPrintArtifact(orderId, '58mm'),
+    getServerPrintArtifact(orderId, '72mm'),
     getServerPrintArtifact(orderId, '80mm'),
   ]);
 }
