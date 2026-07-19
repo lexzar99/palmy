@@ -21,25 +21,7 @@ const RECEIPT_FONT_PATH = path.join(__dirname, '../../assets/Outfit.ttf');
 // Must change whenever the bitmap layout changes. Otherwise a real order can
 // keep an older in-memory artifact while test printing already shows the new
 // Admin layout, which makes the two physical receipts look unrelated.
-const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v3';
-
-function ascii(value: unknown): string {
-  return String(value ?? '')
-    .replace(/[åä]/g, 'a')
-    .replace(/[ÅÄ]/g, 'A')
-    .replace(/ö/g, 'o')
-    .replace(/Ö/g, 'O')
-    .replace(/[éèêë]/g, 'e')
-    .replace(/[ÉÈÊË]/g, 'E')
-    .replace(/[^ -~]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function money(ore: unknown): string {
-  const value = Number(ore || 0) / 100;
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
-}
+const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v4';
 
 function parseExtras(raw: unknown): any[] {
   try {
@@ -95,16 +77,6 @@ function wrapText(value: unknown, width: number): string[] {
   }
   if (current) lines.push(current);
   return lines;
-}
-
-function row(left: unknown, right: unknown, width: number): string[] {
-  const rightText = ascii(right);
-  const leftWidth = Math.max(8, width - rightText.length - 1);
-  const leftLines = wrapText(left, leftWidth);
-  if (leftLines.length === 0) return [rightText.padStart(width)];
-  return leftLines.map((line, index) => index === 0
-    ? `${line.padEnd(leftWidth)} ${rightText}`.slice(0, width)
-    : line);
 }
 
 function formatTime(value: Date): string {
@@ -192,17 +164,6 @@ function templateElements(template: any): Map<string, any> {
   return new Map(templateElementList(template).map((element: any) => [String(element.key), element]));
 }
 
-function allergens(value: unknown): string {
-  try {
-    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-    if (Array.isArray(parsed)) return parsed.map(plain).filter(Boolean).join(', ');
-  } catch {
-    // Legacy rows may contain a plain-text allergen note.
-  }
-  const text = plain(value);
-  return text === '[]' ? '' : text;
-}
-
 /**
  * Shared payload for the Admin preview and every server-side print artifact.
  * Keeping this in one place prevents the preview, test print and real orders
@@ -270,16 +231,35 @@ export function buildAdminReceiptData(order: any) {
   };
 }
 
-type ReceiptTextLayer = {
-  text: string;
-  left: number;
-  top: number;
-  width: number;
-  size: number;
-  weight: number;
-  align: 'left' | 'center' | 'right';
-  color: string;
-};
+type Align = 'left' | 'center' | 'right';
+
+type RenderedText = { data: Buffer; width: number; height: number };
+
+// Admin-förhandsgranskningen ritas i ett 272 px brett kort med 16 px padding,
+// alltså 240 px innehållsbredd. Bitmapen är exakt samma layout uppskalad, så
+// alla admin-mått (px) multipliceras med scale nedan.
+const ADMIN_CONTENT_WIDTH = 240;
+
+async function renderTextLine(
+  value: string,
+  sizePx: number,
+  weight: number,
+  color: string,
+): Promise<RenderedText | null> {
+  const line = plain(value);
+  if (!line) return null;
+  const size = Math.max(8, Math.round(sizePx));
+  const { data, info } = await sharp({
+    text: {
+      text: `<span foreground="${color}" weight="${weight}" size="${size * 1024}">${xml(line)}</span>`,
+      font: 'Outfit',
+      fontfile: RECEIPT_FONT_PATH,
+      rgba: true,
+      dpi: 72,
+    },
+  }).png().toBuffer({ resolveWithObject: true });
+  return { data, width: info.width, height: info.height };
+}
 
 function escPosFeedDots(dots: number): Buffer[] {
   const chunks: Buffer[] = [];
@@ -336,9 +316,27 @@ function compactEscPosRaster(bitmap: Buffer, widthBytes: number, height: number)
   return chunks;
 }
 
-export async function buildEscPosBitmap(order: any, template: any, paperWidth: ThermalPaperWidth): Promise<Buffer> {
-  const width = paperWidth === '58mm' ? 384 : paperWidth === '72mm' ? 512 : 576;
-  const margin = paperWidth === '58mm' ? 14 : 18;
+type ComposedReceipt = {
+  base: Buffer;
+  overlays: { input: Buffer; left: number; top: number }[];
+};
+
+/**
+ * WYSIWYG-motor: bygger kvittot som en pixel-exakt uppskalning av
+ * ReceiptPreviewContent i apps/admin (240 px innehåll, radavstånd 1.6).
+ * Varje textrad renderas för sig och mäts, så center/höger-justering och
+ * priser i högerkanten hamnar exakt där admin-förhandsgranskningen visar dem.
+ */
+async function composeReceipt(order: any, template: any, paperWidth: ThermalPaperWidth): Promise<ComposedReceipt> {
+  // 58 mm-rulle: 48 mm utskriftsyta = 384 punkter. 72/80 mm-rulle: 512 punkter
+  // så bilden aldrig blir bredare än 72 mm — 576 punkter klipptes i högerkanten
+  // på skrivare med smalare huvud. ESC a 1 centrerar rastret på bredare huvuden.
+  const width = paperWidth === '58mm' ? 384 : 512;
+  const scale = (paperWidth === '58mm' ? 338 : 452) / ADMIN_CONTENT_WIDTH;
+  const margin = Math.round((width - ADMIN_CONTENT_WIDTH * scale) / 2);
+  const contentWidth = width - margin * 2;
+  const px = (value: number) => Math.round(value * scale);
+
   const elements = templateElements(template);
   const preview = buildAdminReceiptData(order);
   const h = preview.header;
@@ -347,160 +345,161 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
   const items = preview.items;
   const totals = preview.totals;
   const svg: string[] = [];
-  const textLayers: ReceiptTextLayer[] = [];
-  let y = 18;
+  const overlays: { input: Buffer; left: number; top: number }[] = [];
+  let y = px(20);
+  let maxBottom = 0;
 
+  const visible = (key: string) => elements.get(key)?.visible !== false;
   const configuredSize = (key: string, fallback: number) => {
     const value = Number(elements.get(key)?.size);
-    return Math.max(18, (Number.isFinite(value) ? value : fallback) * 3);
+    return Math.min(40, Math.max(6, Number.isFinite(value) ? value : fallback));
   };
-  const configuredWeight = (key: string, fallback = 500) => {
+  const configuredWeight = (key: string, fallback = 400) => {
     const weight = String(elements.get(key)?.weight || '');
-    return weight === 'black' ? 900 : weight === 'bold' ? 700 : fallback;
+    return weight === 'black' ? 900 : weight === 'bold' ? 700 : weight === 'normal' ? 400 : fallback;
   };
-  const configuredAlign = (key: string, fallback: 'left' | 'center' | 'right' = 'left') => {
+  const configuredAlign = (key: string, fallback: Align = 'left'): Align => {
     const value = String(elements.get(key)?.align || fallback);
     return value === 'center' || value === 'right' ? value : 'left';
   };
   const maybeUpper = (key: string, value: string) => elements.get(key)?.uppercase === true
     ? value.toLocaleUpperCase('sv-SE')
     : value;
-  const wrapPixels = (value: unknown, size: number, maxWidth: number) => {
-    const text = plain(value);
-    if (!text) return [];
-    const maxChars = Math.max(6, Math.floor(maxWidth / Math.max(7, size * 0.54)));
-    return wrapText(text, maxChars);
+
+  const place = (layer: RenderedText, left: number, top: number) => {
+    const clampedLeft = Math.max(0, Math.min(Math.round(left), Math.max(0, width - layer.width)));
+    overlays.push({ input: layer.data, left: clampedLeft, top: Math.max(0, Math.round(top)) });
+    maxBottom = Math.max(maxBottom, top + layer.height);
   };
-  const text = (
+
+  // Radbrytning: teckenuppskattning först, sedan omfit mot uppmätt bredd så
+  // ingen rad någonsin sticker utanför utskriftsytan.
+  const layoutLines = async (
+    value: string,
+    sizePx: number,
+    weight: number,
+    color: string,
+    maxWidth: number,
+  ): Promise<RenderedText[]> => {
+    if (!value) return [];
+    let maxChars = Math.max(4, Math.floor(maxWidth / (sizePx * 0.55)));
+    let rendered: RenderedText[] = [];
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const lines = wrapText(value, maxChars);
+      rendered = (await Promise.all(lines.map((line) => renderTextLine(line, sizePx, weight, color))))
+        .filter((layer): layer is RenderedText => Boolean(layer));
+      const widest = rendered.reduce((acc, layer) => Math.max(acc, layer.width), 0);
+      if (widest <= maxWidth || maxChars <= 4) break;
+      maxChars = Math.max(4, Math.floor((maxChars * maxWidth) / widest));
+    }
+    return rendered;
+  };
+
+  const paragraph = async (
     value: unknown,
-    size: number,
-    weight = 500,
-    align: 'left' | 'center' | 'right' = 'left',
+    adminSize: number,
+    weight: number,
+    align: Align = 'left',
     color = '#000000',
-    maxWidth = width - margin * 2,
-    indent = 0,
+    opts: { indent?: number; lineHeight?: number } = {},
   ) => {
-    const lines = wrapPixels(value, size, maxWidth);
-    if (lines.length === 0) return;
-    const layerLeft = align === 'left'
-      ? margin + indent
-      : align === 'right'
-        ? width - margin - maxWidth
-        : Math.round((width - maxWidth) / 2);
-    for (const line of lines) {
-      textLayers.push({
-        text: line,
-        left: Math.max(0, Math.round(layerLeft)),
-        top: Math.max(0, Math.round(y)),
-        width: Math.max(8, Math.round(maxWidth)),
-        size: Math.round(size),
-        weight,
-        align,
-        color,
-      });
-      y += Math.max(size + 4, size * 1.13);
-    }
-  };
-  const space = (height: number) => { y += height; };
-  const divider = (thickness = 2) => {
-    y += 14;
-    svg.push(`<line x1="${margin}" y1="${y}" x2="${width - margin}" y2="${y}" stroke="#000" stroke-width="${thickness}"/>`);
-    y += 12;
-  };
-  const badge = (key: string, value: string) => {
-    const size = configuredSize(key, 9);
-    const badgeWidth = Math.min(width - margin * 2, Math.max(170, value.length * size * 0.62 + 36));
-    const badgeHeight = size + 24;
-    y += 8;
-    const badgeLeft = Math.round((width - badgeWidth) / 2);
-    svg.push(`<rect x="${badgeLeft}" y="${y}" width="${badgeWidth}" height="${badgeHeight}" rx="0" fill="#fff" stroke="#000" stroke-width="3"/>`);
-    textLayers.push({
-      text: maybeUpper(key, value),
-      left: badgeLeft + 12,
-      top: Math.round(y + (badgeHeight - size * 1.15) / 2),
-      width: Math.round(badgeWidth - 24),
-      size: Math.round(size),
-      weight: configuredWeight(key, 800),
-      align: 'center',
-      color: '#000000',
-    });
-    y += badgeHeight + 8;
-  };
-  const rowText = (left: unknown, right: unknown, size: number, weight = 700, rightSize = size, rightWeight = weight) => {
-    const rightText = plain(right);
-    const rightWidth = Math.max(90, rightText.length * rightSize * 0.58);
-    const leftLines = wrapPixels(left, size, width - margin * 2 - rightWidth - 10);
-    const lines = leftLines.length ? leftLines : [''];
-    lines.forEach((line, index) => {
-      const top = Math.round(y);
-      textLayers.push({
-        text: line,
-        left: margin,
-        top,
-        width: Math.max(8, Math.round(width - margin * 2 - rightWidth - 10)),
-        size: Math.round(size),
-        weight,
-        align: 'left',
-        color: '#000000',
-      });
-      if (index === 0) {
-        textLayers.push({
-          text: rightText,
-          left: Math.round(width - margin - rightWidth),
-          top,
-          width: Math.round(rightWidth),
-          size: Math.round(rightSize),
-          weight: rightWeight,
-          align: 'right',
-          color: '#000000',
-        });
-      }
-      y += Math.max(size + 4, size * 1.13);
-    });
-  };
-
-  const hasVisible = (key: string) => elements.get(key)?.visible !== false;
-  const drawTextElement = (key: string, value: unknown, fallbackSize: number, fallbackWeight = 500, fallbackAlign: 'left' | 'center' | 'right' = 'left', color = '#000000') => {
-    const valueText = maybeUpper(key, plain(value));
-    if (!valueText) return;
-    text(valueText, configuredSize(key, fallbackSize), configuredWeight(key, fallbackWeight), configuredAlign(key, fallbackAlign), color);
-  };
-  const drawItemCount = () => {
-    text(`${items.length} ${items.length === 1 ? 'artikel' : 'artiklar'}`, 33, 700, 'center');
-  };
-  const drawItems = () => {
-    for (const item of items) {
-      rowText(
-        `${item.qty} x ${item.name}`,
-        `${plain(item.subtotal)} kr`,
-        configuredSize('items', 9),
-        configuredWeight('items', 800),
-        configuredSize('itemPrice', 8),
-        configuredWeight('itemPrice', 700),
-      );
-      if (hasVisible('extras')) {
-        for (const extra of item.extras || []) {
-          const name = extra.name;
-          if (!name) continue;
-          text(`** ${name}`, configuredSize('extras', 8), configuredWeight('extras'), configuredAlign('extras'), '#555555', width - margin * 2 - 36, 36);
-        }
-      }
-      if (item.note) text(`! ${item.note}`, 30, 900, 'left', '#000000', width - margin * 2 - 36, 36);
-      space(8);
+    const textValue = plain(value);
+    if (!textValue) return;
+    const indent = opts.indent ?? 0;
+    const lineHeight = opts.lineHeight ?? 1.6;
+    const sizePx = Math.max(8, adminSize * scale);
+    const maxWidth = contentWidth - indent;
+    const rendered = await layoutLines(textValue, sizePx, weight, color, maxWidth);
+    const lineBox = sizePx * lineHeight;
+    for (const layer of rendered) {
+      const left = align === 'center'
+        ? margin + indent + (maxWidth - layer.width) / 2
+        : align === 'right'
+          ? margin + indent + maxWidth - layer.width
+          : margin + indent;
+      place(layer, left, y + Math.max(0, (lineBox - layer.height) / 2));
+      y += lineBox;
     }
   };
 
-  // Match ReceiptPreviewContent in apps/admin exactly. The admin editor
-  // controls every field's visibility/size/weight/alignment; this ordering is
-  // the layout the operator sees in the admin preview and expects on paper.
-  const visible = (key: string) => elements.get(key)?.visible !== false;
+  const element = async (
+    key: string,
+    value: unknown,
+    fallbackSize: number,
+    fallbackWeight = 400,
+    fallbackAlign: Align = 'left',
+    color = '#000000',
+    opts: { indent?: number; lineHeight?: number } = {},
+  ) => {
+    if (!visible(key)) return;
+    const textValue = maybeUpper(key, plain(value));
+    if (!textValue) return;
+    await paragraph(
+      textValue,
+      configuredSize(key, fallbackSize),
+      configuredWeight(key, fallbackWeight),
+      configuredAlign(key, fallbackAlign),
+      color,
+      opts,
+    );
+  };
 
-  if (visible('platformName')) {
-    const numberSuffix = visible('orderNumber') ? ` #${plain(o.number) || '—'}` : '';
-    drawTextElement('platformName', `${template?.platformName || 'ViaEats'}${numberSuffix}`, 8, 500, 'center');
-    text('Ej kvitto', 30, 500, 'center', '#555555');
-  }
-  if (visible('divider1')) divider();
+  const rowPair = async (
+    left: unknown,
+    right: unknown,
+    leftSize: number,
+    leftWeight: number,
+    rightSize = leftSize,
+    rightWeight = leftWeight,
+  ) => {
+    const rightLayer = await renderTextLine(plain(right), rightSize * scale, rightWeight, '#000000');
+    const rightWidth = rightLayer ? rightLayer.width + px(8) : 0;
+    const sizePx = Math.max(8, leftSize * scale);
+    const lineBox = sizePx * 1.6;
+    const leftLines = await layoutLines(plain(left), sizePx, leftWeight, '#000000', Math.max(px(40), contentWidth - rightWidth));
+    if (leftLines.length === 0) {
+      if (!rightLayer) return;
+      place(rightLayer, width - margin - rightLayer.width, y + Math.max(0, (lineBox - rightLayer.height) / 2));
+      y += lineBox;
+      return;
+    }
+    leftLines.forEach((layer, index) => {
+      place(layer, margin, y + Math.max(0, (lineBox - layer.height) / 2));
+      if (index === 0 && rightLayer) {
+        place(rightLayer, width - margin - rightLayer.width, y + Math.max(0, (lineBox - rightLayer.height) / 2));
+      }
+      y += lineBox;
+    });
+  };
+
+  const rule = (thickness: number) => {
+    svg.push(`<rect x="${margin}" y="${Math.round(y)}" width="${contentWidth}" height="${thickness}" fill="#000"/>`);
+    y += thickness;
+  };
+  const divider = () => {
+    y += px(8);
+    rule(Math.max(2, px(2)));
+    y += px(8);
+  };
+
+  const badge = async (key: string, value: string) => {
+    const layer = await renderTextLine(
+      maybeUpper(key, value),
+      configuredSize(key, 14) * scale,
+      configuredWeight(key, 900),
+      '#000000',
+    );
+    if (!layer) return;
+    const border = Math.max(2, px(3));
+    const padX = px(16);
+    const padY = px(4);
+    const boxWidth = Math.min(contentWidth, layer.width + (padX + border) * 2);
+    const boxHeight = layer.height + (padY + border) * 2;
+    const left = Math.round((width - boxWidth) / 2);
+    svg.push(`<rect x="${left + border / 2}" y="${Math.round(y) + border / 2}" width="${boxWidth - border}" height="${boxHeight - border}" fill="#fff" stroke="#000" stroke-width="${border}"/>`);
+    place(layer, left + (boxWidth - layer.width) / 2, y + border + padY);
+    y += boxHeight + px(8);
+  };
 
   const restaurantAddress = [
     h.address,
@@ -511,81 +510,152 @@ export async function buildEscPosBitmap(order: any, template: any, paperWidth: T
     [c.zip, c.city].filter(Boolean).join(' '),
   ].filter(Boolean).join(', ');
   const isDelivery = plain(o.type) === 'DELIVERY';
-  const allergenText = Array.isArray(c.allergens)
-    ? c.allergens.map(plain).filter(Boolean).join(', ')
-    : plain(c.allergens);
   const paymentText = plain(o.paymentMethod);
 
-  if (visible('restaurantName')) drawTextElement('restaurantName', h.restaurantName || 'ViaEats', 15, 900, 'center');
-  if (visible('timestamp')) drawTextElement('timestamp', `${o.date} ${o.time}`, 9, 500, 'center');
-  if (visible('address')) drawTextElement('address', restaurantAddress, 8, 500, 'center');
-  if (visible('phone')) drawTextElement('phone', h.phone ? `Tel: ${h.phone}` : '', 8, 500, 'center');
+  // ── Plattform + ordernummer ──
+  if (visible('platformName')) {
+    const align = configuredAlign('platformName', 'center');
+    const numberSuffix = visible('orderNumber') ? ` #${plain(o.number) || '—'}` : '';
+    await element('platformName', `${template?.platformName || 'ViaEats'}${numberSuffix}`, 8, 400, 'center');
+    await paragraph('Ej kvitto', 10, 500, align, '#555555');
+    y += px(4);
+  }
+  if (visible('divider1')) divider();
 
-  if (visible('headerMsg')) drawTextElement('headerMsg', elements.get('headerMsg')?.content, 9, 700, 'center');
+  // ── Restaurang ──
+  await element('restaurantName', h.restaurantName || 'ViaEats', 15, 900, 'center');
+  await element('timestamp', `${o.date} ${o.time}`, 9, 400, 'center');
+  await element('address', restaurantAddress, 8, 400, 'center');
+  await element('phone', h.phone ? `Tel: ${h.phone}` : '', 8, 400, 'center');
+  y += px(8);
+
+  if (visible('headerMsg') && plain(elements.get('headerMsg')?.content)) {
+    await element('headerMsg', elements.get('headerMsg')?.content, 9, 700, 'center');
+    y += px(8);
+  }
   if (visible('divider2')) divider();
 
+  // ── Kund ──
   if (visible('customerName') && plain(c.name)) {
-    text('Kund:', 30, 700, 'left', '#555555');
-    drawTextElement('customerName', c.name, 12, 900);
+    await paragraph('Kund:', 10, 700, 'left', '#555555');
+    await element('customerName', c.name, 12, 900);
   }
-  if (visible('customerPhone')) drawTextElement('customerPhone', c.phone, 9, 500);
+  await element('customerPhone', c.phone, 9, 400);
   if (visible('customerAddress') && customerAddress) {
-    space(7);
-    text('Adress:', 30, 700, 'left', '#555555');
-    drawTextElement('customerAddress', customerAddress, 9, 500);
+    y += px(4);
+    await paragraph('Adress:', 10, 700, 'left', '#555555');
+    await element('customerAddress', customerAddress, 9, 400);
   }
-  if (visible('deliveryInstructions')) drawTextElement('deliveryInstructions', translateInstruction(c.instructions), 9, 700);
-  if (visible('note')) drawTextElement('note', c.note, 9, 700);
-  if (visible('allergens')) drawTextElement('allergens', allergenText ? `! ${allergenText}` : '', 9, 700, 'left', '#b00020');
+  if (visible('deliveryInstructions') && plain(c.instructions)) {
+    y += px(2);
+    await element('deliveryInstructions', translateInstruction(c.instructions), 9, 700);
+  }
+  if (visible('note') && plain(c.note)) {
+    y += px(2);
+    await element('note', c.note, 9, 700);
+  }
+  y += px(8);
 
-  if (visible('orderType')) badge('orderType', isDelivery ? 'Utkörning' : 'Avhämtning');
+  // ── Status-badges ──
+  if (visible('orderType')) await badge('orderType', isDelivery ? 'Utkörning' : 'Avhämtning');
   if (visible('scheduledFor') && o.isPreorder) {
-    badge('scheduledFor', `Förbeställd ${o.scheduledDate} ${o.scheduledTime}`);
+    await badge('scheduledFor', `Förbeställd ${o.scheduledDate} ${o.scheduledTime}`);
   }
-  if (visible('paymentMethod') && paymentText) badge('paymentMethod', paymentText);
+  if (visible('paymentMethod') && paymentText) await badge('paymentMethod', paymentText);
 
+  // ── Utlovad tid ──
   if (visible('estimatedTime') && !o.isPreorder && o.readyTime) {
-    space(6);
-    text('Utlovad tid', 36, 700, 'center');
-    drawTextElement('estimatedTime', `Klar ${o.readyTime}`, 14, 900, 'center');
+    const align = configuredAlign('estimatedTime', 'center');
+    await paragraph('Utlovad tid', 12, 700, align);
+    await element('estimatedTime', `Klar ${o.readyTime}`, 14, 900, 'center', '#000000', { lineHeight: 1.25 });
+    y += px(6);
   }
 
   if (visible('divider3')) divider();
-  drawItemCount();
-  if (visible('items')) drawItems();
+  await paragraph(`${items.length} artikel${items.length === 1 ? '' : 'ar'}`, 11, 700, 'center');
+  y += px(4);
+
+  // ── Artiklar ──
+  if (visible('items')) {
+    for (const item of items) {
+      await rowPair(
+        `${item.qty} x ${item.name}`,
+        `${plain(item.subtotal)} kr`,
+        configuredSize('items', 10),
+        configuredWeight('items', 700),
+        configuredSize('itemPrice', 8),
+        configuredWeight('itemPrice', 700),
+      );
+      if (visible('extras')) {
+        for (const extra of item.extras || []) {
+          if (!extra.name) continue;
+          await paragraph(
+            `** ${extra.name}`,
+            configuredSize('extras', 8),
+            configuredWeight('extras', 400),
+            configuredAlign('extras', 'left'),
+            '#555555',
+            { indent: px(12) },
+          );
+        }
+      }
+      if (plain(item.note)) await paragraph(`! ${item.note}`, 10, 900, 'left', '#000000', { indent: px(12) });
+      y += px(8);
+    }
+  }
+
   // Admin preview uses divider5 before the totals (divider4 is retained as a
   // legacy setting but is not rendered by the admin preview component).
   if (visible('divider5')) divider();
-  if (visible('deliveryFee') && Number(totals.deliveryFee || 0) > 0) rowText('Leveransavgift', `${plain(totals.deliveryFee)} kr`, configuredSize('deliveryFee', 8), configuredWeight('deliveryFee'));
-  if (visible('discount') && Number(totals.discount || 0) > 0) rowText(totals.discountCode ? `Rabatt (${totals.discountCode})` : 'Rabatt', `-${plain(totals.discount)} kr`, configuredSize('discount', 8), configuredWeight('discount'));
-  if (visible('total')) {
-    svg.push(`<line x1="${margin}" y1="${y + 8}" x2="${width - margin}" y2="${y + 8}" stroke="#000" stroke-width="3"/>`);
-    y += 12;
-    rowText('Totalt', `${plain(totals.total)} kr`, configuredSize('total', 14), configuredWeight('total', 900));
-  }
-  if (visible('divider6')) divider();
-  if (visible('thankYou')) drawTextElement('thankYou', elements.get('thankYou')?.content || 'Tack för din beställning!', 9, 700, 'center');
-  if (visible('footerMsg')) drawTextElement('footerMsg', elements.get('footerMsg')?.content || 'Välkommen åter!', 8, 500, 'center', '#555555');
-  space(30);
 
-  const height = Math.max(160, Math.ceil(y + 56));
-  const image = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#fff"/>${svg.join('')}</svg>`;
-  const overlays = textLayers.map((layer) => ({
-    input: {
-      text: {
-        text: `<span foreground="${layer.color}" weight="${layer.weight}" size="${layer.size * 1024}">${xml(layer.text)}</span>`,
-        font: 'Outfit',
-        fontfile: RECEIPT_FONT_PATH,
-        width: layer.width,
-        align: layer.align,
-        rgba: true,
-        dpi: 72,
-      },
-    },
-    left: layer.left,
-    top: layer.top,
-  }));
-  const raster = await sharp(Buffer.from(image))
+  // ── Totaler ──
+  if (visible('deliveryFee') && Number(totals.deliveryFee || 0) > 0) {
+    await rowPair('Leveransavgift', `${plain(totals.deliveryFee)} kr`, configuredSize('deliveryFee', 9), configuredWeight('deliveryFee', 400));
+  }
+  if (visible('discount') && Number(totals.discount || 0) > 0) {
+    await rowPair(
+      totals.discountCode ? `Rabatt (${totals.discountCode})` : 'Rabatt',
+      `-${plain(totals.discount)} kr`,
+      configuredSize('discount', 9),
+      configuredWeight('discount', 400),
+    );
+  }
+  if (visible('total')) {
+    y += px(4);
+    rule(Math.max(2, px(2)));
+    y += px(4);
+    await rowPair('Totalt', `${plain(totals.total)} kr`, configuredSize('total', 14), configuredWeight('total', 900));
+  }
+  y += px(8);
+  if (visible('divider6')) divider();
+
+  // ── Sidfot ──
+  await element('thankYou', elements.get('thankYou')?.content || 'Tack för din beställning!', 9, 700, 'center');
+  y += px(2);
+  await element('footerMsg', elements.get('footerMsg')?.content || 'Välkommen åter!', 8, 400, 'center');
+  y += px(20);
+
+  const height = Math.max(px(120), Math.ceil(Math.max(y, maxBottom) + px(4)));
+  const base = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#fff"/>${svg.join('')}</svg>`,
+  );
+  return { base, overlays };
+}
+
+/** Felsöknings-/förhandsvy: samma komposition som skrivarbitmapen, som PNG. */
+export async function buildReceiptDebugPng(order: any, template: any, paperWidth: ThermalPaperWidth): Promise<Buffer> {
+  const { base, overlays } = await composeReceipt(order, template, paperWidth);
+  return sharp(base)
+    .composite(overlays)
+    .flatten({ background: '#ffffff' })
+    .greyscale()
+    .png()
+    .toBuffer();
+}
+
+export async function buildEscPosBitmap(order: any, template: any, paperWidth: ThermalPaperWidth): Promise<Buffer> {
+  const { base, overlays } = await composeReceipt(order, template, paperWidth);
+  const raster = await sharp(base)
     .composite(overlays)
     .flatten({ background: '#ffffff' })
     .greyscale()
