@@ -425,6 +425,9 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
             {[...filteredExtraGroups].sort((a, b) => (a.position || 0) - (b.position || 0)).map((group) => {
               const isRadio = group.type === "RADIO";
               const isBox = group.displayStyle === "BOX_IMAGE";
+              // Tre kort är ett specialfall: visa dem i tre kolumner även på
+              // mobil så hela gruppen ryms utan onödig vertikal scroll.
+              const isThreeCardGroup = isBox && group.extras.length === 3;
               const isQty = !!group.allowQuantity;
               const selectionCount = groupSelectedCount(group);
               // Kompakt visning: ej-obligatoriska list-grupper (ej box) med fler
@@ -451,13 +454,13 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
 
                   {isBox ? (
                     /* ── BOX_IMAGE: bild-kort i rutnät (à la McDonald's) ── */
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <div className={isThreeCardGroup ? "grid grid-cols-3 gap-2 sm:gap-2.5" : "grid grid-cols-2 gap-2.5 sm:grid-cols-3"}>
                       {group.extras.map((extra: any) => {
                         const isSelected = selectedExtras.some((e) => e.extraId === extra.id);
                         return (
                           <div
                             key={extra.id}
-                            className="min-h-[156px] rounded-2xl overflow-hidden flex flex-col transition-colors"
+                            className="min-h-[132px] rounded-xl overflow-hidden flex flex-col transition-colors"
                             style={{
                               // Selection is communicated by the frame only.
                               // Keep the card surface white so the text and price
@@ -469,21 +472,21 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                             <button
                               type="button"
                               onClick={() => { if (!isQty) handleToggleExtra(group, extra); else setExtraQty(group, extra, getQty(extra.id) > 0 ? 0 : 1 - getQty(extra.id)); }}
-                              className="flex min-h-[124px] flex-1 flex-col items-center gap-1 px-2.5 pt-3 pb-2 text-center transition-opacity active:opacity-70"
+                              className="flex min-h-[100px] flex-1 flex-col items-center gap-1 px-1.5 pt-2 pb-1.5 text-center transition-opacity active:opacity-70"
                             >
                               {extra.imageUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={extra.imageUrl} alt="" className="h-14 w-14 object-contain" loading="lazy" decoding="async" />
+                                <img src={extra.imageUrl} alt="" className="h-11 w-11 object-contain" loading="lazy" decoding="async" />
                               ) : (
-                                <div className="h-14 w-14 rounded-xl" style={{ backgroundColor: "var(--bg-deep)" }} />
+                                <div className="h-11 w-11 rounded-lg" style={{ backgroundColor: "var(--bg-deep)" }} />
                               )}
-                              <span className="line-clamp-2 min-h-[2.5rem] w-full break-words text-[12.5px] font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>{extra.name}</span>
-                              <span className="min-h-[1.1rem] text-[11.5px] font-medium" style={{ color: extra.priceAddon > 0 ? "var(--text-secondary)" : "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                              <span className="line-clamp-2 min-h-[2.25rem] w-full break-words text-[11.5px] font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>{extra.name}</span>
+                              <span className="min-h-[1rem] text-[10.5px] font-medium" style={{ color: extra.priceAddon > 0 ? "var(--text-secondary)" : "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
                                 {extra.priceAddon > 0 ? `+${extra.priceAddon} kr` : "Ingår"}
                               </span>
                             </button>
                             {isQty && (
-                              <div className="flex items-center justify-center pb-2.5 pt-0.5">{renderStepper(group, extra)}</div>
+                              <div className="flex items-center justify-center pb-2 pt-0.5">{renderStepper(group, extra)}</div>
                             )}
                           </div>
                         );
