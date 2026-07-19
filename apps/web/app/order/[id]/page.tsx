@@ -814,6 +814,7 @@ const OrderStatusPage = () => {
       {order.restaurantPhone ? (
         <a
           href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`}
+          target="_top"
           className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] border bg-white text-[14.5px] font-bold active:opacity-70"
           style={{ borderColor: "rgba(17,17,19,0.12)", color: "var(--text-primary)" }}
         >
@@ -844,7 +845,7 @@ const OrderStatusPage = () => {
         {sub ? <p className="mt-0.5 line-clamp-2 text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{sub}</p> : null}
       </div>
       {call && order.restaurantPhone ? (
-        <a href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`} className="grid h-9 w-9 place-items-center rounded-full" style={{ color: "var(--text-primary)" }}>
+        <a href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`} target="_top" className="grid h-9 w-9 place-items-center rounded-full" style={{ color: "var(--text-primary)" }}>
           <Phone size={17} />
         </a>
       ) : null}
@@ -934,7 +935,7 @@ const OrderStatusPage = () => {
         >
           <div
             className="mx-auto min-h-[100dvh] max-w-md px-5 pt-[calc(env(safe-area-inset-top,0px)+14px)]"
-            style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 6rem)" : "2rem" }}
+            style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 10rem)" : "2rem" }}
           >
             <div className="flex items-center gap-3 pb-4">
               <button type="button" onClick={() => setShowReceipt(false)} className="grid h-10 w-10 place-items-center rounded-full" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}>
@@ -1173,7 +1174,7 @@ const OrderStatusPage = () => {
     <div className="min-h-[100dvh]" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div
         className="mx-auto max-w-md px-4 pt-[calc(env(safe-area-inset-top,0px)+8px)]"
-        style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 6rem)" : "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
+        style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 10rem)" : "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
       >
         <div className="flex h-[52px] items-center gap-3 border-b" style={{ borderColor: "var(--border-muted)" }}>
           <Link href={embedMode ? embedMenuHref : "/"} aria-label="Till menyn" className="grid h-9 w-9 place-items-center rounded-full">
@@ -1206,8 +1207,11 @@ const OrderStatusPage = () => {
         <button
           type="button"
           onClick={() => setShowReceipt(true)}
-          className="mt-3.5 flex w-full items-center gap-3.5 rounded-[18px] border bg-white p-4 text-left shadow-sm"
-          style={{ borderColor: "rgba(17,17,19,0.07)" }}
+          className={`mt-3.5 flex w-full items-center gap-3.5 rounded-[18px] border bg-white p-4 text-left shadow-sm ${embedMode ? "sticky z-[1100]" : ""}`}
+          style={{
+            borderColor: "rgba(17,17,19,0.07)",
+            bottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 5rem)" : undefined,
+          }}
         >
           <span className="grid h-[46px] w-[46px] place-items-center rounded-[13px]" style={{ backgroundColor: "#FFF0EA", color: "#F0531C" }}>
             <Receipt size={21} />
