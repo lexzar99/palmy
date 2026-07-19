@@ -46,7 +46,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {/* Container — fixed top-center på desktop, top-banner på mobil */}
       <div
-        className="fixed top-5 left-1/2 -translate-x-1/2 z-[500] flex flex-col gap-2 items-center pointer-events-none w-full max-w-sm px-4"
+        className="fixed left-1/2 -translate-x-1/2 z-[2500] flex flex-col gap-2 items-center pointer-events-none w-full max-w-sm px-4"
+        style={{ top: "calc(env(safe-area-inset-top, 0px) + 4.5rem)" }}
         role="status"
         aria-live="polite"
         aria-atomic="true"

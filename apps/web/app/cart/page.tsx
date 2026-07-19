@@ -30,6 +30,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
@@ -1918,6 +1919,17 @@ export default function CartPage() {
   const startCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // Refresh the Palmyra-scoped kiosk credential immediately before the first
+    // order/payment request. This also covers browsers that block iframe
+    // cookies, where the axios interceptor uses the returned signed proof.
+    if (embedMode) {
+      const kioskReady = await ensureKioskAccess(embedRestaurantSlug || cartRestaurantSlug || "");
+      if (!kioskReady) {
+        setError("Embedded beställningsåtkomst saknas. Ladda om menyn och försök igen.");
+        return;
+      }
+    }
 
     // Obligatoriskt BOGO-val: en upplåst gratis-vara måste plockas innan
     // betalning (annars betalar kunden och missar gratisen). Öppna pickern.

@@ -5,6 +5,7 @@ import axios from "axios";
 import type { Socket } from "socket.io-client";
 import { Search, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Bike, Star, ShoppingBag, X, AlertTriangle, CheckCircle2, Heart, Plus, Utensils, Store, Truck } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
+import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 import dynamic from "next/dynamic";
 import FloatingCartButton from "@/components/FloatingCartButton";
 import SmartImage from "@/components/SmartImage";
@@ -335,7 +336,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
 
   useEffect(() => {
     if (!embedMode || !restaurant?.slug) return;
-    void fetch(`/api/kiosk/session?slug=${encodeURIComponent(restaurant.slug)}`, { credentials: "same-origin" }).catch(() => undefined);
+    void ensureKioskAccess(restaurant.slug);
   }, [embedMode, restaurant?.slug]);
 
   // BOGO picker state

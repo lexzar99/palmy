@@ -27,7 +27,10 @@ export async function GET(request: NextRequest) {
   const proof = createProof(slug);
   if (!proof) return NextResponse.json({ error: "Kiosk-konfiguration saknas" }, { status: 503 });
 
-  const response = NextResponse.json({ ok: true, restaurantSlug: slug }, { headers: { "Cache-Control": "no-store" } });
+  const response = NextResponse.json(
+    { ok: true, restaurantSlug: slug, proof },
+    { headers: { "Cache-Control": "no-store" } },
+  );
   response.cookies.set(KIOSK_ACCESS_COOKIE, proof, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

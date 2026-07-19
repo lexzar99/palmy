@@ -39,6 +39,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   // Focus-trap för a11y (WCAG 2.4.3) — screen reader-användare ska inte
   // kunna tabba ut ur modalen.
   const modalRef = useRef<HTMLDivElement>(null);
+  const groupRefs = useRef<Record<string, HTMLElement | null>>({});
   useFocusTrap(modalRef, true);
 
   // Portal-mount-gate (SSR-säkert) — modalen renderas i document.body så att
@@ -55,6 +56,19 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const [imgFailed, setImgFailed] = useState(false);
   const hasModalImage = typeof product.imageUrl === "string" && product.imageUrl.trim() !== "" && !imgFailed;
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [selectionErrorGroupId, setSelectionErrorGroupId] = useState<string | null>(null);
+  const clearSelectionError = () => {
+    setSelectionError(null);
+    setSelectionErrorGroupId(null);
+  };
+  const showSelectionError = (message: string, groupId: string) => {
+    setSelectionError(message);
+    setSelectionErrorGroupId(groupId);
+    window.requestAnimationFrame(() => {
+      const target = groupRefs.current[groupId];
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
   // Per-grupp utfällning: långa, ej-obligatoriska list-grupper visar bara de
   // första 4 raderna tills kunden trycker "Visa mer". Set håller utfällda id:n.
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -121,7 +135,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   }, [product, bogoFreeFromDealId]);
 
   const handleToggleExtra = (group: any, extra: any) => {
-    setSelectionError(null);
+    clearSelectionError();
     const isSelected = selectedExtras.some((e) => e.extraId === extra.id);
 
     if (group.type === "RADIO") {
@@ -165,7 +179,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
       .reduce((n, e) => n + (group.allowQuantity ? (e.quantity ?? 1) : 1), 0);
   const getQty = (extraId: string) => selectedExtras.find((e) => e.extraId === extraId)?.quantity ?? 0;
   const setExtraQty = (group: any, extra: any, delta: number) => {
-    setSelectionError(null);
+    clearSelectionError();
     setSelectedExtras((prev) => {
       const cur = prev.find((e) => e.extraId === extra.id)?.quantity ?? 0;
       const otherTotal = prev
@@ -246,15 +260,15 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         // Då kan kunden inte uppfylla kravet — vi hoppar över valideringen
         // för att inte fastna i ett ogiltigt tillstånd.
         if (group.extras.length === 0) continue;
-        setSelectionError(t("product.error.pickOne", { group: group.name.toLowerCase() }));
+        showSelectionError(t("product.error.pickOne", { group: group.name.toLowerCase() }), group.id);
         return;
       }
       if (cnt < (group.minSelections || 0) && group.extras.length > 0) {
-        setSelectionError(t("product.error.minSelections", { group: group.name, n: group.minSelections }));
+        showSelectionError(t("product.error.minSelections", { group: group.name, n: group.minSelections }), group.id);
         return;
       }
       if (cnt > (group.maxSelections || 99)) {
-        setSelectionError(t("product.error.maxSelections", { group: group.name, n: group.maxSelections }));
+        showSelectionError(t("product.error.maxSelections", { group: group.name, n: group.maxSelections }), group.id);
         return;
       }
     }
@@ -421,6 +435,17 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
           )}
 
           {/* Tillvalsgrupper — rena rader med hairline-separatorer */}
+          {selectionError && (
+            <div
+              role="alert"
+              className="mx-5 mt-4 rounded-xl px-3.5 py-3 text-[12.5px] font-medium"
+              style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "#c01818" }}
+            >
+              <p className="m-0 font-bold">{t("product.selectionErrorTitle")}</p>
+              <p className="m-0 mt-0.5">{selectionError}</p>
+            </div>
+          )}
+
           <div className="px-5">
             {[...filteredExtraGroups].sort((a, b) => (a.position || 0) - (b.position || 0)).map((group) => {
               const isRadio = group.type === "RADIO";
@@ -437,7 +462,11 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
               const visibleExtras = isCollapsible && !isExpanded ? group.extras.slice(0, 4) : group.extras;
               const hiddenCount = group.extras.length - 4;
               return (
-                <section key={group.id} className="mt-5">
+                <section
+                  key={group.id}
+                  ref={(element) => { groupRefs.current[group.id] = element; }}
+                  className={`mt-5 ${selectionErrorGroupId === group.id ? "scroll-mt-24" : ""}`}
+                >
                   <div className="flex items-baseline gap-2 mb-2">
                     <h3 className="m-0 text-[14.5px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
                       {group.name}
@@ -478,7 +507,9 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={extra.imageUrl} alt="" className="h-11 w-11 object-contain" loading="lazy" decoding="async" />
                               ) : (
-                                <div className="h-11 w-11 rounded-lg" style={{ backgroundColor: "var(--bg-deep)" }} />
+                                // Behåll samma reserverade mått utan en falsk
+                                // bild-placeholder när tillvalet saknar bild.
+                                <div aria-hidden="true" className="h-11 w-11 shrink-0" />
                               )}
                               <span className="line-clamp-2 min-h-[2.25rem] w-full break-words text-[11.5px] font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>{extra.name}</span>
                               <span className="min-h-[1rem] text-[10.5px] font-medium" style={{ color: extra.priceAddon > 0 ? "var(--text-secondary)" : "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
@@ -559,15 +590,6 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
               style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--line-strong)", color: "var(--text-primary)", minHeight: "56px", fontFamily: "inherit" }}
             />
           </div>
-
-          {selectionError && (
-            <p
-              className="mx-5 mt-3 mb-0 px-3.5 py-2.5 rounded-xl text-[12.5px] font-medium"
-              style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "#c01818" }}
-            >
-              {selectionError}
-            </p>
-          )}
 
           {/* Spacer för footern */}
           <div className="h-5" />

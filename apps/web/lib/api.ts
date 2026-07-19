@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getKioskAccessProof } from "@/lib/kioskAccessClient";
 
 // Global axios-default: 25 sekunders timeout istället för 0 (oändlig).
 // På 3G/flakey-nät innebar oändliga timeouts att checkout-POSTs och
@@ -19,6 +20,24 @@ import axios from "axios";
 // /api/platform/[...path]) använder native fetch och inte axios.
 if (typeof window !== "undefined" && axios.defaults.timeout === 0) {
   axios.defaults.timeout = 25000;
+}
+
+// Embedded partner pages can be treated as a third-party iframe by the
+// browser, which means the HttpOnly kiosk cookie may not be sent. Attach the
+// short-lived, restaurant-scoped proof to same-origin platform calls as a
+// fallback. Never attach it to direct API_URL calls or unrelated routes.
+if (typeof window !== "undefined") {
+  axios.interceptors.request.use((config) => {
+    const url = typeof config.url === "string" ? config.url : "";
+    if (url.startsWith("/api/platform/")) {
+      const proof = getKioskAccessProof();
+      if (proof) {
+        config.headers = config.headers || {};
+        config.headers["x-viaeats-kiosk-access"] = proof;
+      }
+    }
+    return config;
+  });
 }
 
 export const getApiUrl = () => {
@@ -74,4 +93,3 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
   if (typeof msg === "string" && msg) return msg;
   return fallback;
 }
-
