@@ -21,7 +21,7 @@ const RECEIPT_FONT_PATH = path.join(__dirname, '../../assets/Outfit.ttf');
 // Must change whenever the bitmap layout changes. Otherwise a real order can
 // keep an older in-memory artifact while test printing already shows the new
 // Admin layout, which makes the two physical receipts look unrelated.
-const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v4';
+const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v5';
 
 function parseExtras(raw: unknown): any[] {
   try {
@@ -239,6 +239,9 @@ type RenderedText = { data: Buffer; width: number; height: number };
 // alltså 240 px innehållsbredd. Bitmapen är exakt samma layout uppskalad, så
 // alla admin-mått (px) multipliceras med scale nedan.
 const ADMIN_CONTENT_WIDTH = 240;
+// Termopapper läses på armlängds avstånd i ett kök — texten trycks 20 %
+// större än admin-previewens proportioner utan att ändra layout/bredder.
+const TEXT_BOOST = 1.2;
 
 async function renderTextLine(
   value: string,
@@ -261,57 +264,25 @@ async function renderTextLine(
   return { data, width: info.width, height: info.height };
 }
 
-function escPosFeedDots(dots: number): Buffer[] {
-  const chunks: Buffer[] = [];
-  let remaining = Math.max(0, Math.round(dots));
-  while (remaining > 0) {
-    const step = Math.min(255, remaining);
-    chunks.push(Buffer.from([0x1b, 0x4a, step])); // ESC J n
-    remaining -= step;
-  }
-  return chunks;
-}
-
 /**
- * Packar bara rader som faktiskt innehåller svärta. Vita mellanrum blir korta
- * ESC/POS-feedkommandon i stället för tusentals nollbytes över Bluetooth.
- * Layoutens fysiska höjd behålls men överföringen blir normalt 40–70 % mindre.
+ * Hela bitmappen skickas som pixelrader, inklusive vita mellanrum. Tidigare
+ * ersattes vita ytor med ESC J-matningar för att spara Bluetooth-bandbredd,
+ * men matningsenheten är inte en pixelrad på alla skrivare (Epson-klass kör
+ * 1/360 tum) — då krympte alla radavstånd och kvittot blev hoppressat.
+ * Banden på max 255 rader skrivs kant i kant och ger exakt PNG-höjden.
  */
 function compactEscPosRaster(bitmap: Buffer, widthBytes: number, height: number): Buffer[] {
-  const hasInk = (rowIndex: number) => {
-    const start = rowIndex * widthBytes;
-    for (let index = start; index < start + widthBytes; index += 1) {
-      if (bitmap[index] !== 0) return true;
-    }
-    return false;
-  };
-
   const chunks: Buffer[] = [];
   let rowIndex = 0;
   while (rowIndex < height) {
-    const blankStart = rowIndex;
-    while (rowIndex < height && !hasInk(rowIndex)) rowIndex += 1;
-    if (rowIndex > blankStart) chunks.push(...escPosFeedDots(rowIndex - blankStart));
-    if (rowIndex >= height) break;
-
-    const bandStart = rowIndex;
-    let lastInk = rowIndex;
-    rowIndex += 1;
-    while (rowIndex < height) {
-      if (hasInk(rowIndex)) lastInk = rowIndex;
-      // Små hål hör till samma textrad. Större vita ytor skickas som feed.
-      if (rowIndex - lastInk > 3) break;
-      rowIndex += 1;
-    }
-    const bandEnd = lastInk + 1;
-    const bandHeight = bandEnd - bandStart;
+    const bandHeight = Math.min(255, height - rowIndex);
     chunks.push(Buffer.from([
       0x1d, 0x76, 0x30, 0x00,
       widthBytes & 0xff, (widthBytes >> 8) & 0xff,
       bandHeight & 0xff, (bandHeight >> 8) & 0xff,
     ]));
-    chunks.push(bitmap.subarray(bandStart * widthBytes, bandEnd * widthBytes));
-    rowIndex = bandEnd;
+    chunks.push(bitmap.subarray(rowIndex * widthBytes, (rowIndex + bandHeight) * widthBytes));
+    rowIndex += bandHeight;
   }
   return chunks;
 }
@@ -407,7 +378,7 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     if (!textValue) return;
     const indent = opts.indent ?? 0;
     const lineHeight = opts.lineHeight ?? 1.6;
-    const sizePx = Math.max(8, adminSize * scale);
+    const sizePx = Math.max(8, adminSize * scale * TEXT_BOOST);
     const maxWidth = contentWidth - indent;
     const rendered = await layoutLines(textValue, sizePx, weight, color, maxWidth);
     const lineBox = sizePx * lineHeight;
@@ -452,9 +423,9 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     rightSize = leftSize,
     rightWeight = leftWeight,
   ) => {
-    const rightLayer = await renderTextLine(plain(right), rightSize * scale, rightWeight, '#000000');
+    const rightLayer = await renderTextLine(plain(right), rightSize * scale * TEXT_BOOST, rightWeight, '#000000');
     const rightWidth = rightLayer ? rightLayer.width + px(8) : 0;
-    const sizePx = Math.max(8, leftSize * scale);
+    const sizePx = Math.max(8, leftSize * scale * TEXT_BOOST);
     const lineBox = sizePx * 1.6;
     const leftLines = await layoutLines(plain(left), sizePx, leftWeight, '#000000', Math.max(px(40), contentWidth - rightWidth));
     if (leftLines.length === 0) {
@@ -485,7 +456,7 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
   const badge = async (key: string, value: string) => {
     const layer = await renderTextLine(
       maybeUpper(key, value),
-      configuredSize(key, 14) * scale,
+      configuredSize(key, 14) * scale * TEXT_BOOST,
       configuredWeight(key, 900),
       '#000000',
     );
