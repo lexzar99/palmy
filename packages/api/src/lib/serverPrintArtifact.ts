@@ -21,7 +21,7 @@ const RECEIPT_FONT_PATH = path.join(__dirname, '../../assets/Outfit.ttf');
 // Must change whenever the bitmap layout changes. Otherwise a real order can
 // keep an older in-memory artifact while test printing already shows the new
 // Admin layout, which makes the two physical receipts look unrelated.
-const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v7';
+const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v8';
 
 function parseExtras(raw: unknown): any[] {
   try {
@@ -333,11 +333,12 @@ type ComposedReceipt = {
  * priser i högerkanten hamnar exakt där admin-förhandsgranskningen visar dem.
  */
 async function composeReceipt(order: any, template: any, paperWidth: ThermalPaperWidth): Promise<ComposedReceipt> {
-  // 58 mm-rulle: 48 mm utskriftsyta = 384 punkter. 72/80 mm-rulle: 512 punkter
-  // så bilden aldrig blir bredare än 72 mm — 576 punkter klipptes i högerkanten
-  // på skrivare med smalare huvud. ESC a 1 centrerar rastret på bredare huvuden.
-  const width = paperWidth === '58mm' ? 384 : 512;
-  const scale = (paperWidth === '58mm' ? 338 : 452) / ADMIN_CONTENT_WIDTH;
+  // 58 mm-rulle: 48 mm utskriftsyta = 384 punkter. 72/78/80 mm: full bredd
+  // 576 punkter (~78 mm på kvittoskrivarna) — verifierat tydligast på papper.
+  // Marginalerna skalas med bredden (≈4,5 mm) så inget hamnar utanför, och
+  // ESC a 1 centrerar rastret på skrivare med smalare huvud.
+  const width = paperWidth === '58mm' ? 384 : 576;
+  const scale = (paperWidth === '58mm' ? 338 : 508) / ADMIN_CONTENT_WIDTH;
   const margin = Math.round((width - ADMIN_CONTENT_WIDTH * scale) / 2);
   const contentWidth = width - margin * 2;
   const px = (value: number) => Math.round(value * scale);
