@@ -21,7 +21,7 @@ const RECEIPT_FONT_PATH = path.join(__dirname, '../../assets/Outfit.ttf');
 // Must change whenever the bitmap layout changes. Otherwise a real order can
 // keep an older in-memory artifact while test printing already shows the new
 // Admin layout, which makes the two physical receipts look unrelated.
-const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v6';
+const RECEIPT_RENDERER_VERSION = 'admin-wysiwyg-v7';
 
 function parseExtras(raw: unknown): any[] {
   try {
@@ -459,12 +459,16 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
     leftWeight: number,
     rightSize = leftSize,
     rightWeight = leftWeight,
+    opts: { indent?: number } = {},
   ) => {
+    const indent = opts.indent ?? 0;
     const rightLayer = await renderTextLine(plain(right), rightSize * scale * TEXT_BOOST, rightWeight, '#000000');
     const rightWidth = rightLayer ? rightLayer.width + px(8) : 0;
     const sizePx = Math.max(8, leftSize * scale * TEXT_BOOST);
     const lineBox = sizePx * 1.6;
-    const leftLines = await layoutLines(plain(left), sizePx, leftWeight, '#000000', Math.max(px(40), contentWidth - rightWidth));
+    // Priset äger alltid högerkanten. Långa namn radbryts i vänsterkolumnen
+    // i stället för att pressa in sig i prisets utrymme.
+    const leftLines = await layoutLines(plain(left), sizePx, leftWeight, '#000000', Math.max(px(40), contentWidth - indent - rightWidth));
     if (leftLines.length === 0) {
       if (!rightLayer) return;
       place(rightLayer, width - margin - rightLayer.width, y + Math.max(0, (lineBox - rightLayer.height) / 2));
@@ -472,7 +476,7 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
       return;
     }
     leftLines.forEach((layer, index) => {
-      place(layer, margin, y + Math.max(0, (lineBox - layer.height) / 2));
+      place(layer, margin + indent, y + Math.max(0, (lineBox - layer.height) / 2));
       if (index === 0 && rightLayer) {
         place(rightLayer, width - margin - rightLayer.width, y + Math.max(0, (lineBox - rightLayer.height) / 2));
       }
@@ -585,37 +589,44 @@ async function composeReceipt(order: any, template: any, paperWidth: ThermalPape
   // ── Artiklar ──
   if (visible('items')) {
     for (const item of items) {
+      // Artikelrader är kvittots viktigaste innehåll — golv på 12 px och
+      // fet stil oavsett vad mallen råkar ha sparat, priset alltid i svart
+      // fetstil längst till höger.
       await rowPair(
         `${item.qty} x ${item.name}`,
         `${kr(item.subtotal)} kr`,
-        configuredSize('items', 10),
-        configuredWeight('items', 700),
-        configuredSize('itemPrice', 8),
-        configuredWeight('itemPrice', 700),
+        Math.max(12, configuredSize('items', 10)),
+        Math.max(800, configuredWeight('items', 800)),
+        Math.max(11, configuredSize('itemPrice', 8)),
+        Math.max(800, configuredWeight('itemPrice', 800)),
       );
       if (visible('extras')) {
         // Tillvalen skrivs i exakt den ordning de sparades på ordern (per
         // produkt: grupp för grupp), så kombo-produkter läses pizza 1 → sås 1
-        // → pizza 2 → sås 2. Obligatoriska val (storlek/sås) trycks en pixel
-        // större och fetare än frivilliga tillval; pris visas bara när
-        // tillvalet faktiskt kostar något.
+        // → pizza 2 → sås 2. Obligatoriska val (storlek/sås) trycks större
+        // och fetare än frivilliga. Pris visas bara när tillvalet kostar
+        // något och står alltid högerställt som artikelpriserna; långa namn
+        // radbryts i vänsterkolumnen.
         for (const extra of item.extras || []) {
           if (!extra.name) continue;
           const qty = Number(extra.quantity || 1);
           const price = Number(extra.price || 0);
-          const label = `** ${qty > 1 ? `${qty} x ` : ''}${extra.name}${price > 0 ? ` +${kr(price)} kr` : ''}`;
+          const lineTotal = Math.round(price * qty * 100) / 100;
           const requiredChoice = Boolean(extra.required);
-          await paragraph(
-            label,
-            configuredSize('extras', 8) + (requiredChoice ? 1 : 0),
-            requiredChoice ? 800 : Math.max(600, configuredWeight('extras', 600)),
-            configuredAlign('extras', 'left'),
-            '#000000',
+          await rowPair(
+            `** ${qty > 1 ? `${qty} x ` : ''}${extra.name}`,
+            lineTotal > 0 ? `+${kr(lineTotal)} kr` : '',
+            requiredChoice
+              ? Math.max(11, configuredSize('extras', 8) + 1)
+              : Math.max(10, configuredSize('extras', 8)),
+            requiredChoice ? 900 : 700,
+            Math.max(10, configuredSize('extras', 8)),
+            800,
             { indent: px(12) },
           );
         }
       }
-      if (plain(item.note)) await paragraph(`! ${item.note}`, 10, 900, 'left', '#000000', { indent: px(12) });
+      if (plain(item.note)) await paragraph(`! ${item.note}`, 11, 900, 'left', '#000000', { indent: px(12) });
       y += px(8);
     }
   }
