@@ -1080,21 +1080,21 @@ const OrderStatusPage = () => {
                 <p className="text-[24px] font-black tracking-tight" style={{ color: isGreenStatus ? "#2E7D4F" : "var(--text-primary)" }}>{fullscreenEtaMain}</p>
               </div>
             </div>
-            <TrackingLineWeb />
+            {TrackingLineWeb({})}
             <div className="mt-3 flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusAccent }} />
               <p className="text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>
                 {deliveryOverdue ? t("order.eta.overdueBusy") : isGreenStatus ? statusDescription : "Tillagad · ditt bud är på väg"}
               </p>
             </div>
-            <ContactActionsWeb />
+            {ContactActionsWeb({})}
           </div>
           <div className="h-[calc(100%-250px)] overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+24px)]">
             <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: "rgba(17,17,19,0.08)" }}>
-              <DestRowWeb mini="Levereras till" main={custAddr || restName} icon={MapPin} />
+              {DestRowWeb({ mini: "Levereras till", main: custAddr || restName, icon: MapPin })}
             </div>
             <div className="mt-3 overflow-hidden rounded-2xl border bg-white" style={{ borderColor: "rgba(17,17,19,0.08)" }}>
-              <DestRowWeb mini="Restaurang" main={restName} sub={restAddr} icon={Store} call />
+              {DestRowWeb({ mini: "Restaurang", main: restName, sub: restAddr, icon: Store, call: true })}
             </div>
           </div>
         </section>
@@ -1106,7 +1106,7 @@ const OrderStatusPage = () => {
   const StatusCard = () => (
     <motion.div
       key={currentStatus}
-      initial={{ opacity: 0, y: 10 }}
+      initial={embedMode ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="relative mt-4 overflow-hidden rounded-[26px] border bg-white px-6 py-7 text-center shadow-xl"
       style={{ borderColor: isGreenStatus ? "rgba(46,125,79,0.22)" : "rgba(17,17,19,0.07)", boxShadow: "0 16px 34px rgba(17,17,19,0.11)" }}
@@ -1124,7 +1124,7 @@ const OrderStatusPage = () => {
         {showEtaAsEstimate ? `ca ${etaMain}` : etaMain}
       </p>
       <p className="relative mx-auto mt-3 max-w-sm text-[13.5px] font-medium leading-5" style={{ color: "var(--text-secondary)" }}>{statusDescription}</p>
-      {!isRejected ? <div className="relative border-t pt-1" style={{ borderColor: "rgba(17,17,19,0.07)" }}><TrackingLineWeb /></div> : null}
+      {!isRejected ? <div className="relative border-t pt-1" style={{ borderColor: "rgba(17,17,19,0.07)" }}>{TrackingLineWeb({})}</div> : null}
     </motion.div>
   );
 
@@ -1148,7 +1148,7 @@ const OrderStatusPage = () => {
           </div>
         </div>
         <div className="mt-4 border-t pt-4" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
-          <TrackingLineWeb pickupReady />
+          {TrackingLineWeb({ pickupReady: true })}
         </div>
       </div>
     </div>
@@ -1217,19 +1217,19 @@ const OrderStatusPage = () => {
         </div>
 
         {isCompleted
-          ? <CompletedReviewCard />
+          ? CompletedReviewCard()
           : isPickup && currentStatus === "READY"
-            ? <PickupReadyCard />
-            : <StatusCard />}
+            ? PickupReadyCard()
+            : StatusCard()}
 
         {!isPickup ? (
           <div className="mt-3.5 overflow-hidden rounded-[18px] border bg-white shadow-sm" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
-            <DestRowWeb mini="Levereras till" main={custAddr || restName} icon={MapPin} />
-            <DestRowWeb mini="Restaurang" main={restName} sub={restAddr} icon={Store} call sep />
+            {DestRowWeb({ mini: "Levereras till", main: custAddr || restName, icon: MapPin })}
+            {DestRowWeb({ mini: "Restaurang", main: restName, sub: restAddr, icon: Store, call: true, sep: true })}
           </div>
         ) : null}
 
-        <ContactActionsWeb primaryLabel={isPickup ? "Ring restaurang" : "Kontakta restaurang"} />
+        {ContactActionsWeb({ primaryLabel: isPickup ? "Ring restaurang" : "Kontakta restaurang" })}
 
         <button
           type="button"

@@ -35,6 +35,7 @@ import {
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto, nullableMoneyDto } from '../utils/money';
 import { isRestaurantOrderTransitionAllowed } from '../lib/orderStatusMachine';
+import { getServerPrintArtifact, warmServerPrintArtifacts } from '../lib/serverPrintArtifact';
 
 const router = Router();
 router.use(authenticate);
@@ -905,6 +906,9 @@ router.patch('/orders/:id/status', async (req, res) => {
         });
         const refreshedEta = await refreshOrderEta(etaOrder.id).catch(() => null);
         if (refreshedEta) etaOrder = { ...etaOrder, ...refreshedEta };
+        if (dbStatus === 'ACCEPTED' || dbStatus === 'PREPARING') {
+          await warmServerPrintArtifacts(etaOrder.id);
+        }
         bustCache('order:byid', etaOrder.id);
         getIO().to(`order:${etaOrder.id}`).emit('order:status', {
           orderId: etaOrder.id,
@@ -998,6 +1002,12 @@ router.patch('/orders/:id/status', async (req, res) => {
       return null;
     });
     if (refreshedEta) order = { ...order, ...refreshedEta };
+    // Servern bygger färdiga ESC/POS-jobb innan accept-svaret når den svaga
+    // restaurangplattan. Plattan behöver därefter bara hämta bytes och skicka
+    // dem till Bluetooth/Wi-Fi/inbyggd skrivare — ingen bitmap/PDF-rendering.
+    if (dbStatus === 'ACCEPTED' || dbStatus === 'PREPARING') {
+      await warmServerPrintArtifacts(order.id);
+    }
     bustCache('order:byid', order.id);
     if (dbStatus === 'DELIVERED' || dbStatus === 'COMPLETED') {
       void import('./referrals').then(({ maybeTriggerReferralReward }) =>
@@ -4834,6 +4844,34 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
 
 
 // ─── Receipt Data (JSON for Flutter/Printers) ───────────────────────────────
+
+// Färdig, serverrenderad ESC/POS-utskrift för resurssvaga partnerplattor.
+// Svaret är binärt (inte base64/JSON) för att undvika en extra minneskopia i
+// Flutter. Samma restaurangscope som receipt-data gäller.
+router.get('/orders/:id/print-artifact', async (req: any, res: any) => {
+  try {
+    const authReq = req as AuthRequest;
+    const artifact = await getServerPrintArtifact(req.params.id, req.query.paperWidth);
+    if (!artifact) return res.status(404).json({ error: 'Order hittades inte' });
+
+    if (!isSuperAdmin(authReq)) {
+      const scopedRestaurantId = authReq.admin?.restaurantId;
+      if (!scopedRestaurantId || artifact.restaurantId !== scopedRestaurantId) {
+        return res.status(403).json({ error: 'Du kan bara skriva ut orders för din egen restaurang' });
+      }
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.viaeats.escpos');
+    res.setHeader('Content-Length', String(artifact.bytes.length));
+    res.setHeader('ETag', `"${artifact.fingerprint}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-ViaEats-Print-Source', 'server');
+    res.send(artifact.bytes);
+  } catch (error) {
+    console.error('Server print artifact error:', error);
+    res.status(500).json({ error: 'Kunde inte skapa utskriften' });
+  }
+});
 
 router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
   try {
