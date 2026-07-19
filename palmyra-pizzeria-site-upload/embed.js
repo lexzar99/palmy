@@ -49,6 +49,17 @@
       origin === "http://localhost:4000";
   }
 
+  function trustedPartnerOrigin(origin) {
+    return origin === "https://palmyrapizzeria.se" ||
+      origin === "https://www.palmyrapizzeria.se" ||
+      origin === "http://localhost:3000" ||
+      origin === "http://localhost:4000";
+  }
+
+  function validOrderId(value) {
+    return typeof value === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(value);
+  }
+
   function renderStatus(host, restaurant) {
     host.dispatchEvent(new CustomEvent("viaeats:loaded", { detail: { restaurant: restaurant } }));
   }
@@ -73,9 +84,10 @@
     host.innerHTML = '<div class="ve-embed-shell"><div class="ve-embed-loading">Laddar meny…</div></div>';
     var shell = host.querySelector(".ve-embed-shell");
     var fullViewport = host.getAttribute("data-viaeats-fullscreen") === "1";
-    var requestedProduct = typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("product")
-      : null;
+    var pageParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    var requestedProduct = pageParams.get("product");
+    var paymentReturn = pageParams.get("payment_return");
+    var trackedOrder = pageParams.get("order");
 
     var frame = document.createElement("iframe");
     frame.className = "ve-embed-frame";
@@ -90,7 +102,23 @@
       frame.style.height = "100%";
       frame.style.minHeight = "0";
     }
-    frame.src = SITE + "/embed/" + encodeURIComponent(slug);
+    var frameUrl;
+    if (validOrderId(paymentReturn)) {
+      frameUrl = new URL(SITE + "/cart");
+      frameUrl.searchParams.set("payment_return", paymentReturn);
+      frameUrl.searchParams.set("embed", "1");
+      frameUrl.searchParams.set("restaurant", slug);
+    } else if (validOrderId(trackedOrder)) {
+      frameUrl = new URL(SITE + "/order/" + encodeURIComponent(trackedOrder));
+      frameUrl.searchParams.set("embed", "1");
+      frameUrl.searchParams.set("restaurant", slug);
+    } else {
+      frameUrl = new URL(SITE + "/embed/" + encodeURIComponent(slug));
+    }
+    if (trustedPartnerOrigin(window.location.origin)) {
+      frameUrl.searchParams.set("parent_origin", window.location.origin);
+    }
+    frame.src = frameUrl.toString();
 
     frame.addEventListener("load", function () {
       shell.classList.add("is-loaded");
@@ -108,6 +136,17 @@
       if (event.data.type === "viaeats:open-payment") {
         var checkoutUrl = mollieCheckoutUrl(event.data.checkoutUrl);
         if (checkoutUrl) window.location.assign(checkoutUrl);
+        return;
+      }
+
+      if (event.data.type === "viaeats:payment-complete") {
+        var completedOrder = event.data.orderId;
+        if (!validOrderId(completedOrder)) return;
+        var trackingLocation = new URL(window.location.href);
+        trackingLocation.search = "";
+        trackingLocation.searchParams.set("order", completedOrder);
+        trackingLocation.searchParams.set("restaurant", slug);
+        window.history.replaceState({}, "", trackingLocation.toString());
         return;
       }
 

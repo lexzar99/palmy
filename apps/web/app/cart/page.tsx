@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
+import { EMBED_PARENT_ORIGIN_PARAM, readEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
@@ -66,6 +67,12 @@ const TEST_ORDERS_ENABLED =
 const CHECKOUT_ATTEMPT_KEY = "viaeats.checkout.attempt.v1";
 
 type CheckoutAttempt = { key: string; fingerprint: string };
+type HostedPaymentContext = {
+  passive?: boolean;
+  embedded?: boolean;
+  restaurantSlug?: string;
+  parentOrigin?: string | null;
+};
 
 function createCheckoutKey(): string {
   return typeof crypto !== "undefined" && crypto.randomUUID
@@ -1587,6 +1594,9 @@ export default function CartPage() {
     const returnParam = params.get("payment_return");
     const returnOrderId = returnParam || localStorage.getItem("pending_order_id");
     if (!returnOrderId) return;
+    const returnEmbedded = params.get("embed") === "1";
+    const returnRestaurantSlug = params.get("restaurant") || cartRestaurantSlug || "";
+    const returnParentOrigin = trustedPartnerOrigin(params.get(EMBED_PARENT_ORIGIN_PARAM)) || readEmbedParentOrigin();
 
     const cancelled =
       params.get("payment_cancelled") === "1" ||
@@ -1596,14 +1606,26 @@ export default function CartPage() {
     // betalstatus (webhooken är sanningskällan). Redirect är inte bevis på
     // betalning, så vi litar bara på PAID/FAILED från servern.
     paymentInFlightRef.current = false;
-    if (cancelled) {
-      void handlePaymentCancelled(returnOrderId);
-      return;
-    }
-    // Passivt återupptagen order (ingen payment_return-param) får inte låsa
-    // kassan med en lång poll-loop på varje besök — den gör en snabb koll och
-    // släpper sedan varukorgen fri.
-    void finishHostedPayment(returnOrderId, { passive: !returnParam });
+    void (async () => {
+      // Mollie lämnar iframe:n. När kunden kommer tillbaka måste kiosk-proofen
+      // därför skapas på nytt innan statusen eller trackingen hämtas.
+      if (returnEmbedded && returnRestaurantSlug) {
+        await ensureKioskAccess(returnRestaurantSlug);
+      }
+      if (cancelled) {
+        await handlePaymentCancelled(returnOrderId);
+        return;
+      }
+      // Passivt återupptagen order (ingen payment_return-param) får inte låsa
+      // kassan med en lång poll-loop på varje besök — den gör en snabb koll och
+      // släpper sedan varukorgen fri.
+      await finishHostedPayment(returnOrderId, {
+        passive: !returnParam,
+        embedded: returnEmbedded,
+        restaurantSlug: returnRestaurantSlug,
+        parentOrigin: returnParentOrigin,
+      });
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1611,8 +1633,11 @@ export default function CartPage() {
   // inte bevis på betalning, order-tracking-sidan pollar backend och visar rätt
   // status när webhooken finaliserat. Gäster använder den slumpade order-token
   // som ägarbevis; telefonnumret sparas bara som kontaktdata i historiken.
-  const goToOrderTracking = async (orderId: string) => {
+  const goToOrderTracking = async (orderId: string, context: HostedPaymentContext = {}) => {
     paymentInFlightRef.current = false;
+    const trackingEmbedded = context.embedded ?? embedMode;
+    const trackingRestaurantSlug = context.restaurantSlug || embedRestaurantSlug || cartRestaurantSlug || "";
+    const trackingParentOrigin = context.parentOrigin || readEmbedParentOrigin();
     const storedToken = (typeof window !== "undefined" && localStorage.getItem("pending_order_token")) || "";
     const storedPhone = (typeof window !== "undefined" && localStorage.getItem("pending_order_phone")) || "";
     const phone = ((formData.customerPhone || "").trim() || storedPhone).trim();
@@ -1636,8 +1661,8 @@ export default function CartPage() {
       phone: phone,
       accessToken: null,
       createdAt: new Date().toISOString(),
-      restaurantName: cartRestaurantSlug ?? null,
-      restaurantSlug: cartRestaurantSlug ?? null,
+      restaurantName: trackingRestaurantSlug || cartRestaurantSlug || null,
+      restaurantSlug: trackingRestaurantSlug || cartRestaurantSlug || null,
       total: total,
     });
     rememberActiveOrder(orderId, { phone });
@@ -1657,9 +1682,24 @@ export default function CartPage() {
       /* noop */
     }
     clearCheckoutAttempt();
-    router.replace(embedMode
-      ? `/order/${orderId}?embed=1&restaurant=${encodeURIComponent(embedRestaurantSlug || "")}`
-      : `/order/${orderId}`);
+    const trackingUrl = trackingEmbedded
+      ? `/order/${orderId}?embed=1&restaurant=${encodeURIComponent(trackingRestaurantSlug)}&${EMBED_PARENT_ORIGIN_PARAM}=${encodeURIComponent(trackingParentOrigin || "")}`
+      : `/order/${orderId}`;
+
+    if (trackingEmbedded && trackingParentOrigin && window.parent === window) {
+      const partnerReturn = new URL("/meny.html", trackingParentOrigin);
+      partnerReturn.searchParams.set("order", orderId);
+      partnerReturn.searchParams.set("restaurant", trackingRestaurantSlug);
+      window.location.replace(partnerReturn.toString());
+      return;
+    }
+    if (trackingEmbedded && window.parent !== window) {
+      window.parent.postMessage(
+        { type: "viaeats:payment-complete", orderId, restaurantSlug: trackingRestaurantSlug },
+        trackingParentOrigin || "*",
+      );
+    }
+    router.replace(trackingUrl);
   };
 
   const clearPendingPaymentStorage = () => {
@@ -1699,7 +1739,7 @@ export default function CartPage() {
   // PAID → tracking.
   // Terminalt fel/cancel → abandon + behåll varukorg. Timeout/pending → behåll
   // cart och låt kunden försöka igen; skicka ALDRIG obetald order till tracking.
-  const finishHostedPayment = async (orderId: string, opts: { passive?: boolean } = {}) => {
+  const finishHostedPayment = async (orderId: string, opts: HostedPaymentContext = {}) => {
     // Passiv = ingen payment_return-param, bara en kvarlämnad pending_order_id
     // (stängd Mollie-flik el. dyl.). Då görs en snabb engångskoll: PAID går
     // till tracking som vanligt, allt annat städas bort tyst så kassan aldrig
@@ -1724,7 +1764,7 @@ export default function CartPage() {
         const ps = String(res.data?.paymentStatus || "").toUpperCase();
         if (ps === "PAID") {
           clearCartReturnParams();
-          await goToOrderTracking(orderId);
+          await goToOrderTracking(orderId, opts);
           return;
         }
         if (["FAILED", "EXPIRED", "CANCELED", "CANCELLED", "REQUIRES_PAYMENT_METHOD"].includes(ps)) {
@@ -2151,7 +2191,14 @@ export default function CartPage() {
         returnParams.set("embed", "1");
         if (embedRestaurantSlug) returnParams.set("restaurant", embedRestaurantSlug);
       }
-      const returnUrl = `${window.location.origin}/cart?${returnParams.toString()}`;
+      const embedParentOrigin = embedMode ? readEmbedParentOrigin() : null;
+      if (embedParentOrigin) returnParams.set(EMBED_PARENT_ORIGIN_PARAM, embedParentOrigin);
+      // Mollie ska tillbaka till restaurangens sida, inte lämna kunden på en
+      // fristående ViaEats-cart. Palmyras embed.js läser payment_return och
+      // laddar samma säkra statuspollning inuti iframe:n igen.
+      const returnUrl = embedParentOrigin
+        ? `${embedParentOrigin}/meny.html?${returnParams.toString()}`
+        : `${window.location.origin}/cart?${returnParams.toString()}`;
       const payRes = await axios.post(`/api/platform/payments/create`, {
         orderId,
         returnUrl,
@@ -2172,20 +2219,7 @@ export default function CartPage() {
       // so let the trusted Palmyra parent perform the top-level navigation.
       // The partner embed validates both this frame's origin and Mollie's host.
       if (embedMode && window.parent !== window) {
-        let parentOrigin = "*";
-        try {
-          const referrerOrigin = new URL(document.referrer).origin;
-          const trustedParents = new Set([
-            "https://palmyrapizzeria.se",
-            "https://www.palmyrapizzeria.se",
-            "http://localhost:3000",
-            "http://localhost:4000",
-          ]);
-          if (trustedParents.has(referrerOrigin)) parentOrigin = referrerOrigin;
-        } catch {
-          // file:// previews omit the referrer; the parent still verifies the
-          // ViaEats message source and Mollie checkout host before navigating.
-        }
+        const parentOrigin = embedParentOrigin || "*";
         setHostedCheckoutUrl(checkoutUrl);
         window.parent.postMessage(
           { type: "viaeats:open-payment", checkoutUrl },

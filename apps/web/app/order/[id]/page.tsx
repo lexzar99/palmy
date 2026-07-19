@@ -15,6 +15,7 @@ import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import dynamic from "next/dynamic";
 import { OrderTrackingCard } from "@/components/OrderTrackingCard";
 import { forgetRawOrderAccessToken, readOrderHistory } from "@/lib/orderHistory";
+import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 
 // Live-karta laddas bara på klienten (Leaflet behöver window).
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
@@ -331,6 +332,11 @@ const OrderStatusPage = () => {
     }
 
     const bootstrap = async () => {
+      const search = new URLSearchParams(window.location.search);
+      const embeddedRestaurant = search.get("embed") === "1" ? search.get("restaurant") || "" : "";
+      if (embeddedRestaurant) {
+        await ensureKioskAccess(embeddedRestaurant);
+      }
       if (exchangeToken) {
         try {
           await axios.post(`/api/platform/orders/${orderId}/session`, {

@@ -7,6 +7,7 @@ import { ChevronRight, History } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { forgetRawOrderAccessToken, readOrderHistory, type StoredOrderRef } from "@/lib/orderHistory";
+import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 
 // Ordrar som inte ska visas i historiken — samma filter som profilens
 // order-flik (avbrutna/avvisade/obetalda göms).
@@ -155,7 +156,11 @@ export default function OrdersPage() {
       );
     };
 
-    (embedMode ? Promise.resolve(false) : getPlatformSessionStatus())
+    const accessReady = embedMode && embedRestaurant
+      ? ensureKioskAccess(embedRestaurant).then(() => false)
+      : getPlatformSessionStatus();
+
+    accessReady
       .then(async (authed) => {
         if (!active) return;
         setLoggedIn(authed);

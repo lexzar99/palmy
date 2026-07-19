@@ -50,6 +50,7 @@ import {
   OrderExtraPricingError,
   resolveAuthoritativeExtraSelection,
 } from '../lib/orderExtraPricing';
+import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
 
 const router = Router();
 
@@ -66,6 +67,25 @@ function attachWebOrderSession(req: Request, res: Response, orderId: string) {
 
 function rawOrderAccessForNonWebClient(req: Request, accessToken: string | null) {
   return req.headers['x-client-type'] === 'web' ? {} : { accessToken };
+}
+
+function kioskCanTrackPaidOrder(
+  req: Request,
+  order: { paymentStatus?: string | null; restaurant?: { slug?: string | null } | null },
+): boolean {
+  if (req.headers['x-client-type'] !== 'web' || order.paymentStatus !== 'PAID') return false;
+  const kioskSlug = validKioskAccessProof(req.headers[KIOSK_ACCESS_HEADER]);
+  const allowedRestaurants = new Set(
+    String(process.env.KIOSK_RESTAURANT_SLUGS || 'palmyra-pizzeria-lund')
+      .split(',')
+      .map((slug) => slug.trim())
+      .filter(Boolean),
+  );
+  return Boolean(
+    kioskSlug &&
+    allowedRestaurants.has(kioskSlug) &&
+    order.restaurant?.slug === kioskSlug,
+  );
 }
 
 function rejectExpiredOrderReplay(res: Response) {
@@ -1849,11 +1869,19 @@ router.post('/:id/session', async (req: Request, res: Response) => {
 // long-lived credential out of JavaScript while realtime remains order-scoped.
 router.post('/:id/access-proof', async (req: Request, res: Response) => {
   const orderId = req.params.id;
-  const allowed = await resolveOrderAccess({
+  let allowed = await resolveOrderAccess({
     orderId,
     orderSession: req.headers[ORDER_HTTP_SESSION_HEADER],
     authorization: req.headers.authorization,
   }).catch(() => false);
+
+  if (!allowed && validOrderId(orderId)) {
+    const kioskOrder = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { paymentStatus: true, restaurant: { select: { slug: true } } },
+    });
+    allowed = Boolean(kioskOrder && kioskCanTrackPaidOrder(req, kioskOrder));
+  }
 
   if (!allowed || !validOrderId(orderId)) {
     return res.status(404).json({ error: 'Order hittades inte' });
@@ -1867,12 +1895,12 @@ router.post('/:id/access-proof', async (req: Request, res: Response) => {
 // use the HttpOnly order proof; account callers use active customer auth.
 router.get('/:id/summary', async (req: Request, res: Response) => {
   const orderId = req.params.id;
-  const allowed = await resolveOrderAccess({
+  let allowed = await resolveOrderAccess({
     orderId,
     orderSession: req.headers[ORDER_HTTP_SESSION_HEADER],
     authorization: req.headers.authorization,
   }).catch(() => false);
-  if (!allowed || !validOrderId(orderId)) {
+  if (!validOrderId(orderId)) {
     return res.status(404).json({ error: 'Order hittades inte' });
   }
 
@@ -1885,11 +1913,13 @@ router.get('/:id/summary', async (req: Request, res: Response) => {
       paymentStatus: true,
       total: true,
       createdAt: true,
-      restaurant: { select: { name: true } },
+      restaurant: { select: { name: true, slug: true } },
       _count: { select: { items: true } },
     },
   });
   if (!order) return res.status(404).json({ error: 'Order hittades inte' });
+  if (!allowed) allowed = kioskCanTrackPaidOrder(req, order);
+  if (!allowed) return res.status(404).json({ error: 'Order hittades inte' });
 
   attachWebOrderSession(req, res, orderId);
   return res.json({
@@ -1953,7 +1983,8 @@ router.get('/:id', async (req: Request, res: Response) => {
     ).catch(() => null);
     let isOwner =
       verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], order.id) ||
-      Boolean(callerUserId && order.userId === callerUserId);
+      Boolean(callerUserId && order.userId === callerUserId) ||
+      kioskCanTrackPaidOrder(req, order);
 
     // Local-only compatibility for old dev builds. Production never accepts a
     // phone number as proof of access to customer PII.

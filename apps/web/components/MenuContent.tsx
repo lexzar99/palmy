@@ -8,6 +8,7 @@ import { API_URL, SOCKET_URL } from "@/lib/api";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 import dynamic from "next/dynamic";
 import FloatingCartButton from "@/components/FloatingCartButton";
+import { EMBED_PARENT_ORIGIN_PARAM, rememberEmbedParentOrigin } from "@/lib/embedPartner";
 import SmartImage from "@/components/SmartImage";
 import { PublicDeal } from "@/lib/deals";
 import Link from "next/link";
@@ -336,6 +337,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
 
   useEffect(() => {
     if (!embedMode || !restaurant?.slug) return;
+    rememberEmbedParentOrigin(
+      new URLSearchParams(window.location.search).get(EMBED_PARENT_ORIGIN_PARAM),
+    );
     void ensureKioskAccess(restaurant.slug);
   }, [embedMode, restaurant?.slug]);
 
