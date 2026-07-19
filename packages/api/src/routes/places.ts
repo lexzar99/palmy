@@ -38,11 +38,97 @@ async function googleAutocomplete(
     const response = await fetch(url.toString());
     trackApiCall('google_maps').catch(() => {});
     const data = (await response.json()) as any;
+    // REQUEST_DENIED (t.ex. billing avstängd) gav tidigare tyst tom lista —
+    // kunden såg "inga förslag" och ingen larmade. Fel-status → null så
+    // Photon-fallbacken tar över och Systemvakten ser loggen.
+    if (data.status && data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+      console.error('[places] Google autocomplete error:', data.status, data.error_message || '');
+      return null;
+    }
     const predictions = (data.predictions || []).map((p: any): Prediction => ({
       description: p.description,
       place_id: p.place_id,
     }));
     return predictions;
+  } catch {
+    return null;
+  }
+}
+
+// ── Nyckelfri fallback: Photon (OpenStreetMap) ──────────────────────────────
+// Google är primär källa. När nyckeln saknas, nekas (billing) eller tjänsten
+// är nere får kunderna ändå adressförslag via Photon. Koordinaterna följer
+// med i place_id ("photon:lat,lng,postnr,ort") så geocode-steget inte behöver
+// något extra nätverksanrop.
+
+function photonAddress(props: any): { street: string; zip?: string; city?: string } | null {
+  const street = [props.street || props.name, props.housenumber].filter(Boolean).join(' ').trim();
+  if (!street) return null;
+  return {
+    street,
+    zip: props.postcode || undefined,
+    city: props.city || props.town || props.village || props.locality || undefined,
+  };
+}
+
+async function photonAutocomplete(input: string): Promise<Prediction[] | null> {
+  try {
+    const url = new URL('https://photon.komoot.io/api/');
+    url.searchParams.set('q', input);
+    url.searchParams.set('limit', '6');
+    // Bias mot Sverige; Photon har inget hårt landsfilter i frågan så
+    // countrycode filtreras på svaret i stället.
+    url.searchParams.set('lat', '59.3');
+    url.searchParams.set('lon', '14.5');
+    const response = await fetch(url.toString(), {
+      headers: { 'User-Agent': 'ViaEats/1.0 (https://www.viaeats.se)' },
+    });
+    trackApiCall('photon').catch(() => {});
+    const data = (await response.json()) as any;
+    const seen = new Set<string>();
+    const predictions: Prediction[] = [];
+    for (const feature of data.features || []) {
+      const props = feature?.properties || {};
+      if (String(props.countrycode || '').toUpperCase() !== 'SE') continue;
+      const parts = photonAddress(props);
+      const coords = feature?.geometry?.coordinates;
+      if (!parts || !Array.isArray(coords) || coords.length < 2) continue;
+      const description = [parts.street, [parts.zip, parts.city].filter(Boolean).join(' ')]
+        .filter(Boolean).join(', ');
+      if (seen.has(description)) continue;
+      seen.add(description);
+      predictions.push({
+        description,
+        place_id: `photon:${coords[1]},${coords[0]},${parts.zip || ''},${parts.city || ''}`,
+      });
+    }
+    return predictions;
+  } catch {
+    return null;
+  }
+}
+
+async function photonReverse(lat: number, lng: number): Promise<ReverseResult | null> {
+  try {
+    const url = new URL('https://photon.komoot.io/reverse');
+    url.searchParams.set('lat', String(lat));
+    url.searchParams.set('lon', String(lng));
+    url.searchParams.set('limit', '1');
+    const response = await fetch(url.toString(), {
+      headers: { 'User-Agent': 'ViaEats/1.0 (https://www.viaeats.se)' },
+    });
+    trackApiCall('photon').catch(() => {});
+    const data = (await response.json()) as any;
+    const props = data.features?.[0]?.properties;
+    if (!props) return null;
+    const parts = photonAddress(props);
+    if (!parts) return null;
+    const zipCity = [parts.zip, parts.city].filter(Boolean).join(' ');
+    return {
+      address: [parts.street, zipCity].filter(Boolean).join(', '),
+      postalCode: parts.zip,
+      city: parts.city,
+    };
   } catch {
     return null;
   }
@@ -95,6 +181,10 @@ async function googleReverse(lat: number, lng: number): Promise<ReverseResult | 
     const response = await fetch(url.toString());
     trackApiCall('google_maps').catch(() => {});
     const data = (await response.json()) as any;
+    if (data.status && data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+      console.error('[places] Google reverse error:', data.status, data.error_message || '');
+      return null;
+    }
     const result = (data.results || [])[0];
     if (!result) return null;
 
@@ -137,20 +227,41 @@ async function handleAutocomplete(input: string, sessiontoken: string | undefine
     return res.json({ predictions: [] });
   }
 
-  if (!MAPS_KEY) {
-    return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY saknas på servern' });
+  const google = MAPS_KEY ? await googleAutocomplete(input, sessiontoken) : null;
+  if (google && google.length > 0) {
+    return res.json({ predictions: google });
   }
 
-  const google = await googleAutocomplete(input, sessiontoken);
-  if (google === null) {
-    return res.status(500).json({ predictions: [], error: 'Autocomplete failed' });
+  // Google nere/nekad/utan träff → Photon. En tom men lyckad Google-lista
+  // (ZERO_RESULTS) provas också — OSM hittar ibland adresser Google missar.
+  const photon = await photonAutocomplete(input);
+  if (photon && photon.length > 0) {
+    return res.json({ predictions: photon });
   }
-  return res.json({ predictions: google });
+  if (google !== null || photon !== null) {
+    return res.json({ predictions: [] });
+  }
+  return res.status(500).json({ predictions: [], error: 'Autocomplete failed' });
 }
 
 async function handleGeocode(place_id: string, sessiontoken: string | undefined, res: Response) {
   if (!place_id) {
     return res.status(400).json({ error: 'place_id required' });
+  }
+
+  // Photon-förslag bär sina koordinater i place_id — inget nätverksanrop.
+  if (place_id.startsWith('photon:')) {
+    const [latRaw, lngRaw, zipRaw, ...cityParts] = place_id.slice('photon:'.length).split(',');
+    const lat = Number(latRaw);
+    const lng = Number(lngRaw);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ error: 'Ogiltigt photon-place_id' });
+    }
+    return res.json({
+      location: { lat, lng },
+      postalCode: zipRaw || undefined,
+      city: cityParts.join(',') || undefined,
+    });
   }
 
   if (!MAPS_KEY) {
@@ -184,10 +295,7 @@ router.get('/reverse', geocodeLimiter, async (req: Request, res: Response) => {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return res.status(400).json({ error: 'lat/lng required' });
   }
-  if (!MAPS_KEY) {
-    return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY saknas på servern' });
-  }
-  const result = await googleReverse(lat, lng);
+  const result = (MAPS_KEY ? await googleReverse(lat, lng) : null) || await photonReverse(lat, lng);
   if (!result) return res.status(404).json({ error: 'No address found' });
   return res.json(result);
 });
