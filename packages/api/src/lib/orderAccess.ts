@@ -15,6 +15,8 @@ const ORDER_ACCESS_SCOPE = 'order:events';
 const ORDER_ACCESS_PROOF_TTL_SECONDS = 5 * 60;
 const ORDER_HTTP_SESSION_AUDIENCE = 'viaeats-order-http';
 const ORDER_HTTP_SESSION_SCOPE = 'order:http';
+const ORDER_NATIVE_SESSION_AUDIENCE = 'viaeats-order-native-http';
+const ORDER_NATIVE_SESSION_SCOPE = 'order:native-http';
 
 // A raw checkout secret is only an exchange credential. It remains available
 // briefly for native-client compatibility and hosted-payment recovery, but it
@@ -23,6 +25,8 @@ export const RAW_ORDER_ACCESS_TTL_MS = 48 * 60 * 60 * 1000;
 export const ORDER_HTTP_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 export const ORDER_HTTP_SESSION_HEADER = 'x-viaeats-order-session';
 export const ORDER_HTTP_SESSION_ID_HEADER = 'x-viaeats-order-id';
+export const ORDER_NATIVE_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+export const ORDER_NATIVE_SESSION_HEADER = 'x-viaeats-order-native-session';
 
 type OrderAccessProofPayload = jwt.JwtPayload & {
   orderId?: string;
@@ -180,6 +184,48 @@ export function verifyOrderHttpSession(
       issuer: ORDER_ACCESS_ISSUER,
     }) as OrderAccessProofPayload;
     return payload.scope === ORDER_HTTP_SESSION_SCOPE && payload.orderId === orderId;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Native HTTP capability. The raw checkout secret is exchanged/returned only
+ * over HTTPS, then iOS/Android use this signed, order-bound value in a header.
+ * A separate audience prevents browser cookies or realtime proofs from being
+ * replayed as native API credentials.
+ */
+export function issueOrderNativeSession(
+  orderId: string,
+  secret = JWT_SECRET,
+  expiresInSeconds = ORDER_NATIVE_SESSION_TTL_SECONDS,
+): string {
+  if (!validOrderId(orderId)) throw new Error('Invalid order id');
+  return jwt.sign(
+    { orderId, scope: ORDER_NATIVE_SESSION_SCOPE },
+    secret,
+    {
+      algorithm: 'HS256',
+      audience: ORDER_NATIVE_SESSION_AUDIENCE,
+      issuer: ORDER_ACCESS_ISSUER,
+      expiresIn: expiresInSeconds,
+    },
+  );
+}
+
+export function verifyOrderNativeSession(
+  proof: unknown,
+  orderId: unknown,
+  secret = JWT_SECRET,
+): boolean {
+  if (typeof proof !== 'string' || !proof || !validOrderId(orderId)) return false;
+  try {
+    const payload = jwt.verify(proof, secret, {
+      algorithms: ['HS256'],
+      audience: ORDER_NATIVE_SESSION_AUDIENCE,
+      issuer: ORDER_ACCESS_ISSUER,
+    }) as OrderAccessProofPayload;
+    return payload.scope === ORDER_NATIVE_SESSION_SCOPE && payload.orderId === orderId;
   } catch {
     return false;
   }

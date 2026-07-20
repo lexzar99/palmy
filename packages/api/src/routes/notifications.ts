@@ -7,6 +7,10 @@ import { authenticate, isSuperAdmin } from '../middleware/auth';
 import { authenticateUser, authenticateUserOptional } from './auth';
 import { resolveCustomerNotificationTarget } from '../lib/customerNotificationAccess';
 import {
+  ORDER_NATIVE_SESSION_HEADER,
+  verifyOrderNativeSession,
+} from '../lib/orderAccess';
+import {
   CUSTOMER_PUSH_PROVIDERS,
   type CustomerPushProvider,
   opaqueInstallationId,
@@ -86,6 +90,14 @@ router.post('/register-fcm', authenticateUserOptional, async (req: any, res) => 
         select: { userId: true, accessToken: true, createdAt: true },
       });
       target = resolveCustomerNotificationTarget({ authenticatedUserId, order, accessToken });
+      const clientType = String(req.headers['x-client-type'] || '').toLowerCase();
+      if (
+        !target &&
+        (clientType === 'ios' || clientType === 'android') &&
+        verifyOrderNativeSession(req.headers[ORDER_NATIVE_SESSION_HEADER], orderId)
+      ) {
+        target = { scope: 'order', userId: null };
+      }
       if (!target) return res.status(404).json({ error: 'Ordern hittades inte' });
     }
 
@@ -147,6 +159,14 @@ router.post('/register-device', authenticateUserOptional, async (req: any, res) 
         select: { userId: true, accessToken: true, createdAt: true },
       });
       target = resolveCustomerNotificationTarget({ authenticatedUserId, order, accessToken });
+      const clientType = String(req.headers['x-client-type'] || '').toLowerCase();
+      if (
+        !target &&
+        (clientType === 'ios' || clientType === 'android') &&
+        verifyOrderNativeSession(req.headers[ORDER_NATIVE_SESSION_HEADER], orderId)
+      ) {
+        target = { scope: 'order', userId: null };
+      }
       if (!target) return res.status(404).json({ error: 'Ordern hittades inte' });
     }
     if (!target) return res.status(401).json({ error: 'Logga in eller ange ett giltigt orderbevis' });

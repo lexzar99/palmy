@@ -6,12 +6,14 @@ import {
   exchangeOrderAccessForHttpSession,
   issueOrderAccessProof,
   issueOrderHttpSession,
+  issueOrderNativeSession,
   ownsOrder,
   ownsOrderWithActiveRawSecret,
   sameOrderSecret,
   validOrderId,
   verifyOrderAccessProof,
   verifyOrderHttpSession,
+  verifyOrderNativeSession,
 } from '../lib/orderAccess';
 import { localCustomerAuthMethod } from '../lib/customerAuthPolicy';
 
@@ -96,6 +98,15 @@ assert.equal(verifyOrderHttpSession(proof, orderId, proofSecret), false);
 const expiredHttpSession = issueOrderHttpSession(orderId, proofSecret, -1);
 assert.equal(verifyOrderHttpSession(expiredHttpSession, orderId, proofSecret), false);
 
+const nativeSession = issueOrderNativeSession(orderId, proofSecret, 60);
+assert.equal(verifyOrderNativeSession(nativeSession, orderId, proofSecret), true);
+assert.equal(verifyOrderNativeSession(nativeSession, 'different-order', proofSecret), false);
+assert.equal(verifyOrderHttpSession(nativeSession, orderId, proofSecret), false);
+assert.equal(verifyOrderAccessProof(nativeSession, orderId, proofSecret), false);
+assert.equal(verifyOrderNativeSession(httpSession, orderId, proofSecret), false);
+const expiredNativeSession = issueOrderNativeSession(orderId, proofSecret, -1);
+assert.equal(verifyOrderNativeSession(expiredNativeSession, orderId, proofSecret), false);
+
 async function assertOneTimeRawExchange() {
   let storedRawSecret: string | null = token;
   const exchangeClient = {
@@ -138,6 +149,9 @@ assert.match(ordersRouteSource, /exchangeOrderAccessForHttpSession\(\{/);
 assert.match(ordersRouteSource, /resolveActiveCustomerFromAuthorization\(authHeaderForScope\)/);
 assert.match(ordersRouteSource, /resolveActiveCustomerIdFromAuthorization\(/);
 assert.doesNotMatch(ordersRouteSource, /req\.query\.token/);
+assert.match(ordersRouteSource, /router\.post\('\/:id\/native-session'/);
+assert.match(ordersRouteSource, /issueOrderNativeSession\(orderId\)/);
+assert.match(ordersRouteSource, /verifyOrderNativeSession\(/);
 assert.doesNotMatch(ordersRouteSource, /supabaseAdmin\.auth\.getUser/);
 assert.match(orderAccessSource, /payload\.role === 'USER'/);
 assert.match(orderAccessSource, /customerAuthMethod\(sbUser\)/);
@@ -147,6 +161,7 @@ assert.match(
   /where: \{ id: orderId, accessToken: order\.accessToken \}[\s\S]*data: \{ accessToken: null \}/,
 );
 assert.doesNotMatch(paymentsRouteSource, /req\.query\.token/);
+assert.match(paymentsRouteSource, /verifyOrderNativeSession\(/);
 assert.match(paymentsRouteSource, /res\.redirect\(302, appUrl\)/);
 assert.doesNotMatch(paymentsRouteSource, /window\.location\.replace/);
 assert.match(authRouteSource, /payload\?\.role !== 'USER'/);

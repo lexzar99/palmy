@@ -34,8 +34,10 @@ import { recordKnownRemoteRefunds } from '../lib/payments/refundLedger';
 import { announceFullRefund } from '../lib/payments/refundNotifications';
 import {
   ORDER_HTTP_SESSION_HEADER,
+  ORDER_NATIVE_SESSION_HEADER,
   ownsOrderWithActiveRawSecret,
   verifyOrderHttpSession,
+  verifyOrderNativeSession,
 } from '../lib/orderAccess';
 import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
 
@@ -115,6 +117,11 @@ function ownsPaymentOrder(
 ): boolean {
   if (req.user?.id && order.userId && req.user.id === order.userId) return true;
   if (verifyOrderHttpSession(req.headers?.[ORDER_HTTP_SESSION_HEADER], order.id)) return true;
+  const clientType = String(req.headers?.['x-client-type'] || '').toLowerCase();
+  if (
+    (clientType === 'ios' || clientType === 'android') &&
+    verifyOrderNativeSession(req.headers?.[ORDER_NATIVE_SESSION_HEADER], order.id)
+  ) return true;
   const kioskSlug = validKioskAccessProof(req.headers?.[KIOSK_ACCESS_HEADER]);
   const kioskAllowedRestaurants = new Set(
     String(process.env.KIOSK_RESTAURANT_SLUGS || 'palmyra-pizzeria-lund')
