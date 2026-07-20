@@ -220,6 +220,7 @@ function providerForStoredName(name: string | null | undefined) {
 // POST /api/payments/create
 router.post('/create', createLimiter, authenticateUserOptional, async (req: any, res) => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const { orderId, returnUrl, channel, storePaymentMethod, accessToken } = req.body || {};
     if (!orderId || typeof orderId !== 'string') {
       res.status(400).json({ error: 'orderId krävs' });
@@ -704,6 +705,7 @@ router.post('/webhooks/adyen', async (req, res) => {
 
 // GET /api/payments/status/:orderId — klient pollar efter redirect.
 router.get('/status/:orderId', statusLimiter, authenticateUserOptional, async (req: any, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   let order = await prisma.order.findUnique({
     where: { id: req.params.orderId },
     select: {

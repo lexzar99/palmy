@@ -65,6 +65,9 @@ const router = Router();
  * existing response body and never need to understand the browser session.
  */
 function attachWebOrderSession(req: Request, res: Response, orderId: string) {
+  // Order responses can contain native exchange credentials or customer PII.
+  // They must never be retained by a browser, CDN, or shared intermediary.
+  res.setHeader('Cache-Control', 'no-store');
   if (req.headers['x-client-type'] !== 'web' || !validOrderId(orderId)) return;
   res.setHeader(ORDER_HTTP_SESSION_HEADER, issueOrderHttpSession(orderId));
   res.setHeader(ORDER_HTTP_SESSION_ID_HEADER, orderId);
