@@ -49,7 +49,7 @@ import {
   verifyOrderHttpSession,
   verifyOrderNativeSession,
 } from '../lib/orderAccess';
-import { calculateOrderVat, deliveryVatPercent, normalizeVatPercent } from '../lib/tax';
+import { calculateOrderVat, deliveryVatPercent, normalizeFoodVatPercent, normalizeVatPercent } from '../lib/tax';
 import {
   assertNonnegativeCatalogLine,
   OrderExtraPricingError,
@@ -684,7 +684,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const now = new Date();
-    const restaurantFoodVatPercent = normalizeVatPercent((restaurant as any).vatPercent, 6);
+    const restaurantFoodVatPercent = normalizeFoodVatPercent((restaurant as any).vatPercent, 6);
     const orderDeliveryVatPercent = data.type === 'DELIVERY'
       ? deliveryVatPercent(Boolean((restaurant as any).selfDelivery), restaurantFoodVatPercent)
       : null;
@@ -2162,7 +2162,10 @@ router.get('/:id', async (req: Request, res: Response) => {
       courierLastSeenAt: courierCanBeShown && order.delivery.courier.lastSeenAt ? order.delivery.courier.lastSeenAt.toISOString() : null,
       // Moms i % som restaurangen visar i kvittot (6/12). null = restaurangen
       // visar ingen momsrad → klienten döljer den.
-      restaurantVatPercent: (order as any).foodVatPercent ?? normalizeVatPercent((order.restaurant as any)?.vatPercent, 6),
+      restaurantVatPercent: normalizeFoodVatPercent(
+        (order as any).foodVatPercent ?? (order.restaurant as any)?.vatPercent,
+        6,
+      ),
       // Budets aktiva orderantal (bara satt under leverans) — driver ETA-spannet.
       courierActiveOrders,
       etaEndsAt,

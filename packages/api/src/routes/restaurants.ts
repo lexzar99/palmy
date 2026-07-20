@@ -21,7 +21,7 @@ import { revalidateWebRestaurant } from '../lib/revalidate';
 import { menuCacheBust } from './menu';
 import { isCustomerVisibleDeal, isDealAvailableNow, parseApplicableRestaurantIds, parseDealProductIds } from '../lib/deals';
 import { audit } from '../lib/auditLog';
-import { normalizeVatPercent } from '../lib/tax';
+import { normalizeFoodVatPercent } from '../lib/tax';
 
 const router = Router();
 
@@ -250,7 +250,7 @@ const formatRestaurant = (
   internalInfo: restaurant.internalInfo,
   announcementText: restaurant.announcementText ?? null,
   // Every app order is takeaway/delivery; current Swedish food default is 6%.
-  vatPercent: normalizeVatPercent(restaurant.vatPercent, 6),
+  vatPercent: normalizeFoodVatPercent(restaurant.vatPercent, 6),
   selfDelivery: restaurant.selfDelivery ?? false,
   commissionPctOverride: restaurant.commissionPctOverride ?? null,
   createdAt: restaurant.createdAt,

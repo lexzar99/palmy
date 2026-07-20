@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { allocateDiscount, buildMollieLines } from '../lib/payments/mollieLines';
 import type { OrderForPayment } from '../lib/payments/types';
+import { calculateOrderVat, normalizeFoodVatPercent } from '../lib/tax';
 
 const baseOrder = (overrides: Partial<OrderForPayment> = {}): OrderForPayment => ({
   id: 'order-1',
@@ -66,6 +67,26 @@ const sumLines = (lines: ReturnType<typeof buildMollieLines>) =>
 
 assert.deepEqual(allocateDiscount(1, [1, 1, 1]), [1, 0, 0]);
 assert.deepEqual(allocateDiscount(100, [100, 300]), [25, 75]);
+
+// Legacy restaurant/order snapshots with food VAT 0 must render as the
+// platform's prepared-food default, while a product-level 0 override remains
+// valid on an otherwise correctly taxed order.
+assert.equal(normalizeFoodVatPercent(0, 6), 6);
+assert.deepEqual(
+  calculateOrderVat({
+    foodVatPercent: 0,
+    deliveryVatPercent: 25,
+    items: [{ subtotal: 28_300, vatPercent: 0 }],
+  }).breakdown,
+  [{ rate: 6, grossOre: 28_300, vatOre: 1_602 }],
+);
+assert.deepEqual(
+  calculateOrderVat({
+    foodVatPercent: 6,
+    items: [{ subtotal: 1_000, vatPercent: 0 }],
+  }).breakdown,
+  [{ rate: 0, grossOre: 1_000, vatOre: 0 }],
+);
 
 assert.throws(
   () => buildMollieLines(baseOrder({ foodDiscountAmount: 100, discountAmount: 0 })),

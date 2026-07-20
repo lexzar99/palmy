@@ -10,7 +10,7 @@ import { isDealAvailableNow } from '../lib/deals';
 import { invalidateCachedCustomerIdentity } from '../lib/customerIdentityCache';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { normalizeReferralPhone, referralPhoneVariants } from '../lib/referralRules';
-import { calculateOrderVat } from '../lib/tax';
+import { calculateOrderVat, normalizeFoodVatPercent } from '../lib/tax';
 
 const router = Router();
 
@@ -407,7 +407,7 @@ router.get('/orders', authenticateUser, async (req: any, res: any) => {
         })),
         restaurant: o.restaurant ? {
           ...o.restaurant,
-          vatPercent: o.foodVatPercent ?? o.restaurant.vatPercent ?? 6,
+          vatPercent: normalizeFoodVatPercent(o.foodVatPercent ?? o.restaurant.vatPercent, 6),
         } : null,
         items: (o.items || []).map((it: any) => ({
           ...it,
