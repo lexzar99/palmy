@@ -197,10 +197,29 @@ test("saved deal links have a real detail route", () => {
 
 test("cart resumes persisted Mollie orders and accepts already-paid replay", () => {
   const source = read("app/cart/page.tsx");
-  assert.match(source, /params\.get\("payment_return"\)\s*\|\|\s*localStorage\.getItem\("pending_order_id"\)/);
+  assert.match(source, /const returnParam = params\.get\("payment_return"\);[\s\S]*const returnOrderId = returnParam \|\| localStorage\.getItem\("pending_order_id"\)/);
   assert.match(source, /payRes\.data\?\.alreadyPaid\s*===\s*true/);
   assert.match(source, /alreadyPaid[\s\S]*goToOrderTracking\(orderId\)/);
   assert.match(source, /ORDER_REPLAY_EXPIRED[\s\S]*clearCheckoutAttempt\(\)/);
+});
+
+test("checkout recovers an expired customer cookie as a guest without losing the order session", () => {
+  const proxy = read("app/api/platform/[...path]/route.ts");
+  assert.match(proxy, /CUSTOMER_SESSION_NOT_ALLOWED/);
+  assert.match(proxy, /headers\.delete\("authorization"\)/);
+  assert.match(proxy, /if \(recoveredAsGuest\) expirePlatformCredential\(response\)/);
+  assert.doesNotMatch(
+    proxy.match(/if \(recoveredAsGuest\)[\s\S]*?return response;/)?.[0] || "",
+    /expireCustomerCredentials/,
+  );
+});
+
+test("guest order history prunes rows that the API says no longer exist", () => {
+  const orders = read("app/orders/page.tsx");
+  assert.match(orders, /\[404, 410\]\.includes/);
+  assert.match(orders, /removeOrderFromHistory\(id\)/);
+  assert.match(orders, /forgetActiveOrder\(id\)/);
+  assert.match(orders, /if \(missingIds\.has\(ref\.id\)\) return \[\]/);
 });
 
 test("invite landing uses shared API resolution and server reward copy", () => {

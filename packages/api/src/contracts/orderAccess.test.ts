@@ -147,6 +147,8 @@ assert.match(
   /where: \{ id: orderId, accessToken: order\.accessToken \}[\s\S]*data: \{ accessToken: null \}/,
 );
 assert.doesNotMatch(paymentsRouteSource, /req\.query\.token/);
+assert.match(paymentsRouteSource, /res\.redirect\(302, appUrl\)/);
+assert.doesNotMatch(paymentsRouteSource, /window\.location\.replace/);
 assert.match(authRouteSource, /payload\?\.role !== 'USER'/);
 assert.match(authRouteSource, /localCustomerAuthMethod\(account\)/);
 assert.doesNotMatch(pushRouteSource, /accessToken:\s*req\.body\?\.accessToken/);

@@ -503,7 +503,9 @@ router.post('/webhooks/mollie', async (req, res) => {
 // GET /api/payments/return — Mollie redirectUrl för native/web.
 // Vi litar fortfarande bara på PSP-status: om Mollie säger paid finaliserar vi
 // direkt här som snabb backup till webhook/reconcile, sedan skickas appen tillbaka
-// via URL scheme. Webben får en enkel stäng-sida.
+// via en riktig HTTP-redirect till URL-schemat. En HTML-sida med inline-script
+// fungerar inte här: API:ets CSP blockerar scriptet och iOS blir kvar på en vit
+// sida i stället för att ASWebAuthenticationSession ska få callbacken.
 router.get('/return', statusLimiter, async (req, res) => {
   const orderId = typeof req.query.orderId === 'string' ? req.query.orderId.slice(0, 100) : '';
   const app = typeof req.query.app === 'string' ? req.query.app : '';
@@ -548,20 +550,8 @@ router.get('/return', statusLimiter, async (req, res) => {
 
   const appUrl = `viaeats://payment/return?orderId=${encodeURIComponent(orderId)}&paymentStatus=${encodeURIComponent(paymentStatus)}`;
   if (app === 'viaeats') {
-    res.type('html').send(`<!doctype html>
-<html lang="sv">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Betalning klar</title>
-  <meta http-equiv="refresh" content="0;url=${appUrl}">
-  <script>window.location.replace(${JSON.stringify(appUrl)});</script>
-</head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px">
-  <p>Betalningen kontrolleras. Du kan återgå till appen.</p>
-  <p><a href="${appUrl}">Öppna appen</a></p>
-</body>
-</html>`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.redirect(302, appUrl);
     return;
   }
 
