@@ -9,6 +9,10 @@ export interface TerminalDevice {
   status: TerminalDeviceStatus;
   lastSeenAt: string | null;
   createdAt: string;
+  deviceBrand: string | null;
+  deviceModel: string | null;
+  osVersion: string | null;
+  appVersion: string | null;
 }
 
 export interface PendingPairingCode {

@@ -5944,7 +5944,10 @@ router.get('/restaurants/:id/devices', authenticate, requireSuperAdmin, async (r
     const devices = await (prisma as any).restaurantDevice.findMany({
       where: { restaurantId: req.params.id },
       orderBy: { lastSeenAt: 'desc' },
-      select: { id: true, deviceId: true, label: true, revoked: true, lastSeenAt: true, createdAt: true },
+      select: {
+        id: true, deviceId: true, label: true, revoked: true, lastSeenAt: true, createdAt: true,
+        deviceBrand: true, deviceModel: true, osVersion: true, appVersion: true,
+      },
     });
     const pendingCode = await (prisma as any).devicePairingCode.findFirst({
       where: { restaurantId: req.params.id, usedAt: null, expiresAt: { gt: new Date() } },
@@ -5959,6 +5962,12 @@ router.get('/restaurants/:id/devices', authenticate, requireSuperAdmin, async (r
         status: d.revoked ? 'revoked' : 'linked',
         lastSeenAt: d.lastSeenAt,
         createdAt: d.createdAt,
+        // Metadata följer med oavsett status — en utloggad enhet ska
+        // fortfarande gå att känna igen ("Sunmi V2 i baren").
+        deviceBrand: d.deviceBrand,
+        deviceModel: d.deviceModel,
+        osVersion: d.osVersion,
+        appVersion: d.appVersion,
       })),
       pendingCode: pendingCode || null,
     });

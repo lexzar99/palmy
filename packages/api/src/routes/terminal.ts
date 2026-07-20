@@ -130,10 +130,36 @@ function terminalSessionPayload(
   };
 }
 
+// Enhetsmetadata som appen skickar med i pair/session. Sparas så admin ser
+// vilken fysisk platta som hör till vilken rad — även när den är utloggad.
+type TerminalClientInfo = {
+  version?: string;
+  model?: string;
+  brand?: string;
+  osVersion?: string;
+};
+
+function clientMetadataUpdate(client?: TerminalClientInfo) {
+  if (!client || typeof client !== 'object') return {};
+  const clean = (v: unknown) =>
+    typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined;
+  return {
+    appVersion: clean(client.version),
+    deviceModel: clean(client.model),
+    deviceBrand: clean(client.brand),
+    osVersion: clean(client.osVersion),
+  };
+}
+
 async function rotateTerminalSession(input: {
   deviceId: string;
   restaurantId: string;
   pushToken?: string;
+  client?: TerminalClientInfo;
+  // true när klienten autentiserade med FÖRRA tokenen (den missade förra
+  // svaret). Då behåller vi prev-hashen så samma token funkar tills klienten
+  // bevisligen tagit emot en rotation.
+  keepPrevHash?: boolean;
 }) {
   const device = await (prisma as any).restaurantDevice.findUnique({
     where: { deviceId: input.deviceId },
@@ -148,8 +174,12 @@ async function rotateTerminalSession(input: {
     where: { deviceId: input.deviceId },
     data: {
       refreshTokenHash: sha256(refreshToken),
+      prevRefreshTokenHash: input.keepPrevHash
+        ? undefined
+        : device.refreshTokenHash ?? undefined,
       lastSeenAt: new Date(),
       pushToken: input.pushToken ?? undefined,
+      ...clientMetadataUpdate(input.client),
     },
   });
   return terminalSessionPayload(ensured, input.deviceId, refreshToken);
@@ -159,8 +189,9 @@ async function rotateTerminalSession(input: {
 // Engångsparning. Binder device-id → restaurang och returnerar tokens.
 router.post('/pair', async (req, res) => {
   try {
-    const { code, deviceId, pushToken, label } = (req.body || {}) as {
+    const { code, deviceId, pushToken, label, client } = (req.body || {}) as {
       code?: string; deviceId?: string; pushToken?: string; label?: string;
+      client?: TerminalClientInfo;
     };
     if (!code || !deviceId) {
       return res.status(400).json({ error: 'code och deviceId krävs' });
@@ -198,6 +229,7 @@ router.post('/pair', async (req, res) => {
           deviceId: String(deviceId),
           restaurantId: pairing.restaurantId,
           pushToken,
+          client,
         });
         if (!recovered) return res.status(404).json({ error: 'Restaurang hittades inte' });
         console.info('[terminal/pair] recovered same device after ambiguous response', {
@@ -252,9 +284,12 @@ router.post('/pair', async (req, res) => {
           restaurantId: pairing.restaurantId,
           revoked: false,
           refreshTokenHash: sha256(refreshToken),
+          // Ny parning = ny tokenkedja; en gammal token får aldrig hänga kvar.
+          prevRefreshTokenHash: null,
           pushToken: pushToken ?? undefined,
           label: label ?? undefined,
           lastSeenAt: new Date(),
+          ...clientMetadataUpdate(client),
         },
         create: {
           deviceId: String(deviceId),
@@ -264,6 +299,7 @@ router.post('/pair', async (req, res) => {
           pushToken: pushToken ?? null,
           label: label ?? null,
           lastSeenAt: new Date(),
+          ...clientMetadataUpdate(client),
         },
       });
       return true;
@@ -276,6 +312,7 @@ router.post('/pair', async (req, res) => {
         deviceId: String(deviceId),
         restaurantId: pairing.restaurantId,
         pushToken,
+        client,
       }).catch(() => null);
       if (recovered) return res.json(recovered);
       return res.status(409).json({
@@ -299,8 +336,9 @@ router.post('/pair', async (req, res) => {
 //  - annars       → roterar refresh-token + returnerar ny access-token
 router.post('/session', async (req, res) => {
   try {
-    const { deviceId, refreshToken, pushToken } = (req.body || {}) as {
+    const { deviceId, refreshToken, pushToken, client } = (req.body || {}) as {
       deviceId?: string; refreshToken?: string; pushToken?: string;
+      client?: TerminalClientInfo;
     };
     if (!deviceId) return res.status(400).json({ error: 'deviceId krävs' });
 
@@ -311,7 +349,15 @@ router.post('/session', async (req, res) => {
     if (device.revoked) return res.status(403).json({ error: 'device_revoked' });
 
     const reinstallRecovery = !refreshToken;
-    if (!reinstallRecovery && !refreshTokenMatches(refreshToken, device.refreshTokenHash)) {
+    const matchesCurrent =
+      !reinstallRecovery && refreshTokenMatches(refreshToken, device.refreshTokenHash);
+    // Grace: rotationen är annars single-use. Tappas svaret på vägen (eller två
+    // anrop hinner korsa varandra) sitter terminalen kvar med förra tokenen —
+    // det ska INTE tvinga omparning. Exakt ett steg bakåt accepteras.
+    const matchesPrev =
+      !reinstallRecovery && !matchesCurrent &&
+      refreshTokenMatches(refreshToken, device.prevRefreshTokenHash);
+    if (!reinstallRecovery && !matchesCurrent && !matchesPrev) {
       console.warn('[terminal/session] rejected invalid refresh token', {
         device: String(deviceId).slice(0, 8),
         hasToken: Boolean(refreshToken),
@@ -325,11 +371,13 @@ router.post('/session', async (req, res) => {
     // Normalfallet använder roterande refresh-token. Om appen har installerats
     // om saknas token helt, men Androids app-signaturskopade ANDROID_ID består.
     // Då får endast en redan känd och ej återkallad fysisk terminal en ny
-    // session. Ett felaktigt BEFINTLIGT tokenvärde tillåts aldrig denna väg.
+    // session. En OKÄND befintlig token tillåts aldrig denna väg.
     const rotated = await rotateTerminalSession({
       deviceId: String(deviceId),
       restaurantId: device.restaurantId,
       pushToken: pushToken ?? device.pushToken ?? undefined,
+      client,
+      keepPrevHash: matchesPrev,
     });
     if (!rotated) return res.status(404).json({ error: 'needs_pairing' });
     if (reinstallRecovery) {
@@ -501,7 +549,8 @@ router.post('/push-token', authenticate, async (req: AuthRequest, res) => {
       !device ||
       device.revoked ||
       device.restaurantId !== req.admin?.restaurantId ||
-      !refreshTokenMatches(refreshToken, device.refreshTokenHash)
+      (!refreshTokenMatches(refreshToken, device.refreshTokenHash) &&
+        !refreshTokenMatches(refreshToken, device.prevRefreshTokenHash))
     ) {
       return res.status(403).json({ error: 'Ogiltig terminalsession' });
     }

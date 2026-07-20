@@ -194,8 +194,27 @@ export function RestaurantDevicesPage() {
                     >
                       <Tablet size={17} color={linked ? "var(--accent)" : "var(--danger)"} />
                     </div>
-                    <span className="truncate font-bold text-[var(--text-primary)]">
-                      {device.label || "Enhet"}
+                    <span className="min-w-0">
+                      <span className="block truncate font-bold text-[var(--text-primary)]">
+                        {device.label ||
+                          [device.deviceBrand, device.deviceModel].filter(Boolean).join(" ") ||
+                          "Enhet"}
+                      </span>
+                      {/* Modellraden följer enheten även när den är utloggad,
+                          så man alltid vet vilken fysisk platta raden gäller. */}
+                      {(device.deviceModel || device.appVersion) ? (
+                        <span className="block truncate text-[11px] font-medium text-[var(--text-muted)]">
+                          {[
+                            device.label
+                              ? [device.deviceBrand, device.deviceModel].filter(Boolean).join(" ")
+                              : null,
+                            device.osVersion ? `Android ${device.osVersion}` : null,
+                            device.appVersion ? `App v${device.appVersion}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      ) : null}
                     </span>
                   </div>
                   <span className="min-w-0 font-mono text-[11px] text-[var(--text-secondary)] md:truncate md:text-[12px]">

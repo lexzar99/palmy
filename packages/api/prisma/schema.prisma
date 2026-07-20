@@ -599,7 +599,17 @@ model RestaurantDevice {
   deviceId         String     @unique
   label            String?
   refreshTokenHash String?
+  // Föregående refresh-token-hash. Rotationen är annars single-use: tappas
+  // svaret på vägen (restaurang-Wi-Fi) sitter terminalen kvar med den gamla
+  // tokenen och loggades ut. Nu accepteras exakt ett steg bakåt.
+  prevRefreshTokenHash String?
   pushToken        String?
+  // Enhetsmetadata från appen (pair/session) så admin ser VILKEN fysisk
+  // platta som är kopplad var, även när den är utloggad.
+  deviceBrand      String?
+  deviceModel      String?
+  osVersion        String?
+  appVersion       String?
   revoked          Boolean    @default(false)
   lastSeenAt       DateTime?
   createdAt        DateTime   @default(now())
