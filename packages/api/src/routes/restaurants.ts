@@ -290,6 +290,7 @@ const formatRestaurant = (
           isGlutenFree: prod.isGlutenFree,
           extraGroups: (prod.extraGroups || [])
             .filter((peg: any) => peg.extraGroup?.restaurantId === restaurant.id)
+            .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
             .map((peg: any) => ({
             id: peg.extraGroup.id,
             name: peg.extraGroup.name,

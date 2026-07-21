@@ -8,6 +8,32 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+def keystorePropertiesFile = rootProject.file("key.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+def releaseSigningFields = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword']
+def missingReleaseSigningFields = releaseSigningFields.findAll {
+    !keystoreProperties[it]?.toString()?.trim()
+}
+def releaseStoreFile = keystoreProperties['storeFile']
+    ? rootProject.file(keystoreProperties['storeFile'])
+    : null
+def hasReleaseSigning = missingReleaseSigningFields.isEmpty() && releaseStoreFile?.isFile()
+def releaseBuildRequested = gradle.startParameter.taskNames.any {
+    it.toLowerCase().contains('release')
+}
+if (releaseBuildRequested && !hasReleaseSigning) {
+    def detail = missingReleaseSigningFields.isEmpty()
+        ? "keystore file not found: ${releaseStoreFile}"
+        : "missing properties: ${missingReleaseSigningFields.join(', ')}"
+    throw new GradleException(
+        "Release signing is not configured (${detail}). Add android/key.properties " +
+        "and the referenced release keystore. Debug builds do not require release signing."
+    )
+}
+
 android {
     namespace = "se.delivera.delivera_courier"
     compileSdk = flutter.compileSdkVersion
@@ -34,11 +60,22 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile = releaseStoreFile
+                storePassword = keystoreProperties['storePassword']
+                keyAlias = keystoreProperties['keyAlias']
+                keyPassword = keystoreProperties['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.release
+            }
         }
     }
 }

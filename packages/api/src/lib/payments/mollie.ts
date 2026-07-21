@@ -125,7 +125,10 @@ function exactMollieOre(
  * Consume the complete Payment Refunds iterator. The iterator follows every
  * Mollie page; duplicate IDs, malformed rows and a mismatch against the
  * payment's authoritative amountRefunded all fail closed before callers can
- * update local state or initiate another refund.
+ * update local state or initiate another refund. Mollie includes queued and
+ * processing refunds in amountRefunded, so that aggregate is validated against
+ * every non-failed economic refund while only `refunded` rows are exposed as
+ * completed money to local accounting.
  */
 export async function collectCompleteMollieRefunds(input: {
   paymentRef: string;
@@ -154,18 +157,27 @@ export async function collectCompleteMollieRefunds(input: {
   const completedRefundOre = refunds
     .filter((refund) => refund.state === 'refunded')
     .reduce((sum, refund) => sum + refund.amountOre, 0);
+  const unknownRefund = refunds.find((refund) => refund.state === 'unknown');
+  if (unknownRefund) {
+    throw new Error(
+      `Mollie returnerade en okänd refundstatus för ${unknownRefund.refundRef}`,
+    );
+  }
+  const economicRefundOre = refunds
+    .filter((refund) => refund.state !== 'failed' && refund.state !== 'canceled')
+    .reduce((sum, refund) => sum + refund.amountOre, 0);
   const aggregateRefundOre = exactMollieOre(
     input.amountRefunded || { currency: CURRENCY, value: '0.00' },
     `betalning ${input.paymentRef}`,
   );
-  if (completedRefundOre !== aggregateRefundOre) {
+  if (economicRefundOre !== aggregateRefundOre) {
     throw new Error(
       `Mollie-refundrevision misslyckades för ${input.paymentRef}: ` +
-      `detaljer ${completedRefundOre} öre, totalsumma ${aggregateRefundOre} öre`,
+      `detaljer ${economicRefundOre} öre, totalsumma ${aggregateRefundOre} öre`,
     );
   }
 
-  return { amountRefundedOre: aggregateRefundOre, refunds };
+  return { amountRefundedOre: completedRefundOre, refunds };
 }
 
 export const mollieProvider: PaymentProvider = {

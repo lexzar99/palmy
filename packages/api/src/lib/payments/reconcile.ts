@@ -23,6 +23,7 @@ import {
 
 const REFUND_AUDIT_BATCH_SIZE = 50;
 const PAYOUT_SOURCE_AUDIT_BATCH_SIZE = 50;
+let mollieActiveRefundCursor: string | null = null;
 let mollieRefundAuditCursor: string | null = null;
 
 type MollieRefundAuditOrder = {
@@ -381,16 +382,26 @@ export async function reconcilePendingRefunds(): Promise<void> {
       paymentStatus: 'REFUNDING',
       paymentProvider: 'mollie',
       molliePaymentId: { not: null },
+      ...(mollieActiveRefundCursor ? { id: { gt: mollieActiveRefundCursor } } : {}),
     },
     select: {
       id: true,
       molliePaymentId: true,
     },
-    orderBy: { updatedAt: 'asc' },
+    orderBy: { id: 'asc' },
     take: REFUND_AUDIT_BATCH_SIZE,
   });
   await reconcileMollieRefundBatch(pending, false, 'REFUND_RECONCILE');
+  mollieActiveRefundCursor = pending.length === REFUND_AUDIT_BATCH_SIZE
+    ? pending[pending.length - 1].id
+    : null;
+}
 
+/**
+ * Low-frequency safety sweep for refunds created directly in Mollie Dashboard.
+ * Active local refunds are handled separately and more frequently above.
+ */
+export async function reconcileRefundAuditSlice(): Promise<void> {
   // Walk all paid/refundable Mollie rows in stable id order across intervals.
   // This eventually discovers dashboard refunds even if their webhook never
   // arrived; payout approval additionally performs a complete period audit.
@@ -411,23 +422,41 @@ export async function reconcilePendingRefunds(): Promise<void> {
     : null;
 }
 
-export function startPaymentReconciliation(): void {
-  console.log('[reconcile] startar provider-neutral polling (var 15s)');
+function configuredInterval(name: string, fallbackMs: number, minimumMs: number): number {
+  const configured = Number(process.env[name]);
+  return Number.isFinite(configured) && configured >= minimumMs
+    ? Math.round(configured)
+    : fallbackMs;
+}
+
+function scheduleNonOverlappingJob(
+  label: string,
+  intervalMs: number,
+  job: () => Promise<void>,
+): void {
   let running = false;
   setInterval(async () => {
-    // PSP calls can occasionally exceed one interval. Never start a second
-    // database/PSP sweep on top of an unfinished one.
     if (running) return;
     running = true;
     try {
-      await Promise.all([
-        reconcilePendingPayments(),
-        reconcilePendingRefunds(),
-      ]);
+      await job();
     } catch (err) {
-      console.error('[reconcile] error:', err);
+      console.error(`[reconcile] ${label} misslyckades:`, err);
     } finally {
       running = false;
     }
-  }, 15_000);
+  }, intervalMs);
+}
+
+export function startPaymentReconciliation(): void {
+  const paymentIntervalMs = configuredInterval('PAYMENT_RECONCILE_INTERVAL_MS', 15_000, 5_000);
+  const activeRefundIntervalMs = configuredInterval('REFUND_RECONCILE_INTERVAL_MS', 5 * 60_000, 60_000);
+  const refundAuditIntervalMs = configuredInterval('REFUND_AUDIT_INTERVAL_MS', 60 * 60_000, 5 * 60_000);
+  console.log(
+    `[reconcile] betalningar ${paymentIntervalMs}ms, aktiva refunds ${activeRefundIntervalMs}ms, ` +
+    `refund-audit ${refundAuditIntervalMs}ms`,
+  );
+  scheduleNonOverlappingJob('betalningspoll', paymentIntervalMs, reconcilePendingPayments);
+  scheduleNonOverlappingJob('aktiv refundpoll', activeRefundIntervalMs, reconcilePendingRefunds);
+  scheduleNonOverlappingJob('refund-audit', refundAuditIntervalMs, reconcileRefundAuditSlice);
 }

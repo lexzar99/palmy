@@ -69,11 +69,13 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const imageBaseUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL
+    || "https://pub-3aa62f4934014835956fe3777d5b3abd.r2.dev";
   return (
     <html lang="sv">
       <head>
         <link rel="preconnect" href="https://api.viaeats.se" crossOrigin="anonymous" />
-        <link rel="preconnect" href="https://pub-3aa62f4934014835956fe3777d5b3abd.r2.dev" crossOrigin="anonymous" />
+        <link rel="preconnect" href={imageBaseUrl} crossOrigin="anonymous" />
       </head>
       <body className={`${inter.className} min-h-screen antialiased`}>
         <Providers>

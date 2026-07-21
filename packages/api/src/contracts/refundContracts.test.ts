@@ -209,6 +209,20 @@ async function runAsyncRefundContracts() {
   assert.equal(completeMollieAudit.refunds?.length, 520);
   assert.equal(completeMollieAudit.amountRefundedOre, 52_000);
 
+  // Mollie includes queued/pending money in payment.amountRefunded. It must
+  // block a second refund, but it is not locally booked as completed yet.
+  const queuedMollieAudit = await collectCompleteMollieRefunds({
+    paymentRef: 'tr_queued',
+    amountRefunded: { currency: 'SEK', value: '87.00' },
+    refunds: [{
+      id: 're_queued',
+      status: 'queued',
+      amount: { currency: 'SEK', value: '87.00' },
+    }],
+  });
+  assert.equal(queuedMollieAudit.amountRefundedOre, 0);
+  assert.equal(queuedMollieAudit.refunds?.[0]?.state, 'queued');
+
   await assert.rejects(
     collectCompleteMollieRefunds({
       paymentRef: 'tr_mismatch',
@@ -227,6 +241,8 @@ async function runAsyncRefundContracts() {
   assert.equal(mergeRefundLedgerStatus('UNKNOWN', 'processing'), 'PROCESSING');
   assert.equal(mergeRefundLedgerStatus('FAILED', 'pending'), 'FAILED');
   assert.equal(mergeRefundLedgerStatus('PENDING', 'unknown'), 'PENDING');
+  assert.equal(mergeRefundLedgerStatus('PENDING', 'queued'), 'QUEUED');
+  assert.equal(mergeRefundLedgerStatus('PROCESSING', 'pending'), 'PROCESSING');
   assert.deepEqual(
     withCumulativeRefundAmounts([
       { refundRef: 're_2', state: 'refunded', amountOre: 5_000, createdAt: '2026-07-02T10:00:00Z' },

@@ -4852,6 +4852,12 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
         alreadyUsedInviterRewards: completedOutcome?.alreadyUsedInviterRewards ?? 0,
       },
     });
+    const refundStatus = String(outcome.refundStatus || (outcome.status === 'refund_pending' ? 'pending' : 'refunded')).toLowerCase();
+    const message = refundStatus === 'queued'
+      ? 'Återbetalningen är köad hos Mollie eftersom saldot inte räcker just nu. Mollie genomför den automatiskt när saldot fylls på.'
+      : refundStatus === 'pending' || refundStatus === 'processing' || refundStatus === 'unknown'
+        ? 'Återbetalningen är mottagen av Mollie och behandlas. Ett nytt försök är spärrat tills Mollie lämnar slutstatus.'
+        : 'Återbetalningen är slutförd hos Mollie.';
     res.status(outcome.status === 'refund_pending' ? 202 : 200).json({
       success: true,
       processing: outcome.status === 'refund_pending',
@@ -4860,7 +4866,8 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
       fullRefund: completedOutcome?.fullRefund ?? false,
       refundId: outcome.refundRef,
       ledgerId: outcome.ledgerId,
-      refundStatus: outcome.refundStatus,
+      refundStatus,
+      message,
     });
   } catch (error: any) {
     console.error('Refund error:', error);

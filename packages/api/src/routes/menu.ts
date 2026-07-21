@@ -6,28 +6,70 @@ import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 
 const router = Router();
 
-// In-memory TTL cache for /menu/categories (deep nested Prisma include is slow
-// enough to cause 12s axios timeouts on the customer web). Short TTL keeps
-// "real-time menu" feel without hammering the DB on every customer.
+// In-memory TTL/LRU cache for /menu/categories (deep nested Prisma include is
+// slow enough to cause customer timeouts). Both entry count and approximate
+// serialized bytes are bounded so restaurant growth cannot grow heap forever.
 // Bust with menuCacheBust(restaurantId | null) — wired into product/category
 // mutation routes elsewhere.
-// Kort TTL så "Populärt"-raden (random per request) faktiskt varierar synligt
-// för kunder som öppnar restaurang-sidan igen efter några sekunder.
-const MENU_CACHE_TTL_MS = 8_000;
-type MenuCacheEntry = { payload: unknown; expiresAt: number };
+function positiveEnvInt(name: string, fallback: number, minimum: number): number {
+  const configured = Number(process.env[name]);
+  return Number.isFinite(configured) && configured >= minimum
+    ? Math.round(configured)
+    : fallback;
+}
+
+const MENU_CACHE_TTL_MS = positiveEnvInt('MENU_CACHE_TTL_MS', 30_000, 1_000);
+const MENU_CACHE_MAX_ENTRIES = positiveEnvInt('MENU_CACHE_MAX_ENTRIES', 200, 1);
+const MENU_CACHE_MAX_BYTES = positiveEnvInt('MENU_CACHE_MAX_BYTES', 32 * 1024 * 1024, 1024 * 1024);
+type MenuCacheEntry = { payload: unknown; expiresAt: number; bytes: number };
 const menuCache = new Map<string, MenuCacheEntry>();
+let menuCacheBytes = 0;
 // Format ingår i nyckeln: default- och normalized-svaren har olika form och
 // får aldrig dela cache-rad.
 const cacheKey = (rid: string | null, format: string = 'default') => `r:${rid ?? '_global'}:${format}`;
 const MENU_FORMATS = ['default', 'normalized'] as const;
+
+function deleteMenuCacheEntry(key: string): void {
+  const existing = menuCache.get(key);
+  if (!existing) return;
+  menuCacheBytes = Math.max(0, menuCacheBytes - existing.bytes);
+  menuCache.delete(key);
+}
+
+function pruneMenuCache(now: number): void {
+  for (const [key, entry] of menuCache) {
+    if (entry.expiresAt <= now) deleteMenuCacheEntry(key);
+  }
+  while (menuCache.size > MENU_CACHE_MAX_ENTRIES || menuCacheBytes > MENU_CACHE_MAX_BYTES) {
+    const oldestKey = menuCache.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    deleteMenuCacheEntry(oldestKey);
+  }
+}
+
+function writeMenuCache(key: string, payload: unknown): void {
+  let bytes: number;
+  try {
+    bytes = Buffer.byteLength(JSON.stringify(payload));
+  } catch {
+    return;
+  }
+  deleteMenuCacheEntry(key);
+  if (bytes > MENU_CACHE_MAX_BYTES) return;
+  menuCache.set(key, { payload, bytes, expiresAt: Date.now() + MENU_CACHE_TTL_MS });
+  menuCacheBytes += bytes;
+  pruneMenuCache(Date.now());
+}
+
 export function menuCacheBust(restaurantId: string | null = null) {
   if (restaurantId === null) {
     menuCache.clear();
+    menuCacheBytes = 0;
     return;
   }
   for (const fmt of MENU_FORMATS) {
-    menuCache.delete(cacheKey(restaurantId, fmt));
-    menuCache.delete(cacheKey(null, fmt));
+    deleteMenuCacheEntry(cacheKey(restaurantId, fmt));
+    deleteMenuCacheEntry(cacheKey(null, fmt));
   }
 }
 
@@ -122,8 +164,13 @@ router.get('/categories', async (req, res) => {
     // Cache hit? Vi shufflar populär-raden per request även vid HIT så
     // discovery-känslan inte tappas på cached svar.
     const ck = cacheKey(hasRestaurantScope ? (resolvedRestaurantId ?? null) : null, normalized ? 'normalized' : 'default');
+    const now = Date.now();
+    pruneMenuCache(now);
     const cached = menuCache.get(ck);
-    if (cached && cached.expiresAt > Date.now()) {
+    if (cached && cached.expiresAt > now) {
+      // Touch on read: Map insertion order is the LRU order.
+      menuCache.delete(ck);
+      menuCache.set(ck, cached);
       const payload: any = cached.payload;
       const mains: any[] = payload?.mainCategories || [];
       const reshuffled = mains.map((m) => {
@@ -289,7 +336,7 @@ router.get('/categories', async (req, res) => {
           }
           extraGroupsField = { extraGroupIds: sortedPegs.map((peg: any) => peg.extraGroup.id) };
         } else {
-          extraGroupsField = { extraGroups: prod.extraGroups.map(buildGroup) };
+          extraGroupsField = { extraGroups: sortedPegs.map(buildGroup) };
         }
         return ({
         ...toDisplayDiscount(prod, cat.id, primaryRestaurantId, activeDeals),
@@ -327,7 +374,7 @@ router.get('/categories', async (req, res) => {
       ...(normalized ? { extraGroups: Object.fromEntries(sharedGroups) } : {}),
     };
 
-    menuCache.set(ck, { payload, expiresAt: Date.now() + MENU_CACHE_TTL_MS });
+    writeMenuCache(ck, payload);
     res.set('X-Cache', 'MISS');
     res.json(payload);
   } catch (error) {

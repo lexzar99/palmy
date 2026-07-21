@@ -6,6 +6,23 @@ const apiTarget =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://127.0.0.1:4000";
 
+function hostnameFromUrl(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return null;
+  }
+}
+
+const configuredR2Hostname = hostnameFromUrl(process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL);
+const optimizedImageHosts = Array.from(new Set([
+  // Keep the old host during URL migration; switch the env to the custom
+  // domain as soon as Cloudflare has activated it.
+  "pub-3aa62f4934014835956fe3777d5b3abd.r2.dev",
+  configuredR2Hostname,
+].filter((host): host is string => Boolean(host))));
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['192.168.0.3'],
   // Strip console.* in production builds. console.error stays so real
@@ -20,7 +37,7 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
     qualities: [45, 50, 55, 58, 60, 68, 75, 82, 85, 90],
     remotePatterns: [
-      { protocol: "https", hostname: "pub-3aa62f4934014835956fe3777d5b3abd.r2.dev" },
+      ...optimizedImageHosts.map((hostname) => ({ protocol: "https" as const, hostname })),
       { protocol: "https", hostname: "cdn-bk-se-ordering.azureedge.net" },
     ],
   },

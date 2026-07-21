@@ -324,8 +324,9 @@ app.use('/api/account/verify', sessionVerifyLimiter);
 app.use('/api/auth/verify', sessionVerifyLimiter);
 
 // När smoke-test/launch-gaten är aktiv räcker det inte att gömma webbsidorna:
-// direktanrop mot API:t får inte kunna skapa order eller starta Mollie. Endast
-// webbproxyn kan läsa den signerade HttpOnly-cookien och vidarebefordra proofen.
+// direktanrop mot API:t får inte kunna skapa order eller starta Mollie. Webb-
+// proxyn vidarebefordrar antingen den signerade HttpOnly-cookien eller den
+// kortlivade kiosk-proofen som behövs när iframe-cookies blockeras.
 const requirePrelaunchCheckoutAccess: express.RequestHandler = (req, res, next) => {
   if (!prelaunchModeEnabled()) return next();
   // Apparna är inte publikt distribuerade under prelaunch, så app-klienter
@@ -693,28 +694,54 @@ const PORT = Number(process.env.PORT || 4000);
     // tidigt). Deal-skapande + paus/förlängning larmas event-drivet i routerna.
     void import('./lib/restaurantWatch').then(({ startRestaurantFraudWatch }) => startRestaurantFraudWatch());
 
-    // P1 — pre-warm the menu cache for every restaurant on boot so the
-    // first customer who hits a restaurant page doesn't pay the deep-include
-    // cold-start cost. Fire-and-forget — failures are logged but not fatal.
+    // Pre-warm only a bounded set of recently updated public menus. A small
+    // worker pool avoids a DB/heap spike after every Railway restart; all other
+    // restaurants populate the bounded LRU cache on their first real request.
     (async () => {
       try {
+        const configuredLimit = Number(process.env.MENU_PREWARM_LIMIT);
+        const configuredConcurrency = Number(process.env.MENU_PREWARM_CONCURRENCY);
+        const prewarmLimit = Number.isFinite(configuredLimit)
+          ? Math.max(0, Math.min(1_000, Math.round(configuredLimit)))
+          : 100;
+        const concurrency = Number.isFinite(configuredConcurrency)
+          ? Math.max(1, Math.min(10, Math.round(configuredConcurrency)))
+          : 4;
+        if (prewarmLimit === 0) {
+          console.log('[menu-prewarm] disabled');
+          return;
+        }
         const prismaMod = await import('./lib/prisma');
         const prisma = prismaMod.default;
         const restaurants = await prisma.restaurant.findMany({
-          // Pre-warming is harmless for currently closed restaurants and must
-          // not depend on the deprecated isOpen storage flag.
-          where: { draft: false },
+          where: { draft: false, archivedAt: null },
           select: { id: true, slug: true },
+          orderBy: { updatedAt: 'desc' },
+          take: prewarmLimit,
         });
         const axiosMod = await import('axios');
         const axios = axiosMod.default;
         const base = getPublicApiBaseUrl() || `http://localhost:${PORT}`;
-        for (const r of restaurants) {
-          axios
-            .get(`${base}/api/menu/categories?restaurantId=${r.id}`, { timeout: 30_000 })
-            .then(() => console.log(`🍕 Pre-warmed menu cache for ${r.slug}`))
-            .catch(() => { /* non-fatal — cache will populate on first real hit */ });
-        }
+        let nextIndex = 0;
+        let warmed = 0;
+        const worker = async () => {
+          while (nextIndex < restaurants.length) {
+            const restaurant = restaurants[nextIndex++];
+            try {
+              await axios.get(
+                `${base}/api/menu/categories?restaurantId=${encodeURIComponent(restaurant.id)}&format=normalized`,
+                { timeout: 30_000 },
+              );
+              warmed += 1;
+            } catch {
+              // Non-fatal — this menu populates on its first real request.
+            }
+          }
+        };
+        await Promise.all(
+          Array.from({ length: Math.min(concurrency, restaurants.length) }, () => worker()),
+        );
+        console.log(`[menu-prewarm] warmed ${warmed}/${restaurants.length} menus (concurrency ${concurrency})`);
       } catch (err) {
         console.warn('[menu-prewarm] skipped', err);
       }

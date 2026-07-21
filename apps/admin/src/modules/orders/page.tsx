@@ -265,18 +265,24 @@ function OrderDetailsModalContent({
     },
   });
 
-  const [refundSuccess, setRefundSuccess] = useState(false);
+  const [refundFeedback, setRefundFeedback] = useState<{
+    message: string;
+    processing: boolean;
+    refundStatus: string | null;
+  } | null>(null);
   const [refundError, setRefundError] = useState<string | null>(null);
-  const [refundStatus, setRefundStatus] = useState<string | null>(null);
 
   const refundMutation = useMutation({
     meta: { successMessage: "Återbetalning skickad", errorMessage: "Återbetalning misslyckades" },
     // amountKr = null → full återbetalning (backend använder order.total).
     mutationFn: (amountKr: number | null) => refundOrder(orderId!, amountKr, refundReason),
     onSuccess: async (data) => {
-      setRefundSuccess(true);
+      setRefundFeedback({
+        message: data.message || "Återbetalningen skickades till Mollie.",
+        processing: Boolean(data.processing),
+        refundStatus: data.refundStatus || null,
+      });
       setRefundError(null);
-      setRefundStatus(data?.refundStatus || null);
       await queryClient.invalidateQueries({ queryKey: ["orders"] });
       await queryClient.invalidateQueries({ queryKey: ["finance"] });
       if (orderId) {
@@ -287,7 +293,7 @@ function OrderDetailsModalContent({
     onError: (error: unknown) => {
       const message = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setRefundError(message || "Återbetalning misslyckades");
-      setRefundStatus(null);
+      setRefundFeedback(null);
     },
   });
 
@@ -310,6 +316,13 @@ function OrderDetailsModalContent({
   const refundIsPending = paymentStatus === "REFUNDING";
   const refundIsComplete = paymentStatus === "REFUNDED" || remainingRefundAmount <= 0;
   const refundCanStart = ["PAID", "PARTIALLY_REFUNDED"].includes(paymentStatus) && remainingRefundAmount > 0;
+  const latestActiveRefundStatus = [...(order?.paymentRefunds || [])]
+    .reverse()
+    .map((refund) => refund.status.toUpperCase())
+    .find((status) => ["REQUESTED", "QUEUED", "PENDING", "PROCESSING", "UNKNOWN"].includes(status));
+  const pendingRefundMessage = latestActiveRefundStatus === "QUEUED"
+    ? "Återbetalningen är köad hos Mollie eftersom saldot inte räcker just nu. Fyll på Mollie-saldot eller invänta nya betalningar; därefter genomförs den automatiskt."
+    : "Återbetalningen behandlas hos Mollie. Nytt försök är spärrat tills statusen är slutlig.";
   const partialRefundAmount = parseDecimalInput(refundAmount);
   const partialRefundError = order && refundMode === "partial"
     ? partialRefundAmount === null || partialRefundAmount <= 0
@@ -755,9 +768,22 @@ function OrderDetailsModalContent({
                   {order.refundReason ? <span className="font-normal text-[var(--text-muted)]">· {order.refundReason}</span> : null}
                 </div>
               ) : null}
-              {refundIsPending ? (
+              {refundFeedback ? (
+                <div className={`surface flex items-start gap-2.5 px-5 py-4 text-[13px] font-semibold ${refundFeedback.processing ? "text-[var(--warning-text)]" : "text-[var(--success-text)]"}`}>
+                  {refundFeedback.processing
+                    ? <RefreshCw size={16} className="mt-0.5 shrink-0 animate-spin" />
+                    : <CheckCircle2 size={16} className="mt-0.5 shrink-0" />}
+                  <span>{refundFeedback.message}{refundFeedback.refundStatus ? ` · ${refundFeedback.refundStatus.toUpperCase()}` : ""}</span>
+                </div>
+              ) : null}
+              {refundError ? (
+                <div className="surface flex items-start gap-2.5 px-5 py-4 text-[13px] font-semibold text-[var(--danger-text)]">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" /> {refundError}
+                </div>
+              ) : null}
+              {refundIsPending && !refundFeedback ? (
                 <div className="surface flex items-center gap-2.5 px-5 py-4 text-[13px] font-semibold text-[var(--warning-text)]">
-                  <RefreshCw size={16} className="animate-spin" /> Återbetalningen behandlas hos Mollie. Nytt försök är spärrat tills statusen är slutlig.
+                  <RefreshCw size={16} className="shrink-0 animate-spin" /> {pendingRefundMessage}
                 </div>
               ) : null}
               {order.paymentRefunds?.length ? (
@@ -850,17 +876,6 @@ function OrderDetailsModalContent({
                     </Field>
                   ) : null}
 
-                  {refundSuccess && (
-                    <div className="mt-3 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_srgb,var(--success)_30%,transparent)] bg-[var(--success-soft)] px-3 py-2.5 text-[13px] font-semibold text-[var(--success-text)]">
-                      <CheckCircle2 size={14} /> Återbetalning skickad{refundStatus ? ` · ${refundStatus}` : ""}
-                    </div>
-                  )}
-                  {refundError && (
-                    <div className="mt-3 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[var(--danger-soft)] px-3 py-2.5 text-[13px] font-semibold text-[var(--danger-text)]">
-                      <AlertCircle size={14} /> {refundError}
-                    </div>
-                  )}
-
                   <div className="mt-4 flex flex-col-reverse gap-2.5 sm:flex-row">
                     <Button variant="secondary" className="w-full flex-1" onClick={() => setShowRefund(false)} disabled={refundMutation.isPending}>
                       Avbryt
@@ -871,7 +886,7 @@ function OrderDetailsModalContent({
                       onClick={() => {
                         const amountKr = refundMode === "partial" ? partialRefundAmount : null;
                         if (refundMode === "partial" && (amountKr === null || partialRefundError)) return;
-                        setRefundSuccess(false);
+                        setRefundFeedback(null);
                         setRefundError(null);
                         setPendingConfirmation({ kind: "refund", amountKr });
                       }}
