@@ -18,8 +18,13 @@ fi
 
 # --max-table-size: dispatchens matris skickar upp till ~80 punkter (kurirer +
 # stopp). 200 ger marginal utan att öppna för jättetunga frågor.
+# --mmap: memory-mappa kartfilerna istället för att ladda dem i RAM → RSS
+# sjunker från ~250 MB till ~20 MB (verifierat lokalt). Railway debiterar per
+# GB-timme RAM, så detta gör tjänsten nästan gratis. Marginell latenskostnad
+# (page faults vid kalla frågor) — irrelevant i vår volym.
 exec osrm-routed \
   --algorithm mld \
+  --mmap \
   --max-table-size 200 \
   --port "${PORT:-5000}" \
   "$DATA_DIR/skane.osrm"
