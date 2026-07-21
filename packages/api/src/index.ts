@@ -71,6 +71,8 @@ import apiHealthAdminRoutes from './routes/apiHealthAdmin';
 import opsAdminRoutes from './routes/opsAdmin';
 import hermesRoutes from './routes/hermes';
 import { recordRateLimitHit, recordRequest } from './lib/opsMetrics';
+import { opsAgentRateId } from './lib/opsAgentRateLimit';
+import { trustedClientIp, isVerifiedAgentLogin } from './lib/edgeTrust';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyCleanup } from './lib/cleanup';
 import { startStripeRefundSync } from './lib/stripeReconcile';
@@ -209,7 +211,11 @@ const AI_AGENT_LOGIN_IDS = new Set([
 const loginIdFromBody = (body: any) =>
   String(body?.identifier || body?.email || '').trim().toLowerCase();
 
-const isAiAgentLogin = (req: express.Request) => AI_AGENT_LOGIN_IDS.has(loginIdFromBody(req.body));
+// Höjd login-budget kräver en delad agent-hemlighet (x-viaeats-agent), inte
+// bara den postade e-posten — annars kunde vem som helst hävda falken@… för
+// att få 80 gissningar. loginIdFromBody scopar ändå till våra 5 agent-konton.
+const isAiAgentLogin = (req: express.Request) =>
+  isVerifiedAgentLogin(req, AI_AGENT_LOGIN_IDS, loginIdFromBody(req.body));
 
 // 429-händelser loggas till opsMetrics så vakt-cronen (Falken) ser vem som
 // slår i vilken limiter via GET /api/admin/ops. `key` identifierar aktören
@@ -221,10 +227,9 @@ const opsRateLimitHandler =
     res.status(options.statusCode).json(options.message);
   };
 
-const clientIp = (req: express.Request) => {
-  const cf = req.headers['cf-connecting-ip'];
-  return (typeof cf === 'string' && cf) || req.ip || 'anon';
-};
+// cf-connecting-ip litas bara på när requesten bevisat kommit genom vår
+// Cloudflare (delad edge-hemlighet). Se lib/edgeTrust.ts.
+const clientIp = (req: express.Request) => trustedClientIp(req);
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -243,21 +248,30 @@ const limiter = rateLimit({
 // genererar men dödar en spam-loop. Cloudflare-regler framför API:t är det
 // PRIMÄRA försvaret mot riktig DDoS; detta är app-nivå-backstop.
 //
-// Nyckel: CF-Connecting-IP först (riktig klient-IP när Cloudflare proxar),
-// annars Railways forwarded IP. Så limitern fungerar både före och efter att
-// du lägger api.viaeats.se bakom Cloudflare.
+// Nyckel: trustedClientIp() — CF-Connecting-IP litas bara på när requesten
+// bär vår delade edge-hemlighet (annars spoofbar vid direkt-mot-origin),
+// annars Railways forwarded req.ip. Fungerar både före och efter Cloudflare.
+// Verifierade ops-agenter (Falken m.fl.) delar annars IP-bucket med publik
+// trafik och svälts ut när flera agenter kör från samma utgående IP. De får
+// därför en egen nyckel (`ops:<admin-id>`) och en generösare men fortfarande
+// BUNDEN budget — en läckt ops-token kan inte spamma obegränsat, och 429-
+// träffar loggas per admin-id. Nyckeln kräver en giltig signerad token, så
+// ingen okänd bot kan hamna i ops-bucketen.
+const abuseRateKey = (req: express.Request) => {
+  const opsId = opsAgentRateId(req);
+  if (opsId) return `ops:${opsId}`;
+  return trustedClientIp(req);
+};
+
 const abuseLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 300,
+  max: (req) => (opsAgentRateId(req) ? 1200 : 300),
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => isPaymentWebhookRequest(req.method, req.originalUrl),
   message: { error: 'För många förfrågningar. Sakta ner och försök igen om en stund.' },
-  keyGenerator: (req) => {
-    const cf = req.headers['cf-connecting-ip'];
-    return (typeof cf === 'string' && cf) || req.ip || 'anon';
-  },
-  handler: opsRateLimitHandler('abuse', clientIp),
+  keyGenerator: abuseRateKey,
+  handler: opsRateLimitHandler('abuse', abuseRateKey),
 });
 
 // Request-timing för opsMetrics: räknar 5xx och långsamma svar (>2s) per
@@ -302,19 +316,27 @@ const adminLoginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
-  keyGenerator: (req) => `${req.ip}:${String(req.body?.identifier || req.body?.email || '').trim().toLowerCase()}`,
+  keyGenerator: (req) => `${trustedClientIp(req)}:${String(req.body?.identifier || req.body?.email || '').trim().toLowerCase()}`,
   message: { error: 'För många admin-inloggningar. Vänta 15 minuter och försök igen.' },
   handler: opsRateLimitHandler('admin-login', (req) => loginIdFromBody(req.body) || req.ip || 'anon'),
 });
 
+// `${req.ip}:verify` delades tidigare av ALLA klienter bakom samma IP (60/5min
+// = 12/min), så flera ops-agenter som verifierar sin session cannibaliserade
+// varandra → intermittent 429. Verifierade ops-tokens får egen nyckel + tak.
+const verifyRateKey = (req: express.Request) => {
+  const opsId = opsAgentRateId(req);
+  return opsId ? `ops-verify:${opsId}` : `${trustedClientIp(req)}:verify`;
+};
+
 const sessionVerifyLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  max: 60,
+  max: (req) => (opsAgentRateId(req) ? 240 : 60),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => `${req.ip}:verify`,
+  keyGenerator: verifyRateKey,
   message: { error: 'För många sessionskontroller. Vänta en stund och försök igen.' },
-  handler: opsRateLimitHandler('session-verify', clientIp),
+  handler: opsRateLimitHandler('session-verify', verifyRateKey),
 });
 
 app.use('/api/orders', orderLimiter);
