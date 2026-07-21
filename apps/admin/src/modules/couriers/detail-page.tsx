@@ -7,19 +7,31 @@ import { Bike, Car, Download } from "lucide-react";
 import {
   courierDeliveriesQueryKey,
   courierDetailQueryKey,
+  courierOffersQueryKey,
   couriersQueryKey,
   getCourierDeliveries,
   getCourierDetail,
+  getCourierOffers,
   revokeCourier,
   updateCourier,
   type CourierDeliveryExportRow,
+  type CourierOfferRow,
 } from "@/modules/couriers/api";
 import { OrderDetailsModal } from "@/modules/orders/page";
 import { Badge, Button, EmptyState, ErrorPanel, Input, LoadingPanel, MetricCard, PageHeader, Select, Surface, Tabs } from "@/shared/components/ui";
 import { LiveMap } from "@/shared/components/live-map";
 import { formatCurrency, formatDateTime } from "@/shared/utils/format";
 
-type Tab = "info" | "orders" | "login" | "stats";
+type Tab = "info" | "orders" | "login" | "stats" | "offers";
+
+// Badge-ton + svensk etikett per erbjudandestatus från smart-dispatchen.
+const OFFER_STATUS: Record<CourierOfferRow["status"], { label: string; tone: "success" | "warning" | "neutral" | "info" }> = {
+  ACCEPTED: { label: "Accepterad", tone: "success" },
+  DECLINED: { label: "Avböjd", tone: "warning" },
+  EXPIRED: { label: "Utgången", tone: "neutral" },
+  CANCELLED: { label: "Avbruten", tone: "neutral" },
+  OFFERED: { label: "Erbjuden", tone: "info" },
+};
 
 type PeriodKey = "all" | "today" | "7d" | "30d" | "custom";
 
@@ -89,6 +101,46 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+// Inline-redigerbar inforad: spara-knappen dyker upp först när värdet ändrats.
+function EditableInfoRow({
+  label,
+  value,
+  type = "text",
+  suffix,
+  saving,
+  onSave,
+}: {
+  label: string;
+  value: string;
+  type?: string;
+  suffix?: string;
+  saving: boolean;
+  onSave: (next: string) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const changed = draft != null && draft !== value;
+  return (
+    <div>
+      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">{label}</p>
+      <div className="mt-1 flex items-center gap-2">
+        <Input type={type} value={draft ?? value} onChange={(e) => setDraft(e.target.value)} className="max-w-[240px]" />
+        {suffix && <span className="text-xs font-semibold text-[var(--text-muted)]">{suffix}</span>}
+        {changed && (
+          <Button
+            disabled={saving}
+            onClick={() => {
+              onSave((draft ?? "").trim());
+              setDraft(null);
+            }}
+          >
+            {saving ? "Sparar…" : "Spara"}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function CourierDetailPage({ id }: { id: string }) {
   const router = useRouter();
   const qc = useQueryClient();
@@ -136,12 +188,29 @@ export function CourierDetailPage({ id }: { id: string }) {
     },
   });
 
+  // Info-fältens inline-redigering (namn/telefon/stad/km-pris).
+  const saveInfo = useMutation({
+    mutationFn: (payload: Partial<{ name: string; phone: string; city: string; ratePerKm: number; isActive: boolean }>) =>
+      updateCourier(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: courierDetailQueryKey(id) });
+      qc.invalidateQueries({ queryKey: couriersQueryKey });
+    },
+  });
+
   // Utbetalningsunderlag: levererade ordrar i valt intervall (ingen 50-tak).
   const range = rangeFor(period, customFrom, customTo);
   const deliveriesQ = useQuery({
     queryKey: courierDeliveriesQueryKey(id, range.from ?? "", range.to ?? "", "DELIVERED"),
     queryFn: () => getCourierDeliveries(id, { ...range, status: "DELIVERED" }),
     enabled: tab === "orders",
+  });
+
+  // Tilldelningshistorik (smart-dispatch) — hämtas först när fliken öppnas.
+  const offersQ = useQuery({
+    queryKey: courierOffersQueryKey(id),
+    queryFn: () => getCourierOffers(id),
+    enabled: tab === "offers",
   });
 
   if (q.isLoading) return <LoadingPanel label="Laddar kurir…" />;
@@ -191,6 +260,16 @@ export function CourierDetailPage({ id }: { id: string }) {
               {session.online ? "Online" : "Offline"}
             </span>
             <Badge tone={profile.isActive ? "success" : "neutral"}>{profile.isActive ? "Aktiv" : "Inaktiv"}</Badge>
+            <Button
+              variant={profile.isActive ? "danger" : "primary"}
+              disabled={saveInfo.isPending}
+              onClick={() => {
+                if (profile.isActive && !window.confirm(`Inaktivera ${profile.name}? Kuriren kan inte längre logga in eller ta uppdrag.`)) return;
+                saveInfo.mutate({ isActive: !profile.isActive });
+              }}
+            >
+              {profile.isActive ? "Inaktivera" : "Aktivera"}
+            </Button>
           </div>
         }
       />
@@ -282,15 +361,32 @@ export function CourierDetailPage({ id }: { id: string }) {
           { value: "orders", label: `Ordrar (${deliveries.length})` },
           { value: "login", label: "Inloggning" },
           { value: "stats", label: "Prestanda" },
+          { value: "offers", label: "Tilldelningar" },
         ]}
       />
 
       {tab === "info" && (
         <Surface className="px-6 py-6">
           <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+            <EditableInfoRow
+              label="Namn"
+              value={profile.name}
+              saving={saveInfo.isPending}
+              onSave={(next) => next && saveInfo.mutate({ name: next })}
+            />
             <InfoRow label="E-post" value={profile.email} />
-            <InfoRow label="Telefon" value={profile.phone || "–"} />
-            <InfoRow label="Stad" value={profile.city} />
+            <EditableInfoRow
+              label="Telefon"
+              value={profile.phone || ""}
+              saving={saveInfo.isPending}
+              onSave={(next) => saveInfo.mutate({ phone: next })}
+            />
+            <EditableInfoRow
+              label="Stad"
+              value={profile.city}
+              saving={saveInfo.isPending}
+              onSave={(next) => next && saveInfo.mutate({ city: next })}
+            />
             <InfoRow
               label="Fordon"
               value={
@@ -309,7 +405,17 @@ export function CourierDetailPage({ id }: { id: string }) {
                 </span>
               }
             />
-            <InfoRow label="km-pris" value={`${profile.ratePerKm} kr/km`} />
+            <EditableInfoRow
+              label="km-pris"
+              value={String(profile.ratePerKm)}
+              type="number"
+              suffix="kr/km"
+              saving={saveInfo.isPending}
+              onSave={(next) => {
+                const rate = Number(next);
+                if (Number.isFinite(rate) && rate > 0) saveInfo.mutate({ ratePerKm: rate });
+              }}
+            />
             <InfoRow label="Registrerad" value={formatDateTime(profile.createdAt)} />
             <InfoRow label="Personnummer" value={profile.personalNumber || "–"} />
             <InfoRow label="Adress" value={profile.address || "–"} />
@@ -536,6 +642,48 @@ export function CourierDetailPage({ id }: { id: string }) {
             )}
           </Surface>
         </>
+      )}
+
+      {tab === "offers" && (
+        <Surface className="px-6 py-6">
+          <h3 className="section-title text-lg">Tilldelningar</h3>
+          <p className="mb-4 mt-1 text-sm text-[var(--text-secondary)]">
+            Riktade erbjudanden från smart-tilldelningen. Lägre poäng = bättre matchning; status visar om kuriren accepterade, avböjde eller lät erbjudandet gå ut.
+          </p>
+          {offersQ.isLoading ? (
+            <LoadingPanel label="Laddar tilldelningar…" />
+          ) : offersQ.isError ? (
+            <ErrorPanel title="Kunde inte ladda tilldelningar" action={<Button onClick={() => void offersQ.refetch()}>Försök igen</Button>} />
+          ) : (offersQ.data ?? []).length === 0 ? (
+            <EmptyState title="Inga riktade erbjudanden än - smart tilldelning loggar här när DB-patchen är aktiverad" />
+          ) : (
+            <div className="table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr><th>Order</th><th>Restaurang</th><th>Våg</th><th>Status</th><th>Poäng</th><th>ETA</th><th>Tidpunkt</th></tr>
+                </thead>
+                <tbody>
+                  {(offersQ.data ?? []).map((o) => (
+                    <tr
+                      key={o.id}
+                      onClick={() => o.orderId && setActiveOrderId(o.orderId)}
+                      className={o.orderId ? "cursor-pointer transition-colors hover:bg-[var(--surface-hover,rgba(17,17,19,0.03))]" : ""}
+                      title={o.orderId ? "Öppna order" : undefined}
+                    >
+                      <td className="font-bold">{o.orderNumber ? `#${o.orderNumber}` : "–"}</td>
+                      <td>{o.restaurantName || "–"}</td>
+                      <td className="tabular-nums">{o.wave}</td>
+                      <td><Badge tone={OFFER_STATUS[o.status].tone}>{OFFER_STATUS[o.status].label}</Badge></td>
+                      <td className="tabular-nums">{o.score.toFixed(1)}</td>
+                      <td className="tabular-nums">{o.etaMin != null ? `${Math.round(o.etaMin)} min` : "–"}</td>
+                      <td className="text-[var(--text-muted)]">{formatDateTime(o.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Surface>
       )}
 
       {/* Order-modal — öppnas när man klickar på en leverans (samma modal som

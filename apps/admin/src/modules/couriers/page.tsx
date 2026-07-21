@@ -18,7 +18,7 @@ import {
 } from "@/modules/couriers/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { LiveMap } from "@/shared/components/live-map";
-import { formatCurrency, formatDate } from "@/shared/utils/format";
+import { formatCurrency, formatDate, formatDateTime } from "@/shared/utils/format";
 
 type Tab = "couriers" | "applications" | "rates";
 
@@ -37,7 +37,14 @@ const initials = (name: string) =>
     .map((p) => p[0]?.toUpperCase() ?? "")
     .join("") || "?";
 
-type CourierFilter = "all" | "online" | "paused";
+type CourierFilter = "all" | "online" | "offline" | "inactive";
+
+const COURIER_FILTERS: { value: CourierFilter; label: string }[] = [
+  { value: "all", label: "Alla" },
+  { value: "online", label: "Online" },
+  { value: "offline", label: "Offline" },
+  { value: "inactive", label: "Inaktiva" },
+];
 
 // ----------------------------------------------------------- create modal
 function CreateCourierModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -154,6 +161,8 @@ export function CouriersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [approveApp, setApproveApp] = useState<CourierApplication | null>(null);
   const [courierFilter, setCourierFilter] = useState<CourierFilter>("all");
+  const [cityFilter, setCityFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
 
   const couriers = useQuery({ queryKey: couriersQueryKey, queryFn: getCouriers });
   const applications = useQuery({ queryKey: applicationsQueryKey, queryFn: getApplications });
@@ -168,16 +177,32 @@ export function CouriersPage() {
   const pendingCount = (applications.data || []).filter((a) => a.status === "PENDING").length;
   const rows = couriers.data || [];
   const onlineCount = rows.filter((c) => c.online).length;
-  const pausedCount = rows.filter((c) => !c.online).length;
+  const activeSum = rows.reduce((s, c) => s + (c.activeDeliveries || 0), 0);
+  const deliveredSum = rows.reduce((s, c) => s + c.todayDeliveries, 0);
   const todaySum = rows.reduce((s, c) => s + c.todayEarnings, 0);
-  const visibleRows =
-    courierFilter === "online" ? rows.filter((c) => c.online) : courierFilter === "paused" ? rows.filter((c) => !c.online) : rows;
-  const liveMarkers = visibleRows
-    .filter((c) => c.currentLat != null && c.currentLng != null)
+  const cities = [...new Set(rows.map((c) => c.city).filter(Boolean))].sort((a, b) => a.localeCompare(b, "sv"));
+  // Filter: status-chip + stad + fritext (namn/e-post/telefon), sedan sortering:
+  // online först, därefter flest aktiva leveranser, sist namn.
+  const term = search.trim().toLowerCase();
+  const visibleRows = rows
+    .filter((c) =>
+      courierFilter === "online" ? c.online : courierFilter === "offline" ? !c.online : courierFilter === "inactive" ? !c.isActive : true,
+    )
+    .filter((c) => cityFilter === "all" || c.city === cityFilter)
+    .filter((c) => !term || [c.name, c.email, c.phone || ""].some((v) => v.toLowerCase().includes(term)))
+    .sort(
+      (a, b) =>
+        Number(b.online) - Number(a.online) ||
+        (b.activeDeliveries || 0) - (a.activeDeliveries || 0) ||
+        a.name.localeCompare(b.name, "sv"),
+    );
+  // Karta: bara online-kurirer med position (LiveMap saknar grå ton för offline).
+  const liveMarkers = rows
+    .filter((c) => c.online && c.currentLat != null && c.currentLng != null)
     .map((c) => ({
       id: c.id,
       label: c.name,
-      subtitle: `${c.online ? "Online" : "Offline"} · ${c.city}${c.lastSeenAt ? ` · ${formatDate(c.lastSeenAt)}` : ""}`,
+      subtitle: `${c.activeDeliveries || 0} aktiva${c.lastSeenAt ? ` · senast sedd ${formatDateTime(c.lastSeenAt)}` : ""}`,
       lat: c.currentLat,
       lng: c.currentLng,
       tone: "courier" as const,
@@ -196,24 +221,6 @@ export function CouriersPage() {
         title="Kurirer"
         actions={
           <div className="flex items-center gap-2">
-            {tab === "couriers" && (
-              <>
-                <button
-                  type="button"
-                  className={`chip${courierFilter === "online" ? " is-active" : ""}`}
-                  onClick={() => setCourierFilter((f) => (f === "online" ? "all" : "online"))}
-                >
-                  Online {onlineCount}
-                </button>
-                <button
-                  type="button"
-                  className={`chip${courierFilter === "paused" ? " is-active" : ""}`}
-                  onClick={() => setCourierFilter((f) => (f === "paused" ? "all" : "paused"))}
-                >
-                  Paus {pausedCount}
-                </button>
-              </>
-            )}
             <Button onClick={() => { void couriers.refetch(); void applications.refetch(); }}><RefreshCw size={14} /></Button>
             <Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={15} /> Lägg till kurir</Button>
           </div>
@@ -232,20 +239,66 @@ export function CouriersPage() {
 
       {tab === "couriers" && (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
-            <MetricCard label="Kurirer" value={String(rows.length)} detail={`${onlineCount} online`} />
-            <MetricCard label="Online nu" value={String(onlineCount)} />
+          <div className="grid gap-4 md:grid-cols-4">
+            <MetricCard label="Online nu" value={String(onlineCount)} detail={`av ${rows.length} kurirer`} />
+            <MetricCard label="Aktiva leveranser" value={String(activeSum)} />
+            <MetricCard label="Levererade idag" value={String(deliveredSum)} />
             <MetricCard label="Utbetalt idag" value={formatCurrency(todaySum)} />
           </div>
-          <Surface className="p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[13px] font-black text-[var(--text-primary)]">Livekarta</p>
-                <p className="text-xs font-semibold text-[var(--text-muted)]">{liveMarkers.length} kurirer med position</p>
+          {liveMarkers.length > 0 && (
+            <Surface className="p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[13px] font-black text-[var(--text-primary)]">Livekarta</p>
+                  <p className="text-xs font-semibold text-[var(--text-muted)]">{liveMarkers.length} online-kurirer med position</p>
+                </div>
               </div>
+              <LiveMap markers={liveMarkers} height={320} onMarkerClick={(marker) => router.push(`/couriers/${marker.id}`)} />
+            </Surface>
+          )}
+          {/* Sök + filter: samma pill-stil som periodväljaren på detaljsidan. */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Sök namn, e-post eller telefon…"
+              className="w-full max-w-[280px]"
+            />
+            <div className="inline-flex rounded-full border border-[var(--border-subtle)] p-1">
+              {COURIER_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setCourierFilter(f.value)}
+                  className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
+                    courierFilter === f.value
+                      ? "bg-[var(--text-primary)] text-[var(--bg-primary)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
             </div>
-            <LiveMap markers={liveMarkers} height={320} onMarkerClick={(marker) => router.push(`/couriers/${marker.id}`)} />
-          </Surface>
+            {cities.length > 1 && (
+              <div className="inline-flex rounded-full border border-[var(--border-subtle)] p-1">
+                {["all", ...cities].map((city) => (
+                  <button
+                    key={city}
+                    type="button"
+                    onClick={() => setCityFilter(city)}
+                    className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
+                      cityFilter === city
+                        ? "bg-[var(--text-primary)] text-[var(--bg-primary)]"
+                        : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    }`}
+                  >
+                    {city === "all" ? "Alla städer" : city}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Surface className="overflow-hidden p-0">
             {couriers.isLoading ? (
               <div className="flex items-center gap-2 px-6 py-6 text-sm text-[var(--text-secondary)]"><Loader2 size={16} className="animate-spin" /> Laddar…</div>
@@ -283,17 +336,21 @@ export function CouriersPage() {
                           {c.online ? (
                             <span className="inline-flex items-center gap-[5px] text-[11px] font-extrabold text-[var(--success-text)]">
                               <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
-                              Ledig
+                              {c.activeDeliveries > 0 ? "Levererar" : "Ledig"}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-[5px] text-[11px] font-extrabold text-[var(--warning)]">
                               <span className="h-1.5 w-1.5 rounded-full bg-[var(--warning)]" />
-                              Paus
+                              {c.lastSeenAt ? `Senast sedd ${formatDateTime(c.lastSeenAt)}` : "Offline"}
                             </span>
                           )}
                         </td>
                         <td>
-                          <span className="text-[var(--text-muted)]" style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 }}>–</span>
+                          {c.activeDeliveries > 0 ? (
+                            <Badge tone="info">{c.activeDeliveries} aktiva</Badge>
+                          ) : (
+                            <span className="text-[var(--text-muted)]" style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 }}>–</span>
+                          )}
                         </td>
                         <td className="tabular-nums">{c.todayDeliveries}</td>
                         <td className="font-bold text-[var(--text-muted)]">–</td>

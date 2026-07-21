@@ -13,6 +13,7 @@ export interface CourierRow {
   currentLng?: number | null;
   lastSeenAt?: string | null;
   ratePerKm: number; // kr
+  activeDeliveries: number; // pågående leveranser just nu
   todayEarnings: number;
   todayDeliveries: number;
   last30Earnings: number;
@@ -137,6 +138,24 @@ export const getCourierDeliveries = (
   return apiGet<CourierDeliveriesResult>(`/admin/couriers/${id}/deliveries${qs ? `?${qs}` : ""}`);
 };
 
+// ── Tilldelningshistorik: riktade erbjudanden från smart-dispatchen ──────────
+export interface CourierOfferRow {
+  id: string;
+  orderId: string;
+  orderNumber: string | null;
+  restaurantName: string | null;
+  wave: number;
+  status: "OFFERED" | "EXPIRED" | "DECLINED" | "ACCEPTED" | "CANCELLED";
+  score: number; // lägre = bättre matchning
+  etaMin: number | null;
+  createdAt: string;
+  respondedAt: string | null;
+  expiresAt: string | null;
+}
+
+export const courierOffersQueryKey = (id: string) => ["couriers", "offers", id] as const;
+export const getCourierOffers = (id: string) => apiGet<CourierOfferRow[]>(`/admin/couriers/${id}/offers`);
+
 export const couriersQueryKey = ["couriers", "list"] as const;
 export const courierDetailQueryKey = (id: string) => ["couriers", "detail", id] as const;
 export const getCourierDetail = (id: string) => apiGet<CourierDetail>(`/admin/couriers/${id}`);
@@ -148,7 +167,7 @@ export const updateCourier = (
   id: string,
   // email/password: inloggnings-ändringar (super-admin). Lösenordsbyte loggar
   // ut kuriren från alla enheter (tokenVersion bumpas server-side).
-  payload: Partial<{ isActive: boolean; ratePerKm: number; city: string; vehicle: string; phone: string; email: string; password: string }>,
+  payload: Partial<{ name: string; isActive: boolean; ratePerKm: number; city: string; vehicle: string; phone: string; email: string; password: string }>,
 ) => apiPatch<{ ok: boolean }>(`/admin/couriers/${id}`, payload);
 export const revokeCourier = (id: string) => apiPost<{ ok: boolean }>(`/admin/couriers/${id}/revoke`, {});
 
