@@ -2,6 +2,7 @@ import prisma from './prisma';
 import { getEffectiveEtaMinutes } from './restaurantEta';
 import { haversineKm } from '../utils/geo';
 import { computeDeliveryWindowMs } from './deliveryWindow';
+import type { TravelLookup } from './travelMatrix';
 
 const ACTIVE_DELIVERY_STATUSES = ['EN_ROUTE_PICKUP', 'PICKED_UP'];
 const TERMINAL_ORDER_STATUSES = ['DELIVERED', 'COMPLETED'];
@@ -101,10 +102,31 @@ function dropoffCoord(order: any): Coord | null {
   return validCoord(order?.deliveryLatitude, order?.deliveryLongitude);
 }
 
-function travelMinutes(from: Coord | null, to: Coord | null, vehicle?: string | null): number {
+// Trafikfaktor på OSRM:s "fri väg"-restid för bil (ljus, köer, parkering).
+const CAR_TRAFFIC_FACTOR = 1.15;
+
+function travelMinutes(
+  from: Coord | null,
+  to: Coord | null,
+  vehicle?: string | null,
+  travel?: TravelLookup | null,
+): number {
   if (!from || !to) return 0;
+  // Samma plats (< 50 m), t.ex. två ordrar från samma restaurang → ingen
+  // restid alls. Utan detta kostade varje batchat stopp minst 3 "resminuter"
+  // och best-insertion kunde aldrig löna sig för samlade hämtningar.
+  if (haversineKm(from.lat, from.lng, to.lat, to.lng) < 0.05) return 0;
+  const isCar = String(vehicle || '').toUpperCase() === 'CAR';
+  const minPerKm = isCar ? 2.8 : 4.4;
+  // Riktig ruttmatris (OSRM) när den finns: bil får verklig restid, cykel får
+  // verkligt VÄGavstånd (ser broar/floder) × cykelns min/km. Okänt par eller
+  // ingen matris → haversine som förut.
+  const hit = travel?.(from, to) ?? null;
+  if (hit) {
+    const minutes = isCar ? hit.durationMin * CAR_TRAFFIC_FACTOR : hit.distanceKm * minPerKm;
+    return clamp(2 + minutes, 3, 55);
+  }
   const km = haversineKm(from.lat, from.lng, to.lat, to.lng);
-  const minPerKm = String(vehicle || '').toUpperCase() === 'CAR' ? 2.8 : 4.4;
   return clamp(2 + km * minPerKm, 3, 55);
 }
 
@@ -183,9 +205,11 @@ function stopsForCandidate(order: any, readyAt: Date | null): EtaStop[] {
   ];
 }
 
+type SimulateOptions = { now: Date; start: Coord | null; vehicle?: string | null; travel?: TravelLookup | null };
+
 function simulateRoute(
   stops: EtaStop[],
-  options: { now: Date; start: Coord | null; vehicle?: string | null },
+  options: SimulateOptions,
 ): { pickupAtByOrder: Map<string, Date>; customerAtByOrder: Map<string, Date>; routeEndsAt: Date } {
   const pickupAtByOrder = new Map<string, Date>();
   const customerAtByOrder = new Map<string, Date>();
@@ -193,7 +217,7 @@ function simulateRoute(
   let position = options.start;
 
   for (const stop of stops) {
-    cursor = addMinutes(cursor, travelMinutes(position, stop.coord, options.vehicle));
+    cursor = addMinutes(cursor, travelMinutes(position, stop.coord, options.vehicle, options.travel));
     if (stop.kind === 'pickup' && stop.readyAt && cursor.getTime() < stop.readyAt.getTime()) {
       cursor = new Date(stop.readyAt);
     }
@@ -204,6 +228,66 @@ function simulateRoute(
   }
 
   return { pickupAtByOrder, customerAtByOrder, routeEndsAt: cursor };
+}
+
+// ── Best-insertion ──────────────────────────────────────────────────────────
+// Nya ordern behöver inte alltid köras SIST: ligger dess hämtning/lämning på
+// vägen kan den vävas in mitt i rutten. Vi provar alla giltiga positioner
+// (hämtning före lämning, befintliga stopp behåller inbördes ordning) och
+// väljer den med bäst mål: ny kunds ETA + viktad fördröjning för befintliga.
+// JÄRNREGEL: ingen befintlig kund får försenas mer än MAX_EXISTING_DELAY_MIN
+// jämfört med rutten utan nya ordern — annars förkastas positionen. Append
+// sist är alltid tillåten (den försenar per definition ingen).
+const MAX_EXISTING_DELAY_MIN = 6;
+const EXISTING_DELAY_WEIGHT = 0.8;
+
+function simulateBestInsertion(
+  activeStops: EtaStop[],
+  candidateStops: EtaStop[],
+  candidateOrderId: string,
+  opts: SimulateOptions,
+): ReturnType<typeof simulateRoute> {
+  const [pickupStop, dropStop] = candidateStops;
+  const baseline = simulateRoute(activeStops, opts);
+  // Append-varianten är referens och alltid giltig.
+  let best = simulateRoute([...activeStops, pickupStop, dropStop], opts);
+  const appendEta = best.customerAtByOrder.get(candidateOrderId);
+  let bestObjective = appendEta ? minutesBetween(opts.now, appendEta) : Infinity;
+
+  const n = activeStops.length;
+  for (let i = 0; i <= n; i++) {
+    for (let j = i; j <= n; j++) {
+      if (i === n && j === n) continue; // = append, redan beräknad
+      const stops = [...activeStops];
+      stops.splice(i, 0, pickupStop);
+      stops.splice(j + 1, 0, dropStop);
+      const sim = simulateRoute(stops, opts);
+
+      let sumDelayMin = 0;
+      let feasible = true;
+      for (const [orderId, at] of sim.customerAtByOrder) {
+        if (orderId === candidateOrderId) continue;
+        const base = baseline.customerAtByOrder.get(orderId);
+        if (!base) continue;
+        const delayMin = minutesBetween(base, at);
+        if (delayMin > MAX_EXISTING_DELAY_MIN) {
+          feasible = false;
+          break;
+        }
+        if (delayMin > 0) sumDelayMin += delayMin;
+      }
+      if (!feasible) continue;
+
+      const newEtaAt = sim.customerAtByOrder.get(candidateOrderId);
+      if (!newEtaAt) continue;
+      const objective = minutesBetween(opts.now, newEtaAt) + EXISTING_DELAY_WEIGHT * sumDelayMin;
+      if (objective < bestObjective) {
+        bestObjective = objective;
+        best = sim;
+      }
+    }
+  }
+  return best;
 }
 
 function priorityScore(order: any, etaCustomerAt: Date | null, targetAt: Date | null, now: Date, activeStops: number): number | null {
@@ -235,6 +319,10 @@ export function estimateOrderEta(
     courier?: any | null;
     activeDeliveries?: any[];
     appendAsCandidate?: boolean;
+    /** 'best' = prova alla giltiga infogningspositioner (dispatch); default append sist. */
+    insertion?: 'append' | 'best';
+    /** Riktiga vägrestider (OSRM-matris); null/undefined = haversine. */
+    travelLookup?: TravelLookup | null;
   } = {},
 ): OrderEtaSnapshot {
   const now = options.now ?? new Date();
@@ -282,7 +370,11 @@ export function estimateOrderEta(
   if (shouldSimulate) {
     const activeStops = activeDeliveries.flatMap((d) => stopsForDelivery(d, readyByOrder));
     const candidateStops = !orderHasActiveDelivery ? stopsForCandidate(order, readyAt) : [];
-    const simulated = simulateRoute([...activeStops, ...candidateStops], { now, start, vehicle });
+    const simOpts: SimulateOptions = { now, start, vehicle, travel: options.travelLookup ?? null };
+    const simulated =
+      options.insertion === 'best' && candidateStops.length === 2 && activeStops.length > 0
+        ? simulateBestInsertion(activeStops, candidateStops, order.id, simOpts)
+        : simulateRoute([...activeStops, ...candidateStops], simOpts);
     etaPickupAt = simulated.pickupAtByOrder.get(order.id) ?? (status === 'DELIVERING' ? new Date(order?.deliveringAt ?? now) : null);
     etaCustomerAt = simulated.customerAtByOrder.get(order.id) ?? null;
   }

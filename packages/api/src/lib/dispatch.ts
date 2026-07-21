@@ -26,6 +26,7 @@
 // ---------------------------------------------------------------------------
 import prisma from './prisma';
 import { haversineKm } from '../utils/geo';
+import { buildTravelLookup } from './travelMatrix';
 import { estimateOrderEta, getCourierActiveDeliveries } from './orderEta';
 import { rankDispatchCandidates, type ScoredDispatchCandidate } from './dispatchScoring';
 import {
@@ -118,11 +119,47 @@ export async function buildDispatchCandidates(
       ? { lat: order.restaurant.latitude as number, lng: order.restaurant.longitude as number }
       : null;
 
+  // Hämta aktiva leveranser för alla kandidater först → vi kan bygga EN
+  // ruttmatris (OSRM) över samtliga inblandade punkter: kurirpositioner, deras
+  // aktiva stopp och nya orderns hämtning/lämning. Null = haversine-läge.
+  const activeByCourier = new Map<string, any[]>(
+    await Promise.all(
+      eligible.map(async (c) => [c.id, await getCourierActiveDeliveries(c.id)] as [string, any[]]),
+    ),
+  );
+  const matrixPoints: { lat: number; lng: number }[] = [];
+  if (restaurantCoord) matrixPoints.push(restaurantCoord);
+  if (order.deliveryLatitude != null && order.deliveryLongitude != null) {
+    matrixPoints.push({ lat: order.deliveryLatitude, lng: order.deliveryLongitude });
+  }
+  for (const courier of eligible) {
+    if (typeof courier.currentLat === 'number' && typeof courier.currentLng === 'number') {
+      matrixPoints.push({ lat: courier.currentLat, lng: courier.currentLng });
+    }
+    for (const d of activeByCourier.get(courier.id) ?? []) {
+      const r = d?.order?.restaurant;
+      if (r?.latitude != null && r?.longitude != null) matrixPoints.push({ lat: r.latitude, lng: r.longitude });
+      if (d?.order?.deliveryLatitude != null && d?.order?.deliveryLongitude != null) {
+        matrixPoints.push({ lat: d.order.deliveryLatitude, lng: d.order.deliveryLongitude });
+      }
+    }
+  }
+  const travelLookup = await buildTravelLookup(matrixPoints);
+
   const candidates = await Promise.all(
     eligible.map(async (courier) => {
-      const activeDeliveries = await getCourierActiveDeliveries(courier.id);
+      const activeDeliveries = activeByCourier.get(courier.id) ?? [];
       if (activeDeliveries.length >= MAX_ACTIVE) return null;
-      const eta = estimateOrderEta(order, { now, courier, activeDeliveries, appendAsCandidate: true });
+      // insertion 'best': nya ordern vävs in där den stör minst (befintliga
+      // kunder skyddas av MAX_EXISTING_DELAY_MIN i orderEta).
+      const eta = estimateOrderEta(order, {
+        now,
+        courier,
+        activeDeliveries,
+        appendAsCandidate: true,
+        insertion: 'best',
+        travelLookup,
+      });
       const hasCoord = typeof courier.currentLat === 'number' && typeof courier.currentLng === 'number';
       const pickupDistanceKm =
         hasCoord && restaurantCoord

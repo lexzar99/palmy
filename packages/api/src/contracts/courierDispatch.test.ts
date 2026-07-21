@@ -36,6 +36,12 @@ function pickedUpDelivery(dropLat: number, dropLng: number) {
   return { status: 'PICKED_UP', orderId: order.id, order };
 }
 
+// Aktiv leverans på väg till hämtning (maten redo) → pickup + dropoff kvar.
+function enRoutePickupDelivery(dropLat: number, dropLng: number) {
+  const order = makeOrder({ dropLat, dropLng, status: 'READY' });
+  return { status: 'EN_ROUTE_PICKUP', orderId: order.id, order };
+}
+
 function makeCourier(opts: { lat: number; lng: number; fresh?: boolean }) {
   return {
     currentLat: opts.lat,
@@ -158,6 +164,53 @@ function candidateFor(
   const withPos = computeDispatchScore({ courierId: 'known', etaCustomerMin: 25, activeCount: 0, pickupDistanceKm: 1.5, hasLocation: true, locationFresh: false });
   const noPos = computeDispatchScore({ courierId: 'ghost', etaCustomerMin: 25, activeCount: 0, pickupDistanceKm: null, hasLocation: false, locationFresh: false });
   assert.ok(withPos < noPos, 'scenario 7: senaste kända position ska slå ingen position alls');
+}
+
+// --- Scenario 8: best-insertion + batchning. Kuriren är på väg att hämta en
+// order på restaurang R (drop 3 km norrut). Ny order från SAMMA restaurang
+// med drop strax bortom den första. Append sist = kör norrut, tillbaka till R,
+// norrut igen. Best-insertion = ta båda påsarna på en gång → klart snabbare.
+{
+  const newOrder = makeOrder({ dropLat: R.latitude + km(3.2), dropLng: R.longitude });
+  const courier = makeCourier({ lat: R.latitude - km(0.5), lng: R.longitude });
+  const active = [enRoutePickupDelivery(R.latitude + km(3), R.longitude)];
+  const append = estimateOrderEta(newOrder, { now: NOW, courier, activeDeliveries: active, appendAsCandidate: true });
+  const best = estimateOrderEta(newOrder, { now: NOW, courier, activeDeliveries: active, appendAsCandidate: true, insertion: 'best' });
+  assert.ok(
+    (best.etaCustomerMin ?? 999) < (append.etaCustomerMin ?? 999),
+    `scenario 8: best-insertion (${best.etaCustomerMin} min) ska slå append sist (${append.etaCustomerMin} min)`,
+  );
+}
+
+// --- Scenario 9: skyddet för befintliga kunder. Kuriren är 100 m från sin
+// sista lämning; nya orderns hämtning kräver en omväg som skulle försena den
+// befintliga kunden mer än taket → insättning förkastas, nya ordern körs sist
+// (samma ETA som append).
+{
+  const newOrder = makeOrder({ dropLat: R.latitude - km(4), dropLng: R.longitude });
+  const courier = makeCourier({ lat: R.latitude + km(2.9), lng: R.longitude });
+  const active = [pickedUpDelivery(R.latitude + km(3), R.longitude)];
+  const append = estimateOrderEta(newOrder, { now: NOW, courier, activeDeliveries: active, appendAsCandidate: true });
+  const best = estimateOrderEta(newOrder, { now: NOW, courier, activeDeliveries: active, appendAsCandidate: true, insertion: 'best' });
+  assert.equal(
+    best.etaCustomerMin,
+    append.etaCustomerMin,
+    'scenario 9: insättning som försenar befintlig kund > taket ska förkastas (ETA = append)',
+  );
+}
+
+// --- Scenario 10: ruttmatris-koppling. En lookup som säger att alla vägar är
+// 10 km långa (broar/floder!) ska ge längre ETA än fågelvägen för en kort tur.
+{
+  const newOrder = makeOrder({ dropLat: R.latitude + km(1), dropLng: R.longitude });
+  const courier = makeCourier({ lat: R.latitude - km(0.5), lng: R.longitude });
+  const detourLookup = () => ({ durationMin: 20, distanceKm: 10 });
+  const straight = estimateOrderEta(newOrder, { now: NOW, courier, activeDeliveries: [], appendAsCandidate: true });
+  const routed = estimateOrderEta(newOrder, { now: NOW, courier, activeDeliveries: [], appendAsCandidate: true, travelLookup: detourLookup });
+  assert.ok(
+    (routed.etaCustomerMin ?? 0) > (straight.etaCustomerMin ?? 999),
+    `scenario 10: vägnätets restid (${routed.etaCustomerMin} min) ska användas framför fågelvägen (${straight.etaCustomerMin} min)`,
+  );
 }
 
 console.log('courier dispatch contracts: ok');
