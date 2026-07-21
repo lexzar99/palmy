@@ -135,6 +135,7 @@ export async function buildDispatchCandidates(
         etaCustomerMin: eta.etaCustomerMin,
         activeCount: activeDeliveries.length,
         pickupDistanceKm,
+        hasLocation: hasCoord,
         locationFresh,
       };
     }),

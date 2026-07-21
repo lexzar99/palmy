@@ -59,6 +59,7 @@ function candidateFor(
     etaCustomerMin: eta.etaCustomerMin,
     activeCount: activeDeliveries.length,
     pickupDistanceKm: dist,
+    hasLocation: true,
     locationFresh: fresh,
   };
 }
@@ -112,30 +113,51 @@ function candidateFor(
   assert.equal(ranked[0].courierId, 'NEAR', 'scenario 3: närmast lediga budet vinner');
 }
 
-// --- Scenario 4: identiskt läge men gammal GPS → färsk position vinner.
+// --- Scenario 4: identiskt läge men gammal GPS → färsk position vinner, men
+// straffet är nästan noll (senaste kända position används) — en klart bättre
+// ETA ska alltid slå färskhet.
 {
   const newOrder = makeOrder({ dropLat: R.latitude, dropLng: R.longitude + km(1) });
   const ranked = rankDispatchCandidates([
     candidateFor('STALE', makeCourier({ lat: R.latitude, lng: R.longitude - km(1), fresh: false }), [], newOrder),
     candidateFor('FRESH', makeCourier({ lat: R.latitude, lng: R.longitude - km(1) }), [], newOrder),
   ]);
-  assert.equal(ranked[0].courierId, 'FRESH', 'scenario 4: färsk GPS ska slå inaktuell GPS');
+  assert.equal(ranked[0].courierId, 'FRESH', 'scenario 4: vid dött lopp ska färsk GPS slå inaktuell');
+  assert.ok(
+    ranked[1].score - ranked[0].score <= 2,
+    'scenario 4: gammal-GPS-straffet ska vara nästan noll (max 2 min)',
+  );
+  // ...och ett stale-bud som är tydligt närmare/snabbare ska VINNA över färskt.
+  const ranked2 = rankDispatchCandidates([
+    candidateFor('STALE_NEAR', makeCourier({ lat: R.latitude, lng: R.longitude - km(0.5), fresh: false }), [], newOrder),
+    candidateFor('FRESH_FAR', makeCourier({ lat: R.latitude, lng: R.longitude - km(3) }), [], newOrder),
+  ]);
+  assert.equal(ranked2[0].courierId, 'STALE_NEAR', 'scenario 4b: bättre ETA slår färskhet');
 }
 
 // --- Scenario 5: kandidat utan simulerbar ETA hamnar efter en med riktig ETA.
 {
   const ranked = rankDispatchCandidates([
-    { courierId: 'UNKNOWN', etaCustomerMin: null, activeCount: 0, pickupDistanceKm: null, locationFresh: true },
-    { courierId: 'KNOWN', etaCustomerMin: 30, activeCount: 0, pickupDistanceKm: 2, locationFresh: true },
+    { courierId: 'UNKNOWN', etaCustomerMin: null, activeCount: 0, pickupDistanceKm: null, hasLocation: true, locationFresh: true },
+    { courierId: 'KNOWN', etaCustomerMin: 30, activeCount: 0, pickupDistanceKm: 2, hasLocation: true, locationFresh: true },
   ]);
   assert.equal(ranked[0].courierId, 'KNOWN', 'scenario 5: känd ETA rankas före okänd');
 }
 
 // --- Scenario 6: lika ETA → färre aktiva ordrar vinner (rättvisa/buffert).
 {
-  const a = computeDispatchScore({ courierId: 'x', etaCustomerMin: 25, activeCount: 0, pickupDistanceKm: 1, locationFresh: true });
-  const b = computeDispatchScore({ courierId: 'y', etaCustomerMin: 25, activeCount: 3, pickupDistanceKm: 1, locationFresh: true });
+  const a = computeDispatchScore({ courierId: 'x', etaCustomerMin: 25, activeCount: 0, pickupDistanceKm: 1, hasLocation: true, locationFresh: true });
+  const b = computeDispatchScore({ courierId: 'y', etaCustomerMin: 25, activeCount: 3, pickupDistanceKm: 1, hasLocation: true, locationFresh: true });
   assert.ok(a < b, 'scenario 6: samma ETA → lägre belastning ska ge lägre (bättre) poäng');
+}
+
+// --- Scenario 7: helt utan position → simuleringens första ben blir gratis
+// (optimistisk ETA), så budet får ett måttligt straff och ska INTE slå ett
+// likvärdigt bud med känd (om än gammal) position.
+{
+  const withPos = computeDispatchScore({ courierId: 'known', etaCustomerMin: 25, activeCount: 0, pickupDistanceKm: 1.5, hasLocation: true, locationFresh: false });
+  const noPos = computeDispatchScore({ courierId: 'ghost', etaCustomerMin: 25, activeCount: 0, pickupDistanceKm: null, hasLocation: false, locationFresh: false });
+  assert.ok(withPos < noPos, 'scenario 7: senaste kända position ska slå ingen position alls');
 }
 
 console.log('courier dispatch contracts: ok');

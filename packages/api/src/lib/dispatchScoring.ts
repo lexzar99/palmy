@@ -14,9 +14,13 @@
 //    Närhet i sig ger inget — det är levererad-hos-kund-tiden som räknas.
 //  - Två lediga bud → ETA-skillnaden är i praktiken avståndet → närmast vinner.
 //  - Lika ETA → belastningsstraffet (per aktiv order) ger jobbet till den med
-//    färre ordrar (rättvisa + buffert för simuleringsfel).
-//  - GPS:en är gammal/saknas → straff: simuleringen är då opålitlig och en
-//    kurir med färsk position ska hellre få erbjudandet.
+//    färre ordrar (rättvisa + buffert för porttelefoner/trappor/väntetid som
+//    simuleringen inte ser).
+//  - GPS:en är gammal → simuleringen använder SENASTE KÄNDA position och
+//    straffet är nästan noll (bara en mjuk knuff mot färskare bud vid dött
+//    lopp). Saknas position HELT finns ingen startpunkt att simulera från —
+//    då blir ETA:n orealistiskt optimistisk, så ett måttligt straff hindrar
+//    ett "osynligt" bud från att vinna oförtjänt.
 // ---------------------------------------------------------------------------
 
 export type DispatchCandidate = {
@@ -27,6 +31,8 @@ export type DispatchCandidate = {
   activeCount: number;
   /** Kurirens avstånd till restaurangen (km), null om position saknas. */
   pickupDistanceKm: number | null;
+  /** Det finns en (senaste känd) position alls att simulera från. */
+  hasLocation: boolean;
   /** Position rapporterad nyligen nog att lita på. */
   locationFresh: boolean;
 };
@@ -46,15 +52,25 @@ const LOAD_PENALTY_MIN = 3;
 // (kortare exponering för fel i prognosen).
 const DISTANCE_TIEBREAK_MIN_PER_KM = 0.6;
 const UNKNOWN_DISTANCE_KM = 5;
-// Gammal/ingen GPS → simuleringen utgår från fel plats; nedprioritera tydligt.
-const STALE_LOCATION_PENALTY_MIN = 15;
+// Gammal GPS → vi simulerar ändå från senaste kända position; nästan noll i
+// straff (bara en mjuk knuff mot budet med färskare position vid dött lopp).
+const STALE_LOCATION_PENALTY_MIN = 2;
+// Ingen position ALLS → simuleringen saknar startpunkt och första benet blir
+// gratis (orealistiskt optimistiskt). Måttligt straff så budet fortfarande kan
+// vinna när alternativen är dåliga, men inte slår en simulerbar kandidat i
+// ett jämnt läge.
+const MISSING_LOCATION_PENALTY_MIN = 8;
 
 export function computeDispatchScore(c: DispatchCandidate): number {
   const eta = c.etaCustomerMin ?? FALLBACK_ETA_MIN;
   const load = c.activeCount * LOAD_PENALTY_MIN;
   const distance = (c.pickupDistanceKm ?? UNKNOWN_DISTANCE_KM) * DISTANCE_TIEBREAK_MIN_PER_KM;
-  const stale = c.locationFresh ? 0 : STALE_LOCATION_PENALTY_MIN;
-  return Math.round((eta + load + distance + stale) * 10) / 10;
+  const location = !c.hasLocation
+    ? MISSING_LOCATION_PENALTY_MIN
+    : c.locationFresh
+      ? 0
+      : STALE_LOCATION_PENALTY_MIN;
+  return Math.round((eta + load + distance + location) * 10) / 10;
 }
 
 /** Sortera kandidater bäst-först (stabilt: poäng → ETA → belastning → id). */
