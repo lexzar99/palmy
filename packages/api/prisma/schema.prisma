@@ -232,6 +232,7 @@ model Order {
   deviceOrderSubscriptions  DeviceOrderSubscription[]
   notificationOutbox        NotificationOutbox[]
   paymentRefunds            PaymentRefund[]
+  dispatchOffers            DispatchOffer[]
 
   @@index([restaurantId, status, createdAt])
   @@index([customerPhone])
@@ -307,8 +308,34 @@ model Courier {
   updatedAt         DateTime                  @updatedAt
   deliveries        Delivery[]
   pushSubscriptions CourierPushSubscription[]
+  dispatchOffers    DispatchOffer[]
 
   @@index([online, city, isActive])
+}
+
+// Riktade uppdrag-erbjudanden ("smart tilldelning"). En ny order erbjuds den
+// bäst lämpade kuriren (simulerad kund-ETA + belastning) exklusivt i en våg med
+// deadline; svarar kuriren inte (eller avböjer) kaskaderas erbjudandet till
+// nästa kurir. Efter sista vågen finns inget aktivt OFFERED-erbjudande kvar →
+// ordern är "öppen" och syns för alla (gamla först-till-kvarn som fallback).
+// Öppet-läget representeras alltså av FRÅNVARON av aktiva erbjudanden.
+model DispatchOffer {
+  id          String    @id @default(cuid())
+  orderId     String
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courierId   String
+  courier     Courier   @relation(fields: [courierId], references: [id], onDelete: Cascade)
+  wave        Int       @default(1)
+  status      String    @default("OFFERED") // OFFERED | EXPIRED | DECLINED | ACCEPTED | CANCELLED
+  score       Float? // dispatch-poäng vid erbjudandet (lägre = bättre) — felsökning/statistik
+  etaMin      Int? // simulerad kund-ETA (min) med denna kurir vid erbjudande-tillfället
+  expiresAt   DateTime
+  respondedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([orderId, status])
+  @@index([status, expiresAt])
+  @@index([courierId, status, expiresAt])
 }
 
 // Web Push-prenumerationer per kurir-enhet (telefon hemskärm m.fl.). En kurir

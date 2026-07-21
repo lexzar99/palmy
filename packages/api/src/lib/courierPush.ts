@@ -136,7 +136,7 @@ const NEW_JOB_DEDUP_MS = 90_000;
 const noCourierAcceptedTimers = new Map<string, NodeJS.Timeout>();
 const NO_COURIER_ACCEPTED_MS = 3 * 60_000;
 
-async function alertNoCouriersOnline(opts: {
+export async function alertNoCouriersOnline(opts: {
   orderId?: string | null;
   orderNumber?: string | null;
   restaurantName: string;
@@ -155,7 +155,7 @@ async function alertNoCouriersOnline(opts: {
   });
 }
 
-function scheduleNoCourierAcceptedCheck(opts: {
+export function scheduleNoCourierAcceptedCheck(opts: {
   orderId?: string | null;
   orderNumber?: string | null;
   restaurantName: string;
@@ -272,6 +272,38 @@ export async function notifyCouriersOfNewJob(opts: {
     ]);
   } catch (e) {
     console.warn('[courierPush] notifyCouriersOfNewJob fel:', (e as Error)?.message);
+  }
+}
+
+/**
+ * Riktat erbjudande (smart tilldelning): EN utvald kurir får en personlig
+ * "uppdrag reserverat för dig"-notis med svarsdeadline. Övriga kurirer ser
+ * inte ordern förrän erbjudandet kaskaderat klart. Fire-and-forget.
+ */
+export async function notifyCourierJobOffer(opts: {
+  courierId: string;
+  orderId: string;
+  restaurantName: string;
+  city: string;
+  expiresInSec: number;
+}): Promise<void> {
+  try {
+    const title = `Uppdrag till dig – ${opts.city}`;
+    const body = `${opts.restaurantName} · svara inom ${opts.expiresInSec} s`;
+    const data = { type: 'JOB_OFFER', orderId: opts.orderId, city: opts.city };
+    await Promise.all([
+      sendToCourierIds([opts.courierId], { title, body, tag: `viaeats-offer-${opts.orderId}`, url: '/' }),
+      sendCourierFcm([opts.courierId], { title, body, data }),
+      sendCourierApns([opts.courierId], {
+        title,
+        body,
+        data,
+        sound: 'new_order',
+        collapseId: `offer-${opts.orderId}`,
+      }),
+    ]);
+  } catch (e) {
+    console.warn('[courierPush] notifyCourierJobOffer fel:', (e as Error)?.message);
   }
 }
 

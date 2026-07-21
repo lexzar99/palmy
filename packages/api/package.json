@@ -8,6 +8,7 @@
     "build": "prisma generate --schema prisma/schema.prisma && tsc",
     "test:contracts": "ts-node --transpile-only src/contracts/backendContracts.test.ts && ts-node --transpile-only src/contracts/launchCampaignPagination.test.ts",
     "test:order-status": "ts-node --transpile-only src/contracts/orderStatusMachine.test.ts",
+    "test:dispatch": "ts-node --transpile-only src/contracts/courierDispatch.test.ts",
     "test:referrals": "ts-node --transpile-only src/contracts/referralContracts.test.ts",
     "test:refunds": "ts-node --transpile-only src/contracts/refundContracts.test.ts",
     "test:finance-payouts": "ts-node --transpile-only src/contracts/financePayoutContracts.test.ts",

@@ -13,13 +13,13 @@ import { registerCourierFcmToken, clearCourierFcmToken, sendCourierFcm, sendTest
 import { clearCourierApnsToken, registerCourierApnsToken, sendTestCourierApns } from '../lib/courierApns';
 import { uploadToR2, deleteFromR2, r2Enabled } from '../lib/r2';
 import { customerStepEtaEndsAt, estimateOrderEta, etaResponseFields, getCourierActiveDeliveries, refreshCourierActiveEtas, refreshOrderEta } from '../lib/orderEta';
+import { declineOffer, getActiveOffers, isSmartDispatchEnabled, resolveOffersOnAccept, MAX_ACTIVE } from '../lib/dispatch';
 
 // Leveransbild sparas i 2 dygn och raderas sedan permanent (cleanup-jobbet).
 const PROOF_PHOTO_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 
 const ACTIVE_STATUSES = ['EN_ROUTE_PICKUP', 'PICKED_UP'];
 const AVAILABLE_ORDER_STATUSES = ['ACCEPTED', 'PREPARING', 'READY'];
-const MAX_ACTIVE = 6;
 
 interface CourierRequest extends Request {
   courier?: any;
@@ -49,11 +49,13 @@ const distanceKmOf = (restaurant: any, o: any): number => {
   return Math.round(haversineKm(restaurant.latitude, restaurant.longitude, o.deliveryLatitude, o.deliveryLongitude) * 10) / 10;
 };
 
-/** Order → Job (kurir-PWA-form). Belopp i KR. */
-function jobFromOrder(order: any, ratePerKm: number) {
+/** Order → Job (kurir-form). Belopp i KR.
+ *  OBS: kurirens ersättning (payout/tip/ratePerKm) exponeras MEDVETET ALDRIG
+ *  här — bud ska inte kunna körsbärsplocka uppdrag på förtjänst. De ser
+ *  orderns pris (vad kunden betalar) och sin egen statistik, aldrig lönen. */
+function jobFromOrder(order: any) {
   const r = order.restaurant;
   const distanceKm = distanceKmOf(r, order);
-  const payOre = Math.round(distanceKm * ratePerKm);
   return {
     id: order.id,
     orderNumber: order.orderNumber,
@@ -67,8 +69,7 @@ function jobFromOrder(order: any, ratePerKm: number) {
     distanceKm,
     etaMin: Math.max(4, Math.round(distanceKm * 3 + 4)),
     vehicle: distanceKm > 2 ? 'CAR' : 'BIKE',
-    payout: payOre / 100,
-    tip: (order.tipAmount ?? 0) / 100,
+    orderValue: (order.total ?? 0) / 100, // vad KUNDEN betalar (kr) — ok att visa
     ...etaResponseFields(order),
     expiresAt: Date.now() + 3_600_000,
     items: (order.items ?? []).map((i: any) => ({ qty: i.quantity, name: i.productName })),
@@ -82,10 +83,9 @@ function activeFromDelivery(d: any) {
   // Förfluten tid: tagen→levererad om klar, annars tagen→nu (live).
   const elapsedMs = acceptedMs ? (deliveredMs ?? Date.now()) - acceptedMs : null;
   return {
-    ...jobFromOrder(d.order, d.ratePerKmOre || 0),
+    ...jobFromOrder(d.order),
     id: d.id, // VIKTIGT: leverans-id (inte order-id) — detalj/picked-up/complete använder detta
     orderId: d.orderId,
-    payout: d.payOre / 100,
     distanceKm: d.distanceKm,
     status: d.status,
     // Orderns egen status (PREPARING/READY/…) → kurir-appen visar "Maten är
@@ -204,22 +204,29 @@ router.get('/jobs', requireCourier, async (req: CourierRequest, res) => {
     });
     const activeDeliveries = await getCourierActiveDeliveries(courier.id);
 
-    // Sortera uppdragen på pris, närhet OCH tidspress. ETA:n simulerar budets
-    // aktiva stopp och lägger alltid pickup före dropoff för varje order.
-    const DISTANCE_PENALTY_PER_KM = 6; // kr/km — balanserar ~typiska ersättningar
+    // Smart tilldelning: en order med aktivt riktat erbjudande syns BARA för
+    // den erbjudna kuriren (med nedräkning). Övriga ser den först när
+    // erbjudandet kaskaderat klart och ordern öppnats för alla.
+    const offers = await getActiveOffers(orders.map((o) => o.id));
+    const visible = orders.filter((o) => {
+      const offer = offers.get(o.id);
+      return !offer || offer.courierId === courier.id;
+    });
+
+    // Sortera på eget erbjudande först, sedan tidspress och närhet. ETA:n
+    // simulerar budets aktiva stopp och lägger alltid pickup före dropoff.
     const here = (typeof courier.currentLat === 'number' && typeof courier.currentLng === 'number')
       ? { lat: courier.currentLat as number, lng: courier.currentLng as number }
       : null;
-    const scored = orders.map((o) => {
-      const job = jobFromOrder(o, courier.ratePerKm);
+    const scored = visible.map((o) => {
+      const job = jobFromOrder(o);
       const eta = estimateOrderEta(o, { courier, activeDeliveries, appendAsCandidate: true });
       const r = o.restaurant as any;
       const pickupDistKm = (here && r?.latitude != null && r?.longitude != null)
         ? Math.round(haversineKm(here.lat, here.lng, r.latitude, r.longitude) * 10) / 10
         : null;
-      const value = (job.payout ?? 0) + (job.tip ?? 0);
-      const timePressure = (eta.etaPriorityScore ?? 0) * 0.65;
-      const score = (pickupDistKm != null ? value - DISTANCE_PENALTY_PER_KM * pickupDistKm : value) + timePressure;
+      const offer = offers.get(o.id);
+      const offered = offer?.courierId === courier.id;
       return {
         job: {
           ...job,
@@ -230,18 +237,21 @@ router.get('/jobs', requireCourier, async (req: CourierRequest, res) => {
           etaCustomerMin: eta.etaCustomerMin,
           etaPriorityScore: eta.etaPriorityScore,
           etaReason: eta.etaReason,
+          // Riktat erbjudande → appen visar erbjudandekort med nedräkning.
+          offered,
+          offerExpiresAt: offered ? offer!.expiresAt.toISOString() : null,
         },
-        score,
-        value,
+        offered,
+        pressure: eta.etaPriorityScore ?? 0,
         dist: pickupDistKm ?? Infinity,
         etaMin: eta.etaCustomerMin ?? Infinity,
       };
     });
     scored.sort((a, b) =>
-      b.score - a.score || // bäst poäng (pris + tidspress vägt mot avstånd) först
-      a.etaMin - b.etaMin ||
+      Number(b.offered) - Number(a.offered) || // ditt reserverade uppdrag överst
+      b.pressure - a.pressure || // mest tidskritiska först
       a.dist - b.dist || // sen närmast
-      b.value - a.value, // sen dyrast
+      a.etaMin - b.etaMin,
     );
     res.json(scored.map((s) => s.job).slice(0, 20));
   } catch (e) {
@@ -259,9 +269,20 @@ router.get('/jobs/:orderId', requireCourier, async (req: CourierRequest, res) =>
   if (!order || order.delivery || !AVAILABLE_ORDER_STATUSES.includes(order.status) || order.restaurant?.selfDelivery) {
     return res.status(404).json({ error: 'Ordern är inte längre tillgänglig' });
   }
+  // Reserverad för en annan kurir just nu → osynlig även i förhandsvyn.
+  const offers = await getActiveOffers([order.id]);
+  const offer = offers.get(order.id);
+  if (offer && offer.courierId !== req.courier.id) {
+    return res.status(404).json({ error: 'Ordern är inte längre tillgänglig' });
+  }
   const activeDeliveries = await getCourierActiveDeliveries(req.courier.id);
   const eta = estimateOrderEta(order, { courier: req.courier, activeDeliveries, appendAsCandidate: true });
-  res.json({ ...jobFromOrder(order, req.courier.ratePerKm), ...eta });
+  res.json({
+    ...jobFromOrder(order),
+    ...eta,
+    offered: offer?.courierId === req.courier.id,
+    offerExpiresAt: offer?.courierId === req.courier.id ? offer.expiresAt.toISOString() : null,
+  });
 });
 
 router.get('/active', requireCourier, async (req: CourierRequest, res) => {
@@ -296,6 +317,15 @@ router.post('/jobs/:orderId/accept', requireCourier, async (req: CourierRequest,
       // En annan kurir hann acceptera (eller ordern drogs tillbaka).
       return res.status(409).json({ error: 'En annan kurir tog ordern', code: 'TAKEN' });
     }
+    // Smart tilldelning: pågående riktat erbjudande till NÅGON ANNAN → mjuk
+    // reservation, acceptera nekas tills erbjudandet kaskaderat/öppnats.
+    if (isSmartDispatchEnabled()) {
+      const offers = await getActiveOffers([order.id]);
+      const offer = offers.get(order.id);
+      if (offer && offer.courierId !== courier.id) {
+        return res.status(409).json({ error: 'Uppdraget är reserverat för en annan kurir just nu', code: 'RESERVED' });
+      }
+    }
     const distanceKm = distanceKmOf(order.restaurant, order);
     const payOre = Math.round(distanceKm * courier.ratePerKm);
 
@@ -311,6 +341,8 @@ router.post('/jobs/:orderId/accept', requireCourier, async (req: CourierRequest,
       },
       include: { order: { include: { restaurant: true, items: true } } },
     });
+    // Stäng dispatch-kaskaden: bokför accepterat/avbrutna erbjudanden.
+    void resolveOffersOnAccept(order.id, courier.id).catch(() => null);
     void notifyCourierAccepted({
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -337,6 +369,18 @@ router.post('/jobs/:orderId/accept', requireCourier, async (req: CourierRequest,
     if (e?.code === 'P2002') return res.status(409).json({ error: 'En annan kurir tog ordern', code: 'TAKEN' });
     console.error('Courier accept error:', e);
     res.status(500).json({ error: 'Kunde inte acceptera ordern' });
+  }
+});
+
+// Kuriren avböjer sitt riktade erbjudande → kaskaden går direkt vidare till
+// nästa kurir (ingen väntan på deadline). Ingen påföljd — bara statistik.
+router.post('/jobs/:orderId/decline', requireCourier, async (req: CourierRequest, res) => {
+  try {
+    const declined = await declineOffer(req.params.orderId, req.courier.id);
+    res.json({ ok: true, declined });
+  } catch (e) {
+    console.error('Courier decline error:', e);
+    res.status(500).json({ error: 'Kunde inte avböja uppdraget' });
   }
 });
 
@@ -632,13 +676,45 @@ router.get('/history', requireCourier, async (req: CourierRequest, res) => {
         proofMethod: d.proofMethod ?? null,
         deliveredAt: (d.deliveredAt ?? d.updatedAt).toISOString(),
         distanceKm: d.distanceKm,
-        payout: d.payOre / 100,
-        tip: (d.order.tipAmount ?? 0) / 100,
+        orderValue: (d.order.total ?? 0) / 100, // kundens pris — INTE kurirens ersättning
         // "hur lång tid du tog på dig" (accept → levererad), i minuter.
         totalMin: a && del ? Math.round((del - a) / 60000) : null,
       };
     }),
   );
+});
+
+// Kurirens egen statistik — antal leveranser, sträcka och tider. MEDVETET inga
+// pengar här: ersättning ska aldrig synas för budet (körsbärsplocknings-skydd).
+router.get('/stats', requireCourier, async (req: CourierRequest, res) => {
+  try {
+    const now = new Date();
+    const startToday = new Date(now); startToday.setHours(0, 0, 0, 0);
+    const start7 = new Date(now.getTime() - 7 * 864e5);
+    const base = { courierId: req.courier.id, status: 'DELIVERED' as const };
+    const [today, week, total, completed] = await Promise.all([
+      prisma.delivery.aggregate({ where: { ...base, deliveredAt: { gte: startToday } }, _count: { _all: true }, _sum: { distanceKm: true } }),
+      prisma.delivery.aggregate({ where: { ...base, deliveredAt: { gte: start7 } }, _count: { _all: true }, _sum: { distanceKm: true } }),
+      prisma.delivery.aggregate({ where: base, _count: { _all: true }, _sum: { distanceKm: true } }),
+      prisma.delivery.findMany({
+        where: { ...base, deliveredAt: { gte: start7 } },
+        select: { acceptedAt: true, pickedUpAt: true, deliveredAt: true },
+        take: 200,
+      }),
+    ]);
+    const mins = (a: Date | null, b: Date | null) => (a && b ? (b.getTime() - a.getTime()) / 60000 : null);
+    const totals = completed.map((d) => mins(d.acceptedAt, d.deliveredAt)).filter((x): x is number => x != null && x >= 0);
+    const avgTotalMin = totals.length ? Math.round((totals.reduce((s, x) => s + x, 0) / totals.length) * 10) / 10 : null;
+    const round1 = (n: number | null | undefined) => (n == null ? 0 : Math.round(n * 10) / 10);
+    res.json({
+      today: { deliveries: today._count._all, distanceKm: round1(today._sum.distanceKm) },
+      week: { deliveries: week._count._all, distanceKm: round1(week._sum.distanceKm), avgTotalMin },
+      total: { deliveries: total._count._all, distanceKm: round1(total._sum.distanceKm) },
+    });
+  } catch (e) {
+    console.error('Courier stats error:', e);
+    res.status(500).json({ error: 'Kunde inte hämta statistik' });
+  }
 });
 
 export default router;
@@ -870,13 +946,36 @@ adminCourierRouter.post('/:id/revoke', async (req: AuthRequest, res) => {
 });
 
 adminCourierRouter.patch('/:id', async (req: AuthRequest, res) => {
-  const { isActive, ratePerKm, city, vehicle, phone } = req.body || {};
+  const { isActive, ratePerKm, city, vehicle, phone, email, password } = req.body || {};
   const data: any = {};
   if (isActive !== undefined) data.isActive = Boolean(isActive);
   if (ratePerKm !== undefined) data.ratePerKm = Math.round(Number(ratePerKm) * 100);
   if (city !== undefined) data.city = String(city);
   if (vehicle !== undefined) data.vehicle = vehicle === 'CAR' ? 'CAR' : 'BIKE';
   if (phone !== undefined) data.phone = phone || null;
+  // Inloggnings-ändringar (super-admin): byt e-post och/eller sätt nytt
+  // lösenord åt kuriren ("glömt lösenord"-flödet sköts av admin — kurirer har
+  // ingen självservice). Lösenordsbyte bumpar tokenVersion → alla gamla
+  // sessioner loggas ut och kuriren måste logga in med det nya.
+  if (email !== undefined) {
+    const normalized = String(email).trim().toLowerCase();
+    if (!normalized || !normalized.includes('@')) {
+      return res.status(400).json({ error: 'Ogiltig e-postadress' });
+    }
+    const existing = await prisma.courier.findUnique({ where: { email: normalized } });
+    if (existing && existing.id !== req.params.id) {
+      return res.status(409).json({ error: 'E-post används redan av en annan kurir' });
+    }
+    data.email = normalized;
+  }
+  if (password !== undefined && password !== null && String(password).length > 0) {
+    if (String(password).length < 6) {
+      return res.status(400).json({ error: 'Lösenordet måste vara minst 6 tecken' });
+    }
+    data.passwordHash = await bcrypt.hash(String(password), 12);
+    data.tokenVersion = { increment: 1 };
+    data.online = false;
+  }
   await prisma.courier.update({ where: { id: req.params.id }, data });
   res.json({ ok: true });
 });

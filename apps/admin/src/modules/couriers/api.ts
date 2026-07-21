@@ -144,8 +144,12 @@ export const applicationsQueryKey = ["couriers", "applications"] as const;
 
 export const getCouriers = () => apiGet<CourierRow[]>("/admin/couriers");
 export const createCourier = (payload: CreateCourierPayload) => apiPost<{ id: string }>("/admin/couriers", payload);
-export const updateCourier = (id: string, payload: Partial<{ isActive: boolean; ratePerKm: number; city: string; vehicle: string; phone: string }>) =>
-  apiPatch<{ ok: boolean }>(`/admin/couriers/${id}`, payload);
+export const updateCourier = (
+  id: string,
+  // email/password: inloggnings-ändringar (super-admin). Lösenordsbyte loggar
+  // ut kuriren från alla enheter (tokenVersion bumpas server-side).
+  payload: Partial<{ isActive: boolean; ratePerKm: number; city: string; vehicle: string; phone: string; email: string; password: string }>,
+) => apiPatch<{ ok: boolean }>(`/admin/couriers/${id}`, payload);
 export const revokeCourier = (id: string) => apiPost<{ ok: boolean }>(`/admin/couriers/${id}/revoke`, {});
 
 export const getApplications = () => apiGet<CourierApplication[]>("/admin/courier-applications");

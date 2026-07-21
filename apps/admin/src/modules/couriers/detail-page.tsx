@@ -7,9 +7,11 @@ import { Bike, Car, Download } from "lucide-react";
 import {
   courierDeliveriesQueryKey,
   courierDetailQueryKey,
+  couriersQueryKey,
   getCourierDeliveries,
   getCourierDetail,
   revokeCourier,
+  updateCourier,
   type CourierDeliveryExportRow,
 } from "@/modules/couriers/api";
 import { OrderDetailsModal } from "@/modules/orders/page";
@@ -101,6 +103,27 @@ export function CourierDetailPage({ id }: { id: string }) {
   const revoke = useMutation({
     mutationFn: () => revokeCourier(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: courierDetailQueryKey(id) }),
+  });
+
+  // Inloggnings-redigering: byt e-post och/eller sätt nytt lösenord åt kuriren
+  // (admin äger "glömt lösenord"-flödet — kurirer har ingen självservice).
+  const [loginEmail, setLoginEmail] = useState<string | null>(null); // null = ej redigerad
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginSaved, setLoginSaved] = useState<string | null>(null);
+  const saveLogin = useMutation({
+    mutationFn: (payload: { email?: string; password?: string }) => updateCourier(id, payload),
+    onSuccess: (_data, payload) => {
+      setLoginSaved(
+        payload.password
+          ? "Sparat. Kuriren är utloggad från alla enheter och loggar in med det nya lösenordet."
+          : "Sparat.",
+      );
+      setLoginPassword("");
+      setLoginEmail(null);
+      qc.invalidateQueries({ queryKey: courierDetailQueryKey(id) });
+      qc.invalidateQueries({ queryKey: couriersQueryKey });
+    },
+    onError: () => setLoginSaved(null),
   });
 
   // Utbetalningsunderlag: levererade ordrar i valt intervall (ingen 50-tak).
@@ -361,6 +384,73 @@ export function CourierDetailPage({ id }: { id: string }) {
               value={session.currentLat != null && session.currentLng != null ? `${session.currentLat.toFixed(4)}, ${session.currentLng.toFixed(4)}` : "–"}
             />
           </div>
+
+          {/* Ändra inloggning: e-post och/eller nytt lösenord. Lösenordet visas
+              aldrig — bara sätts. Nytt lösenord loggar ut kuriren överallt. */}
+          <div className="mt-6 border-t border-[var(--border-subtle)] pt-5">
+            <h3 className="text-sm font-extrabold text-[var(--text-primary)]">Ändra inloggning</h3>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              Byt e-post eller sätt ett nytt lösenord om kuriren glömt sitt. Nytt lösenord loggar ut kuriren från alla enheter.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-bold text-[var(--text-muted)]">
+                E-post
+                <Input
+                  type="email"
+                  value={loginEmail ?? profile.email}
+                  onChange={(e) => {
+                    setLoginEmail(e.target.value);
+                    setLoginSaved(null);
+                  }}
+                  className="mt-1"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="text-xs font-bold text-[var(--text-muted)]">
+                Nytt lösenord (minst 6 tecken)
+                <Input
+                  type="text"
+                  value={loginPassword}
+                  onChange={(e) => {
+                    setLoginPassword(e.target.value);
+                    setLoginSaved(null);
+                  }}
+                  placeholder="Lämna tomt för att behålla"
+                  className="mt-1"
+                  autoComplete="new-password"
+                />
+              </label>
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <Button
+                disabled={
+                  saveLogin.isPending ||
+                  ((loginEmail == null || loginEmail.trim().toLowerCase() === profile.email) && loginPassword.length === 0)
+                }
+                onClick={() => {
+                  const payload: { email?: string; password?: string } = {};
+                  const nextEmail = loginEmail?.trim().toLowerCase();
+                  if (nextEmail && nextEmail !== profile.email) payload.email = nextEmail;
+                  if (loginPassword.length > 0) payload.password = loginPassword;
+                  if (payload.password && payload.password.length < 6) return;
+                  if (payload.password && !window.confirm(`Sätta nytt lösenord för ${profile.name}? Kuriren loggas ut från alla enheter.`)) return;
+                  saveLogin.mutate(payload);
+                }}
+              >
+                {saveLogin.isPending ? "Sparar…" : "Spara inloggning"}
+              </Button>
+              {loginPassword.length > 0 && loginPassword.length < 6 && (
+                <span className="text-xs font-semibold text-[var(--danger,#c0392b)]">Minst 6 tecken.</span>
+              )}
+              {saveLogin.isError && (
+                <span className="text-xs font-semibold text-[var(--danger,#c0392b)]">
+                  {(saveLogin.error as Error)?.message || "Kunde inte spara"}
+                </span>
+              )}
+              {loginSaved && <span className="text-xs font-semibold text-[var(--success-text,#1a7f4b)]">{loginSaved}</span>}
+            </div>
+          </div>
+
           <div className="mt-6 border-t border-[var(--border-subtle)] pt-5">
             <Button
               variant="danger"

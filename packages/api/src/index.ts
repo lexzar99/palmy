@@ -680,6 +680,10 @@ const PORT = Number(process.env.PORT || 4000);
     void expireAbandoned();
     setInterval(() => { void expireAbandoned(); }, 5 * 60 * 1000);
 
+    // Smart kurir-tilldelning — riktade erbjudanden i vågor med sweeper som
+    // överlever omstarter. DISPATCH_MODE=open stänger av (broadcast-läge).
+    void import('./lib/dispatch').then(({ startDispatchEngine }) => startDispatchEngine());
+
     // Kapacitets-bevakning — mejlar admin + socket-alert när Supabase/host
     // närmar sig en gräns (var 30:e min, throttlat). Proaktiva notifikationer.
     void import('./lib/capacityMonitor').then(({ startCapacityMonitor }) => startCapacityMonitor());

@@ -10,7 +10,8 @@ import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify, uniqueMenuSlug } from '../lib/slug';
 import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds, PARTNER_DEAL_MARKER } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
-import { notifyCouriersOfNewJob, notifyCouriersOrderReady } from '../lib/courierPush';
+import { notifyCouriersOrderReady } from '../lib/courierPush';
+import { dispatchNewOrder } from '../lib/dispatch';
 import { isTestOrder } from '../lib/testOrderDetection';
 import { dispatchCustomerOrderStatus } from '../lib/customerOrderNotifier';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
@@ -1087,7 +1088,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     // Dubbel-notis vid ACCEPTED→PREPARING hindras av dedup INNE i helpern (90s),
     // så vi behöver ingen strikt PENDING-guard som riskerade att blocka helt.
     if (status === 'PREPARING' || status === 'ACCEPTED') {
-      void notifyCouriersOfNewJob({
+      void dispatchNewOrder({
         orderId: order.id,
         restaurantId: existing.restaurantId,
         orderType: existing.type,
