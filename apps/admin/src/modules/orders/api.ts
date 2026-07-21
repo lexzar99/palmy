@@ -142,10 +142,14 @@ export const updateOrder = (orderId: string, payload: Partial<AdminOrder>) => ap
 export const refundOrder = (orderId: string, amount?: number | null, reason?: string) =>
   apiPost<{
     success: boolean;
+    processing: boolean;
     refundedAmount: number;
+    cumulativeRefundedAmount: number;
+    fullRefund: boolean;
     refundId?: string;
     ledgerId?: string;
     refundStatus?: string;
+    message: string;
   }>(`/admin/orders/${orderId}/refund`, {
     amount: amount ?? undefined,
     reason: reason || undefined,

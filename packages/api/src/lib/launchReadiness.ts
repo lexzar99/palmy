@@ -107,6 +107,13 @@ export function getLaunchConfigIssues(
   ]) {
     if (!present(env, name)) add(`r2_${name.toLowerCase()}`, 'warning', `${name} saknas; bilduppladdning är avstängd`);
   }
+  if (String(env.R2_PUBLIC_BASE_URL || '').includes('.r2.dev')) {
+    add(
+      'r2_test_domain',
+      'warning',
+      'R2_PUBLIC_BASE_URL använder r2.dev som kan strypas; anslut en egen Cloudflare-domän före publik trafik',
+    );
+  }
 
   if (!present(env, 'SUPABASE_URL') || !present(env, 'SUPABASE_SERVICE_ROLE_KEY') || !present(env, 'SUPABASE_ANON_KEY')) {
     add('supabase_auth', 'error', 'Supabase URL/service-role/anon-konfiguration är ofullständig');

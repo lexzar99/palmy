@@ -29,9 +29,8 @@ test("phone login removes the temporary SMS session before profile bootstrap", (
 });
 
 test("cart returns to active tracking and the global tracking banner is gone", () => {
-  assert.match(cart, /ACTIVE_ORDER_KEY/);
-  assert.match(cart, /isActiveOrderStatus\(order\.status\)/);
-  assert.match(cart, /router\.replace\(`\/order\/\$\{id\}`\)/);
+  assert.match(cart, /rememberActiveOrder\(orderId, \{ phone \}\)/);
+  assert.match(cart, /const trackingUrl = trackingEmbedded[\s\S]*router\.replace\(trackingUrl\)/);
   assert.doesNotMatch(deferredGlobalClients, /LiveOrderBanner/);
   assert.match(activeOrder, /viaeats_active_orders/);
 });

@@ -90,7 +90,7 @@ export interface RemotePaymentStatus {
   state: RemotePaymentState;
   /** Vad PSP:n faktiskt drog, i öre (när betalt). */
   amountReceivedOre?: number;
-  /** PSP:ns kumulativa återbetalade belopp, i öre. */
+  /** PSP-verifierat, slutfört återbetalat belopp i öre (inte queued/pending). */
   amountRefundedOre?: number;
   /** Enskilda refunds behövs för async recovery (queued/failed/refunded). */
   refunds?: RemoteRefundStatus[];

@@ -27,6 +27,23 @@ const cfg = () => ({
   directChatId: process.env.HERMES_WHATSAPP_CHAT_ID || '',
 });
 
+/** Never let credentials from an upstream/tool error escape through Hermes. */
+const redactExternalText = (value: unknown) => String(value || '')
+  .replace(/(bearer\s+)[^\s,;]+/gi, '$1[REDACTED]')
+  .replace(/([?&](?:access_?token|api_?key|token|secret|signature|password)=[^&\s]+)/gi, (match) => `${match.slice(0, match.indexOf('=') + 1)}[REDACTED]`)
+  .replace(/((?:access_?token|api_?key|token|secret|authorization|cookie|password)\s*[:=]\s*)[^\s,;]+/gi, '$1[REDACTED]');
+
+/** The WhatsApp bridge only needs routing metadata; raw tool/API payloads stay in ViaEats. */
+const externalAlertMetadata = (payload: Record<string, unknown>) => ({
+  alertId: typeof payload.alertId === 'string' ? payload.alertId : null,
+  source: typeof payload.source === 'string' ? payload.source : null,
+  type: typeof payload.type === 'string' ? payload.type : null,
+  severity: typeof payload.severity === 'string' ? payload.severity : null,
+  orderNumber: typeof payload.orderNumber === 'string' ? payload.orderNumber : null,
+  restaurantName: typeof payload.restaurantName === 'string' ? payload.restaurantName : null,
+  at: typeof payload.at === 'string' ? payload.at : null,
+});
+
 export function isHermesAlertConfigured(): boolean {
   const { webhookUrl, directSendUrl, directChatId } = cfg();
   return Boolean(webhookUrl || (directSendUrl && directChatId) || process.env.HERMES_API_TOKEN);
@@ -108,13 +125,15 @@ export async function sendHermesAlert(alert: HermesAlert): Promise<{ delivered: 
     return { delivered: false, channel: null, reason: 'duplicate' };
   }
   const deliveryPayload = { ...payload, ...(claim.id ? { alertId: claim.id } : {}) };
+  const outgoingMessage = redactExternalText(alert.text);
+  const outgoingPayload = externalAlertMetadata(deliveryPayload);
 
   if (directSendUrl && directChatId) {
     try {
       await axios.post(directSendUrl, {
         chatId: directChatId,
-        message: alert.text,
-        payload: deliveryPayload,
+        message: outgoingMessage,
+        payload: outgoingPayload,
       }, { timeout: 10_000 });
       await setHermesAlertState(claim.id, 'HERMES_ALERT_DELIVERED', deliveryPayload, 'whatsapp_direct');
       return { delivered: true, channel: 'whatsapp_direct' };
@@ -129,7 +148,7 @@ export async function sendHermesAlert(alert: HermesAlert): Promise<{ delivered: 
   }
 
   try {
-    const body = JSON.stringify(deliveryPayload);
+    const body = JSON.stringify({ ...outgoingPayload, text: outgoingMessage });
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (webhookSecret) {
       headers['x-hermes-signature'] = crypto.createHmac('sha256', webhookSecret).update(body).digest('hex');

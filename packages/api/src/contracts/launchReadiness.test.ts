@@ -59,6 +59,9 @@ assert.deepEqual(getLaunchConfigIssues(healthy), []);
 assert.equal(getPublicApiBaseUrl({ NODE_ENV: 'production' }), 'https://api.viaeats.se');
 assert.doesNotThrow(() => assertRuntimeCriticalConfiguration(healthy));
 
+const r2TestDomain = { ...healthy, R2_PUBLIC_BASE_URL: 'https://bucket.r2.dev' };
+assert(getLaunchConfigIssues(r2TestDomain).some((issue) => issue.key === 'r2_test_domain'));
+
 const missingPrelaunchMode = { ...healthy, PRELAUNCH_MODE: '' };
 assert(getLaunchConfigIssues(missingPrelaunchMode).some((issue) => issue.key === 'prelaunch_mode'));
 assert.throws(() => assertRuntimeCriticalConfiguration(missingPrelaunchMode), /PRELAUNCH_MODE/);

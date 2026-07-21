@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import Stripe from 'stripe';
 import crypto from 'crypto';
@@ -34,6 +35,9 @@ import {
   exchangeOrderAccessForHttpSession,
   issueOrderAccessProof,
   issueOrderHttpSession,
+  issueOrderNativeSession,
+  ORDER_NATIVE_SESSION_HEADER,
+  ORDER_NATIVE_SESSION_TTL_SECONDS,
   ORDER_HTTP_SESSION_HEADER,
   ORDER_HTTP_SESSION_ID_HEADER,
   ORDER_HTTP_SESSION_TTL_SECONDS,
@@ -43,8 +47,9 @@ import {
   resolveOrderAccess,
   validOrderId,
   verifyOrderHttpSession,
+  verifyOrderNativeSession,
 } from '../lib/orderAccess';
-import { calculateOrderVat, deliveryVatPercent, normalizeVatPercent } from '../lib/tax';
+import { calculateOrderVat, deliveryVatPercent, normalizeFoodVatPercent, normalizeVatPercent } from '../lib/tax';
 import {
   assertNonnegativeCatalogLine,
   OrderExtraPricingError,
@@ -60,6 +65,9 @@ const router = Router();
  * existing response body and never need to understand the browser session.
  */
 function attachWebOrderSession(req: Request, res: Response, orderId: string) {
+  // Order responses can contain native exchange credentials or customer PII.
+  // They must never be retained by a browser, CDN, or shared intermediary.
+  res.setHeader('Cache-Control', 'no-store');
   if (req.headers['x-client-type'] !== 'web' || !validOrderId(orderId)) return;
   res.setHeader(ORDER_HTTP_SESSION_HEADER, issueOrderHttpSession(orderId));
   res.setHeader(ORDER_HTTP_SESSION_ID_HEADER, orderId);
@@ -68,6 +76,35 @@ function attachWebOrderSession(req: Request, res: Response, orderId: string) {
 function rawOrderAccessForNonWebClient(req: Request, accessToken: string | null) {
   return req.headers['x-client-type'] === 'web' ? {} : { accessToken };
 }
+
+function isNativeClient(req: Request): boolean {
+  const clientType = String(req.headers['x-client-type'] || '').toLowerCase();
+  return clientType === 'ios' || clientType === 'android';
+}
+
+function nativeOrderSessionForClient(req: Request, orderId: string) {
+  return isNativeClient(req)
+    ? {
+        orderSession: issueOrderNativeSession(orderId),
+        orderSessionExpiresInSeconds: ORDER_NATIVE_SESSION_TTL_SECONDS,
+      }
+    : {};
+}
+
+function ownsByNativeOrderSession(req: Request, orderId: string): boolean {
+  return isNativeClient(req) && verifyOrderNativeSession(
+    req.headers[ORDER_NATIVE_SESSION_HEADER],
+    orderId,
+  );
+}
+
+const nativeSessionLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'För många försök. Vänta en stund och försök igen.' },
+});
 
 function kioskCanTrackPaidOrder(
   req: Request,
@@ -323,6 +360,7 @@ router.post('/', async (req: Request, res: Response) => {
         appliedDealTitle: existing.appliedDealTitle,
         estimatedTime: existing.estimatedTime,
         ...etaResponseFields(existing),
+        ...nativeOrderSessionForClient(req, existing.id),
         ...rawOrderAccessForNonWebClient(req, existing.accessToken),
       });
     }
@@ -646,7 +684,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const now = new Date();
-    const restaurantFoodVatPercent = normalizeVatPercent((restaurant as any).vatPercent, 6);
+    const restaurantFoodVatPercent = normalizeFoodVatPercent((restaurant as any).vatPercent, 6);
     const orderDeliveryVatPercent = data.type === 'DELIVERY'
       ? deliveryVatPercent(Boolean((restaurant as any).selfDelivery), restaurantFoodVatPercent)
       : null;
@@ -1538,6 +1576,7 @@ router.post('/', async (req: Request, res: Response) => {
               appliedDealTitle: replay.appliedDealTitle,
               estimatedTime: replay.estimatedTime,
               ...etaResponseFields(replay),
+              ...nativeOrderSessionForClient(req, replay.id),
               ...rawOrderAccessForNonWebClient(req, replay.accessToken),
             });
           }
@@ -1662,6 +1701,7 @@ router.post('/', async (req: Request, res: Response) => {
       appliedDealTitle: order.appliedDealTitle,
       estimatedTime: order.estimatedTime ?? estimatedTime,
       ...etaResponseFields(order),
+      ...nativeOrderSessionForClient(req, order.id),
       // Native/äldre klienter får fortfarande den råa exchange-nyckeln. Webben
       // får samtidigt ett HttpOnly order-session-bevis via proxyheadern ovan
       // och ska aldrig lägga accessToken i en URL.
@@ -1680,6 +1720,32 @@ router.post('/', async (req: Request, res: Response) => {
     console.error('Create order error:', error);
     res.status(500).json({ error: 'Kunde inte skapa order' });
   }
+});
+
+// POST /api/orders/:id/native-session — exchange a raw native checkout secret
+// for a signed, order-bound HTTP capability. Secrets are accepted only in the
+// HTTPS request body; the returned session belongs in a header, never a URL.
+router.post('/:id/native-session', nativeSessionLimiter, async (req: Request, res: Response) => {
+  const orderId = req.params.id;
+  if (!isNativeClient(req) || !validOrderId(orderId)) {
+    return res.status(404).json({ error: 'Order hittades inte' });
+  }
+
+  const parsed = z.object({
+    accessToken: z.string().min(20).max(512).optional(),
+  }).safeParse(req.body || {});
+  if (!parsed.success) return res.status(404).json({ error: 'Order hittades inte' });
+
+  const allowedByCurrentSession = ownsByNativeOrderSession(req, orderId);
+  const allowed = allowedByCurrentSession || await resolveOrderAccess({
+    orderId,
+    accessToken: parsed.data.accessToken,
+    authorization: req.headers.authorization,
+  }).catch(() => false);
+  if (!allowed) return res.status(404).json({ error: 'Order hittades inte' });
+
+  res.setHeader('Cache-Control', 'no-store');
+  return res.json(nativeOrderSessionForClient(req, orderId));
 });
 
 // POST /api/orders/validate-discount - Validera kod i kassan
@@ -1771,17 +1837,19 @@ router.get('/draft/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/orders/status-batch — one secure lightweight request for guest
-// history. Each id carries its own random checkout token; a phone number is
-// contact data, never an authorization secret.
+// history. New native clients send signed sessions; accessToken remains only
+// as a body-based migration path for older installs and is never accepted in
+// a URL. A phone number is contact data, never an authorization secret.
 router.post('/status-batch', async (req: Request, res: Response) => {
   try {
     const input = z.object({
       orders: z.array(z.object({
         id: z.string().min(1).max(100),
-        accessToken: z.string().min(20).max(512),
-      })).min(1).max(30),
+        orderSession: z.string().min(20).max(2048).optional(),
+        accessToken: z.string().min(20).max(512).optional(),
+      }).refine((value) => Boolean(value.orderSession || value.accessToken))).min(1).max(30),
     }).parse(req.body);
-    const proofById = new Map(input.orders.map((item) => [item.id, item.accessToken]));
+    const proofById = new Map(input.orders.map((item) => [item.id, item]));
     const orders = await prisma.order.findMany({
       where: { id: { in: [...proofById.keys()] } },
       select: {
@@ -1795,7 +1863,13 @@ router.post('/status-batch', async (req: Request, res: Response) => {
       },
     });
     res.json(orders
-      .filter((order) => ownsOrderWithActiveRawSecret(order, proofById.get(order.id)))
+      .filter((order) => {
+        const proof = proofById.get(order.id);
+        return Boolean(
+          (isNativeClient(req) && verifyOrderNativeSession(proof?.orderSession, order.id)) ||
+          ownsOrderWithActiveRawSecret(order, proof?.accessToken),
+        );
+      })
       .map((order) => ({
         id: order.id,
         orderNumber: order.orderNumber,
@@ -1986,6 +2060,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     ).catch(() => null);
     let isOwner =
       verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], order.id) ||
+      ownsByNativeOrderSession(req, order.id) ||
       Boolean(callerUserId && order.userId === callerUserId) ||
       kioskCanTrackPaidOrder(req, order);
 
@@ -2087,7 +2162,10 @@ router.get('/:id', async (req: Request, res: Response) => {
       courierLastSeenAt: courierCanBeShown && order.delivery.courier.lastSeenAt ? order.delivery.courier.lastSeenAt.toISOString() : null,
       // Moms i % som restaurangen visar i kvittot (6/12). null = restaurangen
       // visar ingen momsrad → klienten döljer den.
-      restaurantVatPercent: (order as any).foodVatPercent ?? normalizeVatPercent((order.restaurant as any)?.vatPercent, 6),
+      restaurantVatPercent: normalizeFoodVatPercent(
+        (order as any).foodVatPercent ?? (order.restaurant as any)?.vatPercent,
+        6,
+      ),
       // Budets aktiva orderantal (bara satt under leverans) — driver ETA-spannet.
       courierActiveOrders,
       etaEndsAt,
@@ -2303,8 +2381,9 @@ router.post('/:id/live-activity-token', async (req: Request, res: Response) => {
     ).catch(() => null);
     const ownsByUser = !!callerUserId && callerUserId === order.userId;
     const ownsBySession = verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], orderId);
+    const ownsByNativeSession = ownsByNativeOrderSession(req, orderId);
     const ownsByToken = ownsOrderWithActiveRawSecret(order, accessToken);
-    if (!ownsByUser && !ownsBySession && !ownsByToken) {
+    if (!ownsByUser && !ownsBySession && !ownsByNativeSession && !ownsByToken) {
       res.status(404).json({ error: 'Order hittades inte' });
       return;
     }
@@ -2430,12 +2509,13 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       typeof req.body?.accessToken === 'string' ? req.body.accessToken : null;
     const ownsByUser = !!callerUserId && order.userId === callerUserId;
     const ownsBySession = verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], orderId);
+    const ownsByNativeSession = ownsByNativeOrderSession(req, orderId);
     const ownsByAccessToken = ownsOrderWithActiveRawSecret(order, tokenProof);
     // A phone number is not a secret and must never authorize a mutation.
     // Legacy devStepper may still use it locally; production requires JWT or
     // the random per-order access token returned only at checkout.
     const ownsDevOrderByPhone = devStepper && !!phoneProof && phoneProof.replace(/\D/g, '') === order.customerPhone.replace(/\D/g, '');
-    if (!ownsByUser && !ownsBySession && !ownsByAccessToken && !ownsDevOrderByPhone) {
+    if (!ownsByUser && !ownsBySession && !ownsByNativeSession && !ownsByAccessToken && !ownsDevOrderByPhone) {
       return res.status(403).json({ error: 'Du äger inte denna order' });
     }
     if (devStepper) {
@@ -2553,6 +2633,7 @@ router.post('/:id/review', async (req: Request, res: Response) => {
     if (verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], order.id)) {
       isOwner = true;
     }
+    if (!isOwner && ownsByNativeOrderSession(req, order.id)) isOwner = true;
     const reviewerUserId = await resolveActiveCustomerIdFromAuthorization(
       req.headers.authorization,
     ).catch(() => null);
@@ -2654,6 +2735,7 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
     if (verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], order.id)) {
       isOwner = true;
     }
+    if (!isOwner && ownsByNativeOrderSession(req, order.id)) isOwner = true;
     const callerUserId = await resolveActiveCustomerIdFromAuthorization(
       req.headers.authorization,
     ).catch(() => null);

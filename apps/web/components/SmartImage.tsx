@@ -11,6 +11,12 @@ const OPTIMIZED_HOSTS = new Set([
   "pub-3aa62f4934014835956fe3777d5b3abd.r2.dev",
   "cdn-bk-se-ordering.azureedge.net",
 ]);
+try {
+  const configuredR2Base = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL;
+  if (configuredR2Base) OPTIMIZED_HOSTS.add(new URL(configuredR2Base).hostname);
+} catch {
+  // Invalid build env falls back to ordinary <img>; launch checks flag it.
+}
 
 export default function SmartImage({
   src,

@@ -34,8 +34,10 @@ import { recordKnownRemoteRefunds } from '../lib/payments/refundLedger';
 import { announceFullRefund } from '../lib/payments/refundNotifications';
 import {
   ORDER_HTTP_SESSION_HEADER,
+  ORDER_NATIVE_SESSION_HEADER,
   ownsOrderWithActiveRawSecret,
   verifyOrderHttpSession,
+  verifyOrderNativeSession,
 } from '../lib/orderAccess';
 import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
 
@@ -115,6 +117,11 @@ function ownsPaymentOrder(
 ): boolean {
   if (req.user?.id && order.userId && req.user.id === order.userId) return true;
   if (verifyOrderHttpSession(req.headers?.[ORDER_HTTP_SESSION_HEADER], order.id)) return true;
+  const clientType = String(req.headers?.['x-client-type'] || '').toLowerCase();
+  if (
+    (clientType === 'ios' || clientType === 'android') &&
+    verifyOrderNativeSession(req.headers?.[ORDER_NATIVE_SESSION_HEADER], order.id)
+  ) return true;
   const kioskSlug = validKioskAccessProof(req.headers?.[KIOSK_ACCESS_HEADER]);
   const kioskAllowedRestaurants = new Set(
     String(process.env.KIOSK_RESTAURANT_SLUGS || 'palmyra-pizzeria-lund')
@@ -213,6 +220,7 @@ function providerForStoredName(name: string | null | undefined) {
 // POST /api/payments/create
 router.post('/create', createLimiter, authenticateUserOptional, async (req: any, res) => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const { orderId, returnUrl, channel, storePaymentMethod, accessToken } = req.body || {};
     if (!orderId || typeof orderId !== 'string') {
       res.status(400).json({ error: 'orderId krävs' });
@@ -503,7 +511,9 @@ router.post('/webhooks/mollie', async (req, res) => {
 // GET /api/payments/return — Mollie redirectUrl för native/web.
 // Vi litar fortfarande bara på PSP-status: om Mollie säger paid finaliserar vi
 // direkt här som snabb backup till webhook/reconcile, sedan skickas appen tillbaka
-// via URL scheme. Webben får en enkel stäng-sida.
+// via en riktig HTTP-redirect till URL-schemat. En HTML-sida med inline-script
+// fungerar inte här: API:ets CSP blockerar scriptet och iOS blir kvar på en vit
+// sida i stället för att ASWebAuthenticationSession ska få callbacken.
 router.get('/return', statusLimiter, async (req, res) => {
   const orderId = typeof req.query.orderId === 'string' ? req.query.orderId.slice(0, 100) : '';
   const app = typeof req.query.app === 'string' ? req.query.app : '';
@@ -548,20 +558,8 @@ router.get('/return', statusLimiter, async (req, res) => {
 
   const appUrl = `viaeats://payment/return?orderId=${encodeURIComponent(orderId)}&paymentStatus=${encodeURIComponent(paymentStatus)}`;
   if (app === 'viaeats') {
-    res.type('html').send(`<!doctype html>
-<html lang="sv">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Betalning klar</title>
-  <meta http-equiv="refresh" content="0;url=${appUrl}">
-  <script>window.location.replace(${JSON.stringify(appUrl)});</script>
-</head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px">
-  <p>Betalningen kontrolleras. Du kan återgå till appen.</p>
-  <p><a href="${appUrl}">Öppna appen</a></p>
-</body>
-</html>`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.redirect(302, appUrl);
     return;
   }
 
@@ -707,6 +705,7 @@ router.post('/webhooks/adyen', async (req, res) => {
 
 // GET /api/payments/status/:orderId — klient pollar efter redirect.
 router.get('/status/:orderId', statusLimiter, authenticateUserOptional, async (req: any, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   let order = await prisma.order.findUnique({
     where: { id: req.params.orderId },
     select: {

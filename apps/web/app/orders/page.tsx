@@ -6,9 +6,9 @@ import axios from "axios";
 import { ChevronRight, History } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
-import { forgetRawOrderAccessToken, readOrderHistory, type StoredOrderRef } from "@/lib/orderHistory";
+import { forgetRawOrderAccessToken, readOrderHistory, removeOrderFromHistory, type StoredOrderRef } from "@/lib/orderHistory";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
-import { readActiveOrderRefs } from "@/lib/activeOrder";
+import { forgetActiveOrder, readActiveOrderRefs } from "@/lib/activeOrder";
 import { partnerOriginForRestaurant, readEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
 
 // Ordrar som inte ska visas i historiken — samma filter som profilens
@@ -28,6 +28,23 @@ type OrderRow = {
   type?: string | null;
   selfDelivery?: boolean | null;
 };
+
+type ProfileOrderResponse = {
+  id: string | number;
+  customerPhone?: string | null;
+  createdAt?: string | null;
+  restaurantName?: string | null;
+  restaurant?: { name?: string | null; selfDelivery?: boolean | null } | null;
+  total?: number | string | null;
+  totalAmount?: number | string | null;
+  status?: string | null;
+  paymentStatus?: string | null;
+  items?: unknown[];
+  type?: string | null;
+};
+
+type OrderSummaryResponse = Omit<Partial<OrderRow>, "id"> & { id: string };
+type SummaryResult = { id: string; data: OrderSummaryResponse | null; missing: boolean };
 
 function OrdersSkeleton() {
   return (
@@ -51,9 +68,12 @@ export default function OrdersPage() {
   const [embedRestaurant, setEmbedRestaurant] = useState("");
   const [hostOrderIds, setHostOrderIds] = useState<string[]>([]);
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setEmbedMode(params.get("embed") === "1");
-    setEmbedRestaurant(params.get("restaurant") || "");
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      setEmbedMode(params.get("embed") === "1");
+      setEmbedRestaurant(params.get("restaurant") || "");
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -111,13 +131,14 @@ export default function OrdersPage() {
         axios.get(`/api/platform/profile`).catch(() => ({ data: null })),
       ]);
       const profilePhone = profileRes.data?.phone || null;
-      const rows = (Array.isArray(ordersRes.data) ? ordersRes.data : [])
-        .filter((order: any) => {
+      const sourceOrders = (Array.isArray(ordersRes.data) ? ordersRes.data : []) as ProfileOrderResponse[];
+      const rows = sourceOrders
+        .filter((order) => {
           const status = String(order?.status || "").toUpperCase();
           const paymentStatus = String(order?.paymentStatus || "").toUpperCase();
           return !HIDDEN_ORDER_STATUSES.has(status) && !HIDDEN_PAYMENT_STATUSES.has(paymentStatus);
         })
-        .map((order: any): OrderRow => ({
+        .map((order): OrderRow => ({
           id: String(order.id),
           phone: order.customerPhone || profilePhone,
           accessToken: null,
@@ -178,7 +199,6 @@ export default function OrdersPage() {
         total: typeof ref.total === "number" ? ref.total : null,
         status: null,
       }));
-      if (active) setOrders(base);
       if (base.length === 0) return;
 
       const summaries = await Promise.all(refs.slice(0, 20).map(async (ref) => {
@@ -193,15 +213,27 @@ export default function OrdersPage() {
           }
         }
         return axios
-          .get(`/api/platform/orders/${ref.id}/summary`)
-          .then((res) => res.data)
-          .catch(() => null);
+          .get<OrderSummaryResponse>(`/api/platform/orders/${ref.id}/summary`)
+          .then((res): SummaryResult => ({ id: ref.id, data: res.data, missing: false }))
+          .catch((error: unknown): SummaryResult => ({
+            id: ref.id,
+            data: null,
+            missing: axios.isAxiosError(error) && [404, 410].includes(Number(error.response?.status)),
+          }));
       }));
-      const liveById = new Map<string, any>();
-      summaries.forEach((row: any) => { if (row?.id) liveById.set(String(row.id), row); });
+      const missingIds = new Set(summaries.filter((result) => result.missing).map((result) => result.id));
+      for (const id of missingIds) {
+        removeOrderFromHistory(id);
+        forgetActiveOrder(id);
+      }
+      const liveById = new Map<string, OrderSummaryResponse>();
+      summaries.forEach((result) => {
+        if (result.data?.id) liveById.set(String(result.data.id), result.data);
+      });
       if (!active) return;
       const baseById = new Map(base.map((row) => [row.id, row]));
       const merged = refs.flatMap((ref): OrderRow[] => {
+        if (missingIds.has(ref.id)) return [];
         const live = liveById.get(ref.id);
         const existing = baseById.get(ref.id);
         // Referenser utan restaurangslug visas först efter att Palmyras

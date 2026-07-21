@@ -63,6 +63,19 @@ function expireCustomerCredentials(response: NextResponse, request: NextRequest)
   }
 }
 
+function expirePlatformCredential(response: NextResponse) {
+  response.cookies.set(PLATFORM_SESSION_COOKIE_NAME, "", {
+    ...getPlatformSessionCookieOptions(),
+    maxAge: 0,
+  });
+}
+
+async function isInvalidCustomerSession(response: Response) {
+  if (response.status !== 401) return false;
+  const body = await response.clone().json().catch(() => null) as { code?: unknown } | null;
+  return body?.code === "CUSTOMER_SESSION_NOT_ALLOWED";
+}
+
 async function proxyRequest(request: NextRequest, pathSegments: string[]) {
   // ALLT wrappat i try/catch för att aldrig returnera 500 med tom body —
   // varje fel ska komma tillbaka som JSON så browser-konsolen visar det.
@@ -143,13 +156,34 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     // 15s timeout so a slow/stuck upstream can't pile up Vercel function instances
     // under load. 15s is well above order-create p99 (sub-second + one Stripe call),
     // and the forwarded Idempotency-Key makes any client retry safe (server replays).
-    const upstreamResponse = await fetch(targetUrl, {
+    let upstreamResponse = await fetch(targetUrl, {
       method: request.method,
       headers,
       body: requestBody,
       cache: "no-store",
       signal: AbortSignal.timeout(15000),
     });
+
+    // En utgången/roterad HttpOnly-kundtoken ska inte blockera en kund från
+    // att beställa som gäst. Order-API:t avvisar den gamla bearern innan någon
+    // order skapas, så samma idempotenta request kan säkert göras om utan den.
+    // Behåll däremot de orderspecifika cookies som den nya gästordern behöver.
+    const recoveredAsGuest =
+      request.method === "POST" &&
+      pathSegments.length === 1 &&
+      pathSegments[0] === "orders" &&
+      Boolean(token) &&
+      await isInvalidCustomerSession(upstreamResponse);
+    if (recoveredAsGuest) {
+      headers.delete("authorization");
+      upstreamResponse = await fetch(targetUrl, {
+        method: request.method,
+        headers,
+        body: requestBody,
+        cache: "no-store",
+        signal: AbortSignal.timeout(15000),
+      });
+    }
 
     stage = "build-response";
     const response = new NextResponse(upstreamResponse.body, {
@@ -169,6 +203,7 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     if (issuedOrderSession && issuedCookieName) {
       response.cookies.set(issuedCookieName, issuedOrderSession, getOrderSessionCookieOptions());
     }
+    if (recoveredAsGuest) expirePlatformCredential(response);
     return response;
   } catch (err) {
     const e = err as { message?: string; name?: string } | null;

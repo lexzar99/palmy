@@ -38,7 +38,11 @@ export function normalizeRefundLedgerStatus(
   }
 }
 
-/** Never regress a completed/failed PSP lifecycle because events can arrive out of order. */
+/**
+ * Never regress a terminal PSP lifecycle. Mollie has one observed exception to
+ * the active-state ordering: a create response can say pending and a later
+ * authoritative read can say queued while it waits for available balance.
+ */
 export function mergeRefundLedgerStatus(
   existing: RefundLedgerStatus | string,
   incoming: RefundLedgerStatus | string,
@@ -49,7 +53,8 @@ export function mergeRefundLedgerStatus(
   if (current === 'FAILED' || current === 'CANCELED') return current;
   if (next === 'FAILED' || next === 'CANCELED') return next;
   if (next === 'UNKNOWN') return current;
-  if (current === 'UNKNOWN' && next === 'REQUESTED') return 'UNKNOWN';
+  if (next === 'REQUESTED') return current;
+  if (current === 'PENDING' && next === 'QUEUED') return 'QUEUED';
   const rank: Record<RefundLedgerStatus, number> = {
     UNKNOWN: 0,
     REQUESTED: 1,
