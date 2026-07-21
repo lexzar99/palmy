@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fem frågor för Lund</title>
+  <style>
+    @font-face {
+      font-family: "Baloo 2";
+      src: url("./Baloo2-VariableFont_wght.ttf") format("truetype");
+      font-style: normal;
+      font-weight: 100 900;
+      font-display: swap;
+    }
+
+    :root {
+      --cream: #f8f1e8;
+      --cream-soft: #fffaf3;
+      --navy: #062747;
+      --orange: #ff4b1f;
+      --ink: #111820;
+      --line: rgba(6, 39, 71, .14);
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--cream); }
+    body {
+      margin: 0;
+      color: var(--navy);
+      background:
+        radial-gradient(circle at 5% 0%, rgba(255, 75, 31, .09), transparent 24rem),
+        var(--cream);
+      font-family: "Baloo 2", sans-serif;
+      font-weight: 600;
+    }
+
+    .page {
+      width: min(1320px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 44px 0 72px;
+    }
+
+    .intro {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+
+    h1, h2, p { margin: 0; }
+    h1 {
+      max-width: 10ch;
+      font-size: clamp(2.6rem, 6vw, 5.25rem);
+      line-height: .86;
+      letter-spacing: -.04em;
+    }
+
+    .intro p {
+      max-width: 31rem;
+      color: rgba(6, 39, 71, .72);
+      font-size: 1.05rem;
+      line-height: 1.14;
+    }
+
+    .checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 26px;
+    }
+
+    .checks span {
+      padding: 7px 13px 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--navy);
+      background: rgba(255, 250, 243, .7);
+      font-size: .92rem;
+      line-height: 1;
+    }
+
+    .poster-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+    }
+
+    .poster {
+      --panel: var(--cream-soft);
+      --poster-ink: var(--navy);
+      --symbol-filter: none;
+      container-type: inline-size;
+      position: relative;
+      aspect-ratio: 1;
+      overflow: hidden;
+      border-radius: 28px;
+      background-color: var(--navy);
+      background-position: center;
+      background-size: cover;
+      box-shadow: 0 18px 48px rgba(6, 39, 71, .14);
+      isolation: isolate;
+    }
+
+    .poster::after {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border: 1px solid rgba(255, 255, 255, .23);
+      border-radius: inherit;
+      content: "";
+      pointer-events: none;
+    }
+
+    .poster.original { background-image: url("./exports/background-pattern-original-square.png"); }
+    .poster.navy { background-image: url("./exports/background-pattern-navy-square.png"); }
+    .poster.orange { background-image: url("./exports/background-pattern-orange-square.png"); }
+    .poster.swap { background-image: url("./exports/background-pattern-swap-square.png"); }
+    .poster.navy-alt { background-image: url("./exports/background-pattern-navy-alt-square.png"); }
+
+    .poster.dark {
+      --panel: var(--navy);
+      --poster-ink: var(--cream-soft);
+    }
+
+    .panel {
+      position: absolute;
+      inset: 10.5%;
+      display: grid;
+      grid-template-columns: 23% minmax(0, 1fr);
+      gap: 8%;
+      align-items: center;
+      padding: 8% 8.5%;
+      border: 1px solid rgba(6, 39, 71, .15);
+      border-radius: 7%;
+      background: var(--panel);
+      box-shadow: 0 10px 26px rgba(6, 39, 71, .13);
+    }
+
+    .dark .panel { border-color: rgba(255, 255, 255, .2); }
+
+    .symbol-column {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    .symbol {
+      display: block;
+      width: 100%;
+      height: auto;
+      filter: var(--symbol-filter);
+    }
+
+    .copy {
+      display: grid;
+      align-content: center;
+      justify-items: start;
+      min-width: 0;
+      gap: 7%;
+      color: var(--poster-ink);
+    }
+
+    .headline {
+      max-width: 100%;
+      font-size: clamp(1.65rem, 5.25cqw, 3.7rem);
+      font-weight: 800;
+      line-height: .91;
+      letter-spacing: -.035em;
+      white-space: nowrap;
+    }
+
+    .body-copy {
+      max-width: 100%;
+      font-size: clamp(.92rem, 2.75cqw, 1.9rem);
+      font-weight: 600;
+      line-height: 1.04;
+      letter-spacing: -.015em;
+    }
+
+    .cta {
+      display: inline-block;
+      max-width: 100%;
+      padding: .65em 1.15em .58em;
+      border-radius: 999px;
+      color: var(--navy);
+      background: var(--orange);
+      font-size: clamp(.82rem, 2.35cqw, 1.6rem);
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .dark .cta { color: var(--cream-soft); }
+
+    .launch-line {
+      position: absolute;
+      right: 8%;
+      bottom: 4.5%;
+      left: 8%;
+      color: var(--orange);
+      font-size: clamp(.72rem, 2.4cqw, 1.45rem);
+      font-weight: 800;
+      line-height: 1.02;
+      text-align: center;
+    }
+
+    .poster-note {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      color: rgba(6, 39, 71, .67);
+      font-size: .9rem;
+      line-height: 1;
+    }
+
+    .poster-note::before {
+      display: block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--orange);
+      content: "";
+    }
+
+    @media (max-width: 820px) {
+      .page { width: min(100% - 24px, 620px); padding-top: 28px; }
+      .intro { display: block; }
+      .intro p { margin-top: 16px; }
+      .poster-grid { grid-template-columns: 1fr; gap: 18px; }
+    }
+
+    @media (max-width: 420px) {
+      .panel { inset: 9%; grid-template-columns: 21% minmax(0, 1fr); gap: 7%; padding: 8%; }
+      .headline { font-size: clamp(1.48rem, 5.5cqw, 2.5rem); }
+      .body-copy { font-size: clamp(.86rem, 2.9cqw, 1.35rem); }
+      .cta { font-size: clamp(.76rem, 2.45cqw, 1.1rem); }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="intro">
+      <h1>lunds fem frågor</h1>
+      <p>En snabb HTML-version för communityinlägg om en ny matapp. Texten ligger i separata, kontrollerade ytor så att rubrik, fråga och knapp inte krockar.</p>
+    </header>
+
+    <div class="checks" aria-label="Designkontroller">
+      <span>Baloo 2</span>
+      <span>endast smiley-symbol</span>
+      <span>ingen avsändartext i motivet</span>
+      <span>ny matapp · tydligt ämne</span>
+      <span>texten är layoutkontrollerad</span>
+    </div>
+
+    <section class="poster-grid" id="posters" aria-label="Fem färdiga HTML-posters">
+      <article class="poster original" id="poster-1">
+        <div class="panel">
+          <div class="symbol-column"><img class="symbol" src="./exports/smiley-orange-transparent.png" alt="Orange smiley-symbol"></div>
+          <div class="copy">
+            <h2 class="headline">dina värsta<br>historier med<br>matbeställning?</h2>
+            <p class="body-copy">vad hände när du<br>beställde mat online?</p>
+            <p class="cta">berätta vad som hände.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="poster navy dark" id="poster-2">
+        <div class="panel">
+          <div class="symbol-column"><img class="symbol" src="./exports/smiley-orange-transparent.png" alt="Orange smiley-symbol"></div>
+          <div class="copy">
+            <h2 class="headline">matbeställning<br>ska vara enkel.</h2>
+            <p class="body-copy">vad vill du aldrig<br>uppleva när du beställer mat?</p>
+            <p class="cta">skriv en sak.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="poster orange" id="poster-3">
+        <div class="panel">
+          <div class="symbol-column"><img class="symbol" src="./exports/smiley-orange-transparent.png" alt="Orange smiley-symbol"></div>
+          <div class="copy">
+            <h2 class="headline">om du fick<br>ändra en sak<br>i matappen…</h2>
+            <p class="body-copy">vad skulle göra din<br>nästa matbeställning bättre?</p>
+            <p class="cta">vi lyssnar.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="poster swap dark" id="poster-4">
+        <div class="panel">
+          <div class="symbol-column"><img class="symbol" src="./exports/smiley-orange-transparent.png" alt="Orange smiley-symbol"></div>
+          <div class="copy">
+            <h2 class="headline">maten är viktig.<br>leveransen också.</h2>
+            <p class="body-copy">vad saknas när du<br>beställer mat hemifrån?</p>
+            <p class="cta">säg det som det är.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="poster navy-alt dark" id="poster-5">
+        <div class="panel">
+          <div class="symbol-column"><img class="symbol" src="./exports/smiley-orange-transparent.png" alt="Orange smiley-symbol"></div>
+          <div class="copy">
+            <h2 class="headline">vad skulle få dig<br>att beställa mat<br>i en ny app?</h2>
+            <p class="body-copy">vad saknas idag<br>när du beställer mat online?</p>
+            <p class="cta">säg vad du saknar.</p>
+          </div>
+          <p class="launch-line">snart lanseras den snabbaste plattformen för beställning av mat i hela Sverige.</p>
+        </div>
+      </article>
+    </section>
+
+    <p class="poster-note">Alla posters är HTML/CSS och kan granskas eller justeras direkt i filen.</p>
+  </main>
+</body>
+</html>

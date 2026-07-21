@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>viaeats · logo & kampanjbibliotek</title>
+  <style>
+    @font-face{font-family:BalooLocal;src:url('./Baloo2-VariableFont_wght.ttf') format('truetype');font-weight:100 900;font-display:swap}
+    :root{--navy:#0A2340;--orange:#F04F1A;--cream:#FEF7F0;--orange-light:#FFA24D;--slate:#5A6472;--line:rgba(10,35,64,.12);--paper:#F3EEE7}
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:var(--paper);color:var(--navy);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+    .wrap{width:min(1240px,calc(100% - 40px));margin:0 auto}
+    .top{position:sticky;top:0;z-index:10;background:rgba(243,238,231,.9);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+    .top .wrap{min-height:68px;display:flex;align-items:center;gap:18px}
+    .mini-lockup{display:flex;align-items:center;gap:10px;font:800 22px/1 BalooLocal;color:var(--navy)}
+    .mini-lockup img{width:30px;height:31px;object-fit:contain}
+    nav{margin-left:auto;display:flex;gap:18px;flex-wrap:wrap;font-size:13px;font-weight:700;color:var(--slate)}
+    nav a{color:inherit;text-decoration:none}nav a:hover{color:var(--orange)}
+    section{padding:72px 0}.hero{padding:88px 0 70px;background:var(--cream)}
+    .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;align-items:center;gap:56px}
+    .eyebrow{margin:0 0 12px;color:var(--orange);font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+    h1,h2,h3{font-family:BalooLocal;margin:0;font-weight:800;letter-spacing:-.025em}h1{font-size:clamp(46px,7vw,88px);line-height:.92}h2{font-size:40px;line-height:1}h3{font-size:22px}
+    .lead{max-width:610px;margin:22px 0 0;color:var(--slate);font-size:17px;line-height:1.6}.hero .lead{font-size:19px}
+    .hero-mark{width:min(100%,560px);border-radius:34px;box-shadow:0 24px 70px rgba(10,35,64,.14)}
+    .button-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}.button{display:inline-flex;align-items:center;gap:8px;padding:12px 18px;border-radius:999px;background:var(--orange);color:var(--cream);font-weight:800;font-size:13px;text-decoration:none}.button.alt{background:var(--navy)}
+    .section-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin-bottom:28px}.section-head p{max-width:620px;margin:0;color:var(--slate);line-height:1.55}
+    .grid{display:grid;gap:18px}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .card{position:relative;overflow:hidden;min-width:0;padding:18px;background:#fff;border:1px solid var(--line);border-radius:24px}.card img.preview{display:block;width:100%;height:auto;border-radius:15px;background:var(--cream)}
+    .card .meta{padding:14px 2px 2px}.meta strong{display:block;font-size:14px}.meta span{display:block;color:var(--slate);font:12px/1.4 ui-monospace,SFMono-Regular,monospace;margin-top:4px}.meta a{display:inline-block;color:var(--orange);font-size:12px;font-weight:800;margin-top:8px;text-decoration:none}
+    .tag{position:absolute;top:28px;left:28px;padding:5px 9px;border-radius:999px;background:rgba(254,247,240,.9);color:var(--navy);font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    .swatches{display:flex;gap:14px;flex-wrap:wrap}.swatch{width:160px;overflow:hidden;background:#fff;border:1px solid var(--line);border-radius:16px}.swatch .color{height:72px}.swatch p{margin:0;padding:10px 12px;font-size:12px}.swatch b{display:block;font-size:13px}.swatch code{color:var(--slate);font-size:11px}
+    .rule{display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:start;padding:17px 0;border-top:1px solid var(--line)}.rule:first-child{border-top:0}.number{width:32px;height:32px;display:grid;place-items:center;border-radius:50%;background:var(--orange);color:var(--cream);font:800 14px BalooLocal}.rule p{margin:0;color:var(--slate);line-height:1.55;font-size:14px}.rule strong{color:var(--navy)}
+    .note{margin:22px 0 0;padding:16px 18px;background:rgba(240,79,26,.08);border-left:3px solid var(--orange);border-radius:12px;color:var(--slate);font-size:13px;line-height:1.55}
+    footer{padding:44px 0 80px;text-align:center;color:var(--slate);font-size:12px}
+    @media(max-width:900px){.hero-grid{grid-template-columns:1fr;gap:34px}.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.section-head{display:block}.section-head p{margin-top:12px}}
+    @media(max-width:560px){.wrap{width:min(100% - 28px,1240px)}section{padding:54px 0}.top .wrap{align-items:flex-start;padding:14px 0}.top nav{display:none}.g2,.g3,.g4{grid-template-columns:1fr}.hero{padding-top:60px}.hero-mark{border-radius:24px}}
+  </style>
+</head>
+<body>
+  <header class="top"><div class="wrap">
+    <div class="mini-lockup"><img src="sym-orange.png" alt="viaeats symbol">viaeats</div>
+    <nav><a href="#masters">Master</a><a href="#icons">Appikoner</a><a href="#social">Socialt</a><a href="facebook-lund-fragor.html">Lunds frågor</a><a href="#covers">Covers</a><a href="#text-safe">Text-safe</a><a href="#rules">Regler</a></nav>
+  </div></header>
+
+  <main>
+    <section class="hero"><div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">Viaeats · logo & kampanjbibliotek</p>
+        <h1>Mat från stan.<br><span style="color:var(--orange)">Hem till dig.</span></h1>
+        <p class="lead">Ett nytt, samlat bibliotek med den riktiga viaeats-symbolen: smiley, bil och påse. Alla varianter är byggda på samma proportioner, samma färger och samma gemena namn.</p>
+        <div class="button-row"><a class="button" href="#social">Se sociala format</a><a class="button alt" href="#icons">Se appikoner</a></div>
+      </div>
+      <img class="hero-mark" src="exports/lockup-orange.png" alt="viaeats logotyp med smiley, bil och påse">
+    </div></section>
+
+    <section id="masters"><div class="wrap">
+      <div class="section-head"><div><p class="eyebrow">01 · Masterfiler</p><h2>Symbol och lockups</h2></div><p>De här filerna är basen. Symbolen är exakt frilagd från bilden med bilen, påsen och smileyn. Namnet är satt separat med Baloo 2 så det blir rent i alla storlekar.</p></div>
+      <div class="grid g4">
+        <article class="card"><span class="tag">orange</span><img class="preview" src="sym-orange.png" alt="orange symbol"><div class="meta"><strong>sym-orange.png</strong><span>transparent master</span><a href="sym-orange.png" download>Ladda ner</a></div></article>
+        <article class="card"><span class="tag">navy</span><img class="preview" src="sym-navy.png" alt="navy symbol"><div class="meta"><strong>sym-navy.png</strong><span>transparent master</span><a href="sym-navy.png" download>Ladda ner</a></div></article>
+        <article class="card"><span class="tag">cream</span><img class="preview" src="sym-cream.png" alt="cream symbol"><div class="meta"><strong>sym-cream.png</strong><span>transparent master</span><a href="sym-cream.png" download>Ladda ner</a></div></article>
+        <article class="card"><span class="tag">vit</span><img class="preview" src="sym-white.png" alt="vit symbol"><div class="meta"><strong>sym-white.png</strong><span>transparent master</span><a href="sym-white.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="grid g4" style="margin-top:18px">
+        <article class="card"><img class="preview" src="exports/lockup-orange.png" alt="orange lockup"><div class="meta"><strong>lockup-orange.png</strong><span>cream canvas · 1600 × 1100</span></div></article>
+        <article class="card"><img class="preview" src="exports/lockup-navy.png" alt="navy lockup"><div class="meta"><strong>lockup-navy.png</strong><span>navy canvas · 1600 × 1100</span></div></article>
+        <article class="card"><img class="preview" src="exports/lockup-cream.png" alt="cream lockup"><div class="meta"><strong>lockup-cream.png</strong><span>cream mark · 1600 × 1100</span></div></article>
+        <article class="card"><img class="preview" src="exports/lockup-horizontal-beige.png" alt="horisontell lockup"><div class="meta"><strong>lockup-horizontal-beige.png</strong><span>partner/header · 2000 × 720</span></div></article>
+      </div>
+    </div></section>
+
+    <section id="icons" style="background:var(--cream)"><div class="wrap">
+      <div class="section-head"><div><p class="eyebrow">02 · Appikoner</p><h2>Exportklara ikonval</h2></div><p>Rundade beige ikoner för appen, plus tydliga orange och navy alternativ. Använd appikonerna i app-store och på telefonen, inte som vanliga sociala poster.</p></div>
+      <div class="grid g4">
+        <article class="card"><span class="tag">rekommenderad</span><img class="preview" src="exports/app-icon-cover-smiley-2line.png" alt="cover-appikon med via och eats två rader"><div class="meta"><strong>app-icon-cover-smiley-2line.png</strong><span>1024 × 1024 · stor logo</span><a href="exports/app-icon-cover-smiley-2line.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/app-icon-cover-smiley-2line-alt.png" alt="alternativ cover-appikon med via och eats två rader"><div class="meta"><strong>app-icon-cover-smiley-2line-alt.png</strong><span>1024 × 1024 · alternativ färgmix</span><a href="exports/app-icon-cover-smiley-2line-alt.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/app-icon-cover-smiley-2line-tight.png" alt="tät cover-appikon med via och eats två rader"><div class="meta"><strong>app-icon-cover-smiley-2line-tight.png</strong><span>1024 × 1024 · mindre marginal</span><a href="exports/app-icon-cover-smiley-2line-tight.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/app-icon-beige-smiley-2line.png" alt="beige appikon med via och eats två rader"><div class="meta"><strong>app-icon-beige-smiley-2line.png</strong><span>1024 × 1024 · ren beige</span><a href="exports/app-icon-beige-smiley-2line.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="grid g4" style="margin-top:18px">
+        <article class="card"><img class="preview" src="exports/app-icon-navy-smiley-2line.png" alt="navy appikon med via och eats två rader"><div class="meta"><strong>app-icon-navy-smiley-2line.png</strong><span>1024 × 1024 · navy variant</span><a href="exports/app-icon-navy-smiley-2line.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/logo-orange-inmark-smiley-2line.png" alt="transparent orange logga med via och eats två rader"><div class="meta"><strong>logo-orange-inmark-smiley-2line.png</strong><span>transparent · text i märket</span><a href="exports/logo-orange-inmark-smiley-2line.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/wordmark-viaeats-2line-cream.png" alt="cream via eats ordmärke två rader"><div class="meta"><strong>wordmark-viaeats-2line-cream.png</strong><span>transparent · endast text</span><a href="exports/wordmark-viaeats-2line-cream.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/logo-orange-smiley-only-transparent.png" alt="transparent orange smiley-symbol"><div class="meta"><strong>logo-orange-smiley-only-transparent.png</strong><span>transparent · utan namn</span><a href="exports/logo-orange-smiley-only-transparent.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="grid g4" style="margin-top:18px">
+        <article class="card"><img class="preview" src="exports/wordmark-viaeats-cream.png" alt="cream viaeats ordmärke"><div class="meta"><strong>wordmark-viaeats-cream.png</strong><span>transparent · viaeats ensamt</span><a href="exports/wordmark-viaeats-cream.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/wordmark-viaeats-navy.png" alt="navy viaeats ordmärke"><div class="meta"><strong>wordmark-viaeats-navy.png</strong><span>transparent · viaeats ensamt</span><a href="exports/wordmark-viaeats-navy.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/wordmark-viaeats-orange.png" alt="orange viaeats ordmärke"><div class="meta"><strong>wordmark-viaeats-orange.png</strong><span>transparent · viaeats ensamt</span><a href="exports/wordmark-viaeats-orange.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/wordmark-viaeats-white.png" alt="vit viaeats ordmärke"><div class="meta"><strong>wordmark-viaeats-white.png</strong><span>transparent · viaeats ensamt</span><a href="exports/wordmark-viaeats-white.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="grid g4" style="margin-top:18px">
+        <article class="card"><img class="preview" src="exports/wordmark-viaeats-2line-navy.png" alt="navy via eats ordmärke två rader"><div class="meta"><strong>wordmark-viaeats-2line-navy.png</strong><span>transparent · två rader</span><a href="exports/wordmark-viaeats-2line-navy.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/wordmark-viaeats-2line-orange.png" alt="orange via eats ordmärke två rader"><div class="meta"><strong>wordmark-viaeats-2line-orange.png</strong><span>transparent · två rader</span><a href="exports/wordmark-viaeats-2line-orange.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/wordmark-viaeats-2line-white.png" alt="vit via eats ordmärke två rader"><div class="meta"><strong>wordmark-viaeats-2line-white.png</strong><span>transparent · två rader</span><a href="exports/wordmark-viaeats-2line-white.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/logo-orange-smiley-2line-transparent.png" alt="transparent orange smiley med via eats två rader"><div class="meta"><strong>logo-orange-smiley-2line-transparent.png</strong><span>transparent · logga i märket</span><a href="exports/logo-orange-smiley-2line-transparent.png" download>Ladda ner</a></div></article>
+      </div>
+      <p class="note"><strong>Ny appserie:</strong> de här appikonerna har medvetet ingen bil eller påse. Endast smileyn ligger längre ner och <code>viaeats</code> ligger optiskt centrerat i orange cirkel. All text är satt med Baloo 2 ExtraBold.</p>
+      <div class="section-head" style="margin-top:46px"><div><p class="eyebrow">Två rader · större logga</p><h2>via<br>eats</h2></div><p>Den här serien delar namnet på två rader och använder mindre marginal runt märket. Det gör texten tydligare när appikonen visas liten på hemskärmen.</p></div>
+      <div class="grid g4">
+        <article class="card"><span class="tag">tätast</span><img class="preview" src="exports/app-icon-cover-smiley-2line-tight.png" alt="cover-appikon med via och eats på två rader"><div class="meta"><strong>app-icon-cover-smiley-2line-tight.png</strong><span>1024 × 1024 · minsta marginal</span><a href="exports/app-icon-cover-smiley-2line-tight.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/app-icon-cover-smiley-2line.png" alt="cover-appikon med via och eats på två rader"><div class="meta"><strong>app-icon-cover-smiley-2line.png</strong><span>1024 × 1024 · rekommenderad</span><a href="exports/app-icon-cover-smiley-2line.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/app-icon-cover-smiley-2line-alt.png" alt="alternativ cover-appikon med via och eats på två rader"><div class="meta"><strong>app-icon-cover-smiley-2line-alt.png</strong><span>1024 × 1024 · alternativ färgmix</span><a href="exports/app-icon-cover-smiley-2line-alt.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/app-icon-beige-smiley-2line.png" alt="beige appikon med via och eats på två rader"><div class="meta"><strong>app-icon-beige-smiley-2line.png</strong><span>1024 × 1024 · ren beige</span><a href="exports/app-icon-beige-smiley-2line.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="grid g4" style="margin-top:18px">
+        <article class="card"><img class="preview" src="exports/app-icon-navy-smiley-2line.png" alt="navy appikon med via och eats på två rader"><div class="meta"><strong>app-icon-navy-smiley-2line.png</strong><span>1024 × 1024 · navy variant</span><a href="exports/app-icon-navy-smiley-2line.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/logo-orange-inmark-smiley-2line.png" alt="transparent orange logga med via och eats på två rader"><div class="meta"><strong>logo-orange-inmark-smiley-2line.png</strong><span>transparent · Baloo 2 i märket</span><a href="exports/logo-orange-inmark-smiley-2line.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/social-square-viaeats-smiley-2line.png" alt="square cover med via och eats på två rader"><div class="meta"><strong>social-square-viaeats-smiley-2line.png</strong><span>1080 × 1080 · square</span><a href="exports/social-square-viaeats-smiley-2line.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/social-wide-viaeats-smiley-2line.png" alt="bred cover med via och eats på två rader"><div class="meta"><strong>social-wide-viaeats-smiley-2line.png</strong><span>1920 × 1080 · wide</span><a href="exports/social-wide-viaeats-smiley-2line.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="section-head" style="margin-top:46px"><div><p class="eyebrow">Smileysymboler · färger</p><h2>Runda märken</h2></div><p>Endast den runda smileyn med bettet. Transparenta masterfiler och färdiga kontrastkombinationer för app, print och partnermaterial.</p></div>
+      <div class="grid g4">
+        <article class="card"><img class="preview" src="exports/smiley-orange-transparent.png" alt="orange transparent smiley med bett"><div class="meta"><strong>smiley-orange-transparent.png</strong><span>transparent · orange/cream</span><a href="exports/smiley-orange-transparent.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/smiley-navy-transparent.png" alt="navy transparent smiley med bett"><div class="meta"><strong>smiley-navy-transparent.png</strong><span>transparent · navy/cream</span><a href="exports/smiley-navy-transparent.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/smiley-cream-transparent.png" alt="cream transparent smiley med bett"><div class="meta"><strong>smiley-cream-transparent.png</strong><span>transparent · cream/orange</span><a href="exports/smiley-cream-transparent.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/smiley-white-transparent.png" alt="vit transparent smiley med bett"><div class="meta"><strong>smiley-white-transparent.png</strong><span>transparent · vit/orange</span><a href="exports/smiley-white-transparent.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="grid g4" style="margin-top:18px">
+        <article class="card"><img class="preview" src="exports/round-smiley-orange-on-cream.png" alt="orange smiley på cream"><div class="meta"><strong>round-smiley-orange-on-cream.png</strong><span>1024 × 1024 · cream canvas</span><a href="exports/round-smiley-orange-on-cream.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/round-smiley-orange-on-navy.png" alt="orange smiley på navy"><div class="meta"><strong>round-smiley-orange-on-navy.png</strong><span>1024 × 1024 · navy canvas</span><a href="exports/round-smiley-orange-on-navy.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/round-smiley-cream-on-orange.png" alt="cream smiley på orange"><div class="meta"><strong>round-smiley-cream-on-orange.png</strong><span>1024 × 1024 · orange canvas</span><a href="exports/round-smiley-cream-on-orange.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/round-smiley-navy-on-cream.png" alt="navy smiley på cream"><div class="meta"><strong>round-smiley-navy-on-cream.png</strong><span>1024 × 1024 · mörk symbol</span><a href="exports/round-smiley-navy-on-cream.png" download>Ladda ner</a></div></article>
+      </div>
+    </div></section>
+
+    <section id="social"><div class="wrap">
+      <div class="section-head"><div><p class="eyebrow">03 · Sociala medier</p><h2>Poster, stories och inlägg</h2></div><p>Beige är basen. Orange och navy ligger i kanterna så logotypen får lugn luft i mitten. Copy är kort och kan bytas utan att layouten tappar balansen.</p></div>
+      <div class="grid g4">
+        <article class="card"><span class="tag">logo-only</span><img class="preview" src="exports/cover-logo-2line-pattern-original-square.png" alt="square cover med endast smiley och via eats två rader"><div class="meta"><strong>cover-logo-2line-pattern-original-square.png</strong><span>1080 × 1080 · ingen text bredvid</span><a href="exports/cover-logo-2line-pattern-original-square.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-logo-2line-pattern-navy-square.png" alt="navy square cover med endast smiley och via eats två rader"><div class="meta"><strong>cover-logo-2line-pattern-navy-square.png</strong><span>1080 × 1080 · navy logo-only</span><a href="exports/cover-logo-2line-pattern-navy-square.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-logo-2line-pattern-orange-square.png" alt="orange square cover med endast smiley och via eats två rader"><div class="meta"><strong>cover-logo-2line-pattern-orange-square.png</strong><span>1080 × 1080 · orange logo-only</span><a href="exports/cover-logo-2line-pattern-orange-square.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-logo-2line-pattern-swap-square.png" alt="square cover med färgbytt mönster och endast loggan"><div class="meta"><strong>cover-logo-2line-pattern-swap-square.png</strong><span>1080 × 1080 · färgbyte</span><a href="exports/cover-logo-2line-pattern-swap-square.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="grid g3" style="margin-top:18px">
+        <article class="card"><img class="preview" src="exports/cover-logo-2line-pattern-original-wide.png" alt="bred cover med endast smiley och via eats två rader"><div class="meta"><strong>cover-logo-2line-pattern-original-wide.png</strong><span>1920 × 1080 · wide logo-only</span><a href="exports/cover-logo-2line-pattern-original-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-logo-2line-pattern-navy-wide.png" alt="bred navy cover med endast smiley och via eats två rader"><div class="meta"><strong>cover-logo-2line-pattern-navy-wide.png</strong><span>1920 × 1080 · navy logo-only</span><a href="exports/cover-logo-2line-pattern-navy-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-logo-2line-pattern-original-portrait.png" alt="stående cover med endast smiley och via eats två rader"><div class="meta"><strong>cover-logo-2line-pattern-original-portrait.png</strong><span>1080 × 1350 · portrait logo-only</span><a href="exports/cover-logo-2line-pattern-original-portrait.png" download>Ladda ner</a></div></article>
+      </div>
+    </div></section>
+
+    <section id="covers" style="background:var(--cream)"><div class="wrap">
+      <div class="section-head"><div><p class="eyebrow">04 · Covers</p><h2>Riktiga cover-format</h2></div><p>Färdiga för Facebook, LinkedIn, X och breda webbheaders. Alla exporter använder samma mjuka originalpattern och viaeats färgtema, med logo-only och helt rena versioner.</p></div>
+      <div class="grid g2">
+        <article class="card"><img class="preview" src="exports/cover-logo-2line-pattern-original-wide.png" alt="bred cover med endast loggan"><div class="meta"><strong>cover-logo-2line-pattern-original-wide.png</strong><span>1920 × 1080 · logo-only</span><a href="exports/cover-logo-2line-pattern-original-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-logo-2line-pattern-navy-wide.png" alt="navy bred cover med endast loggan"><div class="meta"><strong>cover-logo-2line-pattern-navy-wide.png</strong><span>1920 × 1080 · navy logo-only</span><a href="exports/cover-logo-2line-pattern-navy-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-logo-2line-pattern-orange-wide.png" alt="orange bred cover med endast loggan"><div class="meta"><strong>cover-logo-2line-pattern-orange-wide.png</strong><span>1920 × 1080 · orange logo-only</span><a href="exports/cover-logo-2line-pattern-orange-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-logo-2line-pattern-swap-wide.png" alt="bred cover med färgbytt mönster och endast loggan"><div class="meta"><strong>cover-logo-2line-pattern-swap-wide.png</strong><span>1920 × 1080 · färgbyte logo-only</span><a href="exports/cover-logo-2line-pattern-swap-wide.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="grid g2" style="margin-top:18px">
+        <article class="card"><img class="preview" src="exports/background-square-abstract.png" alt="beige square background"><div class="meta"><strong>background-square-abstract.png</strong><span>återanvändbar square-platta</span><a href="exports/background-square-abstract.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/background-wide-abstract.png" alt="beige wide background"><div class="meta"><strong>background-wide-abstract.png</strong><span>återanvändbar wide-platta</span><a href="exports/background-wide-abstract.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="section-head" style="margin-top:46px"><div><p class="eyebrow">Nya coverfamiljer · många färger</p><h2>Navy, orange och cream</h2></div><p>Fler cover-plattor med samma färgtema. Navy-serien använder orange och cream i hörnen, medan orange- och cream-serierna ger ljusare alternativ.</p></div>
+      <div class="grid g3">
+        <article class="card"><span class="tag">navy · rekommenderad</span><img class="preview" src="exports/cover-pattern-navy-wide.png" alt="navy cover med orange och cream hörn"><div class="meta"><strong>cover-pattern-navy-wide.png</strong><span>1920 × 1080 · originalmönster</span><a href="exports/cover-pattern-navy-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-pattern-navy-alt-wide.png" alt="navy cover med cream och orange hörn"><div class="meta"><strong>cover-pattern-navy-alt-wide.png</strong><span>1920 × 1080 · navy alternativ</span><a href="exports/cover-pattern-navy-alt-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-pattern-orange-wide.png" alt="orange cover med navy och cream hörn"><div class="meta"><strong>cover-pattern-orange-wide.png</strong><span>1920 × 1080 · orange variant</span><a href="exports/cover-pattern-orange-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-pattern-orange-alt-wide.png" alt="orange cover med cream och navy hörn"><div class="meta"><strong>cover-pattern-orange-alt-wide.png</strong><span>1920 × 1080 · orange alternativ</span><a href="exports/cover-pattern-orange-alt-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-pattern-original-wide.png" alt="cream cover med navy och orange hörn"><div class="meta"><strong>cover-pattern-original-wide.png</strong><span>1920 × 1080 · originalfärger</span><a href="exports/cover-pattern-original-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-pattern-swap-wide.png" alt="cream cover med bytta navy och orange färger"><div class="meta"><strong>cover-pattern-swap-wide.png</strong><span>1920 × 1080 · färgerna bytta</span><a href="exports/cover-pattern-swap-wide.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="grid g4" style="margin-top:18px">
+        <article class="card"><img class="preview" src="exports/cover-pattern-navy-square.png" alt="navy square cover"><div class="meta"><strong>cover-pattern-navy-square.png</strong><span>1080 × 1080 · square</span><a href="exports/cover-pattern-navy-square.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-pattern-navy-portrait.png" alt="navy portrait cover"><div class="meta"><strong>cover-pattern-navy-portrait.png</strong><span>1080 × 1350 · portrait</span><a href="exports/cover-pattern-navy-portrait.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-pattern-original-square.png" alt="cream square cover"><div class="meta"><strong>cover-pattern-original-square.png</strong><span>1080 × 1080 · square</span><a href="exports/cover-pattern-original-square.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-pattern-orange-portrait.png" alt="orange portrait cover"><div class="meta"><strong>cover-pattern-orange-portrait.png</strong><span>1080 × 1350 · portrait</span><a href="exports/cover-pattern-orange-portrait.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="grid g4" style="margin-top:18px">
+        <article class="card"><img class="preview" src="exports/background-pattern-navy-square.png" alt="navy bakgrund med originalmönster"><div class="meta"><strong>background-pattern-navy-square.png</strong><span>1254 × 1254 · sourceplatta</span><a href="exports/background-pattern-navy-square.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/background-pattern-navy-alt-square.png" alt="navy alternativ bakgrund med originalmönster"><div class="meta"><strong>background-pattern-navy-alt-square.png</strong><span>1254 × 1254 · sourceplatta</span><a href="exports/background-pattern-navy-alt-square.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/background-pattern-orange-square.png" alt="orange bakgrund med originalmönster"><div class="meta"><strong>background-pattern-orange-square.png</strong><span>1254 × 1254 · sourceplatta</span><a href="exports/background-pattern-orange-square.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/background-pattern-swap-square.png" alt="bakgrund med bytta färger i originalmönstret"><div class="meta"><strong>background-pattern-swap-square.png</strong><span>1254 × 1254 · färgbyte</span><a href="exports/background-pattern-swap-square.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="section-head" style="margin-top:46px"><div><p class="eyebrow">Quotes · korta slogans</p><h2>Färdiga budskap</h2></div><p>Korta slogans i Baloo 2 för kampanjer, sociala medier och annonser. Varje slogan finns som wide och square där det passar.</p></div>
+      <div class="grid g4">
+        <article class="card"><img class="preview" src="exports/quote-navy-mat-fran-stan.png" alt="quote cover Mat från stan Hem till dig"><div class="meta"><strong>quote-navy-mat-fran-stan.png</strong><span>Mat från stan. Hem till dig.</span><a href="exports/quote-navy-mat-fran-stan.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/quote-navy-din-stad.png" alt="quote cover Din stad Din mat Ditt tempo"><div class="meta"><strong>quote-navy-din-stad.png</strong><span>Din stad. Din mat. Ditt tempo.</span><a href="exports/quote-navy-din-stad.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/quote-orange-gott-pa-vag.png" alt="quote cover Gott på väg"><div class="meta"><strong>quote-orange-gott-pa-vag.png</strong><span>Gott på väg.</span><a href="exports/quote-orange-gott-pa-vag.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/quote-orange-smaker.png" alt="quote cover Fler smaker Mindre krångel"><div class="meta"><strong>quote-orange-smaker.png</strong><span>Fler smaker. Mindre krångel.</span><a href="exports/quote-orange-smaker.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/quote-cream-favoriter.png" alt="quote cover Hela stans favoriter"><div class="meta"><strong>quote-cream-favoriter.png</strong><span>Hela stans favoriter.</span><a href="exports/quote-cream-favoriter.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/quote-cream-langtar.png" alt="quote cover Maten du längtar efter"><div class="meta"><strong>quote-cream-langtar.png</strong><span>Maten du längtar efter.</span><a href="exports/quote-cream-langtar.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/quote-navy-smak.png" alt="quote cover Smak som kommer hem"><div class="meta"><strong>quote-navy-smak.png</strong><span>Smak som kommer hem.</span><a href="exports/quote-navy-smak.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/quote-cream-svepning.png" alt="quote cover En svepning från din nästa favorit"><div class="meta"><strong>quote-cream-svepning.png</strong><span>En svepning från din nästa favorit.</span><a href="exports/quote-cream-svepning.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="section-head" style="margin-top:46px"><div><p class="eyebrow">Clean · fria ytor</p><h2>Lägg på eget material</h2></div><p>Helt rena bakgrunder utan logga, slogan eller annan text. Använd dem som bas för egna bilder, restaurangkampanjer, deals eller annan grafik.</p></div>
+      <div class="grid g4">
+        <article class="card"><img class="preview" src="exports/cover-clean-pattern-navy-wide.png" alt="ren navy cover med originalmönster"><div class="meta"><strong>cover-clean-pattern-navy-wide.png</strong><span>1920 × 1080 · fri navyyta</span><a href="exports/cover-clean-pattern-navy-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-clean-pattern-navy-alt-wide.png" alt="ren navy alternativ cover"><div class="meta"><strong>cover-clean-pattern-navy-alt-wide.png</strong><span>1920 × 1080 · fri navyyta</span><a href="exports/cover-clean-pattern-navy-alt-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-clean-pattern-orange-wide.png" alt="ren orange cover med originalmönster"><div class="meta"><strong>cover-clean-pattern-orange-wide.png</strong><span>1920 × 1080 · fri orangeyta</span><a href="exports/cover-clean-pattern-orange-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-clean-pattern-original-wide.png" alt="ren cream cover med originalmönster"><div class="meta"><strong>cover-clean-pattern-original-wide.png</strong><span>1920 × 1080 · fri creamyta</span><a href="exports/cover-clean-pattern-original-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-clean-pattern-navy-square.png" alt="ren navy square cover"><div class="meta"><strong>cover-clean-pattern-navy-square.png</strong><span>1254 × 1254 · square</span><a href="exports/cover-clean-pattern-navy-square.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-clean-pattern-navy-portrait.png" alt="ren navy portrait cover"><div class="meta"><strong>cover-clean-pattern-navy-portrait.png</strong><span>1080 × 1350 · portrait</span><a href="exports/cover-clean-pattern-navy-portrait.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-clean-pattern-orange-square.png" alt="ren orange square cover"><div class="meta"><strong>cover-clean-pattern-orange-square.png</strong><span>1254 × 1254 · square</span><a href="exports/cover-clean-pattern-orange-square.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-clean-pattern-original-portrait.png" alt="ren cream portrait cover"><div class="meta"><strong>cover-clean-pattern-original-portrait.png</strong><span>1080 × 1350 · portrait</span><a href="exports/cover-clean-pattern-original-portrait.png" download>Ladda ner</a></div></article>
+      </div>
+    </div></section>
+
+    <section id="day01" style="background:var(--cream)"><div class="wrap">
+      <div class="section-head"><div><p class="eyebrow">HTML · fem communityfrågor</p><h2>Vi börjar med att lyssna</h2></div><p>Den nya versionen är byggd direkt i HTML/CSS. Därför kan texten granskas och justeras utan att gamla PNG-layouter blandas in.</p></div>
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap">
+        <div><strong>facebook-lund-fragor.html</strong><span style="display:block;margin-top:6px;color:var(--muted)">Fem kvadratiska posters · Baloo 2 · endast smiley-symbol i motivet</span></div>
+        <a class="button" href="facebook-lund-fragor.html">Öppna HTML-posters</a>
+      </div>
+    </div></section>
+
+    <section id="text-safe"><div class="wrap">
+      <div class="section-head"><div><p class="eyebrow">05 · Text-safe ytor</p><h2>Bakgrunder för egen text</h2></div><p>Tomma covers med samma organiska pattern men en lugn, inramad yta för rubriker, deals och restaurangbudskap. Ingen logga och ingen färdig text ligger i dessa filer.</p></div>
+      <div class="grid g4">
+        <article class="card"><span class="tag">cream · navy text</span><img class="preview" src="exports/text-safe-pattern-original-wide.png" alt="text-safe cream wide bakgrund"><div class="meta"><strong>text-safe-pattern-original-wide.png</strong><span>1920 × 1080 · navy text</span><a href="exports/text-safe-pattern-original-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><span class="tag">navy · cream text</span><img class="preview" src="exports/text-safe-pattern-navy-wide.png" alt="text-safe navy wide bakgrund"><div class="meta"><strong>text-safe-pattern-navy-wide.png</strong><span>1920 × 1080 · cream text</span><a href="exports/text-safe-pattern-navy-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><span class="tag">orange · navy text</span><img class="preview" src="exports/text-safe-pattern-orange-wide.png" alt="text-safe orange wide bakgrund"><div class="meta"><strong>text-safe-pattern-orange-wide.png</strong><span>1920 × 1080 · navy text</span><a href="exports/text-safe-pattern-orange-wide.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/text-safe-pattern-swap-wide.png" alt="text-safe cream wide färgvariant"><div class="meta"><strong>text-safe-pattern-swap-wide.png</strong><span>1920 × 1080 · navy text</span><a href="exports/text-safe-pattern-swap-wide.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="grid g4" style="margin-top:18px">
+        <article class="card"><img class="preview" src="exports/text-safe-pattern-navy-story.png" alt="text-safe navy story bakgrund"><div class="meta"><strong>text-safe-pattern-navy-story.png</strong><span>1080 × 1920 · story/reels</span><a href="exports/text-safe-pattern-navy-story.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/text-safe-pattern-original-story.png" alt="text-safe cream story bakgrund"><div class="meta"><strong>text-safe-pattern-original-story.png</strong><span>1080 × 1920 · story/reels</span><a href="exports/text-safe-pattern-original-story.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-clean-pattern-orange-story.png" alt="tom orange story cover"><div class="meta"><strong>cover-clean-pattern-orange-story.png</strong><span>1080 × 1920 · helt tom</span><a href="exports/cover-clean-pattern-orange-story.png" download>Ladda ner</a></div></article>
+        <article class="card"><img class="preview" src="exports/cover-clean-pattern-original-story.png" alt="tom cream story cover"><div class="meta"><strong>cover-clean-pattern-original-story.png</strong><span>1080 × 1920 · helt tom</span><a href="exports/cover-clean-pattern-original-story.png" download>Ladda ner</a></div></article>
+      </div>
+      <div class="note"><strong>Textplacering:</strong> håll rubriken inne i den inramade panelen. Lägg aldrig text över de mörka eller orange hörnformerna om du inte använder den angivna kontrastfärgen.</div>
+    </div></section>
+
+    <section id="rules"><div class="wrap">
+      <div class="section-head"><div><p class="eyebrow">06 · Brandregler</p><h2>Håll allt samlat</h2></div><p>Det här är de strikta reglerna för typografi, kontrast och framtida annonser, posters och sociala medier.</p></div>
+      <div class="grid g2">
+        <div>
+          <div class="rule"><span class="number">1</span><p><strong>Behåll gemenerna.</strong><br>Standard är alltid <b>viaeats</b>, inte VIA EATS eller ViaEats.</p></div>
+          <div class="rule"><span class="number">2</span><p><strong>Ändra inte symbolens form.</strong><br>Ingen rotation, stretch, glow eller skugga på bilen, påsen eller smileyn.</p></div>
+          <div class="rule"><span class="number">3</span><p><strong>Baloo 2 är obligatoriskt.</strong><br>All synlig varumärkestext ska använda <b>Baloo 2 ExtraBold</b> från <code>Baloo2-VariableFont_wght.ttf</code>. Använd aldrig systemfont, Arial eller Inter i exporter.</p></div>
+          <div class="rule"><span class="number">4</span><p><strong>Orange bakgrund kräver disciplin.</strong><br>På orange <code>#F04F1A</code> får navy <code>#0A2340</code> bara användas för stor displaytext eller etiketter. Vanlig brödtext ska ligga på en cream <code>text-safe</code>-panel. Vit, cream och orange-light är förbjudna som vanlig brödtext direkt på orange.</p></div>
+        </div>
+        <div>
+          <div class="rule"><span class="number">5</span><p><strong>Cream kräver navy text.</strong><br>På cream <code>#FEF7F0</code> används navy för rubriker och brödtext. Orange får bara vara accent eller stor displaytext.</p></div>
+          <div class="rule"><span class="number">6</span><p><strong>Navy kräver cream/vit text.</strong><br>På navy <code>#0A2340</code> används cream eller vit text. Navy och slate får aldrig läggas på navy.</p></div>
+          <div class="rule"><span class="number">7</span><p><strong>Ge märket luft.</strong><br>Minst en symbolhöjd runt logotypen i små banners och poster.</p></div>
+          <div class="rule"><span class="number">8</span><p><strong>Exportera från rätt format.</strong><br>Square till feed, portrait till Instagram, story till Reels och covers till respektive plattform.</p></div>
+        </div>
+      </div>
+      <div class="note"><strong>Kontrastcheck:</strong> vanlig text ska ha minst 4.5:1 kontrast, stor rubrik minst 3:1. När du är osäker använder du en <code>text-safe-pattern-*</code>-bakgrund och följer textfärgen i filnamnet/HTML-kortet.</div>
+      <div class="swatches" style="margin-top:32px"><div class="swatch"><div class="color" style="background:#0A2340"></div><p><b>Navy</b><code>#0A2340</code></p></div><div class="swatch"><div class="color" style="background:#F04F1A"></div><p><b>Orange</b><code>#F04F1A</code></p></div><div class="swatch"><div class="color" style="background:#FEF7F0;border-bottom:1px solid var(--line)"></div><p><b>Cream</b><code>#FEF7F0</code></p></div><div class="swatch"><div class="color" style="background:#FFA24D"></div><p><b>Orange light</b><code>#FFA24D</code></p></div><div class="swatch"><div class="color" style="background:#5A6472"></div><p><b>Slate</b><code>#5A6472</code></p></div></div>
+    </div></section>
+  </main>
+  <footer>viaeats · logo & kampanjbibliotek · alla masterfiler finns i <code>Logotyp/</code></footer>
+</body>
+</html>
