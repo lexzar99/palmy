@@ -6,7 +6,7 @@ export interface CourierRow {
   email: string;
   phone?: string | null;
   city: string;
-  vehicle: "BIKE" | "CAR";
+  vehicle: "BIKE" | "EBIKE" | "CAR";
   online: boolean;
   isActive: boolean;
   currentLat?: number | null;
@@ -25,7 +25,7 @@ export interface CourierApplication {
   email: string;
   phone?: string | null;
   city: string;
-  vehicle: "BIKE" | "CAR";
+  vehicle: "BIKE" | "EBIKE" | "CAR";
   message?: string | null;
   status: "PENDING" | "APPROVED" | "REJECTED";
   createdAt: string;
@@ -37,7 +37,7 @@ export interface CreateCourierPayload {
   password: string;
   phone?: string;
   city?: string;
-  vehicle?: "BIKE" | "CAR";
+  vehicle?: "BIKE" | "EBIKE" | "CAR";
   personalNumber?: string;
   address?: string;
   payoutAccount?: string;
@@ -67,7 +67,7 @@ export interface CourierDetail {
     email: string;
     phone?: string | null;
     city: string;
-    vehicle: "BIKE" | "CAR";
+    vehicle: "BIKE" | "EBIKE" | "CAR";
     ratePerKm: number;
     isActive: boolean;
     profileImageUrl?: string | null;

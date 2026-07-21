@@ -187,19 +187,6 @@ router.post('/session/stop', requireCourier, async (req: CourierRequest, res) =>
   res.json({ ok: true });
 });
 
-// Kurirens fordonsval synkas till servern — dispatch-motorns ETA-simulering
-// räknar på Courier.vehicle, så ett lokalt val i appen som inte synkas ger
-// fel hastighetsmodell vid tilldelning. EBIKE sparas som eget värde men
-// behandlas som cykel i ETA-modellen (allt utom CAR är cykelfart).
-router.post('/vehicle', requireCourier, async (req: CourierRequest, res) => {
-  const vehicle = String((req.body || {}).vehicle || '').toUpperCase();
-  if (!['BIKE', 'EBIKE', 'CAR'].includes(vehicle)) {
-    return res.status(400).json({ error: 'Ogiltigt fordon' });
-  }
-  await prisma.courier.update({ where: { id: req.courier.id }, data: { vehicle } });
-  res.json({ ok: true, vehicle });
-});
-
 router.get('/jobs', requireCourier, async (req: CourierRequest, res) => {
   try {
     const courier = req.courier;
@@ -939,7 +926,7 @@ adminCourierRouter.post('/', async (req: AuthRequest, res) => {
         passwordHash: await bcrypt.hash(String(password), 12),
         phone: phone || null,
         city: city || 'Lund',
-        vehicle: vehicle === 'CAR' ? 'CAR' : 'BIKE',
+        vehicle: ['BIKE', 'EBIKE', 'CAR'].includes(String(vehicle).toUpperCase()) ? String(vehicle).toUpperCase() : 'BIKE',
         personalNumber: personalNumber || null,
         address: address || null,
         payoutAccount: payoutAccount || null,
@@ -964,7 +951,13 @@ adminCourierRouter.patch('/:id', async (req: AuthRequest, res) => {
   if (isActive !== undefined) data.isActive = Boolean(isActive);
   if (ratePerKm !== undefined) data.ratePerKm = Math.round(Number(ratePerKm) * 100);
   if (city !== undefined) data.city = String(city);
-  if (vehicle !== undefined) data.vehicle = vehicle === 'CAR' ? 'CAR' : 'BIKE';
+  // Fordonet ägs av ADMIN (kurirer kan inte ändra det själva) — det styr
+  // dispatch-motorns hastighetsmodell. EBIKE sparas som eget värde men
+  // behandlas som cykel i ETA-modellen (allt utom CAR är cykelfart).
+  if (vehicle !== undefined) {
+    const v = String(vehicle).toUpperCase();
+    data.vehicle = ['BIKE', 'EBIKE', 'CAR'].includes(v) ? v : 'BIKE';
+  }
   if (phone !== undefined) data.phone = phone || null;
   // Inloggnings-ändringar (super-admin): byt e-post och/eller sätt nytt
   // lösenord åt kuriren ("glömt lösenord"-flödet sköts av admin — kurirer har

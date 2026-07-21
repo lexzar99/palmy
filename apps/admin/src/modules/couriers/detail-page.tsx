@@ -15,7 +15,7 @@ import {
   type CourierDeliveryExportRow,
 } from "@/modules/couriers/api";
 import { OrderDetailsModal } from "@/modules/orders/page";
-import { Badge, Button, EmptyState, ErrorPanel, Input, LoadingPanel, MetricCard, PageHeader, Surface, Tabs } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Input, LoadingPanel, MetricCard, PageHeader, Select, Surface, Tabs } from "@/shared/components/ui";
 import { LiveMap } from "@/shared/components/live-map";
 import { formatCurrency, formatDateTime } from "@/shared/utils/format";
 
@@ -126,6 +126,16 @@ export function CourierDetailPage({ id }: { id: string }) {
     onError: () => setLoginSaved(null),
   });
 
+  // Fordonet ägs av ADMIN (styr dispatch-motorns hastighetsmodell) — kurirer
+  // kan inte ändra det själva i appen.
+  const saveVehicle = useMutation({
+    mutationFn: (vehicle: string) => updateCourier(id, { vehicle }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: courierDetailQueryKey(id) });
+      qc.invalidateQueries({ queryKey: couriersQueryKey });
+    },
+  });
+
   // Utbetalningsunderlag: levererade ordrar i valt intervall (ingen 50-tak).
   const range = rangeFor(period, customFrom, customTo);
   const deliveriesQ = useQuery({
@@ -152,7 +162,7 @@ export function CourierDetailPage({ id }: { id: string }) {
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase())
     .join("");
-  const vehicleLabel = profile.vehicle === "CAR" ? "Bil" : "Cykel";
+  const vehicleLabel = profile.vehicle === "CAR" ? "Bil" : profile.vehicle === "EBIKE" ? "Elcykel" : "Cykel";
   // "{phone} · {fordon} · {zon}" — zon = stad (närmaste fält i datan).
   const subtitle = [profile.phone || null, vehicleLabel, profile.city || null].filter(Boolean).join(" · ");
   // Aktiv order = en accepterad men ej levererad leverans (härlett, ej fabricerat).
@@ -281,7 +291,24 @@ export function CourierDetailPage({ id }: { id: string }) {
             <InfoRow label="E-post" value={profile.email} />
             <InfoRow label="Telefon" value={profile.phone || "–"} />
             <InfoRow label="Stad" value={profile.city} />
-            <InfoRow label="Fordon" value={<span className="inline-flex items-center gap-1.5"><Vehicle size={15} /> {profile.vehicle === "CAR" ? "Bil" : "Cykel"}</span>} />
+            <InfoRow
+              label="Fordon"
+              value={
+                <span className="inline-flex items-center gap-2">
+                  <Vehicle size={15} />
+                  <Select
+                    value={profile.vehicle}
+                    disabled={saveVehicle.isPending}
+                    onChange={(e) => saveVehicle.mutate(e.target.value)}
+                    className="w-auto"
+                  >
+                    <option value="BIKE">Cykel</option>
+                    <option value="EBIKE">Elcykel</option>
+                    <option value="CAR">Bil</option>
+                  </Select>
+                </span>
+              }
+            />
             <InfoRow label="km-pris" value={`${profile.ratePerKm} kr/km`} />
             <InfoRow label="Registrerad" value={formatDateTime(profile.createdAt)} />
             <InfoRow label="Personnummer" value={profile.personalNumber || "–"} />

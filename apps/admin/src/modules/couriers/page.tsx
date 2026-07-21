@@ -22,10 +22,10 @@ import { formatCurrency, formatDate } from "@/shared/utils/format";
 
 type Tab = "couriers" | "applications" | "rates";
 
-const VehiclePill = ({ v }: { v: "BIKE" | "CAR" }) => (
+const VehiclePill = ({ v }: { v: "BIKE" | "EBIKE" | "CAR" }) => (
   <Badge tone="neutral">
     {v === "CAR" ? <Car size={12} style={{ marginRight: 4, display: "inline" }} /> : <Bike size={12} style={{ marginRight: 4, display: "inline" }} />}
-    {v === "CAR" ? "Bil" : "Cykel"}
+    {v === "CAR" ? "Bil" : v === "EBIKE" ? "Elcykel" : "Cykel"}
   </Badge>
 );
 
@@ -55,7 +55,7 @@ function CreateCourierModal({ open, onClose }: { open: boolean; onClose: () => v
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const save = useMutation({
-    mutationFn: () => createCourier({ ...f, vehicle: f.vehicle as "BIKE" | "CAR" }),
+    mutationFn: () => createCourier({ ...f, vehicle: f.vehicle as "BIKE" | "EBIKE" | "CAR" }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["couriers"] });
       onClose();
@@ -85,7 +85,7 @@ function CreateCourierModal({ open, onClose }: { open: boolean; onClose: () => v
           <Field label="E-post (inloggning)"><Input type="email" value={f.email} onChange={set("email")} /></Field>
           <Field label="Lösenord"><Input value={f.password} onChange={set("password")} /></Field>
           <Field label="Stad"><Input value={f.city} onChange={set("city")} /></Field>
-          <Field label="Fordon"><Select value={f.vehicle} onChange={set("vehicle")}><option value="BIKE">Cykel</option><option value="CAR">Bil</option></Select></Field>
+          <Field label="Fordon"><Select value={f.vehicle} onChange={set("vehicle")}><option value="BIKE">Cykel</option><option value="EBIKE">Elcykel</option><option value="CAR">Bil</option></Select></Field>
           <Field label="Personnummer"><Input value={f.personalNumber} onChange={set("personalNumber")} /></Field>
           <Field label="km-ersättning (kr/km)"><Input type="number" value={f.ratePerKm} onChange={(e) => setF((p) => ({ ...p, ratePerKm: Number(e.target.value) }))} /></Field>
           <div className="md:col-span-2"><Field label="Adress"><Input value={f.address} onChange={set("address")} /></Field></div>
