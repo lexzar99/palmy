@@ -735,18 +735,21 @@ adminCourierRouter.get('/', async (_req: AuthRequest, res) => {
   const today = startOfToday();
   const since30 = new Date(Date.now() - 30 * 864e5);
   // Optimerat: 1 findMany + 2 groupBy istället för 3 queries per kurir (N+1).
-  const [couriers, todayGroups, groups30] = await Promise.all([
+  const [couriers, todayGroups, groups30, activeGroups] = await Promise.all([
     prisma.courier.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.delivery.groupBy({ by: ['courierId'], where: { status: 'DELIVERED', deliveredAt: { gte: today } }, _sum: { payOre: true }, _count: { _all: true } }),
     prisma.delivery.groupBy({ by: ['courierId'], where: { status: 'DELIVERED', deliveredAt: { gte: since30 } }, _sum: { payOre: true }, _count: { _all: true } }),
+    prisma.delivery.groupBy({ by: ['courierId'], where: { status: { in: ACTIVE_STATUSES as any } }, _count: { _all: true } }),
   ]);
   const todayMap = new Map(todayGroups.map((g) => [g.courierId, g]));
   const map30 = new Map(groups30.map((g) => [g.courierId, g]));
+  const activeMap = new Map(activeGroups.map((g) => [g.courierId, g._count._all]));
   res.json(
     couriers.map((c) => {
       const t = todayMap.get(c.id);
       const m = map30.get(c.id);
       return {
+        activeDeliveries: activeMap.get(c.id) ?? 0,
         id: c.id,
         name: c.name,
         email: c.email,
@@ -940,14 +943,45 @@ adminCourierRouter.post('/', async (req: AuthRequest, res) => {
   }
 });
 
+// Tilldelningshistorik (DispatchOffer-loggen): vilka uppdrag kuriren erbjudits
+// av smart-dispatchen och utfallet (accepterat/avböjt/utgånget/öppnat för
+// alla). Driver "Tilldelningar"-fliken i admin-detaljvyn. Tabellen kan saknas
+// i produktion tills DB-patchen körts → svara då tomt istället för 500.
+adminCourierRouter.get('/:id/offers', async (req: AuthRequest, res) => {
+  try {
+    const offers = await prisma.dispatchOffer.findMany({
+      where: { courierId: req.params.id },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+      include: { order: { select: { orderNumber: true, restaurant: { select: { name: true } } } } },
+    });
+    res.json(offers.map((o) => ({
+      id: o.id,
+      orderId: o.orderId,
+      orderNumber: o.order?.orderNumber ?? null,
+      restaurantName: (o.order as any)?.restaurant?.name ?? null,
+      wave: o.wave,
+      status: o.status, // OFFERED | EXPIRED | DECLINED | ACCEPTED | CANCELLED
+      score: o.score,
+      etaMin: o.etaMin,
+      createdAt: o.createdAt,
+      respondedAt: o.respondedAt,
+      expiresAt: o.expiresAt,
+    })));
+  } catch {
+    res.json([]);
+  }
+});
+
 adminCourierRouter.post('/:id/revoke', async (req: AuthRequest, res) => {
   await prisma.courier.update({ where: { id: req.params.id }, data: { tokenVersion: { increment: 1 }, online: false } });
   res.json({ ok: true });
 });
 
 adminCourierRouter.patch('/:id', async (req: AuthRequest, res) => {
-  const { isActive, ratePerKm, city, vehicle, phone, email, password } = req.body || {};
+  const { isActive, ratePerKm, city, vehicle, phone, email, password, name } = req.body || {};
   const data: any = {};
+  if (name !== undefined && String(name).trim()) data.name = String(name).trim().slice(0, 120);
   if (isActive !== undefined) data.isActive = Boolean(isActive);
   if (ratePerKm !== undefined) data.ratePerKm = Math.round(Number(ratePerKm) * 100);
   if (city !== undefined) data.city = String(city);
