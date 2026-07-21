@@ -187,6 +187,19 @@ router.post('/session/stop', requireCourier, async (req: CourierRequest, res) =>
   res.json({ ok: true });
 });
 
+// Kurirens fordonsval synkas till servern — dispatch-motorns ETA-simulering
+// räknar på Courier.vehicle, så ett lokalt val i appen som inte synkas ger
+// fel hastighetsmodell vid tilldelning. EBIKE sparas som eget värde men
+// behandlas som cykel i ETA-modellen (allt utom CAR är cykelfart).
+router.post('/vehicle', requireCourier, async (req: CourierRequest, res) => {
+  const vehicle = String((req.body || {}).vehicle || '').toUpperCase();
+  if (!['BIKE', 'EBIKE', 'CAR'].includes(vehicle)) {
+    return res.status(400).json({ error: 'Ogiltigt fordon' });
+  }
+  await prisma.courier.update({ where: { id: req.courier.id }, data: { vehicle } });
+  res.json({ ok: true, vehicle });
+});
+
 router.get('/jobs', requireCourier, async (req: CourierRequest, res) => {
   try {
     const courier = req.courier;
