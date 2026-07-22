@@ -348,7 +348,15 @@ export async function declineOffer(orderId: string, courierId: string): Promise<
   return false;
 }
 
-// Logga tabell-saknas-läget EN gång (inte per request) — annars drunknar loggen.
+// Tabellen saknas (P2021 / Postgres 42P01) → DB-patchen är inte körd. Motorn
+// degraderar till öppet läge; vi vill varna EN gång, inte spamma loggen.
+function isMissingTableError(e: unknown): boolean {
+  const code = (e as { code?: string })?.code;
+  if (code === 'P2021' || code === '42P01') return true;
+  const msg = (e as Error)?.message || '';
+  return /DispatchOffer/.test(msg) && /does not exist/i.test(msg);
+}
+
 let missingTableWarned = false;
 function warnMissingTableOnce(e: unknown) {
   if (missingTableWarned) return;
@@ -419,6 +427,7 @@ export function startDispatchEngine(): void {
     console.log('[dispatch] DISPATCH_MODE=open — smart tilldelning avstängd (broadcast-läge).');
     return;
   }
+  let sweepTimer: NodeJS.Timeout | null = null;
   const sweep = async () => {
     try {
       const stale = await prisma.dispatchOffer.findMany({
@@ -429,7 +438,16 @@ export function startDispatchEngine(): void {
       });
       for (const s of stale) await advanceDispatch(s.orderId).catch(() => null);
     } catch (e) {
-      console.warn('[dispatch] sweep fel:', (e as Error)?.message);
+      // Saknad tabell → varna en gång och STOPPA sweepern (utan tabell finns
+      // inget att sweepa; motorn kör ändå öppet läge). En redeploy efter att
+      // patchen körts startar startDispatchEngine på nytt. Övriga (transienta)
+      // fel loggas normalt men fäller inte intervallet.
+      if (isMissingTableError(e)) {
+        warnMissingTableOnce(e);
+        if (sweepTimer) { clearInterval(sweepTimer); sweepTimer = null; }
+      } else {
+        console.warn('[dispatch] sweep fel:', (e as Error)?.message);
+      }
     }
   };
   void (async () => {
@@ -442,9 +460,10 @@ export function startDispatchEngine(): void {
       for (const a of alive) armOfferTimer(a.orderId, a.expiresAt);
       await sweep();
     } catch (e) {
-      console.warn('[dispatch] init fel:', (e as Error)?.message);
+      if (isMissingTableError(e)) warnMissingTableOnce(e);
+      else console.warn('[dispatch] init fel:', (e as Error)?.message);
     }
   })();
-  setInterval(() => void sweep(), SWEEP_INTERVAL_MS);
+  sweepTimer = setInterval(() => void sweep(), SWEEP_INTERVAL_MS);
   console.log('[dispatch] Smart tilldelning aktiv (vågor à ' + OFFER_TTL_SEC + ' s, max ' + MAX_TARGETED_WAVES + ' riktade).');
 }
