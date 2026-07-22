@@ -7,7 +7,7 @@ import { economyQueryKey, getEconomy } from "@/modules/finance/api";
 import { getRestaurantOverview, patchRestaurant, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
-import { formatCurrency, formatNumber, restaurantTierLabel } from "@/shared/utils/format";
+import { formatCurrencyExact as formatCurrency, formatNumber, restaurantTierLabel } from "@/shared/utils/format";
 
 // Tier = abonnemang + placering i listan. INTE provision — provisionen styrs
 // av leveransmodellen (selfDelivery 10/20%) och sätts på restaurangen/Ekonomi.

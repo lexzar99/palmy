@@ -17,7 +17,7 @@ import {
 import { printPayoutSpec } from "@/modules/finance/spec-print";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { Badge, Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
-import { formatCurrency, formatDate, formatDateTime, orderStatusLabel, paymentStatusLabel } from "@/shared/utils/format";
+import { formatCurrencyExact as formatCurrency, formatDate, formatDateTime, orderStatusLabel, paymentStatusLabel } from "@/shared/utils/format";
 
 const mono = "ui-monospace, SFMono-Regular, Menlo, monospace";
 

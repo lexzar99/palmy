@@ -3,8 +3,8 @@ import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { computePayout, economyFromSettings, type OrderEcon } from '../lib/financeCalc';
 import {
+  FINANCE_ACCOUNTING_ORDER_FILTER,
   netPayoutOrder,
-  PAYOUT_NON_TEST_ORDER_FILTER,
   payoutRefundWindowClosesAt,
   payoutRefundWindowHours,
 } from '../lib/payoutPolicy';
@@ -60,7 +60,7 @@ router.get('/summary', async (req, res) => {
       prisma.order.findMany({
         where: {
           createdAt: { gte: start, lte: end },
-          ...PAYOUT_NON_TEST_ORDER_FILTER,
+          ...FINANCE_ACCOUNTING_ORDER_FILTER,
         },
         select: {
           restaurantId: true,
@@ -209,7 +209,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
         where: {
           restaurantId,
           createdAt: { gte: start, lte: end },
-          ...PAYOUT_NON_TEST_ORDER_FILTER,
+          ...FINANCE_ACCOUNTING_ORDER_FILTER,
         },
         select: {
           orderNumber: true,

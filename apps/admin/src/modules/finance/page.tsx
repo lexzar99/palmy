@@ -9,7 +9,7 @@ import { FinanceSettingsPage } from "@/modules/finance/settings-page";
 import { TiersPage } from "@/modules/tiers/page";
 import { DeliveryModeBadge, deliveryModeMeta } from "@/shared/components/delivery-mode";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, PageHeader, Select, Surface, Tabs } from "@/shared/components/ui";
-import { formatCurrency, formatNumber } from "@/shared/utils/format";
+import { formatCurrencyExact as formatCurrency, formatNumber } from "@/shared/utils/format";
 
 type ModeFilter = "all" | "platform" | "self";
 

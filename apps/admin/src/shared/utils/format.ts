@@ -3,6 +3,14 @@ export const formatCurrency = (value: number | null | undefined) => {
   return `${Math.round(numeric).toLocaleString("sv-SE")} kr`;
 };
 
+export const formatCurrencyExact = (value: number | null | undefined) => {
+  const numeric = Number(value || 0);
+  return `${numeric.toLocaleString("sv-SE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} kr`;
+};
+
 export const formatDateTime = (value: string | Date | null | undefined) => {
   if (!value) return "-";
   const date = new Date(value);

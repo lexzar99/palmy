@@ -17,7 +17,9 @@ import {
   payoutOrders,
   payoutRefundWindowClosesAt,
   payoutRefundWindowHours,
+  FINANCE_ACCOUNTING_ORDER_FILTER,
   PAYOUT_NON_TEST_ORDER_FILTER,
+  PAYOUT_PENDING_REFUND_PAYMENT_STATUSES,
   PAYOUT_TEST_CUSTOMER_NAME,
   PAYOUT_TEST_DISCOUNT_CODES,
   PAYOUT_TEST_PAYMENT_INTENT_ID,
@@ -63,6 +65,10 @@ assert.deepEqual(PAYOUT_NON_TEST_ORDER_FILTER, {
     },
     { customerName: { not: PAYOUT_TEST_CUSTOMER_NAME } },
   ],
+});
+assert.deepEqual(FINANCE_ACCOUNTING_ORDER_FILTER, {
+  ...PAYOUT_NON_TEST_ORDER_FILTER,
+  paymentStatus: { notIn: [...PAYOUT_PENDING_REFUND_PAYMENT_STATUSES] },
 });
 
 assert.equal(isPayoutEligibleOrder(paidDelivered), true);
