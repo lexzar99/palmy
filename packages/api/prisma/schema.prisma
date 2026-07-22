@@ -911,6 +911,10 @@ model Restaurant {
   // Manuell provisions-override i procent (t.ex. ny restaurang 5% första månaden).
   // null = använd den globala self/platform-satsen från RestaurantSettings.
   commissionPctOverride         Int?
+  // Restaurangspecifika tier-priser i ÖRE/månad. null = använd global tier-sats.
+  tierGoldFeeOverride           Int?
+  tierSilverFeeOverride         Int?
+  tierStandardFeeOverride       Int?
   devices                       RestaurantDevice[]
   pairingCodes                  DevicePairingCode[]
   categories                    Category[]

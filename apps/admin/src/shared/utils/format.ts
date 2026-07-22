@@ -46,6 +46,8 @@ export const orderStatusLabel = (status: string | null | undefined) => {
       return "På väg";
     case "DELIVERED":
       return "Levererad";
+    case "COMPLETED":
+      return "Slutförd";
     case "DELIVERY_FAILED":
       return "Misslyckad";
     case "CANCELLED":

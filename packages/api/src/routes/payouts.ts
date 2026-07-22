@@ -227,6 +227,9 @@ router.post('/', async (req: AuthRequest, res) => {
           selfDelivery: true,
           commissionPctOverride: true,
           featuredClass: true,
+          tierGoldFeeOverride: true,
+          tierSilverFeeOverride: true,
+          tierStandardFeeOverride: true,
         },
       });
       if (!restaurant) {

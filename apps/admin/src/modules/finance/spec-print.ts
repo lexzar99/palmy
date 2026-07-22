@@ -1,4 +1,5 @@
 import type { PayoutSpec } from "@/modules/finance/api";
+import { orderStatusLabel, paymentStatusLabel } from "@/shared/utils/format";
 
 const kr = (n: number) =>
   (Number(n) || 0).toLocaleString("sv-SE", { style: "currency", currency: "SEK", minimumFractionDigits: 2 });
@@ -39,7 +40,7 @@ export function printPayoutSpec(spec: PayoutSpec, manualAdjustment = 0, lateRefu
       (o) =>
         `<tr><td>#${esc(o.orderNumber)}</td><td>${day(o.createdAt)}</td><td>${
           o.type === "PICKUP" ? "Avhämtning" : "Leverans"
-        }</td><td class="num">${kr(o.total)}</td></tr>`,
+        }</td><td>${esc(orderStatusLabel(o.status))}</td><td>${esc(paymentStatusLabel(o.paymentStatus))}</td><td>${o.includedInPayout ? "Räknas" : "Ej med"}</td><td class="num">${kr(o.total)}</td></tr>`,
     )
     .join("");
 
@@ -126,8 +127,8 @@ export function printPayoutSpec(spec: PayoutSpec, manualAdjustment = 0, lateRefu
   <div class="orders">
     <h2>Ordrar i perioden</h2>
     <table>
-      <thead><tr><th>Order</th><th>Datum</th><th>Typ</th><th class="num">Summa</th></tr></thead>
-      <tbody>${orderRows || `<tr><td colspan="4" class="muted">Inga ordrar.</td></tr>`}</tbody>
+      <thead><tr><th>Order</th><th>Datum</th><th>Typ</th><th>Status</th><th>Betalning</th><th>Underlag</th><th class="num">Summa</th></tr></thead>
+      <tbody>${orderRows || `<tr><td colspan="7" class="muted">Inga ordrar.</td></tr>`}</tbody>
     </table>
   </div>
 

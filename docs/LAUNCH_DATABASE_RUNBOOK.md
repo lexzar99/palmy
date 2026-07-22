@@ -98,7 +98,9 @@ rabatt-/momskomponenter. Gör detta i ett kort underhållsfönster:
    `20260715210000_customer_soft_delete/migration.sql`, därefter
    `20260715213000_remove_customer_password_credentials/migration.sql`, därefter
    `20260715220000_payout_late_refund_recovery/migration.sql` och sist
-   `20260715223000_durable_refund_ledger/migration.sql`. Payout-filen kopierar
+   `20260715223000_durable_refund_ledger/migration.sql`. Kör därefter
+   `20260722210000_restaurant_tier_fee_overrides/migration.sql` innan API-kod
+   som läser restaurangspecifika tier-priser deployas. Payout-filen kopierar
    först varje gammal `adjustmentAmount` till `manualAdjustmentAmount` innan
    legacykolumnen tas bort. Ledgerfilen skapar inga fabricerade historiska
    refundposter.
@@ -117,7 +119,10 @@ rabatt-/momskomponenter. Gör detta i ett kort underhållsfönster:
    credentialkolumner inte längre finns. `AdminUser.password` och
    `Courier.passwordHash` är separata personal-/kurirflöden och ska finnas kvar.
    Verifiera payout-recoverytabellen, dess RESTRICT-FK/index/triggers och att
-   gamla manuella justeringar är exakt bevarade. Varje historisk `PAID` payout
+   gamla manuella justeringar är exakt bevarade. Verifiera också att
+   `Restaurant.tierGoldFeeOverride`, `Restaurant.tierSilverFeeOverride` och
+   `Restaurant.tierStandardFeeOverride` finns med nonnegative-checks. Varje
+   historisk `PAID` payout
    måste därefter tvåpersonskontrolleras mot sitt signerade underlag/audit och
    få `commissionPctSnapshot`, `feeVatPctSnapshot` och
    `selfDeliverySnapshot` backfillade. Ändra inga belopp. Om ett exakt historiskt

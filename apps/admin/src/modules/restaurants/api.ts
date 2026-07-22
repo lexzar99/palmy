@@ -74,6 +74,9 @@ export interface RestaurantDetail {
   featuredClass: number;
   selfDelivery?: boolean;
   commissionPctOverride?: number | null;
+  tierGoldFeeOverride?: number | null;
+  tierSilverFeeOverride?: number | null;
+  tierStandardFeeOverride?: number | null;
   tags: string[];
   openingHours: Record<string, unknown>;
   internalInfo?: string | null;
@@ -149,6 +152,9 @@ export interface RestaurantFormPayload {
   vatPercent?: number | null;
   selfDelivery?: boolean;
   commissionPctOverride?: number | null;
+  tierGoldFeeOverride?: number | null;
+  tierSilverFeeOverride?: number | null;
+  tierStandardFeeOverride?: number | null;
 }
 
 export const restaurantsQueryKey = ["restaurants", "overview"] as const;

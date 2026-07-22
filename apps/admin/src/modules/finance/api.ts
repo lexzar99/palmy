@@ -31,6 +31,7 @@ export interface FinanceRow {
   feeVat: number;
   payout: number; // netto att betala ut (≥ 0)
   owed: number; // restaurangen är skyldig oss (faktureras) — > 0 ersätter payout
+  refunds: number;
   usesFrozenSnapshot: boolean;
   status: string | null;
   payoutReference: string | null;
@@ -46,6 +47,7 @@ export interface FinanceSummary {
     feeVat: number;
     payout: number;
     owed: number;
+    refunds: number;
     orderCount: number;
   };
   rows: FinanceRow[];
@@ -55,6 +57,11 @@ export interface PayoutSpecOrder {
   orderNumber: string;
   createdAt: string;
   type: string;
+  status: string;
+  paymentStatus: string;
+  includedInPayout: boolean;
+  originalTotal: number;
+  refundAmount: number;
   total: number;
   deliveryFee: number;
   tip: number;
@@ -72,6 +79,9 @@ export interface PayoutSpec {
     featuredClass: number;
     selfDelivery: boolean;
     commissionPctOverride: number | null;
+    tierGoldFeeOverride: number | null;
+    tierSilverFeeOverride: number | null;
+    tierStandardFeeOverride: number | null;
   };
   company: { name: string | null; organizationNumber: string | null; address: string | null };
   period: { from: string; to: string };
@@ -85,6 +95,8 @@ export interface PayoutSpec {
   };
   breakdown: {
     orderCount: number;
+    originalGrossTotal: number;
+    refunds: number;
     grossTotal: number;
     foodBase: number;
     deliveryFee: number;
@@ -161,5 +173,11 @@ export const updateEconomyRates = (payload: Partial<EconomyRates>) =>
 
 export const setRestaurantDelivery = (
   restaurantId: string,
-  payload: { selfDelivery?: boolean; commissionPctOverride?: number | null },
+  payload: {
+    selfDelivery?: boolean;
+    commissionPctOverride?: number | null;
+    tierGoldFeeOverride?: number | null;
+    tierSilverFeeOverride?: number | null;
+    tierStandardFeeOverride?: number | null;
+  },
 ) => apiPatch<unknown>(`/restaurants/${restaurantId}`, payload);

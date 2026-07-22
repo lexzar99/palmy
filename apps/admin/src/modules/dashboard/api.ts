@@ -27,6 +27,9 @@ export interface ControlCenterRestaurantSnapshot {
   featuredLabel: string;
   selfDelivery: boolean;
   commissionPct: number;
+  tierGoldFeeOverride?: number | null;
+  tierSilverFeeOverride?: number | null;
+  tierStandardFeeOverride?: number | null;
   isOpen: boolean;
   scheduledOpenNow: boolean;
   acceptingOrdersMode: AcceptingOrdersMode;

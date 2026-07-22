@@ -114,6 +114,21 @@ assert.equal(selfDeliveryPayout.commissionOre, 680);
 assert.equal(selfDeliveryPayout.feeVatOre, 170);
 assert.equal(selfDeliveryPayout.payoutOre, 7_150);
 
+const customTierPayout = computePayout(
+  [],
+  {
+    selfDelivery: false,
+    commissionPctOverride: null,
+    featuredClass: 1,
+    tierGoldFeeOverride: 12_345,
+  },
+  DEFAULT_ECONOMY,
+);
+assert.equal(customTierPayout.tierLabel, 'Guld');
+assert.equal(customTierPayout.subscriptionOre, 12_345);
+assert.equal(customTierPayout.feeVatOre, 3_086);
+assert.equal(customTierPayout.owedOre, 15_431);
+
 // Settlement rows are derived from the authoritative orders and the manual
 // adjustment only; client-provided gross/commission/payout values have no role.
 const settlement = buildPayoutMoneySnapshot(

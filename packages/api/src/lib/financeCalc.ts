@@ -51,15 +51,22 @@ export function economyFromSettings(row: any | null | undefined): EconomySetting
   };
 }
 
+const tierFee = (globalFee: number, override?: number | null) =>
+  override != null && Number.isFinite(override) ? Math.max(0, Math.round(override)) : globalFee;
+
 // featuredClass: 1=Guld, 2=Silver, 3=Standard (default), 0=Dold → standard-pris.
-export function tierInfo(featuredClass: number | null | undefined, s: EconomySettings) {
+export function tierInfo(
+  featuredClass: number | null | undefined,
+  s: EconomySettings,
+  r: Pick<RestaurantEcon, 'tierGoldFeeOverride' | 'tierSilverFeeOverride' | 'tierStandardFeeOverride'> = {},
+) {
   switch (featuredClass) {
     case 1:
-      return { label: 'Guld', subscriptionOre: s.tierGoldFee };
+      return { label: 'Guld', subscriptionOre: tierFee(s.tierGoldFee, r.tierGoldFeeOverride) };
     case 2:
-      return { label: 'Silver', subscriptionOre: s.tierSilverFee };
+      return { label: 'Silver', subscriptionOre: tierFee(s.tierSilverFee, r.tierSilverFeeOverride) };
     default:
-      return { label: 'Standard', subscriptionOre: s.tierStandardFee };
+      return { label: 'Standard', subscriptionOre: tierFee(s.tierStandardFee, r.tierStandardFeeOverride) };
   }
 }
 
@@ -67,6 +74,10 @@ export interface RestaurantEcon {
   selfDelivery: boolean;
   commissionPctOverride: number | null;
   featuredClass: number | null;
+  // Per-restaurangens prisavtal i öre/månad. null = använd global tier-sats.
+  tierGoldFeeOverride?: number | null;
+  tierSilverFeeOverride?: number | null;
+  tierStandardFeeOverride?: number | null;
 }
 
 /** Effektiv provisionssats i %: override vinner, annars self/platform-default. */
@@ -117,7 +128,7 @@ export function computePayout(
 
   const commissionPct = resolveCommissionPct(r, s);
   const commissionOre = Math.round((foodBase * commissionPct) / 100);
-  const tier = tierInfo(r.featuredClass, s);
+  const tier = tierInfo(r.featuredClass, s, r);
   const subscriptionOre = tier.subscriptionOre;
   const feeVatOre = Math.round(((commissionOre + subscriptionOre) * s.vatPlatformFeePct) / 100);
 

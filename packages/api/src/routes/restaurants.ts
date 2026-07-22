@@ -89,6 +89,10 @@ async function upsertRestaurantAdminAccount(input: {
 
 const kr = (amount: number) => sekToOre(amount, 'amountSek');
 const fromOre = (amount?: number | null) => oreToSek(amount);
+const tierOverrideToOre = (value: unknown, field: string): number | null => {
+  if (value === null || value === '') return null;
+  return sekToOre(Number(value), field);
+};
 // Extra options may intentionally adjust a base price downwards (for example
 // a smaller pizza size). Product/delivery amounts are non-negative, but an
 // addon is a signed delta and must not make the whole restaurant response 500.
@@ -169,6 +173,10 @@ const restaurantSchema = z.object({
   selfDelivery: z.boolean().optional(),
   // Provisions-override i %. null = använd global self/platform-sats.
   commissionPctOverride: z.number().nullable().optional(),
+  // Restaurangspecifika tier-priser i kr/mån. null = använd global tier-sats.
+  tierGoldFeeOverride: z.any().nullable().optional(),
+  tierSilverFeeOverride: z.any().nullable().optional(),
+  tierStandardFeeOverride: z.any().nullable().optional(),
   // ISO datetime sträng – när restaurangen ska öppna igen efter en paus.
   // null = ingen pause aktiv. Sätt till null för att avbryta pause.
   pausedUntil: z.string().datetime().nullable().optional(),
@@ -255,6 +263,9 @@ const formatRestaurant = (
   vatPercent: normalizeFoodVatPercent(restaurant.vatPercent, 6),
   selfDelivery: restaurant.selfDelivery ?? false,
   commissionPctOverride: restaurant.commissionPctOverride ?? null,
+  tierGoldFeeOverride: restaurant.tierGoldFeeOverride == null ? null : fromOre(restaurant.tierGoldFeeOverride),
+  tierSilverFeeOverride: restaurant.tierSilverFeeOverride == null ? null : fromOre(restaurant.tierSilverFeeOverride),
+  tierStandardFeeOverride: restaurant.tierStandardFeeOverride == null ? null : fromOre(restaurant.tierStandardFeeOverride),
   createdAt: restaurant.createdAt,
   updatedAt: restaurant.updatedAt,
   // Geo-data — används av admin-form (lat/lng/placeId visas read-only efter
@@ -606,6 +617,19 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       tags: JSON.stringify(payload.tags ?? []),
       openingHours,
       internalInfo: payload.internalInfo,
+      selfDelivery: payload.selfDelivery,
+      commissionPctOverride: payload.commissionPctOverride == null
+        ? payload.commissionPctOverride
+        : Math.max(0, Math.min(100, Math.round(Number(payload.commissionPctOverride)))),
+      tierGoldFeeOverride: payload.tierGoldFeeOverride !== undefined
+        ? tierOverrideToOre(payload.tierGoldFeeOverride, 'tierGoldFeeOverride')
+        : undefined,
+      tierSilverFeeOverride: payload.tierSilverFeeOverride !== undefined
+        ? tierOverrideToOre(payload.tierSilverFeeOverride, 'tierSilverFeeOverride')
+        : undefined,
+      tierStandardFeeOverride: payload.tierStandardFeeOverride !== undefined
+        ? tierOverrideToOre(payload.tierStandardFeeOverride, 'tierStandardFeeOverride')
+        : undefined,
     };
     if (payload.latitude !== undefined) data.latitude = payload.latitude === null ? null : Number(payload.latitude);
     if (payload.longitude !== undefined) data.longitude = payload.longitude === null ? null : Number(payload.longitude);
@@ -882,6 +906,15 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if ((payload as any).commissionPctOverride !== undefined) {
       const v = (payload as any).commissionPctOverride;
       data.commissionPctOverride = v === null || v === '' ? null : Math.max(0, Math.min(100, Math.round(Number(v))));
+    }
+    if ((payload as any).tierGoldFeeOverride !== undefined) {
+      data.tierGoldFeeOverride = tierOverrideToOre((payload as any).tierGoldFeeOverride, 'tierGoldFeeOverride');
+    }
+    if ((payload as any).tierSilverFeeOverride !== undefined) {
+      data.tierSilverFeeOverride = tierOverrideToOre((payload as any).tierSilverFeeOverride, 'tierSilverFeeOverride');
+    }
+    if ((payload as any).tierStandardFeeOverride !== undefined) {
+      data.tierStandardFeeOverride = tierOverrideToOre((payload as any).tierStandardFeeOverride, 'tierStandardFeeOverride');
     }
 
     // Pause: pausedUntil = ISO datum eller null. Avbruten pause = null.

@@ -44,6 +44,7 @@ router.get('/summary', async (req, res) => {
     const [settingsRow, restaurants, orders, persisted] = await Promise.all([
       prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
       prisma.restaurant.findMany({
+        where: { archivedAt: null },
         select: {
           id: true,
           name: true,
@@ -52,6 +53,9 @@ router.get('/summary', async (req, res) => {
           featuredClass: true,
           selfDelivery: true,
           commissionPctOverride: true,
+          tierGoldFeeOverride: true,
+          tierSilverFeeOverride: true,
+          tierStandardFeeOverride: true,
         },
         orderBy: { name: 'asc' },
       }),
@@ -166,7 +170,7 @@ router.get('/summary', async (req, res) => {
         tierStandardFee: fromOre(economy.tierStandardFee),
       },
       totals,
-      rows: rows.sort((a, b) => b.payout - a.payout),
+      rows,
     });
   } catch (error) {
     console.error('Finance summary error:', error);
@@ -195,13 +199,14 @@ router.get('/payout/:restaurantId', async (req, res) => {
           featuredClass: true,
           selfDelivery: true,
           commissionPctOverride: true,
+          tierGoldFeeOverride: true,
+          tierSilverFeeOverride: true,
+          tierStandardFeeOverride: true,
         },
       }),
       prisma.order.findMany({
         where: {
           restaurantId,
-          status: { in: [...PAYOUT_ORDER_STATUSES] },
-          paymentStatus: { in: [...PAYOUT_PAYMENT_STATUSES] },
           createdAt: { gte: start, lte: end },
           NOT: [...PAYOUT_TEST_ORDER_EXCLUSIONS],
         },
@@ -293,6 +298,9 @@ router.get('/payout/:restaurantId', async (req, res) => {
         featuredClass: restaurant.featuredClass ?? 3,
         selfDelivery: restaurant.selfDelivery,
         commissionPctOverride: restaurant.commissionPctOverride,
+        tierGoldFeeOverride: restaurant.tierGoldFeeOverride == null ? null : fromOre(restaurant.tierGoldFeeOverride),
+        tierSilverFeeOverride: restaurant.tierSilverFeeOverride == null ? null : fromOre(restaurant.tierSilverFeeOverride),
+        tierStandardFeeOverride: restaurant.tierStandardFeeOverride == null ? null : fromOre(restaurant.tierStandardFeeOverride),
       },
       company: {
         name: s.companyName || null,
@@ -326,16 +334,22 @@ router.get('/payout/:restaurantId', async (req, res) => {
         foodVatPct: b.foodVatPct,
         foodVat: fromOre(b.foodVatOre),
       },
-      orders: eligibleOrders.map(({ order, net }) => ({
-        orderNumber: order.orderNumber,
-        createdAt: order.createdAt,
-        type: order.type,
-        originalTotal: fromOre(net.originalTotal),
-        refundAmount: fromOre(net.refundAmount),
-        total: fromOre(net.total),
-        deliveryFee: fromOre(net.deliveryFee),
-        tip: fromOre(net.tipAmount),
-      })),
+      orders: orders.map((order) => {
+        const net = netPayoutOrder(order);
+        return {
+          orderNumber: order.orderNumber,
+          createdAt: order.createdAt,
+          type: order.type,
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          includedInPayout: Boolean(net),
+          originalTotal: fromOre(net?.originalTotal ?? order.total),
+          refundAmount: fromOre(net?.refundAmount ?? order.refundAmount),
+          total: fromOre(net?.total ?? order.total),
+          deliveryFee: fromOre(net?.deliveryFee ?? order.deliveryFee),
+          tip: fromOre(net?.tipAmount ?? order.tipAmount),
+        };
+      }),
       persisted: persisted
         ? {
             status: persisted.status,

@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Shield } from "lucide-react";
+import { economyQueryKey, getEconomy } from "@/modules/finance/api";
 import { getRestaurantOverview, patchRestaurant, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { formatCurrency, formatNumber, restaurantTierLabel } from "@/shared/utils/format";
 
@@ -50,16 +51,41 @@ const TIER_CARDS = [
 function TierModal({ restaurant, open, onClose }: { restaurant: ControlCenterRestaurantSnapshot | null; open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [featuredClass, setFeaturedClass] = useState(restaurant?.featuredClass || 3);
+  const [goldPrice, setGoldPrice] = useState("");
+  const [silverPrice, setSilverPrice] = useState("");
+  const [standardPrice, setStandardPrice] = useState("");
+  const economy = useQuery({ queryKey: economyQueryKey, queryFn: getEconomy, enabled: open });
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open || !restaurant) return;
     setFeaturedClass(restaurant.featuredClass || 3);
+    setGoldPrice(restaurant.tierGoldFeeOverride == null ? "" : String(restaurant.tierGoldFeeOverride));
+    setSilverPrice(restaurant.tierSilverFeeOverride == null ? "" : String(restaurant.tierSilverFeeOverride));
+    setStandardPrice(restaurant.tierStandardFeeOverride == null ? "" : String(restaurant.tierStandardFeeOverride));
   }, [open, restaurant]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const toNullableNumber = (value: string) => {
+    const trimmed = value.trim();
+    const parsed = Number(trimmed);
+    return trimmed === "" || !Number.isFinite(parsed) ? null : Math.max(0, parsed);
+  };
+
+  const previewSubscription =
+    featuredClass === 1
+      ? toNullableNumber(goldPrice) ?? economy.data?.tierGoldFee ?? restaurant?.subscriptionEstimate ?? 0
+      : featuredClass === 2
+        ? toNullableNumber(silverPrice) ?? economy.data?.tierSilverFee ?? restaurant?.subscriptionEstimate ?? 0
+        : toNullableNumber(standardPrice) ?? economy.data?.tierStandardFee ?? restaurant?.subscriptionEstimate ?? 0;
+
   const saveMutation = useMutation({
-    mutationFn: () => patchRestaurant(restaurant!.id, { featuredClass }),
+    mutationFn: () => patchRestaurant(restaurant!.id, {
+      featuredClass,
+      tierGoldFeeOverride: toNullableNumber(goldPrice),
+      tierSilverFeeOverride: toNullableNumber(silverPrice),
+      tierStandardFeeOverride: toNullableNumber(standardPrice),
+    }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       await queryClient.invalidateQueries({ queryKey: ["restaurants"] });
@@ -88,7 +114,7 @@ function TierModal({ restaurant, open, onClose }: { restaurant: ControlCenterRes
       <div className="space-y-5">
         <div className="grid gap-4 md:grid-cols-3">
           <MetricCard label="Månadsförsäljning" value={formatCurrency(restaurant.monthRevenue)} />
-          <MetricCard label="Abonnemang (mån)" value={formatCurrency(restaurant.subscriptionEstimate)} />
+          <MetricCard label="Abonnemang (mån)" value={formatCurrency(previewSubscription)} />
           <MetricCard label="Väntande ordrar" value={formatNumber(restaurant.pendingOrders)} />
         </div>
         <Field label="Tier-klass">
@@ -99,6 +125,35 @@ function TierModal({ restaurant, open, onClose }: { restaurant: ControlCenterRes
             <option value="0">Dold</option>
           </Select>
         </Field>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field label="Guldpris">
+            <Input
+              type="number"
+              min={0}
+              value={goldPrice}
+              placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierGoldFee)}` : "Globalt"}
+              onChange={(event) => setGoldPrice(event.target.value)}
+            />
+          </Field>
+          <Field label="Silverpris">
+            <Input
+              type="number"
+              min={0}
+              value={silverPrice}
+              placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierSilverFee)}` : "Globalt"}
+              onChange={(event) => setSilverPrice(event.target.value)}
+            />
+          </Field>
+          <Field label="Standardpris">
+            <Input
+              type="number"
+              min={0}
+              value={standardPrice}
+              placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierStandardFee)}` : "Globalt"}
+              onChange={(event) => setStandardPrice(event.target.value)}
+            />
+          </Field>
+        </div>
         <Surface className="px-5 py-5">
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Effekt</p>
           <div className="mt-3 grid gap-2 text-sm text-[var(--text-secondary)]">

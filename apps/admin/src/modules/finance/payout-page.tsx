@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Printer } from "lucide-react";
 import {
+  economyQueryKey,
   financeSummaryQueryKey,
+  getEconomy,
   getPayoutSpec,
   payoutSpecQueryKey,
   setRestaurantDelivery,
@@ -15,7 +17,7 @@ import {
 import { printPayoutSpec } from "@/modules/finance/spec-print";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { Badge, Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
-import { formatCurrency, formatDate, formatDateTime } from "@/shared/utils/format";
+import { formatCurrency, formatDate, formatDateTime, orderStatusLabel, paymentStatusLabel } from "@/shared/utils/format";
 
 const mono = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
@@ -68,11 +70,15 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
   const [payoutReference, setPayoutReference] = useState("");
   const [selfDelivery, setSelfDelivery] = useState(false);
   const [override, setOverride] = useState<string>("");
+  const [goldPrice, setGoldPrice] = useState("");
+  const [silverPrice, setSilverPrice] = useState("");
+  const [standardPrice, setStandardPrice] = useState("");
 
   const spec = useQuery({
     queryKey: payoutSpecQueryKey(restaurantId, periodFrom, periodTo),
     queryFn: () => getPayoutSpec(restaurantId, periodFrom, periodTo),
   });
+  const economy = useQuery({ queryKey: economyQueryKey, queryFn: getEconomy });
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -84,6 +90,9 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
     if (spec.data?.restaurant) {
       setSelfDelivery(spec.data.restaurant.selfDelivery);
       setOverride(spec.data.restaurant.commissionPctOverride == null ? "" : String(spec.data.restaurant.commissionPctOverride));
+      setGoldPrice(spec.data.restaurant.tierGoldFeeOverride == null ? "" : String(spec.data.restaurant.tierGoldFeeOverride));
+      setSilverPrice(spec.data.restaurant.tierSilverFeeOverride == null ? "" : String(spec.data.restaurant.tierSilverFeeOverride));
+      setStandardPrice(spec.data.restaurant.tierStandardFeeOverride == null ? "" : String(spec.data.restaurant.tierStandardFeeOverride));
     }
   }, [spec.data]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -144,12 +153,20 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
   });
   const payoutError = (savePayout.error as { response?: { data?: { error?: string } }; message?: string } | null)
     ?.response?.data?.error || (savePayout.error as Error | null)?.message;
+  const nullableNonNegativeNumber = (value: string) => {
+    const trimmed = value.trim();
+    const parsed = Number(trimmed);
+    return trimmed === "" || !Number.isFinite(parsed) ? null : Math.max(0, parsed);
+  };
 
   const saveDelivery = useMutation({
     mutationFn: () =>
       setRestaurantDelivery(restaurantId, {
         selfDelivery,
-        commissionPctOverride: override.trim() === "" ? null : Number(override),
+        commissionPctOverride: nullableNonNegativeNumber(override),
+        tierGoldFeeOverride: nullableNonNegativeNumber(goldPrice),
+        tierSilverFeeOverride: nullableNonNegativeNumber(silverPrice),
+        tierStandardFeeOverride: nullableNonNegativeNumber(standardPrice),
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: financeSummaryQueryKey(periodFrom, periodTo) });
@@ -250,8 +267,37 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                 <Input type="number" value={override} placeholder="–" onChange={(e) => setOverride(e.target.value)} />
               </Field>
               <Button onClick={() => saveDelivery.mutate()}>
-                {saveDelivery.isPending ? <Loader2 size={16} className="animate-spin" /> : "Uppdatera modell"}
+                {saveDelivery.isPending ? <Loader2 size={16} className="animate-spin" /> : "Uppdatera ekonomi"}
               </Button>
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <Field label="Guldpris">
+                <Input
+                  type="number"
+                  min={0}
+                  value={goldPrice}
+                  placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierGoldFee)}` : "Globalt"}
+                  onChange={(e) => setGoldPrice(e.target.value)}
+                />
+              </Field>
+              <Field label="Silverpris">
+                <Input
+                  type="number"
+                  min={0}
+                  value={silverPrice}
+                  placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierSilverFee)}` : "Globalt"}
+                  onChange={(e) => setSilverPrice(e.target.value)}
+                />
+              </Field>
+              <Field label="Standardpris">
+                <Input
+                  type="number"
+                  min={0}
+                  value={standardPrice}
+                  placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierStandardFee)}` : "Globalt"}
+                  onChange={(e) => setStandardPrice(e.target.value)}
+                />
+              </Field>
             </div>
           </Surface>
 
@@ -316,6 +362,9 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                       <th>Order</th>
                       <th>Datum</th>
                       <th>Typ</th>
+                      <th>Status</th>
+                      <th>Betalning</th>
+                      <th>Underlag</th>
                       <th className="text-right">Summa</th>
                     </tr>
                   </thead>
@@ -327,6 +376,13 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                         <td>
                           <Badge tone={o.type === "PICKUP" ? "neutral" : "info"}>
                             {o.type === "PICKUP" ? "Avhämtning" : "Leverans"}
+                          </Badge>
+                        </td>
+                        <td>{orderStatusLabel(o.status)}</td>
+                        <td>{paymentStatusLabel(o.paymentStatus)}</td>
+                        <td>
+                          <Badge tone={o.includedInPayout ? "success" : "neutral"}>
+                            {o.includedInPayout ? "Räknas" : "Ej med"}
                           </Badge>
                         </td>
                         <td className="text-right font-semibold tabular-nums" style={{ fontFamily: mono }}>
